@@ -388,8 +388,10 @@ mod real_python {
         };
         let prefix = fs::canonicalize(&venv).unwrap();
         assert_eq!(receipt.stop, Stop::Exit);
-        assert_eq!(receipt.prefix, prefix.to_str().unwrap());
-        assert_eq!(receipt.stdout.trim(), prefix.to_str().unwrap());
+        // macOS reports the same directory through /var or /private/var.
+        let same = |text: &str| fs::canonicalize(text.trim()).unwrap() == prefix;
+        assert!(same(&receipt.prefix), "prefix {}", receipt.prefix);
+        assert!(same(&receipt.stdout), "stdout {}", receipt.stdout);
         assert_eq!(receipt.interpreter, interpreter.to_str().unwrap());
         let _ = fs::remove_dir_all(&dir);
     }
