@@ -13,7 +13,7 @@ use std::{
 
 pub const OUTPUT_LIMIT: usize = 65_536;
 const MAX_PROGRAM_CHARS: usize = 65_536;
-const MAX_REQUEST_ID: usize = 128;
+pub const MAX_REQUEST_ID: usize = 128;
 const MAX_ENV_ID: usize = 64;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

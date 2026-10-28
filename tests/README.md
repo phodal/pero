@@ -8,7 +8,7 @@
 
 | 路径 | 层级 | 命令 | 证明什么 |
 | --- | --- | --- | --- |
-| 各 crate 的 `#[cfg(test)]`，以及 `crates/pero-worker/tests/remote.rs` | L0 | `npm test` | `pero-contracts`、`pero-runtime`、`pero-host`、`pero-ui`、`pero-worker`：Unicode echo、语言偏好、流式队列、工具行折叠、Worker 租约与假协调服务 |
+| 各 crate 的 `#[cfg(test)]`，以及 `crates/pero-codemode/tests/runs.rs`、`crates/pero-worker/tests/remote.rs` | L0 | `npm test` | `pero-contracts`、`pero-codemode`、`pero-runtime`、`pero-host`、`pero-ui`、`pero-worker`：Unicode echo、语言偏好、代码运行收据、流式队列、工具行折叠、Worker 租约与假协调服务 |
 | `runtime/acp_lifecycle.rs` | L0 | `npm test` | ACP 会话状态机。由 `crates/pero-runtime/src/acp/session.rs` 以 `#[path]` 编入，不经过 UI |
 | `runtime/lifecycle-agent.mjs` | L0 | 同上 | 状态机专用 fixture。场景由 `PERO_FIXTURE_SCENARIO` 选择，不读仓库、不发网络 |
 | `contracts/host.mjs` | L0 | `npm run test:contracts` | 真实 `pero-host --stdio` 的每一行 JSONL 符合 `protocol/generated/host.schema.json` |

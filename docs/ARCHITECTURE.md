@@ -4,7 +4,7 @@ OpenPero 面向研究者、Agent 与计算环境，围绕 Project 组织上下�
 
 当前首版接线以 [ADR 0001](adr/0001-electron-gpui-bootstrap.md) 和
 [ADR 0002](adr/0002-remote-task-dispatch.md) 为准：`server/` 是 Go 控制面，
-`crates/pero-runtime` 持有 Rust ACP 接入，`crates/pero-worker` 是独立远程执行入口，
+`crates/pero-runtime` 持有 Rust ACP 接入，`crates/pero-codemode` 持有受监护的代码运行，`crates/pero-worker` 是独立远程执行入口，
 `protocol/` 保存版本化契约。以下较早的 Go daemon、React 和 `cloud/` 目录规划
 保留为背景，不作为并行实现另一套执行器的依据。
 
@@ -16,6 +16,7 @@ OpenPero 面向研究者、Agent 与计算环境，围绕 Project 组织上下�
 pero/
 ├── crates/
 │   ├── pero-contracts/
+│   ├── pero-codemode/  # 受监护的代码运行
 │   ├── pero-host/      # stdio JSONL Host
 │   ├── pero-runtime/   # ACP 会话
 │   ├── pero-ui/        # GPUI Wasm 工作台

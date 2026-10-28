@@ -4724,6 +4724,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
+name = "pero-codemode"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "pero-contracts"
 version = "0.1.0"
 dependencies = [
@@ -4735,12 +4746,10 @@ dependencies = [
 name = "pero-host"
 version = "0.1.0"
 dependencies = [
- "libc",
+ "pero-codemode",
  "pero-contracts",
  "pero-runtime",
- "serde",
  "serde_json",
- "sha2 0.10.9",
 ]
 
 [[package]]

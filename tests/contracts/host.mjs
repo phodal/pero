@@ -2,7 +2,7 @@
 // line in both directions against protocol/generated/host.schema.json.
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { mkdtempSync, writeFileSync, readFileSync, statSync, rmSync, chmodSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, statSync, rmSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -145,25 +145,17 @@ try {
   host.send({ action: 'run_code', id: 'run-missing', env_id: 'local', program });
   const unavailable = await host.next('error', (e) => e.request_id === 'run-missing');
   if (unavailable.text !== 'unavailable') failures.push(`code run without an allowlist returned ${unavailable.text}`);
-  const fake = resolve(temp, 'fake-python');
-  const log = resolve(temp, 'fake-python.log');
-  writeFileSync(fake, `#!/bin/sh
-if [ "$1" = "-I" ] && [ "$2" = "-c" ]; then
-  printf '%s\\n' /opt/science deadbeef
-  exit 0
-fi
-printf '%s\\n' "$2" >> ${JSON.stringify(log)}
-echo ok
-exit 0
-`);
-  chmodSync(fake, 0o755);
+  const fake = resolve(root, 'target/debug', process.platform === 'win32' ? 'pero-code-fake.exe' : 'pero-code-fake');
+  const log = resolve(temp, 'invocations.log');
+  const prefix = process.platform === 'win32' ? 'C:\\science' : '/opt/science';
+  if (!existsSync(fake)) failures.push(`missing test interpreter ${fake}`);
   const stored = preferences();
   stored.code_envs = [{ id: 'local', interpreter: fake }];
   writeFileSync(env.PERO_SETTINGS_PATH, JSON.stringify(stored));
   host.send({ action: 'run_code', id: 'run-1', env_id: 'local', program });
   const ran = await host.next('code_run', (e) => e.request_id === 'run-1');
   const digest = createHash('sha256').update(program).digest('hex');
-  if (ran.text !== 'exit' || ran.data.stop !== 'exit' || ran.data.exit_code !== 0 || ran.data.stdout !== 'ok\n' || ran.data.prefix !== '/opt/science' || ran.data.marker_digest !== 'deadbeef' || ran.data.truncated !== false || ran.data.program_digest !== digest) {
+  if (ran.text !== 'exit' || ran.data.stop !== 'exit' || ran.data.exit_code !== 0 || ran.data.stdout !== 'ok\n' || ran.data.prefix !== prefix || ran.data.marker_digest !== 'deadbeef' || ran.data.truncated !== false || ran.data.program_digest !== digest) {
     failures.push(`code run receipt mismatch ${JSON.stringify(ran.data)}`);
   }
   host.send({ action: 'run_code', id: 'run-1', env_id: 'local', program });

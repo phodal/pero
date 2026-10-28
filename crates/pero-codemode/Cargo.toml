@@ -1,0 +1,28 @@
+[package]
+name = "pero-codemode"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10.9"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.191"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_JobObjects",
+] }
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[[bin]]
+name = "pero-code-fake"
+path = "src/bin/pero-code-fake.rs"
+test = false

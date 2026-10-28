@@ -16,7 +16,7 @@ not configured. Setup and invocation instructions live in [Bazel quality gates](
 
 1. `npm run build`: native Host, GPUI WASM, web assets, and the Electron shell.
 2. `npm run check`: TypeScript, generated DESIGN.md theme, locale catalogs, and generated contracts.
-3. `npm test`: Rust tests for `pero-contracts`, `pero-runtime`, `pero-host`, `pero-ui`, and `pero-worker`, including the ACP lifecycle cases in `tests/runtime/`.
+3. `npm test`: Rust tests for `pero-contracts`, `pero-codemode`, `pero-runtime`, `pero-host`, `pero-ui`, and `pero-worker`, including the ACP lifecycle cases in `tests/runtime/`.
 4. `npm run test:contracts`: every Host stdio JSONL line against `protocol/generated/host.schema.json`.
 5. `npm run test:e2e`: real Electron against the ACP fixture. Workbench session behavior, then the tool-call matrix.
 6. `npm run test:i18n`: shared catalogs in real Electron, including live switching, persistence after restart, native menus, and untranslated user content. Source rules are in [locales/README.md](../../locales/README.md).

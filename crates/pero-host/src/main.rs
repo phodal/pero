@@ -1,14 +1,9 @@
 use pero_contracts::{
     EchoRequest, HostEvent, RemoteConnectionPreference, SetRemoteSettingsRequest,
 };
-use std::{
-    io::{self, BufRead, Write},
-    sync::mpsc,
-    thread,
-};
+use std::io::{self, BufRead, Write};
 mod agents;
-mod code_exec;
-mod code_run;
+mod code;
 
 fn emit(event: HostEvent) -> io::Result<()> {
     let mut stdout = io::stdout().lock();
@@ -33,15 +28,7 @@ fn main() -> io::Result<()> {
             )
             .into()
         });
-    let (code_tx, code_rx) = mpsc::channel();
-    let code = code_exec::CodeHost::open(code_exec::paths_from_env(settings_path.clone()), code_tx);
-    thread::spawn(move || {
-        for event in code_rx {
-            if emit(event).is_err() {
-                break;
-            }
-        }
-    });
+    let code_mode = code::open(settings_path.clone());
     emit(HostEvent::new("settings", None, locale))?;
     emit(HostEvent::message("ready", None, "status.host_ready"))?;
     for line in io::stdin().lock().lines() {
@@ -49,7 +36,7 @@ fn main() -> io::Result<()> {
         let value: serde_json::Value = serde_json::from_str(&line).unwrap_or_default();
         if let Some(action) = value.get("action").and_then(|action| action.as_str()) {
             if matches!(action, "run_code" | "cancel_code") {
-                code.handle(value, agents.workspace());
+                code::handle(&code_mode, value, agents.workspace());
                 continue;
             }
             agents.dispatch(value);
