@@ -105,7 +105,7 @@
     if(b.dataset.source&&!state.busy){if(state.source!==b.dataset.source){if(state.runs.length){toast(tr('已切换示例来源，上一轮结果已重置。'));}reset(b.dataset.source);}}
     if(b.dataset.contribution){state.contribution=b.dataset.contribution;renderContributions();}
     if(b.dataset.deployment){$$('[data-deployment]').forEach(el=>el.setAttribute('aria-pressed',String(el===b)));$('#deployment-description').textContent=b.dataset.deployment==='self'?tr('自部署协调服务，连接受信任的执行节点。'):tr('托管协调服务仍在规划。即使服务在线，离线节点也不会继续计算。');}
-    if(b.hasAttribute('data-open-lab')){$('#lab-details').open=true;requestAnimationFrame(()=>window.dispatchEvent(new Event('resize')));}
+    if(b.hasAttribute('data-open-lab')) requestAnimationFrame(()=>window.dispatchEvent(new Event('resize')));
     if(b.dataset.templateIndex!==undefined)openTemplate(Number(b.dataset.templateIndex));
     const action=b.dataset.collabAction;if(!action)return;
     if(action==='close')dialog.close();
@@ -116,7 +116,6 @@
     if(action==='accept'&&state.reviewed&&state.runs.length===3&&state.runs.every(resultCheck)){state.accepted=true;state.phase=4;markTask('review','done',tr('维护者已验收 · 已纳入本页项目'));event(tr('你已确认纳入本页项目：3 组运行 + 1 份复核记录。没有关闭真实 Issue 或发布研究结论。'));dialog.close();render();toast(tr('本页项目记录已更新；导出文件可保留这次结果。'));}
   });
   if('ResizeObserver' in window)new ResizeObserver(drawDistributedChart).observe($('#distributed-chart'));else window.addEventListener('resize',drawDistributedChart);
-  $('#lab-details').addEventListener('toggle',()=>{if($('#lab-details').open)window.dispatchEvent(new Event('resize'));});
   window.OpenPeroDistributedDemo=Object.freeze({snapshot:()=>JSON.parse(JSON.stringify(bundle()))});
   reset();renderContributions();
 })();
