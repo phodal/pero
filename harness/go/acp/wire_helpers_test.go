@@ -17,7 +17,11 @@ import (
 )
 
 // scriptStep is one provider turn: a tool call, or the final answer when Tool is empty.
-type scriptStep struct{ Tool, Arguments string }
+type scriptStep struct {
+	Tool, Arguments string
+	// Build, when set, derives the arguments from the tool results seen so far.
+	Build func(results []string) string
+}
 
 // scriptedProvider drives the real Agent loop without a model: it replays steps
 // and records what the Agent offered and what tools returned.
@@ -79,7 +83,11 @@ func (p *scriptedProvider) adapter() harness.Adapter {
 		if step.Tool == "" {
 			return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
 		}
-		return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, Name: step.Tool, ToolCallID: harness.ToolCallID("call-" + string(rune('a'+p.next))), Arguments: json.RawMessage(step.Arguments)}}}}, nil
+		arguments := step.Arguments
+		if step.Build != nil {
+			arguments = step.Build(p.results)
+		}
+		return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, Name: step.Tool, ToolCallID: harness.ToolCallID("call-" + string(rune('a'+p.next))), Arguments: json.RawMessage(arguments)}}}}, nil
 	})
 }
 

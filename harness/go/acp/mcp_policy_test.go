@@ -82,23 +82,23 @@ func TestToolPolicyDecidesWhatTheModelSeesAndWhatNeedsApproval(t *testing.T) {
 		denied    string // text the model must read instead of a result
 	}{
 		{name: "read tool needs no approval and gets the pinned project", mutations: "deny",
-			steps: []scriptStep{{lookup, `{"q":"x"}`}}, offered: []string{lookup}, missing: []string{store, purge, "list_mcp_resources", "read_mcp_resource"},
+			steps: []scriptStep{{Tool: lookup, Arguments: `{"q":"x"}`}}, offered: []string{lookup}, missing: []string{store, purge, "list_mcp_resources", "read_mcp_resource"},
 			wantLog: `lookup:{"project":"p","q":"x"}`},
 		{name: "mutation is hidden when denied", mutations: "deny",
-			steps: []scriptStep{{store, `{}`}}, offered: []string{lookup}, missing: []string{store}, denied: "unknown tool"},
+			steps: []scriptStep{{Tool: store, Arguments: `{}`}}, offered: []string{lookup}, missing: []string{store}, denied: "unknown tool"},
 		{name: "approved mutation runs with pinned privacy arguments", mutations: "approve",
-			steps: []scriptStep{{store, `{"title":"t"}`}}, approval: outcomeAllow, offered: []string{lookup, store}, missing: []string{purge},
+			steps: []scriptStep{{Tool: store, Arguments: `{"title":"t"}`}}, approval: outcomeAllow, offered: []string{lookup, store}, missing: []string{purge},
 			wantLog: `store:{"capture_prompt":false,"title":"t"}`},
 		{name: "rejected mutation never reaches the server", mutations: "approve",
-			steps: []scriptStep{{store, `{}`}}, approval: outcomeReject, denied: "tool approval rejected"},
+			steps: []scriptStep{{Tool: store, Arguments: `{}`}}, approval: outcomeReject, denied: "tool approval rejected"},
 		{name: "cancelled approval never reaches the server", mutations: "approve",
-			steps: []scriptStep{{store, `{}`}}, approval: map[string]any{"outcome": "cancelled"}, denied: "tool approval cancelled"},
+			steps: []scriptStep{{Tool: store, Arguments: `{}`}}, approval: map[string]any{"outcome": "cancelled"}, denied: "tool approval cancelled"},
 		{name: "an argument the policy refuses is rejected without asking for approval", mutations: "approve",
-			steps: []scriptStep{{store, `{"capture_prompt":true}`}}, denied: `"capture_prompt" must be false`},
+			steps: []scriptStep{{Tool: store, Arguments: `{"capture_prompt":true}`}}, denied: `"capture_prompt" must be false`},
 		{name: "model cannot widen a read beyond the pinned project", mutations: "deny",
-			steps: []scriptStep{{lookup, `{"all_projects":true}`}}, denied: `"all_projects" is not permitted`},
+			steps: []scriptStep{{Tool: lookup, Arguments: `{"all_projects":true}`}}, denied: `"all_projects" is not permitted`},
 		{name: "unlisted tool stays unreachable even when the model names it", mutations: "approve",
-			steps: []scriptStep{{purge, `{}`}}, denied: "unknown tool"},
+			steps: []scriptStep{{Tool: purge, Arguments: `{}`}}, denied: "unknown tool"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			provider := &scriptedProvider{}
@@ -160,7 +160,7 @@ func TestServerWriteFailureIsReportedAndNeverReplayed(t *testing.T) {
 			w := startWire(t, bootScripted(t, provider))
 			f := newFixtureServer(t, "approve", false)
 			w.permit = func(map[string]any) map[string]any { return outcomeAllow }
-			provider.reset(scriptStep{"mcp__memory__store", `{"mode":"` + mode + `"}`}, scriptStep{})
+			provider.reset(scriptStep{Tool: "mcp__memory__store", Arguments: `{"mode":"` + mode + `"}`}, scriptStep{})
 			session, rpcError := w.newSession(t.TempDir(), f.entry)
 			if rpcError != nil {
 				t.Fatal(rpcError)
@@ -196,7 +196,7 @@ func TestCancellationStopsAnInFlightMutationAndTheChildExits(t *testing.T) {
 	w := startWire(t, bootScripted(t, provider))
 	f := newFixtureServer(t, "approve", false)
 	w.permit = func(map[string]any) map[string]any { return outcomeAllow }
-	provider.reset(scriptStep{"mcp__memory__store", `{"mode":"block"}`}, scriptStep{})
+	provider.reset(scriptStep{Tool: "mcp__memory__store", Arguments: `{"mode":"block"}`}, scriptStep{})
 	session, rpcError := w.newSession(t.TempDir(), f.entry)
 	if rpcError != nil {
 		t.Fatal(rpcError)
@@ -227,7 +227,7 @@ func TestCancelWhileApprovalIsPendingNeverReachesTheServer(t *testing.T) {
 		w.notify("session/cancel", map[string]any{"sessionId": session})
 		return map[string]any{"outcome": "cancelled"}
 	}
-	provider.reset(scriptStep{"mcp__memory__store", `{}`}, scriptStep{})
+	provider.reset(scriptStep{Tool: "mcp__memory__store", Arguments: `{}`}, scriptStep{})
 	result := w.prompt(session, "write")
 	if result["stopReason"] != "cancelled" {
 		t.Errorf("stopReason=%v", result["stopReason"])
