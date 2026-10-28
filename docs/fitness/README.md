@@ -25,4 +25,6 @@ not configured. Setup and invocation instructions live in [Bazel quality gates](
 
 Run Electron suites one at a time; they take native input focus. Chromium IME automation checks composition events. It does not certify a physical macOS input method, a signed package, or real tool execution. The fixture agent emits scripted ACP output and does not read the repository, run commands, or fetch URLs.
 
+Optional Engram long-term memory (default off), its tool policy and the fixture versus real-Engram verification: [engram-memory.md](engram-memory.md).
+
 Current conversation and ACP UI acceptance: [conversation-verification.md](conversation-verification.md). The bootstrap-only boundaries above are historical; actual provider replies and remaining limits are recorded separately.
