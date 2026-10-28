@@ -18,7 +18,13 @@ import (
 
 // Tool is an MCP contribution body; admission and execution remain in the owning registry.
 type Tool struct {
-	Schema  harnessmodel.ToolSchema
+	Schema harnessmodel.ToolSchema
+	// RequiresApproval is set only from an operator ToolPolicy, never from
+	// server annotations.
+	RequiresApproval bool
+	// Admit checks arguments against the operator policy before approval is
+	// requested. Nil for tools without a policy.
+	Admit   func(json.RawMessage) error
 	Execute func(context.Context, json.RawMessage) (harnesstool.Result, error)
 }
 
@@ -37,7 +43,7 @@ func ListTools(ctx context.Context, session *mcp.ClientSession) ([]*mcp.Tool, er
 	}
 }
 
-func buildMCPTools(session *mcp.ClientSession, serverName string, remotes []*mcp.Tool, callTimeout time.Duration) ([]Tool, error) {
+func buildMCPTools(session *mcp.ClientSession, serverName string, remotes []*mcp.Tool, callTimeout time.Duration, policy *ToolPolicy) ([]Tool, error) {
 	definitions := make([]Tool, 0, len(remotes))
 	publicNames := make(map[string]string, len(remotes))
 	for _, remote := range remotes {
@@ -46,6 +52,13 @@ func buildMCPTools(session *mcp.ClientSession, serverName string, remotes []*mcp
 		}
 		if !modelVisible(remote.Meta) {
 			continue
+		}
+		var rule ToolRule
+		if policy != nil {
+			if !policy.Exposes(remote.Name) {
+				continue
+			}
+			rule, _ = policy.Rule(remote.Name)
 		}
 		schema, marshalErr := json.Marshal(remote.InputSchema)
 		if marshalErr != nil {
@@ -60,6 +73,13 @@ func buildMCPTools(session *mcp.ClientSession, serverName string, remotes []*mcp
 		tool := Tool{
 			Schema: harnessmodel.ToolSchema{Name: name, Description: remote.Description, InputSchema: schema},
 			Execute: func(callCtx context.Context, raw json.RawMessage) (harnesstool.Result, error) {
+				if policy != nil {
+					admitted, admitErr := rule.Admit(raw)
+					if admitErr != nil {
+						return harnesstool.Result{IsError: true, Content: []harnessmodel.ContentBlock{{Type: harnessmodel.BlockText, Text: admitErr.Error()}}}, nil
+					}
+					raw = admitted
+				}
 				arguments := any(map[string]any{})
 				if len(raw) > 0 {
 					if err := json.Unmarshal(raw, &arguments); err != nil {
@@ -74,6 +94,10 @@ func buildMCPTools(session *mcp.ClientSession, serverName string, remotes []*mcp
 				}
 				return fromMCPResult(result), nil
 			},
+		}
+		if policy != nil {
+			tool.RequiresApproval = rule.RequiresApproval()
+			tool.Admit = func(raw json.RawMessage) error { _, err := rule.Admit(raw); return err }
 		}
 		definitions = append(definitions, tool)
 	}

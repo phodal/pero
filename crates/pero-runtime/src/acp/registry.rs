@@ -1,3 +1,4 @@
+use super::memory::{MemoryConfig, MemoryState, SERVER_NAME};
 use agent_client_protocol::schema::v1::{McpCapabilities, McpServer};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -19,6 +20,9 @@ pub struct AgentConfig {
     /// Trusted operator configuration only; never inferred from prompts or discovered.
     #[serde(default, deserialize_with = "deserialize_mcp_servers")]
     pub mcp_servers: Vec<McpServer>,
+    /// Optional Engram memory. Absent or `enabled: false` changes nothing.
+    #[serde(default)]
+    pub memory: Option<MemoryConfig>,
 }
 impl AgentConfig {
     pub fn available(&self) -> bool {
@@ -44,6 +48,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             env: BTreeMap::new(),
             model: None,
             mcp_servers: vec![],
+            memory: None,
         },
         AgentConfig {
             id: "claude".into(),
@@ -56,6 +61,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             env: BTreeMap::new(),
             model: None,
             mcp_servers: vec![],
+            memory: None,
         },
         AgentConfig {
             id: "grok".into(),
@@ -65,6 +71,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             env: grok_env,
             model: None,
             mcp_servers: vec![],
+            memory: None,
         },
     ];
     let file = std::env::var_os("PERO_AGENTS_FILE")
@@ -121,7 +128,29 @@ impl AgentConfig {
                 return Err("Invalid or duplicate MCP server name".into());
             }
         }
+        if let Some(memory) = self.memory.as_ref().filter(|m| m.enabled) {
+            memory.validate()?;
+        }
         Ok(())
+    }
+
+    /// The `mcpServers` list for `session/new`: the operator's servers plus
+    /// Engram when memory is enabled. An enabled configuration whose binary is
+    /// missing is an error here, before any agent process is started.
+    pub(crate) fn session_mcp_servers(&self) -> Result<Vec<McpServer>, String> {
+        let mut servers = self.mcp_servers.clone();
+        let Some(memory) = self.memory.as_ref().filter(|m| m.enabled) else {
+            return Ok(servers);
+        };
+        memory.validate()?;
+        if memory.state() == MemoryState::MissingBinary {
+            return Err("Memory is enabled but the configured Engram binary is not available".into());
+        }
+        if servers.iter().any(|s| matches!(s, McpServer::Stdio(s) if s.name == SERVER_NAME)) {
+            return Err("Memory server name conflicts with a configured MCP server".into());
+        }
+        servers.push(memory.mcp_server()?);
+        Ok(servers)
     }
 
     pub(crate) fn validate_mcp_capabilities(

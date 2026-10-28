@@ -1,0 +1,84 @@
+{
+  "name": "engram",
+  "command": "{{ENGRAM_BIN}}",
+  "args": [
+    "mcp",
+    "--tools=mem_search,mem_get_observation,mem_context,mem_save,mem_session_summary"
+  ],
+  "env": [
+    {
+      "name": "HOME",
+      "value": "{{DATA_DIR}}"
+    },
+    {
+      "name": "ENGRAM_DATA_DIR",
+      "value": "{{DATA_DIR}}"
+    },
+    {
+      "name": "ENGRAM_PROJECT",
+      "value": "{{PROJECT}}"
+    },
+    {
+      "name": "ENGRAM_CLOUD_AUTOSYNC",
+      "value": "0"
+    },
+    {
+      "name": "ENGRAM_CLOUD_SERVER",
+      "value": ""
+    },
+    {
+      "name": "ENGRAM_CLOUD_TOKEN",
+      "value": ""
+    }
+  ],
+  "_meta": {
+    "pero.dev/mcp-server": {
+      "toolPolicy": {
+        "mutations": "approve",
+        "tools": [
+          {
+            "name": "mem_search",
+            "forbid": [
+              "project",
+              "all_projects"
+            ]
+          },
+          {
+            "name": "mem_get_observation"
+          },
+          {
+            "name": "mem_context",
+            "forbid": [
+              "project"
+            ]
+          },
+          {
+            "name": "mem_save",
+            "mutates": true,
+            "pin": {
+              "capture_prompt": false
+            },
+            "forbid": [
+              "project",
+              "project_choice_reason",
+              "recovery_token",
+              "session_id"
+            ]
+          },
+          {
+            "name": "mem_session_summary",
+            "mutates": true,
+            "forbid": [
+              "project",
+              "project_choice_reason",
+              "recovery_token",
+              "session_id"
+            ]
+          }
+        ]
+      },
+      "cleanEnvironment": true,
+      "failOnStartupError": true
+    }
+  }
+}

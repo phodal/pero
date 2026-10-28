@@ -51,6 +51,8 @@ Optional adapters live in ignored `agents.local.json`, or a path supplied with
 An entry with an existing ID replaces that built-in entry. `model` is optional;
 omit it to retain the Agent's default. Configuration values and credentials are
 kept in the native process, never sent in the public Agent list.
+An entry may also carry an opt-in `memory` block that runs an external Engram
+MCP process; it is off by default. See [Engram memory](../docs/fitness/engram-memory.md).
 
 Messages retain GPUI Markdown entities. Text deltas are coalesced before document
 updates. Tools appear as compact, expandable rows; adjacent read/search/fetch

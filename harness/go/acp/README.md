@@ -79,3 +79,22 @@ Provenance: the pinned Point ACP server did **not** implement model selection.
 This is new, narrow ACP transport/CLI glue over existing Point primitives, not a
 claim of copied upstream ACP behavior. See `MODEL_SELECTION_SOURCE.json`.
 Protocol: https://agentclientprotocol.com/protocol/v1/session-config-options
+
+## Operator tool policy for an MCP server
+
+An `mcpServers` entry may carry `_meta["pero.dev/mcp-server"]` with `toolPolicy`,
+`cleanEnvironment` and `failOnStartupError`. Only the trusted ACP client sets it;
+it is decoded strictly, so an unknown or misspelled field fails the session
+instead of silently dropping the policy. Without it the server behaves as before.
+
+With a `toolPolicy`, only the listed tools reach the model. Each rule declares
+whether the tool mutates (server annotations such as `readOnlyHint` are never
+read), arguments to pin, and arguments to forbid. Mutating tools are hidden
+unless `mutations` is `approve`, and then every call asks for approval. A call
+the policy refuses is rejected before approval is requested and never reaches
+the server. The server is also kept out of the generic MCP resource tools.
+`cleanEnvironment` starts a stdio child with only its explicit `env`.
+
+The policy applies on `session/new`, `session/load` and `session/resume`. It
+does not retry or replay a tool call after an error or lost connection. See
+[Engram memory](../../../docs/fitness/engram-memory.md) for the first user.

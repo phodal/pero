@@ -4,6 +4,13 @@
     "name": "My ACP Agent",
     "command": "/absolute/path/to/my-agent-acp",
     "args": [],
-    "env": {}
+    "env": {},
+    "memory": {
+      "enabled": false,
+      "engram": "/absolute/path/to/engram",
+      "data_dir": "/absolute/path/to/memory/my-workspace",
+      "project": "my-workspace",
+      "mutations": "deny"
+    }
   }
 ]

@@ -43,6 +43,7 @@ fn launch(scenario: &str, model: Option<&str>) -> (SessionHandle, mpsc::Receiver
         env: BTreeMap::from([("PERO_FIXTURE_SCENARIO".into(), scenario.into())]),
         model: model.map(str::to_owned),
         mcp_servers: vec![],
+        memory: None,
     };
     let (tx, rx) = mpsc::channel();
     (start(config, root, "fixture-thread".into(), tx), rx)
@@ -487,4 +488,76 @@ fn initialization_timeout_remains_bounded() {
     until(&rx, "session_closed");
     assert!(started.elapsed() >= SETUP_TIMEOUT);
     assert!(started.elapsed() < Duration::from_secs(5));
+}
+
+/// Launch with operator JSON that may enable memory. `expected` is what the
+/// fixture Agent must receive as `mcpServers` on the wire.
+fn launch_memory(memory: Value, expected: Value) -> (SessionHandle, mpsc::Receiver<HostEvent>) {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let config: AgentConfig = serde_json::from_value(json!({
+        "id": "memory-fixture", "name": "Memory fixture", "command": "node",
+        "args": [root.join("tests/runtime/lifecycle-agent.mjs")],
+        "env": {"PERO_FIXTURE_SCENARIO": "mcp", "PERO_EXPECT_MCP": expected.to_string()},
+        "memory": memory
+    }))
+    .unwrap();
+    assert!(config.public().get("memory").is_none());
+    let (tx, rx) = mpsc::channel();
+    (start(config, root, "memory-fixture".into(), tx), rx)
+}
+
+fn memory_json(enabled: bool, engram: &std::path::Path, data_dir: &std::path::Path) -> Value {
+    json!({"enabled": enabled, "engram": engram, "data_dir": data_dir,
+        "project": "synthetic-project", "mutations": "approve"})
+}
+
+#[test]
+fn memory_is_off_by_default_and_sends_no_extra_server() {
+    let dir = std::env::temp_dir().join("pero-memory-off");
+    let (handle, rx) = launch_memory(
+        memory_json(false, &dir.join("absent"), &dir.join("data")),
+        json!([]),
+    );
+    until(&rx, "session_ready");
+    close(&handle, &rx);
+    assert!(!dir.exists(), "disabled memory must not touch the filesystem");
+}
+
+#[test]
+fn memory_enabled_sends_exactly_the_documented_entry() {
+    let binary = std::env::current_exe().unwrap();
+    let data_dir = std::env::temp_dir().join("pero-memory-wire");
+    let quoted = |path: &std::path::Path| {
+        let text = serde_json::to_string(path).unwrap();
+        text[1..text.len() - 1].to_owned()
+    };
+    let golden = include_str!("../fixtures/engram-memory/mcp-server.json")
+        .replace("{{ENGRAM_BIN}}", &quoted(&binary))
+        .replace("{{DATA_DIR}}", &quoted(&data_dir))
+        .replace("{{PROJECT}}", "synthetic-project");
+    let expected = json!([serde_json::from_str::<Value>(&golden).unwrap()]);
+    let (handle, rx) = launch_memory(memory_json(true, &binary, &data_dir), expected);
+    until(&rx, "session_ready");
+    close(&handle, &rx);
+    assert!(
+        !data_dir.exists(),
+        "Pero must leave creating the data directory to Engram"
+    );
+}
+
+#[test]
+fn memory_with_a_missing_binary_fails_before_connecting() {
+    let dir = std::env::temp_dir().join("pero-memory-missing-binary");
+    let (_handle, rx) = launch_memory(
+        memory_json(true, &dir.join("engram"), &dir.join("data")),
+        json!([]),
+    );
+    let error = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    assert_eq!(error.kind, "session_error", "must precede connecting/spawn");
+    assert!(error.text.contains("Engram binary is not available"));
+    assert_eq!(
+        rx.recv_timeout(Duration::from_secs(5)).unwrap().kind,
+        "session_closed"
+    );
+    assert!(!dir.exists());
 }
