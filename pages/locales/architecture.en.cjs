@@ -1,5 +1,6 @@
 module.exports = {
   "让一个课题，连接更多人的方法与算力。从一个研究问题出发，把任务交给合作者、AI 和合适的计算环境。": "Connect more people's methods and compute around one research question. Turn a question into tasks for collaborators, AI, and the right computing environment.",
+  "面向科学研究，把课题、方法与算力放在一起。从一个研究问题出发，把任务交给合作者、AI 和合适的计算环境。": "Scientific research, with the project, its methods, and compute in one place. Start from a research question, and hand the work to collaborators, AI, and a fitting computing environment.",
   "入口与执行位置": "Entry points & execution",
   "从问题，到可以接续的结果。": "From a question to results others can build on.",
   "深色": "Dark",
@@ -47,6 +48,7 @@ module.exports = {
   "固定候选版本后独立验证，复核决定关联同一份产物；经授权后再发布 PR 或纳入项目。": "Verify a fixed candidate independently and bind review decisions to the same artifact. Publish a PR or accept into the project after authorization.",
   "首版技术方向。GPUI / WASM 完整工作台与分布式执行链路仍待验证。": "V1 technical direction. The full GPUI / WASM workbench and distributed execution workflow still need validation.",
   "分布式任务协作": "Distributed task collaboration",
+  "分布式 AI4S": "Distributed AI4S",
   "研究者": "Researchers",
   "GitHub 贡献者": "GitHub contributors",
   "Agent 建议": "Agent suggestions",
