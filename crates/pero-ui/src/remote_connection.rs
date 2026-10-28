@@ -110,6 +110,7 @@ impl Workbench {
         let busy = self.remote.connection.submitting
             || self.remote.data["loading"].as_bool().unwrap_or(false);
         let configured = self.remote.data["configured"].as_bool().unwrap_or(false);
+        let authenticating = self.remote.data["connection"]["authenticating"].as_bool().unwrap_or(false);
         let storage = self.remote.data["connection"]["persistence_available"]
             .as_bool()
             .unwrap_or(true);
@@ -156,6 +157,22 @@ impl Workbench {
                             .flex()
                             .flex_col()
                             .gap(px(6.))
+                            .child(
+                                Button::new("connector-github-login")
+                                    .primary()
+                                    .label(self.t(if authenticating { "connector.login_waiting" } else { "connector.login" }))
+                                    .disabled(busy || !storage || authenticating)
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        let url = this.remote.connection.url.read(cx).value().trim().to_string();
+                                        this.command(json!({"action":"remote_login","url":url}), cx);
+                                    })),
+                            )
+                            .when(authenticating, |el| el.child(
+                                Button::new("connector-login-cancel").outline()
+                                    .label(self.t("connector.login_cancel"))
+                                    .on_click(cx.listener(|this, _, _, cx| this.command(json!({"action":"remote_login_cancel"}), cx))),
+                            ))
+                            .child(div().text_color(p.color("text-muted")).child(self.t("connector.manual")))
                             .child(self.t("connector.token"))
                             .child(
                                 Input::new(&self.remote.connection.token)

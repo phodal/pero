@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/phodal/pero/server/internal/store"
 )
 
 func (s *server) oauthStart(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +68,14 @@ func (s *server) oauthCallback(w http.ResponseWriter, r *http.Request) {
 	if err = s.startSession(w, r, user.ID, false); err != nil {
 		s.fail(w, r, err)
 		return
+	}
+	if pending, err := r.Cookie("pero_desktop_request"); err == nil {
+		s.cookie(w, "pero_desktop_request", "", "/auth/github/callback", -1)
+		values, err := url.ParseQuery(pending.Value)
+		if err == nil && store.ValidDesktopProof(values.Get("state")) && store.ValidDesktopProof(values.Get("code_challenge")) {
+			http.Redirect(w, r, "/connect/desktop?"+url.Values{"state": {values.Get("state")}, "code_challenge": {values.Get("code_challenge")}}.Encode(), 303)
+			return
+		}
 	}
 	http.Redirect(w, r, "/tasks", 303)
 }

@@ -35,7 +35,7 @@ func (s *Store) AuthenticateClient(ctx context.Context, token string) (*Client, 
 	}
 	c := &Client{Role: "client"}
 	var expected []byte
-	err := s.pool.QueryRow(ctx, `SELECT id,name,projects,token_hash FROM clients WHERE id=$1`, id).Scan(&c.ID, &c.Name, &c.Projects, &expected)
+	err := s.pool.QueryRow(ctx, `SELECT id,name,projects,token_hash FROM clients WHERE id=$1 UNION ALL SELECT c.id,c.name,c.projects,d.token_hash FROM desktop_credentials d JOIN clients c ON c.id=d.client_id WHERE d.id=$1`, id).Scan(&c.ID, &c.Name, &c.Projects, &expected)
 	actual := sha256.Sum256([]byte(token))
 	if err != nil || subtle.ConstantTimeCompare(expected, actual[:]) != 1 {
 		return nil, ErrForbidden

@@ -139,8 +139,9 @@ POST /api/client/v1/tasks/{id}/cancel
 Claim, release and cancel accept `{}`. Dispatch accepts the same optional
 `worker_id` and idempotency header as operator dispatch. API checks enforce
 ownership even when another Desktop has stale data. Client credentials cannot
-provision Workers/clients or invoke the operator GitHub sync routes. Public
-signup, GitHub OAuth and credential revocation are not implemented.
+provision Workers/clients or invoke the operator GitHub sync routes. GitHub
+sign-in can issue Desktop credentials for an existing Client scope. Project
+provisioning remains operator-owned; a credential revocation UI is not implemented.
 
 ## Run
 
@@ -356,3 +357,23 @@ execution state, acceptance, reversal, history, recovery and responsive themes.
 Screenshots and `verification.json` land in `test-results/community/`. Fixture
 success does not establish real GitHub OAuth configuration, real Agent execution,
 production isolation or deployment to openpero.com.
+
+### Desktop sign-in handoff
+
+The existing GitHub OAuth configuration also supports Desktop connection:
+
+- `GET /connect/desktop?state=…&code_challenge=…` resumes browser login and consent.
+- `POST /connect/desktop` requires the signed-in contributor session, origin and CSRF.
+- `POST /auth/desktop/token` exchanges a two-minute code and S256 verifier exactly once.
+
+The fixed return URL is `pero://connect/callback`. Client Secret, GitHub access
+tokens and Desktop bearer credentials are never put in that URL. Each Desktop
+credential is hashed separately and authenticates the existing GitHub Client.
+OAuth itself does not add projects or execution rights. The immutable GitHub ID
+owns identity; the operator owns `clients.projects`. Existing Worker binding adds
+the Worker's projects to that same Client, as before. Operators may explicitly
+provision an existing account's Client scope when no Worker is assigned.
+
+Live configuration is held in `/etc/openpero/server.env` (0600); the GitHub App
+callback is `https://app.openpero.com/auth/github/callback`. Never commit its
+Client Secret. The service discards the GitHub access token after identity lookup.

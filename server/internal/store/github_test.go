@@ -31,10 +31,10 @@ func TestGitHubRunningClosureAndSourceHistory(t *testing.T) {
 	w, _ := mustWorker(t, s, "p")
 	config.AutoDispatch = true
 	config.WorkerID = w.ID
-	if err := s.BindGitHubRepository(ctx, config, "200"); err != nil {
+	if err := s.BindGitHubRepository(ctx, config, "200", false); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.BindGitHubRepository(ctx, config, "201"); !errors.Is(err, ErrConflict) {
+	if err := s.BindGitHubRepository(ctx, config, "201", false); !errors.Is(err, ErrConflict) {
 		t.Fatalf("repository identity rebound: %v", err)
 	}
 	change, err := s.SyncGitHubIssue(ctx, config, issue)

@@ -91,8 +91,9 @@ func numericID(value json.Number) bool {
 func (s *Service) observe(ctx context.Context, config store.GitHubRepository) ([]store.GitHubIssue, bool, error) {
 	path := "/repos/" + url.PathEscape(config.Owner) + "/" + url.PathEscape(config.Repo)
 	var repo struct {
-		ID   json.Number `json:"id"`
-		Name string      `json:"full_name"`
+		ID      json.Number `json:"id"`
+		Name    string      `json:"full_name"`
+		Private bool        `json:"private"`
 	}
 	if _, err := s.get(ctx, path, nil, &repo); err != nil {
 		return nil, true, err
@@ -100,7 +101,7 @@ func (s *Service) observe(ctx context.Context, config store.GitHubRepository) ([
 	if !numericID(repo.ID) || !strings.EqualFold(repo.Name, config.Name()) {
 		return nil, true, fmt.Errorf("GitHub repository identity mismatch")
 	}
-	if err := s.db.BindGitHubRepository(ctx, config, repo.ID.String()); err != nil {
+	if err := s.db.BindGitHubRepository(ctx, config, repo.ID.String(), repo.Private); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return nil, true, fmt.Errorf("GitHub repository identity changed; review its binding")
 		}

@@ -160,3 +160,4 @@ design-qa.md
 # Additional master ignore rules
 fonts/*.ttf
 .idea
+.aspect

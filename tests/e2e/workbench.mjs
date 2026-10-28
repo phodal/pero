@@ -15,6 +15,9 @@ try{
  const state=()=>page.evaluate(()=>window.peroDiagnostics ? JSON.parse(window.peroDiagnostics.snapshot()) : {chats:[],agents:[],renderStats:[]});
  await expect.poll(async()=>(await state()).agents?.length||0,{timeout:15000}).toBeGreaterThan(2);
  await page.screenshot({path:resolve(out,'overview.png')});
+ await page.mouse.click(80,144);
+ await expect.poll(async()=>(await state()).navigation).toBe(0);
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await page.mouse.click(1430,24);
  await expect.poll(async()=>(await state()).chats.length).toBe(1);
  await page.screenshot({path:resolve(out,'chat-empty.png')});
@@ -66,7 +69,10 @@ try{
  const count=streamed.chats[0].messages.length;
  await page.reload();
  await expect.poll(async()=>(await state()).chats?.[0]?.messages.length,{timeout:30000}).toBe(count);
- await page.mouse.click(340,215);
+ await page.mouse.click(80,144);
+ await expect.poll(async()=>(await state()).navigation).toBe(0);
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ await page.mouse.click(340,130);
  await expect.poll(async()=>(await state()).activeChat).toBe(0);
  await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('locale-en').click());
  await expect.poll(async()=>(await state()).locale).toBe('en');

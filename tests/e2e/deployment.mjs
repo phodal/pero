@@ -135,8 +135,10 @@ try {
   }
   expect((await ui.state()).remote.state.tasks.length).toBe(roadmap.length);
   await ui.page.screenshot({ path: resolve(out, 'desktop-roadmap.png') });
-  await ui.page.mouse.click(64, await ui.page.evaluate(() => innerHeight - 56));
-  await expect.poll(async () => (await ui.state()).dark).toBe(true);
+  await ui.page.emulateMedia({ colorScheme: 'dark' });
+  await ui.page.reload();
+  await expect.poll(async () => (await ui.state()).dark, { timeout: 30000 }).toBe(true);
+  await expect.poll(async () => (await ui.state()).remote.state.identity?.role, { timeout: 30000 }).toBe('client');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 788));
   await ui.page.screenshot({ path: resolve(out, 'desktop-narrow-dark.png') });
   const state = JSON.stringify(await ui.state());

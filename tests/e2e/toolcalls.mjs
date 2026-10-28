@@ -16,6 +16,9 @@ try{
  await page.waitForFunction(()=>window.peroDiagnostics,undefined,{timeout:60000});
  const state=()=>page.evaluate(()=>window.peroDiagnostics?JSON.parse(window.peroDiagnostics.snapshot()):{});
  await expect.poll(async()=>(await state()).agents?.length||0).toBe(4);
+ await page.mouse.click(80,144);
+ await expect.poll(async()=>(await state()).navigation).toBe(0);
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await page.mouse.click(1430,24);
  await expect.poll(async()=>(await state()).chats?.length).toBe(1);
  await page.waitForTimeout(100);await page.mouse.click(680,1030);

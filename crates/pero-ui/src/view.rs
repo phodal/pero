@@ -2,11 +2,9 @@ use crate::{
     app::Workbench,
     components::{
         ActionHandler, Ui,
-        examples::TASKS,
         sidebar::{self, SidebarAction, SidebarProps},
         task_detail::{self, SessionHeader, TaskDetailAction, TaskDetailProps},
         task_list::{self, SessionRow, TaskListAction, TaskListProps},
-        task_overview::example_overview,
         workspace::{self, AgentRow, WorkspaceAction},
     },
 };
@@ -30,10 +28,13 @@ impl Workbench {
         let on_action = Rc::new(cx.listener(|this, action: &SidebarAction, window, cx| {
             match action {
                 SidebarAction::Navigate(index) => {
-                    this.navigation = *index;
-                    this.sync_follow(cx);
+                    if *index == 3 {
+                        this.open_remote(cx);
+                    } else {
+                        this.navigation = *index;
+                        this.sync_follow(cx);
+                    }
                 }
-                SidebarAction::OpenRemote => this.open_remote(cx),
                 SidebarAction::ConfigureGitHub => {
                     this.open_remote(cx);
                     this.open_remote_connection(window, cx);
@@ -73,12 +74,7 @@ impl Workbench {
             .collect();
         let on_action = Rc::new(cx.listener(|this, action: &TaskListAction, _, cx| {
             match action {
-                TaskListAction::Filter(filter) => this.filter = *filter,
                 TaskListAction::SelectSession(index) => this.focus_chat(Some(*index), 4, cx),
-                TaskListAction::SelectExample(index) => {
-                    this.selected = *index;
-                    this.focus_chat(None, 0, cx);
-                }
             }
             cx.notify();
         }));
@@ -89,10 +85,7 @@ impl Workbench {
                 search: &self.search,
                 query: self.search.read(cx).value().to_lowercase(),
                 sessions: &sessions,
-                examples: &TASKS,
                 active_chat: self.active_chat,
-                selected: self.selected,
-                filter: self.filter,
             },
             on_action,
         )
@@ -118,7 +111,7 @@ impl Workbench {
                 .overflow_y_scroll()
                 .p(px(20.))
                 .when(self.tab == 0 && session.is_none(), |el| {
-                    el.child(example_overview(ui, TASKS[self.selected].ready))
+                    el.child(ui.t("chat.welcome"))
                 })
                 .when(self.tab == 0 && session.is_some(), |el| {
                     el.child(ui.t("chat.open_tab"))
@@ -152,8 +145,6 @@ impl Workbench {
             self.ui(),
             TaskDetailProps {
                 session,
-                example: &TASKS[self.selected],
-                example_id: 1042 + self.selected,
                 tab: self.tab,
             },
             content,
@@ -200,7 +191,7 @@ impl Render for Workbench {
             self.composer.update(cx, |input, cx| {
                 input.set_placeholder(placeholder, window, cx)
             });
-            let placeholder = self.t("tasks.search");
+            let placeholder = self.t("sessions.search");
             self.search.update(cx, |input, cx| {
                 input.set_placeholder(placeholder, window, cx)
             });

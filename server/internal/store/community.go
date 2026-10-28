@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -129,15 +130,28 @@ func (s *Store) CommunityOwnedWorkers(ctx context.Context, user int64, project s
 	}
 	return out, rows.Err()
 }
+
+// CommunityPublish also replaces the public text of an already listed Task, so
+// an operator can review what a public source published on its own.
 func (s *Store) CommunityPublish(ctx context.Context, id, title, description, source string) error {
-	result, err := s.pool.Exec(ctx, `INSERT INTO community_tasks(task_id,title,description,project,source_url) SELECT id,$2,$3,spec->>'project_id',$4 FROM tasks WHERE id=$1 ON CONFLICT(task_id) DO NOTHING`, id, title, description, source)
+	result, err := s.pool.Exec(ctx, `INSERT INTO community_tasks(task_id,title,description,project,source_url) SELECT id,$2,$3,spec->>'project_id',$4 FROM tasks WHERE id=$1 ON CONFLICT(task_id) DO UPDATE SET title=EXCLUDED.title,description=EXCLUDED.description,source_url=EXCLUDED.source_url`, id, title, description, source)
 	if err != nil {
 		return err
 	}
 	if result.RowsAffected() == 0 {
-		return ErrConflict
+		return ErrNotFound
 	}
 	return nil
+}
+
+// publishPublicSource lists an imported goal whose repository GitHub reports as
+// public; that content is already public. Private repositories still need
+// CommunityPublish. An existing listing keeps its reviewed text.
+func publishPublicSource(ctx context.Context, tx pgx.Tx, config GitHubRepository, id string, spec Spec) error {
+	_, err := tx.Exec(ctx, `INSERT INTO community_tasks(task_id,title,description,project,source_url)
+	 SELECT $1,$2,$3,$4,$5 WHERE EXISTS(SELECT 1 FROM github_repositories WHERE project_id=$4 AND name=$6 AND NOT private)
+	 ON CONFLICT(task_id) DO NOTHING`, id, spec.Title, spec.Prompt, config.ProjectID, spec.Source.URL, strings.ToLower(config.Name()))
+	return err
 }
 
 const publicTaskQuery = `SELECT p.task_id,p.title,p.description,p.project,p.source_url,

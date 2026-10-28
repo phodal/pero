@@ -14,6 +14,7 @@
     "build:host": "node scripts/cargo.mjs build -p pero-host",
     "build:worker": "node scripts/cargo.mjs build -p pero-worker",
     "build:web": "npm run build --workspace @pero/web",
+    "build:macos-dev": "node scripts/build/macos-dev-app.mjs",
     "build:desktop": "node scripts/build/desktop.mjs",
     "check": "tsc --noEmit && node scripts/codegen/theme.mjs --check && node scripts/check/locales.mjs && node scripts/codegen/contracts.mjs --check",
     "gen:theme": "node scripts/codegen/theme.mjs",
@@ -30,6 +31,7 @@
     "test:community": "node tests/e2e/community.mjs",
     "test:connector": "cd server && PERO_DESKTOP_E2E=1 go test -count=1 -run '^TestDesktopConnectorSources$' ./internal/httpapi -v",
     "test:connector:live": "cd server && PERO_DESKTOP_E2E=1 PERO_CONNECTOR_LIVE=1 go test -count=1 -run '^TestDesktopConnectorSources$' ./internal/httpapi -v",
+    "test:desktop-login": "node tests/e2e/desktop-login.mjs",
     "test:remote-settings": "node tests/e2e/remote-settings.mjs",
     "test:deployment": "node tests/e2e/deployment.mjs"
   },

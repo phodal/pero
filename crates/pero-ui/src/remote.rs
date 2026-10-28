@@ -209,13 +209,23 @@ fn remote_event_summary(event: &Value) -> String {
 impl Workbench {
     pub fn receive_remote(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
         if event.kind == "remote_open" {
-            self.open_remote(cx);
+            if event.text == "desktop_login" {
+                self.navigation = 3;
+                self.sync_follow(cx);
+            } else {
+                self.open_remote(cx);
+            }
             return true;
         }
         if event.kind != "remote_state" {
             return false;
         }
+        let was_authenticating = self.remote.data["connection"]["authenticating"].as_bool().unwrap_or(false);
         self.remote.data = event.data.clone();
+        if was_authenticating && !self.remote.data["connection"]["authenticating"].as_bool().unwrap_or(false)
+            && self.remote.configured() && self.remote.data["error"].is_null() && self.remote.data["identity"].is_object() {
+            self.remote.connection.editing = false;
+        }
         if !self.remote.seen_connection && self.remote.configured() {
             self.remote.seen_connection = true;
             self.navigation = 3;
@@ -335,7 +345,7 @@ impl Workbench {
         let configured = self.remote.configured();
         div().flex_1().min_w_0().h_full().flex().flex_col()
             .child(div().px(px(20.)).h(px(58.)).flex_shrink_0().flex().items_center().gap(px(10.)).border_b_1().border_color(p.color("border"))
-                .child(div().flex_1().min_w_0().text_size(px(20.)).font_weight(FontWeight::BOLD).child(self.t("nav.remote")))
+                .child(div().flex_1().min_w_0().text_size(px(20.)).font_weight(FontWeight::BOLD).child(self.t("nav.tasks")))
                 .child(Button::new("remote-connector").outline().small().label(self.t("connector.title")).disabled(loading)
                     .on_click(cx.listener(|this,_,window,cx|this.open_remote_connection(window,cx))))
                 .when(self.remote.operator() && self.remote.data["github"]["configured"].as_bool().unwrap_or(false),|el|el.child(

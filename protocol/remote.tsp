@@ -134,6 +134,7 @@ model RemoteConnection {
   mode: "client" | "operator";
   credential_configured: boolean;
   persistence_available: boolean;
+  authenticating?: boolean;
   ...Closed;
 }
 model ProvisionWorker { name: string; projects: string[]; labels?: string[]; ...Closed }

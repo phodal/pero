@@ -181,3 +181,25 @@ public API quota are required; no GitHub token is needed. Its counts come from
 the observed repository snapshot. Both connector tests import without execution
 or GitHub writes. These checks verify a local setup; openpero.com has not been
 deployed by them.
+
+### GitHub sign-in
+
+In **Tasks → GitHub Connector**, choose **Sign in with GitHub**. The system
+browser opens the configured service, completes GitHub login, and asks to connect
+Desktop. Choose **Open Pero Desktop** to return. No token copying is required.
+The connection is saved through the existing OS-encrypted runtime settings.
+The access-token form remains available for operator-provisioned connections.
+
+GitHub sign-in does not assign project or Worker access. An unprovisioned account
+connects with an empty scope; the operator must grant its projects. The current
+`phodal` GitHub identity is provisioned for project `pero` on app.openpero.com.
+
+For local macOS URL delivery, run `npm run build` then
+`npm run build:macos-dev`. Open `target/local/Pero.app` before signing in. This is
+an ad-hoc-signed development bundle referencing the checkout; it is not a portable,
+notarized distribution. Other OS protocol registration has not been accepted.
+
+Run `npm run test:desktop-login` with an isolated `PERO_TEST_DATABASE_URL` and,
+if necessary, `PERO_CHROMIUM_PATH`. It exercises Go/PostgreSQL, a local OAuth
+provider fixture, Chromium consent and Electron's native callback event, encrypted
+saving, restart, cancellation and wrong/repeated callbacks.

@@ -164,6 +164,9 @@ func TestCommunityHTTPPrivacyOAuthAndCSRF(t *testing.T) {
 	if status != 200 || !strings.Contains(body, "&lt;script&gt;") {
 		t.Fatal("HTML was not escaped")
 	}
+	if !strings.Contains(body, `href="pero://tasks/`+f.taskID+`"`) {
+		t.Fatal("public task does not link to Desktop")
+	}
 	status, _ = fetch(t, client, "GET", f.app.URL+"/auth/github/callback?state=wrong&code=fixture-code", "", nil)
 	if status != 400 {
 		t.Fatalf("OAuth state accepted: %d", status)

@@ -12,7 +12,6 @@ pub(crate) struct SidebarProps {
 }
 pub(crate) enum SidebarAction {
     Navigate(usize),
-    OpenRemote,
     ConfigureGitHub,
     ChooseWorkspace,
     ToggleLocale,
@@ -62,13 +61,13 @@ pub(crate) fn sidebar(
         )
         .children(
             [
-                ("layout-list", "nav.tasks"),
-                ("folder", "nav.projects"),
-                ("devices", "nav.environments"),
+                (3, "layout-list", "nav.tasks"),
+                (0, "terminal", "nav.sessions"),
+                (1, "folder", "nav.projects"),
+                (2, "devices", "nav.environments"),
             ]
             .into_iter()
-            .enumerate()
-            .map(|(i, (icon, label))| {
+            .map(|(i, icon, label)| {
                 div()
                     .id(("nav", i))
                     .flex()
@@ -104,19 +103,6 @@ pub(crate) fn sidebar(
                     )
                     .on_click(click(&on_action, SidebarAction::Navigate(i)))
             }),
-        )
-        .child(
-            Button::new("nav-remote")
-                .ghost()
-                .label(ui.t("nav.remote"))
-                .w_full()
-                .h(px(32.))
-                .bg(p.color(if props.navigation == 3 {
-                    "accent-soft"
-                } else {
-                    "bg"
-                }))
-                .on_click(click(&on_action, SidebarAction::OpenRemote)),
         )
         .child(div().flex_1())
         .child(

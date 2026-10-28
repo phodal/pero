@@ -236,3 +236,56 @@ func TestCommunityPublicSourceFactsFollowLatestProviderObservation(t *testing.T)
 	}
 	check("closed", true)
 }
+
+func TestCommunityListsImportsOnlyFromPublicRepositories(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		bound   bool
+		private bool
+		listed  int
+	}{
+		{"public repository", true, false, 4},
+		{"private repository", true, true, 0},
+		{"visibility not observed", false, false, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, _ := integrationStore(t)
+			ctx := context.Background()
+			config, issue := sourceFixture()
+			if tc.bound {
+				if err := s.BindGitHubRepository(ctx, config, issue.RepositoryID, tc.private); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := s.SyncGitHubIssue(ctx, config, issue); err != nil {
+				t.Fatal(err)
+			}
+			_, snapshot := roadmapFixture()
+			if _, err := s.SyncRoadmap(ctx, config, snapshot); err != nil {
+				t.Fatal(err)
+			}
+			list, _, err := s.CommunityTasks(ctx, 0)
+			if err != nil || len(list) != tc.listed {
+				t.Fatalf("listed %d, want %d: %v", len(list), tc.listed, err)
+			}
+			if tc.listed == 0 {
+				return
+			}
+			task := sourceTask(t, s, issue)
+			listed, err := s.CommunityTask(ctx, task.ID)
+			if err != nil || listed.Title != issue.Title || listed.SourceURL != issue.URL {
+				t.Fatalf("source listing: %+v %v", listed, err)
+			}
+			if err = s.CommunityPublish(ctx, task.ID, "Reviewed title", "Reviewed scope", issue.URL); err != nil {
+				t.Fatal(err)
+			}
+			issue.Title, issue.UpdatedAt = "Edited upstream", "2026-10-28T00:01:00Z"
+			if _, err = s.SyncGitHubIssue(ctx, config, issue); err != nil {
+				t.Fatal(err)
+			}
+			if listed, err = s.CommunityTask(ctx, task.ID); err != nil || listed.Title != "Reviewed title" {
+				t.Fatalf("reviewed text replaced by sync: %+v %v", listed, err)
+			}
+		})
+	}
+}

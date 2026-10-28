@@ -1,5 +1,6 @@
 // The renderer sends bounded task actions; endpoint and credentials stay here.
 import { randomUUID } from 'node:crypto';
+import { DesktopLogin } from './desktop-login';
 import { safeStorage, shell } from 'electron';
 import Ajv2020 from 'ajv/dist/2020.js';
 import schema from '../../../protocol/generated/remote.schema.json';
@@ -64,6 +65,7 @@ function sourceURL(source: Detail['task']['source']): string {
 }
 
 export class RemoteAdapter {
+  private login = new DesktopLogin();
   private base: string | null = null;
   private configError: string | null = null;
   private clientMode = !!process.env.PERO_CLIENT_TOKEN || !process.env.PERO_OPERATOR_TOKEN;
@@ -89,7 +91,7 @@ export class RemoteAdapter {
   private connectionState() {
     this.state.configured = !!this.base && !!this.token;
     this.state.connection = { url: this.base || defaultTaskCenter, mode: this.clientMode ? 'client' : 'operator',
-      credential_configured: !!this.token, persistence_available: this.persistenceAvailable };
+      credential_configured: !!this.token, persistence_available: this.persistenceAvailable, authenticating: this.login.pending };
   }
   private async storageAvailable() {
     try {
@@ -133,7 +135,7 @@ export class RemoteAdapter {
       } finally { this.connectionState(); this.publish(); }
     })();
   }
-  close() { this.closed = true; this.token = ''; clearTimeout(this.timer); }
+  close() { this.login.cancel(); this.closed = true; this.token = ''; clearTimeout(this.timer); }
   private publish() {
     this.connectionState();
     if (!this.closed) this.emit({ version: 1, kind: 'remote_state', request_id: null, text: '', data: this.state });
@@ -210,6 +212,20 @@ export class RemoteAdapter {
     await this.load();
     this.state.error = null;
   }
+  acceptDeepLink(value: string): Promise<void> {
+    const pending = this.queue.then(async () => {
+      await this.initialize();
+      if (this.login.isCompletedCallback(value)) return;
+      this.state.loading = true; this.state.error = null; this.publish();
+      try {
+        const connection = await this.login.complete(value);
+        await this.configure({ ...connection, mode: 'client' });
+      } catch { this.state.error = 'GitHub sign-in could not complete. Return to the connection page and sign in again.'; }
+      finally { this.state.loading = false; this.publish(); this.schedulePoll(); }
+    });
+    this.queue = pending.catch(() => {});
+    return pending;
+  }
   command(input: unknown): Promise<void> {
     const pending = this.queue.then(() => this.perform(input));
     this.queue = pending.catch(() => {});
@@ -221,14 +237,23 @@ export class RemoteAdapter {
     const command = input as Record<string, unknown>;
     if (!command || typeof command !== 'object' || JSON.stringify(command).length > 260_000) throw new Error('Invalid remote command');
     const action = String(command.action);
-    if (!['remote_refresh', 'remote_more', 'remote_select', 'remote_create', 'remote_dispatch', 'remote_cancel', 'remote_claim', 'remote_release', 'remote_sync_issues', 'remote_open_source', 'remote_configure', 'remote_disconnect', 'remote_filter'].includes(action)) throw new Error('Unknown remote action');
+    if (!['remote_refresh', 'remote_more', 'remote_select', 'remote_create', 'remote_dispatch', 'remote_cancel', 'remote_claim', 'remote_release', 'remote_sync_issues', 'remote_open_source', 'remote_configure', 'remote_disconnect', 'remote_filter', 'remote_login', 'remote_login_cancel'].includes(action)) throw new Error('Unknown remote action');
     clearTimeout(this.timer);
     this.state.loading = true;
     if (action !== 'remote_configure') this.state.error = null;
     this.publish();
     try {
-      if (action === 'remote_configure') { await this.configure(command); return; }
+      if (action === 'remote_login') {
+        if (!await this.storageAvailable()) throw new Error('System credential storage is unavailable. Unlock or enable it and retry.');
+        const base = endpoint(text(command.url || this.base || defaultTaskCenter, 2048))!;
+        const loginURL = this.login.begin(base, () => { this.state.error = 'GitHub sign-in expired. Sign in again from the connection page.'; this.publish(); });
+        try { await shell.openExternal(loginURL); } catch { this.login.cancel(); throw new Error('Could not open the browser. Retry GitHub sign-in.'); }
+        return;
+      }
+      if (action === 'remote_login_cancel') { this.login.cancel(); return; }
+      if (action === 'remote_configure') { this.login.cancel(); await this.configure(command); return; }
       if (action === 'remote_disconnect') {
+        this.login.cancel();
         if (!this.preferences) throw new Error('Local runtime preferences are unavailable. Retry disconnecting.');
         await this.preferences.save(null);
         this.token = ''; this.base = null; this.clientMode = true; this.api = '/api/client/v1'; this.configError = null;

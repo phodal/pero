@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "clients.go",
         "community.go",
+        "desktop_auth.go",
         "execution.go",
         "github.go",
         "models.go",
@@ -26,6 +27,7 @@ go_test(
     name = "store_test",
     srcs = [
         "clients_test.go",
+        "desktop_auth_test.go",
         "community_test.go",
         "github_test.go",
         "integration_test.go",

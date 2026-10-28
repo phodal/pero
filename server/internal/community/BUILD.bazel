@@ -6,6 +6,7 @@ go_library(
     name = "community",
     srcs = [
         "http.go",
+        "desktop.go",
         "oauth.go",
     ],
     embedsrcs = [
@@ -21,7 +22,7 @@ go_library(
 
 go_test(
     name = "community_test",
-    srcs = ["http_test.go"],
+    srcs = ["http_test.go", "desktop_test.go"],
     embed = [":community"],
     env = {"PERO_REQUIRE_TEST_DATABASE": "1"},
     env_inherit = ["PERO_TEST_DATABASE_URL"],

@@ -31,7 +31,6 @@ pub(crate) struct Workbench {
     pub dark: bool,
     pub navigation: usize,
     pub remote: crate::remote::RemoteState,
-    pub selected: usize,
     pub tab: usize,
     pub connected: bool,
     pub pending: Option<String>,
@@ -49,7 +48,6 @@ pub(crate) struct Workbench {
     pub agent_menu: bool,
     pub model_menu: bool,
     pub workspace: String,
-    pub filter: usize,
     pub show_details: bool,
     pub chat_scroll: ScrollHandle,
     pub attachments: Vec<serde_json::Value>,
@@ -83,7 +81,7 @@ impl Workbench {
         });
         let search = cx.new(|cx| {
             InputState::new(window, cx)
-                .placeholder(pero_contracts::i18n::text(&locale, "tasks.search"))
+                .placeholder(pero_contracts::i18n::text(&locale, "sessions.search"))
         });
         let mut subscriptions = subscriptions;
         subscriptions.push(
@@ -103,9 +101,8 @@ impl Workbench {
             locale,
             palettes,
             dark,
-            navigation: 0,
-            selected: 0,
-            tab: 0,
+            navigation: 3,
+            tab: 4,
             connected: false,
             pending: None,
             next_request: 0,
@@ -122,7 +119,6 @@ impl Workbench {
             agent_menu: false,
             model_menu: false,
             workspace: String::new(),
-            filter: 0,
             show_details: false,
             chat_scroll: ScrollHandle::new(),
             attachments: vec![],
@@ -322,7 +318,7 @@ pub fn snapshot() -> String {
             "received": ui.received, "lastEcho": ui.last_echo, "pending": ui.pending,
             "error": ui.error, "dark": ui.dark, "navigation": ui.navigation,
             "locale": ui.locale, "labels": { "tasks": ui.t("nav.tasks"), "send": ui.t("probe.send") },
-            "selected": ui.selected, "tab": ui.tab, "events": ui.events,
+            "tab": ui.tab, "events": ui.events,
             "chats": ui.chats, "activeChat": ui.active_chat, "agents": ui.agents,
             "composer": ui.composer.read(cx).value().as_ref(),"workspace":ui.workspace,
             "attachments": ui.attachments.iter().filter_map(|file|file["name"].as_str()).collect::<Vec<_>>(),

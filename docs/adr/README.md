@@ -5,3 +5,4 @@
 - [0003: GitHub issue intake and client ownership](0003-github-issues-and-client-claims.md)
 - [0004: Incremental Bazel build](0004-incremental-bazel-build.md)
 - [0005: GitHub ROADMAP tasks and Desktop connector](0005-github-roadmap-connector.md)
+- [0006: GitHub sign-in and Desktop connection](0006-github-desktop-login.md)

@@ -5,16 +5,13 @@ use gpui_kit::{
     *,
 };
 
-use super::examples::ExampleTask;
 pub(crate) struct SessionHeader {
     pub title: String,
     pub agent: String,
     pub closed: bool,
 }
-pub(crate) struct TaskDetailProps<'a> {
+pub(crate) struct TaskDetailProps {
     pub session: Option<SessionHeader>,
-    pub example: &'a ExampleTask,
-    pub example_id: usize,
     pub tab: usize,
 }
 pub(crate) enum TaskDetailAction {
@@ -24,7 +21,7 @@ pub(crate) enum TaskDetailAction {
 }
 pub(crate) fn task_detail(
     ui: Ui<'_>,
-    props: TaskDetailProps<'_>,
+    props: TaskDetailProps,
     content: AnyElement,
     on_action: ActionHandler<TaskDetailAction>,
 ) -> Div {
@@ -88,55 +85,8 @@ pub(crate) fn task_detail(
                             .primary()
                             .small()
                             .icon(IconName::Plus)
-                            .label(ui.t("chat.new_task"))
+                            .label(ui.t("chat.new"))
                             .on_click(click(&on_action, TaskDetailAction::NewSession)),
-                    ),
-            )
-            .child(
-                div()
-                    .px(px(24.))
-                    .pt(px(8.))
-                    .pb(px(12.))
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(px(8.))
-                            .text_size(px(11.))
-                            .text_color(p.color("text-muted"))
-                            .child(format!(
-                                "{} / T-{}",
-                                props.example.repository, props.example_id
-                            ))
-                            .child(ui.badge(ui.t("task.example"), "muted")),
-                    )
-                    .child(
-                        div()
-                            .mt(px(8.))
-                            .flex()
-                            .items_center()
-                            .gap(px(12.))
-                            .child(
-                                div()
-                                    .text_size(px(20.))
-                                    .font_weight(FontWeight::BOLD)
-                                    .child(ui.t(props.example.title_key)),
-                            )
-                            .child(ui.badge(
-                                ui.t(props.example.status_key),
-                                if props.example.ready {
-                                    "success"
-                                } else {
-                                    "info"
-                                },
-                            )),
-                    )
-                    .child(
-                        div()
-                            .mt(px(6.))
-                            .text_size(px(12.))
-                            .text_color(p.color("text-muted"))
-                            .child(ui.t("overview.description")),
                     ),
             )
         })

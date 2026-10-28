@@ -8,11 +8,25 @@ import { pathToFileURL } from 'node:url';
 import { normalizeLocale, translate, type Locale, type MessageKey } from '../../../locales';
 import { RemoteAdapter, type StoredRemoteConnection } from './remote';
 
+// Register before ready so macOS cannot deliver the callback before the listener.
+let pendingDeepLink: string | undefined;
+let acceptDeepLink: ((url: string) => void) | undefined;
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  if (!url.startsWith('pero://connect/')) return;
+  if (acceptDeepLink) acceptDeepLink(url); else pendingDeepLink = url;
+});
+// Development profiles are independent; packaged launches share one app instance.
+app.on('second-instance', (_event, argv) => {
+  const url = argv.find(value => value.startsWith('pero://connect/'));
+  if (url && acceptDeepLink) acceptDeepLink(url);
+});
 protocol.registerSchemesAsPrivileged([{ scheme: 'pero', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 if (process.env.PERO_DESKTOP_DATA_DIR) {
   mkdirSync(process.env.PERO_DESKTOP_DATA_DIR, { recursive: true });
   app.setPath('userData', process.env.PERO_DESKTOP_DATA_DIR);
 }
+if (app.isPackaged && !app.requestSingleInstanceLock()) app.quit();
 const root = resolve(__dirname, '../..');
 let window: BrowserWindow;
 let host: ChildProcessWithoutNullStreams;
@@ -78,6 +92,8 @@ function updateMenus() {
 
 app.whenReady().then(async () => {
   locale = normalizeLocale(process.env.PERO_LOCALE || app.getLocale());
+  if (app.isPackaged) app.setAsDefaultProtocolClient('pero');
+  else if (process.platform === 'win32' && process.argv[1]) app.setAsDefaultProtocolClient('pero', process.execPath, [resolve(process.argv[1])]);
   protocol.handle('pero', (request) => {
     const url = new URL(request.url);
     const directory = resolve(root, 'web/dist');
@@ -162,6 +178,15 @@ app.whenReady().then(async () => {
   window.webContents.on('will-navigate', (event) => event.preventDefault());
   updateMenus();
   await window.loadURL('pero://workbench/');
+  acceptDeepLink = url => {
+    if (window.isMinimized()) window.restore();
+    window.show(); window.focus();
+    send({ version: 1, kind: 'remote_open', request_id: null, text: 'desktop_login' });
+    void remote.acceptDeepLink(url);
+  };
+  const initialLink = pendingDeepLink || process.argv.find(value => value.startsWith('pero://connect/'));
+  if (initialLink) acceptDeepLink(initialLink);
+  pendingDeepLink = undefined;
 });
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', () => { remote.close(); rejectPreferenceWrites(); host?.stdin.end(); });
