@@ -325,6 +325,8 @@ module.exports = {
   "你已确认纳入本页项目：3 组运行 + 1 份复核记录。没有关闭真实 Issue 或发布研究结论。": "You accepted it into this page's project: 3 runs and 1 review record. No real Issue was closed, and no research conclusion was published.",
   "本页项目记录已更新；导出文件可保留这次结果。": "This page's project record is updated. Export the file if you want to keep this result.",
   "OpenPero — 一个课题，连接人、AI 与算力": "OpenPero — One project, connecting people, AI, and compute",
+  "OpenPero — 分布式 AI4S": "OpenPero — Distributed AI4S",
+  "OpenPero 是面向科学研究的分布式 AI4S 工作台。围绕课题组织方法、数据与算力，让研究者、AI 与计算环境共同完成可复核的研究。": "OpenPero is a distributed AI4S workbench for scientific research. It organizes methods, data, and compute around a project so researchers, AI, and execution environments can produce results that can be checked.",
   "跳到主要内容": "Skip to main content",
   "为什么是项目": "Why a project",
   "任务协作": "Tasks",

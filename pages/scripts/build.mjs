@@ -146,6 +146,8 @@ function fill(html, locale) {
     .replaceAll('__LANG_HREF__', locale === 'en' ? '../' : 'en/')
     .replaceAll('__LANG_CODE__', locale === 'en' ? 'zh-CN' : 'en')
     .replaceAll('__LANG_LABEL__', locale === 'en' ? '中文' : 'English')
+    .replaceAll('__CANONICAL__', locale === 'en' ? 'https://phodal.github.io/pero/en/' : 'https://phodal.github.io/pero/')
+    .replaceAll('__OG_LOCALE__', locale === 'en' ? 'en_US' : 'zh_CN')
     .replaceAll('__STYLES__', asReplacement(styles.trim()))
     .replaceAll('__I18N__', asReplacement(runtime))
     .replaceAll('__EXPERIMENT__', asReplacement(experiment.trim()))
