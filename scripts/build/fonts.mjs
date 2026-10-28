@@ -1,6 +1,5 @@
 // Offline-first font preparation. Only source/licence text belongs in Git.
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile, rename, rm, open } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -118,10 +117,13 @@ async function pythonTool() {
   if (hasTool(python)) return { python, env: process.env };
   const tool = join(root, 'target/tools', `fonttools-${manifest.fonttools}`);
   const executable = join(tool, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
+  const pip = join(tool, process.platform === 'win32' ? 'Scripts/pip.exe' : 'bin/pip');
   const env = { ...process.env }; delete env.PYTHONPATH;
   if (!hasTool(executable, env)) {
-    if (!existsSync(executable)) await run(python, ['-m', 'venv', tool], { env });
-    await run(executable, ['-m', 'pip', 'install', '--disable-pip-version-check', '--no-deps', '--break-system-packages', `fonttools==${manifest.fonttools}`], { env });
+    // A restored venv can keep python.exe while `python -m pip` has no __main__.
+    await rm(tool, { recursive: true, force: true });
+    await run(python, ['-m', 'venv', tool], { env });
+    await run(pip, ['install', '--disable-pip-version-check', '--no-deps', '--break-system-packages', `fonttools==${manifest.fonttools}`], { env });
     if (!hasTool(executable, env)) throw new Error('Pinned fontTools setup failed');
   }
   return { python: executable, env };
