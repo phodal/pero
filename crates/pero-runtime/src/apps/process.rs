@@ -39,6 +39,15 @@ impl AppProcess {
                 command.env(key, value);
             }
         }
+        // Windows keeps each drive's current directory in an environment
+        // variable named `=C:`. Clearing the environment removes it, and
+        // Node then fails realpath with EISDIR on the bare drive.
+        #[cfg(windows)]
+        if let Some(std::path::Component::Prefix(prefix)) = root.components().next() {
+            if let std::path::Prefix::Disk(letter) = prefix.kind() {
+                command.env(format!("={}:", char::from(letter)), root);
+            }
+        }
         command
             .env("PERO_APP_DATA", data)
             .env("PERO_APP_TOKEN", &token)
@@ -85,8 +94,12 @@ impl AppProcess {
         struct Ready {
             port: u16,
         }
-        let ready: Ready = serde_json::from_str(&line)
-            .map_err(|_| "App backend returned an invalid readiness line")?;
+        let ready: Ready = serde_json::from_str(line.trim()).map_err(|_| {
+            format!(
+                "App backend returned an invalid readiness line: {}",
+                line.trim()
+            )
+        })?;
         if ready.port == 0 {
             return Err("App backend returned an invalid port".into());
         }
