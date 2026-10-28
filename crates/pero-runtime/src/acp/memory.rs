@@ -57,13 +57,23 @@ pub enum MemoryState {
 struct Tool {
     name: &'static str,
     mutates: bool,
-    /// Arguments Engram would otherwise default from the prompt, the working
-    /// directory or its own configuration.
+    /// Arguments fixed to one JSON value. Engram defaults some of them in ways
+    /// that are not acceptable here.
     pins: &'static [(&'static str, &'static str)],
-    /// Arguments that widen a call beyond the pinned project.
+    /// Arguments the model may not supply. Engram resolves the project from an
+    /// explicit argument, then a session, then `ENGRAM_PROJECT`; forbidding the
+    /// first two leaves the operator's process-level project in charge.
     forbids: &'static [&'static str],
     default: bool,
 }
+
+const SCOPE: &[&str] = &["project"];
+const WRITE_SCOPE: &[&str] = &[
+    "project",
+    "project_choice_reason",
+    "recovery_token",
+    "session_id",
+];
 
 /// The only Engram tools Pero knows how to police. `mem_save_prompt`,
 /// `mem_capture_passive`, deletion, merging and every other tool are absent on
@@ -72,10 +82,13 @@ const TOOLS: &[Tool] = &[
     Tool {
         name: "mem_search",
         mutates: false,
-        pins: &[("project", "project")],
-        forbids: &["all_projects"],
+        pins: &[],
+        // `all_projects` searches every project in the data directory.
+        forbids: &["project", "all_projects"],
         default: true,
     },
+    // Observation IDs are not project-scoped inside one data directory; only a
+    // separate data directory isolates them.
     Tool {
         name: "mem_get_observation",
         mutates: false,
@@ -86,8 +99,8 @@ const TOOLS: &[Tool] = &[
     Tool {
         name: "mem_context",
         mutates: false,
-        pins: &[("project", "project")],
-        forbids: &[],
+        pins: &[],
+        forbids: SCOPE,
         default: true,
     },
     // `capture_prompt` defaults to true in Engram; it is pinned off so a save
@@ -95,15 +108,15 @@ const TOOLS: &[Tool] = &[
     Tool {
         name: "mem_save",
         mutates: true,
-        pins: &[("project", "project"), ("capture_prompt", "false")],
-        forbids: &[],
+        pins: &[("capture_prompt", "false")],
+        forbids: WRITE_SCOPE,
         default: true,
     },
     Tool {
         name: "mem_session_summary",
         mutates: true,
-        pins: &[("project", "project")],
-        forbids: &[],
+        pins: &[],
+        forbids: WRITE_SCOPE,
         default: true,
     },
 ];
@@ -177,14 +190,7 @@ impl MemoryConfig {
                 let pins: serde_json::Map<String, Value> = t
                     .pins
                     .iter()
-                    .map(|(arg, value)| {
-                        let pinned = if *value == "project" {
-                            json!(self.project)
-                        } else {
-                            serde_json::from_str(value).unwrap()
-                        };
-                        (arg.to_string(), pinned)
-                    })
+                    .map(|(arg, value)| (arg.to_string(), serde_json::from_str(value).unwrap()))
                     .collect();
                 rule["pin"] = Value::Object(pins);
             }
@@ -349,8 +355,17 @@ mod tests {
             .unwrap();
         let rule = |name: &str| rules.iter().find(|r| r["name"] == name).unwrap();
         assert_eq!(rule("mem_save")["pin"]["capture_prompt"], false);
-        assert_eq!(rule("mem_save")["pin"]["project"], "synthetic-project");
-        assert_eq!(rule("mem_search")["forbid"], json!(["all_projects"]));
+        assert!(rule("mem_save")["pin"].get("project").is_none());
+        for name in ["mem_save", "mem_session_summary"] {
+            let forbid = rule(name)["forbid"].as_array().unwrap().clone();
+            for arg in ["project", "session_id", "recovery_token"] {
+                assert!(forbid.contains(&json!(arg)), "{name} must forbid {arg}");
+            }
+        }
+        assert_eq!(
+            rule("mem_search")["forbid"],
+            json!(["project", "all_projects"])
+        );
         let env: Vec<_> = approved["env"]
             .as_array()
             .unwrap()

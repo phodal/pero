@@ -38,10 +38,8 @@
         "tools": [
           {
             "name": "mem_search",
-            "pin": {
-              "project": "{{PROJECT}}"
-            },
             "forbid": [
+              "project",
               "all_projects"
             ]
           },
@@ -50,24 +48,32 @@
           },
           {
             "name": "mem_context",
-            "pin": {
-              "project": "{{PROJECT}}"
-            }
+            "forbid": [
+              "project"
+            ]
           },
           {
             "name": "mem_save",
             "mutates": true,
             "pin": {
-              "project": "{{PROJECT}}",
               "capture_prompt": false
-            }
+            },
+            "forbid": [
+              "project",
+              "project_choice_reason",
+              "recovery_token",
+              "session_id"
+            ]
           },
           {
             "name": "mem_session_summary",
             "mutates": true,
-            "pin": {
-              "project": "{{PROJECT}}"
-            }
+            "forbid": [
+              "project",
+              "project_choice_reason",
+              "recovery_token",
+              "session_id"
+            ]
           }
         ]
       },
