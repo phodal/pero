@@ -4,6 +4,7 @@ go_library(
     name = "acp",
     srcs = [
         "lifecycle.go",
+        "mcp_meta.go",
         "models.go",
         "server.go",
         "stream.go",
@@ -13,6 +14,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//harness",
+        "//mcp",
         "//runtime",
     ],
 )
@@ -21,9 +23,12 @@ go_test(
     name = "acp_test",
     srcs = [
         "extraction_test.go",
+        "mcp_fixture_test.go",
+        "mcp_policy_test.go",
         "models_test.go",
         "native_approval_test.go",
         "stream_test.go",
+        "wire_helpers_test.go",
     ],
     embed = [":acp"],
     deps = [

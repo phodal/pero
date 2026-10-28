@@ -1060,6 +1060,7 @@ func decodeMCPServers(raw []json.RawMessage, cwd string) ([]harness.MCPServerCon
 				Command string                         `json:"command"`
 				Args    []string                       `json:"args"`
 				Env     []struct{ Name, Value string } `json:"env"`
+				Meta    map[string]json.RawMessage     `json:"_meta"`
 			}
 			if err := json.Unmarshal(entry, &server); err != nil {
 				return nil, invalidError(fmt.Sprintf("mcpServers[%d] is invalid", index))
@@ -1071,7 +1072,11 @@ func decodeMCPServers(raw []json.RawMessage, cwd string) ([]harness.MCPServerCon
 				}
 				env[pair.Name] = pair.Value
 			}
-			result = append(result, harness.MCPServerConfig{Name: server.Name, Transport: harness.MCPStdio, Command: server.Command, Args: server.Args, Env: env, CWD: cwd})
+			config := harness.MCPServerConfig{Name: server.Name, Transport: harness.MCPStdio, Command: server.Command, Args: server.Args, Env: env, CWD: cwd}
+			if err := applyMCPServerMeta(&config, server.Meta, index); err != nil {
+				return nil, err
+			}
+			result = append(result, config)
 			continue
 		}
 		if probe.Type != "http" {
@@ -1082,6 +1087,7 @@ func decodeMCPServers(raw []json.RawMessage, cwd string) ([]harness.MCPServerCon
 			Name    string                         `json:"name"`
 			URL     string                         `json:"url"`
 			Headers []struct{ Name, Value string } `json:"headers"`
+			Meta    map[string]json.RawMessage     `json:"_meta"`
 		}
 		if err := json.Unmarshal(entry, &server); err != nil {
 			return nil, invalidError(fmt.Sprintf("mcpServers[%d] is invalid", index))
@@ -1096,7 +1102,11 @@ func decodeMCPServers(raw []json.RawMessage, cwd string) ([]harness.MCPServerCon
 			identities[identity] = struct{}{}
 			headers[pair.Name] = pair.Value
 		}
-		result = append(result, harness.MCPServerConfig{Name: server.Name, Transport: harness.MCPStreamableHTTP, URL: server.URL, Headers: headers})
+		config := harness.MCPServerConfig{Name: server.Name, Transport: harness.MCPStreamableHTTP, URL: server.URL, Headers: headers}
+		if err := applyMCPServerMeta(&config, server.Meta, index); err != nil {
+			return nil, err
+		}
+		result = append(result, config)
 	}
 	return result, nil
 }
