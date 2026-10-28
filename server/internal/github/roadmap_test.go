@@ -24,66 +24,71 @@ func gitBlob(data []byte) string {
 }
 
 func TestPinnedRoadmapReadHierarchyAndAutoFallback(t *testing.T) {
-	db := database(t)
-	config := config()
-	config.RoadmapPath = "auto"
-	config.AutoDispatch = true
-	commit := strings.Repeat("a", 40)
-	markdown := []byte("# Project\n## Platform\n- [ ] Parent #go <!--pero:id:parent-->\n  - [ ] Child #runtime <!--pero:id:child-->\n- [x] Complete <!--pero:id:done-->\n")
-	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Error("roadmap import attempted a write")
-		}
-		switch r.URL.Path {
-		case "/repos/acme/repo":
-			w.Write([]byte(`{"id":200,"full_name":"acme/repo","default_branch":"main"}`))
-		case "/repos/acme/repo/issues":
-			w.Write([]byte(`[]`))
-		case "/repos/acme/repo/commits/main":
-			json.NewEncoder(w).Encode(map[string]string{"sha": commit})
-		case "/repos/acme/repo/contents/ROADMAP.md":
-			http.NotFound(w, r)
-		case "/repos/acme/repo/contents/docs/ROADMAP.md":
-			if r.URL.Query().Get("ref") != commit {
-				t.Error("contents read was not pinned")
+	for _, path := range []string{"ROADMAP.md", "docs/ROADMAP.md"} {
+		t.Run(path, func(t *testing.T) {
+			db := database(t)
+			config := config()
+			config.RoadmapPath = "auto"
+			config.AutoDispatch = true
+			commit := strings.Repeat("a", 40)
+			markdown := []byte("# Project\n## Platform\n- [ ] Parent. Parent goal #go <!--pero:id:parent-->\n  - [ ] Child. Child goal #runtime <!--pero:id:child-->\n- [x] Complete. Completed goal <!--pero:id:done-->\n")
+			provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != "GET" {
+					t.Error("roadmap import attempted a write")
+				}
+				switch r.URL.Path {
+				case "/repos/acme/repo":
+					w.Write([]byte(`{"id":200,"full_name":"acme/repo","default_branch":"main"}`))
+				case "/repos/acme/repo/issues":
+					w.Write([]byte(`[]`))
+				case "/repos/acme/repo/commits/main":
+					json.NewEncoder(w).Encode(map[string]string{"sha": commit})
+				case "/repos/acme/repo/contents/" + path:
+					if r.URL.Query().Get("ref") != commit {
+						t.Error("contents read was not pinned")
+					}
+					json.NewEncoder(w).Encode(map[string]any{"type": "file", "encoding": "base64", "path": path, "size": len(markdown), "content": base64.StdEncoding.EncodeToString(markdown), "sha": gitBlob(markdown)})
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer provider.Close()
+			s, err := New(db, []store.GitHubRepository{config}, "", Options{BaseURL: provider.URL, Client: provider.Client()})
+			if err != nil {
+				t.Fatal(err)
 			}
-			json.NewEncoder(w).Encode(map[string]any{"type": "file", "encoding": "base64", "path": "docs/ROADMAP.md", "size": len(markdown), "content": base64.StdEncoding.EncodeToString(markdown), "sha": gitBlob(markdown)})
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer provider.Close()
-	s, err := New(db, []store.GitHubRepository{config}, "", Options{BaseURL: provider.URL, Client: provider.Client()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	result, err := s.Sync(context.Background())
-	if err != nil || result.Imported != 3 || result.Dispatched != 0 || result.Partial {
-		t.Fatalf("roadmap sync: %+v %v", result, err)
-	}
-	page, err := db.Tasks(context.Background(), "", 50, store.TaskFilter{SourceKind: "roadmap"})
-	if err != nil || len(page.Tasks) != 3 {
-		t.Fatalf("imported tasks: %+v %v", page, err)
-	}
-	for _, task := range page.Tasks {
-		if task.Source.CommitSHA != commit || task.Source.BlobSHA != gitBlob(markdown) || !strings.Contains(task.Source.URL, "/blob/"+commit+"/docs/ROADMAP.md#L") {
-			t.Fatal("immutable source link lost")
-		}
-		if task.Source.ItemID == "child" && (task.Source.Depth != 1 || task.ParentTaskID == "" || task.Source.ParentItemID != "parent") {
-			t.Fatal("nested hierarchy metadata lost")
-		}
-	}
-	// Pinning a different file commit/line shift changes navigation, not item revisions.
-	commit = strings.Repeat("b", 40)
-	markdown = append([]byte("\n"), markdown...)
-	result, err = s.Sync(context.Background())
-	if err != nil || result.Imported != 0 || result.Updated != 0 {
-		t.Fatalf("metadata-only sync: %+v %v", result, err)
+			result, err := s.Sync(context.Background())
+			if err != nil || result.Imported != 3 || result.Dispatched != 0 || result.Partial {
+				t.Fatalf("roadmap sync: %+v %v", result, err)
+			}
+			page, err := db.Tasks(context.Background(), "", 50, store.TaskFilter{SourceKind: "roadmap"})
+			if err != nil || len(page.Tasks) != 3 {
+				t.Fatalf("imported tasks: %+v %v", page, err)
+			}
+			for _, task := range page.Tasks {
+				if task.Source.CommitSHA != commit || task.Source.BlobSHA != gitBlob(markdown) || !strings.Contains(task.Source.URL, "/blob/"+commit+"/"+path+"#L") {
+					t.Fatal("immutable source link lost")
+				}
+				if task.Source.ItemID == "parent" && (task.Title != "Parent" || task.Prompt != "Parent. Parent goal #go") {
+					t.Fatalf("import lost short title or full goal: %+v", task.Spec)
+				}
+				if task.Source.ItemID == "child" && (task.Source.Depth != 1 || task.ParentTaskID == "" || task.Source.ParentItemID != "parent") {
+					t.Fatal("nested hierarchy metadata lost")
+				}
+			}
+			// Pinning a different file commit/line shift changes navigation, not item revisions.
+			commit = strings.Repeat("b", 40)
+			markdown = append([]byte("\n"), markdown...)
+			result, err = s.Sync(context.Background())
+			if err != nil || result.Imported != 0 || result.Updated != 0 {
+				t.Fatalf("metadata-only sync: %+v %v", result, err)
+			}
+		})
 	}
 }
 
 func TestRepositoryRoadmapParsesWithoutDiscardingCheckboxes(t *testing.T) {
-	data, err := os.ReadFile("../../../docs/ROADMAP.md")
+	data, err := os.ReadFile("../../../ROADMAP.md")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +98,7 @@ func TestRepositoryRoadmapParsesWithoutDiscardingCheckboxes(t *testing.T) {
 	}
 	db := database(t)
 	config := config()
-	snapshot := store.RoadmapSnapshot{RepositoryID: "200", Repository: "acme/repo", Path: "docs/ROADMAP.md", CommitSHA: strings.Repeat("a", 40), BlobSHA: gitBlob(data), Items: []store.RoadmapItem{}}
+	snapshot := store.RoadmapSnapshot{RepositoryID: "200", Repository: "acme/repo", Path: "ROADMAP.md", CommitSHA: strings.Repeat("a", 40), BlobSHA: gitBlob(data), Items: []store.RoadmapItem{}}
 	for _, item := range parsed.Items {
 		snapshot.Items = append(snapshot.Items, store.RoadmapItem{ID: item.ID, ParentID: item.ParentID, Title: item.Title, Text: item.Text, Checked: item.Checked, Line: item.Line, Headings: item.Headings, Tags: item.Tags})
 	}

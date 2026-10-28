@@ -6,7 +6,7 @@
   --arch-action:#007F86; --arch-on-action:#FFFFFF;
   --arch-soft:#E7F3F5; --arch-link:#00777D;
 }
-:root[data-theme="dark"] {
+:root[data-theme="dark"] .architecture-map {
   --arch-surface:#121F2E; --arch-surface-muted:#192A3B;
   --arch-text:#EAF1F8; --arch-muted:#ACBBCB;
   --arch-border:#34485D; --arch-connector:#6B849D;
@@ -15,8 +15,8 @@
 }
 .architecture-map,.architecture-technical { color:var(--arch-text); }
 .runtime-head { align-items:center; }
-.runtime-head #architecture-title { font-size:clamp(22px,2.5vw,30px); color:var(--arch-text); text-wrap:balance; margin:0; }
-.runtime-head .tag { color:var(--arch-muted); background:var(--arch-surface-muted); border-color:var(--arch-border); }
+.runtime-head #architecture-title { font-size:clamp(28px,3.2vw,40px); font-weight:600; letter-spacing:0; line-height:1.45; color:var(--navy); text-wrap:balance; margin:0; }
+.runtime-head .tag { color:var(--slate); background:var(--white); border-color:var(--line); }
 .architecture-note { color:var(--arch-muted); font-size:12px; line-height:1.8; }
 .architecture-map { --arch-gap:16px; margin:20px 0 12px; padding:24px; border:1px solid var(--arch-border); background:var(--arch-surface); border-radius:6px; }
 .architecture-map figcaption { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:24px; }

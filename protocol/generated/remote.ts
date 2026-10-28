@@ -178,6 +178,7 @@ export interface RemoteConnection {
   mode: "client" | "operator";
   credential_configured: boolean;
   persistence_available: boolean;
+  authenticating?: boolean;
 }
 export interface TaskPage {
   tasks: Task[];

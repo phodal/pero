@@ -43,6 +43,8 @@ type server struct {
 }
 type page struct {
 	Title, View, Period, Login, Message string
+	DesktopState, DesktopChallenge      string
+	DesktopLink                         template.URL
 	Session                             *store.CommunitySession
 	OAuth                               bool
 	Tasks                               []store.PublicTask
@@ -100,6 +102,9 @@ func (s *server) routes(fallback http.Handler) http.Handler {
 	mux.HandleFunc("GET /auth/github", s.oauthStart)
 	mux.HandleFunc("GET /auth/github/callback", s.oauthCallback)
 	mux.HandleFunc("POST /auth/logout", s.logout)
+	mux.HandleFunc("GET /connect/desktop", s.desktopConnect)
+	mux.HandleFunc("POST /connect/desktop", s.desktopAuthorize)
+	mux.HandleFunc("POST /auth/desktop/token", s.desktopToken)
 	mux.HandleFunc("GET /community/admin/login", s.operatorLoginPage)
 	mux.HandleFunc("POST /community/admin/login", s.operatorLogin)
 	mux.HandleFunc("GET /community/admin", s.admin)
@@ -140,6 +145,8 @@ func taskState(t store.PublicTask) string {
 		return "来源已更新"
 	case "reserved":
 		return "已认领"
+	case "submitted":
+		return "已提交 PR，待复核"
 	case "queued":
 		return "排队中"
 	case "running":

@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('pero', {
   sendProbe: (request: { id: string; text: string }) => ipcRenderer.invoke('pero:probe', request),
   sessionCommand: (command: object) => ipcRenderer.invoke('pero:session', command),
   remoteCommand: (command: object) => ipcRenderer.invoke('pero:remote', command),
+  appsCommand: (command: object) => ipcRenderer.invoke('pero:apps', command),
   chooseWorkspace: () => ipcRenderer.invoke('pero:workspace'),
   chooseContext: () => ipcRenderer.invoke('pero:context'),
   onEvent: (callback: (event: unknown) => void) => {

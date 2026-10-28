@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Virtual Cell</title>
+  <rect x="88" y="88" width="848" height="848" rx="190" fill="#142B45"/>
+  <path d="M725 285c86 59 113 171 82 272-32 106-129 204-242 222-106 17-228-30-287-117-56-82-51-201 3-283 58-88 161-116 259-129 65-9 127-4 185 35Z" fill="#007F86" stroke="#55D5DD" stroke-width="25"/>
+  <path d="M696 334c65 47 83 133 58 212-26 83-101 161-189 176-83 14-178-23-224-90-43-63-39-155 3-218 44-67 125-90 201-100 54-8 105-8 151 20Z" fill="none" stroke="#55D5DD" stroke-opacity=".3" stroke-width="9"/>
+  <circle cx="520" cy="501" r="112" fill="#E7F3F5"/>
+  <circle cx="546" cy="480" r="39" fill="#142B45"/>
+  <g fill="#55D5DD">
+    <ellipse cx="366" cy="430" rx="24" ry="37" transform="rotate(30 366 430)"/>
+    <ellipse cx="663" cy="578" rx="26" ry="42" transform="rotate(35 663 578)"/>
+    <ellipse cx="442" cy="662" rx="38" ry="22" transform="rotate(20 442 662)"/>
+    <circle cx="640" cy="374" r="17"/>
+    <circle cx="353" cy="567" r="15"/>
+  </g>
+</svg>

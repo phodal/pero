@@ -4,6 +4,7 @@ go_library(
     name = "httpapi",
     srcs = [
         "clients.go",
+        "contributions.go",
         "github.go",
         "routes.go",
         "worker.go",

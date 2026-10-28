@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="560" viewBox="0 0 1600 560" role="img" aria-labelledby="title description" lang="en">
-<title id="title">OpenPero — From a question to a result others can build on.</title>
+<title id="title">Pero — From a question to a result others can build on.</title>
 <desc id="description">Target workflow. A question from a GitHub Issue, a researcher, or an agent becomes a task contract with pinned inputs, method version, and acceptance criteria. Researchers, agents, or compute workers carry it out. The run is recorded with outputs, parameters, environment, and execution log, then reviewed against the baseline before the result is accepted. Accepted results return to the project memory, which provides context for the next question.</desc>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 1 L 9 5 L 0 9" fill="none" stroke="#55D5DD" stroke-width="1.6"/></marker></defs>
 <rect x="0" y="0" width="1600" height="560" rx="16" fill="#142B45" stroke="none" stroke-width="1.5"/>

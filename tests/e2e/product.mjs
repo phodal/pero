@@ -1,0 +1,71 @@
+// Exercise the relocated packaged product with a clean profile and no system Python in PATH.
+import { _electron as electron, expect } from '@playwright/test';
+import { mkdtemp, mkdir, readFile, writeFile, rename } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+const root = resolve(import.meta.dirname, '../..');
+const output = resolve(root, 'test-results/product');
+await mkdir(output, { recursive: true });
+const profile = await mkdtemp(resolve(tmpdir(), 'virtual-cell-product-'));
+const executablePath = process.env.PERO_PRODUCT_EXECUTABLE || resolve(root, 'target/products/package-com.openpero.virtualcell/Virtual Cell.app/Contents/MacOS/Pero');
+const env = { ...process.env, PATH: '/usr/bin:/bin', PERO_DESKTOP_DATA_DIR: profile, PERO_LOCALE: 'en' };
+delete env.ELECTRON_RUN_AS_NODE; delete env.PYTHONHOME; delete env.PYTHONPATH;
+let app;
+const errors = [];
+const checks = [];
+const launch = () => electron.launch({ executablePath, args: ['--use-mock-keychain'], env });
+try {
+  app = await launch();
+  let page = await app.firstWindow();
+  page.on('pageerror', error => errors.push(error.message));
+  await expect(page).toHaveTitle('Virtual Cell');
+  const frame = page.frameLocator('iframe[title="virtual-cell"]');
+  await expect(frame.getByRole('tab', { name: 'Cells & perturbations' })).toBeVisible({ timeout: 30000 });
+  await expect(frame.getByText('660 / 660 Cells', { exact: false }).first()).toBeVisible();
+  expect(await frame.locator('body').evaluate(() => typeof window.product)).toBe('undefined');
+  expect(await frame.locator('body').evaluate(() => typeof window.pero)).toBe('undefined');
+  checks.push('packaged App opens directly, atlas loaded, no preload in App');
+  await frame.getByRole('button', { name: 'Load synthetic example', exact: true }).click();
+  await expect(frame.getByRole('button', { name: 'Compare baselines and predictions', exact: true })).toBeEnabled();
+  await frame.getByRole('button', { name: 'Compare baselines and predictions', exact: true }).click();
+  await expect(frame.locator('.vc-models tbody tr')).toHaveCount(3);
+  checks.push('bundled Python serves import and three real baseline computations');
+  await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'light'; });
+  await expect.poll(() => frame.locator('html').evaluate(element => element.style.colorScheme)).toBe('light');
+  await page.screenshot({ path: resolve(output, 'atlas.png') });
+  await frame.getByRole('tab', { name: 'Reactions & simulation' }).click();
+  await frame.getByLabel('Duration (s)', { exact: true }).fill('12');
+  await frame.getByRole('button', { name: 'Run simulation', exact: true }).click();
+  await expect(frame.getByText('Parameters changed · curves not updated')).toBeHidden();
+  checks.push('reaction simulation');
+  await page.screenshot({ path: resolve(output, 'simulation.png') });
+  await app.evaluate(({ Menu, nativeTheme }) => { Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click(); nativeTheme.themeSource = 'dark'; });
+  await expect(frame.getByRole('tab', { name: '反应与模拟' })).toBeVisible();
+  await expect.poll(() => frame.locator('html').evaluate(element => element.style.colorScheme)).toBe('dark');
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 700));
+  expect(await frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await page.screenshot({ path: resolve(output, 'dark-narrow.png') });
+  checks.push('live language, theme, narrow window');
+  await app.close(); app = undefined;
+  app = await launch(); page = await app.firstWindow();
+  const restored = page.frameLocator('iframe');
+  await expect(restored.getByRole('tab', { name: '单细胞与扰动' })).toBeVisible({ timeout: 30000 });
+  await expect.poll(() => restored.locator('body').evaluate(async () => (await (await fetch('/api/inputs')).json()).items.length)).toBe(1);
+  checks.push('profile persists language and imported inputs across restart');
+  await app.close(); app = undefined;
+  const python = resolve(executablePath, '../../Resources/app/runtime/python/bin/python3');
+  await rename(python, python + '.trial-backup');
+  try {
+    app = await launch(); page = await app.firstWindow();
+    await expect(page.locator('.app-panel-status')).toContainText('Cannot start App Python backend', { timeout: 30000 });
+  } finally { await rename(python + '.trial-backup', python); }
+  await page.locator('.app-panel-status button').click();
+  await expect(page.frameLocator('iframe').getByRole('tab', { name: '单细胞与扰动' })).toBeVisible({ timeout: 30000 });
+  checks.push('missing bundled Python shows startup error; restoring it and Retry recovers');
+  expect(errors).toEqual([]);
+  await writeFile(resolve(output, 'result.json'), JSON.stringify({ executablePath, checks, errors }, null, 2));
+  console.log(checks);
+} catch (error) {
+  if (app) await (await app.firstWindow()).screenshot({ path: resolve(output, 'failure.png') });
+  throw error;
+} finally { if (app) await app.close(); }

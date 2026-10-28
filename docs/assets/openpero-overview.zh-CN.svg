@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="560" viewBox="0 0 1600 560" role="img" aria-labelledby="title description" lang="zh-CN">
-<title id="title">OpenPero — 从一个研究问题，到别人可以接着做的成果。</title>
+<title id="title">Pero — 从一个研究问题，到别人可以接着做的成果。</title>
 <desc id="description">目标流程。来自 GitHub Issue、研究者或 Agent 的问题被整理成任务契约，固定输入、方法版本与验收标准。研究者、Agent 或计算节点完成任务。运行时保存产物、参数、环境与执行日志，并与基线对照复核后再接受结果。被接受的成果回到项目记忆，为下一个问题提供背景。</desc>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 1 L 9 5 L 0 9" fill="none" stroke="#55D5DD" stroke-width="1.6"/></marker></defs>
 <rect x="0" y="0" width="1600" height="560" rx="16" fill="#142B45" stroke="none" stroke-width="1.5"/>

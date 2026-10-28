@@ -19,7 +19,7 @@ function rustSources(directory) {
 const files = source ?? rustSources('crates/pero-ui/src');
 for (const file of files) {
   const content = readFileSync(resolve(root, file), 'utf8');
-  for (const [, key] of content.matchAll(/"((?:nav|task|tasks|status|overview|chat|agents|filter|time|error|probe|tab|field|appearance|workspace|input|workbench|github|remote|connector|menu|verification|projects|environment)\.[a-z_\.]+)"/g)) {
+  for (const [, key] of content.matchAll(/"((?:nav|task|tasks|status|overview|chat|agents|filter|time|error|probe|tab|field|appearance|workspace|input|workbench|github|remote|connector|menu|verification|projects|environment|cloud)\.[a-z_\.]+)"/g)) {
     assert.ok(key in en, `${file}: missing translation ${key}`);
   }
 }

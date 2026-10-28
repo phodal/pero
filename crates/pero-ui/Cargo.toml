@@ -4,6 +4,14 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[features]
+native = ["dep:gpui-kit", "dep:anyhow", "dep:async-channel", "dep:chrono"]
+
+[[bin]]
+name = "pero-native"
+path = "src/native_main.rs"
+required-features = ["native"]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
@@ -18,3 +26,9 @@ wasm-bindgen = "=0.2.127"
 js-sys = "0.3"
 console_error_panic_hook = "0.1"
 anyhow = "1"
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+gpui-kit = { workspace = true, features = ["syntect"], optional = true }
+anyhow = { version = "1", optional = true }
+async-channel = { version = "2", optional = true }
+chrono = { version = "0.4", optional = true }

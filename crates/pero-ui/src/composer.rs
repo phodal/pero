@@ -28,7 +28,49 @@ impl Workbench {
             .next()
             .unwrap_or("Workspace")
             .to_string();
-        let model_pending = chat.is_some_and(|chat| chat.pending_model.is_some());
+        let model_pending =
+            chat.is_some_and(|chat| chat.pending_model.is_some() || chat.pending_setting.is_some());
+        let selected_agent = agent.clone();
+        let agent_choices = self.agents.clone();
+        let agent_workbench = cx.entity().downgrade();
+        let setting_pickers = chat.map(|chat| chat.settings.options.iter().enumerate().map(|(index, option)| {
+            let thread = id.clone();
+            let setting = option.clone();
+            let workbench = cx.entity().downgrade();
+            let label = option.choices.iter().find(|choice| choice.value == option.current)
+                .map(|choice| choice.label.clone()).unwrap_or_else(|| option.name.clone());
+            let loading = chat.pending_setting.as_ref().is_some_and(|pending| pending.id == option.id);
+            Button::new(("session-setting",index)).ghost().small().label(label)
+                .dropdown_caret(true).max_w(px(160.)).loading(loading)
+                .disabled(busy || model_pending || chat.state != "idle")
+                .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu,_,_| {
+                    setting.choices.iter().fold(menu.min_w(px(200.)).max_h(px(280.)).scrollable(true).check_side(Side::Right)
+                        .item(PopupMenuItem::label(setting.name.clone())), |menu,choice| {
+                        let selection = choice.value.clone();
+                        let setting_id = setting.id.clone();
+                        let thread = thread.clone();
+                        let workbench = workbench.clone();
+                        let label = choice.label.clone();
+                        let description = choice.description.clone();
+                        let menu = menu.item(PopupMenuItem::new(label).checked(choice.value == setting.current)
+                            .on_click(move |_,_,cx| {
+                                let _ = workbench.update(cx, |this,cx| {
+                                    let Some(index) = this.chats.iter().position(|chat| chat.id == thread) else { return; };
+                                    let chat = &mut this.chats[index];
+                                    if chat.busy() || chat.pending_setting.is_some() || chat.pending_model.is_some() { return; }
+                                    let Ok(pending) = chat.settings.select(&setting_id,&selection) else { return; };
+                                    chat.pending_setting = Some(pending);
+                                    chat.error = None;
+                                    this.command(json!({"action":"configure","thread_id":thread,"config_id":setting_id,"value":selection}),cx);
+                                });
+                            }));
+                        if setting.category == "mode" && !description.is_empty() {
+                            menu.item(PopupMenuItem::label(description))
+                        } else { menu }
+
+                    })
+                }).into_any_element()
+        }).collect::<Vec<_>>()).unwrap_or_default();
         let model_picker = chat.filter(|chat| !chat.models.is_empty()).map(|chat| {
             let models = chat.models.clone();
             let selected = chat.model.clone();
@@ -69,7 +111,6 @@ impl Workbench {
                 .on_open_change(move |open, _, cx| {
                     let _ = open_workbench.update(cx, |this, _| {
                         this.model_menu = *open;
-                        if *open { this.agent_menu = false; }
                     });
                 })
         });
@@ -130,6 +171,7 @@ impl Workbench {
                 div()
                     .mt(px(6.))
                     .flex()
+                    .flex_wrap()
                     .items_center()
                     .gap(px(4.))
                     .child(
@@ -147,15 +189,39 @@ impl Workbench {
                             .ghost()
                             .small()
                             .label(agent.clone())
-                            .icon(IconName::ChevronDown)
+                            .dropdown_caret(true)
                             .disabled(chat.is_some_and(|c| c.state != "draft"))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.agent_menu = !this.agent_menu;
-                                this.model_menu = false;
-                                cx.notify();
-                            })),
+                            .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, _, _| {
+                                agent_choices.iter().enumerate().fold(
+                                    menu.min_w(px(220.)).check_side(Side::Right),
+                                    |menu, (i, a)| {
+                                        let agent = a.id.clone();
+                                        let workbench = agent_workbench.clone();
+                                        menu.item(
+                                            PopupMenuItem::new(a.name.clone())
+                                                .checked(a.id == selected_agent)
+                                                .disabled(!a.available)
+                                                .on_click(move |_, _, cx| {
+                                                    let _ = workbench.update(cx, |this, cx| {
+                                                        this.agent_index = i;
+                                                        if let Some(chat) = this
+                                                            .active_chat
+                                                            .and_then(|i| this.chats.get_mut(i))
+                                                        {
+                                                            if chat.state == "draft" {
+                                                                chat.agent = agent.clone();
+                                                            }
+                                                        }
+                                                        cx.notify();
+                                                    });
+                                                }),
+                                        )
+                                    },
+                                )
+                            }),
                     )
                     .children(model_picker)
+                    .children(setting_pickers)
                     .child(div().flex_1())
                     .child(
                         Button::new("workspace-picker")
@@ -214,41 +280,5 @@ impl Workbench {
                         )
                     }),
             )
-            .when(self.agent_menu, |el| {
-                el.child(
-                    div()
-                        .id("agent-options")
-                        .absolute()
-                        .occlude()
-                        .bottom(px(50.))
-                        .left(px(16.))
-                        .w(px(230.))
-                        .p(px(6.))
-                        .flex()
-                        .flex_col()
-                        .bg(p.color("surface"))
-                        .border_1()
-                        .border_color(p.color("border"))
-                        .rounded(px(6.))
-                        .children(self.agents.iter().enumerate().map(|(i, a)| {
-                            let agent = a.id.clone();
-                            Button::new(("agent-option", i))
-                                .ghost()
-                                .small()
-                                .label(a.name.clone())
-                                .disabled(!a.available)
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.agent_index = i;
-                                    this.agent_menu = false;
-                                    if let Some(i) = this.active_chat {
-                                        if this.chats[i].state == "draft" {
-                                            this.chats[i].agent = agent.clone();
-                                        }
-                                    }
-                                    cx.notify();
-                                }))
-                        })),
-                )
-            })
     }
 }

@@ -35,7 +35,7 @@ func (s *Store) AuthenticateClient(ctx context.Context, token string) (*Client, 
 	}
 	c := &Client{Role: "client"}
 	var expected []byte
-	err := s.pool.QueryRow(ctx, `SELECT id,name,projects,token_hash FROM clients WHERE id=$1`, id).Scan(&c.ID, &c.Name, &c.Projects, &expected)
+	err := s.pool.QueryRow(ctx, `SELECT id,name,projects,token_hash FROM clients WHERE id=$1 UNION ALL SELECT c.id,c.name,c.projects,d.token_hash FROM desktop_credentials d JOIN clients c ON c.id=d.client_id WHERE d.id=$1`, id).Scan(&c.ID, &c.Name, &c.Projects, &expected)
 	actual := sha256.Sum256([]byte(token))
 	if err != nil || subtle.ConstantTimeCompare(expected, actual[:]) != 1 {
 		return nil, ErrForbidden
@@ -147,7 +147,9 @@ func (s *Store) ClientTask(ctx context.Context, client *Client, id string) (*Tas
 	return clientTaskTx(ctx, tx, client, id, false)
 }
 
-func taskBusy(t *Task) bool {
+func taskBusy(t *Task) bool { return t.contributionSubmitted || taskExecutionBusy(t) }
+
+func taskExecutionBusy(t *Task) bool {
 	return t.Run != nil && (t.Run.Status == "queued" || t.Run.Status == "running" || t.Run.Status == "cancel_requested" || t.Run.Status == "reconcile")
 }
 
@@ -199,17 +201,12 @@ func (s *Store) ClaimTask(ctx context.Context, client *Client, id string) (*Task
 	if err != nil {
 		return nil, err
 	}
-	if taskSourceClosed(t) {
-		return nil, ErrConflict
+	changed, err := t.claim(TaskClaimant{ID: client.ID, Name: client.Name})
+	if err != nil {
+		return nil, err
 	}
-	if t.ClaimedBy != nil {
-		if t.ClaimedBy.ID == client.ID {
-			return t, nil
-		}
-		return nil, ErrConflict
-	}
-	if taskBusy(t) {
-		return nil, ErrConflict
+	if !changed {
+		return t, nil
 	}
 	if _, err = tx.Exec(ctx, `UPDATE tasks SET claimed_by_client_id=$2 WHERE id=$1`, id, client.ID); err != nil {
 		return nil, err
@@ -234,14 +231,12 @@ func (s *Store) ReleaseTask(ctx context.Context, client *Client, id string) (*Ta
 	if err != nil {
 		return nil, err
 	}
-	if t.ClaimedBy == nil {
+	changed, err := t.release(client.ID)
+	if err != nil {
+		return nil, err
+	}
+	if !changed {
 		return t, nil
-	}
-	if t.ClaimedBy.ID != client.ID {
-		return nil, ErrForbidden
-	}
-	if taskBusy(t) {
-		return nil, ErrConflict
 	}
 	if _, err = tx.Exec(ctx, `UPDATE tasks SET claimed_by_client_id=NULL WHERE id=$1`, id); err != nil {
 		return nil, err

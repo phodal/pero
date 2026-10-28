@@ -1,3 +1,4 @@
+import { build } from 'esbuild';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -5,8 +6,24 @@ import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+// The website shares the App's existing pinned Three.js dependency.
+if (!fs.existsSync(path.join(root, 'apps/virtual-cell/node_modules/three/package.json'))) {
+  throw new Error('Install viewer dependencies first: npm ci --prefix apps/virtual-cell');
+}
+// Bundle the lightweight molecular illustration with the existing Three.js dependency.
+const viewerOut = path.join(root, 'docs/assets/molecule-viewer');
+await build({
+  absWorkingDir: root, entryPoints: [path.join(root, 'pages/src/molecule-viewer.ts')],
+  outfile: viewerOut + '.js', bundle: true, format: 'esm', platform: 'browser',
+  minify: true, target: 'chrome120', jsx: 'automatic', legalComments: 'linked',
+  supported: { 'template-literal': false },
+  nodePaths: [path.join(root, 'apps/virtual-cell/node_modules')],
+
+});
+fs.writeFileSync(viewerOut + '.html', '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Molecular explorer</title><link rel="stylesheet" href="molecule-viewer.css"></head><body><div id="molecule-root"></div><script type="module" src="molecule-viewer.js"></script></body></html>');
+
 const pages = path.join(root, 'pages');
-const en = { ...require(path.join(pages, 'locales/en.js')), ...require(path.join(pages, 'locales/architecture.en.cjs')) };
+const en = { ...require(path.join(pages, 'locales/en.js')), ...require(path.join(pages, 'locales/architecture.en.cjs')), ...require(path.join(pages, 'locales/cell.en.cjs')) };
 
 const brandSvg = fs.readFileSync(path.join(pages, 'assets/openpero-mark.svg'), 'utf8').trim();
 const brandSymbol = brandSvg.replace('<svg ', '<symbol id="i-openpero" ').replace(' fill="url(#openpero-ribbon-gradient)"', '').replace('</svg>', '</symbol>');
@@ -15,7 +32,10 @@ const brandInline = (key, source = brandSvg) => source.replaceAll('openpero-ribb
 const brandGradient = (start, end) => brandSvg.replace('stop-color="#007F86"', 'stop-color="' + start + '"').replace('stop-color="#55D5DD"', 'stop-color="' + end + '"');
 const shell = fs.readFileSync(path.join(pages, 'src/index.html'), 'utf8').replace('__BRAND_SYMBOL__', brandSymbol);
 const styles = ['styles.css', 'architecture.css', 'brand.css'].map((name) => fs.readFileSync(path.join(pages, 'src', name), 'utf8')).join('\n');
-const experiment = fs.readFileSync(path.join(pages, 'src/experiment.js'), 'utf8');
+const cell = JSON.parse(fs.readFileSync(path.join(root, 'apps/virtual-cell/examples/synthetic.json'), 'utf8'));
+// Embed the App fixture, retaining provenance and the exact frozen split.
+const cellFixture = { dataset: cell.dataset, spec: cell.spec, split: cell.split };
+const experiment = fs.readFileSync(path.join(pages, 'src/experiment.js'), 'utf8').replace('__CELL_FIXTURE__', JSON.stringify(cellFixture));
 const demo = fs.readFileSync(path.join(pages, 'src/demo.js'), 'utf8');
 const collab = fs.readFileSync(path.join(pages, 'src/collab.js'), 'utf8');
 
@@ -146,6 +166,8 @@ function fill(html, locale) {
     .replaceAll('__LANG_HREF__', locale === 'en' ? '../' : 'en/')
     .replaceAll('__LANG_CODE__', locale === 'en' ? 'zh-CN' : 'en')
     .replaceAll('__LANG_LABEL__', locale === 'en' ? '中文' : 'English')
+    .replaceAll('__MOLECULE_VIEWER__', locale === 'en' ? '../assets/molecule-viewer.html' : 'assets/molecule-viewer.html')
+    .replaceAll('__FAVICON__', locale === 'en' ? '../favicon.svg' : 'favicon.svg')
     .replaceAll('__CANONICAL__', locale === 'en' ? 'https://phodal.github.io/pero/en/' : 'https://phodal.github.io/pero/')
     .replaceAll('__OG_LOCALE__', locale === 'en' ? 'en_US' : 'zh_CN')
     .replaceAll('__STYLES__', asReplacement(styles.trim()))
@@ -186,6 +208,7 @@ const docs = path.join(root, 'docs');
 fs.mkdirSync(path.join(docs, 'en'), { recursive: true });
 fs.writeFileSync(path.join(docs, 'index.html'), chinese);
 fs.writeFileSync(path.join(docs, 'en/index.html'), english);
+fs.writeFileSync(path.join(docs, 'favicon.svg'), brandSvg + '\n');
 fs.writeFileSync(path.join(docs, '.nojekyll'), '');
 const brandAssets = path.join(docs, 'assets');
 fs.mkdirSync(brandAssets, { recursive: true });
@@ -201,7 +224,7 @@ for (const { key, start, end } of brandColors) {
 }
 fs.writeFileSync(path.join(brandAssets, 'openpero-mark-monochrome.svg'), brandSvg.replace('fill="url(#openpero-ribbon-gradient)"', 'fill="currentColor"') + '\n');
 fs.writeFileSync(path.join(docs, 'brand-preview.html'), `<!doctype html>
-<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OpenPero 配色预览</title>
+<html lang="zh-CN"><meta charset="utf-8"><link rel="icon" href="favicon.svg" type="image/svg+xml"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OpenPero 配色预览</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#F7F9FC;color:#142B45;font-family:Inter,"Helvetica Neue",Arial,"PingFang SC",sans-serif}
 main{max-width:800px;margin:24px auto;padding:0 24px}section{--mark:#007F86;padding:32px;border:1px solid #DCE4ED;background:#fff}
@@ -222,6 +245,7 @@ footer{display:flex;justify-content:space-between;gap:16px;padding:16px 0;font-s
 fs.writeFileSync(path.join(docs, 'preview.html'), `<!DOCTYPE html>
 <html lang="zh-CN">
 <meta charset="utf-8"/>
+<link rel="icon" href="favicon.svg" type="image/svg+xml"/>
 <meta http-equiv="refresh" content="0; url=./index.html"/>
 <link rel="canonical" href="./index.html"/>
 <title>OpenPero</title>

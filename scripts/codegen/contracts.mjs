@@ -59,10 +59,10 @@ const schema = {
   oneOf: roots.map(type => ({ $ref: `#/$defs/${type}` })),
   $defs,
 };
-const types = await compile(structuredClone(schema), title, {
+const types = (await compile(structuredClone(schema), title, {
   additionalProperties: false, bannerComment: `/* Generated from protocol/${name}.tsp by scripts/codegen/contracts.mjs. Do not edit. */`,
   strictIndexSignatures: true, unreachableDefinitions: true, format: true,
-});
+})).replaceAll('\r\n', '\n');
 
 const outputs = {
   [resolve(outDir, `${name}.schema.json`)]: JSON.stringify(schema, null, 2) + '\n',
@@ -73,7 +73,7 @@ for (const [path, output] of Object.entries(outputs)) {
   if (check) {
     let current = '';
     try { current = readFileSync(path, 'utf8'); } catch {}
-    if (current !== output) throw new Error(`${path} is stale. Run npm run gen:contracts`);
+    if (current.replaceAll('\r\n', '\n') !== output) throw new Error(`${path} is stale. Run npm run gen:contracts`);
   } else writeFileSync(path, output);
 }
 }

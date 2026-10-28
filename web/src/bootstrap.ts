@@ -2,14 +2,16 @@ import init, { run, receive_host_event, snapshot } from './wasm/pero_ui';
 import themes from './theme.generated.json';
 import './shell.css';
 import { normalizeLocale, translate } from '../../locales';
+import { mountAppSurfaces, type AppSurface } from './apps';
 
 export interface HostEvent { version: number; kind: string; request_id: string | null; text: string; message_key?: string; thread_id?: string; data?: unknown }
 declare global {
   interface Window {
-    pero?: { connect(): Promise<HostEvent>; getLocale(): Promise<string>; setLocale(locale: string): Promise<void>; sendProbe(request: { id: string; text: string }): Promise<void>; onEvent(callback: (event: HostEvent) => void): () => void; sessionCommand(command: object): Promise<void>; remoteCommand(command: object): Promise<void>; chooseWorkspace(): Promise<void>; chooseContext(): Promise<void> };
+    pero?: { connect(): Promise<HostEvent>; getLocale(): Promise<string>; setLocale(locale: string): Promise<void>; sendProbe(request: { id: string; text: string }): Promise<void>; onEvent(callback: (event: HostEvent) => void): () => void; sessionCommand(command: object): Promise<void>; remoteCommand(command: object): Promise<void>; appsCommand(command: object): Promise<void>; chooseWorkspace(): Promise<void>; chooseContext(): Promise<void> };
     peroSendProbe(json: string): void;
     peroSetLocale(locale: string): void;
     peroSessionCommand(json: string): void;
+    peroAppSurface(json: string): void;
     peroDiagnostics: { snapshot: typeof snapshot };
   }
 }
@@ -27,6 +29,8 @@ try {
     document.documentElement.style.setProperty(`--pero-${key}`, value);
   }
   await init();
+  const apps = mountAppSurfaces(value => window.pero ? window.pero.appsCommand(value) : Promise.reject(new Error(t('error.browser'))));
+  window.peroAppSurface = json => apps.surface(JSON.parse(json) as AppSurface);
   window.peroSendProbe = (json) => {
     const request = JSON.parse(json);
     if (!window.pero) {
@@ -38,6 +42,7 @@ try {
   const onEvent = (event: HostEvent) => {
     if (event.kind === 'settings') { locale = normalizeLocale(event.text); updateDocument(); }
     receive_host_event(JSON.stringify(event));
+    apps.event(event);
   };
   window.peroSetLocale = (value) => {
     if (window.pero) window.pero.setLocale(value).catch(() => onEvent({ version: 1, kind: 'error', request_id: null, text: '', message_key: 'error.settings' }));
@@ -46,7 +51,7 @@ try {
   window.peroSessionCommand = (json) => {
     const command = JSON.parse(json);
     if (!window.pero) { queueMicrotask(() => onEvent({version:1,kind:'error',request_id:null,text:'',message_key:'error.agent_browser'})); return; }
-    const pending = typeof command.action === 'string' && command.action.startsWith('remote_') ? window.pero.remoteCommand(command) : command.action === 'choose_workspace' ? window.pero.chooseWorkspace() : command.action === 'choose_context' ? window.pero.chooseContext() : window.pero.sessionCommand(command);
+    const pending = typeof command.action === 'string' && command.action.startsWith('apps_') ? window.pero.appsCommand(command) : typeof command.action === 'string' && command.action.startsWith('remote_') ? window.pero.remoteCommand(command) : command.action === 'choose_workspace' ? window.pero.chooseWorkspace() : command.action === 'choose_context' ? window.pero.chooseContext() : window.pero.sessionCommand(command);
     pending.catch(() => onEvent({version:1,kind:command.thread_id?'session_error':'error',thread_id:command.thread_id,request_id:null,text:t('error.connection')}));
   };
   run(JSON.stringify(themes), dark, locale);
@@ -62,6 +67,7 @@ try {
     if (connection) onEvent(connection);
     await window.pero.sessionCommand({action:'list_agents'});
     await window.pero.remoteCommand({action:'remote_refresh'});
+    await window.pero.appsCommand({action:'apps_list'});
   }
   loading.remove();
 } catch (error) {

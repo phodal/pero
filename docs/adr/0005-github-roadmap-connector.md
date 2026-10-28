@@ -10,6 +10,11 @@ checkbox in an explicitly configured ROADMAP. The `auto` path tries
 path is also supported. Existing repositories without this setting keep their
 Issue-only behavior.
 
+This repository keeps its checklist in root `ROADMAP.md`. Each item uses
+`- [ ] Title. Description.`: the first `. ` separates the short Task title from
+its description, while the full item remains the execution goal. Items without
+that separator retain their original first-line title.
+
 Headings retain group context. Nested checkbox items bind to a parent Task.
 Issue labels and ROADMAP hashtags become tags. A checked item is a closed source,
 not an accepted Run. ROADMAP intake creates drafts and never authorizes automatic
@@ -17,7 +22,8 @@ execution. The same project-scoped Task/Run and ownership rules apply.
 
 Source identity is separate from source revision. Explicit `<!-- pero:id:... -->`
 markers retain identity across wording or location changes. Fallback identity
-uses checklist context and text; ambiguous items produce an incomplete-source
+uses checklist context and title; description-only edits retain identity.
+Ambiguous items produce an incomplete-source
 result. A complete snapshot can mark removed items missing. A partial fetch or
 parse cannot close previously observed work. Claimed or executed goals remain
 frozen, with current metadata exposed separately as `latest_source`.

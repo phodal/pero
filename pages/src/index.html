@@ -3,6 +3,7 @@
 <html lang="__HTML_LANG__">
 <head>
 <meta charset="utf-8"/>
+<link rel="icon" href="__FAVICON__" type="image/svg+xml"/>
 <link rel="alternate" hreflang="zh-CN" href="__HREF_ZH__"/>
 <link rel="alternate" hreflang="en" href="__HREF_EN__"/>
 <link rel="alternate" hreflang="x-default" href="__HREF_ZH__"/>
@@ -18,23 +19,23 @@
   document.documentElement.style.colorScheme = theme;
 })();
 </script>
-<meta content="OpenPero 是面向科学研究的分布式 AI4S 工作台。围绕课题组织方法、数据与算力，让研究者、AI 与计算环境共同完成可复核的研究。" name="description"/>
+<meta content="OpenPero 做分布式 Agent 协作，面向 AI4S 与研发，连接业务专家、开源贡献者与计算环境。围绕课题组织方法、数据与算力，让研究者、AI 与计算环境共同完成可复核的工作。" name="description"/>
 <link rel="canonical" href="__CANONICAL__"/>
 <meta property="og:type" content="website"/>
 <meta property="og:site_name" content="OpenPero"/>
 <meta property="og:locale" content="__OG_LOCALE__"/>
 <meta property="og:url" content="__CANONICAL__"/>
-<meta property="og:title" content="OpenPero — 分布式 AI4S"/>
-<meta property="og:description" content="OpenPero 是面向科学研究的分布式 AI4S 工作台。围绕课题组织方法、数据与算力，让研究者、AI 与计算环境共同完成可复核的研究。"/>
+<meta property="og:title" content="OpenPero — 分布式 Agent 协作"/>
+<meta property="og:description" content="OpenPero 做分布式 Agent 协作，面向 AI4S 与研发，连接业务专家、开源贡献者与计算环境。围绕课题组织方法、数据与算力，让研究者、AI 与计算环境共同完成可复核的工作。"/>
 <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="OpenPero — 分布式 AI4S"/>
-<meta name="twitter:description" content="OpenPero 是面向科学研究的分布式 AI4S 工作台。围绕课题组织方法、数据与算力，让研究者、AI 与计算环境共同完成可复核的研究。"/>
-<title>OpenPero — 分布式 AI4S</title>
+<meta name="twitter:title" content="OpenPero — 分布式 Agent 协作"/>
+<meta name="twitter:description" content="OpenPero 做分布式 Agent 协作，面向 AI4S 与研发，连接业务专家、开源贡献者与计算环境。围绕课题组织方法、数据与算力，让研究者、AI 与计算环境共同完成可复核的工作。"/>
+<title>OpenPero — 分布式 Agent 协作</title>
 <!--
-    OpenPero single-file website prototype / 2026-10
+    OpenPero static website prototype / 2026-10
     Brand: Deep Space Blue × Spectral Teal.
-    No remote fonts, analytics, network requests, or runtime dependencies.
-    The numerical example is synthetic and computed locally.
+    No remote fonts, analytics, external services, or CDN dependencies.
+    Molecule illustrations and synthetic baseline evaluation run locally.
     The brand uses three converging bands with a single-weight wordmark.
     MIT License
 
@@ -176,7 +177,7 @@ __STYLES__
 <header class="header">
 <div class="shell nav">
 <a aria-label="OpenPero 首页" class="brand" href="#top"><span class="brand-mark" aria-hidden="true"><svg class="brand-symbol"><use href="#i-openpero"></use></svg></span><span class="brand-wordmark">OpenPero</span></a>
-<nav aria-label="主要导航" class="nav-links" id="nav-links"><a href="#runtime">协作架构</a><a href="#collaborate">任务协作</a><a href="#lab">方法与记录</a><a href="#open">参与共建</a></nav>
+<nav aria-label="主要导航" class="nav-links" id="nav-links"><a href="#runtime">协作架构</a><a href="#collaborate">任务协作</a><a href="#collaborate">分子探索</a><a href="#open">参与共建</a></nav>
 <div class="header-tools">
 <a class="icon-btn" href="__LANG_HREF__" hreflang="__LANG_CODE__" lang="__LANG_CODE__" aria-label="__LANG_LABEL__" title="__LANG_LABEL__"><svg class="icon" aria-hidden="true"><use href="#i-world"></use></svg></a>
 <button aria-label="切换配色" title="切换配色" aria-pressed="false" class="icon-btn" id="theme-toggle" type="button"><svg class="icon theme-icon theme-icon-sun" aria-hidden="true"><use href="#i-sun"></use></svg><svg class="icon theme-icon theme-icon-moon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
@@ -190,9 +191,10 @@ __STYLES__
 <section class="cover" id="top">
 <div class="shell cover-layout">
 <div>
-<h1>分布式 AI4S</h1>
+<h1>分布式 Agent 协作</h1>
 <p class="cover-copy">面向科学研究，把课题、方法与算力放在一起。从一个研究问题出发，把任务交给合作者、AI 和合适的计算环境。</p>
-<div class="cover-actions"><a class="btn btn-primary" href="#collaborate">体验一次任务协作</a><a class="btn btn-ghost" href="#runtime">协作架构</a></div>
+<div class="cover-actions"><a class="btn btn-primary" href="#collaborate">体验一次任务协作</a><a class="btn btn-ghost" href="https://github.com/phodal/pero/releases" target="_blank" rel="noopener noreferrer">下载 macOS 开发版</a><a class="btn btn-ghost" href="#runtime">协作架构</a></div>
+<details class="download-details"><summary>macOS arm64 · 安装要求</summary><p>适用于 Apple Silicon。贡献代码需本机 Git、已安装并登录的编码 CLI，以及已登录的 GitHub CLI（gh auth login）。开发版尚未公证。</p><a href="https://github.com/phodal/pero/blob/master/desktop/README.md" target="_blank" rel="noopener noreferrer">安装与贡献说明 ↗</a></details>
 </div>
 <ol class="cover-roles" aria-label="谁来做">
 <li><b>01</b><strong>研究者</strong><span>定下问题与验收。</span></li>
@@ -254,24 +256,27 @@ __STYLES__
 </section>
 
 <section class="collaboration-section" id="collaborate"><div class="shell">
-<div class="demo-intro"><h2>从一个 Issue，<br/>到一份可检查的结果。</h2></div>
-<div class="studio">
-<div class="studio-header"><div><h2>阻尼变化如何影响响应？</h2><p>同一个模型，比较不同条件下的结果。</p></div><p class="task-status"><span id="hero-task-count">待拆分</span><span id="hero-progress">等待你确认</span></p><button class="quiet-button" id="reset-collaboration" type="button">重置演示 ↺</button></div>
+<div class="demo-intro cell-intro"><p class="lab-small">MOLECULAR EXPLORER / A SMALL START</p><h2>从一个分子，<br/>看见科学的另一面。</h2><p>选一个熟悉的分子，拖动看看它的结构。从一个小问题，开始一次探索。</p></div>
+<div class="cell-showcase"><iframe id="molecule-viewer" title="三维分子交互示例" src="__MOLECULE_VIEWER__" loading="lazy"></iframe></div>
+
+
+<details class="research-details" open><summary>进一步了解：研究任务如何协作</summary><div class="studio">
+<div class="studio-header"><div><h2>单基因扰动，能预测双基因组合吗？</h2><p>Virtual Cell · 固定留出组合，比较三种预测基线。</p></div><p class="task-status"><span id="hero-task-count">待拆分</span><span id="hero-progress">等待你确认</span></p><button class="quiet-button" id="reset-collaboration" type="button">重置演示 ↺</button></div>
 <div aria-label="协作进度" class="studio-steps"><span class="current" data-phase="0"><b>1</b>提出工作</span><i></i><span data-phase="1"><b>2</b>确认与分发</span><i></i><span data-phase="2"><b>3</b>运行与复核</span><i></i><span data-phase="4"><b>4</b>回到项目</span></div>
 <div class="studio-grid">
 <article class="studio-column source-column">
 <div class="column-label"><span>01 / 一项清楚的工作</span><span>INPUT</span></div>
 <div aria-label="选择任务来源" class="source-switch" role="group"><button aria-pressed="true" data-source="github">GitHub Issue</button><button aria-pressed="false" data-source="proactive">Pero 建议</button><button aria-pressed="false" data-source="human">研究者提出</button></div>
-<div class="source-card"><div class="source-origin"><span class="issue-open">◉</span><span id="source-caption">ISSUE #12 · 示例编号</span></div><h3 id="source-title">比较三组阻尼参数的响应差异</h3><p id="source-description">沿用项目已有模型，分别运行 ζ = 0.08、0.22、0.40，提交曲线、数值误差和完整参数。</p><div class="source-chips"><span>研究贡献</span><span>可独立复现</span></div></div>
-<div class="contract"><div><span>输入</span><strong>初始状态 v1 · 三组阻尼比</strong></div><div><span>方法</span><strong>RK4 / 1.0.0</strong></div><div><span>交付</span><strong>结果数据 + 运行记录</strong></div><div><span>检查</span><strong>101 点 / 组 · RMSE &lt; 0.001</strong></div></div>
+<div class="source-card"><div class="source-origin"><span class="issue-open">◉</span><span id="source-caption">ISSUE #12 · 示例编号</span></div><h3 id="source-title">评估未见双扰动组合的预测误差</h3><p id="source-description">固定合成数据与组合划分，比较 control、train_mean 和 additive，保留全部测试结果。</p><div class="source-chips"><span>研究贡献</span><span>可独立复现</span></div></div>
+<div class="contract"><div><span>输入</span><strong>合成表达矩阵 · 固定组合划分</strong></div><div><span>方法</span><strong>Virtual Cell baselines / v1</strong></div><div><span>交付</span><strong>结果数据 + 运行记录</strong></div><div><span>检查</span><strong>5 / 5 测试组合 · median ΔMSE</strong></div></div>
 <div class="source-controls"><button class="text-link" id="export-issue">下载 Issue 草稿 ↗</button><button class="text-link" id="view-contract">查看任务契约 ↗</button></div>
 <p class="micro-copy" id="source-footnote">不会读取或发布真实 Issue。切换来源会清空本次演示。</p>
 </article>
 <article class="studio-column execution-column">
 <div class="column-label"><span>02 / 让工作接起来</span><span>COORDINATE</span></div>
 <div class="coordinator-title"><span class="coordinator-mark">P</span><div><strong>OpenPero 协调层</strong><small>任务依赖 · 执行位置 · 验收条件</small></div><span class="tag" id="coordinator-status">待确认</span></div>
-<div class="task-item" id="task-baseline"><div class="task-number">01</div><div class="task-info"><strong>复跑已有基线</strong><small>ζ = 0.08 · 本机 Worker</small><span class="task-state" id="state-baseline">等待任务草稿</span></div><span class="micro-tag" id="hero-t1">本机 Worker</span><span class="task-indicator" id="indicator-baseline">○</span></div>
-<div class="task-item" id="task-compare"><div class="task-number">02</div><div class="task-info"><strong>执行参数对照</strong><small>ζ = 0.22 / 0.40 · 节点路由示意</small><label class="route-label" for="execution-route">选择执行位置</label><select id="execution-route"><option value="lab">实验室 Worker · 模拟</option><option value="local">本机 Worker · 路由模拟</option><option value="cloud">托管 Cloud · 规划模拟</option></select><span class="task-state" id="state-compare">与基线任务可并行</span></div><span class="micro-tag" id="hero-t2">远程节点 · 示意</span><span class="task-indicator" id="indicator-compare">○</span></div>
+<div class="task-item" id="task-baseline"><div class="task-number">01</div><div class="task-info"><strong>复跑对照基线</strong><small>control · 本机 Worker</small><span class="task-state" id="state-baseline">等待任务草稿</span></div><span class="micro-tag" id="hero-t1">本机 Worker</span><span class="task-indicator" id="indicator-baseline">○</span></div>
+<div class="task-item" id="task-compare"><div class="task-number">02</div><div class="task-info"><strong>比较预测方法</strong><small>train_mean / additive · 路由示意</small><label class="route-label" for="execution-route">选择执行位置</label><select id="execution-route"><option value="lab">实验室 Worker · 模拟</option><option value="local">本机 Worker · 路由模拟</option><option value="cloud">托管 Cloud · 规划模拟</option></select><span class="task-state" id="state-compare">与基线任务可并行</span></div><span class="micro-tag" id="hero-t2">远程节点 · 示意</span><span class="task-indicator" id="indicator-compare">○</span></div>
 <div class="task-item" id="task-review"><div class="task-number">03</div><div class="task-info"><strong>独立复核结果</strong><small>依赖 01 + 02 · 贡献者认领</small><span class="task-state" id="state-review">计算完成后可认领</span></div><span class="micro-tag" id="hero-t3">开放认领</span><span class="task-indicator" id="indicator-review">○</span></div>
 <button class="btn btn-primary dispatch-button" id="advance-collaboration">整理成任务草稿 <span>→</span></button><button class="cancel-dispatch" hidden="" id="cancel-collaboration">取消本次演示运行</button>
 <p class="micro-copy">这三个角色均由当前页面模拟；不会启动远程进程。</p>
@@ -279,19 +284,19 @@ __STYLES__
 <article class="studio-column result-column">
 <div class="column-label"><span>03 / 成果回到课题</span><span>REVIEW</span></div>
 <div id="result-empty"><h3>等一份可以复核的结果。</h3><p>每次运行都带上输入、方法和参数。执行成功，不等于研究验收通过。</p></div>
-<div hidden="" id="result-ready"><div class="result-ready-head"><strong>三组参数，放在一起看。</strong><span class="tag" id="result-label">待复核</span></div><canvas aria-label="三组阻尼比的响应曲线；具体误差可在下表查看" height="300" id="distributed-chart" role="img" width="600"></canvas><div class="distributed-legend"><span><i></i>ζ 0.08</span><span><i></i>ζ 0.22</span><span><i></i>ζ 0.40</span></div><div class="result-table-wrap"><table class="result-table"><caption class="sr-only">各阻尼参数与同参数解析解比较的误差</caption><thead><tr><th scope="col">阻尼比</th><th scope="col">RMSE</th><th scope="col">数值检查</th></tr></thead><tbody id="distributed-results"></tbody></table></div><p class="review-state" id="review-status">自动检查已完成，等待贡献者复核。</p><button class="btn btn-secondary" id="review-results">查看并复核</button><div class="result-downloads"><button class="text-link" id="export-bundle">JSON 运行记录 ↓</button><button class="text-link" id="export-results-csv">CSV 数据 ↓</button></div></div>
+<div hidden="" id="result-ready"><div class="result-ready-head"><strong>三种方法，同一测试集。</strong><span class="tag" id="result-label">待复核</span></div><canvas aria-label="三种基线的测试集 ΔMSE，越低越好。完整数值见下表。" height="300" id="distributed-chart" role="img" width="600"></canvas><div class="distributed-legend"><span>control</span><span>train_mean</span><span>additive</span></div><div class="result-table-wrap"><table class="result-table"><caption class="sr-only">各方法在全部测试组合上的误差与覆盖</caption><thead><tr><th scope="col">方法</th><th scope="col">median ΔMSE</th><th scope="col">覆盖</th></tr></thead><tbody id="distributed-results"></tbody></table></div><p class="review-state" id="review-status">自动检查已完成，等待贡献者复核。</p><button class="btn btn-secondary" id="review-results">查看并复核</button><div class="result-downloads"><button class="text-link" id="export-bundle">JSON 运行记录 ↓</button><button class="text-link" id="export-results-csv">CSV 数据 ↓</button></div></div>
 <div class="project-return"><span>↳</span><div><strong id="project-return-title">写回项目，不丢掉过程。</strong><p id="project-return-text">只有经确认的成果，才更新本页项目记录。</p></div></div>
 </article>
 </div>
 <div class="studio-log"><span class="log-label">ACTIVITY</span><span aria-live="polite" id="latest-event" role="status">示例 Issue 已准备好。先把目标整理成任务。</span><button class="text-link" id="view-activity">查看过程 ↗</button></div>
 </div>
-<div class="demo-bottom-note"><a data-open-lab="" href="#lab">查看这个示例的数学模型与独立计算 ↗</a></div>
-</div></section><section class="lab-section shell" id="lab"><header class="lab-head"><p class="lab-small">UNDER THE HOOD</p><h2>这份结果怎么来的？可以自己再算一次。</h2><p class="lab-intro">任务演示采用经典阻尼振子模型，所有曲线都由本页 RK4 计算生成，并与同参数的解析解比较。这里是独立的参数实验台；重新计算不会覆盖上方已经生成的任务记录。</p></header><div class="lab-content"><div class="workbench-wrap" id="workspace" tabindex="-1">
-<div class="workbench-label"><span>研究项目 / 本地示例</span><span>INTERACTIVE DEMO</span></div>
+<div class="demo-bottom-note"><a data-open-lab="" href="#lab">打开 Virtual Cell 实验台，检查逐基因预测 ↗</a></div>
+</details></div></section><details class="research-details shell" id="benchmark-details" open><summary>查看扰动评估示例</summary><section class="lab-section shell" id="lab"><header class="lab-head"><p class="lab-small">VIRTUAL CELL / AI FOR SCIENCE</p><h2>从扰动预测，到可以检查的证据。</h2><p class="lab-intro">基于 Virtual Cell App 的合成数据与评估定义。用已知单扰动预测未见双扰动组合，再用留出观测核对。这里可独立重跑，不会覆盖上方协作记录。</p></header><div class="lab-content"><div class="workbench-wrap" id="workspace" tabindex="-1">
+<div class="workbench-label"><span>VIRTUAL CELL / 合成数据</span><span>INTERACTIVE DEMO</span></div>
 <div class="workbench">
 <div class="workbench-body">
 <aside aria-label="示例项目文件" class="wb-side">
-<div class="project-label">示例研究项目</div><div class="wb-project">阻尼变化<br/>如何影响响应？</div>
+<div class="project-label">示例研究项目</div><div class="wb-project">单扰动 → 双扰动</div>
 <button class="side-link" data-dialog="sources"><svg class="icon"><use href="#i-book-2"></use></svg>研究输入</button>
 <button class="side-link" data-dialog="method"><svg class="icon"><use href="#i-flask"></use></svg>实验方法</button>
 <button class="side-link active" data-panel="results"><svg class="icon"><use href="#i-chart-line"></use></svg>结果对照</button>
@@ -301,62 +306,47 @@ __STYLES__
 <button class="side-file" data-dialog="method"><svg class="icon"><use href="#i-file-text"></use></svg>method.json</button>
 <button class="side-file" data-dialog="inputs"><svg class="icon"><use href="#i-database"></use></svg>inputs.json</button>
 <button class="side-file" data-dialog="data"><svg class="icon"><use href="#i-chart-line"></use></svg>results.csv</button>
-<div class="side-bottom"><span class="status-dot"></span>Browser local<br/>synthetic / v1.0</div>
+<div class="side-bottom"><span class="status-dot"></span>Browser local<br/>synthetic / v0</div>
 </aside>
 <div class="wb-main">
-<div class="proactive-alert" id="proactive-alert" role="status"><span class="proactive-mark">✦</span><div><strong>下一步：先和基线做对照</strong><p>沿用已有方法，运行当前参数，再查看响应曲线与数值误差。运行记录可下载保留。</p><small id="proactive-status">预设建议演示 · 未连接后台 Agent</small></div><button id="proactive-approve" type="button">运行这组参数</button></div>
-<div class="wb-head"><div><h3>换一组参数，与基线比较。</h3><p>DAMPED OSCILLATOR / RK4</p></div><span class="tag" id="run-badge"><span class="status-dot"></span><span id="run-state">已计算</span></span></div>
+<div class="proactive-alert" id="proactive-alert" role="status"><span class="proactive-mark">✦</span><div><strong>下一步：检查加性基线的盲区</strong><p>先运行 additive，再逐个查看留出组合。预测与观测的偏离，留给下一步模型研究。</p><small id="proactive-status">预设建议演示 · 未连接后台 Agent</small></div><button id="proactive-approve" type="button">运行当前方法</button></div>
+<div class="wb-head"><div><h3>已知单扰动，预测未知组合。</h3><p>PERTURBATION BENCHMARK / NON-BLIND</p></div><span class="tag" id="run-badge"><span class="status-dot"></span><span id="run-state">已计算</span></span></div>
 <div aria-label="实验内容" class="wb-tabs" role="tablist">
 <button aria-controls="panel-results" aria-selected="true" class="wb-tab" data-panel="results" id="tab-results" role="tab">结果对照</button>
 <button aria-controls="panel-trace" aria-selected="false" class="wb-tab" data-panel="trace" id="tab-trace" role="tab" tabindex="-1">运行记录</button>
 <button aria-controls="panel-evidence" aria-selected="false" class="wb-tab" data-panel="evidence" id="tab-evidence" role="tab" tabindex="-1">证据</button>
 </div>
 <div aria-labelledby="tab-results" id="panel-results" role="tabpanel">
-<div class="plot-toolbar"><span class="plot-title" id="plot-label">NORMALIZED DISPLACEMENT</span><div aria-label="图表类型" class="plot-toggle" role="group"><button aria-pressed="true" data-chart="solution">曲线</button><button aria-pressed="false" data-chart="error">误差</button></div></div>
-<canvas aria-label="阻尼振子数值解：紫色为基线，青色为当前参数。详细数值可通过查看数据按钮读取。" class="plot" id="research-chart" role="img">浏览器不支持 Canvas。请使用查看数据按钮读取完整结果表。</canvas>
-<div class="legend" id="chart-legend"><span class="baseline"><i></i>基线 ζ = 0.08</span><span><i></i>本次 ζ = <b id="legend-damping">0.22</b></span></div>
-<div class="metrics"><div class="metric"><label>解析对照 RMSE</label><strong id="rmse">—</strong></div><div class="metric"><label>数据点</label><strong id="samples">—</strong><small> / run</small></div><div class="metric"><label>最大绝对误差</label><strong id="max-error">—</strong></div></div>
-<div class="parameter-row"><label for="damping">阻尼比 ζ</label><input aria-describedby="parameter-hint" id="damping" max="0.48" min="0.04" step="0.02" type="range" value="0.22"/><output for="damping" id="damping-output">0.22</output><button class="btn btn-primary" id="run-button"><svg class="icon"><use href="#i-player-play"></use></svg><span>运行对照</span></button></div>
-<span class="sr-only" id="parameter-hint">修改阻尼比后点击运行对照。曲线与误差来自四阶 Runge-Kutta 方法实际计算。</span>
-<div class="demo-foot"><span id="run-caption">RUN 001 · dt 0.10 s</span><button data-dialog="data">查看数据<svg class="icon"><use href="#i-arrow-up-right"></use></svg></button></div>
+<div class="plot-toolbar"><span class="plot-title" id="plot-label">PREDICTED vs OBSERVED ΔEXPRESSION</span><div aria-label="图表类型" class="plot-toggle" role="group"><button aria-pressed="true" data-chart="solution">预测</button><button aria-pressed="false" data-chart="error">误差</button></div></div>
+<canvas aria-label="双扰动组合的逐基因预测与合成观测，完整数值可通过查看数据读取。" class="plot" id="research-chart" role="img">浏览器不支持 Canvas。请使用查看数据按钮读取完整结果表。</canvas>
+<div class="legend" id="chart-legend"><span>预测与留出观测</span></div>
+<div class="metrics"><div class="metric"><label>median ΔMSE</label><strong id="rmse">—</strong></div><div class="metric"><label>测试覆盖</label><strong id="samples">—</strong><small> combinations</small></div><div class="metric"><label>相对加性 Skill</label><strong id="max-error">—</strong></div></div>
+<div class="parameter-row"><label for="baseline-method">预测方法</label><select id="baseline-method"><option value="control">control</option><option value="train_mean">train_mean</option><option value="additive" selected>additive</option></select><button class="btn btn-primary" id="run-button"><svg class="icon"><use href="#i-player-play"></use></svg><span>运行对照</span></button></div>
+<div class="condition-row"><label for="test-condition">查看测试组合</label><select id="test-condition"><option>B+D</option><option>C+E</option><option>C+F</option><option>D+F</option><option>E+F</option></select><span>指标始终覆盖全部 5 个组合</span></div>
+<div class="demo-foot"><span id="run-caption">RUN 001 · additive</span><button data-dialog="data">查看数据<svg class="icon"><use href="#i-arrow-up-right"></use></svg></button></div>
 </div>
 <div aria-labelledby="tab-trace" class="trace-panel" hidden="" id="panel-trace" role="tabpanel"><div id="trace-list"></div><div class="demo-foot" style="margin-top:12px"><span id="trace-time"></span><button data-export="json">导出本次记录<svg class="icon"><use href="#i-download"></use></svg></button></div></div>
 <div aria-labelledby="tab-evidence" class="evidence-panel" hidden="" id="panel-evidence" role="tabpanel"><dl class="mini-spec" id="evidence-spec"></dl><div class="evidence-summary" id="evidence-summary"></div><button class="btn btn-secondary" data-export="json"><svg class="icon"><use href="#i-download"></use></svg>下载复现记录 · JSON</button></div>
 </div>
 </div>
 </div>
-<div class="demo-scope">可运行的数值实验，非真实论文复现。建议为预设示例；刷新页面会重置记录。</div>
+<div class="demo-scope">合成数据 · 非盲评估 · 未训练 AI 模型。建议为预设示例；刷新后重置。</div>
 <div aria-live="polite" class="sr-only" id="run-announcement"></div>
-</div><section class="workflow-section" id="workflow">
-<div class="shell">
-<div class="workflow-layout">
-<div><div class="section-kicker"><span class="n">02 —</span> 从结果回看过程 / 可操作示例</div><h2>这张图怎么来的，<br/>点开就能看。</h2><p class="section-copy">查看这次分析使用的输入、计算方法和运行参数，再核对结果。当前示例比较数值解与解析解，不用于证明真实科研结论。</p>
-<div aria-label="研究流程" aria-orientation="vertical" class="steps" role="tablist">
-<button aria-controls="ledger-content" aria-selected="false" class="step" data-step="inputs" id="step-inputs" role="tab" tabindex="-1"><span>01</span><div><strong>输入是什么？</strong><p>明确问题、数据与初始条件。</p></div><svg class="icon"><use href="#i-arrow-up-right"></use></svg></button>
-<button aria-controls="ledger-content" aria-selected="false" class="step" data-step="method" id="step-method" role="tab" tabindex="-1"><span>02</span><div><strong>用了什么方法？</strong><p>记录参数、算法与对照方式。</p></div><svg class="icon"><use href="#i-arrow-up-right"></use></svg></button>
-<button aria-controls="ledger-content" aria-selected="false" class="step" data-step="run" id="step-run" role="tab" tabindex="-1"><span>03</span><div><strong>这次改变了什么？</strong><p>变化的条件，与产生的结果一起保留。</p></div><svg class="icon"><use href="#i-arrow-up-right"></use></svg></button>
-<button aria-controls="ledger-content" aria-selected="true" class="step" data-step="evidence" id="step-evidence" role="tab"><span>04</span><div><strong>结果怎样核对？</strong><p>从一张图，回到一组完整记录。</p></div><svg class="icon"><use href="#i-arrow-up-right"></use></svg></button>
-</div>
-</div>
-<div class="ledger"><div class="ledger-top"><svg class="icon"><use href="#i-layers-intersect"></use></svg>PROJECT / OSCILLATOR<span id="ledger-run">RUN 001</span></div><div aria-labelledby="step-evidence" class="ledger-body" id="ledger-content" role="tabpanel"></div></div>
-</div>
-<p class="workflow-bottom">过程可以核对，结论仍由你判断。</p>
-</div>
-</section></div></section>
+</div></div></section></details>
 
 <section class="open-section contribution-section" id="open"><div class="shell">
 <div class="section-kicker"><span class="n">04 —</span> BUILT TOGETHER, ONE CONTRIBUTION AT A TIME</div>
 <div class="contribution-heading"><div><h2>从一个小任务，<br/>参与一个大课题。</h2><p class="section-copy">贡献代码，也贡献方法与复核。<br/>一份清楚的输入、一项独立的交付，就是开始。</p></div><div aria-label="选择贡献方式" class="contribution-tabs" role="group"><button aria-pressed="true" data-contribution="build">共建 OpenPero</button><button aria-pressed="false" data-contribution="research">参与研究</button><button aria-pressed="false" data-contribution="worker">接入执行节点</button></div></div>
 <div class="contribution-grid" id="contribution-grid"></div>
-<div class="contribution-foot"><span>正式仓库尚未绑定。这里提供可编辑的 Issue 模板，不会向 GitHub 发布。</span><button class="text-link" id="download-all-issues">下载当前组 Issue 模板 ↗</button></div>
+<div class="contribution-foot"><span>这里提供可编辑的 Issue 模板，下载不会向 GitHub 发布。</span><button class="text-link" id="download-all-issues">下载当前组 Issue 模板 ↗</button></div>
 <div class="open-contract"><div><strong>代码开放，工作也可以被接续。</strong><p>任务定义、方法、产物和验收依据，都应当可以检查、导出与复用。</p></div><span>OPEN WEB + DESKTOP<br/>OPTIONAL HOSTED COORDINATION</span></div>
 </div></section>
 
 </main>
-<footer class="footer"><div class="shell"><div class="footer-top"><a aria-label="回到 OpenPero 首页" class="brand" href="#top"><span class="brand-mark" aria-hidden="true"><svg class="brand-symbol"><use href="#i-openpero"></use></svg></span><span class="brand-wordmark">OpenPero</span></a><div class="footer-links"><a href="#collaborate">任务协作</a><a href="#runtime">协作架构</a><a href="#open">参与共建</a><button data-dialog="about">演示边界</button></div></div><div class="footer-bottom"><p>官网交互原型 · 所有计算和状态均在本页内完成，刷新后重置。GitHub、Agent、分布式节点、项目长期存储与 Cloud 尚未连接。未发布官网，未创建 Issue；正式仓库、许可证和发布状态待配置。</p><span>OPENPERO.COM / 2026</span></div></div></footer>
+<footer class="footer"><div class="shell"><div class="footer-top"><a aria-label="回到 OpenPero 首页" class="brand" href="#top"><span class="brand-mark" aria-hidden="true"><svg class="brand-symbol"><use href="#i-openpero"></use></svg></span><span class="brand-wordmark">OpenPero</span></a><div class="footer-links"><a href="#collaborate">任务协作</a><a href="#runtime">协作架构</a><a href="#open">参与共建</a><a href="https://app.openpero.com" target="_blank" rel="noopener noreferrer">线上任务中心</a><button data-dialog="about">演示边界</button></div></div><div class="footer-bottom"><p>本页计算与协作示例仅在浏览器本地运行，刷新后重置，不会启动真实 Agent、分派任务或提交 PR。实际贡献请使用 Desktop 开发版或线上任务中心。</p><span>OPENPERO.COM / 2026</span></div></div></footer>
 <dialog aria-labelledby="dialog-title" id="detail-dialog"><div class="dialog-head"><h2 id="dialog-title"></h2><button aria-label="关闭对话框" class="dialog-close"><svg class="icon"><use href="#i-x"></use></svg></button></div><div class="dialog-body" id="dialog-body"></div></dialog>
 <div aria-live="polite" class="toast" id="toast" role="status"></div>
-<noscript><p style="padding:20px;text-align:center">启用 JavaScript 后可运行本地数值实验。页面内容和导航可直接阅读。</p></noscript>
+<noscript><p style="padding:20px;text-align:center">启用 JavaScript 后可运行本地扰动评估。页面内容和导航可直接阅读。</p></noscript>
 
 
 
@@ -386,6 +376,18 @@ __STYLES__
     try { localStorage.setItem('pero-theme', next); } catch (e) {}
     sync();
   });
+})();
+</script><script>
+(function () {
+  var frame = document.getElementById('molecule-viewer');
+  function sync() {
+    frame.contentWindow.postMessage({type:'pero:app:context',context:{locale:document.documentElement.lang === 'en' ? 'en' : 'zh-CN',dark:document.documentElement.getAttribute('data-theme') === 'dark',active:true}}, location.origin);
+  }
+  document.querySelectorAll('[data-open-lab]').forEach(function(link){link.addEventListener('click',function(){document.getElementById('benchmark-details').open=true;});});
+  if(location.hash === '#lab')document.getElementById('benchmark-details').open=true;
+  new MutationObserver(sync).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+  frame.addEventListener('load',sync);
+  window.addEventListener('message',function(event){if(event.source === frame.contentWindow && event.data?.type === 'pero:app:ready')sync();});
 })();
 </script><script>
 __I18N__

@@ -110,6 +110,9 @@ func (s *Store) SyncRoadmap(ctx context.Context, config GitHubRepository, snapsh
 		if fresh {
 			changes.Imported++
 		}
+		if err = publishPublicSource(ctx, tx, config, id, spec); err != nil {
+			return changes, err
+		}
 		var current string
 		var claimed *string
 		if err = tx.QueryRow(ctx, `SELECT COALESCE(current_run_id,''),claimed_by_client_id FROM tasks WHERE id=$1 FOR UPDATE`, id).Scan(&current, &claimed); err != nil {

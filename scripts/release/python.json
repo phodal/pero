@@ -1,0 +1,6 @@
+{
+  "release": "20261026",
+  "asset": "cpython-3.12.16+20261026-aarch64-apple-darwin-install_only_stripped.tar.gz",
+  "sha256": "353d5f1b4fd2715e7053f12f068435d5bbad16b91e057006b5d01e0925709a7e",
+  "repository": "astral-sh/python-build-standalone"
+}

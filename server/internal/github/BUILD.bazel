@@ -28,7 +28,7 @@ go_test(
         "service_test.go",
     ],
     embed = [":github"],
-    data = ["//:docs/ROADMAP.md"],
+    data = ["//:ROADMAP.md"],
     env = {"PERO_REQUIRE_TEST_DATABASE": "1"},
     env_inherit = ["PERO_TEST_DATABASE_URL"],
     tags = [

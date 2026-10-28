@@ -1,6 +1,8 @@
 // Host JSONL protocol between the Electron shell and `pero-host --stdio`.
 // Source of truth for protocol/generated/; run `npm run gen:contracts` after edits.
 import "@typespec/json-schema";
+import "./apps.tsp";
+import "./contributions.tsp";
 
 using JsonSchema;
 
@@ -64,6 +66,7 @@ model PermissionCommand {
   ...Closed;
 }
 model ModelCommand { action: "model"; thread_id: string; model_id: string; ...Closed }
+model ConfigureCommand { action: "configure"; thread_id: ThreadId; config_id: string; value: string; ...Closed }
 model CloseCommand { action: "close"; thread_id: string; ...Closed }
 
 /** Run `program` with the allowlisted environment. The interpreter path stays on the Host. */
@@ -91,6 +94,7 @@ union HostCommand {
   CancelCommand,
   PermissionCommand,
   ModelCommand,
+  ConfigureCommand,
   CloseCommand,
   RunCodeCommand,
   CancelCodeCommand,
@@ -102,6 +106,8 @@ union HostInput {
   SetLocaleRequest,
   SetRemoteSettingsRequest,
   HostCommand,
+  Pero.Apps.AppRequest,
+  Pero.Contributions.ContributionRequest,
 }
 
 // ---------- Host events: one JSON object per stdout line ----------
@@ -157,6 +163,12 @@ model RemoteSnapshotPayload is Record<unknown>;
 model RemoteStateEvent { kind: "remote_state"; ...EventBase; data: RemoteSnapshotPayload }
 /** Open remote tasks from the native Workbench menu or keyboard. */
 model RemoteOpenEvent { kind: "remote_open"; ...EventBase }
+/** Private acknowledgements intercepted by Desktop main. */
+model AppsResultEvent { kind: "apps_result"; ...EventBase; data: Pero.Apps.AppResult }
+model AppsCatalogEvent { kind: "apps_catalog"; ...EventBase; data: Pero.Apps.AppRecord[] }
+model AppsErrorEvent { kind: "apps_error"; ...EventBase }
+model AppOpenedData { name: string; panel: string; url: string; ...Closed; }
+model AppsOpenedEvent { kind: "apps_opened"; ...EventBase; data: AppOpenedData }
 
 model SessionCreatedData { agent: string; workspace: string; ...Closed }
 model SessionCreatedEvent { kind: "session_created"; ...ThreadEventBase; data: SessionCreatedData }
@@ -186,6 +198,10 @@ model TurnStartedEvent { kind: "turn_started"; ...ThreadEventBase }
 model TurnFinishedEvent { kind: "turn_finished"; ...ThreadEventBase; data: AcpPayload }
 /** `data` is the ACP SetSessionConfigOptionResponse. */
 model ModelChangedEvent { kind: "model_changed"; ...ThreadEventBase; data: AcpPayload }
+model SettingChoice { value: string; label: string; description: string; ...Closed }
+model SessionSetting { id: string; name: string; category: string; current: string; choices: SettingChoice[]; ...Closed }
+model SessionSettings { options: SessionSetting[]; ...Closed }
+model ConfigurationChangedEvent { kind: "configuration_changed"; ...ThreadEventBase; data: SessionSettings }
 model SessionErrorEvent { kind: "session_error"; ...ThreadEventBase }
 model SessionClosedEvent { kind: "session_closed"; ...ThreadEventBase }
 
@@ -212,13 +228,22 @@ union ThreadEvent {
   SessionUpdateEvent,
   SessionReadyEvent,
   ModelChangedEvent,
+  ConfigurationChangedEvent,
   TurnFinishedEvent,
   SessionErrorEvent,
   SessionClosedEvent,
 }
 
+model ContributorStateEvent { kind: "contributor_state"; ...EventBase; data: RemoteSnapshotPayload }
+model ContributorSessionData { task_id: string; workspace: string; agent_id?: string; ...Closed }
+model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase; data: ContributorSessionData }
+
 @oneOf
 union HostEvent {
+  ContributorStateEvent,
+  ContributorSessionEvent,
+  Pero.Contributions.ContributionResultEvent,
+  Pero.Contributions.ContributionErrorEvent,
   SettingsEvent,
   RemoteSettingsSavedEvent,
   RemoteSettingsErrorEvent,
@@ -233,6 +258,10 @@ union HostEvent {
   ContextFilesEvent,
   RemoteStateEvent,
   RemoteOpenEvent,
+  AppsResultEvent,
+  AppsCatalogEvent,
+  AppsErrorEvent,
+  AppsOpenedEvent,
   ThreadEvent,
   SessionConnectingEvent,
   AgentInfoEvent,

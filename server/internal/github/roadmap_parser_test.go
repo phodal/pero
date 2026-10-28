@@ -13,7 +13,7 @@ func TestRoadmapChecklistSemantics(t *testing.T) {
 		want    int
 		partial bool
 	}{
-		{"headings and nested goals", "# Roadmap\n## Ship\n- [ ] Parent #backend <!--pero:id:parent-->\n  Context for parent.\n  - [x] Child #go <!-- pero:id: child -->\n- [X] Done\n", 3, false},
+		{"headings and nested goals", "# Roadmap\n## Ship\n- [ ] 父任务. Parent goal #backend <!--pero:id:parent-->\n  Context for parent.\n  - [x] Child. Child goal #go <!-- pero:id: child -->\n- [X] Done. Completed goal\n", 3, false},
 		{"fences and inline code", "# Roadmap\n```md\n- [ ] example\n```\n- [ ] Real `#not-a-tag` #yes\n", 1, false},
 		{"identity example remains data", "- [ ] Real `<!--pero:id:literal-->`\n\n  ```md\n  <!--pero:id:example-->\n  - [ ] example\n  ```\n", 1, false},
 		{"ordinary and ordered lists", "- ordinary\n  - [ ] Nested goal\n1. [x] Ordered goal\n", 2, false},
@@ -23,6 +23,8 @@ func TestRoadmapChecklistSemantics(t *testing.T) {
 		{"misspelled explicit id", "- [ ] Goal <!--pero:id missing-colon-->\n", 0, true},
 		{"empty goal", "- [ ] <!--pero:id:empty-->\n", 0, true},
 		{"oversized goal", "- [ ] " + strings.Repeat("x", 241), 0, true},
+		{"long description with short title", "- [ ] Goal. " + strings.Repeat("x", 241), 1, false},
+		{"empty title before description", "- [ ] . Description", 0, true},
 		{"invalid UTF8", string([]byte{'-', ' ', '[', ' ', ']', ' ', 0xff}), 0, true},
 		{"NUL", "- [ ] Goal\x00", 0, true},
 	}
@@ -42,10 +44,13 @@ func TestRoadmapChecklistSemantics(t *testing.T) {
 	if parent.ID != "parent" || child.ID != "child" || child.ParentID != parent.ID || parent.Checked || !child.Checked || !done.Checked {
 		t.Fatalf("hierarchy/check state: %+v", parsed.Items)
 	}
+	if parent.Title != "父任务" || child.Title != "Child" || done.Title != "Done" {
+		t.Fatalf("descriptions became list titles: %+v", parsed.Items)
+	}
 	if parent.Line != 3 || child.Line != 5 || !reflect.DeepEqual(parent.Headings, []string{"Roadmap", "Ship"}) || !reflect.DeepEqual(parent.Tags, []string{"backend"}) || !reflect.DeepEqual(child.Tags, []string{"go"}) {
 		t.Fatalf("source context: %+v", parsed.Items)
 	}
-	if !strings.Contains(parent.Text, "Context for parent.") || strings.Contains(parent.Text, "Child") || strings.Contains(parent.Text, "pero:id") {
+	if !strings.Contains(parent.Text, "父任务. Parent goal #backend") || !strings.Contains(parent.Text, "Context for parent.") || strings.Contains(parent.Text, "Child") || strings.Contains(parent.Text, "pero:id") {
 		t.Fatalf("parent goal included child or lost context: %q", parent.Text)
 	}
 	code := ParseRoadmap([]byte(cases[1].source))
@@ -59,7 +64,7 @@ func TestRoadmapChecklistSemantics(t *testing.T) {
 }
 
 func TestRoadmapSourceIdentity(t *testing.T) {
-	original := "# Group\n- [ ] Parent\n  - [ ] Child\n- [ ] Stable <!--pero:id:stable-->\n"
+	original := "# Group\n- [ ] Parent. Plan work.\n  - [ ] Child. Finish work.\n- [ ] Stable. Keep this goal. <!--pero:id:stable-->\n"
 	first := ParseRoadmap([]byte(original))
 	moved := ParseRoadmap([]byte("Introduction.\n\n" + strings.ReplaceAll(original, "[ ]", "[x]")))
 	if len(first.Items) != 3 || len(moved.Items) != 3 {
@@ -74,9 +79,21 @@ func TestRoadmapSourceIdentity(t *testing.T) {
 	if renamed.Items[2].ID != "stable" {
 		t.Fatal("explicit id changed on rename")
 	}
-	body := ParseRoadmap([]byte(strings.Replace(original, "Parent\n", "Parent\n  Extra requirement.\n", 1)))
+	body := ParseRoadmap([]byte(strings.Replace(original, "Parent. Plan work.\n", "Parent. Plan work.\n  Extra requirement.\n", 1)))
 	if body.Items[0].ID != first.Items[0].ID || !strings.Contains(body.Items[0].Text, "Extra requirement.") {
 		t.Fatal("continuation changed identity or lost requirement")
+	}
+	description := ParseRoadmap([]byte(strings.ReplaceAll(original, "work.", "updated requirements.")))
+	if description.Partial || len(description.Items) != len(first.Items) {
+		t.Fatalf("description edit rejected: %+v", description)
+	}
+	for i := range first.Items {
+		if description.Items[i].ID != first.Items[i].ID || description.Items[i].Title != first.Items[i].Title || description.Items[i].ParentID != first.Items[i].ParentID {
+			t.Fatalf("description edit changed identity: %+v %+v", first.Items[i], description.Items[i])
+		}
+	}
+	if !strings.Contains(description.Items[0].Text, "Plan updated requirements.") || !strings.Contains(description.Items[1].Text, "Finish updated requirements.") {
+		t.Fatal("description edit lost execution context")
 	}
 	differentParents := ParseRoadmap([]byte("- [ ] A\n  - [ ] Child\n- [ ] B\n  - [ ] Child\n"))
 	if differentParents.Partial || len(differentParents.Items) != 4 || differentParents.Items[1].ID == differentParents.Items[3].ID {

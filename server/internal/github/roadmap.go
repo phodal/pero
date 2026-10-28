@@ -33,9 +33,10 @@ func (s *Service) observeRoadmap(ctx context.Context, config store.GitHubReposit
 	snapshot := store.RoadmapSnapshot{Repository: config.Name()}
 	repoPath := "/repos/" + url.PathEscape(config.Owner) + "/" + url.PathEscape(config.Repo)
 	var repo struct {
-		ID     json.Number `json:"id"`
-		Name   string      `json:"full_name"`
-		Branch string      `json:"default_branch"`
+		ID      json.Number `json:"id"`
+		Name    string      `json:"full_name"`
+		Branch  string      `json:"default_branch"`
+		Private bool        `json:"private"`
 	}
 	if _, err := s.get(ctx, repoPath, nil, &repo); err != nil {
 		return snapshot, nil, err
@@ -43,7 +44,7 @@ func (s *Service) observeRoadmap(ctx context.Context, config store.GitHubReposit
 	if !numericID(repo.ID) || !strings.EqualFold(repo.Name, config.Name()) || !text(repo.Branch, 255) {
 		return snapshot, nil, fmt.Errorf("invalid GitHub repository identity or default branch")
 	}
-	if err := s.db.BindGitHubRepository(ctx, config, repo.ID.String()); err != nil {
+	if err := s.db.BindGitHubRepository(ctx, config, repo.ID.String(), repo.Private); err != nil {
 		return snapshot, nil, fmt.Errorf("GitHub repository binding changed or unavailable")
 	}
 	snapshot.RepositoryID = repo.ID.String()

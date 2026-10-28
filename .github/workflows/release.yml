@@ -1,0 +1,223 @@
+name: Release Desktop products
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag containing this packaging workflow
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: ${{ matrix.product }} (${{ matrix.platform }}-${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-26, platform: macos, arch: arm64, product: pero }
+          - { os: ubuntu-24.04, platform: linux, arch: x64, product: pero }
+          - { os: windows-2025, platform: windows, arch: x64, product: pero }
+          - { os: macos-26, platform: macos, arch: arm64, product: virtual-cell }
+    timeout-minutes: 90
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      RELEASE_PRODUCT: ${{ matrix.product }}
+      CARGO_BUILD_JOBS: '2'
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Keep LF line endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --local core.autocrlf false
+          git checkout -- .
+
+      - name: Check native runner architecture
+        env:
+          RELEASE_ARCH: ${{ matrix.arch }}
+        run: node -e "if (process.arch !== process.env.RELEASE_ARCH) throw Error('Unexpected runner architecture')"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Set up Rust nightly
+        if: matrix.product == 'pero'
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: nightly-2026-10-28
+          targets: wasm32-unknown-unknown
+
+      - name: Set up Rust stable
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.product }}
+          cache-on-failure: true
+
+      - name: Checkout pinned GPUI snapshot
+        run: |
+          kit="$RUNNER_TEMP/gpui-kit"
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+          git init --quiet "$kit"
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin ec89cfc36404667b7947aeb3d40b1c2859d729dd
+          git -C "$kit" checkout --detach FETCH_HEAD
+
+      - name: Install package dependencies
+        run: |
+          mkdir -p target/release-diagnostics
+          npm ci 2>&1 | tee target/release-diagnostics/npm-ci.log
+          node node_modules/electron/install.js
+          if [[ "$RUNNER_OS" == macOS ]]; then brew install librsvg; fi
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            sudo apt-get update
+            sudo apt-get install --yes python3-venv libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64 xvfb
+          fi
+          python3 -c 'import venv, ensurepip'
+
+      - name: Embed workflow build metadata
+        run: node scripts/release/desktop.mjs prepare
+
+      - name: Resolve pinned local GPUI packages
+        run: node scripts/cargo.mjs check -p pero-contracts 2>&1 | tee target/release-diagnostics/resolve.log
+
+      - name: Build workbench package
+        if: matrix.product == 'pero'
+        run: npm run package:desktop 2>&1 | tee target/release-diagnostics/package.log
+
+      - name: Fetch pinned standalone Python
+        if: matrix.product == 'virtual-cell'
+        run: node scripts/release/python.mjs
+
+      - name: Build standalone Virtual Cell (macOS only)
+        if: matrix.product == 'virtual-cell'
+        run: npm run build:product -- --product virtual-cell --python "$RUNNER_TEMP/virtual-cell-python/python" --package 2>&1 | tee target/release-diagnostics/package.log
+
+      - name: Check generated contracts and types
+        if: matrix.product == 'pero'
+        run: npm run check 2>&1 | tee target/release-diagnostics/check.log
+
+      - name: Check standalone Product model and bundling
+        if: matrix.product == 'virtual-cell'
+        run: npm run test:product
+
+      - name: Verify package and checksums
+        run: node scripts/release/desktop.mjs verify
+
+      - name: Launch actual packaged Desktop outside checkout
+        if: matrix.product == 'pero'
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            xvfb-run -a node scripts/release/desktop.mjs smoke 2>&1 | tee target/release-diagnostics/smoke.log
+          else
+            node scripts/release/desktop.mjs smoke 2>&1 | tee target/release-diagnostics/smoke.log
+          fi
+
+      - name: Verify standalone App and bundled Python
+        if: matrix.product == 'virtual-cell'
+        run: npm run test:product:e2e 2>&1 | tee target/release-diagnostics/smoke.log
+
+      - name: Stage verified release assets
+        run: node scripts/release/desktop.mjs stage
+
+      - name: Upload verified package
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ matrix.product }}-${{ matrix.platform }}-${{ matrix.arch }}
+          path: target/release-assets/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Retain failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: diagnostics-${{ matrix.product }}-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            target/release-diagnostics/
+            target/package/size.json
+            desktop/dist/release.json
+            test-results/release/
+            test-results/product/
+            target/products/package-com.openpero.virtualcell/size.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  publish:
+    name: Publish all verified products together
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Verify combined checksums
+        working-directory: release-assets
+        run: |
+          cat *.SHA256SUMS > SHA256SUMS
+          sha256sum --check SHA256SUMS
+
+      - name: Write release notes
+        run: |
+          cat > release-notes.md <<'EOF_NOTES'
+          Pero Desktop development packages, built and launch-tested on native GitHub Actions runners.
+
+          - Pero: macOS Apple Silicon DMG, Windows x64 portable ZIP, Linux x64 portable tar.gz.
+          - Task Center defaults to https://app.openpero.com.
+          - No source checkout needed: sign in, claim a public task and choose a save folder. Pero clones the repository and creates the task branch.
+          - Install Git and a supported coding CLI and authenticate the CLI before starting. Native coding CLIs are not bundled.
+          - To publish PRs, install GitHub CLI from https://cli.github.com and run `gh auth login --hostname github.com --git-protocol https` in any directory. Then check changes again in Pero. App sign-in and gh authorization are separate.
+          - Virtual Cell: separate macOS Apple Silicon App with bundled Python. Opens directly into the research App; no checkout, coding CLI or gh required.
+          - macOS packages are ad-hoc signed and not notarized; Windows/Linux packages are unsigned development builds.
+          - Per-product build metadata and SHA256SUMS accompany every archive.
+          EOF_NOTES
+
+      - name: Publish CI-built assets to GitHub Release
+        run: |
+          draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null || true)
+          if [[ -z "$draft" ]]; then
+            gh release create "$RELEASE_TAG" --verify-tag --draft --prerelease --title "Pero $RELEASE_TAG" --notes-file release-notes.md
+          elif [[ "$draft" != true ]]; then
+            echo 'A published release already exists; refusing to replace its packages.' >&2
+            exit 1
+          else
+            gh release edit "$RELEASE_TAG" --title "Pero $RELEASE_TAG" --notes-file release-notes.md
+          fi
+          gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease=true

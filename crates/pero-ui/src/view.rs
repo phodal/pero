@@ -2,14 +2,13 @@ use crate::{
     app::Workbench,
     components::{
         ActionHandler, Ui,
-        examples::TASKS,
-        sidebar::{self, SidebarAction, SidebarProps},
+        sidebar::{self, CloudSummary, SidebarAction, SidebarProps},
         task_detail::{self, SessionHeader, TaskDetailAction, TaskDetailProps},
         task_list::{self, SessionRow, TaskListAction, TaskListProps},
-        task_overview::example_overview,
         workspace::{self, AgentRow, WorkspaceAction},
     },
 };
+use crate::{cloud::Group, remote_view::phase};
 use gpui_kit::{prelude::*, *};
 use serde_json::json;
 use std::rc::Rc;
@@ -29,17 +28,29 @@ impl Workbench {
     fn sidebar(&self, width: f32, cx: &mut Context<Self>) -> Div {
         let on_action = Rc::new(cx.listener(|this, action: &SidebarAction, window, cx| {
             match action {
+                SidebarAction::Navigate(3) => {
+                    if this.remote.configured() {
+                        this.remote.connection.editing = false;
+                    }
+                    this.open_remote(cx);
+                }
+                SidebarAction::Navigate(5) => {
+                    this.navigation = 5;
+                    this.sync_follow(cx);
+                    this.command(json!({"action":"remote_refresh"}), cx);
+                }
+                SidebarAction::Navigate(7) => {
+                    this.navigation = 7;
+                    this.sync_follow(cx);
+                    this.refresh_apps(cx);
+                }
                 SidebarAction::Navigate(index) => {
                     this.navigation = *index;
                     this.sync_follow(cx);
                 }
-                SidebarAction::OpenRemote => this.open_remote(cx),
-                SidebarAction::ConfigureGitHub => {
+                SidebarAction::ConfigureCloud => {
                     this.open_remote(cx);
                     this.open_remote_connection(window, cx);
-                }
-                SidebarAction::ChooseWorkspace => {
-                    this.command(json!({"action":"choose_workspace"}), cx)
                 }
                 SidebarAction::ToggleLocale => this.toggle_locale(cx),
                 SidebarAction::ToggleTheme => {
@@ -49,13 +60,36 @@ impl Workbench {
             }
             cx.notify();
         }));
+        let data = &self.remote.data;
+        let count = |group: Group| {
+            self.remote
+                .tasks()
+                .iter()
+                .filter(|task| phase(task).group() == group)
+                .count()
+        };
+        let url = data["connection"]["url"].as_str().unwrap_or("");
         sidebar::sidebar(
             self.ui(),
             width,
             SidebarProps {
                 navigation: self.navigation,
-                connected: self.connected,
+                connection_open: self.remote.connection.editing,
+                local_connected: self.connected,
                 dark: self.dark,
+                cloud: CloudSummary {
+                    configured: self.remote.configured(),
+                    host: url
+                        .trim_start_matches("https://")
+                        .trim_start_matches("http://")
+                        .trim_end_matches('/')
+                        .to_string(),
+                    identity: data["identity"]["name"].as_str().unwrap_or("").to_string(),
+                    error: data["error"].is_string(),
+                    attention: count(Group::Attention),
+                    running: count(Group::Running),
+                    workers: self.worker_count(),
+                },
             },
             on_action,
         )
@@ -73,12 +107,7 @@ impl Workbench {
             .collect();
         let on_action = Rc::new(cx.listener(|this, action: &TaskListAction, _, cx| {
             match action {
-                TaskListAction::Filter(filter) => this.filter = *filter,
                 TaskListAction::SelectSession(index) => this.focus_chat(Some(*index), 4, cx),
-                TaskListAction::SelectExample(index) => {
-                    this.selected = *index;
-                    this.focus_chat(None, 0, cx);
-                }
             }
             cx.notify();
         }));
@@ -89,10 +118,7 @@ impl Workbench {
                 search: &self.search,
                 query: self.search.read(cx).value().to_lowercase(),
                 sessions: &sessions,
-                examples: &TASKS,
                 active_chat: self.active_chat,
-                selected: self.selected,
-                filter: self.filter,
             },
             on_action,
         )
@@ -118,7 +144,7 @@ impl Workbench {
                 .overflow_y_scroll()
                 .p(px(20.))
                 .when(self.tab == 0 && session.is_none(), |el| {
-                    el.child(example_overview(ui, TASKS[self.selected].ready))
+                    el.child(ui.t("chat.welcome"))
                 })
                 .when(self.tab == 0 && session.is_some(), |el| {
                     el.child(ui.t("chat.open_tab"))
@@ -152,8 +178,6 @@ impl Workbench {
             self.ui(),
             TaskDetailProps {
                 session,
-                example: &TASKS[self.selected],
-                example_id: 1042 + self.selected,
                 tab: self.tab,
             },
             content,
@@ -200,7 +224,7 @@ impl Render for Workbench {
             self.composer.update(cx, |input, cx| {
                 input.set_placeholder(placeholder, window, cx)
             });
-            let placeholder = self.t("tasks.search");
+            let placeholder = self.t("sessions.search");
             self.search.update(cx, |input, cx| {
                 input.set_placeholder(placeholder, window, cx)
             });
@@ -209,16 +233,18 @@ impl Render for Workbench {
                 input.set_placeholder(placeholder, window, cx)
             });
         }
-        let p = self.palettes.get(self.dark);
         let width: f32 = window.viewport_size().width.into();
+        let height: f32 = window.viewport_size().height.into();
         let compact = width < 1150.;
+        self.sync_app_surface(if compact { 168. } else { 192. }, width, height);
+        let p = self.palettes.get(self.dark);
         div()
             .size_full()
             .flex()
             .bg(p.color("surface"))
             .text_color(p.color("text"))
             .font_family("Noto Sans CJK SC")
-            .text_size(px(13.))
+            .text_size(px(14.))
             .child(self.sidebar(if compact { 168. } else { 192. }, cx))
             .when(self.navigation == 3, |el| {
                 el.child(self.remote_view(width < 1050., cx))
@@ -227,7 +253,9 @@ impl Render for Workbench {
                 el.child(self.task_list(if compact { 300. } else { 360. }, cx))
                     .child(self.detail(window, cx))
             })
+            .when(self.navigation == 5, |el| el.child(self.workers_view(cx)))
             .when(self.navigation == 1, |el| el.child(self.projects(cx)))
             .when(self.navigation == 2, |el| el.child(self.environments(cx)))
+            .when(self.navigation == 7, |el| el.child(self.apps_view(cx)))
     }
 }

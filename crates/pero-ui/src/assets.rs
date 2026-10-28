@@ -15,6 +15,8 @@ impl AssetSource for UiAssets {
             "icons/circle-check-filled.svg" => Some(include_bytes!(
                 "../../../web/public/icons/circle-check-filled.svg"
             )),
+            "icons/arrow-left.svg" => Some(include_bytes!("../../../web/public/icons/arrow-left.svg")),
+            "icons/server.svg" => Some(include_bytes!("../../../web/public/icons/server.svg")),
             "icons/clock.svg" => Some(include_bytes!("../../../web/public/icons/clock.svg")),
             "icons/copy.svg" => Some(include_bytes!("../../../web/public/icons/copy.svg")),
             "icons/layout-list.svg" => {

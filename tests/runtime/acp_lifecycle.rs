@@ -27,6 +27,9 @@ fn until(rx: &mpsc::Receiver<HostEvent>, kind: &str) -> HostEvent {
         if event.kind == kind {
             return event;
         }
+        if kind == "configuration_changed" {
+            assert_ne!(event.kind,"session_error","setting acknowledgement failed: {}",event.text);
+        }
         assert_ne!(
             event.kind, "session_closed",
             "session closed while waiting for {kind}: {}",
@@ -37,6 +40,34 @@ fn until(rx: &mpsc::Receiver<HostEvent>, kind: &str) -> HostEvent {
 fn close(handle: &SessionHandle, rx: &mpsc::Receiver<HostEvent>) {
     handle.tx.send(SessionCommand::Close).unwrap();
     until(rx, "session_closed");
+}
+
+#[test]
+fn session_settings_follow_agent_acknowledgements() {
+    for scenario in ["settings", "legacy_modes"] {
+        let (handle,rx) = launch(scenario,None);
+        let ready = until(&rx,"session_ready");
+        assert!(ready.data["peroSettings"]["options"].as_array().unwrap().iter().any(|option|
+            option["id"]=="mode" && option["current"]=="agent"));
+        handle.tx.send(SessionCommand::Configure{id:"mode".into(),value:"plan".into()}).unwrap();
+        let confirmed = until(&rx,"configuration_changed");
+        assert!(confirmed.data["options"].as_array().unwrap().iter().any(|option|
+            option["id"]=="mode" && option["current"]=="plan"));
+        handle.tx.send(SessionCommand::Configure{id:"mode".into(),value:"injected".into()}).unwrap();
+        assert!(until(&rx,"session_error").text.contains("not advertised"));
+        if scenario=="settings" {
+            handle.tx.send(SessionCommand::Configure{id:"effort".into(),value:"low".into()}).unwrap();
+            let confirmed=until(&rx,"configuration_changed");
+            assert!(confirmed.data["options"].as_array().unwrap().iter().any(|option|
+                option["id"]=="effort" && option["current"]=="low"));
+            handle.tx.send(SessionCommand::Configure{id:"effort".into(),value:"high".into()}).unwrap();
+            assert!(until(&rx,"session_error").text.contains("rejected"));
+        }
+        handle.tx.send(SessionCommand::Prompt("still-usable".into())).unwrap();
+        assert_eq!(until(&rx,"session_update").data["content"]["text"],"turn-1:still-usable");
+        until(&rx,"turn_finished");
+        close(&handle,&rx);
+    }
 }
 #[test]
 fn authentication_is_explicit_and_keeps_the_connection_for_retry() {

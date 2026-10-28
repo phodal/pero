@@ -1,6 +1,6 @@
 # Pero Architecture
 
-OpenPero 面向研究者、Agent 与计算环境，围绕 Project 组织上下文、任务、执行记录与结果复核。本文中的目录规划与服务拓扑是 Pero 的建设方向，不代表这些模块已经实现。
+Pero 面向研究者、Agent 与计算环境，围绕 Project 组织上下文、任务、执行记录与结果复核。本文中的目录规划与服务拓扑是 Pero 的建设方向，不代表这些模块已经实现。
 
 当前首版接线以 [ADR 0001](adr/0001-electron-gpui-bootstrap.md) 和
 [ADR 0002](adr/0002-remote-task-dispatch.md) 为准：`server/` 是 Go 控制面，
@@ -8,12 +8,52 @@ OpenPero 面向研究者、Agent 与计算环境，围绕 Project 组织上下�
 `protocol/` 保存版本化契约。以下较早的 Go daemon、React 和 `cloud/` 目录规划
 保留为背景，不作为并行实现另一套执行器的依据。
 
+本地 App 机制以 [ADR 0007](adr/0007-local-app-platform.md) 为准：Rust Host
+管理安装、启停与 Python 后端，GPUI 管理导航和面板区域，Web 层承载独立来源的
+HTML iframe。`apps/virtual-cell` 是首个接入实例，`packages/app-sdk` 提供 App
+的主题、语言、活动状态和本 App 后端接口。Task/Run、Agent 工具和远程 App 部署
+尚未与此机制连接。
+
+## 可组合应用与产品
+
+产品装配以 [ADR 0008](adr/0008-product-distributions.md) 为准，区分三个概念：
+
+- **App** 拥有领域界面、数据与可选后端，由 `app.json` 声明。相同 App 可在工作台内运行，也可成为独立产品的入口。
+- **Product** 拥有交付身份、版本、所选 App、壳、入口和运行时策略，由 `packages/product` 的不可变类型统一校验；产品定义位于 `products/`。
+- **Distribution** 是为具体平台与架构组装的产物，不增加运行时服务或任务状态机。
+
+当前两种装配路径：
+
+```text
+领域 App + App SDK + Rust Host
+  ├─ workbench：Electron + GPUI/Wasm 导航 → Pero 工作台
+  └─ app：Electron 全窗口壳 + 固定 App 面板 + 所选 Python → 独立产品
+```
+
+两条路径复用 `DesktopApps` 代理与 Host 的 App 生命周期实现。独立产品使用自己的 Host 进程、配置和领域数据目录；这不表示多个产品已连接到一个共享 Host 服务。App iframe 不持有 Electron preload 或后端凭据。控制面按共享任务需求接入，独立 App 的本地计算无需 Go 服务或 PostgreSQL。
+
+### 从产品装配到领域组合
+
+可借鉴 Point 的[可组合交付](https://github.com/phodal/point/blob/main/docs/adr/0153-composable-delivery-and-harness-over-harness.md)原则：组合单元围绕领域目标，方法和结果契约保持稳定，执行实现可以替换。PBC 在此描述封装领域功能的设计方向，不新增一个同名运行时或注册中心。
+
+| 范围 | 当前状态 | 后续接线 |
+| --- | --- | --- |
+| App 界面与领域计算 | Virtual Cell 的本地界面与 Python 后端已接入 | 按具体领域需求扩展方法 |
+| 产品交付 | 工作台与独立 App 壳；Virtual Cell macOS arm64 开发包已有验证记录 | 更新、迁移与其他平台打包需分别实现和验证 |
+| Agent 协作 | 工作台已有 ACP 会话；独立壳尚无聊天入口 | 先复用 Host 会话、取消和审批，再定义 App 上下文与领域工具契约 |
+| 方法、任务与验收组合 | App 尚未接入 Task/Run、Agent 工具或产物登记 | 明确输入、输出、方法版本与验证规则，再接已有执行与复核边界 |
+
+领域包可逐步组合界面、方法、上下文、工具和验证规则；当前 `app.json` 与 Product 配置只承载已实现的范围。Product 负责选择交付内容，Host 负责本机进程、凭据和执行，控制面负责共享任务及协调。独立产品继续调用这些所有者，领域 App 不另建通用调度、审批或任务状态机。
+
+当前构建与验收范围见 [Product 验证记录](fitness/products.md)。产品装配通过不代表科学方法或研究结论已获接受。
+
 ## 目录结构
 
 当前仓库结构：
 
 ```text
 pero/
+├── ROADMAP.md
 ├── crates/
 │   ├── pero-contracts/
 │   ├── pero-codemode/  # 受监护的代码运行
@@ -26,12 +66,15 @@ pero/
 ├── server/             # Go 控制面
 ├── protocol/           # TypeSpec 契约
 ├── harness/            # 自研 Agent 方向，目前只有 README
+├── apps/               # 独立 Web 面板与可选领域后端
+├── packages/app-sdk/   # Web App SDK 与共享控件
+├── packages/product/   # 不可变 Product 模型与校验
+├── products/           # 工作台与独立产品交付配置
 ├── pages/              # 交互原型源码
 ├── locales/            # 工作台文案
 ├── tests/
 └── docs/
     ├── ARCHITECTURE.md
-    ├── ROADMAP.md
     ├── adr/
     ├── fitness/
     ├── issues/
@@ -93,7 +136,7 @@ Python 后端由 Host 监督，并按领域声明工作流依赖；数据分析�
 
 **Electron + Node.js + Chromium** 组合：主进程装配窗口、浏览器与本机服务，预加载桥接提供有界接口。Agent 和科研计算运行在 Go / Python 进程或获准 Worker 中，由执行端统一管理。
 
-工作台与 App 界面采用 JavaScript / TypeScript：React 工作台和 App SDK，复用组件、主题、国际化及宿主接口。Web 与 Desktop 展示同一任务和 Session 的状态，Desktop 额外提供本机执行入口。
+当前工作台采用 GPUI Wasm；App 界面采用独立 HTML / JavaScript / TypeScript，可使用 React。App SDK 提供主题、国际化和本 App 的后端接口，Web 面板不共享工作台的 Electron 桥接对象。Desktop 通过已有 Rust Host 提供本机执行入口。
 
 当前 Pero 原型采用原生 HTML / CSS / JavaScript，通过 `pages/scripts/build.mjs` 生成中英文页面。数值示例和导出在浏览器执行；GitHub、协作者、Agent 与远程执行仍为模拟，页面状态不等同于持久 Project 数据。
 
@@ -188,7 +231,7 @@ Python 方法环境按 recipe 和依赖版本准备，科学数据按获准引�
 
 ## 执行不变量
 
-这些规则约束所有实现，不随里程碑变化。实现和验证它们的任务写在 [ROADMAP](ROADMAP.md)。
+这些规则约束所有实现，不随里程碑变化。实现和验证它们的任务写在 [ROADMAP](../ROADMAP.md)。
 
 - **客户端不内嵌 Agent 运行时。** 模型凭据、工具、审批和持久历史留在 Host。多个桌面壳共用同一个 Host 权威。
 - **授权在 Host 与协调服务的调用边界执行。** 动态求解保持在既定的数据范围、写入目标、预算和审批之内。一次 Run 的执行身份归 Host。

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 pub mod i18n;
+pub mod session_settings;
 
 pub const PROTOCOL_VERSION: u32 = 1;
 pub const MAX_TEXT_CHARS: usize = 4096;
@@ -77,6 +78,11 @@ pub enum HostCommand {
     Model {
         thread_id: String,
         model_id: String,
+    },
+    Configure {
+        thread_id: String,
+        config_id: String,
+        value: String,
     },
     Close {
         thread_id: String,

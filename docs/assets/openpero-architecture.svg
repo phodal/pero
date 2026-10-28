@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1056" viewBox="0 0 1600 1056" role="img" aria-labelledby="title description" lang="en">
-<title id="title">OpenPero — Overall Architecture</title>
+<title id="title">Pero — Overall Architecture</title>
 <desc id="description">Target architecture derived from ROADMAP.md. Clients access shared Cloud coordination and Host execution through versioned contracts. Host owns local permissions, credentials and execution identity. Apps, playbooks, connectors and replaceable agents use authorized environments. Artifacts pass independent verification and human acceptance before returning to project knowledge. Dashed modules and connections are planned; solid outlines indicate existing foundations only.</desc>
 <defs>
   <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 1 L 9 5 L 0 9" fill="none" stroke="#596B7D" stroke-width="1.5"/></marker>
@@ -9,7 +9,7 @@
 </defs>
 <rect x="0" y="0" width="1600" height="1056" rx="0" fill="#F7F9FC" stroke="none" stroke-width="1.5"/>
 <g font-family="Inter, Helvetica Neue, Arial, sans-serif">
-<text x="64" y="50" font-size="32" fill="#142B45" font-weight="650" >OpenPero Architecture</text>
+<text x="64" y="50" font-size="32" fill="#142B45" font-weight="650" >Pero Architecture</text>
 <g transform="translate(0 -48)">
 <path d="M 1536 1030 H 1570 V 128 H 30 V 470 H 64" fill="none" stroke="#007F86" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#accent)"/>
 <rect x="745" y="109" width="110" height="34" rx="0" fill="#F7F9FC" stroke="none" stroke-width="1.5"/>

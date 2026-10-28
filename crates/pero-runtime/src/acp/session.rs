@@ -1,4 +1,5 @@
 use super::AgentConfig;
+use super::configuration::Configuration;
 use agent_client_protocol::schema::{ProtocolVersion, v1::*};
 use agent_client_protocol::{
     AcpAgent, AcpAgentConfig, Agent, Client, ConnectionTo, UntypedMessage,
@@ -22,6 +23,7 @@ pub enum SessionCommand {
     Prompt(String),
     Cancel,
     Model(String),
+    Configure { id: String, value: String },
     Authenticate(String),
     Close,
 }
@@ -150,6 +152,8 @@ async fn run(
     );
     let model_api = Arc::new(Mutex::new(ModelApi::default()));
     let notification_models = model_api.clone();
+    let configuration = Arc::new(Mutex::new(Configuration::default()));
+    let notification_configuration = configuration.clone();
     let notify_tx = tx.clone();
     let notify_thread = thread.clone();
     let perm_tx = tx.clone();
@@ -173,6 +177,14 @@ async fn run(
                 if update["sessionUpdate"] == "config_option_update" {
                     let advertised = ModelApi::from_session(&update);
                     *notification_models.lock().unwrap() = advertised;
+                    let mut configuration = notification_configuration.lock().unwrap();
+                    configuration.refresh(&update)?;
+                    event(&notify_tx, &notify_thread, "configuration_changed", "", serde_json::to_value(&configuration.settings).unwrap_or_default());
+                }
+                if update["sessionUpdate"] == "current_mode_update" {
+                    let mut configuration = notification_configuration.lock().unwrap();
+                    configuration.mode_changed(update["currentModeId"].as_str().unwrap_or_default())?;
+                    event(&notify_tx,&notify_thread,"configuration_changed","",serde_json::to_value(&configuration.settings).unwrap_or_default());
                 }
                 event(&notify_tx, &notify_thread, "session_update", "", update);
                 Ok(())
@@ -251,6 +263,8 @@ async fn run(
             // Validate the standard fields without dropping legacy `models` from the raw response.
             let session: NewSessionResponse = serde_json::from_value(session_data.clone()).map_err(agent_client_protocol::Error::into_internal_error)?;
             let session_id = session.session_id.clone();
+            configuration.lock().unwrap().refresh(&session_data)?;
+            session_data["peroSettings"] = serde_json::to_value(&configuration.lock().unwrap().settings).unwrap_or_default();
             *model_api.lock().unwrap() = ModelApi::from_session(&session_data);
             if let Some(model) = config.model {
                 let selector = model_api.lock().unwrap().clone();
@@ -329,12 +343,36 @@ async fn run(
                             Ok(Some(response)) => match selector.apply_response(&mut session_data, response, &model) {
                                 Ok(()) => {
                                     *model_api.lock().unwrap() = ModelApi::from_session(&session_data);
+                                    configuration.lock().unwrap().refresh(&session_data)?;
+                                    session_data["peroSettings"] = serde_json::to_value(&configuration.lock().unwrap().settings).unwrap_or_default();
                                     event(&tx, &thread, "model_changed", "模型已切换", session_data.clone());
                                 },
                                 Err(error) => event(&tx, &thread, "session_error", error.to_string(), Value::Null),
                             },
                             Ok(None) => return Ok(()),
                             Err(error) => event(&tx, &thread, "session_error", error.to_string(), Value::Null),
+                        }
+                    },
+                    Some(SessionCommand::Configure { id, value }) => {
+                        let selector = configuration.lock().unwrap().clone();
+                        let (selection, request) = match selector.request(&session_id, &id, &value) {
+                            Ok(request) => request,
+                            Err(error) => { event(&tx,&thread,"session_error",error.to_string(),Value::Null); continue; },
+                        };
+                        match setup_request(connection.send_request(request).block_task(),
+                            &mut commands,&mut deferred,&tx,&thread,"Session setting").await {
+                            Ok(Some(response)) => {
+                                let result = configuration.lock().unwrap().acknowledged(&mut session_data,response,&selection);
+                                match result {
+                                    Ok(()) => {
+                                        *model_api.lock().unwrap() = ModelApi::from_session(&session_data);
+                                        event(&tx,&thread,"configuration_changed","",serde_json::to_value(&configuration.lock().unwrap().settings).unwrap_or_default());
+                                    },
+                                    Err(error) => event(&tx,&thread,"session_error",error.to_string(),Value::Null),
+                                }
+                            },
+                            Ok(None) => return Ok(()),
+                            Err(error) => event(&tx,&thread,"session_error",error.to_string(),Value::Null),
                         }
                     },
                     Some(SessionCommand::Authenticate(method_id)) => {

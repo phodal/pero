@@ -122,6 +122,8 @@ pub(crate) struct Conversation {
     pub models: Vec<(String, String)>,
     pub model: String,
     pub pending_model: Option<String>,
+    pub settings: pero_contracts::session_settings::SessionSettings,
+    pub pending_setting: Option<pero_contracts::session_settings::SettingSelection>,
     pub error: Option<String>,
 }
 
@@ -151,6 +153,8 @@ impl Conversation {
             models: vec![],
             model: String::new(),
             pending_model: None,
+            settings: Default::default(),
+            pending_setting: None,
             error: None,
         }
     }
@@ -301,6 +305,9 @@ impl Conversation {
     }
 
     pub fn config(&mut self, data: &Value) {
+        if let Some(settings) = data.get("peroSettings") {
+            if let Ok(settings) = serde_json::from_value(settings.clone()) { self.settings = settings; }
+        }
         if let Some(configs) = data["configOptions"].as_array() {
             if let Some(model) = configs
                 .iter()

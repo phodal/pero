@@ -81,6 +81,10 @@
     .cover h1 em { font-style:normal; color:var(--ion); }
     .cover-copy { color:#C5D4E2; font-size:17px; line-height:1.7; max-width:36em; margin:0 0 24px; }
     .cover-actions { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+    .download-details { margin-top:16px; max-width:42em; color:#C5D4E2; font-size:13px; line-height:1.8; }
+    .download-details summary { cursor:pointer; width:fit-content; }
+    .download-details p { margin:8px 0; }
+    .download-details a { color:#EAF1F8; text-decoration:underline; text-underline-offset:3px; }
     .cover .btn-primary { background:var(--ion); color:var(--navy); box-shadow:none; }
     .cover .btn-primary:hover { background:#82E5EA; }
     .cover .btn-ghost { color:#EAF1F8; background:transparent; border-color:#4b6277; }
@@ -479,3 +483,16 @@ html[lang="en"] .v4-hero h1,html[lang="en"] h2{letter-spacing:-.03em}
 html[lang="en"] .ledger dl,html[lang="en"] .mini-spec{grid-template-columns:minmax(90px,12em) 1fr}
 html[lang="en"] .nav{height:auto;min-height:78px;padding:10px 0}
 @media(max-width:700px){.header-tools{margin-left:auto}.nav>.btn{margin-left:8px}}
+
+/* Virtual Cell benchmark: existing theme tokens and compact comparison layout. */
+.parameter-row select,.condition-row select{font:inherit;color:var(--ink);background:var(--white);border:1px solid var(--line-strong);border-radius:4px;padding:8px;min-width:0}
+.parameter-row select{flex:1}.condition-row{display:flex;align-items:center;gap:12px;padding:0 0 16px;font-size:12px}.condition-row span{color:var(--slate);margin-left:auto}.condition-row label{color:var(--slate)}
+.lab-content .plot-title{font-size:11px}.lab-content .metric label{font-size:11px}.lab-content .wb-tab{font-size:12px}.lab-content .legend{font-size:12px}.lab-content .parameter-row label{font-size:12px}.lab-content .parameter-row .btn{font-size:12px}.lab-content .demo-foot{font-size:11px}.metrics{gap:12px}.metric strong{overflow-wrap:anywhere}
+@media(max-width:700px){.condition-row{flex-wrap:wrap;gap:8px}.condition-row span{margin-left:0;flex-basis:100%}.parameter-row select{max-width:160px}.lab-content .wb-main{padding:18px 14px}.lab-content .metric strong{font-size:17px}.lab-content .metric label{font-size:10px}.plot-toolbar{flex-wrap:wrap;gap:10px}}
+
+select:focus-visible{outline:3px solid var(--teal);outline-offset:4px}
+
+.cell-intro{display:grid;grid-template-columns:1.4fr 1fr;align-items:end;gap:16px 60px;margin-bottom:32px}.cell-intro .lab-small{grid-column:1/-1;margin:0}.cell-intro h2{margin:0}.cell-intro>p:last-child{max-width:360px;color:var(--slate);font-size:15px;line-height:1.9;margin:0 0 5px}.cell-showcase{overflow:hidden;border:1px solid var(--line);border-radius:8px;background:var(--white)}.cell-showcase iframe{width:100%;height:570px;display:block;border:0}.cell-next{display:flex;gap:24px;align-items:baseline;padding:18px 0 40px;font-size:12px;color:var(--slate)}.cell-next>span{font:11px var(--mono);white-space:nowrap}.cell-next p{margin:0;flex:1}.cell-next a{color:var(--link);text-decoration:underline;text-underline-offset:4px;white-space:nowrap}.studio{margin-top:12px}
+@media(max-width:700px){.cell-intro{grid-template-columns:1fr;gap:16px}.cell-intro>p:last-child{max-width:none;font-size:13px}.cell-showcase iframe{height:570px}.cell-next{flex-wrap:wrap;gap:12px;padding-bottom:28px}.cell-next p{flex-basis:100%;line-height:1.8}.cell-next a{white-space:normal}}
+
+.research-details{margin-top:24px;color:var(--slate);font-size:13px}.research-details>summary{cursor:pointer;padding:16px 0;border-bottom:1px solid var(--line);list-style-position:inside}.research-details>summary:hover{color:var(--link)}.research-details>summary:focus-visible{outline:3px solid var(--teal);outline-offset:4px}.research-details[open]>summary{margin-bottom:24px}.research-details .lab-section{width:100%;padding-top:24px}

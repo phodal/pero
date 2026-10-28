@@ -3,7 +3,9 @@ use pero_contracts::{
 };
 use std::io::{self, BufRead, Write};
 mod agents;
+mod apps;
 mod code;
+mod contributions;
 
 fn emit(event: HostEvent) -> io::Result<()> {
     let mut stdout = io::stdout().lock();
@@ -19,6 +21,7 @@ fn main() -> io::Result<()> {
     }
     let mut agents = agents::Manager::new(std::env::current_dir()?);
     let settings_path = std::env::var_os("PERO_SETTINGS_PATH").map(std::path::PathBuf::from);
+    let mut apps = apps::Apps::new(settings_path.as_deref());
     let locale = settings_path
         .as_deref()
         .and_then(pero_runtime::settings::load_locale)
@@ -34,6 +37,14 @@ fn main() -> io::Result<()> {
     for line in io::stdin().lock().lines() {
         let line = line?;
         let value: serde_json::Value = serde_json::from_str(&line).unwrap_or_default();
+        if value.get("method").and_then(|v| v.as_str()) == Some("contribution") {
+            contributions::dispatch(value);
+            continue;
+        }
+        if value.get("method").and_then(|v| v.as_str()) == Some("apps") {
+            emit(apps.dispatch(value))?;
+            continue;
+        }
         if let Some(action) = value.get("action").and_then(|action| action.as_str()) {
             if matches!(action, "run_code" | "cancel_code") {
                 code::handle(&code_mode, value, agents.workspace());

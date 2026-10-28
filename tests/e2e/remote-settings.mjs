@@ -71,7 +71,7 @@ const configure = async (ui, token = clientToken) => {
 };
 try {
   let ui = await launch();
-  expect((await ui.state()).remote.state.connection).toMatchObject({ url: '', mode: 'client', credential_configured: false, persistence_available: true });
+  expect((await ui.state()).remote.state.connection).toMatchObject({ url: 'https://app.openpero.com', mode: 'client', credential_configured: false, persistence_available: true });
   await configure(ui);
   expect((await ui.state()).remote.state.identity.role).toBe('client');
   expect((await ui.state()).remote.state.error).toBe(null);

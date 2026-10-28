@@ -33,7 +33,10 @@ const explain = (name, value) => {
 
 const temp = mkdtempSync(`${tmpdir()}/pero-contract-`);
 const agents = resolve(temp, 'agents.json');
-writeFileSync(agents, JSON.stringify([{ id: 'fixture', name: 'ACP test fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs')] }]));
+writeFileSync(agents, JSON.stringify([
+ { id: 'fixture', name: 'ACP test fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs')] },
+ { id: 'settings-fixture', name: 'ACP settings fixture', command: process.execPath, args: [resolve(root, 'tests/runtime/lifecycle-agent.mjs')], env: {PERO_FIXTURE_SCENARIO:'settings'} },
+]));
 writeFileSync(resolve(temp, 'notes.txt'), 'Context file for the contract test.\n');
 const env = { ...process.env, PERO_LOCALE: 'en', PERO_SETTINGS_PATH: resolve(temp, 'settings.json'), PERO_HISTORY_PATH: resolve(temp, 'sessions.jsonl'), PERO_AGENTS_FILE: agents, PERO_CODE_RUNS_PATH: resolve(temp, 'code-runs.json'), PERO_CODE_RUNS_DIR: resolve(temp, 'code-programs') };
 
@@ -86,6 +89,11 @@ try {
   await host.next('error');
   host.send({ method: 'settings.locale', locale: 'zh-CN' });
   await host.next('settings', (e) => e.text === 'zh-CN');
+
+  host.send({ method: 'contribution', id: 'contribution-invalid', operation: 'prepare',
+    task_id: 'task_contract', repository: '../invalid', parent: temp, title: 'Contract test',
+    source_url: 'https://github.com/acme/repo/issues/1', source_revision: 'contract-revision' });
+  await host.next('contribution_error', e => e.request_id === 'contribution-invalid' && e.data.code === 'invalid_request');
 
   const storedConnection = { url: 'https://openpero.com', mode: 'client', encrypted_token: 'ZW5jcnlwdGVk' };
   host.send({ method: 'settings.remote', id: 'remote-save', connection: storedConnection });
@@ -140,6 +148,13 @@ try {
   await host.next('session_closed', inThread);
   host.send({ action: 'prompt', thread_id: thread, text: 'after close' });
   await host.next('session_error', inThread);
+  host.send({action:'new_session',thread_id:'settings-contract',agent_id:'settings-fixture'});
+  await host.next('session_ready',e=>e.thread_id==='settings-contract');
+  host.send({action:'configure',thread_id:'settings-contract',config_id:'effort',value:'low'});
+  await host.next('configuration_changed',e=>e.thread_id==='settings-contract');
+  host.send({action:'close',thread_id:'settings-contract'});
+  await host.next('session_closed',e=>e.thread_id==='settings-contract');
+
 
   const program = 'print(1)\n';
   host.send({ action: 'run_code', id: 'run-missing', env_id: 'local', program });

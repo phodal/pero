@@ -46,7 +46,7 @@ func taskIn(ctx context.Context, q interface {
 	var latest []byte
 	var latestRevision string
 	var roadmap []byte
-	err := q.QueryRow(ctx, `SELECT t.id,t.spec,COALESCE(t.current_run_id,''),COALESCE(c.id,''),COALESCE(c.name,''),g.latest,COALESCE(g.revision,''),road.latest FROM tasks t LEFT JOIN clients c ON c.id=t.claimed_by_client_id LEFT JOIN github_issues g ON g.task_id=t.id LEFT JOIN roadmap_items road ON road.task_id=t.id WHERE t.id=$1`, id).Scan(&t.ID, &spec, &t.CurrentRunID, &claimedID, &claimedName, &latest, &latestRevision, &roadmap)
+	err := q.QueryRow(ctx, `SELECT t.id,t.spec,COALESCE(t.current_run_id,''),COALESCE(c.id,''),COALESCE(c.name,''),g.latest,COALESCE(g.revision,''),road.latest,EXISTS(SELECT 1 FROM contribution_pull_requests pr WHERE pr.task_id=t.id) FROM tasks t LEFT JOIN clients c ON c.id=t.claimed_by_client_id LEFT JOIN github_issues g ON g.task_id=t.id LEFT JOIN roadmap_items road ON road.task_id=t.id WHERE t.id=$1`, id).Scan(&t.ID, &spec, &t.CurrentRunID, &claimedID, &claimedName, &latest, &latestRevision, &roadmap, &t.contributionSubmitted)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -211,7 +211,7 @@ func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string) (*Run, e
 	if err != nil {
 		return nil, err
 	}
-	if taskSourceClosed(bound) || taskSourceStale(bound) {
+	if bound.contributionSubmitted || taskSourceClosed(bound) || taskSourceStale(bound) {
 		return nil, ErrConflict
 	}
 	if current != "" {

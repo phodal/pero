@@ -116,6 +116,7 @@ func ParseRoadmap(source []byte) RoadmapParse {
 		}
 		item.Text = strings.TrimSpace(body)
 		item.Title, _, _ = strings.Cut(item.Text, "\n")
+		item.Title, _, _ = strings.Cut(item.Title, ". ")
 		item.Title = strings.TrimSpace(item.Title)
 		item.Tags = roadmapTaskTags(node, source)
 		if !text(item.Title, 240) || !text(item.Text, 64000) || len(item.Tags) > 64 {

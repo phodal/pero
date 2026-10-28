@@ -44,7 +44,7 @@ pub(crate) fn short_label(action: &str, title: &str, path: Option<&str>) -> Stri
     text
 }
 
-#[cfg(target_family = "wasm")]
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod rendering {
     use super::*;
     use crate::{app::Workbench, conversation::Tool};

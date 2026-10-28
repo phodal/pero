@@ -1,0 +1,173 @@
+# Toolchains follow the repo, not a compatibility matrix:
+# Node.js 22 (desktop/README.md: 22.12+), npm from package-lock.json
+# Rust stable, plus nightly-2026-10-28 for Wasm (scripts/build/wasm.mjs)
+# gpui-kit ec89cfc (desktop/README.md, scripts/build/fonts.manifest.json)
+# Go 1.26.4 (MODULE.bazel). server/go.mod's `go 1.24` is the language version.
+# Bazel 9.2.0 (.bazelversion). pnpm-lock.yaml is the Bazel translation of the npm lock.
+# The same commands run on Linux, Windows, and macOS. Worker process supervision
+# is Unix-only in the crate; those tests are cfg-gated and the rest still run.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  bazel:
+    name: Bazel checks and server (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Windows Git would otherwise rewrite LF and change the Bazel lock hashes.
+      - name: Keep LF line endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --local core.autocrlf false
+          git checkout -- .
+
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@0.19.1
+        with:
+          bazelisk-version: 1.x
+          bazelisk-cache: true
+          repository-cache: true
+
+      # rules_js cannot refresh the pnpm lock on Windows, and its text diffs are
+      # byte compares that do not match the LF sources there. npm run check
+      # still runs those generators on Windows in the desktop job.
+      - name: Test generated checks
+        if: runner.os != 'Windows'
+        run: bazel test --config=ci //:checks
+
+      - name: Build control plane
+        run: bazel build //server/cmd/server
+
+  go:
+    name: Go tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.4"
+          cache-dependency-path: server/go.sum
+
+      - name: Test
+        working-directory: server
+        run: go test -race ./...
+
+  desktop:
+    name: Build, check, and Rust tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Windows Git would otherwise rewrite LF and make the generator checks stale.
+      - name: Keep LF line endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --local core.autocrlf false
+          git checkout -- .
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Set up Rust nightly
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: nightly-2026-10-28
+          targets: wasm32-unknown-unknown
+
+      - name: Set up Rust stable
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      # Outside this repo. A checkout inside it is absorbed by the Cargo workspace.
+      - name: Checkout gpui-kit
+        run: |
+          kit="$RUNNER_TEMP/gpui-kit"
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+          git init --quiet "$kit"
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin ec89cfc36404667b7947aeb3d40b1c2859d729dd
+          git -C "$kit" checkout --detach FETCH_HEAD
+
+      # scripts/build/fonts.mjs creates a venv when fontTools is not already installed.
+      - name: Prepare Python for font subsetting
+        run: |
+          if python3 -c 'import venv, ensurepip'; then
+            exit 0
+          fi
+          case "$RUNNER_OS" in
+            Linux)
+              sudo apt-get update
+              sudo apt-get install --yes python3-venv
+              ;;
+            macOS)
+              brew install python@3
+              ;;
+            Windows)
+              echo "python3 with the venv module is required for font subsetting" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Resolve pinned local GPUI packages
+        run: node scripts/cargo.mjs check -p pero-contracts
+
+      - name: Build
+        run: npm run build
+
+      - name: Typecheck and generated sources
+        run: npm run check
+
+      - name: Test
+        run: npm test
+
+      - name: Host contract tests
+        run: npm run test:contracts

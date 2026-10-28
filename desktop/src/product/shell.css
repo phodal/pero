@@ -1,0 +1,11 @@
+html,body{margin:0;width:100%;height:100%;overflow:hidden;font:14px system-ui}
+#pero-app-surface{position:absolute;background:var(--pero-bg);color:var(--pero-text)}
+#pero-app-surface iframe{width:100%;height:100%;border:0;display:block}
+#pero-app-surface [hidden]{display:none}
+.app-panel-status{position:absolute;inset:0;display:flex;gap:16px;align-items:center;justify-content:center;background:var(--pero-bg);padding:24px}
+button{font:inherit;padding:8px 16px;color:var(--pero-text);background:var(--pero-surface);border:1px solid var(--pero-input-border);border-radius:4px;cursor:pointer}
+button:focus-visible{outline:2px solid var(--pero-focus);outline-offset:3px}
+nav{box-sizing:border-box;display:flex;height:44px;align-items:center;padding:0 12px;background:var(--pero-surface);border-bottom:1px solid var(--pero-border)}
+nav[hidden]{display:none}
+nav select{font:inherit;max-width:100%;background:var(--pero-surface);color:var(--pero-text);border:1px solid var(--pero-input-border);border-radius:4px;padding:4px 8px}
+nav select:focus-visible{outline:2px solid var(--pero-focus);outline-offset:2px}

@@ -93,7 +93,7 @@ function render(copy, lang) {
 
   add('<?xml version="1.0" encoding="UTF-8"?>');
   add(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="title description" lang="${lang}">`);
-  add(`<title id="title">OpenPero — ${escape(copy.title)}</title>`);
+  add(`<title id="title">Pero — ${escape(copy.title)}</title>`);
   add(`<desc id="description">${escape(copy.description)}</desc>`);
   add(`<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 1 L 9 5 L 0 9" fill="none" stroke="${brand.ion}" stroke-width="1.6"/></marker></defs>`);
   rect(0, 0, width, height, { fill: brand.navy, stroke: 'none', radius: 16 });

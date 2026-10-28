@@ -133,9 +133,9 @@ dependencies = [
 
 [[package]]
 name = "agent-client-protocol-derive"
-version = "3.5.0"
+version = "3.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25b7ae92f0d1ba46ca61e7e03d4a9758e877d100b783aa1c62b140d5a9d59fb2"
+checksum = "5d2d255cb5d3afa4760084fbcaf87c7d214d316328546cd777d8736a8af6e368"
 dependencies = [
  "quote",
  "syn 3.0.9",
@@ -2174,6 +2174,8 @@ dependencies = [
 [[package]]
 name = "gpui-base"
 version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d862bc8f2e27710039013d075ac4995892e9687ff207fa530f880cbcd513936f"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -2213,6 +2215,8 @@ dependencies = [
 [[package]]
 name = "gpui-component"
 version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46ce53430332e30f303364eaabfa10ed2aa23dfaf2a147e04370e0e9c423578b"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2260,6 +2264,8 @@ dependencies = [
 [[package]]
 name = "gpui-component-macros"
 version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a512c830553e7dddc43c3f8faffc2d2d7bd24db21fe3dc1326dde9c470013768"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -2270,6 +2276,8 @@ dependencies = [
 [[package]]
 name = "gpui-kit"
 version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25210f6e59ea9ffac3a033dbce9edafe5ff0dd2900f894fd1316f54da2fe2b89"
 dependencies = [
  "gpui-base",
  "gpui-component",
@@ -2283,6 +2291,8 @@ dependencies = [
 [[package]]
 name = "gpui-kit-assets"
 version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c214017b45e5654665f18faa551f58a2c2c8d25efe6632b1a443ba8edf365e96"
 dependencies = [
  "anyhow",
  "gpui-pre",
@@ -4749,6 +4759,7 @@ dependencies = [
  "pero-codemode",
  "pero-contracts",
  "pero-runtime",
+ "serde",
  "serde_json",
 ]
 
@@ -4757,10 +4768,13 @@ name = "pero-runtime"
 version = "0.1.0"
 dependencies = [
  "agent-client-protocol",
+ "dunce",
+ "libc",
  "pero-contracts",
  "serde",
  "serde_json",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -4768,6 +4782,8 @@ name = "pero-ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-channel",
+ "chrono",
  "console_error_panic_hook",
  "gpui-kit",
  "js-sys",

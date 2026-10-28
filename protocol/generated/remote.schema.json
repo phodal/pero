@@ -490,6 +490,9 @@
         },
         "persistence_available": {
           "type": "boolean"
+        },
+        "authenticating": {
+          "type": "boolean"
         }
       },
       "required": [

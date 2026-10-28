@@ -1,6 +1,6 @@
 # Tests
 
-同一行为只在一层证明。验收层级沿用 [ROADMAP](../docs/ROADMAP.md) 的 L0–L3。命令入口是 [docs/fitness/README.md](../docs/fitness/README.md)。`docs/fitness/` 里的其余文件是当日验证记录，不是这套测试的说明。
+同一行为只在一层证明。验收层级 L0–L3 与命令入口见 [docs/fitness/README.md](../docs/fitness/README.md#acceptance-levels)。`docs/fitness/` 里的其余文件是当日验证记录，不是这套测试的说明。
 
 截图和 `result.json` 写到仓库根的 `test-results/`，已被 gitignore。Electron 套件会抢本机输入焦点，一次只跑一个。
 
@@ -12,7 +12,7 @@
 | `runtime/acp_lifecycle.rs` | L0 | `npm test` | ACP 会话状态机。由 `crates/pero-runtime/src/acp/session.rs` 以 `#[path]` 编入，不经过 UI |
 | `runtime/lifecycle-agent.mjs` | L0 | 同上 | 状态机专用 fixture。场景由 `PERO_FIXTURE_SCENARIO` 选择，不读仓库、不发网络 |
 | `contracts/host.mjs` | L0 | `npm run test:contracts` | 真实 `pero-host --stdio` 的每一行 JSONL 符合 `protocol/generated/host.schema.json` |
-| `fixtures/acp-agent.mjs` | L0 / L1 | contracts 与 e2e 共用 | 脚本化 ACP：`toolmatrix`、权限、等待、长流式。输出是假的，不跑命令、不改文件、不访问 URL |
+| `fixtures/acp-agent.mjs` | L0 / L1 | contracts 与 e2e 共用 | 脚本化 ACP：`toolmatrix`、权限、等待、长流式。普通展示场景不执行命令或文件写入；显式 `contribution-fixture` 场景在临时贡献工作区写入文档 |
 | `e2e/desktop.mjs` | L1 | `npm run test:e2e` | 顺序执行 `workbench.mjs` 和 `toolcalls.mjs`，各启动一次真实 Electron |
 | `e2e/workbench.mjs` | L1 | 同上 | 中文组字、多轮、取消、权限、千段长流式、上滚不跳动、刷新后历史还在 |
 | `e2e/toolcalls.mjs` | L1 | 同上 | 九种工具行、diff、失败、取消、附件上下文 |
@@ -24,6 +24,7 @@
 | `e2e/remote-settings.mjs` | L1 | `npm run test:remote-settings` | 真实 Electron OS 加密存储与 Host 偏好写入，配合本地 HTTP fixture 验证重启、权限不升级、断开持久化、存储错误恢复及凭据不进入诊断 |
 | `e2e/community.mjs` + `server/internal/community/http_test.go` | L2 | `npm run test:community` | Go/PostgreSQL 与 Chromium 验证公开任务、OAuth fixture、Worker 归属、认领、验收记分、撤销及来源变化；需要 `PERO_TEST_DATABASE_URL` |
 | `e2e/real-session.mjs` | L2 | `npm run test:e2e:real` | 本机 Codex 登录，回复恰好是 `PERO_DESKTOP_OK`。不进默认验收 |
+| `e2e/contribution.mjs` + `community/contributor_desktop_test.go` | L2 | `npm run test:contribution` | 新 OAuth 用户无需项目授权，认领公开需求、克隆独立工作区、ACP 实际写文件、审阅 diff、Git 实际 commit/push、PR 替身与回填失败恢复。需要隔离 PostgreSQL；`PERO_CONTRIBUTION_REAL_AGENT=1` 使用真实 Codex 工具，GitHub 仍为替身 |
 
 `test:e2e` 和 `test:i18n` 使用已有的开发构建，自己不编译。先跑 `npm run build`。`test:contracts` 会先编译 Host。
 

@@ -223,7 +223,7 @@ func TestDesktopConnectorSources(t *testing.T) {
 	t.Logf("connector sources verified live=%v roadmap=%d checked=%d issues=%d; no dispatch", live, roadmapCount, checked, issueCount)
 }
 
-const connectorMarkdown = "# Project\n## Backend\n- [ ] Parent #backend <!--pero:id:parent-->\n  - [ ] Child #desktop <!--pero:id:child-->\n- [x] Done #docs <!--pero:id:done-->\n## Documentation\n- [ ] Guide #docs <!--pero:id:guide-->\n- [ ] Review #backend <!--pero:id:review-->\n```md\n- [ ] Example checkbox\n```\n"
+const connectorMarkdown = "# Project\n## Backend\n- [ ] Parent. Parent execution goal #backend <!--pero:id:parent-->\n  - [ ] Child. Child execution goal #desktop <!--pero:id:child-->\n- [x] Done. Completed execution goal #docs <!--pero:id:done-->\n## Documentation\n- [ ] Guide. Write the guide #docs <!--pero:id:guide-->\n- [ ] Review. Review the backend #backend <!--pero:id:review-->\n```md\n- [ ] Example checkbox\n```\n"
 
 func connectorProvider(t *testing.T) *httptest.Server {
 	t.Helper()
@@ -247,12 +247,10 @@ func connectorProvider(t *testing.T) *httptest.Server {
 		case "/repos/acme/repo/commits/main":
 			json.NewEncoder(w).Encode(map[string]string{"sha": commit})
 		case "/repos/acme/repo/contents/ROADMAP.md":
-			http.NotFound(w, r)
-		case "/repos/acme/repo/contents/docs/ROADMAP.md":
 			if r.URL.Query().Get("ref") != commit {
 				t.Error("fixture contents not pinned to commit")
 			}
-			json.NewEncoder(w).Encode(map[string]any{"type": "file", "path": "docs/ROADMAP.md", "size": len(connectorMarkdown), "encoding": "base64", "content": base64.StdEncoding.EncodeToString([]byte(connectorMarkdown)), "sha": blob})
+			json.NewEncoder(w).Encode(map[string]any{"type": "file", "path": "ROADMAP.md", "size": len(connectorMarkdown), "encoding": "base64", "content": base64.StdEncoding.EncodeToString([]byte(connectorMarkdown)), "sha": blob})
 		default:
 			http.NotFound(w, r)
 		}

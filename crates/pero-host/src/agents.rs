@@ -50,6 +50,7 @@ impl Manager {
                             | "session_update"
                             | "session_ready"
                             | "model_changed"
+                            | "configuration_changed"
                             | "turn_finished"
                             | "session_error"
                             | "session_closed"
@@ -222,6 +223,8 @@ impl Manager {
                         thread_id,
                         model_id,
                     } => (thread_id, SessionCommand::Model(model_id)),
+                    HostCommand::Configure { thread_id, config_id, value } =>
+                        (thread_id, SessionCommand::Configure { id: config_id, value }),
                     HostCommand::Authenticate {
                         thread_id,
                         method_id,

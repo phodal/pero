@@ -46,9 +46,9 @@ func gitHubSource(issue GitHubIssue, revision string) *Source {
 	return &Source{Kind: "github", Repository: issue.Repository, IssueNumber: issue.Number, URL: issue.URL, Revision: revision, State: issue.State, UpdatedAt: issue.UpdatedAt, IssueID: issue.ID, RepositoryID: issue.RepositoryID, Tags: issue.Labels}
 }
 
-func (s *Store) BindGitHubRepository(ctx context.Context, config GitHubRepository, id string) error {
+func (s *Store) BindGitHubRepository(ctx context.Context, config GitHubRepository, id string, private bool) error {
 	var bound string
-	err := s.pool.QueryRow(ctx, `INSERT INTO github_repositories(project_id,name,repository_id) VALUES($1,$2,$3) ON CONFLICT(project_id,name) DO UPDATE SET name=EXCLUDED.name RETURNING repository_id`, config.ProjectID, strings.ToLower(config.Name()), id).Scan(&bound)
+	err := s.pool.QueryRow(ctx, `INSERT INTO github_repositories(project_id,name,repository_id,private) VALUES($1,$2,$3,$4) ON CONFLICT(project_id,name) DO UPDATE SET private=CASE WHEN github_repositories.repository_id=EXCLUDED.repository_id THEN EXCLUDED.private ELSE github_repositories.private END RETURNING repository_id`, config.ProjectID, strings.ToLower(config.Name()), id, private).Scan(&bound)
 	if err != nil {
 		return err
 	}
@@ -105,6 +105,9 @@ func (s *Store) SyncGitHubIssue(ctx context.Context, config GitHubRepository, is
 			return change, err
 		}
 		change.Imported = true
+	}
+	if err = publishPublicSource(ctx, tx, config, id, spec); err != nil {
+		return change, err
 	}
 	var current string
 	var claimed *string

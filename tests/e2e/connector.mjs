@@ -59,7 +59,8 @@ async function capture(name) {
   await ui.page.screenshot({ path: resolve(out, `${name}.png`) });
 }
 async function sourceTab(kind) {
-  await ui.page.mouse.click({ '': 225, github: 280, roadmap: 355 }[kind], 168);
+  await ui.page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await ui.page.mouse.click({ '': 335, github: 369, roadmap: 419 }[kind], 137);
   await expect.poll(async () => (await ui.state()).remote.state.source_kind).toBe(kind);
   await expect.poll(async () => (await ui.state()).remote.state.loading).toBe(false);
   expect((await ui.state()).remote.state.error).toBe(null);
@@ -91,19 +92,19 @@ try {
   await expect.poll(async () => (await ui.state()).navigation).toBe(3);
   expect((await ui.state()).remote.state.configured).toBe(false);
   await capture('unconfigured');
-  await ui.page.mouse.click(280, 386);
+  await ui.page.mouse.click(255, 395);
   await ui.page.waitForTimeout(120);
   expect((await ui.state()).remote.state.configured).toBe(false);
   await capture('required-fields-error');
-  await ui.page.mouse.click(500, 208);
+  await ui.page.mouse.click(500, 154);
   await ui.page.keyboard.press('Meta+A'); await ui.page.keyboard.insertText(config.url);
   await expect.poll(async () => (await ui.state()).remote.connection_url).toBe(config.url);
   await capture('url-entered');
-  await ui.page.mouse.click(500, 279);
+  await ui.page.mouse.click(500, 289);
   await ui.page.waitForTimeout(120);
   await ui.page.keyboard.insertText(config.client_token);
   await capture('masked-connection-form');
-  await ui.page.mouse.click(280, 422);
+  await ui.page.mouse.click(255, 434);
   await expect.poll(async () => (await ui.state()).remote.state.identity?.role, { timeout: 15000 }).toBe('client');
   await expect.poll(async () => (await ui.state()).remote.state.loading).toBe(false);
   expect((await ui.state()).remote.state.configured).toBe(true);
@@ -144,19 +145,24 @@ try {
   expect(roadmap.every(task => observed(task).commit_sha === config.commit_sha && observed(task).path === config.path)).toBe(true);
   expect(roadmap.every(task => !task.current_run_id && !task.run)).toBe(true);
   // The ownership filter affects visibility only; All exposes imported checked items.
-  await ui.page.mouse.click(318, 112);
+  await ui.page.mouse.click(295, 137);
   await expect.poll(async () => (await ui.state()).remote.filter).toBe(2);
   await capture('roadmap-all');
   checks.push(`all source pages match independent ledger (${roadmap.length} ROADMAP, ${issues.length} Issues)`);
   if (!config.live) {
+    expect(config.path).toBe('ROADMAP.md');
+    expect(roadmap.find(task => task.id === config.parent_task_id).title).toBe('Parent');
     const child = roadmap.find(task => task.id === config.child_task_id);
+    expect(child.title).toBe('Child');
     expect(child.parent_task_id).toBe(config.parent_task_id);
     expect(observed(child).depth).toBe(1);
     expect(observed(child).headings).toEqual(['Project', 'Backend']);
     await ui.select(child.id);
+    expect((await ui.state()).remote.state.detail.task.title).toBe('Child');
+    expect((await ui.state()).remote.state.detail.task.prompt).toBe('Child. Child execution goal #desktop');
     await capture('roadmap-child');
     // The rendered #desktop chip takes the server-filter action.
-    await ui.page.mouse.click(540, 242);
+    await ui.page.mouse.click(669, 362);
     await expect.poll(async () => (await ui.state()).remote.state.tag).toBe('desktop');
     await expect.poll(async () => (await ui.state()).remote.state.loading).toBe(false);
     expect((await ui.state()).remote.state.tasks.map(task => task.id)).toEqual([child.id]);
@@ -166,22 +172,22 @@ try {
     await ui.select(child.id);
     await ui.page.waitForTimeout(150);
     await capture('roadmap-child-return');
-    await ui.page.mouse.click(550, 206);
+    await ui.page.mouse.click(606, 362);
     await expect.poll(async () => (await ui.state()).remote.state.detail?.task?.id).toBe(config.parent_task_id);
     await capture('roadmap-parent');
-    checks.push('nested hierarchy, parent link and actual tag-chip server filter');
+    checks.push('root checklist imports short titles and full goals; nested hierarchy, parent link and actual tag-chip server filter');
   }
   const checked = roadmap.find(task => observed(task).state === 'closed');
   expect(checked).toBeTruthy();
   await ui.select(checked.id);
   expect(observed((await ui.state()).remote.state.detail.task).state).toBe('closed');
   await capture('checked-disabled');
-  await ui.page.mouse.click(558, 294);
+  await ui.page.mouse.click(558, 332);
   await ui.page.waitForTimeout(150);
   expect((await ui.state()).remote.state.error).toBe(null);
   expect((await ui.state()).remote.state.detail.task.current_run_id).toBeUndefined();
   checks.push('checked source shown as closed with execution disabled');
-  await ui.page.mouse.click(64, await ui.page.evaluate(() => innerHeight - 56));
+  await ui.page.mouse.click(64, await ui.page.evaluate(() => innerHeight - 30));
   await expect.poll(async () => (await ui.state()).dark).toBe(true);
   await capture('dark');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 788));

@@ -5,14 +5,20 @@ use gpui_kit::{
     *,
 };
 use pero_contracts::{EchoRequest, HostEvent, MAX_TEXT_CHARS};
+#[cfg(target_family = "wasm")]
 use std::{borrow::Cow, cell::RefCell, rc::Rc, sync::Arc};
+#[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
+#[cfg(all(feature = "native", not(target_family = "wasm")))]
+pub(crate) use crate::native::{send_probe, request_locale, session_command};
 
+#[cfg(target_family = "wasm")]
 thread_local! {
     static APPLICATION: RefCell<Option<ApplicationHandle>> = const { RefCell::new(None) };
     static WORKBENCH: RefCell<Option<WeakEntity<Workbench>>> = const { RefCell::new(None) };
 }
 
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = window, js_name = peroSendProbe, catch)]
@@ -31,7 +37,9 @@ pub(crate) struct Workbench {
     pub dark: bool,
     pub navigation: usize,
     pub remote: crate::remote::RemoteState,
-    pub selected: usize,
+    pub contribution: crate::contributions::ContributionState,
+    pub apps: crate::apps::AppWorkspace,
+    pub app_surface: String,
     pub tab: usize,
     pub connected: bool,
     pub pending: Option<String>,
@@ -46,10 +54,8 @@ pub(crate) struct Workbench {
     pub active_chat: Option<usize>,
     pub agents: Vec<AgentChoice>,
     pub agent_index: usize,
-    pub agent_menu: bool,
     pub model_menu: bool,
     pub workspace: String,
-    pub filter: usize,
     pub show_details: bool,
     pub chat_scroll: ScrollHandle,
     pub attachments: Vec<serde_json::Value>,
@@ -58,7 +64,7 @@ pub(crate) struct Workbench {
 }
 
 impl Workbench {
-    fn new(
+    pub(crate) fn new(
         palettes: Palettes,
         dark: bool,
         locale: String,
@@ -83,7 +89,7 @@ impl Workbench {
         });
         let search = cx.new(|cx| {
             InputState::new(window, cx)
-                .placeholder(pero_contracts::i18n::text(&locale, "tasks.search"))
+                .placeholder(pero_contracts::i18n::text(&locale, "sessions.search"))
         });
         let mut subscriptions = subscriptions;
         subscriptions.push(
@@ -98,14 +104,16 @@ impl Workbench {
         let remote = crate::remote::RemoteState::new(window, cx);
         Self {
             remote,
+            contribution: Default::default(),
+            apps: crate::apps::AppWorkspace::default(),
+            app_surface: String::new(),
             input,
             input_locale: locale.clone(),
             locale,
             palettes,
             dark,
-            navigation: 0,
-            selected: 0,
-            tab: 0,
+            navigation: 3,
+            tab: 4,
             connected: false,
             pending: None,
             next_request: 0,
@@ -119,10 +127,8 @@ impl Workbench {
             active_chat: None,
             agents: vec![],
             agent_index: 0,
-            agent_menu: false,
             model_menu: false,
             workspace: String::new(),
-            filter: 0,
             show_details: false,
             chat_scroll: ScrollHandle::new(),
             attachments: vec![],
@@ -156,7 +162,13 @@ impl Workbench {
         cx.notify();
     }
 
-    fn receive(&mut self, event: HostEvent, cx: &mut Context<Self>) {
+    pub(crate) fn receive(&mut self, event: HostEvent, cx: &mut Context<Self>) {
+        if self.receive_contribution(&event, cx) {
+            return;
+        }
+        if self.receive_apps(&event, cx) {
+            return;
+        }
         if self.receive_remote(&event, cx) {
             return;
         }
@@ -226,6 +238,7 @@ impl Workbench {
     }
 }
 
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 pub fn run(theme_json: &str, dark: bool, locale: &str) -> Result<(), JsValue> {
     let locale = pero_contracts::i18n::normalize(locale).to_string();
@@ -244,6 +257,7 @@ pub fn run(theme_json: &str, dark: bool, locale: &str) -> Result<(), JsValue> {
         .with_assets(crate::assets::UiAssets)
         .with_http_client(http)
         .run_embedded(move |cx| {
+            // Catalog glyphs are bundled; arbitrary CJK text uses the canvas fallback above.
             cx.text_system()
                 .add_fonts(vec![
                     Cow::Borrowed(
@@ -257,14 +271,7 @@ pub fn run(theme_json: &str, dark: bool, locale: &str) -> Result<(), JsValue> {
                         include_bytes!("../../../web/public/fonts/Workbench-bold.ttf").as_slice(),
                     ),
                     Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/NotoSansSC-Bold.ttf").as_slice(),
-                    ),
-                    Cow::Borrowed(
                         include_bytes!("../../../web/public/fonts/IBMPlexSans-Regular.ttf")
-                            .as_slice(),
-                    ),
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/NotoSansSC-Regular.ttf")
                             .as_slice(),
                     ),
                     Cow::Borrowed(
@@ -287,6 +294,7 @@ pub fn run(theme_json: &str, dark: bool, locale: &str) -> Result<(), JsValue> {
     Ok(())
 }
 
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 pub fn receive_host_event(json: &str) -> Result<(), JsValue> {
     let event: HostEvent =
@@ -298,6 +306,7 @@ pub fn receive_host_event(json: &str) -> Result<(), JsValue> {
     Ok(())
 }
 
+#[cfg(target_family = "wasm")]
 fn update(f: impl FnOnce(&mut Workbench, &mut Context<Workbench>)) {
     APPLICATION.with(|app| {
         if let Some(app) = app.borrow().as_ref() {
@@ -313,16 +322,18 @@ fn update(f: impl FnOnce(&mut Workbench, &mut Context<Workbench>)) {
 }
 
 /// Read-only diagnostic state. Tests still enter text through Chromium input.
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 pub fn snapshot() -> String {
     let mut value = serde_json::json!({"ready": false});
     update(|ui, cx| {
         value = serde_json::json!({
-            "ready": true, "remote": ui.remote.snapshot(cx), "connected": ui.connected, "input": ui.input.read(cx).value().as_ref(),
+            "ready": true, "remote": ui.remote.snapshot(cx), "contribution": ui.contribution.data, "publicContributions": ui.remote.public_contributions, "connected": ui.connected, "input": ui.input.read(cx).value().as_ref(),
             "received": ui.received, "lastEcho": ui.last_echo, "pending": ui.pending,
             "error": ui.error, "dark": ui.dark, "navigation": ui.navigation,
+            "apps": ui.apps.catalog, "activeApp": ui.apps.active, "appError": ui.apps.error, "appsLoading": ui.apps.loading,
             "locale": ui.locale, "labels": { "tasks": ui.t("nav.tasks"), "send": ui.t("probe.send") },
-            "selected": ui.selected, "tab": ui.tab, "events": ui.events,
+            "tab": ui.tab, "events": ui.events,
             "chats": ui.chats, "activeChat": ui.active_chat, "agents": ui.agents,
             "composer": ui.composer.read(cx).value().as_ref(),"workspace":ui.workspace,
             "attachments": ui.attachments.iter().filter_map(|file|file["name"].as_str()).collect::<Vec<_>>(),

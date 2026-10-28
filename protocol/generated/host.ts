@@ -4,7 +4,8 @@
  * Generated from protocol/host.tsp. Do not edit.
  */
 export type HostProtocol = HostInput | HostEvent;
-export type HostInput = EchoRequest | SetLocaleRequest | SetRemoteSettingsRequest | HostCommand;
+export type HostInput =
+  EchoRequest | SetLocaleRequest | SetRemoteSettingsRequest | HostCommand | AppRequest | ContributionRequest;
 export type HostCommand =
   | ListAgentsCommand
   | WorkspaceCommand
@@ -15,11 +16,20 @@ export type HostCommand =
   | CancelCommand
   | PermissionCommand
   | ModelCommand
+  | ConfigureCommand
   | CloseCommand
   | RunCodeCommand
   | CancelCodeCommand;
 export type ThreadId = string;
+export type AppRequest = ListApps | InstallApp | EnableApp | DisableApp | UninstallApp | ResolveApp;
+export type RequestId = string;
+export type AppName = string;
+export type ContributionRequest = ContributionPrepare | ContributionReview | ContributionPublish;
 export type HostEvent =
+  | ContributorStateEvent
+  | ContributorSessionEvent
+  | ContributionResultEvent
+  | ContributionErrorEvent
   | SettingsEvent
   | RemoteSettingsSavedEvent
   | RemoteSettingsErrorEvent
@@ -34,6 +44,10 @@ export type HostEvent =
   | ContextFilesEvent
   | RemoteStateEvent
   | RemoteOpenEvent
+  | AppsResultEvent
+  | AppsCatalogEvent
+  | AppsErrorEvent
+  | AppsOpenedEvent
   | ThreadEvent
   | SessionConnectingEvent
   | AgentInfoEvent
@@ -58,9 +72,11 @@ export type ThreadEvent =
   | SessionUpdateEvent
   | SessionReadyEvent
   | ModelChangedEvent
+  | ConfigurationChangedEvent
   | TurnFinishedEvent
   | SessionErrorEvent
   | SessionClosedEvent;
+export type AppResult = AppSuccess | AppFailure;
 
 /**
  * Bootstrap transport probe.
@@ -127,6 +143,12 @@ export interface ModelCommand {
   thread_id: string;
   model_id: string;
 }
+export interface ConfigureCommand {
+  action: "configure";
+  thread_id: ThreadId;
+  config_id: string;
+  value: string;
+}
 export interface CloseCommand {
   action: "close";
   thread_id: string;
@@ -143,6 +165,131 @@ export interface RunCodeCommand {
 export interface CancelCodeCommand {
   action: "cancel_code";
   id: string;
+}
+export interface ListApps {
+  action: "list";
+  method: "apps";
+  id: RequestId;
+}
+export interface InstallApp {
+  action: "install";
+  path: string;
+  method: "apps";
+  id: RequestId;
+}
+export interface EnableApp {
+  action: "enable";
+  name: AppName;
+  method: "apps";
+  id: RequestId;
+}
+export interface DisableApp {
+  action: "disable";
+  name: AppName;
+  method: "apps";
+  id: RequestId;
+}
+export interface UninstallApp {
+  action: "uninstall";
+  name: AppName;
+  method: "apps";
+  id: RequestId;
+}
+export interface ResolveApp {
+  action: "resolve";
+  name: AppName;
+  method: "apps";
+  id: RequestId;
+}
+export interface ContributionPrepare {
+  method: "contribution";
+  id: string;
+  task_id: string;
+  operation: "prepare";
+  repository: string;
+  parent: string;
+  title: string;
+  source_url: string;
+  source_revision: string;
+}
+export interface ContributionReview {
+  method: "contribution";
+  id: string;
+  task_id: string;
+  operation: "review" | "status";
+  workspace: string;
+}
+export interface ContributionPublish {
+  method: "contribution";
+  id: string;
+  task_id: string;
+  operation: "publish";
+  workspace: string;
+  review_token: string;
+}
+export interface ContributorStateEvent {
+  kind: "contributor_state";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: RemoteSnapshotPayload;
+}
+/**
+ * Main-process HTTP adapter snapshot; validated by protocol/remote.tsp.
+ */
+export interface RemoteSnapshotPayload {
+  [k: string]: unknown | undefined;
+}
+export interface ContributorSessionEvent {
+  kind: "contributor_session";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: ContributorSessionData;
+}
+export interface ContributorSessionData {
+  task_id: string;
+  workspace: string;
+  agent_id?: string;
+}
+export interface ContributionResultEvent {
+  version: 1;
+  kind: "contribution_result";
+  request_id: string | null;
+  text: string;
+  data: ContributionSnapshot;
+}
+export interface ContributionSnapshot {
+  task_id: string;
+  repository: string;
+  workspace: string;
+  branch: string;
+  base: string;
+  base_head: string;
+  title: string;
+  source_url: string;
+  source_revision: string;
+  pr_url: string | null;
+  head: string;
+  review_token: string;
+  diff: string;
+  changed_files: string[];
+  status: string;
+  gh_available: boolean;
+  gh_authenticated: boolean;
+}
+export interface ContributionErrorEvent {
+  version: 1;
+  kind: "contribution_error";
+  request_id: string | null;
+  text: string;
+  data: ContributionErrorData;
+}
+export interface ContributionErrorData {
+  code: string;
+  message: string;
+  task_id: string;
 }
 /**
  * `text` is the active locale tag.
@@ -294,6 +441,29 @@ export interface ModelChangedEvent {
   thread_id: string;
   data: AcpPayload;
 }
+export interface ConfigurationChangedEvent {
+  kind: "configuration_changed";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: SessionSettings;
+}
+export interface SessionSettings {
+  options: SessionSetting[];
+}
+export interface SessionSetting {
+  id: string;
+  name: string;
+  category: string;
+  current: string;
+  choices: SettingChoice[];
+}
+export interface SettingChoice {
+  value: string;
+  label: string;
+  description: string;
+}
 /**
  * `text` is the stop reason; `data` is the ACP PromptResponse.
  */
@@ -348,12 +518,6 @@ export interface RemoteStateEvent {
   data: RemoteSnapshotPayload;
 }
 /**
- * Main-process HTTP adapter snapshot; validated by protocol/remote.tsp.
- */
-export interface RemoteSnapshotPayload {
-  [k: string]: unknown | undefined;
-}
-/**
  * Open remote tasks from the native Workbench menu or keyboard.
  */
 export interface RemoteOpenEvent {
@@ -361,6 +525,77 @@ export interface RemoteOpenEvent {
   version: 1;
   request_id: string | null;
   text: string;
+}
+/**
+ * Private acknowledgements intercepted by Desktop main.
+ */
+export interface AppsResultEvent {
+  kind: "apps_result";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: AppResult;
+}
+export interface AppSuccess {
+  ok: true;
+  value: AppRecord[] | AppAccess;
+}
+/**
+ * Public catalog: no local paths or backend credentials.
+ */
+export interface AppRecord {
+  name: AppName;
+  version: string;
+  displayName: string;
+  description: string;
+  enabled: boolean;
+  panels: AppPanel[];
+}
+export interface AppPanel {
+  id: AppName;
+  title: string;
+  entry: string;
+}
+export interface AppAccess {
+  root: string;
+  entry: string;
+  backend?: BackendAccess;
+}
+/**
+ * Host-to-main-process descriptor. Never forwarded to App or Workbench renderers.
+ */
+export interface BackendAccess {
+  url: string;
+  token: string;
+}
+export interface AppFailure {
+  ok: false;
+  error: string;
+}
+export interface AppsCatalogEvent {
+  kind: "apps_catalog";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: AppRecord[];
+}
+export interface AppsErrorEvent {
+  kind: "apps_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface AppsOpenedEvent {
+  kind: "apps_opened";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: AppOpenedData;
+}
+export interface AppOpenedData {
+  name: string;
+  panel: string;
+  url: string;
 }
 export interface SessionConnectingEvent {
   kind: "session_connecting";

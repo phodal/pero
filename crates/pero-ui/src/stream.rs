@@ -4,24 +4,24 @@
 //! exposes the equivalent through TextViewState::push_str: its parser handles
 //! append-only tail reparsing and bounded background-update coalescing.
 
-#[cfg(target_family = "wasm")]
+#[cfg(any(target_family = "wasm", feature = "native"))]
 use gpui_kit::{
     component::text::{TextView, TextViewState, TextViewStyle},
     *,
 };
-#[cfg(target_family = "wasm")]
+#[cfg(any(target_family = "wasm", feature = "native"))]
 use std::time::Duration;
 
 /// As in Zed's StreamingTextBuffer, reveal a burst over roughly 200 ms while
 /// updating at most once per frame. The conversation owns the complete source
 /// immediately, independently of this presentation buffer.
-#[cfg(target_family = "wasm")]
+#[cfg(any(target_family = "wasm", feature = "native"))]
 const FLUSH_INTERVAL: Duration = Duration::from_millis(16);
 
 /// Scheduling and byte preservation are independent of GPUI/GPU availability.
 /// The exact same queue is used by the live renderer and the native tests.
 #[derive(Default)]
-#[cfg(any(target_family = "wasm", test))]
+#[cfg(any(target_family = "wasm", feature = "native", test))]
 struct PendingText {
     text: String,
     offset: usize,
@@ -32,7 +32,7 @@ struct PendingText {
     flushes: u64,
 }
 
-#[cfg(any(target_family = "wasm", test))]
+#[cfg(any(target_family = "wasm", feature = "native", test))]
 impl PendingText {
     fn append(&mut self, delta: &str) -> bool {
         if delta.is_empty() {
@@ -107,7 +107,7 @@ impl PendingText {
     }
 }
 
-#[cfg(target_family = "wasm")]
+#[cfg(any(target_family = "wasm", feature = "native"))]
 pub(crate) struct StreamText {
     document: Entity<TextViewState>,
     pending: PendingText,
@@ -116,7 +116,7 @@ pub(crate) struct StreamText {
     _document_observer: Subscription,
 }
 
-#[cfg(target_family = "wasm")]
+#[cfg(any(target_family = "wasm", feature = "native"))]
 impl StreamText {
     pub fn new(text: &str, cx: &mut Context<Self>) -> Self {
         let document = cx.new(|cx| TextViewState::markdown(text, cx));
@@ -202,7 +202,7 @@ impl StreamText {
     }
 }
 
-#[cfg(target_family = "wasm")]
+#[cfg(any(target_family = "wasm", feature = "native"))]
 impl Render for StreamText {
     fn render(&mut self, window: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         if let Some(scroll) = &self.follow_scroll {
@@ -220,7 +220,7 @@ impl Render for StreamText {
 
 /// Scroll offsets are negative toward the bottom; max_offset is a positive
 /// extent. Do not pull readers back down while they inspect earlier output.
-#[cfg(target_family = "wasm")]
+#[cfg(any(target_family = "wasm", feature = "native"))]
 pub(crate) fn near_bottom(scroll: &ScrollHandle) -> bool {
     scroll.max_offset().y + scroll.offset().y <= px(48.)
 }
@@ -228,7 +228,7 @@ pub(crate) fn near_bottom(scroll: &ScrollHandle) -> bool {
 /// GPUI's scroll_to_bottom is a flag consumed on a later layout; a wheel event
 /// cannot revoke it. Apply a concrete offset after the new content is laid out,
 /// and discard this follow request if the reader moved since it was requested.
-#[cfg(target_family = "wasm")]
+#[cfg(any(target_family = "wasm", feature = "native"))]
 pub(crate) fn scroll_after_layout(scroll: &ScrollHandle, window: &Window) {
     let scroll = scroll.clone();
     let previous = scroll.offset();

@@ -1,0 +1,8 @@
+{
+  "name": "@pero/app-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.tsx", "./ui": "./src/ui.tsx", "./chart": "./src/chart.ts" },
+  "peerDependencies": { "react": ">=19", "react-dom": ">=19" }
+}

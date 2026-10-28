@@ -255,12 +255,12 @@ func (s *Service) Sync(ctx context.Context) (Result, error) {
 }
 
 // Start uses the same ingestion path as explicit sync, with one scheduler owner.
-func (s *Service) Start(ctx context.Context) {
+func (s *Service) Start(ctx context.Context, interval time.Duration) {
 	if len(s.repos) == 0 {
 		return
 	}
 	go func() {
-		timer := time.NewTicker(time.Minute)
+		timer := time.NewTicker(interval)
 		defer timer.Stop()
 		for {
 			op, done := context.WithTimeout(ctx, 50*time.Second)

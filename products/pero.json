@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "com.openpero.desktop",
+  "name": "Pero",
+  "version": "0.1.0",
+  "shell": "workbench",
+  "apps": ["virtual-cell"],
+  "python": "system"
+}

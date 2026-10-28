@@ -6,12 +6,18 @@ let active;
 let permission;
 let turn = 0;
 let model = 'model-a';
+let mode = 'agent';
+let effort = 'medium';
 const send = message => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...message }) + '\n');
 const reply = (id, result) => send({ id, result });
 const fail = (id, code, message) => send({ id, error: { code, message } });
 const update = text => send({ method: 'session/update', params: { sessionId: 'fixture-session', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } } } });
 const finish = reason => { if (active !== undefined) { reply(active, { stopReason: reason }); active = undefined; } };
-const configs = () => [{ id: 'provider-model', name: 'Model', category: 'model', type: 'select', currentValue: model, options: [{ value: 'model-a', name: 'Model A' }, { value: 'model-b', name: 'Model B' }] }];
+const configs = () => [{ id: 'provider-model', name: 'Model', category: 'model', type: 'select', currentValue: model, options: [{ value: 'model-a', name: 'Model A' }, { value: 'model-b', name: 'Model B' }] },
+ ...(scenario==='settings' ? [
+  {id:'mode',name:'Mode',category:'mode',type:'select',currentValue:mode,options:[{value:'agent',name:'Agent'},{value:'plan',name:'Plan'}]},
+  {id:'effort',name:'Thinking effort',category:'thought_level',type:'select',currentValue:effort,options:[{group:'standard',name:'Standard',options:[{value:'medium',name:'Medium'},{value:'low',name:'Low'},{value:'high',name:'High'}]}]},
+ ]:[])];
 const legacyModels = () => ({ currentModelId: model, availableModels: [{ modelId: 'model-a', name: 'Legacy A' }, { modelId: 'model-b', name: 'Legacy B' }] });
 readline.createInterface({ input: process.stdin }).on('line', line => {
   const { id, method, params, result } = JSON.parse(line);
@@ -23,15 +29,24 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     const session = { sessionId: 'fixture-session' };
     if (scenario !== 'legacy_models' && scenario !== 'no_models') session.configOptions = configs();
     if (scenario === 'legacy_models' || scenario === 'both_models') session.models = legacyModels();
+    if (scenario === 'legacy_modes') session.modes = {currentModeId:mode,availableModes:[{id:'agent',name:'Agent'},{id:'plan',name:'Plan'}]};
     reply(id, session);
   } else if (method === 'authenticate') {
     if (params.methodId !== 'login') { fail(id, -32602, 'Unadvertised login invoked'); return; }
     authenticated = true;
     reply(id, {});
   } else if (method === 'session/set_config_option') {
+    if(scenario==='settings' && params.configId!=='provider-model') {
+      if(params.configId==='effort' && params.value==='high'){fail(id,-32602,'High effort rejected by fixture');return;}
+      if(params.configId==='mode')mode=params.value;else if(params.configId==='effort')effort=params.value;
+      reply(id,{configOptions:configs()});return;
+    }
     if (scenario === 'bad_model' || scenario === 'legacy_models' || params.configId !== 'provider-model') { fail(id, -32602, 'Fixture model unavailable'); return; }
     model = params.value;
     reply(id, { configOptions: configs() });
+  } else if (method === 'session/set_mode') {
+    if(scenario!=='legacy_modes'){fail(id,-32602,'Legacy mode not advertised');return;}
+    mode=params.modeId;reply(id,{});
   } else if (method === 'session/set_model') {
     if (scenario !== 'legacy_models' || !['model-a', 'model-b'].includes(params.modelId)) { fail(id, -32602, 'Legacy setter invoked without advertisement'); return; }
     model = params.modelId;

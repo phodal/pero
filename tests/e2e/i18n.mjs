@@ -31,7 +31,7 @@ try {
   const before = await state(page);
   await selectLocale('en');
   await expect.poll(async () => (await state(page)).locale).toBe('en');
-  await page.mouse.click(64, await page.evaluate(() => innerHeight - 84));
+  await page.mouse.click(64, await page.evaluate(() => innerHeight - 30));
   await expect.poll(async () => (await state(page)).dark).toBe(true);
   await page.screenshot({ path: resolve(output, 'en-dark.png') });
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 760));
@@ -47,7 +47,7 @@ try {
   await page.screenshot({ path: resolve(output, 'en.png') });
 
   // The visible sidebar switch takes the same runtime-owned preference path.
-  await page.mouse.click(28, await page.evaluate(() => innerHeight - 84));
+  await page.mouse.click(28, await page.evaluate(() => innerHeight - 30));
   await expect.poll(async () => (await state(page)).locale).toBe('zh-CN');
   await selectLocale('en');
   await expect.poll(async () => (await state(page)).locale).toBe('en');
@@ -78,7 +78,7 @@ try {
   expect(await preview.evaluate(() => typeof window.pero)).toBe('undefined');
   await preview.evaluate(() => window.peroSetLocale('zh-CN'));
   await expect.poll(async () => (await state(preview)).locale).toBe('zh-CN');
-  await preview.mouse.click(28, await preview.evaluate(() => innerHeight - 84));
+  await preview.mouse.click(28, await preview.evaluate(() => innerHeight - 30));
   await expect.poll(async () => (await state(preview)).locale).toBe('en');
   expect((await state(preview)).labels.tasks).toBe('Tasks');
   expect(JSON.parse(await readFile(settings, 'utf8')).locale).toBe('zh-CN');

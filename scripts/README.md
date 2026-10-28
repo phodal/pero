@@ -14,6 +14,8 @@ Repository toolchain. Run these through the npm scripts in the root `package.jso
 
 `npm run check` runs theme, locale, and contract checks. Regenerate diagrams with `npm run gen:architecture` and `npm run gen:overview`.
 
+Regenerate the README domain composition diagram with `node scripts/codegen/building-blocks.mjs`; append `--check` to verify the SVG is current.
+
 ## Where a new script goes
 
 1. Used by one package only → beside that package.

@@ -58,11 +58,12 @@ type TaskClaimant struct {
 type Task struct {
 	ID string `json:"id"`
 	Spec
-	State        string        `json:"state"`
-	CurrentRunID string        `json:"current_run_id,omitempty"`
-	Run          *Run          `json:"run,omitempty"`
-	ClaimedBy    *TaskClaimant `json:"claimed_by,omitempty"`
-	LatestSource *Source       `json:"latest_source,omitempty"`
+	State                 string        `json:"state"`
+	CurrentRunID          string        `json:"current_run_id,omitempty"`
+	Run                   *Run          `json:"run,omitempty"`
+	ClaimedBy             *TaskClaimant `json:"claimed_by,omitempty"`
+	LatestSource          *Source       `json:"latest_source,omitempty"`
+	contributionSubmitted bool
 }
 
 type TaskPage struct {

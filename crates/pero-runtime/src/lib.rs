@@ -1,4 +1,7 @@
 pub mod acp;
+pub mod apps;
+pub mod contribution;
+pub mod contribution_git;
 pub mod settings;
 
 use pero_contracts::{EchoRequest, HostEvent, MAX_TEXT_CHARS};

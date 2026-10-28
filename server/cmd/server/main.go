@@ -37,6 +37,14 @@ func run() error {
 		}
 		seconds = value
 	}
+	syncSeconds := 60
+	if raw := os.Getenv("PERO_GITHUB_SYNC_SECONDS"); raw != "" {
+		value, err := strconv.Atoi(raw)
+		if err != nil || value < 60 || value > 86400 {
+			return fmt.Errorf("PERO_GITHUB_SYNC_SECONDS must be between 60 and 86400")
+		}
+		syncSeconds = value
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	startup, cancel := context.WithTimeout(ctx, 15*time.Second)
@@ -54,7 +62,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	sources.Start(ctx)
+	sources.Start(ctx, time.Duration(syncSeconds)*time.Second)
 	listen := os.Getenv("PERO_LISTEN")
 	if listen == "" {
 		listen = "127.0.0.1:8787"

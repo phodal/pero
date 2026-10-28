@@ -140,6 +140,350 @@
       ],
       "additionalProperties": false
     },
+    "AppAccess": {
+      "title": "AppAccess",
+      "type": "object",
+      "properties": {
+        "root": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "backend": {
+          "$ref": "#/$defs/BackendAccess"
+        }
+      },
+      "required": [
+        "root",
+        "entry"
+      ],
+      "additionalProperties": false
+    },
+    "AppClosed": {
+      "title": "AppClosed",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "AppFailure": {
+      "title": "AppFailure",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "const": false
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "AppName": {
+      "title": "AppName",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "AppOpenedData": {
+      "title": "AppOpenedData",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "panel": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "panel",
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "AppPanel": {
+      "title": "AppPanel",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/AppName"
+        },
+        "title": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "entry"
+      ],
+      "additionalProperties": false
+    },
+    "AppRecord": {
+      "title": "AppRecord",
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "version": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "panels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppPanel"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "displayName",
+        "description",
+        "enabled",
+        "panels"
+      ],
+      "additionalProperties": false,
+      "description": "Public catalog: no local paths or backend credentials."
+    },
+    "AppRequest": {
+      "title": "AppRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ListApps"
+        },
+        {
+          "$ref": "#/$defs/InstallApp"
+        },
+        {
+          "$ref": "#/$defs/EnableApp"
+        },
+        {
+          "$ref": "#/$defs/DisableApp"
+        },
+        {
+          "$ref": "#/$defs/UninstallApp"
+        },
+        {
+          "$ref": "#/$defs/ResolveApp"
+        }
+      ]
+    },
+    "AppResult": {
+      "title": "AppResult",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AppSuccess"
+        },
+        {
+          "$ref": "#/$defs/AppFailure"
+        }
+      ]
+    },
+    "AppsCatalogEvent": {
+      "title": "AppsCatalogEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "apps_catalog"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppRecord"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "AppsErrorEvent": {
+      "title": "AppsErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "apps_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "AppsOpenedEvent": {
+      "title": "AppsOpenedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "apps_opened"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/AppOpenedData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "AppsResultEvent": {
+      "title": "AppsResultEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "apps_result"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/AppResult"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false,
+      "description": "Private acknowledgements intercepted by Desktop main."
+    },
+    "AppSuccess": {
+      "title": "AppSuccess",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "const": true
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AppRecord"
+              }
+            },
+            {
+              "$ref": "#/$defs/AppAccess"
+            }
+          ]
+        }
+      },
+      "required": [
+        "ok",
+        "value"
+      ],
+      "additionalProperties": false
+    },
     "AttachFilesCommand": {
       "title": "AttachFilesCommand",
       "type": "object",
@@ -211,6 +555,24 @@
         "authMethods"
       ],
       "additionalProperties": false
+    },
+    "BackendAccess": {
+      "title": "BackendAccess",
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "token": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "token"
+      ],
+      "additionalProperties": false,
+      "description": "Host-to-main-process descriptor. Never forwarded to App or Workbench renderers."
     },
     "CancelCodeCommand": {
       "title": "CancelCodeCommand",
@@ -450,6 +812,74 @@
       ],
       "additionalProperties": false
     },
+    "ConfigurationChangedEvent": {
+      "title": "ConfigurationChangedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "configuration_changed"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/SessionSettings"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ConfigureCommand": {
+      "title": "ConfigureCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "configure"
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "config_id": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "thread_id",
+        "config_id",
+        "value"
+      ],
+      "additionalProperties": false
+    },
     "ContextFile": {
       "title": "ContextFile",
       "type": "object",
@@ -509,6 +939,495 @@
         "request_id",
         "text",
         "data"
+      ],
+      "additionalProperties": false
+    },
+    "ContributionBase": {
+      "title": "ContributionBase",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "contribution"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "method",
+        "id",
+        "task_id"
+      ]
+    },
+    "ContributionClosed": {
+      "title": "ContributionClosed",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "ContributionErrorData": {
+      "title": "ContributionErrorData",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "task_id"
+      ],
+      "additionalProperties": false
+    },
+    "ContributionErrorEvent": {
+      "title": "ContributionErrorEvent",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "kind": {
+          "type": "string",
+          "const": "contribution_error"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ContributionErrorData"
+        }
+      },
+      "required": [
+        "version",
+        "kind",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ContributionPrepare": {
+      "title": "ContributionPrepare",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "contribution"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "operation": {
+          "type": "string",
+          "const": "prepare"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "parent": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "source_url": {
+          "type": "string"
+        },
+        "source_revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "id",
+        "task_id",
+        "operation",
+        "repository",
+        "parent",
+        "title",
+        "source_url",
+        "source_revision"
+      ],
+      "additionalProperties": false
+    },
+    "ContributionPublish": {
+      "title": "ContributionPublish",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "contribution"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "operation": {
+          "type": "string",
+          "const": "publish"
+        },
+        "workspace": {
+          "type": "string"
+        },
+        "review_token": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "id",
+        "task_id",
+        "operation",
+        "workspace",
+        "review_token"
+      ],
+      "additionalProperties": false
+    },
+    "ContributionRequest": {
+      "title": "ContributionRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ContributionPrepare"
+        },
+        {
+          "$ref": "#/$defs/ContributionReview"
+        },
+        {
+          "$ref": "#/$defs/ContributionPublish"
+        }
+      ]
+    },
+    "ContributionResultEvent": {
+      "title": "ContributionResultEvent",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "kind": {
+          "type": "string",
+          "const": "contribution_result"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ContributionSnapshot"
+        }
+      },
+      "required": [
+        "version",
+        "kind",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ContributionReview": {
+      "title": "ContributionReview",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "contribution"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "operation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "review"
+            },
+            {
+              "type": "string",
+              "const": "status"
+            }
+          ]
+        },
+        "workspace": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "id",
+        "task_id",
+        "operation",
+        "workspace"
+      ],
+      "additionalProperties": false
+    },
+    "ContributionSnapshot": {
+      "title": "ContributionSnapshot",
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "workspace": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "base": {
+          "type": "string"
+        },
+        "base_head": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "source_url": {
+          "type": "string"
+        },
+        "source_revision": {
+          "type": "string"
+        },
+        "pr_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "head": {
+          "type": "string"
+        },
+        "review_token": {
+          "type": "string"
+        },
+        "diff": {
+          "type": "string"
+        },
+        "changed_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "type": "string"
+        },
+        "gh_available": {
+          "type": "boolean"
+        },
+        "gh_authenticated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "task_id",
+        "repository",
+        "workspace",
+        "branch",
+        "base",
+        "base_head",
+        "title",
+        "source_url",
+        "source_revision",
+        "pr_url",
+        "head",
+        "review_token",
+        "diff",
+        "changed_files",
+        "status",
+        "gh_available",
+        "gh_authenticated"
+      ],
+      "additionalProperties": false
+    },
+    "ContributorSessionData": {
+      "title": "ContributorSessionData",
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "type": "string"
+        },
+        "workspace": {
+          "type": "string"
+        },
+        "agent_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "workspace"
+      ],
+      "additionalProperties": false
+    },
+    "ContributorSessionEvent": {
+      "title": "ContributorSessionEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "contributor_session"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ContributorSessionData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ContributorStateEvent": {
+      "title": "ContributorStateEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "contributor_state"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/RemoteSnapshotPayload"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "DisableApp": {
+      "title": "DisableApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "disable"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "method",
+        "id"
       ],
       "additionalProperties": false
     },
@@ -605,6 +1524,33 @@
       ],
       "additionalProperties": false,
       "description": "Bootstrap transport probe."
+    },
+    "EnableApp": {
+      "title": "EnableApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "enable"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
     },
     "ErrorEvent": {
       "title": "ErrorEvent",
@@ -703,6 +1649,9 @@
           "$ref": "#/$defs/ModelCommand"
         },
         {
+          "$ref": "#/$defs/ConfigureCommand"
+        },
+        {
           "$ref": "#/$defs/CloseCommand"
         },
         {
@@ -716,6 +1665,18 @@
     "HostEvent": {
       "title": "HostEvent",
       "oneOf": [
+        {
+          "$ref": "#/$defs/ContributorStateEvent"
+        },
+        {
+          "$ref": "#/$defs/ContributorSessionEvent"
+        },
+        {
+          "$ref": "#/$defs/ContributionResultEvent"
+        },
+        {
+          "$ref": "#/$defs/ContributionErrorEvent"
+        },
         {
           "$ref": "#/$defs/SettingsEvent"
         },
@@ -757,6 +1718,18 @@
         },
         {
           "$ref": "#/$defs/RemoteOpenEvent"
+        },
+        {
+          "$ref": "#/$defs/AppsResultEvent"
+        },
+        {
+          "$ref": "#/$defs/AppsCatalogEvent"
+        },
+        {
+          "$ref": "#/$defs/AppsErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/AppsOpenedEvent"
         },
         {
           "$ref": "#/$defs/ThreadEvent"
@@ -807,8 +1780,41 @@
         },
         {
           "$ref": "#/$defs/HostCommand"
+        },
+        {
+          "$ref": "#/$defs/AppRequest"
+        },
+        {
+          "$ref": "#/$defs/ContributionRequest"
         }
       ]
+    },
+    "InstallApp": {
+      "title": "InstallApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "install"
+        },
+        "path": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "path",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
     },
     "ListAgentsCommand": {
       "title": "ListAgentsCommand",
@@ -821,6 +1827,29 @@
       },
       "required": [
         "action"
+      ],
+      "additionalProperties": false
+    },
+    "ListApps": {
+      "title": "ListApps",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "list"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "method",
+        "id"
       ],
       "additionalProperties": false
     },
@@ -1404,6 +2433,57 @@
       ],
       "additionalProperties": false
     },
+    "RequestBase": {
+      "title": "RequestBase",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "RequestId": {
+      "title": "RequestId",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "ResolveApp": {
+      "title": "ResolveApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "resolve"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "RunCodeCommand": {
       "title": "RunCodeCommand",
       "type": "object",
@@ -1791,6 +2871,54 @@
       "additionalProperties": false,
       "description": "`data` is the ACP NewSessionResponse, with configOptions refreshed after model selection."
     },
+    "SessionSetting": {
+      "title": "SessionSetting",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "current": {
+          "type": "string"
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SettingChoice"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "category",
+        "current",
+        "choices"
+      ],
+      "additionalProperties": false
+    },
+    "SessionSettings": {
+      "title": "SessionSettings",
+      "type": "object",
+      "properties": {
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionSetting"
+          }
+        }
+      },
+      "required": [
+        "options"
+      ],
+      "additionalProperties": false
+    },
     "SessionUpdateEvent": {
       "title": "SessionUpdateEvent",
       "type": "object",
@@ -1892,6 +3020,27 @@
       ],
       "additionalProperties": false
     },
+    "SettingChoice": {
+      "title": "SettingChoice",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "label",
+        "description"
+      ],
+      "additionalProperties": false
+    },
     "SettingsEvent": {
       "title": "SettingsEvent",
       "type": "object",
@@ -1976,6 +3125,9 @@
         },
         {
           "$ref": "#/$defs/ModelChangedEvent"
+        },
+        {
+          "$ref": "#/$defs/ConfigurationChangedEvent"
         },
         {
           "$ref": "#/$defs/TurnFinishedEvent"
@@ -2106,6 +3258,33 @@
         "request_id",
         "text",
         "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "UninstallApp": {
+      "title": "UninstallApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "uninstall"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "method",
+        "id"
       ],
       "additionalProperties": false
     },
