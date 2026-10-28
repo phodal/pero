@@ -141,6 +141,11 @@ impl Reject {
     }
 }
 
+/// A request or environment id is a short file-name-safe token.
+///
+/// The Host uses it to name a directory, so it must not be `.`, `..`, end with a
+/// dot (Windows drops trailing dots, so `a.` and `a` would share a directory), or
+/// be a Windows device name.
 pub fn valid_ident(value: &str, max: usize) -> bool {
     let bytes = value.as_bytes();
     !bytes.is_empty()
@@ -148,6 +153,23 @@ pub fn valid_ident(value: &str, max: usize) -> bool {
         && bytes
             .iter()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+        && !value.ends_with('.')
+        && !is_device_name(value)
+}
+
+fn is_device_name(value: &str) -> bool {
+    let stem = value.split('.').next().unwrap_or(value).to_ascii_uppercase();
+    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || (stem.len() == 4
+            && (stem.starts_with("COM") || stem.starts_with("LPT"))
+            && matches!(stem.as_bytes()[3], b'1'..=b'9'))
+}
+
+/// The directory that holds one run's program. It is named by a digest of the
+/// request id, so ids that differ only by case cannot share a directory on a
+/// case-insensitive file system.
+fn run_dir_name(request_id: &str) -> String {
+    program_digest(request_id)[..32].to_string()
 }
 
 pub fn program_digest(program: &str) -> String {
@@ -260,7 +282,9 @@ impl Book {
             return Err(Reject::Busy);
         }
         let runs_root = PathBuf::from(&submit.runs_root);
-        let program_path = runs_root.join(&submit.request_id).join("program.py");
+        let program_path = runs_root
+            .join(run_dir_name(&submit.request_id))
+            .join("program.py");
         if !program_path.starts_with(&runs_root) {
             return Err(Reject::Path);
         }
@@ -434,10 +458,17 @@ mod tests {
     #[test]
     fn code_run_fold() {
         let book = Book::default();
-        assert_eq!(
-            apply(&book, Input::Submit(submission("../x", "print(1)"))).unwrap_err(),
-            Reject::RequestId
-        );
+        for bad in ["../x", ".", "..", "a.", "CON", "nul.txt", "Com1", "lpt9", "a b", ""] {
+            assert_eq!(
+                apply(&book, Input::Submit(submission(bad, "print(1)"))).unwrap_err(),
+                Reject::RequestId,
+                "{bad:?} must not name a run"
+            );
+        }
+        for good in ["run-1", "a.b", "com0", "COM10", "console", "_x", ".hidden"] {
+            assert!(valid_ident(good, MAX_REQUEST_ID), "{good:?} is a plain id");
+        }
+        assert_ne!(run_dir_name("A"), run_dir_name("a"));
         assert_eq!(
             apply(&book, Input::Submit(submission("run-1", ""))).unwrap_err(),
             Reject::Program
@@ -454,7 +485,9 @@ mod tests {
             panic!("expected prepare");
         };
         assert!(prepared.program_path.starts_with(root("runs")));
-        assert!(prepared.program_path.ends_with("run-1/program.py"));
+        assert!(prepared.program_path.ends_with(
+            Path::new(&run_dir_name("run-1")).join("program.py")
+        ));
         assert_eq!(
             apply(&book, Input::Submit(submission("run-2", "print(2)"))).unwrap_err(),
             Reject::Busy
