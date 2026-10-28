@@ -2,7 +2,8 @@
 // line in both directions against protocol/generated/host.schema.json.
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { mkdtempSync, writeFileSync, readFileSync, statSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, statSync, rmSync, chmodSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -34,7 +35,7 @@ const temp = mkdtempSync(`${tmpdir()}/pero-contract-`);
 const agents = resolve(temp, 'agents.json');
 writeFileSync(agents, JSON.stringify([{ id: 'fixture', name: 'ACP test fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs')] }]));
 writeFileSync(resolve(temp, 'notes.txt'), 'Context file for the contract test.\n');
-const env = { ...process.env, PERO_LOCALE: 'en', PERO_SETTINGS_PATH: resolve(temp, 'settings.json'), PERO_HISTORY_PATH: resolve(temp, 'sessions.jsonl'), PERO_AGENTS_FILE: agents };
+const env = { ...process.env, PERO_LOCALE: 'en', PERO_SETTINGS_PATH: resolve(temp, 'settings.json'), PERO_HISTORY_PATH: resolve(temp, 'sessions.jsonl'), PERO_AGENTS_FILE: agents, PERO_CODE_RUNS_PATH: resolve(temp, 'code-runs.json'), PERO_CODE_RUNS_DIR: resolve(temp, 'code-programs') };
 
 const failures = [];
 const seen = new Set();
@@ -139,6 +140,38 @@ try {
   await host.next('session_closed', inThread);
   host.send({ action: 'prompt', thread_id: thread, text: 'after close' });
   await host.next('session_error', inThread);
+
+  const program = 'print(1)\n';
+  host.send({ action: 'run_code', id: 'run-missing', env_id: 'local', program });
+  const unavailable = await host.next('error', (e) => e.request_id === 'run-missing');
+  if (unavailable.text !== 'unavailable') failures.push(`code run without an allowlist returned ${unavailable.text}`);
+  const fake = resolve(temp, 'fake-python');
+  const log = resolve(temp, 'fake-python.log');
+  writeFileSync(fake, `#!/bin/sh
+if [ "$1" = "-I" ] && [ "$2" = "-c" ]; then
+  printf '%s\\n' /opt/science deadbeef
+  exit 0
+fi
+printf '%s\\n' "$2" >> ${JSON.stringify(log)}
+echo ok
+exit 0
+`);
+  chmodSync(fake, 0o755);
+  const stored = preferences();
+  stored.code_envs = [{ id: 'local', interpreter: fake }];
+  writeFileSync(env.PERO_SETTINGS_PATH, JSON.stringify(stored));
+  host.send({ action: 'run_code', id: 'run-1', env_id: 'local', program });
+  const ran = await host.next('code_run', (e) => e.request_id === 'run-1');
+  const digest = createHash('sha256').update(program).digest('hex');
+  if (ran.text !== 'exit' || ran.data.stop !== 'exit' || ran.data.exit_code !== 0 || ran.data.stdout !== 'ok\n' || ran.data.prefix !== '/opt/science' || ran.data.marker_digest !== 'deadbeef' || ran.data.truncated !== false || ran.data.program_digest !== digest) {
+    failures.push(`code run receipt mismatch ${JSON.stringify(ran.data)}`);
+  }
+  host.send({ action: 'run_code', id: 'run-1', env_id: 'local', program });
+  await host.next('code_run', (e) => e.request_id === 'run-1');
+  if (readFileSync(log, 'utf8').trim().split('\n').length !== 1) failures.push('replay started the interpreter again');
+  host.send({ action: 'run_code', id: 'run-1', env_id: 'local', program: 'print(2)\n' });
+  const conflict = await host.next('error', (e) => e.request_id === 'run-1');
+  if (conflict.text !== 'conflict') failures.push(`changed program returned ${conflict.text}`);
   await host.stop();
 
   // A fresh Host replays the journal written above.

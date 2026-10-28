@@ -66,6 +66,20 @@ model PermissionCommand {
 model ModelCommand { action: "model"; thread_id: string; model_id: string; ...Closed }
 model CloseCommand { action: "close"; thread_id: string; ...Closed }
 
+/** Run `program` with the allowlisted environment. The interpreter path stays on the Host. */
+model RunCodeCommand {
+  action: "run_code";
+  @minLength(1) @maxLength(128) id: string;
+  @minLength(1) @maxLength(64) env_id: string;
+  @minLength(1) @maxLength(65536) program: string;
+  ...Closed;
+}
+model CancelCodeCommand {
+  action: "cancel_code";
+  @minLength(1) @maxLength(128) id: string;
+  ...Closed;
+}
+
 @oneOf
 union HostCommand {
   ListAgentsCommand,
@@ -78,6 +92,8 @@ union HostCommand {
   PermissionCommand,
   ModelCommand,
   CloseCommand,
+  RunCodeCommand,
+  CancelCodeCommand,
 }
 
 @oneOf
@@ -173,6 +189,21 @@ model ModelChangedEvent { kind: "model_changed"; ...ThreadEventBase; data: AcpPa
 model SessionErrorEvent { kind: "session_error"; ...ThreadEventBase }
 model SessionClosedEvent { kind: "session_closed"; ...ThreadEventBase }
 
+/** `text` is the stop: exit, cancel, deadline, or unknown. */
+model CodeRunReceipt {
+  stop: "exit" | "cancel" | "deadline" | "unknown";
+  exit_code: int32 | null;
+  @minLength(64) @maxLength(64) program_digest: string;
+  @minLength(1) @maxLength(4096) interpreter: string;
+  @minLength(1) @maxLength(4096) prefix: string;
+  @maxLength(64) marker_digest: string;
+  @maxLength(65536) stdout: string;
+  @maxLength(65536) stderr: string;
+  truncated: boolean;
+  ...Closed;
+}
+model CodeRunEvent { kind: "code_run"; ...EventBase; data: CodeRunReceipt }
+
 /** Events persisted to the session journal and replayed to the UI. */
 @oneOf
 union ThreadEvent {
@@ -212,4 +243,5 @@ union HostEvent {
   PromptQueuedEvent,
   CommandRejectedEvent,
   TurnStartedEvent,
+  CodeRunEvent,
 }

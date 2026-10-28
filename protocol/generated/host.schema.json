@@ -212,6 +212,26 @@
       ],
       "additionalProperties": false
     },
+    "CancelCodeCommand": {
+      "title": "CancelCodeCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "cancel_code"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "action",
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "CancelCommand": {
       "title": "CancelCommand",
       "type": "object",
@@ -254,6 +274,125 @@
       "properties": {},
       "additionalProperties": false,
       "description": "Spread into a model to reject unknown fields, matching serde `deny_unknown_fields`."
+    },
+    "CodeRunEvent": {
+      "title": "CodeRunEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "code_run"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/CodeRunReceipt"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "CodeRunReceipt": {
+      "title": "CodeRunReceipt",
+      "type": "object",
+      "properties": {
+        "stop": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "exit"
+            },
+            {
+              "type": "string",
+              "const": "cancel"
+            },
+            {
+              "type": "string",
+              "const": "deadline"
+            },
+            {
+              "type": "string",
+              "const": "unknown"
+            }
+          ]
+        },
+        "exit_code": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -2147483648,
+              "maximum": 2147483647
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "program_digest": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "interpreter": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "prefix": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "marker_digest": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "stdout": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "stderr": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "stop",
+        "exit_code",
+        "program_digest",
+        "interpreter",
+        "prefix",
+        "marker_digest",
+        "stdout",
+        "stderr",
+        "truncated"
+      ],
+      "additionalProperties": false,
+      "description": "`text` is the stop: exit, cancel, deadline, or unknown."
     },
     "CommandRejectedData": {
       "title": "CommandRejectedData",
@@ -565,6 +704,12 @@
         },
         {
           "$ref": "#/$defs/CloseCommand"
+        },
+        {
+          "$ref": "#/$defs/RunCodeCommand"
+        },
+        {
+          "$ref": "#/$defs/CancelCodeCommand"
         }
       ]
     },
@@ -642,6 +787,9 @@
         },
         {
           "$ref": "#/$defs/TurnStartedEvent"
+        },
+        {
+          "$ref": "#/$defs/CodeRunEvent"
         }
       ]
     },
@@ -1255,6 +1403,39 @@
         "data"
       ],
       "additionalProperties": false
+    },
+    "RunCodeCommand": {
+      "title": "RunCodeCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "run_code"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "env_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "program": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        }
+      },
+      "required": [
+        "action",
+        "id",
+        "env_id",
+        "program"
+      ],
+      "additionalProperties": false,
+      "description": "Run `program` with the allowlisted environment. The interpreter path stays on the Host."
     },
     "SessionAuthenticatedData": {
       "title": "SessionAuthenticatedData",

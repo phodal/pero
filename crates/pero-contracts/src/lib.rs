@@ -83,6 +83,20 @@ pub enum HostCommand {
     },
 }
 
+/// A code run names an allowlisted environment. The Host resolves the interpreter.
+#[derive(Debug, Deserialize)]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
+pub enum CodeCommand {
+    RunCode {
+        id: String,
+        env_id: String,
+        program: String,
+    },
+    CancelCode {
+        id: String,
+    },
+}
+
 /// Only the Desktop main process handles plaintext credentials. Runtime settings
 /// store the OS-encrypted envelope and never publish it as a Host event.
 #[derive(Clone, Deserialize, Serialize)]

@@ -95,6 +95,10 @@ impl Manager {
         event.data = data;
         let _ = self.tx.send(event);
     }
+    pub fn workspace(&self) -> PathBuf {
+        self.workspace.clone()
+    }
+
     pub fn dispatch(&mut self, value: serde_json::Value) {
         let command = match serde_json::from_value::<HostCommand>(value) {
             Ok(c) => c,

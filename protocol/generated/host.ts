@@ -15,7 +15,9 @@ export type HostCommand =
   | CancelCommand
   | PermissionCommand
   | ModelCommand
-  | CloseCommand;
+  | CloseCommand
+  | RunCodeCommand
+  | CancelCodeCommand;
 export type ThreadId = string;
 export type HostEvent =
   | SettingsEvent
@@ -41,7 +43,8 @@ export type HostEvent =
   | PermissionEvent
   | PromptQueuedEvent
   | CommandRejectedEvent
-  | TurnStartedEvent;
+  | TurnStartedEvent
+  | CodeRunEvent;
 /**
  * Catalog key resolved by the UI from locales/*.json.
  */
@@ -127,6 +130,19 @@ export interface ModelCommand {
 export interface CloseCommand {
   action: "close";
   thread_id: string;
+}
+/**
+ * Run `program` with the allowlisted environment. The interpreter path stays on the Host.
+ */
+export interface RunCodeCommand {
+  action: "run_code";
+  id: string;
+  env_id: string;
+  program: string;
+}
+export interface CancelCodeCommand {
+  action: "cancel_code";
+  id: string;
 }
 /**
  * `text` is the active locale tag.
@@ -440,4 +456,25 @@ export interface TurnStartedEvent {
   request_id: string | null;
   text: string;
   thread_id: string;
+}
+export interface CodeRunEvent {
+  kind: "code_run";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: CodeRunReceipt;
+}
+/**
+ * `text` is the stop: exit, cancel, deadline, or unknown.
+ */
+export interface CodeRunReceipt {
+  stop: "exit" | "cancel" | "deadline" | "unknown";
+  exit_code: number | null;
+  program_digest: string;
+  interpreter: string;
+  prefix: string;
+  marker_digest: string;
+  stdout: string;
+  stderr: string;
+  truncated: boolean;
 }

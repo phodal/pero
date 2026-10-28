@@ -10,8 +10,11 @@ optional `thread_id`, `data` and localized system `message_key`. ACP payloads in
 
 Implemented commands cover Agent discovery, workspace and text-file selection,
 session creation, prompt, cancel, explicit authentication, permission response,
-model selection and close. Electron's session IPC allowlist excludes direct
-file/workspace paths; those commands originate from native file dialogs.
+model selection and close. `run_code` runs one program on an interpreter named
+in the Host settings allowlist and records the interpreter, prefix, and output
+on `code_run`. The Desktop renderer does not forward `run_code` or
+`cancel_code`. Electron's session IPC allowlist excludes direct file/workspace
+paths; those commands originate from native file dialogs.
 
 `session_update` carries ACP message/thought chunks, tool calls/updates and
 configuration updates. `permission` carries the ACP request plus a Host-issued
