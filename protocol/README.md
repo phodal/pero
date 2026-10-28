@@ -13,7 +13,16 @@ session creation, prompt, cancel, explicit authentication, permission response,
 model selection and close. The Host forwards `run_code` and `cancel_code` to
 `pero-codemode`, which runs one program on an interpreter named in the Host
 settings allowlist and records the interpreter, prefix, and output on
-`code_run`. The Desktop renderer does not forward `run_code` or `cancel_code`.
+`code_run`. The allowlisted interpreter is an absolute path with no `..`; it is
+not resolved through symlinks, so a virtual environment's `bin/python` selects
+that environment. A run ends when its interpreter ends: processes it left behind
+are killed first, and output still held open by a process that left the group is
+cut and reported as `truncated`. When the Host exits (stdin closes), active runs
+are killed and their receipts read `unknown` after the restart. A Host that is
+killed without a chance to clean up can leave a run behind on Unix. The run
+store defaults to `code-runs.json` beside `PERO_SETTINGS_PATH`
+(`PERO_CODE_RUNS_PATH` and `PERO_CODE_RUNS_DIR` override it). The Desktop
+renderer does not forward `run_code` or `cancel_code`.
 Electron's session IPC allowlist excludes direct file/workspace paths; those
 commands originate from native file dialogs.
 

@@ -19,6 +19,15 @@ pub fn open(settings: Option<PathBuf>) -> Arc<CodeMode> {
     mode
 }
 
+/// Stops active runs when the Host returns, including through an error.
+pub struct Shutdown(pub Arc<CodeMode>);
+
+impl Drop for Shutdown {
+    fn drop(&mut self) {
+        self.0.shutdown();
+    }
+}
+
 pub fn handle(mode: &Arc<CodeMode>, value: serde_json::Value, workspace: PathBuf) {
     let id = value
         .get("id")

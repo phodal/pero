@@ -32,6 +32,7 @@ fn main() -> io::Result<()> {
             .into()
         });
     let code_mode = code::open(settings_path.clone());
+    let _stop_code_runs = code::Shutdown(std::sync::Arc::clone(&code_mode));
     emit(HostEvent::new("settings", None, locale))?;
     emit(HostEvent::message("ready", None, "status.host_ready"))?;
     for line in io::stdin().lock().lines() {

@@ -3,7 +3,12 @@
 //! Unix puts the child in its own process group and signals the group.
 //! Windows assigns the child to a job and terminates that job. The assignment
 //! happens after `CreateProcess` returns, so a grandchild created in that
-//! gap is not in the job; cancel then falls back to `taskkill /T`.
+//! gap is not in the job; cancel then falls back to `taskkill /T`. The job
+//! kills its members when the Host closes the last handle, so a Host that exits
+//! or crashes does not leave a run behind.
+//!
+//! A run ends when its leader ends. Whatever the leader left behind is killed
+//! before the receipt is written, so nothing outlives the workspace write turn.
 
 use crate::run::{Prepare, is_rooted};
 use std::{
@@ -70,6 +75,45 @@ impl Tree {
     /// The process has been waited on. Drop must not signal a pid that may be reused.
     pub(crate) fn disarm(&self) {
         self.live.store(false, Ordering::SeqCst);
+    }
+
+    /// True when the leader has exited and has not been reaped yet.
+    ///
+    /// A zombie still owns its pid, so signalling its process group now cannot
+    /// reach a recycled pid. After `wait` that guarantee is gone, so descendants
+    /// must be killed before the leader is reaped.
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    pub(crate) fn leader_exited(&self) -> bool {
+        if self.pid <= 1 {
+            return false;
+        }
+        // SAFETY: `info` is zeroed plain data; WNOWAIT leaves the child waitable.
+        unsafe {
+            let mut info: libc::siginfo_t = std::mem::zeroed();
+            let status = libc::waitid(
+                libc::P_PID,
+                self.pid as libc::id_t,
+                &mut info,
+                libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+            );
+            status == 0 && info.si_signo != 0
+        }
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    pub(crate) fn leader_exited(&self) -> bool {
+        false
+    }
+
+    /// The leader has been reaped. A Windows job still names its members, so it
+    /// can be terminated; a bare pid may be reused, so nothing else is signalled.
+    pub(crate) fn sweep_reaped(&self) {
+        #[cfg(windows)]
+        if self.job != 0 {
+            self.kill();
+            return;
+        }
+        self.disarm();
     }
 
     #[cfg(unix)]
@@ -207,12 +251,25 @@ fn finish(mut command: Command) -> io::Result<Spawned> {
 fn job_handle(child: &Child) -> usize {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Foundation::CloseHandle;
-    use windows_sys::Win32::System::JobObjects::{AssignProcessToJobObject, CreateJobObjectW};
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+        SetInformationJobObject,
+    };
     unsafe {
         let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
         if job.is_null() {
             return 0;
         }
+        // The job's processes die with the last handle, which the Host holds.
+        let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            std::ptr::addr_of!(limits).cast(),
+            std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        );
         if AssignProcessToJobObject(job, child.as_raw_handle()) == 0 {
             CloseHandle(job);
             return 0;

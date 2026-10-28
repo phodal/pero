@@ -10,12 +10,20 @@ use std::{
     fs,
     io::{self, Read, Write},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, mpsc::Sender},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Sender},
+    },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 const MAX_ENV_ID: usize = 64;
+/// How long the receipt waits for the output pipes after the leader is gone.
+/// A descendant that left the process group can hold a pipe open; its output
+/// is then cut and the receipt says so.
+const DRAIN_GRACE: Duration = Duration::from_secs(2);
 
 pub struct Paths {
     pub settings: Option<PathBuf>,
@@ -42,14 +50,17 @@ pub struct CodeMode {
     trees: Mutex<HashMap<String, Arc<Tree>>>,
     tx: Sender<CodeNotice>,
     durable: bool,
+    closing: AtomicBool,
 }
 
 pub fn paths_from_env(settings: Option<PathBuf>) -> Paths {
     let store = std::env::var_os("PERO_CODE_RUNS_PATH").map_or_else(
-        || {
-            std::env::current_dir()
+        || match settings.as_deref().and_then(Path::parent) {
+            // Beside the settings file, so a packaged app keeps runs in its profile.
+            Some(profile) if !profile.as_os_str().is_empty() => profile.join("code-runs.json"),
+            _ => std::env::current_dir()
                 .unwrap_or_else(|_| PathBuf::from("."))
-                .join("target/code-runs.json")
+                .join("target/code-runs.json"),
         },
         PathBuf::from,
     );
@@ -98,6 +109,7 @@ impl CodeMode {
             trees: Mutex::new(HashMap::new()),
             tx,
             durable,
+            closing: AtomicBool::new(false),
         })
     }
 
@@ -115,7 +127,35 @@ impl CodeMode {
             }
             return;
         }
-        self.launch(id, env_id, program, workspace);
+        // Probing the interpreter can take seconds. The Host loop must keep
+        // reading, including a `cancel_code` for another run.
+        let mode = Arc::clone(self);
+        thread::spawn(move || mode.launch(id, env_id, program, workspace));
+    }
+
+    /// Stop every active run before the Host exits.
+    ///
+    /// The runs are recorded as unknown first, so a restart does not read a
+    /// killed process as a normal exit. A run that starts later is refused.
+    pub fn shutdown(&self) {
+        self.closing.store(true, Ordering::SeqCst);
+        {
+            let mut book = self.book.lock().expect("code runs");
+            let next = run::settle(book.clone());
+            if self.durable && save(&self.paths.store, &next).is_ok() {
+                *book = next;
+            }
+        }
+        let live: Vec<Arc<Tree>> = self
+            .trees
+            .lock()
+            .expect("trees")
+            .values()
+            .cloned()
+            .collect();
+        for tree in live {
+            tree.kill();
+        }
     }
 
     pub fn cancel(&self, id: String) {
@@ -134,6 +174,12 @@ impl CodeMode {
     }
 
     fn launch(self: &Arc<Self>, id: String, env_id: String, program: String, workspace: PathBuf) {
+        // Without a readable store the receipt cannot be kept, and `save` would
+        // replace the receipts that are already there.
+        if !self.durable || self.closing.load(Ordering::SeqCst) {
+            self.reject(Some(id), "unavailable");
+            return;
+        }
         let Some(interpreter) = self.interpreter(&env_id) else {
             self.reject(Some(id), "unavailable");
             return;
@@ -167,6 +213,11 @@ impl CodeMode {
             return;
         };
         let mut book = self.book.lock().expect("code runs");
+        if self.closing.load(Ordering::SeqCst) {
+            drop(book);
+            self.reject(Some(id), "unavailable");
+            return;
+        }
         let (next, effect) = match run::apply(&book, Input::Submit(submit)) {
             Ok(ready) => ready,
             Err(reject) => {
@@ -248,15 +299,22 @@ impl CodeMode {
         output_limit: usize,
     ) {
         let tree = Arc::clone(&spawned.tree);
-        let stdout_pipe = spawned.child.stdout.take();
-        let stderr_pipe = spawned.child.stderr.take();
-        let stdout = thread::spawn(move || read_capped(stdout_pipe, output_limit));
-        let stderr = thread::spawn(move || read_capped(stderr_pipe, output_limit));
-        let deadline = std::time::Instant::now() + limit;
+        let stdout = Capture::start(spawned.child.stdout.take(), output_limit);
+        let stderr = Capture::start(spawned.child.stderr.take(), output_limit);
+        let deadline = Instant::now() + limit;
         let status = loop {
+            // The leader is a zombie here: its pid is still ours, so the group
+            // can be killed before the leader is reaped.
+            if tree.leader_exited() {
+                tree.kill();
+                break spawned.child.wait().ok();
+            }
             match spawned.child.try_wait() {
-                Ok(Some(status)) => break Some(status),
-                Ok(None) if std::time::Instant::now() >= deadline => {
+                Ok(Some(status)) => {
+                    tree.sweep_reaped();
+                    break Some(status);
+                }
+                Ok(None) if Instant::now() >= deadline => {
                     let _ = self.transition(Input::Deadline {
                         request_id: id.clone(),
                     });
@@ -264,12 +322,17 @@ impl CodeMode {
                     break spawned.child.wait().ok();
                 }
                 Ok(None) => thread::sleep(Duration::from_millis(20)),
-                Err(_) => break None,
+                Err(_) => {
+                    tree.kill();
+                    let _ = spawned.child.wait();
+                    break None;
+                }
             }
         };
         tree.disarm();
-        let (stdout, stdout_cut) = stdout.join().unwrap_or_default();
-        let (stderr, stderr_cut) = stderr.join().unwrap_or_default();
+        let drain = Instant::now() + DRAIN_GRACE;
+        let (stdout, stdout_cut) = stdout.finish(drain);
+        let (stderr, stderr_cut) = stderr.finish(drain);
         self.trees.lock().expect("trees").remove(&id);
         let input = match status {
             Some(status) => Input::Finish {
@@ -300,8 +363,10 @@ impl CodeMode {
             if entry_id != id || !valid_ident(entry_id, MAX_ENV_ID) {
                 return None;
             }
-            let interpreter = fs::canonicalize(entry.get("interpreter")?.as_str()?).ok()?;
-            interpreter.is_file().then_some(interpreter)
+            // Do not resolve symlinks: `venv/bin/python` is a link to the base
+            // interpreter, and only the link path selects the environment.
+            let interpreter = PathBuf::from(entry.get("interpreter")?.as_str()?);
+            (run::is_rooted(interpreter.to_str()?) && interpreter.is_file()).then_some(interpreter)
         })
     }
 
@@ -370,30 +435,54 @@ fn submit_paths(
     })
 }
 
-fn read_capped(mut pipe: Option<impl Read + Send>, limit: usize) -> (String, bool) {
-    let Some(pipe) = pipe.as_mut() else {
-        return (String::new(), false);
-    };
-    let mut kept = Vec::new();
-    let mut extra = false;
-    let mut buffer = [0u8; 8192];
-    loop {
-        match pipe.read(&mut buffer) {
-            Ok(0) => break,
-            Ok(size) => {
-                if kept.len() >= limit {
-                    extra = true;
-                } else {
-                    let take = size.min(limit - kept.len());
-                    kept.extend_from_slice(&buffer[..take]);
-                    extra |= take < size;
+/// Output of one pipe, kept up to a limit. The pipe is drained to its end so a
+/// chatty program never blocks on a full pipe, but only the first bytes are kept.
+struct Capture {
+    kept: Arc<Mutex<(Vec<u8>, bool)>>,
+    done: mpsc::Receiver<()>,
+}
+
+impl Capture {
+    fn start(pipe: Option<impl Read + Send + 'static>, limit: usize) -> Self {
+        let kept = Arc::new(Mutex::new((Vec::new(), false)));
+        let (finished, done) = mpsc::channel();
+        let sink = Arc::clone(&kept);
+        thread::spawn(move || {
+            if let Some(mut pipe) = pipe {
+                let mut buffer = [0u8; 8192];
+                loop {
+                    match pipe.read(&mut buffer) {
+                        Ok(0) => break,
+                        Ok(size) => {
+                            let mut kept = sink.lock().expect("capture");
+                            let room = limit.saturating_sub(kept.0.len());
+                            let take = size.min(room);
+                            kept.0.extend_from_slice(&buffer[..take]);
+                            kept.1 |= take < size;
+                        }
+                        Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                        Err(_) => break,
+                    }
                 }
             }
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-            Err(_) => break,
-        }
+            let _ = finished.send(());
+        });
+        Self { kept, done }
     }
-    (String::from_utf8_lossy(&kept).into_owned(), extra)
+
+    /// Wait for the end of the pipe until `until`. A pipe that is still open is
+    /// cut and reported as truncated.
+    fn finish(self, until: Instant) -> (String, bool) {
+        let ended = self
+            .done
+            .recv_timeout(until.saturating_duration_since(Instant::now()))
+            .is_ok();
+        let kept = self.kept.lock().expect("capture");
+        (
+            String::from_utf8_lossy(&kept.0).into_owned(),
+            kept.1 || !ended,
+        )
+    }
 }
 
 fn write_program(path: &Path, program: &str) -> io::Result<()> {
