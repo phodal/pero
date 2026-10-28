@@ -1,0 +1,8 @@
+{
+  "name": "@pero/pages",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  }
+}
