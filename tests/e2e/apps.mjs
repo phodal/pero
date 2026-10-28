@@ -23,13 +23,13 @@ try {
   page.on('console', message => { if (message.type() === 'error') console.error('Renderer:', message.text()); });
   const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
-  await expect.poll(async () => (await state()).apps?.[0]?.name).toBe('virtual-cell');
+  await expect.poll(async () => (await state()).apps.map(app => app.name).sort()).toEqual(['pulse', 'virtual-cell']);
   await page.mouse.click(80, 409);
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await page.screenshot({ path: resolve(out, 'catalog.png') });
-  // GPUI buttons are canvas-rendered; select the catalog's Open button.
-  await page.mouse.click(1305, 110);
+  // The catalog is sorted by name, so the first Open button is no longer Virtual Cell.
+  await page.evaluate(() => window.pero.appsCommand({ action: 'apps_open', name: 'virtual-cell', panel: 'main' }));
   await expect.poll(async () => (await state()).activeApp?.name).toBe('virtual-cell');
   const frame = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(frame.getByRole('tab', { name: 'Cells & perturbations' })).toBeVisible({ timeout: 20000 });
@@ -89,7 +89,7 @@ try {
   checks.push('navigation retains frame and edited state');
   await page.evaluate(() => window.pero.appsCommand({ action: 'apps_disable', name: 'virtual-cell' }));
   await expect(page.locator('iframe')).toHaveCount(0);
-  await expect.poll(async () => (await state()).apps[0].enabled).toBe(false);
+  await expect.poll(async () => (await state()).apps.find(app => app.name === 'virtual-cell').enabled).toBe(false);
   await page.evaluate(() => window.pero.appsCommand({ action: 'apps_open', name: 'virtual-cell', panel: 'main' }));
   await expect.poll(async () => (await state()).appError).toContain('Enable');
   await page.screenshot({ path: resolve(out, 'disabled-error.png') });
@@ -97,7 +97,7 @@ try {
   await app.close(); app = undefined;
   app = await launch(); page = await app.firstWindow();
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
-  await expect.poll(async () => (await state()).apps[0].enabled).toBe(false);
+  await expect.poll(async () => (await state()).apps.find(app => app.name === 'virtual-cell').enabled).toBe(false);
   checks.push('disable removes frame and survives Desktop restart');
   await page.evaluate(() => window.pero.appsCommand({ action: 'apps_enable', name: 'virtual-cell' }));
   await app.evaluate(({ Menu, BrowserWindow }) => {
@@ -109,7 +109,7 @@ try {
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await page.evaluate(() => new Promise(resolvePaint => requestAnimationFrame(() => requestAnimationFrame(resolvePaint))));
-  await page.mouse.click(1305, 110);
+  await page.evaluate(() => window.pero.appsCommand({ action: 'apps_open', name: 'virtual-cell', panel: 'main' }));
   const restored = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(restored.getByRole('tab', { name: 'Cells & perturbations' })).toBeVisible();
   await expect.poll(async () => restored.locator('body').evaluate(async () => (await (await fetch('/api/inputs')).json()).items.length)).toBe(1);

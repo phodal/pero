@@ -1,8 +1,8 @@
 # Pero Apps
 
-`npm run dev:apps` builds and opens the first App, Virtual Cell, in an isolated
-developer profile. `npm run dev` uses the ordinary Desktop profile. Both seed
-builtins once; a removed App stays removed on restart.
+`npm run dev:apps` builds the builtin Apps and opens Virtual Cell in an isolated
+developer profile. Pulse is installed beside it. `npm run dev` uses the ordinary
+Desktop profile. Both seed builtins once; a removed App stays removed on restart.
 
 An App is a built local directory. Install it from **Apps → Install from folder**,
 enable it and open its panel. Version 1 supports one HTML entry and an optional

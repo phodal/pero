@@ -16,11 +16,11 @@ try {
   await expect.poll(() => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).navigation)).toBe(7);
   await expect.poll(() => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).appsLoading)).toBe(false);
   await page.evaluate(() => new Promise(resolvePaint => requestAnimationFrame(() => requestAnimationFrame(resolvePaint))));
-  // The preview opens the first enabled App through its actual catalog control.
-  const enabled = await page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).apps[0]?.enabled);
+  // Pulse sorts ahead of Virtual Cell. Open Virtual Cell by name.
+  const enabled = await page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).apps.find(app => app.name === 'virtual-cell')?.enabled);
   if (enabled) {
-    await page.mouse.click(1305, 110);
-    await expect(page.frameLocator('iframe').getByRole('tab', { name: 'Cells & perturbations' })).toBeVisible({ timeout: 20000 });
+    await page.evaluate(() => window.pero.appsCommand({ action: 'apps_open', name: 'virtual-cell', panel: 'main' }));
+    await expect(page.frameLocator('iframe[title="virtual-cell"]').getByRole('tab', { name: 'Cells & perturbations' })).toBeVisible({ timeout: 20000 });
   }
   await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click());
   console.log('Pero App preview is open. Profile: target/apps-preview. Close the window to stop.');
