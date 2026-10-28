@@ -10,8 +10,13 @@ const appName = args.includes('--app') ? args[args.indexOf('--app') + 1] : 'virt
 if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(appName)) throw new Error('Invalid App name');
 const appRoot = resolve(root, 'apps', appName);
 // Each App has a frozen dependency tree, separate from Desktop's runtime.
+// Node on Windows rejects a direct spawn of npm.cmd. npm sets npm_execpath
+// when it launches this script; otherwise fall back to a shell.
 if (!existsSync(resolve(appRoot, 'node_modules/react/package.json'))) {
-  const installed = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['ci', '--prefix', appRoot], { stdio: 'inherit' });
+  const npmCli = process.env.npm_execpath;
+  const installed = npmCli
+    ? spawnSync(process.execPath, [npmCli, 'ci', '--prefix', appRoot], { stdio: 'inherit' })
+    : spawnSync('npm', ['ci', '--prefix', appRoot], { stdio: 'inherit', shell: process.platform === 'win32' });
   if (installed.error) throw installed.error;
   if (installed.status !== 0) throw new Error('Virtual Cell dependencies could not be installed');
 }
