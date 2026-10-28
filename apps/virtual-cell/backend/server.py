@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import socketserver
 import threading
 
 from contract import Invalid, canonical
@@ -76,9 +77,18 @@ def handler(workbench, secret):
     return Handler
 
 
+class LoopbackServer(ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer reverse-resolves the bind address. That lookup can use the
+        # whole readiness window on macOS.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name = "127.0.0.1"
+        self.server_port = self.server_address[1]
+
+
 def main():
-    server = ThreadingHTTPServer(("127.0.0.1", 0),
-                                handler(Workbench(os.environ["PERO_APP_DATA"]), os.environ["PERO_APP_TOKEN"]))
+    server = LoopbackServer(("127.0.0.1", 0),
+                            handler(Workbench(os.environ["PERO_APP_DATA"]), os.environ["PERO_APP_TOKEN"]))
     server.daemon_threads = True
     print(json.dumps({"port": server.server_port}), flush=True)
     def stop(_signal, _frame):

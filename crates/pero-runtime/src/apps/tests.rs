@@ -30,7 +30,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(403); self.end_headers(); return
         Path(os.environ['PERO_APP_DATA'], 'observed').write_text('request')
         self.send_response(200); self.end_headers(); self.wfile.write(b'cell-result')
-server = HTTPServer(('127.0.0.1', 0), Handler)
+class Server(HTTPServer):
+    def server_bind(self):
+        # Reverse DNS of 127.0.0.1 can exceed the Host readiness wait on macOS.
+        self.socket.bind(self.server_address)
+        self.server_address = self.socket.getsockname()
+        self.server_name, self.server_port = '127.0.0.1', self.server_address[1]
+server = Server(('127.0.0.1', 0), Handler)
 print(json.dumps({'port':server.server_port}), flush=True)
 server.serve_forever()
 "#,

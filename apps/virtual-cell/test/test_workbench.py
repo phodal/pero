@@ -1,5 +1,4 @@
 """Host adapter boundaries, immutable replay and parity with domain operations."""
-from http.server import ThreadingHTTPServer
 import json
 from pathlib import Path
 import tempfile
@@ -15,7 +14,7 @@ from evaluation import test_queries
 from contract import Invalid, canonical
 from evaluation import evaluate
 from candidates import propose
-from server import authenticated, handler
+from server import authenticated, handler, LoopbackServer
 from workbench import Workbench
 
 EXAMPLE = Path(__file__).parents[1] / "examples/synthetic.json"
@@ -99,7 +98,7 @@ class ProxyTests(unittest.TestCase):
 
     def test_real_http_refuses_direct_access_and_accepts_host_execution(self):
         with tempfile.TemporaryDirectory() as directory:
-            service = ThreadingHTTPServer(('127.0.0.1', 0), handler(Workbench(directory), 'test-secret'))
+            service = LoopbackServer(('127.0.0.1', 0), handler(Workbench(directory), 'test-secret'))
             worker = threading.Thread(target=service.serve_forever)
             worker.start()
             try:
