@@ -130,6 +130,9 @@ impl Fixture {
                     std::thread::sleep(Duration::from_millis(5));
                     continue;
                 };
+                // accept on a nonblocking listener returns a nonblocking socket.
+                // A read before the request arrives is WouldBlock and drops it.
+                stream.set_nonblocking(false).unwrap();
                 let cloud = cloud.clone();
                 std::thread::spawn(move || {
                     let Some((path, body)) = read_request(&mut stream) else {
