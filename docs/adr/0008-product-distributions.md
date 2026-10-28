@@ -78,6 +78,24 @@ acceptance is independent from packaging and UI verification.
 
 See [product verification](../fitness/products.md) for observed trial results.
 
+## External App artifacts
+
+An App owner may build an `AppBundle` outside this repository. Its explicit file
+list is the delivery boundary: Pero stages those files, does not run owner build
+commands, and does not vendor the owner's source packages. COBOL source, rules,
+engines and workbench implementations remain owned by Point. An external product
+configuration and output directory are accepted by the same builder.
+
+The Host backend declaration now supports Python and Node entries under the same
+data/token/readiness/lifecycle contract. A Node-bearing Product must explicitly
+choose `node: system` or `node: bundled`; the latter takes a supplied relocatable
+runtime. The Host remains the process owner. This does not translate Point
+manifests, expose Point Host APIs, register domain Agent tools, or replace Point
+execution proofs with the generic App backend token.
+
+See [external App bundles](../fitness/external-app-bundles.md) for the contract,
+build invocation and the bounded Point integration observation.
+
 ## Configurable composition
 
 A product can be one domain App or a combination of domain Apps. For example:

@@ -126,6 +126,7 @@ app.whenReady().then(async () => {
     PERO_SETTINGS_PATH: runtimeSettingsPath,
     PERO_APPS_ROOT: process.env.PERO_APPS_ROOT || resolve(app.getPath('userData'), 'apps'),
     PERO_BUILTIN_APPS_ROOT: resolve(root, 'apps'),
+    ...(process.env.PERO_APP_NODE ? { PERO_APP_NODE: process.env.PERO_APP_NODE } : {}),
     ...(process.env.PERO_APP_PYTHON ? { PERO_APP_PYTHON: process.env.PERO_APP_PYTHON } : {}),
     PERO_HISTORY_PATH: process.env.PERO_HISTORY_PATH || resolve(app.getPath('userData'), 'sessions.jsonl'),
   } });

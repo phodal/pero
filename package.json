@@ -41,7 +41,7 @@
     "test:remote-settings": "node tests/e2e/remote-settings.mjs",
     "test:deployment": "node tests/e2e/deployment.mjs",
     "build:product": "node scripts/build/product.mjs",
-    "test:product": "node --test packages/product/product.test.ts",
+    "test:product": "node --test packages/product/*.test.ts scripts/build/app-bundle.test.mjs",
     "test:product:e2e": "node tests/e2e/product.mjs"
   },
   "devDependencies": {

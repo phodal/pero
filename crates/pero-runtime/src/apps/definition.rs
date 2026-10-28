@@ -69,6 +69,7 @@ pub struct AppBackend {
 #[serde(rename_all = "lowercase")]
 pub enum BackendKind {
     Python,
+    Node,
 }
 
 /// Versioned package declaration. Parsing is the one manifest validation boundary.
@@ -142,8 +143,18 @@ impl AppDefinition {
             }
         }
         if let Some(backend) = &value.backend {
-            if !relative_entry(&backend.entry) || !backend.entry.ends_with(".py") {
-                return Err("Python backend entry must be a relative .py file".into());
+            let supported = match backend.kind {
+                BackendKind::Python => backend.entry.ends_with(".py"),
+                BackendKind::Node => {
+                    backend.entry.ends_with(".mjs")
+                        || backend.entry.ends_with(".js")
+                        || backend.entry.ends_with(".cjs")
+                }
+            };
+            if !relative_entry(&backend.entry) || !supported {
+                return Err(
+                    "Backend entry must be relative and match its runtime extension".into(),
+                );
             }
         }
         Ok(value)
@@ -182,7 +193,22 @@ mod tests {
             ),
             (
                 "backend",
-                serde_json::json!({"type":"node","entry":"server.js"}),
+                serde_json::json!({"type":"node","entry":"server.mjs"}),
+                true,
+            ),
+            (
+                "backend",
+                serde_json::json!({"type":"node","entry":"../server.mjs"}),
+                false,
+            ),
+            (
+                "backend",
+                serde_json::json!({"type":"node","entry":"server.py"}),
+                false,
+            ),
+            (
+                "backend",
+                serde_json::json!({"type":"ruby","entry":"server.rb"}),
                 false,
             ),
             ("extra", serde_json::json!(true), false),

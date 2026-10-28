@@ -1,23 +1,57 @@
 import { readFileSync, writeFileSync, mkdirSync, cpSync, rmSync, existsSync } from 'node:fs';
-import { resolve, join, dirname } from 'node:path';
+import { resolve, join, sep, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { build } from 'esbuild';
 import { Product } from '../../packages/product/product.ts';
+import { readAppBundle, stageAppBundle } from './app-bundle.mjs';
 const root = resolve(import.meta.dirname, '../..');
 const args = process.argv.slice(2);
-const name = args[args.indexOf('--product') + 1];
-if (!args.includes('--product') || !/^[a-z0-9-]+$/.test(name)) throw new Error('Use --product virtual-cell [--package] [--python /path/to/standalone/python]');
-const config = resolve(root, 'products', name, 'product.json');
+const option = flag => {
+  if (!args.includes(flag)) return undefined;
+  const value = args[args.indexOf(flag) + 1];
+  if (!value || value.startsWith('--')) throw new Error(`Missing value for ${flag}`);
+  return value;
+};
+const name = option('--product');
+if (!option('--config') && (!name || !/^[a-z0-9-]+$/.test(name))) throw new Error('Use --product name or --config /external/product.json');
+const config = option('--config') ? resolve(option('--config')) : resolve(root, 'products', name, 'product.json');
 const product = Product.parse(JSON.parse(readFileSync(config, 'utf8')));
 const icon = product.icon ? resolve(dirname(config), product.icon) : undefined;
 if (icon && !existsSync(icon)) throw new Error(`Product icon missing: ${icon}`);
 if (product.shell !== 'app') throw new Error('Use the existing package:macos command for the workbench');
-const output = resolve(root, 'target/products', name);
-// Validate the selected entry against its actual App before starting expensive builds.
-for (const app of product.apps) {
-  const manifest = JSON.parse(readFileSync(resolve(root, 'apps', app, 'app.json'), 'utf8'));
+const output = resolve(option('--output') || resolve(root, 'target/products', name || product.id));
+const external = new Map();
+for (let index = 0; index < args.length; index++) {
+  if (args[index] !== '--app-bundle') continue;
+  const directory = args[++index];
+  if (!directory || directory.startsWith('--')) throw new Error('Missing directory for --app-bundle');
+  const input = readAppBundle(directory);
+  if (!product.apps.includes(input.bundle.name) || external.has(input.bundle.name)) throw new Error('AppBundle must match one included App exactly once');
+  external.set(input.bundle.name, input);
+}
+const inputs = product.apps.map(app => {
+  const input = external.get(app);
+  const source = input?.root || resolve(root, 'apps', app);
+  // Never clear a caller's App source or overwrite files inside an input bundle.
+  if (source === output || source.startsWith(output + sep) || output.startsWith(source + sep) ||
+    root === output || root.startsWith(output + sep)) throw new Error('Product output overlaps source directories');
+  const manifest = input?.manifest || JSON.parse(readFileSync(resolve(source, 'app.json'), 'utf8'));
   if (manifest.name !== app || (app === product.entry.app && !manifest.contributes.panels.some(panel => panel.id === product.entry.panel))) throw new Error(`Product entry does not exist in ${app}`);
-  execFileSync(process.execPath, [resolve(root, 'scripts/build/apps.mjs'), '--app', app], { stdio: 'inherit' });
+  if (manifest.backend?.type === 'node' && !product.node) throw new Error(`App ${app} requires an explicit Product node policy`);
+  return { app, input };
+});
+// Check runtime inputs before building or clearing an existing distribution.
+const runtimes = [];
+for (const [kind, policy, executable] of [['python', product.python, 'python3'], ['node', product.node, 'node']]) {
+  if (policy !== 'bundled') continue;
+  const directory = option(`--${kind}`) || process.env[`PERO_PRODUCT_${kind.toUpperCase()}_ROOT`];
+  if (!directory || !existsSync(resolve(directory, 'bin', executable))) throw new Error(`Bundled ${kind} requires --${kind} /path/to/relocatable/runtime (including licenses)`);
+  const source = resolve(directory);
+  if (source === output || source.startsWith(output + sep) || output.startsWith(source + sep)) throw new Error('Product output overlaps runtime input');
+  runtimes.push({ kind, executable, source });
+}
+for (const { app, input } of inputs) {
+  if (!input) execFileSync(process.execPath, [resolve(root, 'scripts/build/apps.mjs'), '--app', app], { stdio: 'inherit' });
 }
 execFileSync(process.execPath, [resolve(root, 'scripts/cargo.mjs'), 'build', '--release', '--locked', '-p', 'pero-host'], { stdio: 'inherit' });
 rmSync(output, { recursive: true, force: true });
@@ -32,20 +66,23 @@ if (icon) {
   cpSync(icon, join(output, product.icon));
 }
 writeFileSync(join(output, 'product.json'), JSON.stringify(product, null, 2));
-writeFileSync(join(output, 'package.json'), JSON.stringify({ name, version: product.version, main: 'desktop/dist/product.cjs' }));
+writeFileSync(join(output, 'package.json'), JSON.stringify({ name: name || product.entry.app, version: product.version, main: 'desktop/dist/product.cjs' }));
 cpSync(resolve(root, 'target/release/pero-host'), join(output, 'bin/pero-host'));
-for (const app of product.apps) {
+for (const { app, input } of inputs) {
+  if (input) {
+    stageAppBundle(input, join(output, 'apps', app));
+    continue;
+  }
   for (const entry of ['app.json', 'dist', 'backend', 'examples', 'evidence', 'THIRD_PARTY_NOTICES.md', 'README.md', 'licenses']) {
     const source = resolve(root, 'apps', app, entry);
     if (existsSync(source)) cpSync(source, join(output, 'apps', app, entry), { recursive: true, filter: path => !path.includes('__pycache__') });
   }
 }
-if (product.python === 'bundled') {
-  const pythonRoot = args.includes('--python') ? args[args.indexOf('--python') + 1] : process.env.PERO_PRODUCT_PYTHON_ROOT;
-  if (!pythonRoot || !existsSync(resolve(pythonRoot, 'bin/python3'))) throw new Error('Bundled Python requires --python /path/to/relocatable/python (including its standard library and licenses)');
-  cpSync(resolve(pythonRoot), join(output, 'runtime/python'), { recursive: true, verbatimSymlinks: true });
-  // Verify the relocated interpreter, not the build machine interpreter.
-  execFileSync(join(output, 'runtime/python/bin/python3'), ['-I', '-c', 'import json, http.server, ssl; print("Bundled Python ready")'], { stdio: 'inherit', env: { PATH: '/usr/bin:/bin' } });
+for (const { kind, executable, source } of runtimes) {
+  const destination = join(output, 'runtime', kind);
+  cpSync(source, destination, { recursive: true, verbatimSymlinks: true });
+  const check = kind === 'python' ? ['-I', '-c', 'import json, http.server, ssl; print("Bundled Python ready")'] : ['--version'];
+  execFileSync(join(destination, 'bin', executable), check, { stdio: 'inherit', env: { PATH: '/usr/bin:/bin' } });
 }
 console.log(`Product staged: ${output}`);
 if (args.includes('--package')) execFileSync(process.execPath, [resolve(root, 'scripts/build/macos-package.mjs')], { stdio: 'inherit', env: { ...process.env, PERO_PRODUCT_PAYLOAD: output } });

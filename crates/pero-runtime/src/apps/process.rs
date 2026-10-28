@@ -1,4 +1,4 @@
-use super::definition::AppDefinition;
+use super::definition::{AppDefinition, BackendKind};
 use serde::Serialize;
 use std::{
     io::{BufRead, BufReader, Read},
@@ -24,8 +24,12 @@ impl AppProcess {
         let backend = definition.backend.as_ref().ok_or("App has no backend")?;
         std::fs::create_dir_all(data).map_err(|error| error.to_string())?;
         let token = uuid::Uuid::new_v4().to_string();
-        let python = std::env::var_os("PERO_APP_PYTHON").unwrap_or_else(|| "python3".into());
-        let mut command = Command::new(python);
+        let (setting, fallback, label) = match backend.kind {
+            BackendKind::Python => ("PERO_APP_PYTHON", "python3", "Python"),
+            BackendKind::Node => ("PERO_APP_NODE", "node", "Node"),
+        };
+        let executable = std::env::var_os(setting).unwrap_or_else(|| fallback.into());
+        let mut command = Command::new(executable);
         command
             .arg(root.join(&backend.entry))
             .current_dir(root)
@@ -51,7 +55,7 @@ impl AppProcess {
         }
         let child = command
             .spawn()
-            .map_err(|error| format!("Cannot start App Python backend: {error}"))?;
+            .map_err(|error| format!("Cannot start App {label} backend: {error}"))?;
         let mut process = Self {
             child,
             access: BackendAccess {

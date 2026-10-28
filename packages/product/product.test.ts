@@ -14,6 +14,8 @@ test('Product delivery invariants', () => {
     ['duplicate Apps', { ...base, apps: ['virtual-cell', 'virtual-cell'] }, false],
     ['unsafe name', { ...base, name: '../Escape' }, false],
     ['unknown shell', { ...base, shell: 'custom' }, false],
+    ['bundled Node', { ...base, node: 'bundled' }, true],
+    ['invalid Node policy', { ...base, node: 'download' }, false],
     ['unknown runtime', { ...base, python: 'download' }, false],
     ['unknown field', { ...base, command: 'anything' }, false],
     ['future version', { ...base, schemaVersion: 2 }, false],
