@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { parse } from 'yaml';
 import { scriptOptions } from '../lib/options.mjs';
 const options = scriptOptions('web/src');
@@ -14,9 +14,9 @@ const outputs = [
 ];
 for (const [path, output] of outputs) {
   if (check) {
-    if (readFileSync(path, 'utf8') !== output) throw new Error('Run npm run gen:theme');
+    if (readFileSync(path, 'utf8').replaceAll('\r\n', '\n') !== output) throw new Error('Run npm run gen:theme');
   } else {
-    mkdirSync(path.slice(0, path.lastIndexOf('/')), { recursive: true });
+    mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, output);
   }
 }

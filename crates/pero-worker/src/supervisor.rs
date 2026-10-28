@@ -77,22 +77,31 @@ fn descendants(root: u32) -> Result<BTreeSet<i32>, String> {
 }
 
 fn kill_tree(root: u32, groups: &Mutex<BTreeSet<i32>>) {
-    // Freeze the executor before discovery so it cannot launch another ACP group.
-    unsafe {
-        libc::kill(root as i32, libc::SIGSTOP);
-    }
-    for _ in 0..3 {
-        if let Ok(current) = descendants(root) {
-            groups.lock().unwrap().extend(current);
+    // Process groups and POSIX signals are Unix-only. Windows reports that
+    // supervision is unavailable before a child is spawned.
+    #[cfg(unix)]
+    {
+        // Freeze the executor before discovery so it cannot launch another ACP group.
+        unsafe {
+            libc::kill(root as i32, libc::SIGSTOP);
+        }
+        for _ in 0..3 {
+            if let Ok(current) = descendants(root) {
+                groups.lock().unwrap().extend(current);
+            }
+            for group in groups.lock().unwrap().iter() {
+                signal_group(*group as u32, libc::SIGSTOP);
+            }
         }
         for group in groups.lock().unwrap().iter() {
-            signal_group(*group as u32, libc::SIGSTOP);
+            signal_group(*group as u32, libc::SIGKILL);
         }
+        signal_group(root, libc::SIGKILL);
     }
-    for group in groups.lock().unwrap().iter() {
-        signal_group(*group as u32, libc::SIGKILL);
+    #[cfg(not(unix))]
+    {
+        let _ = (root, groups);
     }
-    signal_group(root, libc::SIGKILL);
 }
 
 #[cfg(unix)]

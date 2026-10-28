@@ -33,6 +33,14 @@
 
 本地界面与协议验证使用测试代理；部署、真实 OAuth 凭据和独立验收需要各自的配置与证据。详见[工作树整合记录](docs/fitness/worktree-integration.md)。
 
+## 持续集成
+
+推送到 `master` 以及所有 pull request 会在 Linux、Windows 和 macOS 上运行[构建与验证](docs/fitness/README.md)中的命令：`npm ci`、`npm run build`、`npm run check`、`npm test`、`npm run test:contracts`，以及 `server/` 下的 `go test -race ./...`。Bazel `//:checks` 在 Linux 和 macOS 上运行，`//server/cmd/server` 在三个系统上构建。只有 macOS 本机时，另外两个系统仍会被检查。
+
+PostgreSQL、Electron、公开 GitHub 和真实模型套件仍是可选验收。它们需要数据库、显示器或本机登录，因此这条工作流不运行它们，也不读取 secrets。
+
+`docs/` 是 openpero.com 的静态站点。Cargo crate 设置了 `publish = false`，签名 Desktop 安装包也还不是当前交付物。Task Center 的安装是单独的主机脚本，见 [deployment/task-center](deployment/task-center/README.md)。它需要 SSH 和留在那台机器上的凭据。这条工作流不运行该脚本，不部署站点，也不发布安装包。
+
 ## 要解决的问题
 
 AI4S 需要串起文献、数据、方法与实验结果；研发协作需要衔接需求、实现、测试与评审。专业判断、代码和算力往往分散在不同成员与机器上。

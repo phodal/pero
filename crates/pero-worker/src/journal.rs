@@ -63,7 +63,11 @@ impl Journal {
         file.write_all(&serde_json::to_vec(&self.state).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
         file.sync_all().map_err(|e| e.to_string())?;
+        // Windows cannot rename a file that still has a write handle, and it
+        // denies FlushFileBuffers on a directory. The file data is already synced.
+        drop(file);
         std::fs::rename(pending, &self.path).map_err(|e| e.to_string())?;
+        #[cfg(unix)]
         if let Some(parent) = self.path.parent().filter(|p| !p.as_os_str().is_empty()) {
             File::open(parent)
                 .and_then(|dir| dir.sync_all())

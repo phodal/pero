@@ -53,4 +53,4 @@ def build(config):
 
 
 if __name__ == "__main__":
-    build(json.loads(Path(sys.argv[1]).read_text()))
+    build(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")))
