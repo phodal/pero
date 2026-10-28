@@ -434,6 +434,7 @@ module.exports = {
   "↳ 研究任务可以公开协作，也可以留在团队内部。": "↳ A research task can be open to collaborators, or stay inside a team.",
   "查看这个示例的数学模型与独立计算 ↗": "See the mathematical model and compute it yourself ↗",
   "这份结果怎么来的？打开方法，自己再算一次。": "Where did this result come from? Open the method and compute it again.",
+  "这份结果怎么来的？可以自己再算一次。": "Where did this result come from? Compute it again yourself.",
   "任务演示采用经典阻尼振子模型，所有曲线都由本页 RK4 计算生成，并与同参数的解析解比较。这里是独立的参数实验台；重新计算不会覆盖上方已经生成的任务记录。": "The task demo uses a classic damped oscillator. Every curve on this page is computed with RK4 and compared with the analytical solution at the same parameters. This is a separate parameter bench. Recomputing here does not overwrite the task record above.",
   "研究项目 / 本地示例": "Research project / local example",
   "示例研究项目": "Example research project",
