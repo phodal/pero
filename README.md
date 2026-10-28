@@ -33,6 +33,14 @@
 
 Local UI and protocol checks use provider fixtures. Deployment, real OAuth credentials and independent acceptance require their own setup and evidence. [Worktree integration record](docs/fitness/worktree-integration.md).
 
+## Continuous integration
+
+Pushes to `master` and pull requests run the commands in [Build and verification](docs/fitness/README.md): Bazel `//:checks` and `//server/cmd/server`, `npm ci`, `npm run build`, `npm run check`, `npm test`, `npm run test:contracts`, and `go test -race ./...` in `server/`.
+
+PostgreSQL, Electron, live GitHub, and real-model suites stay opt-in. They need a database, a display, or a local login, so this workflow does not run them and does not read secrets.
+
+`docs/` is the static site for openpero.com. Cargo crates set `publish = false`, and a signed Desktop package is not a current deliverable. This workflow does not deploy the site or publish installers. Add a release workflow only after the license and packaging checklist below, and keep provider and GitHub tokens out of CI.
+
 ## The problem
 
 AI4S connects literature, data, methods, and experimental results. R&D connects requirements, implementation, testing, and review. Expertise, code, and compute are often spread across people and machines.
