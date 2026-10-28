@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "subagents",
+    srcs = [
+        "inprocess.go",
+        "structured.go",
+        "tool.go",
+    ],
+    importpath = "github.com/phodal/pero/harness/go/subagents",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//harness",
+        "//runtime",
+    ],
+)
+
+go_test(
+    name = "subagents_test",
+    srcs = [
+        "inprocess_test.go",
+        "mcp_scope_review_test.go",
+        "restart_test.go",
+        "shared_budget_review_test.go",
+    ],
+    embed = [":subagents"],
+    deps = [
+        "//harness",
+        "//providers/openai",
+        "//runtime",
+        "@com_github_modelcontextprotocol_go_sdk//mcp",
+    ],
+)

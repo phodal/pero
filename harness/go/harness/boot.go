@@ -32,10 +32,14 @@ var (
 	RetryExecutionPolicyKey   = point.NewKey[*RetryExecutionPolicy]("harness.llm-retry.policy")
 	ToolResultPrunerPolicyKey = harnesstool.ResultPrunerPolicyKey
 	CheckpointPolicyKey       = harnesssession.CheckpointPolicyKey
+	SubagentRegistryKey       = point.NewKey[*SubagentRegistry]("harness.subagents")
 	AgentManagerKey           = point.NewKey[*AgentManager]("harness.agents")
 )
 
 type Options struct {
+	// EnableSubagents explicitly installs the native subagent lifecycle service.
+	EnableSubagents bool
+
 	Runtime *point.Runtime
 	// Adapter preserves the first-version fallback seam. New applications
 	// should also name AdapterProviders so unknown routes fail closed.
@@ -50,6 +54,8 @@ type Options struct {
 }
 
 type Harness struct {
+	subagents *SubagentRegistry
+
 	disposeMu        sync.Mutex
 	disposeDone      chan struct{}
 	disposeErr       error
@@ -105,7 +111,7 @@ func Boot(ctx context.Context, options Options) (*Harness, error) {
 		_ = application.Dispose(context.Background())
 		return nil, err
 	}
-	if err := waitForHarnessServices(ctx, application, options.Credentials != nil, options.Attachments != nil); err != nil {
+	if err := waitForHarnessServices(ctx, application, options.Credentials != nil, options.Attachments != nil, options.EnableSubagents); err != nil {
 		_ = application.Dispose(context.Background())
 		return nil, err
 	}
@@ -175,6 +181,13 @@ func Boot(ctx context.Context, options Options) (*Harness, error) {
 	if harness.agents, ok = point.Lookup(runtime, runtime.Root(), AgentManagerKey); !ok {
 		return fail(errors.New("harness: agent manager failed to publish"))
 	}
+	if options.EnableSubagents {
+		if harness.subagents, ok = point.Lookup(runtime, runtime.Root(), SubagentRegistryKey); !ok {
+			return fail(errors.New("harness: subagent registry failed to publish"))
+		}
+		harness.subagents.attachAgents(harness.agents)
+	}
+
 	commandRemote, err := NewCommandRemoteAdapter(harness.agents, harness.commands)
 	if err != nil {
 		return fail(err)
@@ -187,7 +200,7 @@ func Boot(ctx context.Context, options Options) (*Harness, error) {
 // services that another entry in the same document is still publishing. A
 // Harness is a closed core graph, so Boot has the stronger contract that every
 // public service is ready before it returns.
-func waitForHarnessServices(ctx context.Context, application *point.Application, credentials, attachments bool) error {
+func waitForHarnessServices(ctx context.Context, application *point.Application, credentials, attachments bool, subagentsEnabled ...bool) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -224,7 +237,11 @@ func waitForHarnessServices(ctx context.Context, application *point.Application,
 		if attachments {
 			_, attachmentReady = point.Lookup(runtime, root, AttachmentStoreKey)
 		}
-		return providers && settings && storageRegistry && storageDomains && sessions && projections && prompts && approvals && spills && tools && commands && hooks && agentLoop && retryPolicy && toolResultPruner && checkpointPolicy && agents && adapter && credentialReady && attachmentReady
+		subagentsReady := true
+		if len(subagentsEnabled) > 0 && subagentsEnabled[0] {
+			_, subagentsReady = point.Lookup(runtime, root, SubagentRegistryKey)
+		}
+		return subagentsReady && providers && settings && storageRegistry && storageDomains && sessions && projections && prompts && approvals && spills && tools && commands && hooks && agentLoop && retryPolicy && toolResultPruner && checkpointPolicy && agents && adapter && credentialReady && attachmentReady
 	}
 	for !ready() {
 		select {

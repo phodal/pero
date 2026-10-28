@@ -166,6 +166,8 @@ func NewAgentHooks(runtime *point.Runtime) *AgentHooks {
 }
 
 type Agent struct {
+	subagentReceipts atomic.Int64
+
 	// retired is a one-way dispatch fence, separate from worker readiness.
 	// Prepared/configuring Agents may compose tools before publication; a
 	// removed generation must never regain authority through an old pointer.

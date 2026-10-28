@@ -1,0 +1,207 @@
+{
+  "repository": "phodal/point",
+  "commit": "edff76d7dd39b2900cff707af1896fe8ff9fd2dc",
+  "source_files": [
+    {
+      "path": "go/harness/subagent_descriptor.go",
+      "blob": "907767c32ff446f2b4e9af96ece338550a7bb258",
+      "bytes": 9628
+    },
+    {
+      "path": "go/harness/subagent_descriptor_test.go",
+      "blob": "9b0e8d9add275b9c26ee8b8e21216d8bd27e8f10",
+      "bytes": 12229
+    },
+    {
+      "path": "go/harness/subagent_provider_descriptors_test.go",
+      "blob": "defe9a73d4e30a6c804b3ca8e46bc4e02de5b7a2",
+      "bytes": 4367
+    },
+    {
+      "path": "go/harness/subagents.go",
+      "blob": "0b599bd4b27ba05e37eb78c5b510aaa9477bd254",
+      "bytes": 21109
+    },
+    {
+      "path": "go/harness/subagents_activation.go",
+      "blob": "2426627c3a5db4f24a099ec785316cb2f1402da5",
+      "bytes": 48981
+    },
+    {
+      "path": "go/harness/subagents_activation_cwd_test.go",
+      "blob": "96b636e11e27f60cd0882878ea2d93313a41d0f6",
+      "bytes": 2828
+    },
+    {
+      "path": "go/harness/subagents_activation_messages.go",
+      "blob": "d19efa90c33f21807ca3f59cf3e30b4cd507f871",
+      "bytes": 3811
+    },
+    {
+      "path": "go/harness/subagents_activation_messages_test.go",
+      "blob": "48f253a1b2372a4f82317999b2c5ad311b5f855b",
+      "bytes": 6282
+    },
+    {
+      "path": "go/harness/subagents_activation_test.go",
+      "blob": "f633a293fbce3f0f3326ca734707518b32ace647",
+      "bytes": 46769
+    },
+    {
+      "path": "go/harness/subagents_activity.go",
+      "blob": "229c5d7bc1c35fc76629ed2208a6774514ba6a9b",
+      "bytes": 4083
+    },
+    {
+      "path": "go/harness/subagents_capacity.go",
+      "blob": "d66c8c008860f172c6a45963117edf66cce172d5",
+      "bytes": 6671
+    },
+    {
+      "path": "go/harness/subagents_capacity_test.go",
+      "blob": "1b80d7cba4a53247e08ca9fd69665130fc5f2e69",
+      "bytes": 21914
+    },
+    {
+      "path": "go/harness/subagents_catalog.go",
+      "blob": "0d856a6b51a397a9516672047f943b4353e54a94",
+      "bytes": 14647
+    },
+    {
+      "path": "go/harness/subagents_catalog_commit_test.go",
+      "blob": "546c3fb1593f0f3a94b6f2369305787a4de3b32c",
+      "bytes": 12184
+    },
+    {
+      "path": "go/harness/subagents_catalog_projection.go",
+      "blob": "7da8c76831ddc0c3ef2730ad6b7124f56e2abf10",
+      "bytes": 7672
+    },
+    {
+      "path": "go/harness/subagents_catalog_projection_test.go",
+      "blob": "10745cc1a63f39252a9ceb2e51eb3ee6d55bdac1",
+      "bytes": 3787
+    },
+    {
+      "path": "go/harness/subagents_control.go",
+      "blob": "8092c8cba5e14d8a7ad4d90e211f1240bc4b4aa1",
+      "bytes": 3242
+    },
+    {
+      "path": "go/harness/subagents_control_test.go",
+      "blob": "42d5290d8b873ffcc014cdba70ff345a28bbd0b4",
+      "bytes": 23144
+    },
+    {
+      "path": "go/harness/subagents_discovery.go",
+      "blob": "f515ddc6528ab763596b10fa5218ab05812a38f1",
+      "bytes": 9613
+    },
+    {
+      "path": "go/harness/subagents_discovery_test.go",
+      "blob": "ab27cea74b9ecf9e994e03d10cdc240bc2c085c0",
+      "bytes": 10683
+    },
+    {
+      "path": "go/harness/subagents_drain.go",
+      "blob": "529d03d7002b7d38920b8e891e1f5324cd637c13",
+      "bytes": 12057
+    },
+    {
+      "path": "go/harness/subagents_drain_test.go",
+      "blob": "a2f0e2e8a31974b598ed3d2fc9f054577161f248",
+      "bytes": 19567
+    },
+    {
+      "path": "go/harness/subagents_facade.go",
+      "blob": "654e134a6469765839629a0be0d5504d113fd509",
+      "bytes": 7301
+    },
+    {
+      "path": "go/harness/subagents_facade_test.go",
+      "blob": "fb8fdf810113aa20e5925697823ee04f581ca666",
+      "bytes": 12513
+    },
+    {
+      "path": "go/harness/subagents_lifecycle.go",
+      "blob": "a721b1595d2758bdbe3fb2096ea8a1f977be55c5",
+      "bytes": 36220
+    },
+    {
+      "path": "go/harness/subagents_parent_receipt.go",
+      "blob": "3538c8954ecdecee9e7c4ddbb22e0647693edcf8",
+      "bytes": 3793
+    },
+    {
+      "path": "go/harness/subagents_parent_receipt_test.go",
+      "blob": "d484bbd12f576662b340a0e673a3364be6f63467",
+      "bytes": 5391
+    },
+    {
+      "path": "go/harness/subagents_projection.go",
+      "blob": "b133e8f0a3ab95f941db29cf129f5ee6a9e0cf3a",
+      "bytes": 13403
+    },
+    {
+      "path": "go/harness/subagents_projection_test.go",
+      "blob": "ef555dd591156156994c3bc1209eba021ec120b8",
+      "bytes": 13396
+    },
+    {
+      "path": "go/harness/subagents_provider_public_test.go",
+      "blob": "f6613311890ab194fe7b97be0e748710fd0e494a",
+      "bytes": 3049
+    },
+    {
+      "path": "go/harness/subagents_provider_watch_test.go",
+      "blob": "1c3a7c30328ba281284ad1105020fab5f4297fbc",
+      "bytes": 2683
+    },
+    {
+      "path": "go/harness/subagents_retirement_test.go",
+      "blob": "6e34f8d4f9eeb3451bf3ab05b0c0f404dcc56c90",
+      "bytes": 16063
+    },
+    {
+      "path": "go/harness/subagents_start.go",
+      "blob": "1ab4329041e58858b1cb2aaea94bd1df03e599f5",
+      "bytes": 22819
+    },
+    {
+      "path": "go/harness/subagents_structured_admission.go",
+      "blob": "34b0f9aa3eb1080b70325c6a892151d20b1d4a2d",
+      "bytes": 5882
+    },
+    {
+      "path": "go/harness/subagents_structured_admission_test.go",
+      "blob": "48e6a7d042041ea1f2b59c067c399c6720bec420",
+      "bytes": 13354
+    },
+    {
+      "path": "go/harness/subagents_wait.go",
+      "blob": "9f95e5f409f0914060272cf0f768bb298d903cdf",
+      "bytes": 2845
+    }
+  ],
+  "adaptations": [
+    "Registry production family retained with import-path mapping only.",
+    "Boot EnableSubagents explicitly installs native registry/projections/Retiring hook; default remains disabled.",
+    "Harness shutdown restores native subagent sealing/draining and self-wait detection; Agent retirement restores native pending-receipt resolution and receipt counter.",
+    "Remove duplicate agent_callback_gate.go because identical native helper is in subagents_lifecycle.go.",
+    "Native synthetic tests opt into registry, adapt three preexisting test helper dependencies and compare existing busy error text; external source-oracle test is not copied.",
+    "One-shot provider/frontend and permission/budget restrictions tracked by subagents/SOURCE.json.",
+    "CLI mounts spawn/fork only, depth one, finite 1\u201332 operator capacity, same persistence/adapter/compaction policy; no model-supplied routing/configuration.",
+    "Expose a narrow CloneBasicCompactionConfig wrapper around the existing native copier for trusted provider policy snapshots; no compaction algorithm changes."
+  ],
+  "excluded": [
+    "External providers",
+    "continuable provider implementation",
+    "Teams",
+    "Projects",
+    "jobs",
+    "schedulers",
+    "plugin host",
+    "UI",
+    "Memory"
+  ]
+}

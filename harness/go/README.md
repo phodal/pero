@@ -75,7 +75,7 @@ Optional `--sandbox strict-workspace-write` or `strict-read-only`, with explicit
 Unsupported backends fail closed. See `sandbox/README.md` and
 `nativetools/README.md` for workspace trust assumptions and limits. Skills are
 default-off; explicit `--skills-root` enables the [read-only catalog](skills/README.md).
-Web and subagent tools remain absent.
+Web tools remain absent. Optional in-process delegation is described below.
 An ACP client can explicitly supply MCP stdio/HTTP servers in `session/new`.
 That client is trusted: MCP stdio starts the supplied executable, inherits the
 process environment with configured additions, and HTTP reaches the supplied
@@ -101,7 +101,7 @@ committed output. Durable load replays only committed messages; ACP cannot retra
 a failed provisional prefix.
 
 Absent: Point Projects/Hub/Pages, web/desktop UI, accountsync, product prompts,
-telemetry, workflows/jobs/schedules, subagent orchestration, plugin/default
+telemetry, workflows/jobs/schedules, external subagent providers, plugin/default
 product coding assembly, implicit/product skill discovery, automatic file upload, and Point memory/context policies.
 The explicit native file/shell composition is independent of those product profiles.
 Generic generation-owner and compaction seams remain because the reused tool
@@ -131,3 +131,16 @@ instruction discovery is enabled; instructions do not expand file/shell authorit
 reset at the next turn). Both are disabled by default. Plan-mode authorization
 and the excluded user-question service are not included. See
 [agent instructions](agentinstructions/README.md) and [todos](todos/README.md).
+
+## Optional in-process delegation
+
+`--enable-subagents` enables one-level `spawn_agent` and `fork_agent` tools.
+They wait for a child result; canceling the parent call stops the child through
+the native lifecycle. `--max-active-subagents` sets a finite per-root limit
+(default 4). Children retain parent scope, CWD and model route, cannot widen
+effective step/output limits, and share the configured provider request cap.
+Operations that require approval are rejected in children. This is not a
+read-only guarantee: explicitly granted parent-scoped MCP tools may be inherited
+and may have side effects. No external provider, continuation or model-facing
+async wait/cancel interface is exposed. Clean restart/no automatic replay was
+tested; crash-exactly-once recovery is not claimed. See [delegation](subagents/README.md).

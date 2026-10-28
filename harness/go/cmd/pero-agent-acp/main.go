@@ -42,6 +42,7 @@ func run() (resultErr error) {
 	sandboxOptions := bindSandbox(flag.CommandLine)
 	selectable := bindSelectableModels(flag.CommandLine)
 	coding := bindCodingOptions(flag.CommandLine)
+	delegation := bindSubagents(flag.CommandLine)
 	flag.Parse()
 	if flag.NArg() != 0 || strings.TrimSpace(*model) == "" || strings.TrimSpace(*sessions) == "" {
 		return errors.New("--model and --session-dir are required; positional arguments are unsupported")
@@ -53,6 +54,9 @@ func run() (resultErr error) {
 		return errors.New("--enable-shell requires --workspace")
 	}
 	if err := coding.validate(*workspace); err != nil {
+		return err
+	}
+	if err := delegation.validate(); err != nil {
 		return err
 	}
 	sandboxConfig, err := sandboxOptions.config(*workspace, *enableShell, *approval)
@@ -84,7 +88,7 @@ func run() (resultErr error) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	h, err := harness.Boot(ctx, harness.Options{Adapter: adapter, AdapterProviders: []string{"configured"}, ModelInfo: adapter, ApprovalPolicy: harness.ApprovalPolicy(*approval)})
+	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: delegation.Enabled, Adapter: adapter, AdapterProviders: []string{"configured"}, ModelInfo: adapter, ApprovalPolicy: harness.ApprovalPolicy(*approval)})
 	if err != nil {
 		return err
 	}
@@ -108,6 +112,9 @@ func run() (resultErr error) {
 	}
 	skillCatalog, err = skills.Mount(ctx, h, *skillRoots)
 	if err != nil {
+		return err
+	}
+	if err := mountSubagents(ctx, h, persistence, *delegation, compactionConfig); err != nil {
 		return err
 	}
 	serverOptions := acp.Options{ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, Name: "pero-agent-acp", Version: "0.1"}

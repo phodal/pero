@@ -251,7 +251,10 @@ func isRetirementPendingLeaf(err error, targets ...error) bool {
 
 func withoutRetirementPending(err error) error {
 	result, _ := transformLifecycleError(err, func(current error) (error, bool) {
-		if isRetirementPendingLeaf(current, ErrAgentDisposalInProgress, ErrHarnessDisposalInProgress) {
+		if isRetirementPendingLeaf(current, ErrAgentDisposalInProgress, ErrSubagentDisposalInProgress, ErrHarnessDisposalInProgress) {
+			return nil, true
+		}
+		if _, ok := current.(*subagentDisposalPending); ok {
 			return nil, true
 		}
 		return current, false
@@ -261,6 +264,9 @@ func withoutRetirementPending(err error) error {
 
 func resolveRetirementError(ctx context.Context, err error) error {
 	result, _ := transformLifecycleError(err, func(current error) (error, bool) {
+		if pending, ok := current.(*subagentDisposalPending); ok {
+			return pending.claim.wait(ctx), true
+		}
 		if isRetirementPendingLeaf(current, ErrAgentDisposalInProgress, ErrHarnessDisposalInProgress) {
 			return nil, true
 		}

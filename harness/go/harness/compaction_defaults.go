@@ -116,6 +116,12 @@ func sampleBasicCompactionConfig(runtime *point.Runtime, scope *point.Scope, exp
 	return &config
 }
 
+// CloneBasicCompactionConfig detaches trusted composition data while retaining
+// native private policy semantics. It grants no model/tool configuration authority.
+func CloneBasicCompactionConfig(config BasicCompactionConfig) BasicCompactionConfig {
+	return cloneBasicCompactionConfig(config)
+}
+
 func cloneBasicCompactionConfig(config BasicCompactionConfig) BasicCompactionConfig {
 	config.HeadroomTokens = cloneInt(config.HeadroomTokens)
 	config.RetainRatio = cloneFloat(config.RetainRatio)

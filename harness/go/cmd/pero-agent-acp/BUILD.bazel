@@ -8,6 +8,7 @@ go_library(
         "main.go",
         "models.go",
         "sandbox_options.go",
+        "subagents.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/cmd/pero-agent-acp",
     visibility = ["//visibility:private"],
@@ -20,6 +21,7 @@ go_library(
         "//providers/openai",
         "//sandbox",
         "//skills",
+        "//subagents",
         "//todos",
     ],
 )
@@ -40,6 +42,7 @@ go_test(
         "main_test.go",
         "models_test.go",
         "sandbox_options_test.go",
+        "subagents_test.go",
     ],
     embed = [":pero-agent-acp_lib"],
     deps = [

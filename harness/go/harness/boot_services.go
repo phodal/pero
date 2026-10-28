@@ -323,5 +323,36 @@ func coreDefinitions(options Options) []point.Definition {
 		},
 	)
 	definitions = append(definitions, settingsDefinition, agentLoopSettingsDefinition(), adapterDefinition, sessionDefinition, projectionDefinition, promptDefinition, approvalDefinition, spillDefinition, toolDefinition, commandDefinition, hookDefinition, retryPolicyDefinition, retryDefinition, toolResultPrunerDefinition, checkpointPolicyDefinition, managerDefinition)
+	if options.EnableSubagents {
+		subagentDefinition := point.Define(
+			point.Descriptor{ID: "harness/core/subagents", Requires: []point.Requirement{point.Require(AgentHooksKey), point.Require(SessionProjectionKey)}, Provides: []point.AnyKey{SubagentRegistryKey.Any()}},
+			point.DecodeJSON[struct{}],
+			func(run *point.Run, _ struct{}) (point.Dispose, error) {
+				registry := NewSubagentRegistry(run.Scope.Runtime())
+				projections, err := point.Resolve(run, SessionProjectionKey)
+				if err != nil {
+					return nil, err
+				}
+				for _, definition := range []ProjectionDefinition{SubagentCatalogProjectionDefinition(), SubagentTimingProjectionDefinition(), SubagentIdentityProjectionDefinition()} {
+					if _, err := projections.Register(run, definition); err != nil {
+						return nil, err
+					}
+				}
+				hooks, err := point.Resolve(run, AgentHooksKey)
+				if err != nil {
+					return nil, err
+				}
+				if _, err := hooks.Retiring.On(run, registry.retireAgent); err != nil {
+					return nil, err
+				}
+				if _, err := point.Provide(run, SubagentRegistryKey, registry); err != nil {
+					return nil, err
+				}
+				return registry.Dispose, nil
+			},
+		)
+
+		definitions = append(definitions, subagentDefinition)
+	}
 	return definitions
 }

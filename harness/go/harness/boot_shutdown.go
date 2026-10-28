@@ -37,15 +37,22 @@ func (h *Harness) Dispose(ctx context.Context) error {
 	if h.commands.sealAdmission() {
 		pending = true
 	}
+	if h.subagents != nil {
+		_, subagentPending := h.subagents.requestDisposal()
+		pending = pending || subagentPending
+	}
 	go func() {
-		var agentErr error
+		var subagentErr, agentErr error
+		if h.subagents != nil {
+			subagentErr = h.subagents.Drain(context.Background())
+		}
 		if h.agents != nil {
 			_ = h.agents.Dispose(context.Background())
 			agentErr = h.agents.Drain(context.Background())
 		}
 		applicationErr := h.application.Dispose(context.Background())
 		h.disposeMu.Lock()
-		h.disposeErr = errors.Join(agentErr, applicationErr)
+		h.disposeErr = errors.Join(subagentErr, agentErr, applicationErr)
 		close(h.disposeDone)
 		h.disposeMu.Unlock()
 	}()
@@ -104,6 +111,35 @@ func (h *Harness) DisposalWouldBlock() bool {
 	}
 	if h.agents.DisposalWouldBlock() {
 		return true
+	}
+	r := h.subagents
+	if r == nil {
+		return false
+	}
+	if r.callbacks.Load() != 0 || r.activationReceipts.Load() != 0 {
+		return true
+	}
+	r.mu.RLock()
+	if r.disposeDone != nil {
+		select {
+		case <-r.disposeDone:
+		default:
+			r.mu.RUnlock()
+			return true
+		}
+	}
+	records := make([]*subagentRecord, 0, len(r.records))
+	for _, record := range r.records {
+		records = append(records, record)
+	}
+	r.mu.RUnlock()
+	for _, record := range records {
+		if record.disposal != nil && record.disposal.inProgress() {
+			return true
+		}
+		if agentDisposalMaySelfWait(record.child) || agentDisposalMaySelfWait(record.parent) {
+			return true
+		}
 	}
 	return false
 }

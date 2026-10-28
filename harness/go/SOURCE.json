@@ -1,7 +1,7 @@
 {
   "repository": "phodal/point",
   "commit": "69a1f8692725078c4ce7feaf497f5b80799ca44d",
-  "scope": "Core/ACP/supporting packages only; other package manifests track their owners",
+  "scope": "Core/ACP/supporting packages; optional native subagent registry provenance is additionally tracked by SUBAGENTS_SOURCE.json.",
   "changes": [
     "Root Boot omits product/workflow/job/subagent/schedule/skills/file-observation/user-question services.",
     "Agent manager/loop remove ProjectBinding, prepared project publication and persisted project-input receipt; retain actual execution algorithm.",
@@ -28,7 +28,8 @@
     "MCP terminal HTTP authorization failures stop reconnect and SDK fallback; public errors are sanitized while preserving classifications.",
     "Explicit operator selectable-model declarations expose local adapter-owned catalog through existing ProviderRegistry and durable Agent.SelectModel; ACP select-option transport glue is new, not copied upstream ACP behavior. Default single-model behavior retained.",
     "Idle-only ACP model change uses command lifecycle reservation without holding session lock across subscriber/persistence callbacks; close drains it and restoration revalidates explicit uniform context/output capacities.",
-    "Optional coding helpers mount explicit-root untrusted AGENTS.md context and session-backed todo_write only; plan-mode/user-question authorization remains excluded. Package-specific source pins preserved in agentinstructions/SOURCE.json and todos/SOURCE.json."
+    "Optional coding helpers mount explicit-root untrusted AGENTS.md context and session-backed todo_write only; plan-mode/user-question authorization remains excluded. Package-specific source pins preserved in agentinstructions/SOURCE.json and todos/SOURCE.json.",
+    "Optional complete native subagent registry/lifecycle restored; one-level in-process spawn/fork reuse existing AgentManager/Session ownership. Effective child caps are restricted, request budgets shared, ApprovalNever pinned, and parent MCP grants may be inherited. The duplicate extracted callback helper is removed; original provenance is retained under removed_files."
   ],
   "excluded_features": [
     "Projects",
@@ -42,7 +43,7 @@
     "workflows",
     "jobs",
     "schedules",
-    "subagent orchestration",
+    "external subagent providers and product orchestration",
     "Point scoped skills registry, implicit/product skill discovery and automatic invocation hooks",
     "Point coding product profile"
   ],
@@ -50,7 +51,7 @@
   "files": [
     {
       "destination": "harness/agent.go",
-      "sha256": "035049d568861b7c76f5de74292fbdb8d7edffb9b32eb730e50bc3bdbb0babed",
+      "sha256": "1c0b77f964caf07ca556fed937c121b1c1b15a6894c27206176f8a5ea7002484",
       "source_path": "go/harness/agent.go",
       "source_blob_sha1": "2e1bfd1ba592cf9a536138226178a72f3b1abd52",
       "change": "adapted; review pinned source diff"
@@ -58,11 +59,6 @@
     {
       "destination": "harness/agent_activation.go",
       "sha256": "c19c7f202592548a8d7c72bf9e29e616976186cd9586c6da8a94e3cdfae7a52d",
-      "change": "new extraction glue or regression test"
-    },
-    {
-      "destination": "harness/agent_callback_gate.go",
-      "sha256": "19d424b7ff923afca2b3a655e80a325d09d15e75973f6fec149877e2fbabfa53",
       "change": "new extraction glue or regression test"
     },
     {
@@ -137,7 +133,7 @@
     },
     {
       "destination": "harness/agent_shutdown.go",
-      "sha256": "791e2180b49112b68f678ddeb441b633cd51cd805eb525e4e3799aa3225fb87c",
+      "sha256": "6c8c2f9b376d0c31f3175f64aa4f19ea9b4b6cf83b5cbfd575a8c3ac525f87f8",
       "source_path": "go/harness/agent_shutdown.go",
       "source_blob_sha1": "ff70c596d6ca5067b281198e6642e4e86ec1c0bd",
       "change": "adapted; review pinned source diff"
@@ -172,28 +168,28 @@
     },
     {
       "destination": "harness/boot.go",
-      "sha256": "fe4699d043a4e68a1def15f6537b87714d76e75830834e117c1d2a4bd707aeec",
+      "sha256": "702d2b872ec0156db6a9c3452c91e58019650961a656e394aec7876b944404a2",
       "source_path": "go/harness/boot.go",
       "source_blob_sha1": "1a95fe7ef4676f66b8aa08896656c64d66048a0b",
       "change": "adapted; review pinned source diff"
     },
     {
       "destination": "harness/boot_registration.go",
-      "sha256": "5cb49a2c8c0c6cf51cc3d57bf765145cff68f8ed8db1870b5a7530649df538c6",
+      "sha256": "2e5d055efc0f80eae7cf4219e4a5eb66687899d33ef8d6e43127a733d20b1290",
       "source_path": "go/harness/boot_registration.go",
       "source_blob_sha1": "77aa8c3730fff6039e600b5d8340095eacd660e9",
       "change": "adapted; review pinned source diff"
     },
     {
       "destination": "harness/boot_services.go",
-      "sha256": "f3a4da63591e531bda10ef459f6831c7ffbc7747cac1204d8ae5fabb7dabe810",
+      "sha256": "2945c12606f1037355f6e4823953acf91143b8d74c53f12cd9d1bed074f77b43",
       "source_path": "go/harness/boot_services.go",
       "source_blob_sha1": "37239987b88f7c899257e63cf446c56a31ee0093",
       "change": "adapted; review pinned source diff"
     },
     {
       "destination": "harness/boot_shutdown.go",
-      "sha256": "818e21baaf64a6ce8f912447412d5373b9a17f39b64803f94242fdaab721012f",
+      "sha256": "c1bdc4eeb26e565f468a4974552eda5f1fdc5e1e7927ce5bf1b99d7ec24f04a2",
       "source_path": "go/harness/boot_shutdown.go",
       "source_blob_sha1": "9f349bf46fbd4e5ea02c46fb3996076772767a86",
       "change": "adapted; review pinned source diff"
@@ -256,7 +252,7 @@
     },
     {
       "destination": "harness/compaction_defaults.go",
-      "sha256": "93490d6cf8ba3c75ef703413cf7e15c51c9106b31ee273256f500c24cc63abcf",
+      "sha256": "a68bbaab7dcb663084f4ac1b8b55d60809944bdfcfd558f9c7d5bead7556c1f0",
       "source_path": "go/harness/compaction_defaults.go",
       "source_blob_sha1": "55e0a24a99faa6cc3c0232881b0c02072bd1380a",
       "change": "imports only"
@@ -1067,7 +1063,7 @@
     },
     {
       "destination": "cmd/pero-agent-acp/main.go",
-      "sha256": "4b8f827525baa9718a5a9733760a973b9969082a1e92ccfc862d752c8f71eb42",
+      "sha256": "e067f335ddbbe8bf0e99f96fd79f09af783787541ad3ad66bcec33077174d7ce",
       "change": "Explicit repeatable --skills-root wiring/default-off tests added; existing cwd admission preserved."
     },
     {
@@ -1109,6 +1105,14 @@
       "destination": "cmd/pero-agent-acp/coding_model_wire_test.go",
       "sha256": "2294d53b310034c3dc8bda016b7521c0cc6e081ec066ef543c75200316429c7e",
       "change": "new synthetic subprocess regression for combined root AGENTS/todo/MCP/model/compaction/stream composition; no live-provider calls"
+    }
+  ],
+  "removed_files": [
+    {
+      "destination": "harness/agent_callback_gate.go",
+      "sha256": "19d424b7ff923afca2b3a655e80a325d09d15e75973f6fec149877e2fbabfa53",
+      "change": "new extraction glue or regression test",
+      "removal_reason": "Identical callback helper restored with the complete native subagents_lifecycle.go; duplicate extracted helper removed."
     }
   ]
 }

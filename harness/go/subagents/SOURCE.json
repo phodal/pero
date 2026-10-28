@@ -1,0 +1,30 @@
+{
+  "repository": "phodal/point",
+  "commit": "edff76d7dd39b2900cff707af1896fe8ff9fd2dc",
+  "upstream_files": [
+    {
+      "path": "go/harness/subagents/inprocess.go",
+      "git_blob_sha1": "90f3d93023fc234617c6647c2e4a4c3dce33eac4",
+      "sha256": "de6b8f89ecc4f1d605c98ff231a2d7bb2653df0743cfe853b1eb342003c0e6c5"
+    },
+    {
+      "path": "go/harness/subagents/structured.go",
+      "git_blob_sha1": "1b13aaf38b63cec26418f70cc1bba6ca196e8509",
+      "sha256": "78138ca77d6582582542c234098687f07b1dce6ffd3431af001931a688991802"
+    },
+    {
+      "path": "go/harness/subagents/tool.go",
+      "git_blob_sha1": "00e38b8b7b166e884719eca5e1e702b541e92786",
+      "sha256": "b26958d17cf78690ed81388ce961992751e338226c069d3f0937ada66c6f88cc"
+    }
+  ],
+  "adaptations": [
+    "Import paths remapped to Pero. Native in-process preparation/Begin/result/Cancel/exact Dispose and Session persistence attach/detach retained.",
+    "Removed external, continuation/resume/catalog/preset interfaces and arbitrary child Configure callback. Native structured capture retained.",
+    "Bounded child options reject model route, CWD and budget increases; token ceiling is minimum positive creation-time parent and committed request-header cap.",
+    "Parent scoped authority and immutable launch-owned native sandbox are retained. Point sandbox ModeOverride propagation omitted because Pero never treats session events as executable sandbox authority. ApprovalNever pinned before publication and again after descriptor.",
+    "Tool contribution retains native scoped registration and argument shape, narrowed to exact description/prompt keys. Uses registry StartActivation caller delivery and synchronous native result/disposal instead of asynchronous Start/WatchParentActivation, ensuring native capacity enforcement and parent cancellation.",
+    "Trusted Compaction option defensively copied through existing native clone helper. No model-controlled budget/permission/provider/compaction knobs.",
+    "New synthetic tests and BUILD metadata. No live models or network actors."
+  ]
+}

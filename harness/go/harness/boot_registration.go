@@ -319,3 +319,6 @@ func (h *Harness) RegisterCommandProvider(ctx context.Context, entryID string, p
 	}
 	return instance, nil
 }
+
+// Subagents returns nil unless EnableSubagents was explicitly selected.
+func (h *Harness) Subagents() *SubagentRegistry { return h.subagents }
