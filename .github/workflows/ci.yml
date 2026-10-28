@@ -1,0 +1,119 @@
+# Toolchains follow the repo, not a compatibility matrix:
+# Node.js 22 (desktop/README.md: 22.12+), npm from package-lock.json
+# Rust stable, plus nightly-2026-10-28 for Wasm (scripts/build/wasm.mjs)
+# gpui-kit ec89cfc (desktop/README.md, scripts/build/fonts.manifest.json)
+# Go 1.26.4 (MODULE.bazel). server/go.mod's `go 1.24` is the language version.
+# Bazel 9.2.0 (.bazelversion). pnpm-lock.yaml is the Bazel translation of the npm lock.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bazel:
+    name: Bazel checks and server
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@0.19.1
+        with:
+          bazelisk-version: 1.x
+          bazelisk-cache: true
+          repository-cache: true
+
+      - name: Test generated checks
+        run: bazel test --config=ci //:checks
+
+      - name: Build control plane
+        run: bazel build //server/cmd/server
+
+  go:
+    name: Go tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.4"
+          cache-dependency-path: server/go.sum
+
+      - name: Test
+        working-directory: server
+        run: go test -race ./...
+
+  desktop:
+    name: Build, check, and Rust tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PERO_GPUI_KIT_PATH: ${{ github.workspace }}/gpui-kit
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Set up Rust nightly
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: nightly-2026-10-28
+          targets: wasm32-unknown-unknown
+
+      - name: Set up Rust stable
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Checkout gpui-kit
+        uses: actions/checkout@v7
+        with:
+          repository: longbridge/gpui-kit
+          ref: ec89cfc36404667b7947aeb3d40b1c2859d729dd
+          path: gpui-kit
+
+      # scripts/build/fonts.mjs creates a venv when fontTools is not already installed.
+      - name: Prepare Python for font subsetting
+        run: |
+          if ! python3 -c 'import venv, ensurepip'; then
+            sudo apt-get update
+            sudo apt-get install --yes python3-venv
+          fi
+
+      - name: Build
+        run: npm run build
+
+      - name: Typecheck and generated sources
+        run: npm run check
+
+      - name: Test
+        run: npm test
+
+      - name: Host contract tests
+        run: npm run test:contracts
