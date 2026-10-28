@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "config.go",
         "connection.go",
+        "policy.go",
         "resources.go",
         "tools.go",
     ],
@@ -22,6 +23,7 @@ go_library(
 go_test(
     name = "mcp_test",
     srcs = [
+        "policy_test.go",
         "resources_test.go",
         "visibility_test.go",
     ],

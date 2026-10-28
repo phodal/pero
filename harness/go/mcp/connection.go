@@ -25,6 +25,8 @@ type ConnectionOptions struct {
 	TransportFactory   func() (mcp.Transport, error)
 	ListTools          func(context.Context, *mcp.ClientSession) ([]*mcp.Tool, error)
 	Resources          *ResourceDirectory
+	// ToolPolicy, when set, limits the server to the operator's listed tools.
+	ToolPolicy *ToolPolicy
 }
 
 type mcpGeneration struct {
@@ -88,6 +90,7 @@ type mcpConnectionSupervisor struct {
 	transportFactory func() (mcp.Transport, error)
 	listTools        func(context.Context, *mcp.ClientSession) ([]*mcp.Tool, error)
 	resources        *ResourceDirectory
+	toolPolicy       *ToolPolicy
 
 	nextGeneration   uint64
 	activeGeneration atomic.Uint64
@@ -110,7 +113,7 @@ func MountConnection(ctx context.Context, run *point.Run, options ConnectionOpti
 	supervisor := &mcpConnectionSupervisor{
 		ownerRun: run, replaceTools: replaceTools, serverName: options.ServerName,
 		policy: options.Reconnect, toolCallTimeout: options.ToolCallTimeout,
-		transportFactory: options.TransportFactory, listTools: listTools, resources: options.Resources,
+		transportFactory: options.TransportFactory, listTools: listTools, resources: options.Resources, toolPolicy: options.ToolPolicy,
 		changes: make(chan uint64, 8), down: make(chan mcpDownEvent, 8), stop: make(chan struct{}),
 	}
 	retrySafe, initialErr := supervisor.connect(ctx)
@@ -193,7 +196,7 @@ func (s *mcpConnectionSupervisor) syncGeneration(ctx context.Context, generation
 	if err != nil {
 		return fmt.Errorf("list tools: %w", err)
 	}
-	definitions, err := buildMCPTools(generation.session, s.serverName, tools, s.toolCallTimeout)
+	definitions, err := buildMCPTools(generation.session, s.serverName, tools, s.toolCallTimeout, s.toolPolicy)
 	if err != nil {
 		return err
 	}
