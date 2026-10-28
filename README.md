@@ -39,7 +39,7 @@ Pushes to `master` and pull requests run the commands in [Build and verification
 
 PostgreSQL, Electron, live GitHub, and real-model suites stay opt-in. They need a database, a display, or a local login, so this workflow does not run them and does not read secrets.
 
-`docs/` is the static site for openpero.com. Cargo crates set `publish = false`, and a signed Desktop package is not a current deliverable. This workflow does not deploy the site or publish installers. Add a release workflow only after the license and packaging checklist below, and keep provider and GitHub tokens out of CI.
+`docs/` is the static site for openpero.com. Cargo crates set `publish = false`, and a signed Desktop package is not a current deliverable. The Task Center install is a separate host script, [deployment/task-center](deployment/task-center/README.md). It needs SSH access and credentials that stay on that machine. This workflow does not run it, deploy the site, or publish installers.
 
 ## The problem
 

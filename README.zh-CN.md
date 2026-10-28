@@ -39,7 +39,7 @@
 
 PostgreSQL、Electron、公开 GitHub 和真实模型套件仍是可选验收。它们需要数据库、显示器或本机登录，因此这条工作流不运行它们，也不读取 secrets。
 
-`docs/` 是 openpero.com 的静态站点。Cargo crate 设置了 `publish = false`，签名 Desktop 安装包也还不是当前交付物。这条工作流不部署站点，也不发布安装包。发布流程应等文末的许可与打包清单确定后再单独添加，并且不要把模型或 GitHub token 放进 CI。
+`docs/` 是 openpero.com 的静态站点。Cargo crate 设置了 `publish = false`，签名 Desktop 安装包也还不是当前交付物。Task Center 的安装是单独的主机脚本，见 [deployment/task-center](deployment/task-center/README.md)。它需要 SSH 和留在那台机器上的凭据。这条工作流不运行该脚本，不部署站点，也不发布安装包。
 
 ## 要解决的问题
 

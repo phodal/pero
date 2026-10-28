@@ -62,8 +62,6 @@ jobs:
     name: Build, check, and Rust tests
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    env:
-      PERO_GPUI_KIT_PATH: ${{ github.workspace }}/gpui-kit
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -91,12 +89,15 @@ jobs:
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
 
+      # Outside this repo. A checkout inside it is absorbed by the Cargo workspace.
       - name: Checkout gpui-kit
-        uses: actions/checkout@v7
-        with:
-          repository: longbridge/gpui-kit
-          ref: ec89cfc36404667b7947aeb3d40b1c2859d729dd
-          path: gpui-kit
+        run: |
+          kit="$RUNNER_TEMP/gpui-kit"
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+          git init --quiet "$kit"
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin ec89cfc36404667b7947aeb3d40b1c2859d729dd
+          git -C "$kit" checkout --detach FETCH_HEAD
 
       # scripts/build/fonts.mjs creates a venv when fontTools is not already installed.
       - name: Prepare Python for font subsetting
