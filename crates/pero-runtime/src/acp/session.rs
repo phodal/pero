@@ -137,6 +137,8 @@ async fn run(
     permissions: Permissions,
 ) -> Result<(), String> {
     config.validate_mcp()?;
+    // Resolve memory before spawning anything: a missing binary is reported, not skipped.
+    let mcp_servers = config.session_mcp_servers()?;
     event(
         &tx,
         &thread,
@@ -214,7 +216,7 @@ async fn run(
             event(&tx, &thread, "agent_info", "", serde_json::to_value(&initialized).unwrap_or_default());
             let mut session_data = loop {
                 let result = setup_request(
-                    connection.send_request(UntypedMessage::new("session/new", NewSessionRequest::new(cwd.clone()).mcp_servers(config.mcp_servers.clone()))?).block_task(),
+                    connection.send_request(UntypedMessage::new("session/new", NewSessionRequest::new(cwd.clone()).mcp_servers(mcp_servers.clone()))?).block_task(),
                     &mut commands, &mut deferred, &tx, &thread, "Session creation",
                 ).await;
                 match result {
