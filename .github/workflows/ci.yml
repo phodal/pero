@@ -4,6 +4,8 @@
 # gpui-kit ec89cfc (desktop/README.md, scripts/build/fonts.manifest.json)
 # Go 1.26.4 (MODULE.bazel). server/go.mod's `go 1.24` is the language version.
 # Bazel 9.2.0 (.bazelversion). pnpm-lock.yaml is the Bazel translation of the npm lock.
+# The same commands run on Linux, Windows, and macOS. Worker process supervision
+# is Unix-only in the crate; those tests are cfg-gated and the rest still run.
 name: CI
 
 on:
@@ -18,14 +20,29 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   bazel:
-    name: Bazel checks and server
-    runs-on: ubuntu-latest
+    name: Bazel checks and server (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      # Windows Git would otherwise rewrite LF and change the Bazel lock hashes.
+      - name: Keep LF line endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --local core.autocrlf false
+          git checkout -- .
 
       - name: Set up Bazel
         uses: bazel-contrib/setup-bazel@0.19.1
@@ -41,9 +58,13 @@ jobs:
         run: bazel build //server/cmd/server
 
   go:
-    name: Go tests
-    runs-on: ubuntu-latest
+    name: Go tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -59,9 +80,13 @@ jobs:
         run: go test -race ./...
 
   desktop:
-    name: Build, check, and Rust tests
-    runs-on: ubuntu-latest
+    name: Build, check, and Rust tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -102,10 +127,22 @@ jobs:
       # scripts/build/fonts.mjs creates a venv when fontTools is not already installed.
       - name: Prepare Python for font subsetting
         run: |
-          if ! python3 -c 'import venv, ensurepip'; then
-            sudo apt-get update
-            sudo apt-get install --yes python3-venv
+          if python3 -c 'import venv, ensurepip'; then
+            exit 0
           fi
+          case "$RUNNER_OS" in
+            Linux)
+              sudo apt-get update
+              sudo apt-get install --yes python3-venv
+              ;;
+            macOS)
+              brew install python@3
+              ;;
+            Windows)
+              echo "python3 with the venv module is required for font subsetting" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Build
         run: npm run build

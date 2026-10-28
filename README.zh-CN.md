@@ -35,7 +35,7 @@
 
 ## 持续集成
 
-推送到 `master` 以及所有 pull request 会运行[构建与验证](docs/fitness/README.md)中的命令：Bazel `//:checks` 和 `//server/cmd/server`，`npm ci`、`npm run build`、`npm run check`、`npm test`、`npm run test:contracts`，以及 `server/` 下的 `go test -race ./...`。
+推送到 `master` 以及所有 pull request 会在 Linux、Windows 和 macOS 上运行[构建与验证](docs/fitness/README.md)中的命令：Bazel `//:checks` 和 `//server/cmd/server`，`npm ci`、`npm run build`、`npm run check`、`npm test`、`npm run test:contracts`，以及 `server/` 下的 `go test -race ./...`。只有 macOS 本机时，另外两个系统仍会被检查。
 
 PostgreSQL、Electron、公开 GitHub 和真实模型套件仍是可选验收。它们需要数据库、显示器或本机登录，因此这条工作流不运行它们，也不读取 secrets。
 

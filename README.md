@@ -35,7 +35,7 @@ Local UI and protocol checks use provider fixtures. Deployment, real OAuth crede
 
 ## Continuous integration
 
-Pushes to `master` and pull requests run the commands in [Build and verification](docs/fitness/README.md): Bazel `//:checks` and `//server/cmd/server`, `npm ci`, `npm run build`, `npm run check`, `npm test`, `npm run test:contracts`, and `go test -race ./...` in `server/`.
+Pushes to `master` and pull requests run the commands in [Build and verification](docs/fitness/README.md) on Linux, Windows, and macOS: Bazel `//:checks` and `//server/cmd/server`, `npm ci`, `npm run build`, `npm run check`, `npm test`, `npm run test:contracts`, and `go test -race ./...` in `server/`. A macOS checkout is not the only environment that is checked.
 
 PostgreSQL, Electron, live GitHub, and real-model suites stay opt-in. They need a database, a display, or a local login, so this workflow does not run them and does not read secrets.
 
