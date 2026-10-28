@@ -1,0 +1,9 @@
+/* Three bands share one gradient, with a brighter ramp on dark surfaces. */
+.brand { gap:10px; font-weight:650; letter-spacing:-.04em; }
+.brand .brand-mark { display:grid; place-items:center; width:34px; height:34px; color:var(--teal); flex:none; }
+.brand .brand-symbol { display:block; width:100%; height:100%; fill:url(#openpero-ribbon-gradient); stroke:none; }
+.brand .brand-wordmark { font-weight:inherit; white-space:nowrap; }
+.header:not(.is-solid) .brand .brand-symbol,
+:root[data-theme="dark"] .brand .brand-symbol { fill:url(#openpero-ribbon-gradient-dark); }
+.footer .brand .brand-mark { width:28px; height:28px; }
+@media (max-width:700px) { .brand { gap:8px; } .brand .brand-mark { width:30px; height:30px; } }
