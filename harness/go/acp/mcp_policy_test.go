@@ -294,3 +294,28 @@ func TestPolicyMetaIsStrictAndStartupFailureIsExplicit(t *testing.T) {
 		})
 	}
 }
+
+func TestPolicyIsReappliedOnResume(t *testing.T) {
+	provider := &scriptedProvider{}
+	w := startWire(t, bootScripted(t, provider))
+	f := newFixtureServer(t, "deny", false)
+	cwd := t.TempDir()
+	session, rpcError := w.newSession(cwd, f.entry)
+	if rpcError != nil {
+		t.Fatal(rpcError)
+	}
+	w.closeSession(session)
+	if _, rpcError := w.call("session/resume", map[string]any{"sessionId": session, "cwd": cwd, "mcpServers": []any{f.entry}}); rpcError != nil {
+		t.Fatal(rpcError)
+	}
+	provider.reset(scriptStep{Tool: "mcp__memory__purge", Arguments: `{}`}, scriptStep{})
+	w.prompt(session, "go")
+	offered, results, _ := provider.snapshot()
+	if !contains(offered, "mcp__memory__lookup") || contains(offered, "mcp__memory__store") || contains(offered, "mcp__memory__purge") {
+		t.Errorf("resumed session offered %v", offered)
+	}
+	if !strings.Contains(strings.Join(results, "\n"), "unknown tool") {
+		t.Errorf("unlisted tool was reachable after resume: %v", results)
+	}
+	w.closeSession(session)
+}
