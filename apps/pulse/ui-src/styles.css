@@ -1,0 +1,24 @@
+.pulse{container-type:inline-size;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0;color:var(--pero-text);background:var(--pero-surface);font:inherit;font-size:13px;line-height:1.5;box-sizing:border-box}
+.pulse *{box-sizing:border-box}
+.pulse h2,.pulse h3,.pulse p{margin:0}
+.pulse h2{font-size:15px}
+.pulse-column{width:min(760px,100%);display:flex;flex-direction:column;gap:12px}
+.pulse-toolbar{padding-bottom:8px;border-bottom:1px solid var(--pero-border-subtle)}
+.pulse-file{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.pulse-meta,.pulse-muted{color:var(--pero-text-muted);font-size:12px}
+.pulse-card{border:1px solid var(--pero-border);border-radius:5px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.pulse-card header,.pulse-row,.pulse-actions,.pulse-form{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pulse-card header strong,.pulse-row strong{flex:1;min-width:0;overflow-wrap:anywhere}
+.pulse-tag{display:inline-flex;align-items:center;min-height:22px;padding:0 6px;border-radius:5px;border:1px solid var(--pero-border);font-size:11px;white-space:nowrap}
+.pulse-tag[data-kind=needs_you]{background:var(--pero-warning-bg);color:var(--pero-warning)}
+.pulse-tag[data-kind=risk]{background:var(--pero-error-bg);color:var(--pero-error)}
+.pulse-tag[data-kind=change]{background:var(--pero-info-bg);color:var(--pero-info)}
+.pulse-tag[data-kind=done]{background:var(--pero-success-bg);color:var(--pero-success)}
+.pulse-tag[data-kind=watch]{background:var(--pero-accent-soft);color:var(--pero-accent-text)}
+.pulse-row{width:100%;text-align:left;border:0;border-bottom:1px solid var(--pero-border);background:transparent;padding:8px 2px;min-height:36px}
+.pulse-row:hover{background:var(--pero-surface-muted)}
+.pulse-form{align-items:flex-end}
+.pulse-form .pero-ui-field{flex:1;min-width:180px}
+.pulse-actions .pero-ui-input{max-width:240px}
+.pulse a{color:var(--pero-link);overflow-wrap:anywhere}
+.pulse-list{display:flex;flex-direction:column;min-width:0}

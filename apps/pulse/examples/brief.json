@@ -1,0 +1,31 @@
+{
+  "id": "example-brief",
+  "createdAt": "2026-10-29T01:00:00Z",
+  "tomorrow": "看一下未提交的笔记是否要收进下一期。",
+  "cards": [
+    {
+      "id": "decide",
+      "kind": "needs_you",
+      "title": "示例：有一件事等你决定",
+      "conclusion": "这是一份示例简报，用来看阅读、取消提醒和反馈。",
+      "body": "示例不代表真实会话或审批。",
+      "why": "空的简报柜需要一个可以点开的下一动作。",
+      "entity": {"type": "file", "label": "notes/example.md"}
+    },
+    {
+      "id": "change",
+      "kind": "change",
+      "title": "示例：今天有一处变化",
+      "conclusion": "变化卡片按风险、变化、在盯、已完成的顺序出现。",
+      "body": "依据可以展开。",
+      "sources": [{"label": "示例来源", "url": "https://example.com/pulse"}]
+    },
+    {
+      "id": "noise",
+      "kind": "filtered",
+      "title": "示例：这是噪音",
+      "conclusion": "已过滤的卡片收成一行。",
+      "body": "构建产物之类的内容会放在这里。"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "name": "pulse",
+  "version": "0.1.0",
+  "displayName": "Pulse",
+  "description": "保存并阅读简报与盯梢。",
+  "contributes": {
+    "panels": [
+      {
+        "id": "main",
+        "title": "Pulse",
+        "entry": "dist/index.html"
+      }
+    ]
+  },
+  "backend": {
+    "type": "python",
+    "entry": "backend/server.py"
+  }
+}
