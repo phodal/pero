@@ -30,16 +30,21 @@ const (
 // Harness and ACP session creation. TestTransport is intentionally excluded
 // from wire formats and lets conformance tests use the SDK's in-memory link.
 type MCPServerConfig struct {
-	Name                    string              `json:"name"`
-	Transport               MCPTransport        `json:"transport"`
-	Command                 string              `json:"command,omitempty"`
-	Args                    []string            `json:"args,omitempty"`
-	Env                     map[string]string   `json:"env,omitempty"`
-	CWD                     string              `json:"cwd,omitempty"`
-	URL                     string              `json:"url,omitempty"`
-	Headers                 map[string]string   `json:"headers,omitempty"`
-	ToolCallTimeoutMS       int                 `json:"toolCallTimeoutMs,omitempty"`
-	FailOnStartupError      bool                `json:"failOnStartupError,omitempty"`
+	Name               string            `json:"name"`
+	Transport          MCPTransport      `json:"transport"`
+	Command            string            `json:"command,omitempty"`
+	Args               []string          `json:"args,omitempty"`
+	Env                map[string]string `json:"env,omitempty"`
+	CWD                string            `json:"cwd,omitempty"`
+	URL                string            `json:"url,omitempty"`
+	Headers            map[string]string `json:"headers,omitempty"`
+	ToolCallTimeoutMS  int               `json:"toolCallTimeoutMs,omitempty"`
+	FailOnStartupError bool              `json:"failOnStartupError,omitempty"`
+	// ToolPolicy limits the server to the operator's listed tools and makes
+	// mutating tools require approval; it is trusted operator configuration.
+	ToolPolicy *harnessmcp.ToolPolicy `json:"toolPolicy,omitempty"`
+	// CleanEnvironment starts a stdio server with only Env, inheriting nothing.
+	CleanEnvironment        bool                `json:"cleanEnvironment,omitempty"`
 	Reconnect               *MCPReconnectConfig `json:"reconnect,omitempty"`
 	TestTransport           mcp.Transport       `json:"-"`
 	testTransportFactory    func() (mcp.Transport, error)
@@ -64,8 +69,16 @@ func MountMCPServers(ctx context.Context, run *point.Run, registry *ToolRegistry
 	if err != nil {
 		return err
 	}
-	directory := harnessmcp.NewResourceDirectory(mcpResourceTimeouts(configs))
-	if len(configs) > 0 {
+	// A server under an operator tool policy is reachable only through its
+	// listed tools, so it is kept out of the generic resource tools.
+	var open []MCPServerConfig
+	for _, config := range configs {
+		if config.ToolPolicy == nil {
+			open = append(open, config)
+		}
+	}
+	directory := harnessmcp.NewResourceDirectory(mcpResourceTimeouts(open))
+	if len(open) > 0 {
 		if prompts == nil {
 			return errors.New("harness: MCP requires a prompt registry")
 		}
@@ -101,14 +114,24 @@ func mountMCPServer(ctx context.Context, run *point.Run, registry *ToolRegistry,
 		Enabled: config.resolvedReconnect.enabled, InitialDelay: config.resolvedReconnect.initialDelay,
 		MaxDelay: config.resolvedReconnect.maxDelay, MaxAttempts: config.resolvedReconnect.maxAttempts,
 	}
+	resources := directory
+	if config.ToolPolicy != nil {
+		resources = nil
+	}
 	return harnessmcp.MountConnection(ctx, run, harnessmcp.ConnectionOptions{
 		ServerName: config.Name, Reconnect: policy, ToolCallTimeout: config.resolvedToolCallTimeout,
 		FailOnStartupError: config.FailOnStartupError, TransportFactory: transportFactory, ListTools: config.testListTools,
-		Resources: directory,
+		Resources: resources, ToolPolicy: config.ToolPolicy,
 	}, func(owner *point.Run, generation string, definitions []harnessmcp.Tool) (point.Dispose, error) {
 		tools := make([]Tool, len(definitions))
 		for i, definition := range definitions {
-			tools[i] = Tool{Schema: definition.Schema, Execute: definition.Execute}
+			tools[i] = Tool{Schema: definition.Schema, Execute: definition.Execute, RequiresApproval: definition.RequiresApproval}
+			if admit := definition.Admit; admit != nil {
+				// Reject a call the policy would refuse before asking for approval.
+				tools[i].ApprovalDescriptor = func(_ context.Context, request ToolRequest) (*NativeApprovalDescriptor, error) {
+					return nil, admit(request.Arguments)
+				}
+			}
 		}
 		return registry.replaceGeneration(owner, generation, tools)
 	})
@@ -177,6 +200,11 @@ func validateMCPConfigs(servers []MCPServerConfig) ([]MCPServerConfig, error) {
 		for name, value := range server.Env {
 			if name == "" || strings.ContainsAny(name, "=\x00") || strings.ContainsRune(value, '\x00') {
 				return nil, fmt.Errorf("harness: MCP server %q contains an invalid environment entry", server.Name)
+			}
+		}
+		if server.ToolPolicy != nil {
+			if err := server.ToolPolicy.Validate(); err != nil {
+				return nil, fmt.Errorf("harness: MCP server %q: %w", server.Name, err)
 			}
 		}
 		policy, err := resolveMCPReconnectPolicy(server.Reconnect)
@@ -310,7 +338,7 @@ func newMCPTransport(config MCPServerConfig) (mcp.Transport, error) {
 	if config.Transport == MCPStdio {
 		command := exec.Command(config.Command, config.Args...)
 		command.Dir = config.CWD
-		command.Env = mergedEnvironment(config.Env)
+		command.Env = mcpEnvironment(config)
 		return &mcp.CommandTransport{Command: command}, nil
 	}
 	headers := &headerRoundTripper{base: http.DefaultTransport, headers: config.Headers}
@@ -318,9 +346,20 @@ func newMCPTransport(config MCPServerConfig) (mcp.Transport, error) {
 	return &authenticationTransport{StreamableClientTransport: &mcp.StreamableClientTransport{Endpoint: config.URL, HTTPClient: client}, headers: headers}, nil
 }
 
+func mcpEnvironment(config MCPServerConfig) []string {
+	if config.CleanEnvironment {
+		return mergedEnvironmentFrom(nil, config.Env)
+	}
+	return mergedEnvironment(config.Env)
+}
+
 func mergedEnvironment(overrides map[string]string) []string {
+	return mergedEnvironmentFrom(os.Environ(), overrides)
+}
+
+func mergedEnvironmentFrom(inherited []string, overrides map[string]string) []string {
 	values := make(map[string]string)
-	for _, entry := range os.Environ() {
+	for _, entry := range inherited {
 		if index := strings.IndexByte(entry, '='); index >= 0 {
 			name := entry[:index]
 			if !scrubMCPEnvironmentName(name) {
