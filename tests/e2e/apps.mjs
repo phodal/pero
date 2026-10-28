@@ -24,12 +24,34 @@ try {
   const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await expect.poll(async () => (await state()).apps.map(app => app.name).sort()).toEqual(['pulse', 'virtual-cell']);
-  await page.mouse.click(80, 409);
+  await page.mouse.click(80, 370);
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await page.screenshot({ path: resolve(out, 'catalog.png') });
-  // The catalog is sorted by name, so the first Open button is no longer Virtual Cell.
-  await page.evaluate(() => window.pero.appsCommand({ action: 'apps_open', name: 'virtual-cell', panel: 'main' }));
+  // Open is the canvas button on the first row. Pulse sorts before Virtual Cell.
+  await page.mouse.click(1305, 110);
+  await expect.poll(async () => (await state()).activeApp?.name).toBe('pulse');
+  const pulse = page.frameLocator('iframe[title="pulse"]');
+  await expect(pulse.getByRole('button', { name: 'Add the example' })).toBeVisible({ timeout: 20000 });
+  expect(await pulse.locator('body').evaluate(() => typeof window.pero)).toBe('undefined');
+  await pulse.getByRole('button', { name: 'Add the example' }).click();
+  await expect(pulse.getByRole('heading', { name: '1 for you' })).toBeVisible();
+  await pulse.getByRole('button', { name: 'Dismiss' }).first().click();
+  await expect(pulse.getByRole('heading', { name: '1 for you' })).toBeHidden();
+  await pulse.getByRole('button', { name: 'Refresh' }).click();
+  await expect(pulse.getByText('变化卡片按风险、变化、在盯、已完成的顺序出现。')).toBeVisible();
+  await pulse.getByRole('tab', { name: 'Watches' }).click();
+  await pulse.getByLabel('What to watch').fill('Watch the example repository');
+  await pulse.getByRole('button', { name: 'Save' }).click();
+  await expect(pulse.getByText('Watch the example repository')).toBeVisible();
+  await expect(pulse.getByText('No report yet')).toBeVisible();
+  checks.push('pulse example brief, dismiss, refresh, and saved watch');
+  await page.screenshot({ path: resolve(out, 'pulse.png') });
+  await page.mouse.click(224, 24);
+  await expect.poll(async () => (await state()).activeApp).toBe(null);
+  await expect(page.locator('#pero-app-surface')).toBeHidden();
+  // Virtual Cell is the second catalog row. Open is the canvas button, not a DOM control.
+  await page.mouse.click(1305, 190);
   await expect.poll(async () => (await state()).activeApp?.name).toBe('virtual-cell');
   const frame = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(frame.getByRole('tab', { name: 'Cells & perturbations' })).toBeVisible({ timeout: 20000 });
@@ -78,17 +100,19 @@ try {
   await page.screenshot({ path: resolve(out, 'narrow.png') });
   checks.push('live zh/en, dark, narrow viewport');
   // Navigating away retains the document. Returning to it retains simulation edits.
-  const originalFrame = await page.locator('iframe').getAttribute('src');
+  const cellFrame = page.locator('iframe[title="virtual-cell"]');
+  const originalFrame = await cellFrame.getAttribute('src');
   await page.mouse.click(75, 307);
   await expect(page.locator('#pero-app-surface')).toBeHidden();
-  await page.mouse.click(75, 409);
+  await page.mouse.click(75, 370);
   await expect(page.locator('#pero-app-surface')).toBeVisible();
-  expect(await page.locator('iframe').getAttribute('src')).toBe(originalFrame);
+  expect(await cellFrame.getAttribute('src')).toBe(originalFrame);
   await frame.getByRole('tab', { name: '反应与模拟' }).click();
   await expect(frame.getByLabel('时长 (s)', { exact: true })).toHaveValue('12');
   checks.push('navigation retains frame and edited state');
   await page.evaluate(() => window.pero.appsCommand({ action: 'apps_disable', name: 'virtual-cell' }));
-  await expect(page.locator('iframe')).toHaveCount(0);
+  await expect(page.locator('iframe[title="virtual-cell"]')).toHaveCount(0);
+  await expect(page.locator('iframe[title="pulse"]')).toHaveCount(1);
   await expect.poll(async () => (await state()).apps.find(app => app.name === 'virtual-cell').enabled).toBe(false);
   await page.evaluate(() => window.pero.appsCommand({ action: 'apps_open', name: 'virtual-cell', panel: 'main' }));
   await expect.poll(async () => (await state()).appError).toContain('Enable');
@@ -105,11 +129,11 @@ try {
     BrowserWindow.getAllWindows()[0].setSize(1488, 1086);
   });
   await expect.poll(async () => (await state()).locale).toBe('en');
-  await page.mouse.click(80, 409);
+  await page.mouse.click(80, 370);
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await page.evaluate(() => new Promise(resolvePaint => requestAnimationFrame(() => requestAnimationFrame(resolvePaint))));
-  await page.evaluate(() => window.pero.appsCommand({ action: 'apps_open', name: 'virtual-cell', panel: 'main' }));
+  await page.mouse.click(1305, 190);
   const restored = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(restored.getByRole('tab', { name: 'Cells & perturbations' })).toBeVisible();
   await expect.poll(async () => restored.locator('body').evaluate(async () => (await (await fetch('/api/inputs')).json()).items.length)).toBe(1);

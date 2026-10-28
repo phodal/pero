@@ -70,6 +70,11 @@ export default function Pulse() {
     } catch (reason) { fail(reason); }
     finally { setBusy(false); }
   }
+  function saveWatch() {
+    const text = watchText.trim();
+    if (!text || busy) return;
+    void run(() => api.post<Home>('/api/watches', { text, cadence })).then(saved => { if (saved) setWatchText(''); });
+  }
 
   const cadenceOptions = [
     { value: 'brief', label: t('briefCadence') }, { value: 'hourly', label: t('hourly') },
@@ -115,11 +120,11 @@ export default function Pulse() {
         {!!home.archive.length && <><h2>{t('archive')}</h2><div className="pulse-list">{home.archive.map(item => <button key={item.id} type="button" className="pulse-row" onClick={() => void openArchive(item.id)}><strong>{item.id}</strong><span className="pulse-meta">{item.createdAt} · {item.cards}</span></button>)}</div></>}
       </div></TabsContent>
       <TabsContent value="watches"><div className="pulse-column">
-        <form className="pulse-form" onSubmit={event => { event.preventDefault(); const text = watchText.trim(); if (!text) return; void run(() => api.post<Home>('/api/watches', { text, cadence })).then(saved => { if (saved) setWatchText(''); }); }}>
-          <Field label={t('watchText')}>{({ id }) => <Input id={id} value={watchText} maxLength={500} onChange={event => setWatchText(event.target.value)}/>}</Field>
+        <div className="pulse-form">
+          <Field label={t('watchText')}>{({ id }) => <Input id={id} value={watchText} maxLength={500} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); saveWatch(); } }} onChange={event => setWatchText(event.target.value)}/>}</Field>
           <Select label={t('cadence')} value={cadence} options={cadenceOptions} onChange={setCadence}/>
-          <Button type="submit" variant="primary" disabled={busy || !watchText.trim()}>{t('addWatch')}</Button>
-        </form>
+          <Button variant="primary" disabled={busy || !watchText.trim()} onClick={saveWatch}>{t('addWatch')}</Button>
+        </div>
         <Select label={t('proactivity')} value={home.proactivity} options={levels} disabled={busy} onChange={value => void run(() => api.post<Home>('/api/proactivity', { value }))}/>
         {!home.watches.length && <EmptyState heading={t('watchEmpty')} description={t('watchNext')}/>}
         {home.watches.map(watch => {

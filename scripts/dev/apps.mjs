@@ -12,14 +12,14 @@ try {
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('locale-en').click());
   await expect.poll(() => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).locale)).toBe('en');
-  await page.mouse.click(80, 409);
+  await page.mouse.click(80, 370);
   await expect.poll(() => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).navigation)).toBe(7);
   await expect.poll(() => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).appsLoading)).toBe(false);
   await page.evaluate(() => new Promise(resolvePaint => requestAnimationFrame(() => requestAnimationFrame(resolvePaint))));
-  // Pulse sorts ahead of Virtual Cell. Open Virtual Cell by name.
+  // Pulse sorts ahead of Virtual Cell, so Virtual Cell's Open button is on the second row.
   const enabled = await page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).apps.find(app => app.name === 'virtual-cell')?.enabled);
   if (enabled) {
-    await page.evaluate(() => window.pero.appsCommand({ action: 'apps_open', name: 'virtual-cell', panel: 'main' }));
+    await page.mouse.click(1305, 190);
     await expect(page.frameLocator('iframe[title="virtual-cell"]').getByRole('tab', { name: 'Cells & perturbations' })).toBeVisible({ timeout: 20000 });
   }
   await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click());
