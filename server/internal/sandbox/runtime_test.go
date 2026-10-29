@@ -373,11 +373,41 @@ func TestRuntimeUnknownCreateAbsenceAndReplacementNeverReplay(t *testing.T) {
 	}
 }
 
+// Only fixed categories and timing are retained; never prompts, headers or keys.
+type modelObservation struct {
+	Call    int64
+	Event   string
+	At      time.Time
+	Context string
+}
+
 type modelFixture struct {
-	calls     atomic.Int64
-	started   chan struct{}
-	cancelled chan struct{}
-	wait      bool
+	mu           sync.Mutex
+	observations []modelObservation
+	calls        atomic.Int64
+	started      chan struct{}
+	cancelled    chan struct{}
+	wait         bool
+}
+
+func (m *modelFixture) observe(call int64, event string, ctx context.Context) {
+	category := "active"
+	if errors.Is(ctx.Err(), context.Canceled) {
+		category = "cancelled"
+	}
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		category = "deadline"
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.observations) < 16 {
+		m.observations = append(m.observations, modelObservation{call, event, time.Now().UTC(), category})
+	}
+}
+func (m *modelFixture) trace() []modelObservation {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]modelObservation(nil), m.observations...)
 }
 
 func (m *modelFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -392,7 +422,9 @@ func (m *modelFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "fixture model mismatch", 400)
 		return
 	}
-	m.calls.Add(1)
+	call := m.calls.Add(1)
+	m.observe(call, "started", r.Context())
+	defer m.observe(call, "returned", r.Context())
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(200)
 	if m.wait {
@@ -402,6 +434,7 @@ func (m *modelFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		default:
 		}
 		<-r.Context().Done()
+		m.observe(call, "context_done", r.Context())
 		select {
 		case m.cancelled <- struct{}{}:
 		default:
@@ -412,6 +445,36 @@ func (m *modelFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 func newModel(wait bool) *modelFixture {
 	return &modelFixture{started: make(chan struct{}, 1), cancelled: make(chan struct{}, 1), wait: wait}
+}
+
+func TestModelFixtureCancellationTrace(t *testing.T) {
+	model := newModel(true)
+	server := httptest.NewServer(model)
+	defer server.Close()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	request, _ := http.NewRequestWithContext(ctx, http.MethodPost, server.URL+"/v1/chat/completions", strings.NewReader(`{"model":"fixture"}`))
+	request.Header.Set("Authorization", "Bearer synthetic-provider")
+	response, err := server.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	select {
+	case <-model.started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("fixture did not start")
+	}
+	cancel()
+	select {
+	case <-model.cancelled:
+	case <-time.After(3 * time.Second):
+		t.Fatal("fixture did not observe cancellation")
+	}
+	trace := model.trace()
+	if model.calls.Load() != 1 || len(trace) < 2 || trace[0].Call != 1 || trace[0].Event != "started" || trace[0].Context != "active" || trace[1].Call != 1 || trace[1].Event != "context_done" || trace[1].Context != "cancelled" || trace[1].At.Before(trace[0].At) {
+		t.Fatalf("invalid synthetic request trace: %+v", trace)
+	}
 }
 
 func TestRuntimeWorkerProcess(t *testing.T) {

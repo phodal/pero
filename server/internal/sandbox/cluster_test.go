@@ -92,6 +92,7 @@ func TestClusterRuntime(t *testing.T) {
 				}
 			})
 			model := newModel(scenario == "cancel")
+			defer func() { t.Logf("provider_trace: calls=%d observations=%+v", model.calls.Load(), model.trace()) }()
 			provider := hostServer(t, model)
 			cloud := hostServer(t, httpapi.Handler(db, "synthetic-operator"))
 			providerTarget := hostTarget(provider.URL, host)
@@ -150,6 +151,47 @@ func TestClusterRuntime(t *testing.T) {
 			}); err != nil {
 				t.Fatalf("warm Worker Pod readiness: %v", err)
 			}
+			t.Cleanup(func() {
+				if !t.Failed() {
+					return
+				}
+				// Read only the synthetic gateway's fixed diagnostics, before namespace
+				// deletion. No exec, Worker logs, prompts or arbitrary errors are printed.
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				path := "/api/v1/namespaces/" + namespace + "/pods/" + warmPod.Metadata.Name + "/log?container=test-gateway&tailLines=20&limitBytes=4096"
+				request, _ := http.NewRequestWithContext(ctx, http.MethodGet, api.base+path, nil)
+				response, err := api.client.Do(request)
+				if err != nil {
+					t.Log("gateway_diagnostic_unavailable=transport")
+					return
+				}
+				defer response.Body.Close()
+				if response.StatusCode != http.StatusOK {
+					t.Logf("gateway_diagnostic_status=%d", response.StatusCode)
+					return
+				}
+				data, err := io.ReadAll(io.LimitReader(response.Body, 4096))
+				if err != nil {
+					t.Log("gateway_diagnostic_unavailable=read")
+					return
+				}
+				for _, line := range strings.Split(string(data), "\n") {
+					if at := strings.Index(line, "fixture_proxy "); at >= 0 {
+						for _, role := range []string{"cloud", "provider"} {
+							prefix := "fixture_proxy role=" + role + " event="
+							if line[at:] == prefix+"copy_or_upgrade_error" {
+								t.Log(line[at:])
+							}
+							for _, category := range []string{"cancelled", "deadline", "transport"} {
+								if line[at:] == prefix+"transport_error category="+category+" status=502" {
+									t.Log(line[at:])
+								}
+							}
+						}
+					}
+				}
+			})
 			controllerToken := scopedController(t, api, namespace)
 			scoped := clusterAPI{base: directAPI, token: controllerToken, client: &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots}}}}
 			for _, denied := range []struct{ method, path string }{{http.MethodGet, "/api/v1/namespaces/" + namespace + "/secrets"}, {http.MethodPost, "/api/v1/namespaces/" + namespace + "/pods/" + warmPod.Metadata.Name + "/exec"}} {
@@ -199,6 +241,7 @@ func TestClusterRuntime(t *testing.T) {
 				case <-execCtx.Done():
 					t.Fatal("real model request did not start")
 				}
+				t.Logf("cancellation_requested_at=%s", time.Now().UTC().Format(time.RFC3339Nano))
 				if _, err := runtime.Release(execCtx, run.ID); err != nil {
 					t.Fatal(err)
 				}
@@ -219,10 +262,25 @@ func TestClusterRuntime(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
+			events, err := db.Events(execCtx, run.ID)
+			if err == nil {
+				// Fixed event kinds distinguish another execution from provider recovery.
+				var sessions, turns, finished int
+				for _, event := range events.Events {
+					switch event.Kind {
+					case "session_ready":
+						sessions++
+					case "turn_started":
+						turns++
+					case "turn_finished":
+						finished++
+					}
+				}
+				t.Logf("execution_counts: sessions=%d turns=%d finished=%d", sessions, turns, finished)
+			}
 			if model.calls.Load() != 1 {
 				t.Fatalf("expected one actual provider request, got %d", model.calls.Load())
 			}
-			events, err := db.Events(execCtx, run.ID)
 			if err != nil || len(events.Events) == 0 {
 				t.Fatalf("no retained events: %+v %v", events, err)
 			}

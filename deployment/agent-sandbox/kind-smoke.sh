@@ -97,6 +97,7 @@ PERO_TEST_TINI_BIN="$work/bin/tini" PERO_TEST_WORKER_BIN="$PERO_SANDBOX_WORKER_B
   PERO_TEST_AGENT_BIN="$PERO_SANDBOX_AGENT_BINARY" node --test deployment/agent-sandbox/test/entrypoint.test.mjs | tee "$evidence/init-process-test.txt"
 base="127.0.0.1:$port/pero-worker-base:ci"
 docker build --build-arg RUNTIME_BASE_IMAGE="$runtime_base_digest" --build-arg SOURCE_REVISION="$PERO_SANDBOX_WORKSPACE_REVISION" --tag "$base" "$work/image"
+go test ./deployment/agent-sandbox/test/gateway.go ./deployment/agent-sandbox/test/gateway_test.go
 CGO_ENABLED=0 go build -trimpath -o "$work/image/gateway" ./deployment/agent-sandbox/test/gateway.go
 printf 'ARG BASE\nFROM ${BASE}\nCOPY --chmod=0555 gateway /usr/local/bin/pero-sandbox-test-gateway\n' > "$work/image/Test.Dockerfile"
 tag="127.0.0.1:$port/pero-worker:ci"
