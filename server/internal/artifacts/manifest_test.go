@@ -19,7 +19,7 @@ func entries() []Entry {
 	return []Entry{{Path: "outputs/a.txt", Bytes: 4, SHA256: "sha256:" + strings.Repeat("d", 64)}, {Path: "outputs/b.txt", Bytes: 8, SHA256: "sha256:" + strings.Repeat("e", 64)}}
 }
 func quiescence() Quiescence {
-	return Quiescence{PodUID: "pod-uid", PVCUID: "pvc-uid", ComputeReleaseDigest: "sha256:" + strings.Repeat("f", 64), StorageFenceDigest: "sha256:" + strings.Repeat("1", 64), ObservedAt: stamp().Add(time.Second)}
+	return Quiescence{PodUID: "pod-uid", PVCUID: "pvc-uid", VolumeName: "pv-uid", ComputeReleaseDigest: "sha256:" + strings.Repeat("f", 64), StorageFenceDigest: "sha256:" + strings.Repeat("1", 64), ObservedAt: stamp().Add(time.Second)}
 }
 
 func TestPolicyPathsAndBudgets(t *testing.T) {
@@ -167,7 +167,11 @@ func TestExportQuiescenceCommitAndDataGC(t *testing.T) {
 func TestCollectorAuthorityAndUploadIdentity(t *testing.T) {
 	e, _ := NewExport(source(), policy(), "export", stamp())
 	e, _ = e.Begin(quiescence())
-	a := CollectorAuthority{Namespace: e.Source.Namespace, ServiceAccount: "collector", ServiceAccountUID: "sa-uid", PodUID: "collector-pod", Audience: CollectorAudience, ExpiresAt: stamp().Add(time.Minute)}
+	j := CollectorJob{ServiceAccount: "collector", ServiceAccountUID: "sa-uid", Name: "job", Namespace: e.Source.Namespace, ConfigDigest: e.Source.ImageDigest, ExpiresAt: stamp().Add(MaxCollectionDuration)}
+	e, _ = e.WithCollectorJob(j, stamp())
+	j.UID = "job-uid"
+	e, _ = e.WithCollectorJob(j, stamp())
+	a := CollectorAuthority{PodName: "collector", JobUID: "job-uid", Namespace: e.Source.Namespace, ServiceAccount: "collector", ServiceAccountUID: "sa-uid", PodUID: "collector-pod", Audience: CollectorAudience, ExpiresAt: stamp().Add(time.Minute)}
 	bound, err := e.BindCollector(a, stamp())
 	if err != nil {
 		t.Fatal(err)

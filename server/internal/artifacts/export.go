@@ -19,6 +19,7 @@ const (
 type Quiescence struct {
 	PodUID               string    `json:"pod_uid"`
 	PVCUID               string    `json:"pvc_uid"`
+	VolumeName           string    `json:"volume_name"`
 	ComputeReleaseDigest string    `json:"compute_release_digest"`
 	StorageFenceDigest   string    `json:"storage_fence_digest"`
 	ObservedAt           time.Time `json:"observed_at"`
@@ -48,6 +49,7 @@ type Export struct {
 	Manifest     *Manifest           `json:"manifest,omitempty"`
 	GC           *GCApproval         `json:"gc,omitempty"`
 	Collector    *CollectorAuthority `json:"collector,omitempty"`
+	CollectorJob *CollectorJob       `json:"collector_job,omitempty"`
 }
 
 func NewExport(source Source, policy Policy, operationID string, now time.Time) (Export, error) {
@@ -61,7 +63,7 @@ func NewExport(source Source, policy Policy, operationID string, now time.Time) 
 
 func (e Export) Begin(q Quiescence) (Export, error) {
 	q.ObservedAt = q.ObservedAt.UTC()
-	if q.PodUID != e.Source.PodUID || q.PVCUID != e.Source.PVCUID || !digestPattern.MatchString(q.ComputeReleaseDigest) || !digestPattern.MatchString(q.StorageFenceDigest) || q.ObservedAt.Before(e.CreatedAt) {
+	if q.PodUID != e.Source.PodUID || q.PVCUID != e.Source.PVCUID || q.VolumeName != e.Source.VolumeName || !digestPattern.MatchString(q.ComputeReleaseDigest) || !digestPattern.MatchString(q.StorageFenceDigest) || q.ObservedAt.Before(e.CreatedAt) {
 		return e, ErrInvalid
 	}
 	if e.Quiescence != nil {

@@ -180,11 +180,22 @@ func seedArtifactExport(t *testing.T, s *store.Store, lifetime time.Duration) ar
 	if err != nil {
 		t.Fatal(err)
 	}
-	e, err = s.BeginArtifactExport(ctx, e.ID, e.Version, artifacts.Quiescence{PodUID: source.PodUID, PVCUID: source.PVCUID, ComputeReleaseDigest: source.ImageDigest, StorageFenceDigest: source.TemplateDigest, ObservedAt: e.CreatedAt})
+	e, err = s.BeginArtifactExport(ctx, e.ID, e.Version, artifacts.Quiescence{PodUID: source.PodUID, PVCUID: source.PVCUID, VolumeName: source.VolumeName, ComputeReleaseDigest: source.ImageDigest, StorageFenceDigest: source.TemplateDigest, ObservedAt: e.CreatedAt})
 	if err != nil {
 		t.Fatal(err)
 	}
-	e, err = s.BindArtifactCollector(ctx, e.ID, e.Version, artifacts.CollectorAuthority{Namespace: source.Namespace, ServiceAccount: "collector", ServiceAccountUID: "collector-sa", PodUID: "collector-pod", Audience: artifacts.CollectorAudience, ExpiresAt: time.Now().Add(lifetime)})
+	deadline := time.Now().Add(lifetime)
+	j := artifacts.CollectorJob{ServiceAccount: "collector", ServiceAccountUID: "collector-sa", Name: "collector", Namespace: source.Namespace, ConfigDigest: source.ImageDigest, ExpiresAt: deadline}
+	e, err = s.SaveArtifactCollectorJob(ctx, e.ID, e.Version, j)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j.UID = "collector-job"
+	e, err = s.SaveArtifactCollectorJob(ctx, e.ID, e.Version, j)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err = s.BindArtifactCollector(ctx, e.ID, e.Version, artifacts.CollectorAuthority{PodName: "collector", JobUID: "collector-job", Namespace: source.Namespace, ServiceAccount: "collector", ServiceAccountUID: "collector-sa", PodUID: "collector-pod", Audience: artifacts.CollectorAudience, ExpiresAt: deadline})
 	if err != nil {
 		t.Fatal(err)
 	}

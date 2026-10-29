@@ -51,7 +51,7 @@ func fixture(t *testing.T) (string, artifacts.Export, *writer) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e, err = e.Begin(artifacts.Quiescence{PodUID: s.PodUID, PVCUID: s.PVCUID, ComputeReleaseDigest: s.ImageDigest, StorageFenceDigest: s.TemplateDigest, ObservedAt: now})
+	e, err = e.Begin(artifacts.Quiescence{PodUID: s.PodUID, PVCUID: s.PVCUID, VolumeName: s.VolumeName, ComputeReleaseDigest: s.ImageDigest, StorageFenceDigest: s.TemplateDigest, ObservedAt: now})
 	if err != nil {
 		t.Fatal(err)
 	}

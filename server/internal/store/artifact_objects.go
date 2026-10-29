@@ -169,3 +169,18 @@ func (s *Store) CommitArtifactManifest(ctx context.Context, id string, version i
 	}
 	return next, nil
 }
+
+func (s *Store) SaveArtifactCollectorJob(ctx context.Context, id string, version int64, j artifacts.CollectorJob) (artifacts.Export, error) {
+	var now time.Time
+	if err := s.pool.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&now); err != nil {
+		return artifacts.Export{}, err
+	}
+	return s.mutateArtifactExport(ctx, id, version, func(e artifacts.Export) (artifacts.Export, error) {
+		// Only the winner of the initial durable reservation may issue POST.
+		// Identical replay of an unconfirmed creation must reconcile by GET instead.
+		if j.UID == "" && e.CollectorJob != nil {
+			return e, ErrConflict
+		}
+		return e.WithCollectorJob(j, now)
+	})
+}

@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "artifacts",
-    srcs = ["collector_authority.go", "export.go", "manifest.go"],
+    srcs = ["collector_authority.go", "collector_job.go", "export.go", "manifest.go"],
     importpath = "github.com/phodal/pero/server/internal/artifacts",
     visibility = ["//server:__subpackages__"],
 )

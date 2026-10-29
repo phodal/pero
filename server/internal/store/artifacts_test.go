@@ -37,7 +37,7 @@ func TestArtifactExportDurabilityAuthorizationAndReceipts(t *testing.T) {
 	if _, err = s.ReserveArtifactExport(ctx, source, policy, "new_operation"); !errors.Is(err, ErrConflict) {
 		t.Fatal("same Run got fresh export", err)
 	}
-	q := artifacts.Quiescence{PodUID: source.PodUID, PVCUID: source.PVCUID, ComputeReleaseDigest: "sha256:" + strings.Repeat("d", 64), StorageFenceDigest: "sha256:" + strings.Repeat("e", 64), ObservedAt: e.CreatedAt.Add(time.Second)}
+	q := artifacts.Quiescence{PodUID: source.PodUID, PVCUID: source.PVCUID, VolumeName: source.VolumeName, ComputeReleaseDigest: "sha256:" + strings.Repeat("d", 64), StorageFenceDigest: "sha256:" + strings.Repeat("e", 64), ObservedAt: e.CreatedAt.Add(time.Second)}
 	if _, err = s.BeginArtifactExport(ctx, e.ID, 0, q); !errors.Is(err, ErrConflict) {
 		t.Fatal("stale CAS accepted", err)
 	}
@@ -47,6 +47,27 @@ func TestArtifactExportDurabilityAuthorizationAndReceipts(t *testing.T) {
 	}
 	if replay, err := s.BeginArtifactExport(ctx, e.ID, 1, q); err != nil || replay.Version != e.Version {
 		t.Fatal("lost Begin receipt not reconciled", err)
+	}
+	j := artifacts.CollectorJob{Name: "collector", Namespace: source.Namespace, ServiceAccount: "collector", ServiceAccountUID: "collector-sa", ConfigDigest: source.TemplateDigest, ExpiresAt: time.Now().Add(time.Minute)}
+	e, err = s.SaveArtifactCollectorJob(ctx, e.ID, e.Version, j)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SaveArtifactCollectorJob(ctx, e.ID, e.Version-1, j); !errors.Is(err, ErrConflict) {
+		t.Fatal("replayed reservation acquired create authority", err)
+	}
+	j.UID = "original-job"
+	e, err = s.SaveArtifactCollectorJob(ctx, e.ID, e.Version, j)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replay, err := s.SaveArtifactCollectorJob(ctx, e.ID, e.Version-1, j); err != nil || replay.Version != e.Version {
+		t.Fatal("observed Job receipt not idempotent", err)
+	}
+	replacement := j
+	replacement.UID = "replacement-job"
+	if _, err = s.SaveArtifactCollectorJob(ctx, e.ID, e.Version, replacement); err == nil {
+		t.Fatal("original Job replaced")
 	}
 	m, err := artifacts.NewManifest(source, policy, e.ID, []artifacts.Entry{{Path: "result.txt", Bytes: 3, SHA256: "sha256:" + strings.Repeat("f", 64)}}, nil, e.CreatedAt.Add(2*time.Second))
 	if err != nil {

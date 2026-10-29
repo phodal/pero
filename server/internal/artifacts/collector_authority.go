@@ -17,19 +17,24 @@ type CollectorAuthority struct {
 	ServiceAccount    string    `json:"service_account"`
 	ServiceAccountUID string    `json:"service_account_uid"`
 	PodUID            string    `json:"pod_uid"`
+	PodName           string    `json:"pod_name"`
+	JobUID            string    `json:"job_uid"`
 	Audience          string    `json:"audience"`
 	ExpiresAt         time.Time `json:"expires_at"`
 }
 
 func (e Export) BindCollector(a CollectorAuthority, now time.Time) (Export, error) {
 	a.ExpiresAt = a.ExpiresAt.UTC()
-	for _, key := range []string{a.Namespace, a.ServiceAccount, a.ServiceAccountUID, a.PodUID} {
+	for _, key := range []string{a.Namespace, a.ServiceAccount, a.ServiceAccountUID, a.PodUID, a.PodName, a.JobUID} {
 		if !keyPattern.MatchString(key) {
 			return e, ErrInvalid
 		}
 	}
 	if a.Namespace != e.Source.Namespace || a.Audience != CollectorAudience || !a.ExpiresAt.After(now) || a.ExpiresAt.After(now.Add(MaxCollectionDuration)) {
 		return e, ErrInvalid
+	}
+	if e.CollectorJob == nil || e.CollectorJob.UID == "" || e.CollectorJob.UID != a.JobUID || e.CollectorJob.ServiceAccount != a.ServiceAccount || e.CollectorJob.ServiceAccountUID != a.ServiceAccountUID || a.ExpiresAt.After(e.CollectorJob.ExpiresAt) {
+		return e, ErrConflict
 	}
 	if e.Collector != nil && reflect.DeepEqual(*e.Collector, a) {
 		return e, nil
