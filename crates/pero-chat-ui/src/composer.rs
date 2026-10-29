@@ -189,7 +189,7 @@ impl ChatPanel {
                                 this.remove_composer_context(i, window, cx);
                             }))
                         ).when(cfg!(target_family="wasm"), |row| row.child(
-                            Button::new(("preview-context",i)).ghost().small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height())).label(self.t("composer.preview"))
+                            Button::new(("preview-context",i)).relative().children(self.context_preview_bounds.get(&file.id).map(|bounds|bounds.probe())).ghost().small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height())).label(self.t("composer.preview"))
                                 .on_click(cx.listener(move|_,_,_,cx|cx.emit(crate::ChatAction::PreviewContext{reference:preview.clone(),thread_id:thread_id.clone()})))
                         ))
                     }),

@@ -142,7 +142,11 @@ try {
   await expect.poll(async()=>(await state()).attachments.length).toBe(3);
   expect((await active()).messages.filter(message=>message.role==='user')).toHaveLength(usersBefore);
   await page.screenshot({path:join(output,'frozen-draft.png')});
-  {const bounds=await chat.locator('canvas').boundingBox();await page.mouse.click(bounds.x+320,bounds.y+bounds.height-129);}
+  expect((await state()).contextPreviewBounds.filter(item=>item.image)).toHaveLength(1);
+  await expect.poll(async()=>{const bounds=(await state()).contextPreviewBounds.find(item=>item.image)?.bounds;return Boolean(bounds&&bounds.width>0&&bounds.height>0);}).toBe(true);
+  const capturePreview=(await state()).contextPreviewBounds.find(item=>item.image);
+  const chatCanvas=await chat.locator('canvas').boundingBox();
+  await page.mouse.click(chatCanvas.x+capturePreview.bounds.x+capturePreview.bounds.width/2,chatCanvas.y+capturePreview.bounds.y+capturePreview.bounds.height/2);
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('textbox',{name:'Annotation note'}).fill('Inspect the selected cells in this frozen frame');
   await page.getByRole('button',{name:'Mark whole image'}).click();await page.getByRole('button',{name:'Undo region'}).click();
@@ -157,6 +161,7 @@ try {
   expectedScenario='context';
   {const bounds=await chat.locator('canvas').boundingBox();await page.mouse.click(bounds.x+150,bounds.y+bounds.height-70);await page.keyboard.press('Enter');}
   const frozen=await result();expect(frozen.error).toBeUndefined();
+  expect((await state()).contextPreviewBounds).toEqual([]);
   expect(frozen.contexts.find(context=>context.schema==='pero.app-object.v1').state.view).toBe('cells');expect(frozen.images).toBe(1);expect(frozen.contexts.find(context=>context.schema==='pero.app-annotations.v1')).toMatchObject({note:'Inspect the selected cells in this frozen frame',regions:[{x:0,y:0}]});
   await frame.getByRole('tab',{name:'Cells & perturbations'}).click();
   checks.push('SDK object refs and parent-cropped screenshot enter the draft without sending, preserve revisions after App changes, and reach ACP as frozen JSON plus pixels');

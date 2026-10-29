@@ -78,3 +78,27 @@ Ten local checks passed using the actual scoped `ContentArtifacts` reader,
 including multi-chunk Unicode, inline values, cross-conversation rejection and
 malformed/error/truncated/tampered results. Real Electron completion remains
 pending the next CI execution.
+
+## Actual capture preview geometry
+
+Run40926789882 at head890b843 passed initial draft identity, denial, full App Use
+operations and bounded content-reference retrieval, then failed opening the image
+annotation dialog. The retained frozen-draft screenshot shows all three context
+chips and the image Preview button. The fixed canvas-relative click targets empty
+space after current typography wraps the chips; no capture or dialog error was
+observed. Artifact12920773407 SHA256
+`4146f86c26973084480c77c435da541d95e8b6dd690f5e4c9440a6903632cbb3`.
+
+Reuse the existing painted ViewBounds diagnostic for attachment Preview controls,
+keyed by current reference ID and pruned with composer attachments. The test finds
+the single image reference and clicks its actual button center through the iframe
+canvas origin. It retains the real dialog, undo, annotation, frozen-context and
+ACP assertions, and checks the projection clears after submission. No layout,
+preview action, timeout or acceptance predicate is relaxed.
+
+A finite audit of the remaining Product and Workbench suites found their DOM
+labels and App Use response contracts still present. Remaining canvas coordinate
+clicks select composer, permission or navigation controls; they are not changed
+without evidence of failure. Full remaining Electron execution is required.
+Local Wasm compilation, Chat UI concept tests and JS syntax checks passed; this
+environment still lacks the built Web distribution and Xvfb for native E2E.
