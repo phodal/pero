@@ -18,6 +18,9 @@
         },
         "instance_id": {
           "$ref": "#/$defs/Id"
+        },
+        "runtime_pod_uid": {
+          "$ref": "#/$defs/Id"
         }
       },
       "required": [
@@ -633,6 +636,12 @@
           "$ref": "#/$defs/Complete"
         },
         {
+          "$ref": "#/$defs/RuntimeBinding"
+        },
+        {
+          "$ref": "#/$defs/SandboxDispatchResult"
+        },
+        {
           "$ref": "#/$defs/ErrorResponse"
         }
       ]
@@ -875,6 +884,303 @@
           "const": "reconcile"
         }
       ]
+    },
+    "RuntimeAttributes": {
+      "title": "RuntimeAttributes",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "RuntimeBinding": {
+      "title": "RuntimeBinding",
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "request_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "config": {
+          "$ref": "#/$defs/SandboxConfig"
+        },
+        "phase": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "pending"
+            },
+            {
+              "type": "string",
+              "const": "ready"
+            },
+            {
+              "type": "string",
+              "const": "reconcile"
+            },
+            {
+              "type": "string",
+              "const": "cleanup_pending"
+            },
+            {
+              "type": "string",
+              "const": "released"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/RuntimeResource"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/RuntimeObservation"
+        },
+        "valid_until": {
+          "type": "string"
+        },
+        "release_requested": {
+          "type": "boolean"
+        },
+        "cleanup_receipt": {
+          "$ref": "#/$defs/RuntimeReference"
+        }
+      },
+      "required": [
+        "run_id",
+        "request_id",
+        "version",
+        "config",
+        "phase",
+        "reason",
+        "created_at",
+        "release_requested"
+      ],
+      "additionalProperties": false
+    },
+    "RuntimeCondition": {
+      "title": "RuntimeCondition",
+      "type": "object",
+      "properties": {
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "True"
+            },
+            {
+              "type": "string",
+              "const": "False"
+            },
+            {
+              "type": "string",
+              "const": "Unknown"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "RuntimeObservation": {
+      "title": "RuntimeObservation",
+      "type": "object",
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/RuntimeResource"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeReference"
+        },
+        "receipt": {
+          "$ref": "#/$defs/RuntimeReference"
+        },
+        "observedAt": {
+          "type": "string"
+        },
+        "ready": {
+          "$ref": "#/$defs/RuntimeCondition"
+        },
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RuntimeReference"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RuntimeReference"
+          }
+        },
+        "attributes": {
+          "$ref": "#/$defs/RuntimeAttributes"
+        },
+        "leaseExpiresAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource",
+        "receipt",
+        "observedAt",
+        "ready"
+      ],
+      "additionalProperties": false
+    },
+    "RuntimeOwner": {
+      "title": "RuntimeOwner",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "RuntimeReference": {
+      "title": "RuntimeReference",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "RuntimeResource": {
+      "title": "RuntimeResource",
+      "type": "object",
+      "properties": {
+        "owner": {
+          "$ref": "#/$defs/RuntimeOwner"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "incarnation": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "owner",
+        "kind",
+        "scope",
+        "id",
+        "incarnation"
+      ],
+      "additionalProperties": false
+    },
+    "SandboxConfig": {
+      "title": "SandboxConfig",
+      "type": "object",
+      "properties": {
+        "cluster_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "warm_pool": {
+          "type": "string"
+        },
+        "worker_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "project_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "workspace_key": {
+          "$ref": "#/$defs/Id"
+        },
+        "agent_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "image_digest": {
+          "type": "string"
+        },
+        "workspace_revision": {
+          "type": "string"
+        },
+        "template_digest": {
+          "type": "string"
+        },
+        "ttl_seconds": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cluster_id",
+        "namespace",
+        "warm_pool",
+        "worker_id",
+        "project_id",
+        "workspace_key",
+        "agent_id",
+        "image_digest",
+        "workspace_revision",
+        "template_digest",
+        "ttl_seconds"
+      ],
+      "additionalProperties": false
+    },
+    "SandboxDispatchResult": {
+      "title": "SandboxDispatchResult",
+      "type": "object",
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/Run"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeBinding"
+        }
+      },
+      "required": [
+        "run",
+        "runtime"
+      ],
+      "additionalProperties": false
     },
     "Source": {
       "title": "Source",

@@ -143,7 +143,7 @@ model EnrollWorker { device_id: Id; request_id: Id; name: string; projects: stri
 model DisableWorkerResult { disabled: boolean; ...Closed }
 model WorkerCredential { worker: Worker; token: string; ...Closed }
 model Dispatch { worker_id?: string; ...Closed }
-model Claim { request_id: Id; instance_id: Id; ...Closed }
+model Claim { request_id: Id; instance_id: Id; runtime_pod_uid?: Id; ...Closed }
 model ClaimResult { run: Run | null; ...Closed }
 model LeaseIdentity { generation: safeint; instance_id: Id; ...Closed }
 model RenewResult { cancel_requested: boolean; lease_expires_at: string; ...Closed }
@@ -151,5 +151,34 @@ model EventBatch { ...LeaseIdentity; events: RunEvent[]; ...Closed }
 model Complete { ...LeaseIdentity; outcome: Outcome; @maxLength(16000) summary: string; ...Closed }
 model ErrorResponse { error: string; ...Closed }
 
+
+// Operator-only resource bindings are audit evidence, never execution grants.
+model RuntimeReference { kind: string; id: string; revision?: string; digest?: string; ...Closed }
+model RuntimeOwner { kind: string; id: string; ...Closed }
+model RuntimeResource { owner: RuntimeOwner; kind: string; scope: string; id: string; incarnation: string; ...Closed }
+model RuntimeCondition { status: "True" | "False" | "Unknown"; reason: string; ...Closed }
+model RuntimeAttributes { ...Record<string>; }
+model RuntimeObservation {
+  resource: RuntimeResource; runtime?: RuntimeReference; receipt: RuntimeReference;
+  observedAt: string; ready: RuntimeCondition; states?: RuntimeReference[];
+  artifacts?: RuntimeReference[]; attributes?: RuntimeAttributes; leaseExpiresAt?: string;
+  ...Closed;
+}
+model SandboxConfig {
+  cluster_id: Id; `namespace`: string; warm_pool: string; worker_id: Id; project_id: Id;
+  workspace_key: Id; agent_id: Id; image_digest: string; workspace_revision: string;
+  template_digest: string; ttl_seconds: safeint;
+  ...Closed;
+}
+model RuntimeBinding {
+  run_id: Id; request_id: Id; version: safeint; config: SandboxConfig;
+  phase: "pending" | "ready" | "reconcile" | "cleanup_pending" | "released";
+  reason: string; created_at: string; resource?: RuntimeResource;
+  snapshot?: RuntimeObservation; valid_until?: string; release_requested: boolean;
+  cleanup_receipt?: RuntimeReference;
+  ...Closed;
+}
+model SandboxDispatchResult { run: Run; runtime: RuntimeBinding; ...Closed }
+
 @oneOf
-union RemoteProtocol { TaskSpec, Task, Run, Worker, RunEvent, RemoteState, TaskPage, EventReceipt, ProvisionWorker, EnrollWorker, WorkerCapability, DisableWorkerResult, WorkerCredential, ClientCredential, Identity, GitHubStatus, GitHubSyncResult, Dispatch, Claim, ClaimResult, LeaseIdentity, RenewResult, EventBatch, Complete, ErrorResponse }
+union RemoteProtocol { TaskSpec, Task, Run, Worker, RunEvent, RemoteState, TaskPage, EventReceipt, ProvisionWorker, EnrollWorker, WorkerCapability, DisableWorkerResult, WorkerCredential, ClientCredential, Identity, GitHubStatus, GitHubSyncResult, Dispatch, Claim, ClaimResult, LeaseIdentity, RenewResult, EventBatch, Complete, RuntimeBinding, SandboxDispatchResult, ErrorResponse }

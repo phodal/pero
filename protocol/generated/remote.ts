@@ -29,6 +29,8 @@ export type RemoteProtocol1 =
   | RenewResult
   | EventBatch
   | Complete
+  | RuntimeBinding
+  | SandboxDispatchResult
   | ErrorResponse;
 export type Id = string;
 export type TaskStatus = "draft" | RunStatus;
@@ -235,6 +237,7 @@ export interface Dispatch {
 export interface Claim {
   request_id: Id;
   instance_id: Id;
+  runtime_pod_uid?: Id;
 }
 export interface ClaimResult {
   run: Run | null;
@@ -273,6 +276,72 @@ export interface Complete {
     | Id
     | Outcome
     | undefined;
+}
+export interface RuntimeBinding {
+  run_id: Id;
+  request_id: Id;
+  version: number;
+  config: SandboxConfig;
+  phase: "pending" | "ready" | "reconcile" | "cleanup_pending" | "released";
+  reason: string;
+  created_at: string;
+  resource?: RuntimeResource;
+  snapshot?: RuntimeObservation;
+  valid_until?: string;
+  release_requested: boolean;
+  cleanup_receipt?: RuntimeReference;
+}
+export interface SandboxConfig {
+  cluster_id: Id;
+  namespace: string;
+  warm_pool: string;
+  worker_id: Id;
+  project_id: Id;
+  workspace_key: Id;
+  agent_id: Id;
+  image_digest: string;
+  workspace_revision: string;
+  template_digest: string;
+  ttl_seconds: number;
+}
+export interface RuntimeResource {
+  owner: RuntimeOwner;
+  kind: string;
+  scope: string;
+  id: string;
+  incarnation: string;
+}
+export interface RuntimeOwner {
+  kind: string;
+  id: string;
+}
+export interface RuntimeObservation {
+  resource: RuntimeResource;
+  runtime?: RuntimeReference;
+  receipt: RuntimeReference;
+  observedAt: string;
+  ready: RuntimeCondition;
+  states?: RuntimeReference[];
+  artifacts?: RuntimeReference[];
+  attributes?: RuntimeAttributes;
+  leaseExpiresAt?: string;
+}
+export interface RuntimeReference {
+  kind: string;
+  id: string;
+  revision?: string;
+  digest?: string;
+}
+export interface RuntimeCondition {
+  status: "True" | "False" | "Unknown";
+  reason: string;
+}
+export interface RuntimeAttributes {
+  [k: string]: string | undefined;
+}
+export interface SandboxDispatchResult {
+  run: Run;
+  runtime: RuntimeBinding;
 }
 export interface ErrorResponse {
   error: string;

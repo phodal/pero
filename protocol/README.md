@@ -39,3 +39,10 @@ Desktop main-process adapter validates responses before forwarding credential-fr
 `remote_state` snapshots. Go owns authorization and Run transitions; ACP remains
 the Worker-to-Agent protocol. Progress polls persisted state and an explicitly
 marked event tail; resumable SSE remains a later slice. See [ADR 0002](../docs/adr/0002-remote-task-dispatch.md).
+
+The optional Worker Claim `runtime_pod_uid` is persisted with the original claim
+request. It is a trusted-pool identity guard, not Kubernetes attestation. Runtime
+Worker credentials cannot omit it to consume ordinary tasks. Operator-only
+`RuntimeBinding` / `SandboxDispatchResult` carry the fixed reviewed configuration,
+observed resource/runtime snapshot and separate cleanup receipt; none is an
+execution grant or a bearer credential. See ADR 0012 for the opt-in endpoints.
