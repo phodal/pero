@@ -15,6 +15,7 @@ import (
 )
 
 type coldAPI struct {
+	listContinue                   bool
 	mu                             sync.Mutex
 	objects                        map[string]map[string]any
 	posts, deletes                 map[string]int
@@ -161,7 +162,12 @@ func (c *coldAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
-			json.NewEncoder(w).Encode(map[string]any{"apiVersion": "v1", "kind": "PodList", "items": items})
+			metadata := map[string]any{}
+			if c.listContinue {
+				metadata["continue"] = "more"
+				items = nil
+			}
+			json.NewEncoder(w).Encode(map[string]any{"apiVersion": "v1", "kind": "PodList", "metadata": metadata, "items": items})
 			return
 		}
 		value, exists := c.objects[key]

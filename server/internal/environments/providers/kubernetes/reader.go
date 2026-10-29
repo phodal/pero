@@ -36,6 +36,7 @@ type Metadata struct {
 	ResourceVersion   string `json:"resourceVersion"`
 	Generation        int64  `json:"generation"`
 	DeletionTimestamp string `json:"deletionTimestamp"`
+	Continue          string `json:"continue,omitempty"`
 	// PodName is the only annotation projected: the Pod a warm-pool adoption
 	// kept. All other annotations are discarded while decoding.
 	PodName string `json:"-"`

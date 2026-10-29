@@ -218,7 +218,7 @@ func (o *CollectorOwner) pods(ctx context.Context, ref CollectorRef) ([]coldObje
 	if err != nil {
 		return nil, err
 	}
-	if list.Kind != "PodList" || list.APIVersion != "v1" || len(list.Items) > 1 {
+	if list.Kind != "PodList" || list.APIVersion != "v1" || list.Metadata.Continue != "" || len(list.Items) > 1 {
 		return nil, model.ErrIdentity
 	}
 	return list.Items, nil

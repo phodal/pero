@@ -87,7 +87,7 @@ func TestCollectorOriginalJobAndReadOnlyMount(t *testing.T) {
 	})
 }
 func TestCollectorRejectsIdentityOrMountDrift(t *testing.T) {
-	for _, field := range []string{"pv", "sa", "pod-volume", "pod-symlink-env", "job-uid", "pending-status"} {
+	for _, field := range []string{"pv", "sa", "pod-volume", "pod-symlink-env", "job-uid", "pending-status", "partial-list"} {
 		t.Run(field, func(t *testing.T) {
 			owner, api, request, ref := collectorFixture(t)
 			ref, err := owner.Provision(t.Context(), request, ref)
@@ -109,6 +109,8 @@ func TestCollectorRejectsIdentityOrMountDrift(t *testing.T) {
 					c.objects["jobs/"+ref.Name]["metadata"].(map[string]any)["uid"] = "replacement"
 				case "pending-status":
 					delete(pod, "status")
+				case "partial-list":
+					c.listContinue = true
 				}
 			})
 			_, err = owner.Observe(t.Context(), request, ref)
