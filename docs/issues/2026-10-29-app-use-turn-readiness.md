@@ -35,3 +35,22 @@ ordering explicit instead of relying on machine speed.
 
 The gated-start Product flow passed: the pre-Host draft remained `draft`, kept
 its identity and completed the complete App Use/context/file/write sequence.
+
+## Initial workspace binding after automatic preparation
+
+The later automatic Agent-preparation change exposed a distinct startup
+regression: the first Host workspace event replaced the existing unbound draft
+as if the user had switched an already-bound session to another directory.
+The gated-start App Use CI caught its thread identity changing before a prompt.
+
+Initial workspace discovery now binds an unbound `Draft` in place. Existing
+bound-session workspace changes retain their replacement behavior. The gated
+acceptance keeps the original thread identity assertion and now waits for the
+intended automatically prepared `idle` state, with the fixture session ID, no
+error and no messages, instead of requiring the obsolete unprepared state.
+
+Local verification: 27 Chat UI/contracts tests, the affected Chat UI Wasm
+compile check, JavaScript syntax and diff checks passed. The complete Chat Web
+check stopped on five missing generated font files; the local workspace also
+lacks a built web distribution and Xvfb. The corrected real Electron gated-start
+flow remains pending CI, rather than being reported as a local UI pass.

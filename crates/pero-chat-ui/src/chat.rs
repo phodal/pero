@@ -469,9 +469,13 @@ impl ChatPanel {
         }
         if event.kind == "workspace" {
             self.workspace = event.text.clone();
-            if let Some(chat) = self.active_chat.and_then(|i| self.chats.get(i)) {
-                if chat.workspace != self.workspace && chat.can_retarget() {
-                    self.replace_empty_session(chat.agent.clone(), cx);
+            if let Some(chat) = self.active_chat.and_then(|i| self.chats.get_mut(i)) {
+                if chat.state == SessionState::Draft && chat.workspace.is_empty() {
+                    // Initial Host discovery binds the retained draft, not a new conversation.
+                    chat.workspace = self.workspace.clone();
+                } else if chat.workspace != self.workspace && chat.can_retarget() {
+                    let agent = chat.agent.clone();
+                    self.replace_empty_session(agent, cx);
                 }
             }
             self.prepare_chat(cx);

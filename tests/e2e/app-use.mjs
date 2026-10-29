@@ -54,7 +54,13 @@ try {
   await expect.poll(()=>page.frames().some(frame=>frame.url().startsWith('pero://chat/'))).toBe(true);
   const startingChat=page.frames().find(frame=>frame.url().startsWith('pero://chat/'));
   await startingChat.waitForFunction(()=>window.peroChatDiagnostics&&JSON.parse(window.peroChatDiagnostics.snapshot()).chats.length===1,undefined,{timeout:60000});
-  startingDraft=await startingChat.evaluate(()=>{const state=JSON.parse(window.peroChatDiagnostics.snapshot());return state.chats[state.activeChat].id;});
+  const initialDraft=await startingChat.evaluate(()=>{const state=JSON.parse(window.peroChatDiagnostics.snapshot());return state.chats[state.activeChat];});
+  expect(initialDraft.state).toBe('draft');
+  expect(initialDraft.session_id).toBe('');
+  expect(initialDraft.error).toBeNull();
+  expect(initialDraft.messages).toEqual([]);
+  expect(initialDraft.scope).toEqual({app:'virtual-cell',panel:'main'});
+  startingDraft=initialDraft.id;
   await writeFile(join(temp,'release-host'),'release');
   }
   const frame = page.frameLocator('iframe[title="virtual-cell"]');
@@ -66,7 +72,16 @@ try {
   const state = () => chat.evaluate(() => JSON.parse(window.peroChatDiagnostics.snapshot()));
   const active = async () => { const snapshot = await state(); return snapshot.chats[snapshot.activeChat]; };
   await expect.poll(async () => (await state()).agents?.length || 0).toBeGreaterThan(0);
-  if(startingDraft){expect((await active()).id).toBe(startingDraft);expect((await active()).state).toBe('draft');expect((await active()).error).toBeNull();checks.push('Chat draft initializes before the real Host startup signal and remains usable when the Host is released');}
+  if(startingDraft){
+    await expect.poll(async()=>(await active()).state).toBe('idle');
+    const prepared = await active();
+    expect(prepared.id).toBe(startingDraft);
+    expect(prepared.session_id).toBe('app-use-fixture');
+    expect(prepared.error).toBeNull();
+    expect(prepared.messages).toEqual([]);
+    expect(prepared.scope).toEqual({app:'virtual-cell',panel:'main'});
+    checks.push('Chat draft initializes before the real Host startup signal and keeps its identity through automatic session preparation');
+  }
   let expectedScenario;
   const submit = async (prompt, approval = false) => {
     expectedScenario = prompt.replace(/^app-use:/, '');
