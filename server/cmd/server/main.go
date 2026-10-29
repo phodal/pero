@@ -69,14 +69,20 @@ func run() error {
 		listen = "127.0.0.1:8787"
 	}
 	var runtime *sandbox.Runtime
+	var profile *sandbox.ConfiguredProfile
 	if path := os.Getenv("PERO_SANDBOX_CONFIG"); path != "" {
-		runtime, err = sandbox.FromFile(ctx, db, path)
+		profile, err = sandbox.LoadProfile(ctx, db, path)
 		if err != nil {
 			return fmt.Errorf("configure sandbox runtime: %w", err)
 		}
+		runtime = profile.Runtime
 		runtime.Start(ctx)
 	}
-	handler, err := community.Handler(db, token, community.FromEnv(), httpapi.HandlerWithSandbox(db, token, runtime, sources))
+	api := httpapi.HandlerWithSandbox(db, token, runtime, sources)
+	if profile != nil && profile.Gateway != nil {
+		api = httpapi.HandlerWithIsolatedRuntime(db, token, runtime, profile.Gateway, profile.Reviewer, profile.Objects, sources)
+	}
+	handler, err := community.Handler(db, token, community.FromEnv(), api)
 	if err != nil {
 		return err
 	}

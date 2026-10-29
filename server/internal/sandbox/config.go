@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/phodal/pero/server/internal/environments/providers/kubernetes"
@@ -24,21 +23,33 @@ type FileConfig struct {
 	APIURL    string                `json:"api_url"`
 	TokenFile string                `json:"token_file"`
 	CAFile    string                `json:"ca_file"`
+	Isolated  *IsolatedFileConfig   `json:"isolated,omitempty"`
 }
 
 type bearerTransport struct {
-	token string
-	base  http.RoundTripper
+	tokenFile string
+	base      http.RoundTripper
 }
 
 func (t bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	value, err := readSecret(t.tokenFile, 16*1024)
+	if err != nil {
+		return nil, err
+	}
 	copy := req.Clone(req.Context())
 	copy.Header = req.Header.Clone()
-	copy.Header.Set("Authorization", "Bearer "+t.token)
+	copy.Header.Set("Authorization", "Bearer "+value)
 	return t.base.RoundTrip(copy)
 }
 
 func FromFile(ctx context.Context, db *store.Store, path string) (*Runtime, error) {
+	profile, err := LoadProfile(ctx, db, path)
+	if err != nil {
+		return nil, err
+	}
+	return profile.Runtime, nil
+}
+func LoadProfile(ctx context.Context, db *store.Store, path string) (*ConfiguredProfile, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("sandbox configuration is unavailable")
@@ -53,13 +64,8 @@ func FromFile(ctx context.Context, db *store.Store, path string) (*Runtime, erro
 	if err = decoder.Decode(new(any)); err != io.EOF || config.Runtime.Validate() != nil || config.TokenFile == "" {
 		return nil, runtimebinding.ErrInvalid
 	}
-	token, err := os.ReadFile(config.TokenFile)
-	if err != nil {
-		return nil, fmt.Errorf("sandbox controller token file is unavailable")
-	}
-	value := strings.TrimSpace(string(token))
-	if value == "" || len(value) > 16*1024 || strings.ContainsAny(value, "\r\n") {
-		return nil, fmt.Errorf("invalid sandbox controller token")
+	if _, err = readSecret(config.TokenFile, 16*1024); err != nil {
+		return nil, err
 	}
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 	if config.CAFile != "" {
@@ -75,7 +81,13 @@ func FromFile(ctx context.Context, db *store.Store, path string) (*Runtime, erro
 	}
 	// Do not inherit HTTP_PROXY or ambient kubeconfig/service-account credentials.
 	transport := &http.Transport{TLSClientConfig: tlsConfig, ResponseHeaderTimeout: 3 * time.Second, IdleConnTimeout: 30 * time.Second}
-	client := &http.Client{Transport: bearerTransport{value, transport}, Timeout: 4 * time.Second}
+	client := &http.Client{Transport: bearerTransport{config.TokenFile, transport}, Timeout: 4 * time.Second}
+	if config.Runtime.IsIsolated() {
+		return loadIsolated(ctx, db, config, client)
+	}
+	if config.Isolated != nil {
+		return nil, runtimebinding.ErrInvalid
+	}
 	reader, err := kubernetes.NewHTTPReader(config.APIURL, client)
 	if err != nil {
 		return nil, err
@@ -92,5 +104,9 @@ func FromFile(ctx context.Context, db *store.Store, path string) (*Runtime, erro
 	if err != nil {
 		return nil, err
 	}
-	return New(ctx, db, claims, config.Runtime)
+	runtime, err := New(ctx, db, claims, config.Runtime)
+	if err != nil {
+		return nil, err
+	}
+	return &ConfiguredProfile{Runtime: runtime}, nil
 }
