@@ -89,3 +89,12 @@ with a colon-prefixed archive argument. Fresh production `prepareWebBackend()`
 extraction and patch application passed in a temporary path containing spaces
 and a colon; Linux `node scripts/cargo.mjs check -p pero-contracts` passed.
 Native Windows execution remains a CI acceptance step, not a local claim.
+
+The pinned sync added only the missing root importer for the already-declared
+`@modelcontextprotocol/sdk` 1.32.2 (`zod` 4.6.7), plus its three input hashes.
+Removing those three importer lines reproduces the prior pnpm lock byte for
+byte: all package and snapshot entries are unchanged. `package.json`,
+`package-lock.json`, and `MODULE.bazel.lock` are byte-identical to the integrated
+head. The original frozen check failed before sync; afterward
+`bazel test --config=ci //:checks` executed all seven checks successfully, with
+no lock rewrite. The sync used writable XDG data/cache paths in this container.
