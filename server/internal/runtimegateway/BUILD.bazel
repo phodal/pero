@@ -1,0 +1,3 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+go_library(name="runtimegateway",srcs=["gateway.go","provider.go"],importpath="github.com/phodal/pero/server/internal/runtimegateway",visibility=["//server:__subpackages__"],deps=["//server/internal/runtimeauth","//server/internal/runtimechannel","//server/internal/store"])
+go_test(name="runtimegateway_test",srcs=["provider_test.go","gateway_test.go"],embed=[":runtimegateway"],deps=["//server/internal/runtimeauth","//server/internal/runtimechannel"])
