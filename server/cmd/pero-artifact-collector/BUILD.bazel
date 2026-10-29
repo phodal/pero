@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "collector_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/phodal/pero/server/cmd/pero-artifact-collector",
+    visibility = ["//visibility:private"],
+    deps = ["//server/internal/artifacts", "//server/internal/artifacts/collector"],
+)
+
+go_binary(
+    name = "pero-artifact-collector",
+    embed = [":collector_lib"],
+    visibility = ["//visibility:public"],
+)
