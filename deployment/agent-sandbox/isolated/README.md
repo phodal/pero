@@ -21,7 +21,7 @@ keys, tokens, and build contexts.
 Required evidence, not just YAML:
 
 1. All synthetic destinations are reachable from an unrestricted positive
-   control before testing denial. Both probes use the same runsc runtime. The gate is explicitly IPv4-only: kind/Cilium IPv6 is disabled and each probe rejects any non-loopback IPv6 interface address. Dual-stack is not accepted by this fixture.
+   control before testing denial. Both probes use the same runsc runtime. The gate is explicitly IPv4-only: kind/Cilium IPv6 is disabled, the trusted CNI prerequisite below removes Pod-netns IPv6 before runsc starts, and each probe rejects any non-loopback IPv6 interface address. Dual-stack is not accepted by this fixture.
 2. The isolated probe can reach its relay but cannot connect to same-namespace
    or cross-namespace neighbors, the API server, the node, or synthetic
    metadata/public-IP destinations, including a controlled UDP/53 DNS reply. The first forbidden successful connection
@@ -67,6 +67,57 @@ StorageClass is single-node test storage; passing retained-PVC tests does not
 qualify it as a production CSI backend. Actual production CSI and supported
 object-store acceptance remains a separate deployment prerequisite.
 
+## IPv4-only deployment prerequisite
+
+This is a requirement of the isolated profile, not just a CI workaround.
+`ipv6.enabled=false` in Cilium 1.20.4 does **not** remove Linux-created Pod
+link-local IPv6 addresses. The strict gate observed one and correctly failed.
+The pinned [Cilium CNI source](https://github.com/cilium/cilium/blob/v1.20.4/plugins/cilium-cni/cmd/cmd.go)
+only enables IPv6 when requested; it has no corresponding disable operation.
+[gVisor imports the container network namespace](https://gvisor.dev/docs/user_guide/networking/),
+so removing addresses must happen in the trusted CNI lifecycle before runsc
+imports them. No link-local exemption or Agent sysctl/capability grant is used.
+
+`ipv4-cni.mjs` fixes the CNI 1.0.0 chain to `cilium-cni` then official `tuning`.
+Only `net.ipv6.conf.all.disable_ipv6=1` and
+`net.ipv6.conf.default.disable_ipv6=1` are configured. According to the
+[Linux network sysctl contract](https://docs.kernel.org/networking/ip-sysctl.html),
+disabling an interface removes its IPv6 addresses/routes; the default covers
+new interfaces. Reading only the `all` flag is not proof of interface state,
+so both canaries **and each actual product Pod** retain address-inventory gates.
+
+The [pinned tuning implementation](https://github.com/containernetworking/plugins/blob/v1.9.1/plugins/meta/tuning/tuning.go)
+enters the CRI-supplied network namespace before writes, fails ADD on namespace
+entry/write errors, and returns the primary plugin's unchanged `prevResult`.
+Empty, missing or invalid namespace paths fail entry; a valid host namespace
+supplied by a compromised node administrator is **not** rejected by this plugin.
+The CRI/CNI/node administrator remains trusted. No workload input supplies its
+namespace path or `CNI_ARGS`; the fixed config contains no `args`,
+`runtimeConfig`, capabilities, MAC, MTU or other interface changes. The exact
+two-key anchored allowlist is installed and read back **before Cilium starts**;
+upstream treats a missing allowlist as unrestricted, so absence is never accepted.
+
+Only the pinned `tuning` binary is installed under the owned node's
+`/opt/cni/bin`, not the rest of the release bundle. An immutable ConfigMap is
+Cilium's custom conflist source. With `cni.configMap` and `cni.exclusive=true`,
+the [pinned config manager](https://github.com/cilium/cilium/blob/v1.20.4/daemon/cmd/cni/config.go)
+maintains that source instead of regenerating a chain without tuning.
+`cni.customConf` stays false so the chart retains the exclusive watcher.
+The fixture verifies installed bytes, binary SHA-256, root ownership/modes,
+absence of competing CNI configs, and unchanged node-global `all`/`default`
+values after installation, canaries and product cases. All nine reachability/
+denial targets and existing product/runtime checks remain required.
+
+The custom chain affects newly created, non-hostNetwork Pod network namespaces
+on the **one owned test node**, including test infrastructure Pods. It does not
+retrofit existing namespaces or change host-global IPv6 settings. Pure sysctl
+configuration creates no tuning backup; tuning DEL does **not** restore these
+sysctls. Namespace destruction removes their effects, and cluster teardown
+removes the binary, allowlist and config. No production configuration is applied.
+A production operator must install/protect and validate an equivalent pinned
+prerequisite on its dedicated runtime nodes before scheduling hostile Pods;
+this fixture is not acceptance of another CNI/kernel/runtime combination.
+
 ## Pins and provenance
 
 `pins.json` contains versioned official download URLs and SHA-256 checksums.
@@ -85,6 +136,11 @@ values; rendered component images must all contain a digest.
   and [Kubernetes compatibility](https://docs.cilium.io/en/stable/network/kubernetes/requirements/).
   kind's default CNI is disabled, and localhost policy bypass is disabled for
   the controlled node canary. Actual negative tests remain mandatory.
+- [Official CNI plugins v1.9.1](https://github.com/containernetworking/plugins/releases/tag/v1.9.1),
+  Apache-2.0; [raw upstream checksum](https://github.com/containernetworking/plugins/releases/download/v1.9.1/cni-plugins-linux-amd64-v1.9.1.tgz.sha256).
+  Both archive and extracted tuning binary hashes are pinned. The raw release
+  checksum, installed configuration/allowlist, binary hashes and node-default
+  observations are retained with the acceptance evidence.
 - [Agent Sandbox v1.0.2](https://github.com/kubernetes-sigs/agent-sandbox/releases/tag/v1.0.2).
   Both manifest checksum and controller image digest are pinned.
 - [MinIO RELEASE.2025-10-15T17-29-55Z](https://github.com/minio/minio/releases/tag/RELEASE.2025-10-15T17-29-55Z)

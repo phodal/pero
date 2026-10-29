@@ -67,6 +67,16 @@ if kind get clusters 2>/dev/null | grep -Fxq "$cluster"; then echo 'Refusing exi
 for name in "$registry" "$minio"; do if docker inspect "$name" >/dev/null 2>&1; then echo 'Refusing existing container' >&2; exit 2; fi; done
 verified gvisor "$work/gvisor.tar.bz2"
 verified cilium "$work/cilium.tgz"
+verified cniPlugins "$work/cni-plugins.tgz"
+fetch "$(jq -r .cniPlugins.checksumUrl "$pins")" "$evidence/cni-plugins-release.sha256"
+printf '%s  cni-plugins-linux-amd64-%s.tgz\n' "$(jq -r .cniPlugins.sha256 "$pins")" "$(jq -r .cniPlugins.version "$pins")" > "$work/cni-plugins.expected.sha256"
+cmp "$work/cni-plugins.expected.sha256" "$evidence/cni-plugins-release.sha256"
+# Extract only the reviewed post-plugin, never install the rest of the bundle.
+mkdir "$work/cni"
+tar -xzf "$work/cni-plugins.tgz" -C "$work/cni" ./tuning
+printf '%s  %s\n' "$(jq -r .cniPlugins.tuningSha256 "$pins")" "$work/cni/tuning" | sha256sum -c -
+node "$fixture/ipv4-cni.mjs" allowlist > "$work/cni/allowlist.conf"
+node "$fixture/ipv4-cni.mjs" manifest > "$work/cni/configmap.json"
 verified agentSandbox "$work/controller.yaml"
 cat > "$work/kind.yaml" <<'YAML'
 kind: Cluster
@@ -108,10 +118,45 @@ cat <<TOML | docker exec -i "$node" sh -c 'cat >> /etc/containerd/config.toml'
 TOML
 printf '[runsc_config]\nplatform = "systrap"\n' | docker exec -i "$node" sh -c 'cat > /etc/containerd/runsc.toml'
 docker exec "$node" systemctl restart containerd
-helm install cilium "$work/cilium.tgz" --namespace kube-system --set ipam.mode=kubernetes --set operator.replicas=1 --set kubeProxyReplacement=false --set envoy.enabled=false --set ipv6.enabled=false --set extraConfig.allow-localhost=policy --wait --timeout 240s > "$evidence/cilium-install.txt"
+# Only the owned node receives this CNI binary/configuration. The plugin enters
+# the CRI-supplied Pod netns on ADD; no host-global sysctl command is run here.
+docker exec "$node" mkdir -p /opt/cni/bin /etc/cni/tuning
+docker cp "$work/cni/tuning" "$node:/opt/cni/bin/tuning"
+docker cp "$work/cni/allowlist.conf" "$node:/etc/cni/tuning/allowlist.conf"
+docker exec "$node" chown root:root /opt/cni/bin/tuning /etc/cni/tuning/allowlist.conf
+docker exec "$node" chmod 0755 /opt/cni/bin/tuning
+docker exec "$node" chmod 0644 /etc/cni/tuning/allowlist.conf
+# Missing upstream allowlist means allow-all: read back exact bytes BEFORE any
+# Cilium-managed Pod can invoke tuning, not only after networking is ready.
+docker exec "$node" cat /etc/cni/tuning/allowlist.conf | cmp "$work/cni/allowlist.conf" -
+[[ $(docker exec "$node" sha256sum /opt/cni/bin/tuning | cut -d' ' -f1) == "$(jq -r .cniPlugins.tuningSha256 "$pins")" ]]
+node_ipv6_defaults() {
+ docker exec "$node" cat /proc/sys/net/ipv6/conf/all/disable_ipv6 /proc/sys/net/ipv6/conf/default/disable_ipv6
+}
+node_ipv6_defaults > "$evidence/node-ipv6-defaults-before.txt"
+kubectl apply -f "$work/cni/configmap.json"
+# configMap supplies the custom conflist. Keep customConf=false so the pinned
+# chart retains Cilium's exclusive config watcher instead of omitting it.
+helm install cilium "$work/cilium.tgz" --namespace kube-system --set ipam.mode=kubernetes --set operator.replicas=1 --set kubeProxyReplacement=false --set envoy.enabled=false --set ipv6.enabled=false --set extraConfig.allow-localhost=policy --set cni.configMap=pero-isolated-ipv4-only --set cni.exclusive=true --wait --timeout 240s > "$evidence/cilium-install.txt"
 kubectl wait --for=condition=Ready node --all --timeout=180s
 kubectl -n kube-system rollout status daemonset/cilium --timeout=180s
 kubectl -n kube-system exec daemonset/cilium -- cilium-dbg status --verbose > "$evidence/cilium-status.txt"
+verify_ipv4_cni() {
+ local phase=$1
+ docker exec "$node" cat /etc/cni/net.d/05-cilium.conflist > "$evidence/cni-$phase.conflist"
+ docker exec "$node" cat /etc/cni/tuning/allowlist.conf > "$evidence/cni-$phase.allowlist"
+ docker exec "$node" find /etc/cni/net.d -maxdepth 1 \( -name '*.conf' -o -name '*.conflist' -o -name '*.json' \) -printf '%f\n' | sort > "$evidence/cni-$phase.files"
+ node "$fixture/ipv4-cni.mjs" verify "$evidence/cni-$phase.conflist" "$evidence/cni-$phase.allowlist" "$evidence/cni-$phase.files"
+ docker exec "$node" sha256sum /opt/cni/bin/tuning > "$evidence/cni-$phase.binary.sha256"
+ [[ $(cut -d' ' -f1 "$evidence/cni-$phase.binary.sha256") == "$(jq -r .cniPlugins.tuningSha256 "$pins")" ]]
+ docker exec "$node" stat -c '%u:%g:%a' /opt/cni/bin/tuning /etc/cni/tuning/allowlist.conf /etc/cni/net.d/05-cilium.conflist > "$evidence/cni-$phase.permissions"
+ printf '0:0:755\n0:0:644\n0:0:600\n' | cmp - "$evidence/cni-$phase.permissions"
+ node_ipv6_defaults > "$evidence/node-ipv6-defaults-$phase.txt"
+ cmp "$evidence/node-ipv6-defaults-before.txt" "$evidence/node-ipv6-defaults-$phase.txt"
+}
+verify_ipv4_cni installed
+cp "$work/cni/configmap.json" "$evidence/cni-configmap.json"
+cp "$pins" "$evidence/pins.json"
 # Fail if the pinned chart ever renders unpinned component images.
 helm get manifest cilium -n kube-system > "$evidence/cilium-manifest.yaml"
 node - "$evidence/cilium-manifest.yaml" <<'JS'
@@ -167,6 +212,7 @@ for mode in positive-control isolated; do
  [[ $wait_status == 0 ]] || { echo "$mode canary failed (never treated as skipped)" >&2; exit 1; }
  jq -e '.kind=="infrastructure-network-probe" and .all_passed==true and .ipv4_only==true and (.results|length==9)' "$evidence/network-$mode.jsonl" >/dev/null
 done
+verify_ipv4_cni canaries
 # Independent host CRI observation, not the Pod's self-reported kernel string.
 probe_pod=$(kubectl -n pero-isolation-a get pod -l job-name=probe-isolated -o jsonpath='{.items[0].metadata.name}')
 probe_uid=$(kubectl -n pero-isolation-a get pod "$probe_pod" -o jsonpath='{.metadata.uid}')
@@ -458,3 +504,5 @@ go -C server test -race -json -count=1 -timeout=20m ./internal/sandbox -run '^Te
 for test in TestIsolatedClusterRuntime TestIsolatedClusterRuntime/success TestIsolatedClusterRuntime/cancel; do
  node "$fixture/require-test-pass.mjs" "$evidence/isolated-cluster-test.jsonl" "$test"
 done
+
+verify_ipv4_cni product
