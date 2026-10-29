@@ -32,7 +32,8 @@ export async function prepareWebBackend() {
   mkdirSync(webBackend, { recursive: true });
   const archivePath = resolve(webBackend, name);
   writeFileSync(archivePath, archive);
-  await run('tar', ['-xzf', archivePath, '--strip-components=1', '-C', webBackend]);
+  // A Windows drive letter in -f is interpreted as a remote host by GNU tar.
+  await run('tar', ['-xzf', name, '--strip-components=1'], { cwd: webBackend });
   await run('git', ['apply', '--unsafe-paths', `--directory=${webBackend}`, patch]);
   writeFileSync(stamp, digest);
 }

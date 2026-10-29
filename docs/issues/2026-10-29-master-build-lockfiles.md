@@ -69,3 +69,23 @@ store; no repository gate or TLS verification was disabled.
 
 Remote CI and Pages acceptance remain pending publication of the repair.
 Local build verification does not upload artifacts or deploy the site.
+
+## Integrated master follow-up (2026-10-29)
+
+PR #20 standard CI run `40908701966` exposed two build failures also present
+in incoming master `dc75f94`; the affected script and npm inputs are identical
+on the integrated feature tree.
+
+- Windows contracts preparation passed an absolute `D:` archive path to GNU
+  tar, which interpreted the drive prefix as a remote host. Extract the pinned,
+  checksum-verified crate by basename with the extraction directory as the
+  process working directory. No GNU-only flag is needed for BSD tar.
+- The frozen npm action-cache stamp is stale again after package-script changes.
+  Regenerate it with the pinned Bazel/pnpm toolchain without changing dependency
+  versions or weakening the frozen lock check.
+
+Tar verification: GNU tar reproduced `Cannot connect to D: resolve failed`
+with a colon-prefixed archive argument. Fresh production `prepareWebBackend()`
+extraction and patch application passed in a temporary path containing spaces
+and a colon; Linux `node scripts/cargo.mjs check -p pero-contracts` passed.
+Native Windows execution remains a CI acceptance step, not a local claim.
