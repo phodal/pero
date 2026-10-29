@@ -49,7 +49,7 @@ func TestClusterRuntime(t *testing.T) {
 		t.Fatal("PERO_SANDBOX_KUBE_API must be an explicit loopback kubectl proxy")
 	}
 	if net.ParseIP(host) == nil || len(revision) != 40 {
-		t.Fatal("explicit test host IP and full workspace commit are required")
+		t.Fatalf("explicit test host IP and full workspace commit are required: host=%q revision_length=%d", host, len(revision))
 	}
 	direct, err := url.Parse(directAPI)
 	if err != nil || direct.Scheme != "https" || net.ParseIP(direct.Hostname()) == nil || !net.ParseIP(direct.Hostname()).IsLoopback() {

@@ -114,7 +114,16 @@ console.log(JSON.stringify(manifests({
 RENDER
 kubectl --kubeconfig "$KUBECONFIG" apply --dry-run=server --server-side --field-manager=pero-disposable-dry-run -f "$work/rendered-dry-run.json" | tee "$evidence/renderer-dry-run.txt"
 sha256sum "$work/rendered-dry-run.json" > "$evidence/renderer-digest.txt"
-export PERO_SANDBOX_HOST=$(docker network inspect kind --format '{{(index .IPAM.Config 0).Gateway}}')
+# IPAM.Config describes requested pools and may omit an automatically assigned
+# gateway. The registry endpoint is attached to the exact node bridge network.
+docker inspect --format '{{json (index .NetworkSettings.Networks "kind")}}' "$registry" > "$evidence/kind-endpoint.json"
+PERO_SANDBOX_HOST=$(python3 - "$evidence/kind-endpoint.json" <<'GATEWAY'
+import ipaddress,json,sys
+endpoint=json.load(open(sys.argv[1]))
+print(ipaddress.IPv4Address(endpoint['Gateway']))
+GATEWAY
+)
+export PERO_SANDBOX_HOST
 kubectl --kubeconfig "$KUBECONFIG" proxy --address=127.0.0.1 --port=0 > "$work/proxy.log" 2>&1 &
 proxy_pid=$!
 for _ in $(seq 1 100); do
@@ -127,7 +136,7 @@ proxy=$(sed -n 's/Starting to serve on //p' "$work/proxy.log" | head -1)
 export PERO_SANDBOX_KUBE_API="http://$proxy"
 export PERO_SANDBOX_CLUSTER_E2E=1
 {
-  printf 'runtime_base=%s\n' "$runtime_base_digest"
+  printf 'runtime_base=%s\nhost_gateway=%s\n' "$runtime_base_digest" "$PERO_SANDBOX_HOST"
   printf 'source=%s\nimage=%s\nagent_sandbox=v1.0.2\nagent_sandbox_commit=9a85153590e54cb980f3241f9e7a9228449412c9\n' "$PERO_SANDBOX_WORKSPACE_REVISION" "$PERO_SANDBOX_IMAGE"
   kind version; kubectl version --client; go version; rustc --version
   sha256sum "$PERO_SANDBOX_WORKER_BINARY" "$PERO_SANDBOX_AGENT_BINARY"
