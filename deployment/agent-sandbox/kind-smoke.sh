@@ -44,6 +44,9 @@ if docker inspect "$registry" >/dev/null 2>&1; then echo 'Refusing to use an exi
 registry_owned=1
 docker run -d -p 127.0.0.1::5000 --name "$registry" registry:3.0.0@sha256:6c5666b861f3505b116bb9aa9b25175e71210414bd010d92035ff64018f9457e >/dev/null
 port=$(docker port "$registry" 5000/tcp | sed 's/.*://')
+# Match the IPv4-only published socket; localhost may resolve to ::1 first.
+curl --fail --silent --show-error --retry 5 --retry-connrefused --retry-delay 1 \
+  --max-time 2 "http://127.0.0.1:$port/v2/" > /dev/null
 cluster_owned=1
 kind create cluster --name "$cluster" --kubeconfig "$KUBECONFIG" --wait 180s --image kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
 docker network connect kind "$registry"
@@ -53,8 +56,8 @@ kubectl --kubeconfig "$KUBECONFIG" config view --raw --minify -o jsonpath='{.clu
 [[ -s $PERO_SANDBOX_CA_FILE && $PERO_SANDBOX_DIRECT_API == https://127.0.0.1:* ]] || { echo 'Invalid owned cluster API identity' >&2; exit 1; }
 # Containerd host aliases follow kind's documented local registry contract.
 for node in $(kind get nodes --name "$cluster"); do
-  docker exec "$node" mkdir -p "/etc/containerd/certs.d/localhost:$port"
-  printf '[host."http://%s:5000"]\n' "$registry" | docker exec -i "$node" cp /dev/stdin "/etc/containerd/certs.d/localhost:$port/hosts.toml"
+  docker exec "$node" mkdir -p "/etc/containerd/certs.d/127.0.0.1:$port"
+  printf '[host."http://%s:5000"]\n' "$registry" | docker exec -i "$node" cp /dev/stdin "/etc/containerd/certs.d/127.0.0.1:$port/hosts.toml"
 done
 curl --fail --silent --show-error --location --retry 2 https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v1.0.2/sandbox-with-extensions.yaml -o "$work/controller.yaml"
 echo "e3dda8359fee2b1bb6f4a9448d7004888286482b17670c581dee976f370fd165  $work/controller.yaml" | sha256sum -c -
@@ -75,16 +78,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && mkdir -p /opt/pero && dpkg-query -W > /opt/pero/runtime-packages.txt \
  && rm -rf /var/lib/apt/lists/*
 BASE
-runtime_base="localhost:$port/pero-runtime-base:ci"
+runtime_base="127.0.0.1:$port/pero-runtime-base:ci"
 docker build --file "$work/image/RuntimeBase.Dockerfile" --tag "$runtime_base" "$work/image"
 docker push "$runtime_base"
 runtime_base_digest=$(docker image inspect "$runtime_base" --format '{{index .RepoDigests 0}}')
 [[ $runtime_base_digest =~ @sha256:[a-f0-9]{64}$ ]] || { echo 'Missing runtime base manifest digest' >&2; exit 1; }
-base="localhost:$port/pero-worker-base:ci"
+base="127.0.0.1:$port/pero-worker-base:ci"
 docker build --build-arg RUNTIME_BASE_IMAGE="$runtime_base_digest" --build-arg SOURCE_REVISION="$PERO_SANDBOX_WORKSPACE_REVISION" --tag "$base" "$work/image"
 CGO_ENABLED=0 go build -trimpath -o "$work/image/gateway" ./deployment/agent-sandbox/test/gateway.go
 printf 'ARG BASE\nFROM ${BASE}\nCOPY --chmod=0555 gateway /usr/local/bin/pero-sandbox-test-gateway\n' > "$work/image/Test.Dockerfile"
-tag="localhost:$port/pero-worker:ci"
+tag="127.0.0.1:$port/pero-worker:ci"
 docker build --file "$work/image/Test.Dockerfile" --build-arg BASE="$base" --tag "$tag" "$work/image"
 docker push "$tag"
 export PERO_SANDBOX_IMAGE=$(docker image inspect "$tag" --format '{{index .RepoDigests 0}}')
