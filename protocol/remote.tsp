@@ -184,7 +184,7 @@ model RuntimeBinding {
   reason: string; created_at: string; resource?: RuntimeResource;
   snapshot?: RuntimeObservation; valid_until?: string; release_requested: boolean;
   volume?: RuntimeVolumeBinding; compute_receipt?: RuntimeReference;
-  cleanup_receipt?: RuntimeReference;
+  cleanup_receipt?: RuntimeReference; data_cleanup_receipt?: RuntimeReference;
   ...Closed;
 }
 model SandboxDispatchResult { run: Run; runtime: RuntimeBinding; ...Closed }

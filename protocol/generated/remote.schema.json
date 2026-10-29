@@ -980,6 +980,9 @@
         },
         "cleanup_receipt": {
           "$ref": "#/$defs/RuntimeReference"
+        },
+        "data_cleanup_receipt": {
+          "$ref": "#/$defs/RuntimeReference"
         }
       },
       "required": [

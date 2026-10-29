@@ -297,6 +297,7 @@ export interface RuntimeBinding {
   volume?: RuntimeVolumeBinding;
   compute_receipt?: RuntimeReference;
   cleanup_receipt?: RuntimeReference;
+  data_cleanup_receipt?: RuntimeReference;
 }
 export interface SandboxConfig {
   profile?: "trusted-worker-pod" | "isolated-agent-v1";
