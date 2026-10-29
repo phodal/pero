@@ -7,7 +7,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -63,31 +65,8 @@ func TestArtifactCollectorAndAuthorizedDownload(t *testing.T) {
 	var member, foreign string
 	server := testAPI(t, func(s *store.Store) http.Handler {
 		db = s
-		w, _, err := s.CreateWorker(ctx, "worker", []string{"project"}, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		task, err := s.CreateTask(ctx, store.Spec{Title: "Artifact", Prompt: "Produce file", Acceptance: "inspect", ProjectID: "project", WorkspaceKey: "repo", AgentID: "fixture"}, "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		run, err := s.Dispatch(ctx, task.ID, w.ID, "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		source := artifacts.Source{ProjectID: "project", TaskID: task.ID, RunID: run.ID, Generation: run.Generation, ClusterID: "cluster", Namespace: "project", SandboxUID: "sandbox", PodUID: "pod", PVCName: "volume", PVCUID: "pvc", VolumeName: "pv", ImageDigest: "sha256:" + strings.Repeat("a", 64), TemplateDigest: "sha256:" + strings.Repeat("b", 64), WorkspaceRevision: strings.Repeat("c", 40)}
-		e, err = s.ReserveArtifactExport(ctx, source, artifacts.Policy{Paths: []string{"result.txt"}, MaxFiles: 1, MaxFileBytes: 16, MaxTotalBytes: 16}, "export_1")
-		if err != nil {
-			t.Fatal(err)
-		}
-		e, err = s.BeginArtifactExport(ctx, e.ID, e.Version, artifacts.Quiescence{PodUID: source.PodUID, PVCUID: source.PVCUID, ComputeReleaseDigest: source.ImageDigest, StorageFenceDigest: source.TemplateDigest, ObservedAt: e.CreatedAt})
-		if err != nil {
-			t.Fatal(err)
-		}
-		e, err = s.BindArtifactCollector(ctx, e.ID, e.Version, artifacts.CollectorAuthority{Namespace: source.Namespace, ServiceAccount: "collector", ServiceAccountUID: "collector-sa", PodUID: "collector-pod", Audience: artifacts.CollectorAudience, ExpiresAt: time.Now().Add(time.Minute)})
-		if err != nil {
-			t.Fatal(err)
-		}
+		e = seedArtifactExport(t, s, time.Minute)
+		var err error
 		_, member, err = s.CreateClient(ctx, "member", []string{"project"})
 		if err != nil {
 			t.Fatal(err)
@@ -178,5 +157,64 @@ func TestArtifactCollectorAndAuthorizedDownload(t *testing.T) {
 	json.Unmarshal(request(t, server, "GET", "/api/artifact-export/v1/"+e.ID, "synthetic-collector-token", nil, "", 200), &plan)
 	if plan.Manifest == nil || plan.Manifest.Digest != m.Digest {
 		t.Fatal("lost commit response not recoverable through original plan")
+	}
+}
+
+func seedArtifactExport(t *testing.T, s *store.Store, lifetime time.Duration) artifacts.Export {
+	t.Helper()
+	ctx := context.Background()
+	w, _, err := s.CreateWorker(ctx, "worker", []string{"project"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.CreateTask(ctx, store.Spec{Title: "Artifact", Prompt: "Produce file", Acceptance: "inspect", ProjectID: "project", WorkspaceKey: "repo", AgentID: "fixture"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := s.Dispatch(ctx, task.ID, w.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := artifacts.Source{ProjectID: "project", TaskID: task.ID, RunID: run.ID, Generation: run.Generation, ClusterID: "cluster", Namespace: "project", SandboxUID: "sandbox", PodUID: "pod", PVCName: "volume", PVCUID: "pvc", VolumeName: "pv", ImageDigest: "sha256:" + strings.Repeat("a", 64), TemplateDigest: "sha256:" + strings.Repeat("b", 64), WorkspaceRevision: strings.Repeat("c", 40)}
+	e, err := s.ReserveArtifactExport(ctx, source, artifacts.Policy{Paths: []string{"result.txt"}, MaxFiles: 1, MaxFileBytes: 16, MaxTotalBytes: 16}, "export_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err = s.BeginArtifactExport(ctx, e.ID, e.Version, artifacts.Quiescence{PodUID: source.PodUID, PVCUID: source.PVCUID, ComputeReleaseDigest: source.ImageDigest, StorageFenceDigest: source.TemplateDigest, ObservedAt: e.CreatedAt})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err = s.BindArtifactCollector(ctx, e.ID, e.Version, artifacts.CollectorAuthority{Namespace: source.Namespace, ServiceAccount: "collector", ServiceAccountUID: "collector-sa", PodUID: "collector-pod", Audience: artifacts.CollectorAudience, ExpiresAt: time.Now().Add(lifetime)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
+
+func TestArtifactCollectorStalledBodyReleasesTransport(t *testing.T) {
+	objects := &artifactObjects{data: map[string][]byte{}}
+	var e artifacts.Export
+	finished := make(chan struct{})
+	server := testAPI(t, func(db *store.Store) http.Handler {
+		e = seedArtifactExport(t, db, 500*time.Millisecond)
+		handler := httpapi.ArtifactCollectorHandler(db, objects, func(context.Context, string, string) error { return nil })
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { defer close(finished); handler.ServeHTTP(w, r) })
+	})
+	conn, err := net.Dial("tcp", strings.TrimPrefix(server.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	sum := sha256.Sum256([]byte("result"))
+	fmt.Fprintf(conn, "PUT /api/artifact-export/v1/%s/files/%s HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer synthetic\r\nContent-Length: 6\r\nX-Artifact-Sha256: sha256:%x\r\n\r\nr", e.ID, artifacts.EntryID("result.txt"), sum)
+	select {
+	case <-finished:
+	case <-time.After(3 * time.Second):
+		t.Fatal("stalled collector retained handler beyond authority deadline")
+	}
+	objects.mu.Lock()
+	defer objects.mu.Unlock()
+	if len(objects.data) != 0 {
+		t.Fatal("partial body became a verified object")
 	}
 }

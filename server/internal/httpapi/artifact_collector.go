@@ -146,6 +146,16 @@ func ArtifactCollectorHandler(db *store.Store, objects ArtifactObjectStore, auth
 		// by starting a long request just before expiration.
 		ctx, expire := context.WithDeadline(ctx, e.Collector.ExpiresAt)
 		defer expire()
+		// A context deadline alone does not interrupt a stalled socket body read
+		// or response write. Enforce the same authority limit at the transport.
+		deadline, _ := ctx.Deadline()
+		controller := http.NewResponseController(w)
+		if controller.SetReadDeadline(deadline) != nil || controller.SetWriteDeadline(deadline) != nil {
+			respond(w, 503, map[string]string{"error": "bounded artifact transport unavailable"})
+			return
+		}
+		defer controller.SetReadDeadline(time.Time{})
+		defer controller.SetWriteDeadline(time.Time{})
 		r = r.WithContext(context.WithValue(ctx, artifactExportContextKey{}, e))
 		mux.ServeHTTP(w, r)
 	})
