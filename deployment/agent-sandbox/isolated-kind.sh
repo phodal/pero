@@ -443,17 +443,41 @@ jq -n --arg namespace "$PERO_ISOLATED_TEST_NAMESPACE" --arg runtimeClass "$PERO_
 node deployment/agent-sandbox/isolated-admission.mjs "$work/admission-config.json" > "$evidence/admission-manifest.json"
 kubectl apply -f "$evidence/admission-manifest.json"
 policy="pero-isolated-$PERO_ISOLATED_TEST_NAMESPACE"
+kubectl --request-timeout=5s get validatingadmissionpolicybinding "$policy" -o json > "$evidence/admission-binding.json"
+kubectl --request-timeout=5s get namespace "$PERO_ISOLATED_TEST_NAMESPACE" -o json > "$evidence/admission-namespace.json"
+node "$fixture/admission-readiness.mjs" targets "$evidence/admission-manifest.json" "$evidence/admission-binding.json" "$evidence/admission-namespace.json"
+kubectl --request-timeout=5s get validatingadmissionpolicy "$policy" -o json > "$evidence/admission-policy-installed.json"
+jq -e '.metadata.uid != null and .metadata.generation >= 1' "$evidence/admission-policy-installed.json" >/dev/null
 deadline=$((SECONDS+120)); checked=0
 while ((SECONDS < deadline)); do
- kubectl get validatingadmissionpolicy "$policy" -o json > "$evidence/admission-status.json"
+ kubectl --request-timeout=5s get validatingadmissionpolicy "$policy" -o json > "$evidence/admission-status.json"
+ jq -e --slurpfile installed "$evidence/admission-policy-installed.json" '.metadata.uid==$installed[0].metadata.uid and .metadata.generation==$installed[0].metadata.generation' "$evidence/admission-status.json" >/dev/null
  if jq -e '.status.observedGeneration==.metadata.generation and .status.typeChecking!=null' "$evidence/admission-status.json" >/dev/null; then checked=1; break; fi
  sleep 1
 done
 [[ $checked == 1 ]]
 jq -e '(.status.typeChecking.expressionWarnings // [] | length)==0' "$evidence/admission-status.json" >/dev/null
+# Type checking is not an enforcement barrier: the API server separately
+# refreshes active policy/binding pairs. Poll only a non-persisting dry-run.
+# Every pre-activation acceptance is retained; it is not a product test pass.
+node "$fixture/admission-probes.mjs" "$work/admission-config.json" wrong-runtime > "$evidence/admission-activation-probe.json"
+deadline=$((SECONDS+120)); ready=0; attempt=0
+while ((SECONDS < deadline)); do
+ attempt=$((attempt+1)); output="$evidence/admission-activation-$attempt.txt"
+ remaining=$((deadline-SECONDS)); ((remaining > 0)) || break
+ request_timeout=5; ((remaining < request_timeout)) && request_timeout=$remaining
+ status=0; timeout --signal=KILL "${request_timeout}s" kubectl --request-timeout="${request_timeout}s" create --dry-run=server -f "$evidence/admission-activation-probe.json" > "$output" 2>&1 || status=$?
+ decision=0; node "$fixture/admission-readiness.mjs" activation "$policy" "$status" "$output" > "$evidence/admission-activation-$attempt.json" || decision=$?
+ jq -cn --argjson attempt "$attempt" --argjson elapsed "$((SECONDS-(deadline-120)))" --argjson exit_status "$status" --argjson decision "$decision" '{attempt:$attempt,elapsed_seconds:$elapsed,exit_status:$exit_status,decision:$decision,deadline_seconds:120}' >> "$evidence/admission-activation.jsonl"
+ if [[ $decision == 0 ]] && ((SECONDS <= deadline)); then ready=1; break; fi
+ [[ $decision == 3 ]] || { echo 'Admission activation failed or exceeded deadline' >&2; exit 1; }
+ sleep 1
+done
+[[ $ready == 1 ]] || { echo 'Admission never enforced the exact policy/binding before deadline' >&2; exit 1; }
+# Once active, all acceptance assertions below are ONE-SHOT, never retried.
 for variant in valid wrong-runtime privileged hostpath; do
  node "$fixture/admission-probes.mjs" "$work/admission-config.json" "$variant" > "$evidence/admission-$variant.json"
- status=0; kubectl create --dry-run=server -f "$evidence/admission-$variant.json" > "$evidence/admission-$variant.txt" 2>&1 || status=$?
+ status=0; kubectl --request-timeout=5s create --dry-run=server -f "$evidence/admission-$variant.json" > "$evidence/admission-$variant.txt" 2>&1 || status=$?
  if [[ $variant == valid ]]; then [[ $status == 0 ]];
  else
   [[ $status != 0 ]]

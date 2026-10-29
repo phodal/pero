@@ -118,6 +118,28 @@ A production operator must install/protect and validate an equivalent pinned
 prerequisite on its dedicated runtime nodes before scheduling hostile Pods;
 this fixture is not acceptance of another CNI/kernel/runtime combination.
 
+## Admission activation barrier
+
+The fixed policy remains deny-only. `status.observedGeneration` and empty
+`status.typeChecking` establish type-check completion, **not active enforcement**:
+[Kubernetes documents type checking separately](https://kubernetes.io/docs/reference/access-authn-authz/validating-admission-policy/#type-checking),
+and the [pinned v1.36.4 API server source](https://github.com/kubernetes/kubernetes/blob/v1.36.4/staging/src/k8s.io/apiserver/pkg/admission/plugin/policy/generic/policy_source.go)
+refreshes active policy/binding pairs asynchronously. The prior immediate
+wrong-runtime dry-run acceptance is consistent with propagation delay, but its
+artifact lacks observed binding/namespace snapshots, so the cause is not proven.
+
+Before granting the test control-plane token or starting product workloads, the
+fixture verifies observed binding selectors/actions and namespace labels,
+records the policy UID/generation, and requires zero type-check warnings. It
+then waits at most 120 seconds for a **server-side dry-run** lacking RuntimeClass
+to receive the exact named policy **and** binding's envelope denial. All attempts,
+including initial accepted dry-runs, remain in evidence. Other errors are fatal,
+not readiness signals. No probe Pod is persisted or scheduled. After activation,
+the valid case and all three forbidden cases run **once**: any forbidden
+acceptance fails, without retry. The existing credential-free neighbor is only
+an infrastructure canary, not a hostile product workload. This single-API-server
+fixture does not establish a barrier across all replicas of a production HA API.
+
 ## Pins and provenance
 
 `pins.json` contains versioned official download URLs and SHA-256 checksums.

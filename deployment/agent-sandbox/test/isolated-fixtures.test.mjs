@@ -67,3 +67,41 @@ test('IPv4 CNI prerequisite fixes plugin order, exact sysctls and immutable sour
  for(const rules of ['', '.*\n', allowlist+'^net\\.ipv4.*$\n'])assert.throws(()=>verifyInstalled(valid,rules,'05-cilium.conflist'));
  for(const files of ['', '05-cilium.conflist\n10-other.conf', '10-other.conflist'])assert.throws(()=>verifyInstalled(valid,allowlist,files));
 });
+
+
+test('admission activation requires exact policy and binding denial, not compilation or other failures',async()=>{
+ const {admissionActivation}=await import('../isolated/admission-readiness.mjs');
+ const policy='pero-isolated-fixture';
+ const denied=`Error from server (Invalid): ValidatingAdmissionPolicy '${policy}' with binding '${policy}' denied request: Pod violates the fixed Pero isolated-Agent envelope`;
+ assert.equal(admissionActivation(policy,0,'pod/probe created (server dry run)'),'pending');
+ assert.equal(admissionActivation(policy,0,denied),'pending');
+ assert.equal(admissionActivation(policy,1,denied),'ready');
+ for(const output of ['', 'Forbidden', 'violates PodSecurity', 'connection refused', 'context deadline exceeded',
+  denied.replace("with binding 'pero-isolated-fixture'","with binding 'another-binding'"),
+  denied.replace("ValidatingAdmissionPolicy 'pero-isolated-fixture'","ValidatingAdmissionPolicy 'another-policy'"),
+  denied.replace('Pod violates the fixed Pero isolated-Agent envelope','expression failed to evaluate'),
+ ])assert.throws(()=>admissionActivation(policy,1,output));
+ for(const status of [-1,NaN,256])assert.throws(()=>admissionActivation(policy,status,denied));
+});
+
+test('admission observation rejects mismatched binding, selectors, actions and namespace labels',async()=>{
+ const {admission}=await import('../isolated-admission.mjs');
+ const {verifyAdmissionTargets}=await import('../isolated/admission-readiness.mjs');
+ const manifest=admission({namespace:'fixture',runtimeClass:'runsc',agentServiceAccount:'agent',collectorServiceAccount:'collector',agentImage:image,collectorImage:image});
+ const binding=structuredClone(manifest.items.find(o=>o.kind==='ValidatingAdmissionPolicyBinding'));
+ binding.metadata.uid='binding-uid';
+ const ns=structuredClone(manifest.items.find(o=>o.kind==='Namespace'));
+ ns.metadata.uid='namespace-uid';ns.metadata.labels['kubernetes.io/metadata.name']='fixture';
+ verifyAdmissionTargets(manifest,binding,ns);
+ const defaulted=structuredClone(binding);Object.assign(defaulted.spec.matchResources,{matchPolicy:'Equivalent',objectSelector:{}});
+ verifyAdmissionTargets(manifest,defaulted,ns);
+ for(const change of [b=>b.spec.policyName='another-policy',b=>b.spec.validationActions=['Warn'],
+  b=>b.spec.matchResources.namespaceSelector.matchLabels['kubernetes.io/metadata.name']='other',
+  b=>b.spec.matchResources.objectSelector={matchLabels:{skip:'true'}},
+  b=>b.spec.matchResources.excludeResourceRules=[{resources:['pods']}],
+  b=>b.metadata.deletionTimestamp='2026-10-29T00:00:00Z',
+ ]){const b=structuredClone(binding);change(b);assert.throws(()=>verifyAdmissionTargets(manifest,b,ns));}
+ for(const key of ['kubernetes.io/metadata.name','pod-security.kubernetes.io/enforce','pero.dev/isolation-profile']){
+  const n=structuredClone(ns);delete n.metadata.labels[key];assert.throws(()=>verifyAdmissionTargets(manifest,binding,n));
+ }
+});
