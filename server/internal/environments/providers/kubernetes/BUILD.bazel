@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "kubernetes",
-    srcs = ["claim.go", "owner.go", "reader.go", "writer.go"],
+    srcs = ["claim.go", "isolated.go", "isolated_profile.go", "owner.go", "reader.go", "writer.go"],
     importpath = "github.com/phodal/pero/server/internal/environments/providers/kubernetes",
     visibility = ["//server:__subpackages__"],
     deps = [
