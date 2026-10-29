@@ -112,7 +112,7 @@ func copyLines(dst io.Writer, src io.Reader, budget *atomic.Int64, transform fun
 	})
 	for scanner.Scan() {
 		line := scanner.Bytes()
-		if len(line) > MaxLine || budget.Add(int64(len(line)+1)) > MaxBytes {
+		if len(line)+1 > MaxLine || budget.Add(int64(len(line)+1)) > MaxBytes {
 			return errors.New("remote ACP byte limit exceeded")
 		}
 		var err error
@@ -124,7 +124,7 @@ func copyLines(dst io.Writer, src io.Reader, budget *atomic.Int64, transform fun
 		} else if !json.Valid(line) {
 			return errors.New("invalid ACP JSONL")
 		}
-		if len(line) > MaxLine {
+		if len(line)+1 > MaxLine {
 			return errors.New("rewritten ACP message exceeds limit")
 		}
 		if _, err = dst.Write(append(append([]byte(nil), line...), '\n')); err != nil {

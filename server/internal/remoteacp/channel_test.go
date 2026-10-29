@@ -49,7 +49,7 @@ func TestProtocolBoundary(t *testing.T) {
 			}
 		})
 	}
-	for _, line := range []string{`{"id":1}`, strings.Repeat("x", MaxLine+1) + "\n", "not-json\n"} {
+	for _, line := range []string{`{"id":1}`, strings.Repeat("x", MaxLine+1) + "\n", `"` + strings.Repeat("x", MaxLine-2) + "\"\n", "not-json\n"} {
 		var out bytes.Buffer
 		var budget atomic.Int64
 		if copyLines(&out, strings.NewReader(line), &budget, nil) == nil || out.Len() != 0 {

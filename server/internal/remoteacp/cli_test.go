@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/phodal/pero/server/internal/runtimegateway"
 )
 
 // Explicit process fixture: no real provider, Kubernetes token or network outside
@@ -41,6 +43,17 @@ func TestAgentConnectCLIWithGoACP(t *testing.T) {
 		}
 		if r.URL.Path == "/api/runtime/v1/runs/run/provider/v1/chat/completions" {
 			providers.Add(1)
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Error(err)
+				http.Error(w, "bad", 400)
+				return
+			}
+			if _, err = runtimegateway.ValidateProviderBody(body, "fixture", 64); err != nil {
+				t.Errorf("actual Go ACP provider wire incompatible with fixed gateway: %s", body)
+				http.Error(w, "bad", 400)
+				return
+			}
 			w.Header().Set("Content-Type", "text/event-stream")
 			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"isolated fixture answer\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
 			return

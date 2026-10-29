@@ -120,3 +120,39 @@ The control plane admits only the matching ready RuntimeBinding and rejects
 changed claim identity; this is not Pod attestation or untrusted-code isolation.
 The existing lease, journal, permission-denial and no-prompt-replay behavior is
 unchanged. See [deployment/agent-sandbox](../../deployment/agent-sandbox/README.md).
+
+### External Worker with isolated Agent
+
+For the separate `isolated-agent-v1` profile, install `pero-acp-bridge` beside the
+trusted Worker, **outside** the Agent Pod. Its operator-owned configuration may be
+remote-only:
+
+```json
+{ "remote_bridge": "/opt/pero/bin/pero-acp-bridge" }
+```
+
+Build the bridge with `go -C server build ./cmd/pero-acp-bridge`. Protect the
+installed executable, Worker configuration and journal from Agent writes. The
+control plane selects `Run.remote_execution`; Tasks cannot provide its command,
+URL, session or working directory. This mode does not set `PERO_RUNTIME_POD_UID`.
+A remote Run without a configured bridge fails closed rather than launching a
+local Agent. Local `native_approvals` are incompatible with remote execution;
+permission requests remain denied. Host MCP servers and host fs/terminal callbacks
+are rejected, and only ACP `session/new.cwd` is rewritten to `/workspace/repo`.
+
+Before channel issuance, the Worker persists a random, exact-Run secret in the
+private journal. The bridge receives only this scoped secret, not the Worker
+bearer or inherited provider credentials. This is the sole deliberate `PERO_*`
+exception to local Agent filtering. Recovery reconciles the original grant and
+Run without reopening a stream or replaying a prompt. A channel is single-use,
+bounded to 15 minutes, 256 KiB per JSONL message and 64 MiB total in both directions.
+
+The Pod contains `pero-agent-connect` and the fixed Go ACP executable, not this
+Worker. Its projected Kubernetes token is usable by hostile Pod code, but the
+control plane authenticates and restricts it to the original Run/Pod/audience;
+it is not a Worker token or a provider API key. Provider requests use a fixed
+server-owned endpoint/model and budget. EOF closes local processes, while actual
+hostile-writer quiescence and retained-volume export belong to the Kubernetes
+runtime and trusted collector, not Unix process groups or the Worker receipt.
+EOF after a confirmed ACP `end_turn` can precede the ordinary completion receipt;
+transport closure itself does not decide the Run outcome.
