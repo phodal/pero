@@ -1,6 +1,7 @@
 // Actual Electron, Virtual Cell and ACP -> MCP -> App Use. No model login.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { waitForFullAppUse } from '../fixtures/app-use-progress.mjs';
 import { build } from 'esbuild';
 import { cp, mkdir, mkdtemp, readFile, realpath, readdir, rm, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
@@ -121,7 +122,9 @@ try {
   await expect(frame.getByLabel('Find gene', { exact: true })).toHaveValue('');
   checks.push('The Agent policy can ask in the existing Chat permission card; denial prevents an App effect');
 
+  const beforeFull = await active();
   await submit('app-use:full');
+  const fullProgress = await waitForFullAppUse(active, beforeFull);
   const full = await result();
   expect(full.error).toBeUndefined();
   expect(new Set(full.steps.map(step => step.action))).toEqual(new Set(['inventory', 'start', 'describe', 'observe', 'capture', 'act', 'wait', 'verify', 'stop', 'runPlan']));
@@ -225,7 +228,7 @@ try {
   const permissionIds=await page.evaluate(()=>window.approvalEvents);expect(permissionIds).toHaveLength(2);expect(permissionIds.every(id=>id.startsWith('permission-'))).toBe(true);checks.push('All App operations, captures, file transfers and writes finish without an additional Desktop approval; only explicit Agent policy questions appear');
   expect(errors).toEqual([]);
   for(const file of ['failure-state.json','failure.png','runtime.log'])await rm(join(output,file),{force:true});
-  await writeFile(join(output, 'result.json'), JSON.stringify({ checks, errors, denied, full, frozen, imported, written, writeDenied, standing, revoked, hidden, state: await state() }, null, 2));
+  await writeFile(join(output, 'result.json'), JSON.stringify({ checks, errors, denied, fullProgress, full, frozen, imported, written, writeDenied, standing, revoked, hidden, state: await state() }, null, 2));
 } catch (error) {
   await writeFile(join(output,'runtime.log'),runtimeLog.join(''));
   if (app) {

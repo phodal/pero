@@ -1,6 +1,7 @@
 // Workbench and standalone Products share the same MCP authority and App RPC.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { waitForFullAppUse } from '../fixtures/app-use-progress.mjs';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -28,8 +29,10 @@ try{
  await frame.locator('body').evaluate(()=>parent.postMessage({type:'pero:app:chat',text:'app-use:full'},'*'));
  await expect.poll(async()=>(await state()).composer).toBe('app-use:full');
  const left=await page.locator('#pero-app-surface').evaluate(element=>element.getBoundingClientRect().right);
- await page.mouse.click(left+150,await page.evaluate(()=>innerHeight-70));await page.keyboard.press('Enter');
  const active=async()=>{const s=await state();return s.chats[s.activeChat];};
+ const beforeFull=await active();
+ await page.mouse.click(left+150,await page.evaluate(()=>innerHeight-70));await page.keyboard.press('Enter');
+ const fullProgress=await waitForFullAppUse(active,beforeFull);
  await expect.poll(async()=>(await active()).messages.filter(m=>m.role==='assistant').at(-1)?.text||'',{timeout:30000}).toContain('APP_USE_RESULT:');
  await expect.poll(async()=>(await active()).state).toBe('idle');
  const text=(await active()).messages.filter(m=>m.role==='assistant').at(-1).text;
@@ -69,7 +72,7 @@ try{
  await page.screenshot({path:resolve(output,'ordinary-hidden.png')});
 
  expect(errors).toEqual([]);
- await writeFile(resolve(output,'result.json'),JSON.stringify({checks,errors,result,ordinary,state:await state()},null,2));
+ await writeFile(resolve(output,'result.json'),JSON.stringify({checks,errors,fullProgress,result,ordinary,state:await state()},null,2));
 }catch(error){
  if(app){const page=await app.firstWindow();await page.screenshot({path:resolve(output,'failure.png')});await writeFile(resolve(output,'failure-state.json'),await page.evaluate(()=>window.peroDiagnostics?.snapshot()||'{}'));}
  throw error;

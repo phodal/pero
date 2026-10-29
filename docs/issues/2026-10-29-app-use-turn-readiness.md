@@ -102,3 +102,31 @@ clicks select composer, permission or navigation controls; they are not changed
 without evidence of failure. Full remaining Electron execution is required.
 Local Wasm compilation, Chat UI concept tests and JS syntax checks passed; this
 environment still lacks the built Web distribution and Xvfb for native E2E.
+
+## Full fixture completion budget
+
+Repeated validation at head ea0d004 (run40959586302) passed Product App Use but
+hit the Workbench full scenario's single 30-second result poll. The screenshot
+shows the final `runPlan` still running; the subsequent retained state already
+contains the successful full result, all 25 completed tool calls, the same
+conversation and no error. This is not evidence of a missed submit or routing
+failure. The first capture was at21:46:38.093Z and the final capture at
+21:47:02.301Z, followed by stop/start/runPlan; the timeout was21:47:07.095Z.
+Artifact12936275530 SHA256
+`f8be8218c1bc1edae8ccfb4f2241222463dd685290d5a7587e90673b7266fc9f`.
+
+Both full-scenario consumers now use the same finite fixture progress contract:
+25 expected sequential tools, with only newly completed IDs advancing progress.
+Old tool IDs and messages are snapshotted before submission; the original thread
+and App scope remain fixed. Repeated status/text updates do not refresh a timer,
+and tool/chat errors fail immediately. The no-progress bound stays30seconds,
+except for the declared runPlan stage, whose existing operation bound is60seconds.
+The explicit aggregate E2E ceiling is300seconds, aligned with one task grant's
+five-minute duration, not a claim that the two-task scenario has one grant.
+This deliberately replaces the old aggregate30second assumption; it does not
+change production timeouts or extend a production authority. Other scenarios and
+all original result, idle, DOM, permission and scope assertions remain unchanged.
+
+Deterministic clock-value tests cover normal progress, stalled/repeated events,
+old results, wrong thread/scope, errors, unexpected tools, runPlan completion and
+the overall ceiling. Real Electron acceptance remains required on the new head.
