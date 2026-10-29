@@ -5,6 +5,10 @@ date: 2026-10-29
 
 # Agent Sandbox runtime verification
 
+This report records the original trusted-pool scope. Subsequent isolated-profile
+and separately approved real-provider evidence is tracked in
+[isolated Agent acceptance](isolated-agent-acceptance.md), including open gates.
+
 Original implementation base: Pero `11cc28ce16d2ac10e76a0cfa9771fcef45feda17`.
 Rebased before publication onto `27046fcf5352868c5e715a257f77c1f94e76af0d`
 (the independent MCP list-changed regression tests; no runtime source overlap).
