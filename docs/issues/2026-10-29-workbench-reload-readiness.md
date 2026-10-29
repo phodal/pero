@@ -61,3 +61,41 @@ sequencing contract, not the historical CI timing. Local Electron acceptance
 was not run: this environment has neither an installed Electron
 binary nor Xvfb. The specific CI failure cause remains unproven; a new actual CI
 receipt is required before declaring this incident resolved.
+
+## Actual CI acceptance and finite startup follow-up
+
+At head `1c6d8821d846aa0c4dabc36bb70fed737fba1c98`, tested merge
+`4328572c2ef9606ff0ca62ae8fff33867762fa0d`, standard run
+[40917103770](https://github.com/phodal/pero/actions/runs/40917103770), Linux
+job `123600156542`, completed every workbench assertion with `errors: []`.
+The retained draft/history screenshot and final result contain both conversations.
+Relative to the installed pre-reload hook, the main-process trace recorded one
+of each event: Agent catalog at 5,525.7 ms,
+workspace at 5,526.9 ms, roadmap at 5,584.3 ms and replay at 5,650.1 ms;
+renderer readiness was observed at 6,820.7 ms and the held replay released at
+9,175.5 ms. No `Invalid Host event` occurred. Thus startup-to-arrival beyond five seconds is now actually observed, not only
+a synthetic schedule. The trace does not record the old poll's exact start and
+does not manufacture a missing timeline for the earlier failed run.
+
+Artifact `12917691030` (12 files) has ZIP SHA-256
+`889da406d15058a64cc659054abc1bc294699c1d1564cbd911af0fc8f95bd7cd`.
+The next tool-call suite failed its initial five-second catalog assertion before
+its existing loading-removed wait. Its failure snapshot already contains both
+required Agent IDs, `codex` and `fixture`, and no page errors.
+
+The finite `.github/workflows/ci.yml` desktop command chain contains four suites:
+
+| Suite | Startup gate audit |
+| --- | --- |
+| `workbench.mjs` | Initial 15-second Agent poll preceded its existing loading-removed wait; move that wait before the unchanged poll. Reload path is accepted above. |
+| `toolcalls.mjs` | Initial five-second Agent poll preceded its existing loading-removed wait; move that wait before the unchanged poll. |
+| `app-use.mjs` | The Agent poll follows connected chat readiness; `initializeChat` is gated by `chatReady`. No identical later-loading wait exists; unchanged. |
+| `app-use-workbench.mjs` | Already waits for diagnostics plus loading removal before polling the App catalog; unchanged. |
+
+Only the two existing wait lines move. No Agent/tool/context/permission/keyboard
+assertions, timeouts, product code or workflow change. Deterministic execution of
+both old/new startup wait regions against permitted virtual readiness schedules
+shows the original five-/15-second polls expire before startup and the reordered
+versions pass, keeping those budgets unchanged. These are sequencing checks, not
+new actual Electron runs. Full desktop CI acceptance remains pending; the two
+App Use suites were not reached by this failed job.
