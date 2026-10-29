@@ -62,6 +62,27 @@ func TestRuntimeChannelAuthorityAndProviderReservations(t *testing.T) {
 	s, r, b, budget := channelFixture(t)
 	ctx := context.Background()
 	secret := strings.Repeat("a", 64)
+	// Rejected authority must not consume the original one-shot reservation.
+	for _, tc := range []struct {
+		name, runID, worker, instance, session string
+		generation                             int64
+		want                                   error
+	}{
+		{"wrong Run", r.ID + "-other", r.WorkerID, r.InstanceID, r.ID, r.Generation, ErrNotFound},
+		{"wrong Worker", r.ID, "other-worker", r.InstanceID, r.ID, r.Generation, ErrForbidden},
+		{"wrong instance", r.ID, r.WorkerID, "other-instance", r.ID, r.Generation, ErrForbidden},
+		{"wrong session", r.ID, r.WorkerID, r.InstanceID, "other-session", r.Generation, ErrForbidden},
+		{"wrong generation", r.ID, r.WorkerID, r.InstanceID, r.ID, r.Generation + 1, ErrForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := s.ReserveRuntimeChannel(ctx, tc.runID, tc.worker, tc.instance, tc.generation, tc.session, secret, budget); !errors.Is(err, tc.want) {
+				t.Fatal("mismatched execution authority", err)
+			}
+			if _, err := s.RuntimeChannel(ctx, r.ID); !errors.Is(err, ErrNotFound) {
+				t.Fatal("rejected request consumed the original channel", err)
+			}
+		})
+	}
 	c, e := s.ReserveRuntimeChannel(ctx, r.ID, r.WorkerID, r.InstanceID, r.Generation, r.ID, secret, budget)
 	if e != nil {
 		t.Fatal(e)

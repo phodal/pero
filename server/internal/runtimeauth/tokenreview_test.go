@@ -6,6 +6,7 @@ import (
 	"github.com/phodal/pero/server/internal/runtimechannel"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 )
 
@@ -28,6 +29,8 @@ func TestOnlinePodIdentity(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			status := map[string]any{"authenticated": true, "audiences": []string{runtimechannel.Audience}, "user": map[string]any{"username": "system:serviceaccount:p1:agent", "uid": "sa1", "extra": map[string]any{"authentication.kubernetes.io/pod-uid": []string{"pod1"}}}}
 			tc.modify(status)
+			var revoked atomic.Bool
+			var reviews atomic.Int64
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method != "POST" || r.URL.Path != "/apis/authentication.k8s.io/v1/tokenreviews" {
 					t.Error("route")
@@ -40,6 +43,11 @@ func TestOnlinePodIdentity(t *testing.T) {
 				}
 				if json.NewDecoder(r.Body).Decode(&input) != nil || input.Spec.Token != "opaque-bound-token" || len(input.Spec.Audiences) != 1 || input.Spec.Audiences[0] != runtimechannel.Audience {
 					t.Error("input")
+				}
+				reviews.Add(1)
+				if revoked.Load() {
+					json.NewEncoder(w).Encode(map[string]any{"status": map[string]any{"authenticated": false}})
+					return
 				}
 				json.NewEncoder(w).Encode(map[string]any{"status": status})
 			}))
@@ -54,6 +62,12 @@ func TestOnlinePodIdentity(t *testing.T) {
 			}
 			if tc.want && identity.PodUID != "pod1" {
 				t.Fatal(identity)
+			}
+			if tc.want {
+				revoked.Store(true)
+				if _, err := reviewer.Review(context.Background(), "opaque-bound-token", runtimechannel.Audience); err == nil || reviews.Load() != 2 {
+					t.Fatal("previously accepted token bypassed online revocation", err, reviews.Load())
+				}
 			}
 		})
 	}

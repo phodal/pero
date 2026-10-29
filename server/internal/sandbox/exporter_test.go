@@ -64,10 +64,31 @@ func TestIsolatedExportAndExplicitDataCleanupReceipts(t *testing.T) {
 			t.Fatal("Job creation repeated", k.posts)
 		}
 	})
+	// A terminal failed collector is not an export receipt and must not create
+	// another Job or release the retained workspace without a manifest.
+	k.change(func(k *kubeFixture) {
+		for path, object := range k.objects {
+			if strings.Contains(path, "/jobs/") {
+				object["status"] = map[string]any{"failed": 1, "conditions": []any{map[string]any{"type": "Failed", "status": "True"}}}
+			}
+			if object["kind"] == "Pod" && object["metadata"].(map[string]any)["uid"] == e.Collector.PodUID {
+				object["status"] = map[string]any{"phase": "Failed", "containerStatuses": []any{map[string]any{"name": "collector", "imageID": "registry.invalid/collector@" + fixtureDigest, "state": map[string]any{"terminated": map[string]any{"exitCode": 1}}}}}
+			}
+		}
+	})
+	failed, err := runtime.AdvanceExport(t.Context(), run.ID, q, jobs)
+	if err != nil || failed.CollectorJob.UID != e.CollectorJob.UID || failed.Manifest != nil {
+		t.Fatal("failed collector replaced or treated as committed", failed, err)
+	}
 	approval := artifacts.GCApproval{OperationID: "gc.original", ActorID: "operator", ManifestDigest: fixtureDigest, ApprovedAt: time.Now().UTC()}
 	if _, err = runtime.AuthorizeDataCleanup(t.Context(), run.ID, approval, jobs); err == nil {
 		t.Fatal("data cleanup before manifest")
 	}
+	k.change(func(k *kubeFixture) {
+		if k.posts != 3 || k.objects[k.volumePath] == nil {
+			t.Fatal("failed collector created fresh resources or deleted retained PVC", k.posts)
+		}
+	})
 	// This cancellation selected an explicitly optional file which was never
 	// created. The committed partial manifest is exhaustive, not an output claim.
 	manifest, err := artifacts.NewManifest(e.Source, e.Policy, e.ID, nil, []string{"result.txt"}, q.ObservedAt)
