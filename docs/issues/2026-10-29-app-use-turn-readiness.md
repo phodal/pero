@@ -54,3 +54,27 @@ compile check, JavaScript syntax and diff checks passed. The complete Chat Web
 check stopped on five missing generated font files; the local workspace also
 lacks a built web distribution and Xvfb. The corrected real Electron gated-start
 flow remains pending CI, rather than being reported as a local UI pass.
+
+
+## Bounded observation content in the fixture
+
+The next real Electron run (40924600214, tested merge e789050c) passed the
+initial identity/preparation assertions and policy-denial scenario. Its full
+observation then correctly returned a `content_reference` for 20,265 bytes.
+The synthetic ACP fixture assumed every successful result was inline JSON,
+then accessed `dom.find` on the reference rather than the observation.
+
+The fixture now follows the advertised same-conversation `content_read` tool.
+It consumes the complete observation needed by its existing assertions and
+normalized transcript, without changing production result budgets. Reads remain
+at 16 KiB, with a fixture-only ceiling of 128 KiB and eight requests; contiguous
+UTF-8 byte ranges, artifact identity/size, final SHA256 and complete JSON are
+required. Missing, malformed, truncated, nonprogressing or over-budget results
+fail rather than being treated as an empty observation. No preview or host file
+is used as a substitute. Existing DOM, stale-ref, approval and capture assertions
+remain unchanged.
+
+Ten local checks passed using the actual scoped `ContentArtifacts` reader,
+including multi-chunk Unicode, inline values, cross-conversation rejection and
+malformed/error/truncated/tampered results. Real Electron completion remains
+pending the next CI execution.
