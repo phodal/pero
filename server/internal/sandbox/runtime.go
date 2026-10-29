@@ -7,8 +7,10 @@ import (
 	"errors"
 	"time"
 
+	"github.com/phodal/pero/server/internal/artifacts"
 	"github.com/phodal/pero/server/internal/environments/model"
 	"github.com/phodal/pero/server/internal/environments/ports"
+	"github.com/phodal/pero/server/internal/environments/providers/kubernetes"
 	"github.com/phodal/pero/server/internal/runtimebinding"
 	"github.com/phodal/pero/server/internal/store"
 )
@@ -23,10 +25,12 @@ type Owner interface {
 }
 
 type Runtime struct {
-	db     *store.Store
-	owner  Owner
-	config runtimebinding.Config
-	now    func() time.Time
+	db             *store.Store
+	owner          Owner
+	cold           *kubernetes.ColdOwner
+	artifactPolicy artifacts.Policy
+	config         runtimebinding.Config
+	now            func() time.Time
 }
 
 func New(ctx context.Context, db *store.Store, owner Owner, config runtimebinding.Config) (*Runtime, error) {
@@ -81,6 +85,9 @@ func (r *Runtime) advance(ctx context.Context, b runtimebinding.Binding, create 
 	}
 	if b.Phase == runtimebinding.Released {
 		return b, nil
+	}
+	if r.cold != nil {
+		return r.advanceIsolated(ctx, b, create)
 	}
 	if b.Resource == nil {
 		var resource model.ResourceRef
