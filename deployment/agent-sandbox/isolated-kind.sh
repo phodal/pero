@@ -87,7 +87,13 @@ node=$(kind get nodes --name "$cluster")
 [[ -n $node && $node != *$'\n'* ]] || { echo 'Expected one owned node' >&2; exit 1; }
 # Full upstream bundle is required: recent runsc releases execute gvisor-bin
 # sidecars next to runsc. Nothing is installed on the CI runner's host runtime.
-docker exec -i "$node" tar -xjf - -C /usr/local/bin < "$work/gvisor.tar.bz2"
+# The minimal kind node has tar but no bzip2. Decompress the verified bundle on
+# the host; the node needs only plain tar and receives the complete same bytes.
+python3 - "$work/gvisor.tar.bz2" <<'PY_BZ2' | docker exec -i "$node" tar -xf - -C /usr/local/bin
+import bz2, shutil, sys
+with bz2.open(sys.argv[1], 'rb') as source:
+    shutil.copyfileobj(source, sys.stdout.buffer)
+PY_BZ2
 docker exec "$node" /usr/local/bin/runsc --version > "$evidence/runsc-version.txt"
 docker exec "$node" cat /etc/containerd/config.toml > "$work/containerd.original.toml"
 if grep -Eq '^version *= *3' "$work/containerd.original.toml"; then cri='io.containerd.cri.v1.runtime';
