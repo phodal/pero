@@ -432,6 +432,7 @@ func verifyIsolatedClusterArtifacts(t *testing.T, ctx context.Context, runtime *
 	if export.Phase != artifacts.Committed || export.Manifest == nil || len(export.Manifest.Entries) != 1 || export.Collector == nil || export.CollectorJob == nil || export.Manifest.Source != export.Source || export.Source.VolumeName != b.Volume.VolumeName {
 		t.Fatalf("durable artifact receipt incomplete: %+v", export)
 	}
+	recordCollectorPodList(t, ctx, api, export)
 	entry := export.Manifest.Entries[0]
 	content, err := objects.Read(ctx, entry)
 	if err != nil || !bytes.Equal(content, expectedArtifact) || entry.Path != "repo/artifacts/generated.txt" {

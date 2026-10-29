@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/phodal/pero/server/internal/artifacts"
 	"github.com/phodal/pero/server/internal/store"
 )
 
@@ -185,5 +186,70 @@ func TestCollectorDiagnosticProjection(t *testing.T) {
 	delete(job["spec"].(map[string]any)["template"].(map[string]any)["metadata"].(map[string]any), "creationTimestamp")
 	if collectorJobShape(job)["template_metadata_fields"].(map[string]any)["creationTimestamp"] != "absent" {
 		t.Fatal("absent metadata shape lost")
+	}
+}
+
+// Preserve the actual typed-list wire shape before GC removes the original
+// collector. No Pod payload, dynamic key or credential is retained.
+func collectorPodListShape(list map[string]any, namespace, podUID, jobUID string) map[string]any {
+	items, _ := list["items"].([]any)
+	meta := diagnosticObject(list["metadata"])
+	out := map[string]any{"kind": "collector-pod-list-shape", "v1_pod_list": list["apiVersion"] == "v1" && list["kind"] == "PodList", "item_count": len(items), "complete": meta["continue"] == nil || meta["continue"] == ""}
+	if len(items) == 1 {
+		item := diagnosticObject(items[0])
+		m := diagnosticObject(item["metadata"])
+		out["item_type_fields"] = diagnosticFields(item, "apiVersion kind")
+		out["original_pod_uid_matches"] = podUID != "" && m["uid"] == podUID
+		out["namespace_matches"] = namespace != "" && m["namespace"] == namespace
+		owners, _ := m["ownerReferences"].([]any)
+		out["original_job_owner_matches"] = false
+		if len(owners) == 1 {
+			owner := diagnosticObject(owners[0])
+			out["original_job_owner_matches"] = jobUID != "" && owner["uid"] == jobUID && owner["kind"] == "Job" && owner["apiVersion"] == "batch/v1" && owner["controller"] == true
+		}
+	}
+	return out
+}
+
+func recordCollectorPodList(t *testing.T, ctx context.Context, api clusterAPI, export artifacts.Export) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	path := "/api/v1/namespaces/" + url.PathEscape(export.Source.Namespace) + "/pods?limit=2&labelSelector=" + url.QueryEscape("batch.kubernetes.io/controller-uid="+export.CollectorJob.UID)
+	var list map[string]any
+	if err := api.request(ctx, http.MethodGet, path, nil, &list); err != nil {
+		t.Fatal("original collector PodList receipt unavailable")
+	}
+	shape := collectorPodListShape(list, export.Source.Namespace, export.Collector.PodUID, export.CollectorJob.UID)
+	writeJSON(t, filepath.Join(requiredIsolatedEnv(t, "EVIDENCE"), "collector-pod-list-"+export.Source.RunID+".json"), shape)
+	for _, key := range []string{"v1_pod_list", "complete", "original_pod_uid_matches", "namespace_matches", "original_job_owner_matches"} {
+		if shape[key] != true {
+			t.Fatalf("collector PodList receipt mismatch: %s", key)
+		}
+	}
+}
+
+func TestCollectorPodListProjection(t *testing.T) {
+	secret := "DO-NOT-RETAIN-synthetic-credential"
+	item := map[string]any{"metadata": map[string]any{"uid": "pod", "namespace": "ns", "ownerReferences": []any{map[string]any{"uid": "job", "kind": "Job", "apiVersion": "batch/v1", "controller": true}}}, "spec": map[string]any{secret: secret}}
+	list := map[string]any{"kind": "PodList", "apiVersion": "v1", "items": []any{item}}
+	for _, explicit := range []bool{false, true} {
+		if explicit {
+			item["kind"], item["apiVersion"] = "Pod", "v1"
+		}
+		shape := collectorPodListShape(list, "ns", "pod", "job")
+		encoded, _ := json.Marshal(shape)
+		if strings.Contains(string(encoded), secret) || shape["original_pod_uid_matches"] != true || shape["original_job_owner_matches"] != true {
+			t.Fatal("unsafe or incomplete projection")
+		}
+		expected := "absent"
+		if explicit {
+			expected = "string"
+		}
+		for _, key := range []string{"kind", "apiVersion"} {
+			if shape["item_type_fields"].(map[string]any)[key] != expected {
+				t.Fatal("typed item shape lost")
+			}
+		}
 	}
 }
