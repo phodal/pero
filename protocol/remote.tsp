@@ -59,6 +59,8 @@ model TaskSpec {
   tags?: string[];
   ...Closed;
 }
+// Selected by the trusted control plane, never accepted in TaskSpec.
+model RemoteExecution { session_id: Id; working_directory: "/workspace/repo"; ...Closed }
 model Run {
   id: Id;
   task_id: Id;
@@ -68,6 +70,7 @@ model Run {
   status: RunStatus;
   lease_expires_at?: string | null;
   spec: TaskSpec;
+  remote_execution?: RemoteExecution;
   summary?: string;
   created_at?: string;
   updated_at?: string;
@@ -165,16 +168,22 @@ model RuntimeObservation {
   ...Closed;
 }
 model SandboxConfig {
+  profile?: "trusted-worker-pod" | "isolated-agent-v1";
+  runtime_class?: string; service_account?: string; service_account_uid?: string;
+  audience?: string; control_url?: string; control_ca_file?: string; image_ref?: string;
+  `model`?: string; storage_class?: string; storage_access_mode?: string; volume_size?: string;
   cluster_id: Id; `namespace`: string; warm_pool: string; worker_id: Id; project_id: Id;
   workspace_key: Id; agent_id: Id; image_digest: string; workspace_revision: string;
   template_digest: string; ttl_seconds: safeint;
   ...Closed;
 }
+model RuntimeVolumeBinding { resource: RuntimeResource; volume_name?: string; provider_digest: string; ...Closed }
 model RuntimeBinding {
   run_id: Id; request_id: Id; version: safeint; config: SandboxConfig;
   phase: "pending" | "ready" | "reconcile" | "cleanup_pending" | "released";
   reason: string; created_at: string; resource?: RuntimeResource;
   snapshot?: RuntimeObservation; valid_until?: string; release_requested: boolean;
+  volume?: RuntimeVolumeBinding; compute_receipt?: RuntimeReference;
   cleanup_receipt?: RuntimeReference;
   ...Closed;
 }

@@ -46,3 +46,14 @@ Worker credentials cannot omit it to consume ordinary tasks. Operator-only
 `RuntimeBinding` / `SandboxDispatchResult` carry the fixed reviewed configuration,
 observed resource/runtime snapshot and separate cleanup receipt; none is an
 execution grant or a bearer credential. See ADR 0012 for the opt-in endpoints.
+
+The isolated profile's optional `Run.remote_execution` is control-plane-owned:
+its session ID identifies the original Run and its working directory is the
+literal `/workspace/repo`. A Task cannot select this mode, executable or endpoint.
+The external trusted Worker persists a random scoped channel secret in its private
+journal before channel issuance. Neither this secret, the Worker bearer, nor a
+provider key appears in the Run/RuntimeBinding contract. The two streaming ACP
+endpoints use bounded JSONL rather than these JSON DTOs. Interrupted channels
+cannot resume or replay a prompt. Independent `volume` and `compute_receipt`
+evidence separates retained workspace data from the compute lifetime; neither
+means the retained data has been exported or deleted.

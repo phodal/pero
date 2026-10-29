@@ -560,6 +560,24 @@
       ],
       "additionalProperties": false
     },
+    "RemoteExecution": {
+      "title": "RemoteExecution",
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "working_directory": {
+          "type": "string",
+          "const": "/workspace/repo"
+        }
+      },
+      "required": [
+        "session_id",
+        "working_directory"
+      ],
+      "additionalProperties": false
+    },
     "RemoteProtocol": {
       "title": "RemoteProtocol",
       "oneOf": [
@@ -808,6 +826,9 @@
         "spec": {
           "$ref": "#/$defs/TaskSpec"
         },
+        "remote_execution": {
+          "$ref": "#/$defs/RemoteExecution"
+        },
         "summary": {
           "type": "string"
         },
@@ -950,6 +971,12 @@
         },
         "release_requested": {
           "type": "boolean"
+        },
+        "volume": {
+          "$ref": "#/$defs/RuntimeVolumeBinding"
+        },
+        "compute_receipt": {
+          "$ref": "#/$defs/RuntimeReference"
         },
         "cleanup_receipt": {
           "$ref": "#/$defs/RuntimeReference"
@@ -1112,10 +1139,75 @@
       ],
       "additionalProperties": false
     },
+    "RuntimeVolumeBinding": {
+      "title": "RuntimeVolumeBinding",
+      "type": "object",
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/RuntimeResource"
+        },
+        "volume_name": {
+          "type": "string"
+        },
+        "provider_digest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource",
+        "provider_digest"
+      ],
+      "additionalProperties": false
+    },
     "SandboxConfig": {
       "title": "SandboxConfig",
       "type": "object",
       "properties": {
+        "profile": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "trusted-worker-pod"
+            },
+            {
+              "type": "string",
+              "const": "isolated-agent-v1"
+            }
+          ]
+        },
+        "runtime_class": {
+          "type": "string"
+        },
+        "service_account": {
+          "type": "string"
+        },
+        "service_account_uid": {
+          "type": "string"
+        },
+        "audience": {
+          "type": "string"
+        },
+        "control_url": {
+          "type": "string"
+        },
+        "control_ca_file": {
+          "type": "string"
+        },
+        "image_ref": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "storage_class": {
+          "type": "string"
+        },
+        "storage_access_mode": {
+          "type": "string"
+        },
+        "volume_size": {
+          "type": "string"
+        },
         "cluster_id": {
           "$ref": "#/$defs/Id"
         },

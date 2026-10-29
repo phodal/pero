@@ -109,9 +109,14 @@ export interface Run {
   status: RunStatus;
   lease_expires_at?: string | null;
   spec: TaskSpec;
+  remote_execution?: RemoteExecution;
   summary?: string;
   created_at?: string;
   updated_at?: string;
+}
+export interface RemoteExecution {
+  session_id: Id;
+  working_directory: "/workspace/repo";
 }
 export interface Claimant {
   id: Id;
@@ -289,9 +294,23 @@ export interface RuntimeBinding {
   snapshot?: RuntimeObservation;
   valid_until?: string;
   release_requested: boolean;
+  volume?: RuntimeVolumeBinding;
+  compute_receipt?: RuntimeReference;
   cleanup_receipt?: RuntimeReference;
 }
 export interface SandboxConfig {
+  profile?: "trusted-worker-pod" | "isolated-agent-v1";
+  runtime_class?: string;
+  service_account?: string;
+  service_account_uid?: string;
+  audience?: string;
+  control_url?: string;
+  control_ca_file?: string;
+  image_ref?: string;
+  model?: string;
+  storage_class?: string;
+  storage_access_mode?: string;
+  volume_size?: string;
   cluster_id: Id;
   namespace: string;
   warm_pool: string;
@@ -338,6 +357,11 @@ export interface RuntimeCondition {
 }
 export interface RuntimeAttributes {
   [k: string]: string | undefined;
+}
+export interface RuntimeVolumeBinding {
+  resource: RuntimeResource;
+  volume_name?: string;
+  provider_digest: string;
 }
 export interface SandboxDispatchResult {
   run: Run;
