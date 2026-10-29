@@ -117,6 +117,16 @@ class FoldTests(unittest.TestCase):
 
 
 class StoreTests(unittest.TestCase):
+    def test_retry_without_created_at_keeps_one_edition(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = Store(directory)
+            store.publish({"id": "retry", "cards": []}, "2026-10-29T01:00:00Z")
+            home = store.publish({"id": "retry", "cards": []}, "2026-10-29T01:00:07Z")
+            self.assertEqual([(item["id"], item["createdAt"]) for item in home["editions"]], [("retry", "2026-10-29T01:00:00Z")])
+            with self.assertRaises(Invalid) as changed:
+                store.publish({"id": "retry", "cards": [], "tomorrow": "Different"}, "2026-10-29T01:00:09Z")
+            self.assertEqual(changed.exception.code, "edition_conflict")
+
     def test_restart_keeps_archive_and_reading(self):
         with tempfile.TemporaryDirectory() as directory:
             store = Store(directory)

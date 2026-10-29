@@ -34,9 +34,11 @@ class Store:
         if not isinstance(document, dict):
             raise Invalid("edition_invalid")
         edition = dict(document)
-        if "createdAt" not in edition:
-            edition["createdAt"] = now
         with self._lock:
+            if "createdAt" not in edition:
+                # A retry keeps the time the first publish was given, so identical content stays identical.
+                known = next((item for item in [*self.state["editions"], *self.state["archive"]] if item["id"] == edition.get("id")), None)
+                edition["createdAt"] = known["createdAt"] if known else now
             return self._update({"type": "publish", "edition": edition}, archived_body=self._archived_body(edition.get("id")))
 
     def add_watch(self, text, cadence, now, watch_id):
