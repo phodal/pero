@@ -346,7 +346,13 @@ async fn run(
                                 Err(error) => { event(&tx,&thread,"session_error",error,Value::Null); continue; },
                             }
                         } else { None };
-                        let text=text.strip_prefix("/app-use").filter(|_|text.len()==8||text.as_bytes().get(8).is_some_and(|c|c.is_ascii_whitespace())).map(|s|s.trim_start().to_string()).unwrap_or(text);
+                        // App Use syntax belongs only to the explicit Host-selected path.
+                        // Ordinary and supervised Workers must receive the literal prompt.
+                        let text = if app_use.is_some() {
+                            text.strip_prefix("/app-use")
+                                .filter(|_| text.len() == 8 || text.as_bytes().get(8).is_some_and(|c| c.is_ascii_whitespace()))
+                                .map(|s| s.trim_start().to_string()).unwrap_or(text)
+                        } else { text };
                         let mut blocks = match prompt_blocks(text, context, &initialized.agent_capabilities.prompt_capabilities) {
                             Ok(blocks) => blocks,
                             Err(error) => { event(&tx, &thread, "session_error", error.to_string(), Value::Null); continue; },

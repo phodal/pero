@@ -21,6 +21,11 @@ impl AppUseEndpoint {
         Some(Self { url, token })
     }
 
+    #[cfg(test)]
+    pub(super) fn fixture(url: String) -> Self {
+        Self { url, token: "a".repeat(64) }
+    }
+
     pub(super) fn server(&self, thread: &str) -> McpServer {
         McpServer::Http(McpServerHttp::new("pero-app-use", self.url.clone()).headers(vec![
             HttpHeader::new("Authorization", format!("Bearer {}", self.token)),
