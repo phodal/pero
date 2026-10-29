@@ -24,7 +24,12 @@ cleanup() {
   fi
   [[ -z $proxy_pid ]] || { kill "$proxy_pid" 2>/dev/null || true; wait "$proxy_pid" 2>/dev/null || true; }
   if [[ $cluster_owned == 1 ]]; then "$work/bin/kind" delete cluster --name "$cluster" || status=1; fi
-  if [[ $registry_owned == 1 ]]; then docker rm -f "$registry" >/dev/null || status=1; fi
+  if [[ $registry_owned == 1 ]]; then
+    docker inspect --format '{{json .State}}' "$registry" > "$evidence/registry-state.json" 2>&1 || true
+    docker port "$registry" > "$evidence/registry-ports.txt" 2>&1 || true
+    docker logs --tail=100 "$registry" > "$evidence/registry.log" 2>&1 || true
+    docker rm -f "$registry" > "$evidence/registry-removed.txt" || status=1
+  fi
   printf 'cluster=%s\nregistry=%s\nexit=%s\n' "$cluster" "$registry" "$status" > "$evidence/cleanup.txt"
   # Ephemeral kubeconfig, build context, and test secrets are never uploaded.
   rm -rf "$work/bin" "$work/image" "$work/kubeconfig" "$work/cluster-ca.crt" "$work/controller.yaml"
@@ -41,15 +46,16 @@ chmod 0755 "$work/bin/kind" "$work/bin/kubectl"
 export PATH="$work/bin:$PATH"
 if kind get clusters 2>/dev/null | grep -Fxq "$cluster"; then echo 'Refusing to use an existing cluster' >&2; exit 2; fi
 if docker inspect "$registry" >/dev/null 2>&1; then echo 'Refusing to use an existing registry' >&2; exit 2; fi
+cluster_owned=1
+kind create cluster --name "$cluster" --kubeconfig "$KUBECONFIG" --wait 180s --image kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
+# Attach at creation: a later network connect can reassign dynamic host ports
+# (moby/moby#44137), invalidating both image names and containerd host aliases.
 registry_owned=1
-docker run -d -p 127.0.0.1::5000 --name "$registry" registry:3.0.0@sha256:6c5666b861f3505b116bb9aa9b25175e71210414bd010d92035ff64018f9457e >/dev/null
+docker run -d --network kind -p 127.0.0.1::5000 --name "$registry" registry:3.0.0@sha256:6c5666b861f3505b116bb9aa9b25175e71210414bd010d92035ff64018f9457e >/dev/null
 port=$(docker port "$registry" 5000/tcp | sed 's/.*://')
 # Match the IPv4-only published socket; localhost may resolve to ::1 first.
 curl --fail --silent --show-error --retry 5 --retry-connrefused --retry-delay 1 \
   --max-time 2 "http://127.0.0.1:$port/v2/" > /dev/null
-cluster_owned=1
-kind create cluster --name "$cluster" --kubeconfig "$KUBECONFIG" --wait 180s --image kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
-docker network connect kind "$registry"
 export PERO_SANDBOX_DIRECT_API=$(kubectl --kubeconfig "$KUBECONFIG" config view --minify -o jsonpath='{.clusters[0].cluster.server}')
 export PERO_SANDBOX_CA_FILE="$work/cluster-ca.crt"
 kubectl --kubeconfig "$KUBECONFIG" config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode > "$PERO_SANDBOX_CA_FILE"
