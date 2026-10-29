@@ -147,7 +147,7 @@ impl Control {
         self.request::<Receipt>(
             reqwest::Method::POST,
             "/api/worker/v1/claims",
-            Some(json!({"request_id":claim.request_id,"instance_id":claim.instance_id})),
+            Some(serde_json::to_value(claim).map_err(|_| "Invalid claim identity")?),
         )
         .map(|r| r.run)
     }

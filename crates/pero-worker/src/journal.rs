@@ -17,6 +17,9 @@ pub struct State {
 pub struct Claim {
     pub request_id: String,
     pub instance_id: String,
+    // Trusted-pool identity, frozen with the claim before its first HTTP request.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_pod_uid: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -116,6 +119,7 @@ mod tests {
         journal.state.pending_claim = Some(Claim {
             request_id: "request".into(),
             instance_id: "instance".into(),
+            runtime_pod_uid: None,
         });
         journal.save().unwrap();
         assert!(Journal::open(path.clone()).is_err());

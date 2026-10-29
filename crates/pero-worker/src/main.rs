@@ -134,6 +134,12 @@ fn run() -> Result<(), String> {
             }
         });
     }
+    let runtime_pod_uid = std::env::var("PERO_RUNTIME_POD_UID").ok();
+    if runtime_pod_uid.as_ref().is_some_and(|uid| {
+        uid.is_empty() || uid.len() > 128 || !uid.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-')
+    }) {
+        return Err("PERO_RUNTIME_POD_UID must be a bounded Kubernetes UID".into());
+    }
     let control = Control::new(&required("PERO_CLOUD_URL")?, required("PERO_WORKER_TOKEN")?)?;
     let config_path = PathBuf::from(required("PERO_WORKER_CONFIG")?);
     let mut config: executor::Config = serde_json::from_slice(
@@ -191,6 +197,7 @@ fn run() -> Result<(), String> {
             journal.state.pending_claim = Some(Claim {
                 request_id: uuid::Uuid::new_v4().to_string(),
                 instance_id: instance_id.clone(),
+                runtime_pod_uid: runtime_pod_uid.clone(),
             });
         }
         journal.save()?;

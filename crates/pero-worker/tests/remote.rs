@@ -30,7 +30,7 @@ readline.createInterface({input:process.stdin}).on('line',line=>{
    const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});
    fs.writeFileSync(process.env.WORKER_FIXTURE_DESCENDANT,String(child.pid));return;
   }
-  send({method:'session/update',params:{sessionId:'fixture',update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text:'worker_token_visible='+Boolean(process.env.PERO_WORKER_TOKEN||process.env.PERO_OPERATOR_TOKEN||process.env.PERO_DATABASE_URL||process.env.PERO_UNKNOWN_SECRET)}}}});
+  send({method:'session/update',params:{sessionId:'fixture',update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text:'worker_token_visible='+Boolean(process.env.PERO_WORKER_TOKEN||process.env.PERO_OPERATOR_TOKEN||process.env.PERO_DATABASE_URL||process.env.PERO_UNKNOWN_SECRET||process.env.PERO_RUNTIME_POD_UID)}}}});
   if(m.params.prompt[0].text==='permission'){
    send({id:900,method:'session/request_permission',params:{sessionId:'fixture',toolCall:{toolCallId:'tool',title:'fixture',status:'pending'},options:[{optionId:'allow',name:'Allow',kind:'allow_once'}]}});return;
   }
@@ -50,6 +50,7 @@ struct CloudState {
     events: Vec<Value>,
     renewals: usize,
     claim_keys: Vec<(String, String)>,
+    claim_pod_uids: Vec<Value>,
     completion: Option<Value>,
     claim_failures: usize,
     claim_status: Option<&'static str>,
@@ -185,6 +186,7 @@ impl Fixture {
                             body["request_id"].as_str().unwrap().into(),
                             body["instance_id"].as_str().unwrap().into(),
                         ));
+                        state.claim_pod_uids.push(body["runtime_pod_uid"].clone());
                         if state.claim_failures > 0 {
                             state.claim_failures -= 1;
                             status = state.claim_status.unwrap_or("503 Service Unavailable");
@@ -247,6 +249,7 @@ impl Fixture {
             .env("PERO_OPERATOR_TOKEN", "operator-secret")
             .env("PERO_DATABASE_URL", "database-secret")
             .env("PERO_UNKNOWN_SECRET", "future-secret")
+            .env_remove("PERO_RUNTIME_POD_UID")
             .env("PERO_WORKER_CONFIG", self.root.join("config.json"))
             .env("PERO_WORKER_STATE", self.root.join("state.json"))
             .stdout(Stdio::null())
@@ -515,4 +518,34 @@ fn revoked_worker_credential_stops_before_any_execution() {
         .map(|line| serde_json::from_str::<Value>(line).unwrap())
         .collect::<Vec<_>>();
     assert_eq!(states.last().unwrap()["status"], "needs_attention");
+}
+
+#[test]
+fn runtime_claim_identity_survives_lost_response_and_changed_pod_environment() {
+    let fixture = Fixture::new("hello", false, false);
+    fixture.state.lock().unwrap().claim_failures = 1;
+    let first = fixture.command().env("PERO_RUNTIME_POD_UID", "pod-original").output().unwrap();
+    assert!(!first.status.success());
+    let journal: Value = serde_json::from_slice(&std::fs::read(fixture.root.join("state.json")).unwrap()).unwrap();
+    assert_eq!(journal["pending_claim"]["runtime_pod_uid"], "pod-original");
+    assert!(!fixture.root.join("marker").exists());
+    let recovered = fixture.command().env("PERO_RUNTIME_POD_UID", "pod-replacement").output().unwrap();
+    assert!(recovered.status.success(), "{}", String::from_utf8_lossy(&recovered.stderr));
+    let state = fixture.state.lock().unwrap();
+    assert_eq!(state.claim_pod_uids, vec![json!("pod-original"), json!("pod-original")]);
+    assert_eq!(state.claim_keys[0], state.claim_keys[1]);
+    assert_eq!(state.completion.as_ref().unwrap()["outcome"], "reconcile");
+    assert!(!fixture.root.join("marker").exists(), "restart must not replay the prompt");
+}
+
+#[test]
+fn runtime_claim_executes_through_local_acp_without_runtime_identity_in_agent() {
+    let fixture = Fixture::new("hello", false, false);
+    let output = fixture.command().env("PERO_RUNTIME_POD_UID", "pod-original").output().unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let state = fixture.state.lock().unwrap();
+    assert_eq!(state.claim_pod_uids, vec![json!("pod-original")]);
+    assert_eq!(state.completion.as_ref().unwrap()["outcome"], "succeeded");
+    assert!(state.events.iter().any(|e| e["data"]["content"]["text"] == "worker_token_visible=false"));
+    assert_eq!(std::fs::read_to_string(fixture.root.join("marker")).unwrap(), "prompt\n");
 }
