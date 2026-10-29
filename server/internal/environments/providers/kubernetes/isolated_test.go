@@ -92,6 +92,14 @@ func (c *coldAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			pvc["status"] = map[string]any{"phase": "Bound"}
 			c.objects["pods/"+name] = map[string]any{"apiVersion": "v1", "kind": "Pod", "metadata": map[string]any{"name": name, "namespace": "isolated", "uid": "pod-uid", "resourceVersion": "2", "ownerReferences": []any{map[string]any{"apiVersion": SandboxAPI, "kind": "Sandbox", "name": name, "uid": uid, "controller": true, "blockOwnerDeletion": true}}}, "spec": podSpec, "status": map[string]any{"phase": "Running", "conditions": []any{map[string]any{"type": "Ready", "status": "True"}}, "containerStatuses": []any{map[string]any{"name": "agent", "containerID": "containerd://agent", "restartCount": 0, "imageID": c.image, "ready": true, "state": map[string]any{"running": map[string]any{}}}}}}
 		}
+		if kind == "jobs" {
+			template := value["spec"].(map[string]any)["template"].(map[string]any)
+			podSpec := cloneMap(template["spec"].(map[string]any))
+			labels := cloneMap(template["metadata"].(map[string]any)["labels"].(map[string]any))
+			labels["batch.kubernetes.io/controller-uid"] = uid
+			image := podSpec["containers"].([]any)[0].(map[string]any)["image"]
+			c.objects["pods/"+name+"-pod"] = map[string]any{"apiVersion": "v1", "kind": "Pod", "metadata": map[string]any{"name": name + "-pod", "namespace": "isolated", "uid": "collector-pod-uid", "resourceVersion": "1", "labels": labels, "ownerReferences": []any{map[string]any{"apiVersion": "batch/v1", "kind": "Job", "name": name, "uid": uid, "controller": true}}}, "spec": podSpec, "status": map[string]any{"containerStatuses": []any{map[string]any{"name": "collector", "imageID": image}}}}
+		}
 		c.objects[key] = value
 		if c.lostCreate[kind] {
 			delete(c.lostCreate, kind)
@@ -129,6 +137,9 @@ func (c *coldAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if kind == "sandboxes" {
 				delete(c.objects, "pods/"+name)
 			}
+			if kind == "jobs" && !c.linger["pods"] {
+				delete(c.objects, "pods/"+name+"-pod")
+			}
 		}
 		if c.lostDelete[kind] {
 			delete(c.lostDelete, kind)
@@ -138,6 +149,21 @@ func (c *coldAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(200)
 	default:
+		if kind == "pods" && name == "" {
+			items := []any{}
+			_, uid, _ := strings.Cut(r.URL.Query().Get("labelSelector"), "=")
+			for key, value := range c.objects {
+				if strings.HasPrefix(key, "pods/") {
+					meta := value["metadata"].(map[string]any)
+					labels, _ := meta["labels"].(map[string]any)
+					if labels["batch.kubernetes.io/controller-uid"] == uid {
+						items = append(items, value)
+					}
+				}
+			}
+			json.NewEncoder(w).Encode(map[string]any{"apiVersion": "v1", "kind": "PodList", "items": items})
+			return
+		}
 		value, exists := c.objects[key]
 		if !exists {
 			w.WriteHeader(404)

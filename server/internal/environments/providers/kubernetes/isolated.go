@@ -56,12 +56,16 @@ func NewColdOwner(base string, client *http.Client, config ColdConfig, now func(
 }
 func (o *ColdOwner) Owner() model.Owner { return o.identity }
 
+// Configuration contains only the immutable public recipe, never HTTP credentials.
+func (o *ColdOwner) Configuration() ColdConfig { return o.config }
+
 type coldObject struct {
 	APIVersion string          `json:"apiVersion"`
 	Kind       string          `json:"kind"`
 	Metadata   Metadata        `json:"metadata"`
 	Spec       json.RawMessage `json:"spec"`
 	Status     json.RawMessage `json:"status"`
+	Items      []coldObject    `json:"items,omitempty"`
 }
 type coldPVCSpec struct {
 	AccessModes      []string `json:"accessModes"`
@@ -95,6 +99,8 @@ func (o *ColdOwner) path(kind, name string) (string, error) {
 	switch kind {
 	case "Sandbox":
 		prefix = "/apis/" + SandboxAPI + "/namespaces/" + o.config.Namespace + "/sandboxes"
+	case "Job":
+		prefix = "/apis/batch/v1/namespaces/" + o.config.Namespace + "/jobs"
 	case "Pod":
 		prefix += "pods"
 	case "PersistentVolumeClaim":
@@ -114,6 +120,10 @@ func (o *ColdOwner) request(ctx context.Context, method, kind, name string, inpu
 	if err != nil {
 		return coldObject{}, err
 	}
+	return o.requestPath(ctx, method, path, input)
+}
+func (o *ColdOwner) requestPath(ctx context.Context, method, path string, input any) (coldObject, error) {
+	var err error
 	var body []byte
 	if input != nil {
 		body, err = json.Marshal(input)

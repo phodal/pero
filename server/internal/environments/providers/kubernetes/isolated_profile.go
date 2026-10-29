@@ -244,8 +244,10 @@ func (c ColdConfig) pod(requestID, pvcName string) coldPodSpec {
 func (c ColdConfig) validPod(actual coldPodSpec, request, pvc string) bool {
 	// Only known API defaults may differ; all security, env, container and volume
 	// fields are compared to the actual generated recipe, not a label assertion.
-	expected := c.pod(request, pvc)
-	if actual.ServiceAccount != "" && actual.ServiceAccount != c.ServiceAccountName {
+	return samePodProfile(actual, c.pod(request, pvc))
+}
+func samePodProfile(actual, expected coldPodSpec) bool {
+	if actual.ServiceAccount != "" && actual.ServiceAccount != expected.ServiceAccountName {
 		return false
 	}
 	if actual.DNSPolicy != "" && actual.DNSPolicy != "ClusterFirst" || actual.SchedulerName != "" && actual.SchedulerName != "default-scheduler" || actual.PreemptionPolicy != "" && actual.PreemptionPolicy != "PreemptLowerPriority" || actual.Priority != nil && *actual.Priority != 0 {
