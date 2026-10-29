@@ -320,7 +320,10 @@ func TestIsolatedRuntimeWorkerProcesses(t *testing.T) {
 				}
 				// Upstream accepts this request and loses its reply. The attempt is
 				// still charged; the Agent's successful call spends the second.
-				request(t, server, "POST", path, "synthetic-pod-token", valid, "", 502)
+				lost := request(t, server, "POST", path, "synthetic-pod-token", valid, "", 502)
+				if string(lost) != "{\"error\":{\"message\":\"PERO_PROVIDER_TRANSPORT\",\"code\":\"PERO_PROVIDER_TRANSPORT\"}}\n" {
+					t.Fatal("lost upstream response did not retain only the static transport diagnostic")
+				}
 				os.WriteFile(filepath.Join(dir, "release"), []byte("go"), 0600)
 				waitFile(filepath.Join(dir, "provider-done"))
 				request(t, server, "POST", path, "synthetic-pod-token", valid, "", 403)

@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -250,17 +251,17 @@ func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+g.provider.APIKey)
 	response, err := g.client.Do(req)
 	if err != nil {
-		deny(w, 502)
+		providerFailure(w, "PERO_PROVIDER_TRANSPORT", 0)
 		return
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
-		deny(w, 502)
+		providerFailure(w, "PERO_PROVIDER_UPSTREAM_HTTP", response.StatusCode)
 		return
 	}
 	content := response.Header.Get("Content-Type")
 	if !strings.HasPrefix(content, "application/json") && !strings.HasPrefix(content, "text/event-stream") {
-		deny(w, 502)
+		providerFailure(w, "PERO_PROVIDER_CONTENT_TYPE", response.StatusCode)
 		return
 	}
 	w.Header().Set("Content-Type", content)
@@ -287,6 +288,26 @@ func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+// Only gateway-owned codes and the numeric HTTP status cross this boundary.
+// Never copy upstream bodies, headers, request IDs, URLs or transport errors:
+// those can contain the operator's provider credential or private account data.
+func providerFailure(w http.ResponseWriter, code string, status int) {
+	type failure struct {
+		Message        string `json:"message"`
+		Code           string `json:"code"`
+		UpstreamStatus int    `json:"upstream_status,omitempty"`
+	}
+	message := code
+	if status != 0 {
+		message += " status=" + strconv.Itoa(status)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadGateway)
+	_ = json.NewEncoder(w).Encode(struct {
+		Error failure `json:"error"`
+	}{failure{message, code, status}})
 }
 
 func strict(data []byte, target any) error {
