@@ -4,6 +4,9 @@ go_library(
     name = "store",
     srcs = [
         "clients.go",
+        "artifacts.go",
+        "artifact_objects.go",
+        "runtime_channels.go",
         "contribution.go",
         "contributions.go",
         "community.go",
@@ -23,6 +26,8 @@ go_library(
     deps = [
         "//server/migrations",
         "//server/internal/runtimebinding",
+        "//server/internal/artifacts",
+        "//server/internal/runtimechannel",
         "@com_github_jackc_pgx_v5//:pgx",
         "@com_github_jackc_pgx_v5//pgxpool",
     ],
@@ -32,6 +37,7 @@ go_test(
     name = "store_test",
     srcs = [
         "clients_test.go",
+        "artifacts_test.go",
         "worker_devices_test.go",
         "contribution_test.go",
         "contributions_test.go",
@@ -40,6 +46,7 @@ go_test(
         "github_test.go",
         "integration_test.go",
         "runtime_test.go",
+        "runtime_channels_test.go",
         "roadmap_test.go",
     ],
     embed = [":store"],
@@ -55,6 +62,8 @@ go_test(
     visibility = ["//server:__pkg__"],
     deps = [
         "//server/internal/runtimebinding",
+        "//server/internal/artifacts",
+        "//server/internal/runtimechannel",
         "//server/internal/environments/model",
         "@com_github_jackc_pgx_v5//:pgx",
         "@com_github_jackc_pgx_v5//pgxpool",

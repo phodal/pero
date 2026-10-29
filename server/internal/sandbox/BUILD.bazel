@@ -1,18 +1,18 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "sandbox",
-    srcs = ["config.go", "runtime.go"],
+    srcs = ["config.go", "config_isolated.go", "exporter.go", "isolated.go", "runtime.go"],
     importpath = "github.com/phodal/pero/server/internal/sandbox",
     visibility = ["//server:__subpackages__"],
     deps = [
-        "//server/internal/environments/model", "//server/internal/environments/ports",
+        "//server/internal/artifacts", "//server/internal/artifacts/s3", "//server/internal/runtimeauth", "//server/internal/runtimechannel", "//server/internal/runtimegateway", "//server/internal/environments/model", "//server/internal/environments/ports",
         "//server/internal/environments/providers/kubernetes", "//server/internal/runtimebinding", "//server/internal/store",
     ],
 )
 
 go_test(
     name = "sandbox_test",
-    srcs = ["runtime_test.go", "cluster_test.go", "http_test.go"],
+    srcs = ["runtime_test.go", "isolated_test.go", "exporter_test.go", "isolated_cluster_test.go", "cluster_test.go", "http_test.go"],
     size = "large",
     env = {"PERO_REQUIRE_TEST_DATABASE": "1"},
     env_inherit = [
@@ -31,6 +31,12 @@ go_test(
     tags = ["external", "local", "manual", "no-cache", "no-remote"],
     deps = [
         ":sandbox",
+        "//server/internal/artifacts/s3",
+        "//server/internal/runtimeauth",
+        "//server/internal/runtimechannel",
+        "//server/internal/runtimegateway",
+        "//server/internal/environments/model",
+        "//server/internal/artifacts",
         "//server/internal/environments/providers/kubernetes",
         "//server/internal/httpapi",
         "//server/internal/runtimebinding",
