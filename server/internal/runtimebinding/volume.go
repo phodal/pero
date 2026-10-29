@@ -65,7 +65,8 @@ func (b Binding) validateVolume(previous Binding) error {
 	return nil
 }
 
-// DataCleanup records only the explicit volume owner's receipt together with
+// DataCleanup records only the original PVC API deletion receipt, not physical
+// PV erasure (which depends on the StorageClass reclaim policy), together with
 // the durable approval digest. A compute receipt cannot end the data lifetime.
 func (b Binding) DataCleanup(receipt model.Ref, approvalDigest string) (Binding, error) {
 	if !b.Config.IsIsolated() || !b.ReleaseRequested || b.ComputeReceipt == nil || b.Volume == nil || b.Volume.VolumeName == "" || receipt.Validate() != nil || receipt.Kind != "kubernetes-volume-dispose" || !digest.MatchString(receipt.Digest) || !digest.MatchString(approvalDigest) {
@@ -78,7 +79,7 @@ func (b Binding) DataCleanup(receipt model.Ref, approvalDigest string) (Binding,
 	b.DataCleanupReceipt = &receipt
 	b.CleanupReceipt = &receipt
 	b.Phase = Released
-	b.Reason = "RetainedVolumeGone"
+	b.Reason = "RetainedPVCGone"
 	b.ValidUntil = nil
 	return b, nil
 }
