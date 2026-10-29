@@ -72,7 +72,7 @@ func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), artifacts.MaxCollectionDuration)
 	defer cancel()
 	var e artifacts.Export
-	if err = c.request(ctx, http.MethodGet, "", nil, 0, "", &e); err != nil {
+	if err = c.plan(ctx, &e); err != nil {
 		return err
 	}
 	if e.ID != *id {
@@ -147,9 +147,13 @@ func (c *controlClient) request(ctx context.Context, method, suffix string, body
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("collector request status %d; original export retained", response.StatusCode)
+		return controlStatus(response.StatusCode)
 	}
-	decoder := json.NewDecoder(io.LimitReader(response.Body, artifacts.MaxManifestBytes+1))
+	data, err := io.ReadAll(io.LimitReader(response.Body, artifacts.MaxManifestBytes+1))
+	if err != nil || len(data) > artifacts.MaxManifestBytes {
+		return errors.New("collector response exceeds contract")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err = decoder.Decode(result); err != nil {
 		return errors.New("collector response invalid")
@@ -159,4 +163,30 @@ func (c *controlClient) request(ctx context.Context, method, suffix string, body
 		return errors.New("collector response exceeds contract")
 	}
 	return nil
+}
+
+type controlStatus int
+
+func (s controlStatus) Error() string {
+	return fmt.Sprintf("collector request status %d; original export retained", s)
+}
+
+// Initial registration alone may be pending while the controller persists the
+// actual Job Pod UID. Other failures and all mutations are never blindly retried.
+func (c *controlClient) plan(ctx context.Context, e *artifacts.Export) error {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	for {
+		err := c.request(ctx, http.MethodGet, "", nil, 0, "", e)
+		if err != controlStatus(http.StatusTooEarly) {
+			return err
+		}
+		timer := time.NewTimer(250 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
 }

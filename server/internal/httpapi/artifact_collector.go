@@ -23,6 +23,11 @@ type ArtifactObjectStore interface {
 // trusted composition, never by an Agent or collector request. Runtime-channel
 // credentials and an unsigned/self-decoded JWT are not sufficient authority.
 type CollectorAuthenticator func(context.Context, string, string) error
+
+// ErrCollectorPending is only for a successfully TokenReviewed collector whose
+// original Job exists but observed Pod identity has not yet been durably bound.
+var ErrCollectorPending = errors.New("collector identity registration pending")
+
 type artifactExportContextKey struct{}
 
 // ArtifactCollectorHandler has its own bounded binary transport; it must be
@@ -130,6 +135,10 @@ func ArtifactCollectorHandler(db *store.Store, objects ArtifactObjectStore, auth
 			return
 		}
 		if err := authenticate(ctx, token, parts[0]); err != nil {
+			if errors.Is(err, ErrCollectorPending) {
+				respond(w, 425, map[string]string{"error": "collector registration pending"})
+				return
+			}
 			respond(w, 403, map[string]string{"error": "collector authority unavailable"})
 			return
 		}
