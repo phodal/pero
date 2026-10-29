@@ -37,13 +37,14 @@ type result struct {
 	Passed        bool   `json:"passed"`
 }
 type receipt struct {
-	Kind           string   `json:"kind"`
-	AllPassed      bool     `json:"all_passed"`
-	IPv4Only       bool     `json:"ipv4_only"`
-	UID            int      `json:"uid"`
-	GID            int      `json:"gid"`
-	RuntimeVersion string   `json:"runtime_version"`
-	Results        []result `json:"results"`
+	Kind           string           `json:"kind"`
+	AllPassed      bool             `json:"all_passed"`
+	IPv4Only       bool             `json:"ipv4_only"`
+	IPFamily       ipFamilyEvidence `json:"ip_family_evidence"`
+	UID            int              `json:"uid"`
+	GID            int              `json:"gid"`
+	RuntimeVersion string           `json:"runtime_version"`
+	Results        []result         `json:"results"`
 }
 
 func parse(input io.Reader) (config, error) {
@@ -105,26 +106,181 @@ func serveDNS(c net.PacketConn) error {
 		}
 	}
 }
-func ipv4Only() bool {
-	addresses, err := net.InterfaceAddrs()
-	if err != nil {
-		return false
-	}
+
+type addressEvidence struct {
+	CIDR   string `json:"cidr"`
+	Family string `json:"family"`
+	Scope  string `json:"scope"`
+}
+type interfaceEvidence struct {
+	Name      string   `json:"name"`
+	Flags     string   `json:"flags"`
+	Addresses []string `json:"addresses"`
+	Error     string   `json:"error,omitempty"`
+}
+type ipv6RouteEvidence struct {
+	Destination string `json:"destination"`
+	Source      string `json:"source"`
+	Gateway     string `json:"gateway"`
+	Interface   string `json:"interface"`
+	Flags       string `json:"flags"`
+}
+type ipFamilyEvidence struct {
+	Addresses        []addressEvidence   `json:"addresses"`
+	EnumerationError string              `json:"enumeration_error,omitempty"`
+	Interfaces       []interfaceEvidence `json:"interfaces"`
+	InterfaceError   string              `json:"interface_error,omitempty"`
+	IPv6Routes       []ipv6RouteEvidence `json:"ipv6_routes"`
+	IPv6RoutesError  string              `json:"ipv6_routes_error,omitempty"`
+}
+
+// Keep the original fail-closed criterion. Link-local/unspecified IPv6 is not
+// silently whitelisted: an address category alone proves no route isolation.
+func classifyAddresses(addresses []string, enumerationError string) (bool, []addressEvidence) {
+	onlyIPv4 := enumerationError == ""
+	haveIPv4 := false
+	observations := make([]addressEvidence, 0, len(addresses))
 	for _, a := range addresses {
-		ip, _, err := net.ParseCIDR(a.String())
+		e := addressEvidence{CIDR: a, Family: "unknown", Scope: "invalid"}
+		ip, _, err := net.ParseCIDR(a)
 		if err != nil {
-			return false
+			onlyIPv4 = false
+			observations = append(observations, e)
+			continue
+		}
+		e.Family = "ipv6"
+		if ip.To4() != nil {
+			e.Family = "ipv4"
+			if !ip.IsLoopback() && !ip.IsUnspecified() && !ip.IsMulticast() {
+				haveIPv4 = true
+			}
+		}
+		switch {
+		case ip.IsLoopback():
+			e.Scope = "loopback"
+		case ip.IsUnspecified():
+			e.Scope = "unspecified"
+		case ip.IsLinkLocalUnicast():
+			e.Scope = "link_local"
+		case ip.IsMulticast():
+			e.Scope = "multicast"
+		default:
+			e.Scope = "unicast"
 		}
 		if ip.To4() == nil && !ip.IsLoopback() {
-			return false
+			onlyIPv4 = false
+		}
+		observations = append(observations, e)
+	}
+	return onlyIPv4 && haveIPv4, observations
+}
+func queryError(err error) string {
+	for _, item := range []struct {
+		err  error
+		code string
+	}{{syscall.ENOENT, "not_found"}, {syscall.EINVAL, "invalid_argument"}, {syscall.ENOSYS, "not_implemented"}, {syscall.EOPNOTSUPP, "not_supported"}, {syscall.EAFNOSUPPORT, "address_family_unsupported"}, {syscall.EPERM, "permission_denied"}, {syscall.EACCES, "permission_denied"}} {
+		if errors.Is(err, item.err) {
+			return item.code
 		}
 	}
-	return true
+	return "query_failed"
+}
+func parseIPv6Routes(data []byte) ([]ipv6RouteEvidence, error) {
+	routes := []ipv6RouteEvidence{}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		f := strings.Fields(line)
+		if len(f) != 10 || len(routes) >= 128 {
+			return nil, errors.New("malformed_or_excess_routes")
+		}
+		address := func(value string) (string, error) {
+			b, err := hex.DecodeString(value)
+			if err != nil || len(b) != 16 {
+				return "", errors.New("malformed_route_address")
+			}
+			return net.IP(b).String(), nil
+		}
+		dst, e1 := address(f[0])
+		src, e2 := address(f[2])
+		gateway, e3 := address(f[4])
+		dstBits, e4 := strconv.ParseUint(f[1], 16, 8)
+		srcBits, e5 := strconv.ParseUint(f[3], 16, 8)
+		_, e6 := strconv.ParseUint(f[8], 16, 32)
+		if e1 != nil || e2 != nil || e3 != nil || e4 != nil || e5 != nil || e6 != nil || dstBits > 128 || srcBits > 128 || len(f[9]) > 64 {
+			return nil, errors.New("malformed_route")
+		}
+		routes = append(routes, ipv6RouteEvidence{fmt.Sprintf("%s/%d", dst, dstBits), fmt.Sprintf("%s/%d", src, srcBits), gateway, f[9], f[8]})
+	}
+	return routes, nil
+}
+func observeIPFamily() (bool, ipFamilyEvidence) {
+	e := ipFamilyEvidence{Interfaces: []interfaceEvidence{}, IPv6Routes: []ipv6RouteEvidence{}}
+	addresses, err := net.InterfaceAddrs()
+	if err != nil {
+		e.EnumerationError = queryError(err)
+	}
+	if len(addresses) > 128 {
+		e.EnumerationError = "address_limit"
+		addresses = addresses[:128]
+	}
+	raw := make([]string, 0, len(addresses))
+	for _, a := range addresses {
+		raw = append(raw, a.String())
+	}
+	onlyIPv4, classified := classifyAddresses(raw, e.EnumerationError)
+	e.Addresses = classified
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		e.InterfaceError = queryError(err)
+	}
+	if len(interfaces) > 64 {
+		e.InterfaceError = "interface_limit"
+		interfaces = interfaces[:64]
+	}
+	for _, iface := range interfaces {
+		item := interfaceEvidence{Name: iface.Name, Flags: iface.Flags.String(), Addresses: []string{}}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			item.Error = queryError(err)
+		}
+		if len(addrs) > 128 {
+			item.Error = "address_limit"
+			addrs = addrs[:128]
+		}
+		for _, a := range addrs {
+			item.Addresses = append(item.Addresses, a.String())
+		}
+		e.Interfaces = append(e.Interfaces, item)
+	}
+	// Fixed, bounded kernel network metadata; no arbitrary paths, raw error
+	// messages, netlink payloads or process credential contents enter receipts.
+	f, err := os.Open("/proc/net/ipv6_route")
+	if err != nil {
+		e.IPv6RoutesError = queryError(err)
+	} else {
+		data, readErr := io.ReadAll(io.LimitReader(f, 65537))
+		_ = f.Close()
+		if readErr != nil {
+			e.IPv6RoutesError = queryError(readErr)
+		} else if len(data) > 65536 {
+			e.IPv6RoutesError = "route_byte_limit"
+		} else {
+			routes, parseErr := parseIPv6Routes(data)
+			if parseErr != nil {
+				e.IPv6RoutesError = "malformed_route_projection"
+			} else {
+				e.IPv6Routes = routes
+			}
+		}
+	}
+	return onlyIPv4, e
 }
 func probe(c config) receipt {
 	version, _ := os.ReadFile("/proc/version")
-	onlyIPv4 := ipv4Only()
-	r := receipt{Kind: "infrastructure-network-probe", AllPassed: onlyIPv4, IPv4Only: onlyIPv4, UID: os.Getuid(), GID: os.Getgid(), RuntimeVersion: strings.TrimSpace(string(version))}
+	onlyIPv4, familyEvidence := observeIPFamily()
+	r := receipt{Kind: "infrastructure-network-probe", AllPassed: onlyIPv4, IPv4Only: onlyIPv4, IPFamily: familyEvidence, UID: os.Getuid(), GID: os.Getgid(), RuntimeVersion: strings.TrimSpace(string(version))}
 	for _, t := range c.Targets {
 		// A first successful forbidden connection is a failure. Never retry it away.
 		protocol := t.Protocol
