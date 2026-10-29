@@ -125,10 +125,14 @@ coverage: `run.TAq4QrPl`. Fake-Kubernetes + real PostgreSQL runtime export/expli
 GC coverage: `run.5wiQHzQ2`, including cancellation, lost create/delete replies,
 original identity reconciliation, partial manifest and retained PVC safety.
 
-These are not real CSI or object-store durability claims. The opt-in disposable
-MinIO conformance and isolated-kind job must produce non-skipped exact-head PASS
-receipts before acceptance. Production cross-node CSI fencing remains a separate
-deployment gate even if those disposable tests pass.
+The subsequent [isolated acceptance](isolated-agent-acceptance.md#accepted-disposable-cluster-baseline)
+records non-skipped real MinIO and isolated-kind PASS at immutable PR head
+`73dfa11eeebf0e79050fadfa75f97aa1e84710e9` / run `40912932701`: success and
+cancellation both committed checked manifests and reread the same generated
+bytes after original compute/PVC removal. This is actual disposable-backend
+conformance, not a production storage durability or CSI failover certificate.
+Production cross-node fencing and trusted export orchestration remain separate
+deployment gates; this later report does not imply an unrun head was tested.
 
 Code boundaries: `internal/artifacts` (domain), `artifacts/collector` (safe file
 opens), `artifacts/s3` (private backend), Store artifact tables/migration016,

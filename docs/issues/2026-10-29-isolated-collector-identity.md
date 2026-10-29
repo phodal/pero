@@ -1,11 +1,11 @@
 ---
 kind: issue
-status: open
+status: resolved
 ---
 
 # Isolated collector identity validation blocks export
 
-Canonical tracker for the remaining collector acceptance failure in Draft
+Canonical tracker for the resolved collector acceptance failure in Draft
 [PR #20](https://github.com/phodal/pero/pull/20). This is not a deployment approval.
 
 ## Observed failure
@@ -53,11 +53,11 @@ complete `v1/PodList` envelope. Explicit conflicting or partial type pairs still
 fail. Namespace, UID, spec fingerprint, Job owner, Pod profile, image and
 pagination checks remain mandatory; standalone object validation is unchanged.
 Provider race tests pass, including negative identity-drift cases. This is a
-proven adapter defect consistent with the actual failure stage, not yet proof
-that it was the historical failure's only cause: raw Pod shape was not retained.
-Actual export, immutable manifest and explicit data-GC acceptance remain pending.
+proven adapter defect consistent with the actual failure stage. The earlier raw
+Pod shape was not retained; the successful follow-up below confirms that exact
+wire shape and the completed export/cleanup path without weakening validation.
 
-## Next verification
+## Verified resolution
 
 Diagnostics retain only fixed rejection stages, digests and recognized response
 field shapes, not arbitrary keys, environment values, arguments, logs or tokens.
@@ -65,8 +65,22 @@ The strict validation and `ErrIdentity` semantics remain unchanged. A temporary
 `k8s.io/api` / `apimachinery` v0.36.4 JSON roundtrip did not emit a zero
 `creationTimestamp`; older null-timestamp examples do not prove this failure.
 
-Require the next actual fixture to pass collector admission, verified manifest
-commit and explicit UID-safe PVC cleanup before closing this issue. Preserve the
-safe rejection diagnostics if another mismatch remains. A green single-node
-fixture still does not supply a production CSI partition/fence adapter or the
-missing trusted export-orchestration integration.
+[Run 40912932701](https://github.com/phodal/pero/actions/runs/40912932701), immutable
+PR head `73dfa11eeebf0e79050fadfa75f97aa1e84710e9`, tested merge/workspace
+`85474b1624b15181242725e1b5bff60b71a34f7c`, passed both success and cancellation.
+Actual pre-GC PodList receipts confirm a complete `v1/PodList` with **both nested
+item type fields absent** and original collector Pod UID, namespace and Job UID
+matching. No conflicting type or identity check was bypassed.
+
+Both scenarios committed the verified manifest, retained the PVC until explicit
+GC approval, confirmed original PVC deletion, preserved the manifest and reread
+identical private S3 bytes afterward. Final compute/data cleanup receipts are
+separate and the binding is `released`. Artifact `12914738397` ZIP SHA-256:
+`77c5fdc549621a785d7fdc623fcf0e30094a75b600f468f55d82c96bb5879e29`.
+Cleanup exited zero; owned node, MinIO, registry and PostgreSQL were removed.
+Independent review checked the actual receipts and reconstructed both file hashes.
+
+This closes the adapter compatibility/fixture acceptance issue, not production
+readiness. The selected production CSI partition/fence adapter and trusted
+export-orchestration integration remain separate deployment prerequisites. This
+record references the immutable tested head, not any later documentation commit.

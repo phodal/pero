@@ -66,17 +66,67 @@ pass**. Synthetic split-text, wrong-channel/turn, cancellation and sanitized
   owned node and registry were removed. Artifact SHA-256:
   `a7cf513f0ed1e69acfc122fd875101d1db612220924b257986beddd94dc8591b`.
 
+## Accepted disposable cluster baseline
+
+[Isolated run 40912932701](https://github.com/phodal/pero/actions/runs/40912932701)
+passed at PR head `73dfa11eeebf0e79050fadfa75f97aa1e84710e9`, tested merge/workspace
+`85474b1624b15181242725e1b5bff60b71a34f7c`. This immutable source receipt does not
+claim that a later documentation/test-only head has already run.
+
+- Actual external Rust Worker → ACP bridge → actual Go ACP passed success
+  (80.55 s) and cancellation (59.88 s), 140.45 s total. Each retained eight
+  events and made one synthetic provider request; both ended `released`.
+- The exact Agent Pod/container identities ran under `io.containerd.runsc.v1`
+  as UID/GID10001. Nine positive-control/negative TCP and DNS outcomes passed
+  against the actual product policy, including same/cross-namespace neighbors,
+  API, node and synthetic metadata/public targets. IPv4-only inventory passed;
+  Pod-netns CNI tuning prevented link-local IPv6 while owned-node global values
+  stayed unchanged. Valid admission passed; missing-runtime, privileged and
+  hostPath dry runs were denied. This is neither dual-stack nor HA evidence.
+- Independent PVC/PV identity survived original compute removal. A separate
+  read-only collector exported each runtime-generated, fsynced 125-byte
+  Run-ID/nonce file, and its SHA-256 matched the immutable verified manifest.
+  Ordinary release retained data; explicit UID-safe GC removed the original
+  collector and PVC. Manifest and identical private S3 bytes survived that
+  removal. The real pinned MinIO conditional-write/checksum/replay gate passed.
+- Live collector PodLists confirmed omitted nested type fields under a valid
+  typed envelope. The [compatibility defect](../issues/2026-10-29-isolated-collector-identity.md)
+  is resolved without relaxing UID, owner, image/profile or completeness checks.
+- Cleanup exited zero; cluster node, registry, MinIO and PostgreSQL were removed.
+  Independent review verified the receipts. Artifact `12914738397` ZIP SHA-256:
+  `77c5fdc549621a785d7fdc623fcf0e30094a75b600f468f55d82c96bb5879e29`.
+
+Image provenance (SHA-256 manifest digests):
+
+| Image | Digest |
+| --- | --- |
+| Normal Agent | `b21aab7f83ad59affc2f2dc3db052f36b147c03aab75273d84c673af1aa6d6d9` |
+| Instrumented test derivative | `c6e11c579d0e024bc807d61610e2bfc90d3065fbfe2411cbaccd1f9fa9d7e1ac` |
+| Trusted collector | `4b87f80d60d3b118d942951109918a43db5572d38ce6af1dc4844d3f765fec62` |
+
+The test derivative adds a fixed runtime probe and output writer before unchanged
+Go ACP. The file was not image-seeded, but this is **not** ACP tool-write approval
+or byte-identical normal-image execution. Default-deny tool permission remains.
+Storage fencing is independently observed on one owned node, not CSI failover.
+
+[Trusted regression run 40912932737](https://github.com/phodal/pero/actions/runs/40912932737)
+on the same source passed success/cancel (34.67 s total), one request/session/turn
+each, retained eight/four events, original UID cleanup and fixture teardown.
+Artifact `12915770193` SHA-256:
+`e47b86ab413a62853784132449c85db2a243b80d733f89bbfdf7f704efa2f085`.
+The historical intermittent two-request cause remains unproven; this pass does
+not silently erase that limitation. Desktop/standard CI are separate checks.
+
 ## Deployment-blocking requirements
 
-1. Demonstrate the actual fixed Agent Pod's runtime, admission and network
-   envelope, including preventing unintended IPv6 connectivity. YAML and a
-   positive-control pass alone are not enforcement evidence.
-2. Complete non-skipped cold Sandbox/PVC, real Go ACP, read-only exporter,
-   backend-checksummed manifest and UID-safe data-cleanup cluster flows.
-3. Integrate a trusted storage-fence adapter and export orchestration for the
+1. Integrate a trusted storage-fence adapter and export orchestration for the
    selected CSI backend. Single-node kind cannot prove partition/failover
    fencing. Pod API absence is not physical writer fencing.
-4. Meet the [durable artifact prerequisites](durable-artifact-exports.md),
+2. Validate the actual target cluster's pinned RuntimeClass, admission and CNI
+   configuration with the same negative/positive controls; the disposable Linux
+   IPv4-only reference profile does not certify another deployment. The relay is
+   single-instance; failover/HA and reconnect-to-replay are not supported.
+3. Meet the [durable artifact prerequisites](durable-artifact-exports.md),
    including retained-volume recovery, backend retention and operator handling
    of failed/expired collectors. Automatic unattended tool approval remains
    disabled; the file-production fixture is not an ACP tool-approval proof.
