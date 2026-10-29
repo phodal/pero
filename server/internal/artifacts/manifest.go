@@ -48,13 +48,14 @@ type Source struct {
 	PodUID            string `json:"pod_uid"`
 	PVCName           string `json:"pvc_name"`
 	PVCUID            string `json:"pvc_uid"`
+	VolumeName        string `json:"volume_name"`
 	ImageDigest       string `json:"image_digest"`
 	TemplateDigest    string `json:"template_digest"`
 	WorkspaceRevision string `json:"workspace_revision"`
 }
 
 func (s Source) Validate() error {
-	for _, key := range []string{s.ProjectID, s.TaskID, s.RunID, s.ClusterID, s.Namespace, s.SandboxUID, s.PodUID, s.PVCName, s.PVCUID} {
+	for _, key := range []string{s.ProjectID, s.TaskID, s.RunID, s.ClusterID, s.Namespace, s.SandboxUID, s.PodUID, s.PVCName, s.PVCUID, s.VolumeName} {
 		if !keyPattern.MatchString(key) {
 			return ErrInvalid
 		}

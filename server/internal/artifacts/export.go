@@ -37,16 +37,17 @@ type GCApproval struct {
 }
 
 type Export struct {
-	ID           string      `json:"id"`
-	Version      int64       `json:"version"`
-	Source       Source      `json:"source"`
-	Policy       Policy      `json:"policy"`
-	PolicyDigest string      `json:"policy_digest"`
-	Phase        string      `json:"phase"`
-	CreatedAt    time.Time   `json:"created_at"`
-	Quiescence   *Quiescence `json:"quiescence,omitempty"`
-	Manifest     *Manifest   `json:"manifest,omitempty"`
-	GC           *GCApproval `json:"gc,omitempty"`
+	ID           string              `json:"id"`
+	Version      int64               `json:"version"`
+	Source       Source              `json:"source"`
+	Policy       Policy              `json:"policy"`
+	PolicyDigest string              `json:"policy_digest"`
+	Phase        string              `json:"phase"`
+	CreatedAt    time.Time           `json:"created_at"`
+	Quiescence   *Quiescence         `json:"quiescence,omitempty"`
+	Manifest     *Manifest           `json:"manifest,omitempty"`
+	GC           *GCApproval         `json:"gc,omitempty"`
+	Collector    *CollectorAuthority `json:"collector,omitempty"`
 }
 
 func NewExport(source Source, policy Policy, operationID string, now time.Time) (Export, error) {

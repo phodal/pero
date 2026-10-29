@@ -9,7 +9,7 @@ import (
 )
 
 func source() Source {
-	return Source{ProjectID: "project", TaskID: "task_1", RunID: "run_1", Generation: 1, ClusterID: "cluster", Namespace: "project", SandboxUID: "sandbox-uid", PodUID: "pod-uid", PVCName: "run-volume", PVCUID: "pvc-uid", ImageDigest: "sha256:" + strings.Repeat("a", 64), TemplateDigest: "sha256:" + strings.Repeat("b", 64), WorkspaceRevision: strings.Repeat("c", 40)}
+	return Source{ProjectID: "project", TaskID: "task_1", RunID: "run_1", Generation: 1, ClusterID: "cluster", Namespace: "project", SandboxUID: "sandbox-uid", PodUID: "pod-uid", PVCName: "run-volume", PVCUID: "pvc-uid", VolumeName: "pv-uid", ImageDigest: "sha256:" + strings.Repeat("a", 64), TemplateDigest: "sha256:" + strings.Repeat("b", 64), WorkspaceRevision: strings.Repeat("c", 40)}
 }
 func policy() Policy {
 	return Policy{Paths: []string{"outputs/b.txt", "outputs/a.txt"}, MaxFiles: 2, MaxFileBytes: 8, MaxTotalBytes: 12}
@@ -161,5 +161,37 @@ func TestExportQuiescenceCommitAndDataGC(t *testing.T) {
 	late, _ := NewManifest(discard.Source, discard.Policy, discard.ID, entries(), nil, stamp().Add(4*time.Second))
 	if _, err = discard.Commit(late); !errors.Is(err, ErrNotReady) {
 		t.Fatal("late export after data GC authorization")
+	}
+}
+
+func TestCollectorAuthorityAndUploadIdentity(t *testing.T) {
+	e, _ := NewExport(source(), policy(), "export", stamp())
+	e, _ = e.Begin(quiescence())
+	a := CollectorAuthority{Namespace: e.Source.Namespace, ServiceAccount: "collector", ServiceAccountUID: "sa-uid", PodUID: "collector-pod", Audience: CollectorAudience, ExpiresAt: stamp().Add(time.Minute)}
+	bound, err := e.BindCollector(a, stamp())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, change := range []func(*CollectorAuthority){func(a *CollectorAuthority) { a.Namespace = "other" }, func(a *CollectorAuthority) { a.Audience = "pero-runtime" }, func(a *CollectorAuthority) { a.PodUID = "" }, func(a *CollectorAuthority) { a.ExpiresAt = stamp() }, func(a *CollectorAuthority) { a.ExpiresAt = stamp().Add(MaxCollectionDuration + time.Second) }} {
+		next := a
+		change(&next)
+		if _, err = e.BindCollector(next, stamp()); err == nil {
+			t.Fatal("invalid collector authority accepted")
+		}
+	}
+	replacement := a
+	replacement.PodUID = "other-pod"
+	replacement.ExpiresAt = a.ExpiresAt.Add(time.Minute)
+	if _, err = bound.BindCollector(replacement, stamp()); !errors.Is(err, ErrConflict) {
+		t.Fatal("live collector identity replaced")
+	}
+	if _, err = bound.BindCollector(replacement, a.ExpiresAt); err != nil {
+		t.Fatal("expired collector could not be replaced", err)
+	}
+	if _, err = e.FileEntry(EntryID("not-selected"), 1, source().ImageDigest); err == nil {
+		t.Fatal("unselected upload accepted")
+	}
+	if _, err = e.FileEntry(EntryID("outputs/a.txt"), MaxFileBytes, source().ImageDigest); err == nil {
+		t.Fatal("oversize upload accepted")
 	}
 }
