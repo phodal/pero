@@ -33,9 +33,15 @@ jobs:
           --health-interval 3s --health-timeout 3s --health-retries 20
     env:
       GOTOOLCHAIN: local
-      PERO_TEST_DATABASE_URL: postgresql://sandbox_fixture:sandbox-fixture-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/sandbox_fixture?sslmode=disable
       PERO_REQUIRE_TEST_DATABASE: '1'
     steps:
+      # The service's allocated host port exists only in the running job context,
+      # which is unavailable in jobs.<job_id>.env during workflow validation.
+      - name: Bind the disposable PostgreSQL service port
+        shell: bash
+        env:
+          TEST_DATABASE_URL: postgresql://sandbox_fixture:sandbox-fixture-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/sandbox_fixture?sslmode=disable
+        run: printf 'PERO_TEST_DATABASE_URL=%s\n' "$TEST_DATABASE_URL" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
