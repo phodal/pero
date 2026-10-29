@@ -17,6 +17,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	gh "github.com/phodal/pero/server/internal/github"
+	"github.com/phodal/pero/server/internal/sandbox"
 	"github.com/phodal/pero/server/internal/store"
 )
 
@@ -24,11 +25,21 @@ type API struct {
 	db           *store.Store
 	operatorHash [32]byte
 	github       *gh.Service
+	sandbox      *sandbox.Runtime
 }
 type contextKey struct{}
 
 func Handler(db *store.Store, operatorToken string, services ...*gh.Service) http.Handler {
-	a := &API{db: db, operatorHash: sha256.Sum256([]byte(operatorToken))}
+	return handler(db, operatorToken, nil, services...)
+}
+
+// HandlerWithSandbox is explicit composition-root wiring; the default server
+// and existing clients remain unchanged when no runtime configuration is supplied.
+func HandlerWithSandbox(db *store.Store, operatorToken string, runtime *sandbox.Runtime, services ...*gh.Service) http.Handler {
+	return handler(db, operatorToken, runtime, services...)
+}
+func handler(db *store.Store, operatorToken string, runtime *sandbox.Runtime, services ...*gh.Service) http.Handler {
+	a := &API{db: db, operatorHash: sha256.Sum256([]byte(operatorToken)), sandbox: runtime}
 	if len(services) > 0 {
 		a.github = services[0]
 	}
@@ -36,6 +47,7 @@ func Handler(db *store.Store, operatorToken string, services ...*gh.Service) htt
 	a.registerClients(mux)
 	a.registerContributions(mux)
 	a.registerGitHub(mux)
+	a.registerSandbox(mux)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := db.Ping(r.Context()); err != nil {
 			respond(w, 503, map[string]string{"status": "unavailable"})

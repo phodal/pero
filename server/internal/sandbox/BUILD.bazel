@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+go_library(
+    name = "sandbox",
+    srcs = ["config.go", "runtime.go"],
+    importpath = "github.com/phodal/pero/server/internal/sandbox",
+    visibility = ["//server:__subpackages__"],
+    deps = [
+        "//server/internal/environments/model", "//server/internal/environments/ports",
+        "//server/internal/environments/providers/kubernetes", "//server/internal/runtimebinding", "//server/internal/store",
+    ],
+)
+
+go_test(
+    name = "sandbox_test",
+    srcs = ["runtime_test.go", "cluster_test.go"],
+    size = "large",
+    env = {"PERO_REQUIRE_TEST_DATABASE": "1"},
+    env_inherit = [
+        "PERO_TEST_DATABASE_URL",
+        "PERO_SANDBOX_WORKER_BINARY",
+        "PERO_SANDBOX_AGENT_BINARY",
+        "PERO_SANDBOX_CLUSTER_E2E",
+        "PERO_SANDBOX_IMAGE",
+        "PERO_SANDBOX_KUBE_API",
+        "PERO_SANDBOX_DIRECT_API",
+        "PERO_SANDBOX_CA_FILE",
+        "PERO_SANDBOX_HOST",
+        "PERO_SANDBOX_WORKSPACE_REVISION",
+        "GITHUB_ACTIONS",
+    ],
+    tags = ["external", "local", "manual", "no-cache", "no-remote"],
+    deps = [
+        ":sandbox",
+        "//server/internal/environments/providers/kubernetes",
+        "//server/internal/httpapi",
+        "//server/internal/runtimebinding",
+        "//server/internal/store",
+        "@com_github_jackc_pgx_v5//:pgx",
+        "@com_github_jackc_pgx_v5//pgxpool",
+    ],
+)

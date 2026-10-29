@@ -16,6 +16,7 @@ import (
 	"github.com/phodal/pero/server/internal/community"
 	"github.com/phodal/pero/server/internal/github"
 	"github.com/phodal/pero/server/internal/httpapi"
+	"github.com/phodal/pero/server/internal/sandbox"
 	"github.com/phodal/pero/server/internal/store"
 )
 
@@ -67,7 +68,15 @@ func run() error {
 	if listen == "" {
 		listen = "127.0.0.1:8787"
 	}
-	handler, err := community.Handler(db, token, community.FromEnv(), httpapi.Handler(db, token, sources))
+	var runtime *sandbox.Runtime
+	if path := os.Getenv("PERO_SANDBOX_CONFIG"); path != "" {
+		runtime, err = sandbox.FromFile(ctx, db, path)
+		if err != nil {
+			return fmt.Errorf("configure sandbox runtime: %w", err)
+		}
+		runtime.Start(ctx)
+	}
+	handler, err := community.Handler(db, token, community.FromEnv(), httpapi.HandlerWithSandbox(db, token, runtime, sources))
 	if err != nil {
 		return err
 	}
