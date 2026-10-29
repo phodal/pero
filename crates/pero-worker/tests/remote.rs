@@ -52,6 +52,8 @@ struct CloudState {
     claim_keys: Vec<(String, String)>,
     claim_pod_uids: Vec<Value>,
     completion: Option<Value>,
+    channel_grants: Vec<Value>,
+    lose_channel_response: bool,
     claim_failures: usize,
     claim_status: Option<&'static str>,
 }
@@ -168,6 +170,7 @@ impl Fixture {
         let stop = Arc::new(AtomicBool::new(false));
         let stopping = stop.clone();
         let cloud = state.clone();
+        let journal_path = root.join("state.json");
         std::thread::spawn(move || {
             while !stopping.load(Ordering::SeqCst) {
                 let Ok((mut stream, _)) = listener.accept() else {
@@ -175,6 +178,7 @@ impl Fixture {
                     continue;
                 };
                 let cloud = cloud.clone();
+                let journal_path = journal_path.clone();
                 std::thread::spawn(move || {
                     let Some((path, body)) = read_request(&mut stream) else {
                         return;
@@ -196,6 +200,16 @@ impl Fixture {
                             state.run["lease_expires_at"] = json!(expiry());
                             json!({"run":state.run})
                         }
+                    } else if path.ends_with("/channel") {
+                        // At the externally observable issuance boundary the exact
+                        // grant must already be durable, even if this reply is lost.
+                        let journal: Value = serde_json::from_slice(&std::fs::read(&journal_path).unwrap()).unwrap();
+                        assert_eq!(journal["active"]["remote_grant"]["secret"], body["secret"]);
+                        assert_eq!(journal["active"]["remote_grant"]["session_id"], body["session_id"]);
+                        assert_eq!(journal["active"]["run"]["instance_id"], body["instance_id"]);
+                        state.channel_grants.push(body.clone());
+                        if state.lose_channel_response { return; }
+                        json!({"session_id":body["session_id"]})
                     } else if path.ends_with("/renew") {
                         state.renewals += 1;
                         if lose_lease && state.renewals > 1 {
@@ -234,6 +248,20 @@ impl Fixture {
             state,
             stop,
         }
+    }
+    fn remote(&self, disconnect: bool) {
+        use std::os::unix::fs::PermissionsExt;
+        self.state.lock().unwrap().run["remote_execution"] = json!({"session_id":"run_1","working_directory":"/workspace/repo"});
+        let node = std::env::split_paths(&std::env::var_os("PATH").unwrap()).map(|p| p.join("node")).find(|p| p.is_file()).unwrap();
+        let script = self.root.join("bridge.mjs");
+        let source = AGENT
+            .replace("process.env.WORKER_FIXTURE_MARKER", &json!(self.root.join("remote-marker")).to_string())
+            .replace("process.env.WORKER_FIXTURE_DESCENDANT", &json!(self.root.join("descendant")).to_string());
+        let checks = format!("if(!/^[a-f0-9]{{64}}$/.test(process.env.PERO_REMOTE_CHANNEL_SECRET||'')||process.env.PERO_WORKER_TOKEN||process.env.AGENT_PROVIDER_API_KEY||process.env.UNTRUSTED_INHERITED)process.exit(4);fs.writeFileSync({},process.env.PERO_REMOTE_CHANNEL_SECRET);\n",json!(self.root.join("bridge-secret")));
+        let source = if disconnect { source.replace("active=m.id;", "active=m.id;process.exit(3);") } else { source };
+        std::fs::write(&script, format!("#!{}\n{}\n{}",node.display(),checks,source)).unwrap();
+        std::fs::set_permissions(&script,std::fs::Permissions::from_mode(0o700)).unwrap();
+        std::fs::write(self.root.join("config.json"),json!({"remote_bridge":script}).to_string()).unwrap();
     }
     fn command(&self) -> Command {
         self.command_mode(true)
@@ -548,4 +576,61 @@ fn runtime_claim_executes_through_local_acp_without_runtime_identity_in_agent() 
     assert_eq!(state.completion.as_ref().unwrap()["outcome"], "succeeded");
     assert!(state.events.iter().any(|e| e["data"]["content"]["text"] == "worker_token_visible=false"));
     assert_eq!(std::fs::read_to_string(fixture.root.join("marker")).unwrap(), "prompt\n");
+}
+
+
+#[test]
+fn isolated_run_uses_only_durable_grant_and_denies_permissions() {
+    let fixture = Fixture::new("permission", false, false);
+    fixture.remote(false);
+    let output = fixture.command().env("UNTRUSTED_INHERITED", "host-secret").env("AGENT_PROVIDER_API_KEY", "provider-secret").output().unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let state = fixture.state.lock().unwrap();
+    assert_eq!(state.completion.as_ref().unwrap()["outcome"], "succeeded");
+    assert_eq!(state.channel_grants.len(), 1);
+    let secret = std::fs::read_to_string(fixture.root.join("bridge-secret")).unwrap();
+    assert_eq!(state.channel_grants[0]["secret"], secret);
+    assert_eq!(state.channel_grants[0]["session_id"], "run_1");
+    assert!(state.events.iter().any(|e| e["kind"] == "permission_denied"));
+    assert!(!serde_json::to_string(&state.events).unwrap().contains(&secret));
+    assert!(!String::from_utf8_lossy(&output.stderr).contains(&secret));
+    assert_eq!(std::fs::read_to_string(fixture.root.join("remote-marker")).unwrap(), "prompt\n");
+    assert!(!fixture.root.join("marker").exists(), "local Agent must not execute");
+}
+
+#[test]
+fn isolated_run_never_falls_back_or_replays_after_uncertain_channel() {
+    for mode in ["missing-bridge", "lost-issuance", "accepted-eof"] {
+        let fixture = Fixture::new("hello", false, false);
+        fixture.remote(mode == "accepted-eof");
+        if mode == "missing-bridge" {
+            std::fs::write(fixture.root.join("config.json"),json!({"workspaces":{"fixture":fixture.root.join("workspace")},"agents_file":fixture.root.join("agents.json")}).to_string()).unwrap();
+        }
+        fixture.state.lock().unwrap().lose_channel_response = mode == "lost-issuance";
+        let output = fixture.run();
+        assert!(!output.status.success(), "{mode} unexpectedly succeeded");
+        let state = fixture.state.lock().unwrap();
+        assert_eq!(state.completion.as_ref().unwrap()["outcome"], "reconcile", "{mode}");
+        assert_eq!(state.channel_grants.len(), usize::from(mode != "missing-bridge"));
+        assert!(!fixture.root.join("marker").exists());
+        if mode != "accepted-eof" { assert!(!fixture.root.join("remote-marker").exists()); }
+    }
+}
+
+#[test]
+fn isolated_restart_reconciles_original_secret_without_opening_or_prompting() {
+    let fixture = Fixture::new("hello", false, false);
+    fixture.remote(false);
+    let run = fixture.state.lock().unwrap().run.clone();
+    let secret = "a".repeat(64);
+    std::fs::write(fixture.root.join("state.json"),json!({"pending_claim":null,"active":{"run":run,"request_id":"original-claim","events":[],"acknowledged":0,"result":null,"remote_grant":{"session_id":"run_1","secret":secret}}}).to_string()).unwrap();
+    let output = fixture.run();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let state = fixture.state.lock().unwrap();
+    assert_eq!(state.completion.as_ref().unwrap()["outcome"], "reconcile");
+    assert!(state.claim_keys.is_empty());
+    assert_eq!(state.channel_grants.len(), 1);
+    assert_eq!(state.channel_grants[0]["secret"], secret);
+    assert!(!fixture.root.join("bridge-secret").exists());
+    assert!(!fixture.root.join("remote-marker").exists());
 }

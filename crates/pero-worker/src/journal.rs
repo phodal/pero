@@ -1,4 +1,4 @@
-use crate::model::{Event, Outcome, Run};
+use crate::model::{Event, Outcome, RemoteGrant, Run};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -30,6 +30,8 @@ pub struct Active {
     pub events: Vec<Event>,
     pub acknowledged: u64,
     pub result: Option<Outcome>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote_grant: Option<RemoteGrant>,
 }
 
 pub struct Journal {
