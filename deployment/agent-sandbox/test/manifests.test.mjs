@@ -45,4 +45,5 @@ test('image starts in the mounted volume root before preparing the repository di
   assert.match(dockerfile, /^WORKDIR \/workspace$/m);
   assert.doesNotMatch(dockerfile, /^WORKDIR \/workspace\/repo$/m);
   assert.match(dockerfile, /^USER 10001:10001$/m);
+  assert.match(dockerfile, /^ENTRYPOINT \["\/usr\/bin\/tini", "--", "\/usr\/local\/bin\/pero-sandbox-entrypoint"\]$/m);
 });

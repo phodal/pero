@@ -36,6 +36,44 @@ test('entrypoint preserves workspace changes and refuses mismatched or partial p
     assert.match((await processOutput(entrypoint, [], f.env)).stderr, /Interrupted workspace preparation/);
   } finally { await rm(f.root, { recursive: true, force: true }); }
 });
+test('image init keeps Worker below PID1 and forwards signals with its true exit status', { skip: !process.env.PERO_TEST_TINI_BIN }, async t => {
+  for (const [signal, status] of [['SIGTERM', 23], ['SIGINT', 24], [null, 17]]) await t.test(signal ?? 'normal exit', async () => {
+    const f = await directory(); let child, workerPID, timeout;
+    try {
+      const worker = join(f.root, 'worker-process.mjs');
+      await writeFile(worker, `#!${process.execPath}\nprocess.on('SIGTERM', () => process.exit(23));\nprocess.on('SIGINT', () => process.exit(24));\nconsole.log(JSON.stringify({ pid: process.pid, parent: process.ppid }));\n${signal ? 'setInterval(() => {}, 1000);' : 'process.exit(17);'}\n`, { mode: 0o700 });
+      // -s is only for this host-process test; the image runs Tini as PID1.
+      child = spawn(resolve(process.env.PERO_TEST_TINI_BIN), ['-s', '--', entrypoint], { env: { ...f.env, PERO_WORKER_BINARY: worker }, stdio: ['ignore', 'pipe', 'pipe'] });
+      const exited = new Promise((ok, fail) => { child.once('error', fail); child.once('close', (code, signal) => ok({ code, signal })); });
+      timeout = setTimeout(() => {
+        // Kill the fixture too: a broken init forwarder must not keep inherited
+        // stdio open forever and prevent the child's close event.
+        if (workerPID) { try { process.kill(workerPID, 'SIGKILL'); } catch {} }
+        child.kill('SIGKILL');
+      }, 5000);
+      const ready = await new Promise((ok, fail) => {
+        let output = '';
+        child.stdout.on('data', chunk => {
+          output += chunk;
+          if (output.includes('\n')) ok(JSON.parse(output.split('\n')[0]));
+        });
+        child.once('error', fail);
+        child.once('close', () => { if (!output.includes('\n')) fail(new Error('Worker readiness not observed')); });
+      });
+      workerPID = ready.pid;
+      assert.notEqual(ready.pid, child.pid, 'Worker must not replace container init');
+      assert.equal(ready.parent, child.pid, 'container init must be the live Worker parent');
+      if (signal) child.kill(signal);
+      assert.deepEqual(await exited, { code: status, signal: null });
+      assert.throws(() => process.kill(workerPID, 0), { code: 'ESRCH' });
+    } finally {
+      clearTimeout(timeout);
+      if (workerPID) { try { process.kill(workerPID, 'SIGKILL'); } catch {} }
+      child?.kill('SIGKILL');
+      await rm(f.root, { recursive: true, force: true });
+    }
+  });
+});
 test('prepared workspace exports only an exact tracked commit, without local secrets or Git configuration', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pero-sandbox-prepare-'));
   try {
@@ -77,11 +115,12 @@ test('actual entrypoint → Rust Worker → Go ACP retains events/result and ori
     await writeFile(join(f.root, 'agents.json'), JSON.stringify([{ id: 'dsh', name: 'Real Go ACP', command: resolve(process.env.PERO_TEST_AGENT_BIN), args: ['--endpoint', providerURL + '/v1', '--model', 'fixture', '--session-dir', join(f.root, 'sessions'), '--workspace', f.workspace, '--approval', 'ask'], env: { AGENT_PROVIDER_API_KEY: 'synthetic-provider-key' } }]));
     await writeFile(f.env.PERO_WORKER_CONFIG, JSON.stringify({ workspaces: { repo: f.workspace }, agents_file: join(f.root, 'agents.json') }));
     const env = { ...f.env, PERO_WORKER_BINARY: wrapper, PERO_TEST_WORKER_BIN: resolve(process.env.PERO_TEST_WORKER_BIN), PERO_CLOUD_URL: cloudURL, PERO_WORKER_TOKEN: 'synthetic-worker-token' };
-    const first = await processOutput(entrypoint, [], env); assert.equal(first.code, 0, first.stderr);
+    const launch = () => processOutput(process.env.PERO_TEST_TINI_BIN ? resolve(process.env.PERO_TEST_TINI_BIN) : entrypoint, process.env.PERO_TEST_TINI_BIN ? ['-s', '--', entrypoint] : [], env);
+    const first = await launch(); assert.equal(first.code, 0, first.stderr);
     assert.equal(completed.outcome, 'succeeded'); assert.equal(providerTurns, 1); assert(events.length > 0);
     assert(!JSON.stringify(events).includes('synthetic-worker-token')); assert(!JSON.stringify(events).includes('synthetic-provider-key'));
     await writeFile(join(f.workspace, 'README.md'), 'retained after turn\n');
-    const second = await processOutput(entrypoint, [], env); assert.equal(second.code, 0, second.stderr);
+    const second = await launch(); assert.equal(second.code, 0, second.stderr);
     assert.equal(providerTurns, 1); assert.equal(claims.length, 2); assert.equal(await readFile(join(f.workspace, 'README.md'), 'utf8'), 'retained after turn\n');
     const journal = JSON.parse(await readFile(f.env.PERO_WORKER_STATE, 'utf8')); assert.equal(journal.active, null);
   } finally {

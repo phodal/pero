@@ -80,7 +80,7 @@ node deployment/agent-sandbox/prepare-workspace.mjs "$root" "$PERO_SANDBOX_WORKS
 # Only the disposable CI prepares a base; the product Dockerfile installs nothing.
 cat > "$work/image/RuntimeBase.Dockerfile" <<'BASE'
 FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates procps \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates procps tini=0.19.0-1 \
  && mkdir -p /opt/pero && dpkg-query -W > /opt/pero/runtime-packages.txt \
  && rm -rf /var/lib/apt/lists/*
 BASE
@@ -89,6 +89,12 @@ docker build --file "$work/image/RuntimeBase.Dockerfile" --tag "$runtime_base" "
 docker push "$runtime_base"
 runtime_base_digest=$(docker image inspect "$runtime_base" --format '{{index .RepoDigests 0}}')
 [[ $runtime_base_digest =~ @sha256:[a-f0-9]{64}$ ]] || { echo 'Missing runtime base manifest digest' >&2; exit 1; }
+# Exercise the exact prepared-base init binary, without installing it on the host.
+docker run --rm --entrypoint /bin/cat "$runtime_base_digest" /usr/bin/tini > "$work/bin/tini"
+chmod 0755 "$work/bin/tini"
+"$work/bin/tini" --version > "$evidence/init-version.txt"
+PERO_TEST_TINI_BIN="$work/bin/tini" PERO_TEST_WORKER_BIN="$PERO_SANDBOX_WORKER_BINARY" \
+  PERO_TEST_AGENT_BIN="$PERO_SANDBOX_AGENT_BINARY" node --test deployment/agent-sandbox/test/entrypoint.test.mjs | tee "$evidence/init-process-test.txt"
 base="127.0.0.1:$port/pero-worker-base:ci"
 docker build --build-arg RUNTIME_BASE_IMAGE="$runtime_base_digest" --build-arg SOURCE_REVISION="$PERO_SANDBOX_WORKSPACE_REVISION" --tag "$base" "$work/image"
 CGO_ENABLED=0 go build -trimpath -o "$work/image/gateway" ./deployment/agent-sandbox/test/gateway.go

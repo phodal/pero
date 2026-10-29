@@ -41,11 +41,12 @@ files disappear on cleanup. Durable artifact upload is not part of this slice.
 Build on Linux for the target architecture, using a runtime base compatible with
 the Worker's libc ABI. The disposable CI uses Ubuntu 24.04 for both build and
 runtime; do not copy a macOS binary or assume a newer-glibc binary runs on Alpine.
-Supply a reviewed digest-pinned runtime base that already contains `/bin/ps`,
+Supply a reviewed digest-pinned runtime base that already contains
+`/usr/bin/tini`, `/bin/ps`,
 `/bin/sh`, coreutils and CA certificates. The product Dockerfile installs nothing.
 The CI-only script explicitly builds its throwaway base from pinned Ubuntu,
-installs procps/CA certificates and records package versions before pinning its
-new registry digest.
+installs `tini=0.19.0-1` plus procps/CA certificates and records package versions
+before pinning its new registry digest.
 
 ```sh
 node scripts/cargo.mjs build --locked --release -p pero-worker
@@ -73,7 +74,10 @@ accepting the prepared base. It runs UID/GID 10001. The Pod drops
 all capabilities, disables privilege escalation and ServiceAccount automount,
 uses a read-only image filesystem, and mounts bounded workspace/state/temp/home
 volumes. `WORKDIR /workspace` exists before the entrypoint creates `repo` in the
-initially empty volume. No Service or Ingress is requested.
+initially empty volume. Tini is PID1 and forwards signals/reaps children; Worker
+runs below it so its executor orphan guard remains intact. The entrypoint still
+executes Worker directly; no shell supervisor or restart loop is added. No
+Service or Ingress is requested.
 
 ## Render, review, then separately authorize deployment
 

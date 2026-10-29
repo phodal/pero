@@ -45,6 +45,12 @@ objects were validated against that release's CRD OpenAPI schemas.
   [Ubuntu 24.04](https://hub.docker.com/_/ubuntu)
   `sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852`.
 
+The prepared base must provide [Tini](https://github.com/krallin/tini) as PID1,
+with default child-signal forwarding and exit-status propagation. The disposable
+Ubuntu base pins [`tini=0.19.0-1`](https://packages.ubuntu.com/noble/tini);
+its exact package is recorded with the base digest and tested before cluster use.
+Tini is an external base dependency, not vendored source or a new Worker protocol.
+
 The CI workflow pins action commit SHAs. It records the built Worker image's
 actual registry digest, binary hashes and tool versions. In the disposable CI-only runtime base, apt packages are resolved
 inside its image build and retained in `/opt/pero/runtime-packages.txt`; pinning
