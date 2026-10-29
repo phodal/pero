@@ -158,3 +158,30 @@ func TestActualProviderRouteBoundsStalledBody(t *testing.T) {
 		t.Fatal("actual provider route did not bound stalled body")
 	}
 }
+
+func TestProviderRejectionFlushesBeforeNormalContextClose(t *testing.T) {
+	review := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"status":{"authenticated":true,"audiences":["pero-runtime"],"user":{"username":"system:serviceaccount:fixture:agent","uid":"sa1","extra":{"authentication.kubernetes.io/pod-uid":["pod1"]}}}}`)
+	}))
+	defer review.Close()
+	auth, e := runtimeauth.New(review.URL, review.Client())
+	if e != nil {
+		t.Fatal(e)
+	}
+	g := &Gateway{reviewer: auth, pairs: map[string]*pair{"run1": {done: make(chan struct{}), count: 2}}, ingress: make(chan struct{}, 8), provider: ProviderConfig{Model: "fixed", Budget: runtimechannel.ProviderBudget{TimeoutSeconds: 5, MaxRequestBytes: 1024, MaxOutputTokens: 32}}}
+	server := httptest.NewServer(g.Handler())
+	defer server.Close()
+	for range 20 {
+		req, _ := http.NewRequest("POST", server.URL+"/api/runtime/v1/runs/run1/provider/v1/chat/completions?session_id=run1", strings.NewReader(`{"model":"wrong","messages":[{"role":"user","content":"hello"}]}`))
+		req.Header.Set("Authorization", "Bearer fixture")
+		response, e := server.Client().Do(req)
+		if e != nil {
+			t.Fatal("normal rejection lost reply", e)
+		}
+		_, e = io.ReadAll(response.Body)
+		response.Body.Close()
+		if e != nil || response.StatusCode != 400 {
+			t.Fatal(response.StatusCode, e)
+		}
+	}
+}

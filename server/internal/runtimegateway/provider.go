@@ -180,11 +180,20 @@ func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(g.provider.Budget.TimeoutSeconds)*time.Second)
 	defer cancel()
+	completed := make(chan struct{})
+	defer close(completed)
 	go func() {
 		select {
+		case <-completed:
+			return
 		case <-ctx.Done():
 		case <-p.done:
 			cancel()
+		}
+		select {
+		case <-completed:
+			return
+		default:
 		}
 		_ = rc.SetReadDeadline(time.Now())
 		_ = rc.SetWriteDeadline(time.Now())
