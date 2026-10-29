@@ -9,7 +9,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (s *Store) Claim(ctx context.Context, worker, instance, request string) (*Run, error) {
+func (s *Store) Claim(ctx context.Context, worker, instance, request string, runtimePodUID ...string) (*Run, error) {
+	podUID := ""
+	if len(runtimePodUID) > 0 {
+		podUID = runtimePodUID[0]
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -18,16 +22,20 @@ func (s *Store) Claim(ctx context.Context, worker, instance, request string) (*R
 	// The Worker row is its single slot and serializes duplicate claim requests.
 	var projects []string
 	var capabilities []byte
-	var enabled bool
-	if err = tx.QueryRow(ctx, `SELECT CASE WHEN d.worker_id IS NOT NULL AND d.owner_id<>'operator' THEN ARRAY(SELECT unnest(w.projects) INTERSECT SELECT unnest(COALESCE(c.projects,'{}'::text[]))) ELSE w.projects END,d.capabilities,COALESCE(d.enabled,true) FROM workers w LEFT JOIN worker_devices d ON d.worker_id=w.id LEFT JOIN clients c ON c.id=d.owner_id WHERE w.id=$1 FOR UPDATE OF w`, worker).Scan(&projects, &capabilities, &enabled); err != nil {
+	var enabled, runtimeOnly bool
+	if err = tx.QueryRow(ctx, `SELECT CASE WHEN d.worker_id IS NOT NULL AND d.owner_id<>'operator' THEN ARRAY(SELECT unnest(w.projects) INTERSECT SELECT unnest(COALESCE(c.projects,'{}'::text[]))) ELSE w.projects END,d.capabilities,COALESCE(d.enabled,true),w.runtime_only FROM workers w LEFT JOIN worker_devices d ON d.worker_id=w.id LEFT JOIN clients c ON c.id=d.owner_id WHERE w.id=$1 FOR UPDATE OF w`, worker).Scan(&projects, &capabilities, &enabled, &runtimeOnly); err != nil {
 		return nil, err
 	}
 	if !enabled {
 		return nil, ErrForbidden
 	}
 	var previous *string
-	err = tx.QueryRow(ctx, `SELECT run_id FROM claims WHERE worker_id=$1 AND instance_id=$2 AND request_id=$3`, worker, instance, request).Scan(&previous)
+	var previousPodUID string
+	err = tx.QueryRow(ctx, `SELECT run_id,runtime_pod_uid FROM claims WHERE worker_id=$1 AND instance_id=$2 AND request_id=$3`, worker, instance, request).Scan(&previous, &previousPodUID)
 	if err == nil {
+		if previousPodUID != podUID {
+			return nil, ErrConflict
+		}
 		if previous == nil {
 			return nil, nil
 		}
@@ -35,6 +43,9 @@ func (s *Store) Claim(ctx context.Context, worker, instance, request string) (*R
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
+	}
+	if runtimeOnly != (podUID != "") {
+		return nil, ErrForbidden
 	}
 	if err = reap(ctx, tx); err != nil {
 		return nil, err
@@ -46,12 +57,23 @@ func (s *Store) Claim(ctx context.Context, worker, instance, request string) (*R
 	var r *Run
 	if !occupied {
 		var runID string
-		err = tx.QueryRow(ctx, `SELECT id FROM runs WHERE status='queued' AND spec->>'project_id'=ANY($1) AND (target_worker_id IS NULL OR target_worker_id=$2) AND ($3::jsonb IS NULL OR EXISTS(SELECT 1 FROM jsonb_array_elements($3::jsonb) cap WHERE cap->>'project_id'=spec->>'project_id' AND cap->>'workspace_key'=spec->>'workspace_key' AND cap->>'agent_id'=spec->>'agent_id')) ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1`, projects, worker, capabilities).Scan(&runID)
+		err = tx.QueryRow(ctx, `SELECT id FROM runs WHERE status='queued' AND spec->>'project_id'=ANY($1) AND (target_worker_id IS NULL OR target_worker_id=$2) AND ($3::jsonb IS NULL OR EXISTS(SELECT 1 FROM jsonb_array_elements($3::jsonb) cap WHERE cap->>'project_id'=spec->>'project_id' AND cap->>'workspace_key'=spec->>'workspace_key' AND cap->>'agent_id'=spec->>'agent_id')) AND (($4=false AND NOT EXISTS(SELECT 1 FROM runtime_bindings b WHERE b.run_id=runs.id)) OR ($4=true AND EXISTS(SELECT 1 FROM runtime_bindings b WHERE b.run_id=runs.id AND b.worker_id=$2 AND b.phase='ready' AND b.pod_uid=$5 AND b.valid_until>clock_timestamp()))) ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1`, projects, worker, capabilities, runtimeOnly, podUID).Scan(&runID)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, err
 		}
 		if err == nil {
-			r, err = readRun(tx.QueryRow(ctx, `UPDATE runs SET status='running',worker_id=$2,instance_id=$3,lease_expires_at=clock_timestamp()+($4*interval '1 second') WHERE id=$1 RETURNING `+runColumns, runID, worker, instance, s.lease.Seconds()))
+			// Re-read after taking the Run lock: an observation may have changed
+			// while the candidate SELECT waited for that lock.
+			if runtimeOnly {
+				var ready bool
+				if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM runtime_bindings WHERE run_id=$1 AND worker_id=$2 AND phase='ready' AND pod_uid=$3 AND valid_until>clock_timestamp())`, runID, worker, podUID).Scan(&ready); err != nil {
+					return nil, err
+				}
+				if !ready {
+					return nil, ErrLease
+				}
+			}
+			r, err = readRun(tx.QueryRow(ctx, `UPDATE runs SET status='running',worker_id=$2,instance_id=$3,lease_expires_at=LEAST(clock_timestamp()+($4*interval '1 second'),(SELECT valid_until FROM runtime_bindings WHERE run_id=$1)) WHERE id=$1 RETURNING `+runColumns, runID, worker, instance, s.lease.Seconds()))
 			if err != nil {
 				return nil, err
 			}
@@ -61,7 +83,7 @@ func (s *Store) Claim(ctx context.Context, worker, instance, request string) (*R
 	if r != nil {
 		runID = &r.ID
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO claims(worker_id,instance_id,request_id,run_id) VALUES($1,$2,$3,$4)`, worker, instance, request, runID); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO claims(worker_id,instance_id,request_id,run_id,runtime_pod_uid) VALUES($1,$2,$3,$4,$5)`, worker, instance, request, runID, podUID); err != nil {
 		return nil, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -82,7 +104,7 @@ func guard(ctx context.Context, tx pgx.Tx, id, worker, instance string, generati
 		return nil, ErrLease
 	}
 	var valid bool
-	if err = tx.QueryRow(ctx, `SELECT status IN ('running','cancel_requested') AND lease_expires_at>clock_timestamp() FROM runs WHERE id=$1`, id).Scan(&valid); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT status IN ('running','cancel_requested') AND lease_expires_at>clock_timestamp() AND ((NOT (SELECT runtime_only FROM workers WHERE id=$2) AND NOT EXISTS(SELECT 1 FROM runtime_bindings WHERE run_id=$1)) OR EXISTS(SELECT 1 FROM runtime_bindings WHERE run_id=$1 AND worker_id=$2 AND phase IN ('ready','cleanup_pending') AND valid_until>clock_timestamp())) FROM runs WHERE id=$1`, id, worker).Scan(&valid); err != nil {
 		return nil, err
 	}
 	if !valid {
@@ -116,7 +138,7 @@ func (s *Store) Renew(ctx context.Context, id, worker, instance string, generati
 		return false, time.Time{}, err
 	}
 	var expiry time.Time
-	err = tx.QueryRow(ctx, `UPDATE runs SET lease_expires_at=clock_timestamp()+($2*interval '1 second') WHERE id=$1 AND lease_expires_at>clock_timestamp() RETURNING lease_expires_at`, id, s.lease.Seconds()).Scan(&expiry)
+	err = tx.QueryRow(ctx, `UPDATE runs SET lease_expires_at=LEAST(clock_timestamp()+($2*interval '1 second'),(SELECT valid_until FROM runtime_bindings WHERE run_id=$1)) WHERE id=$1 AND lease_expires_at>clock_timestamp() RETURNING lease_expires_at`, id, s.lease.Seconds()).Scan(&expiry)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, time.Time{}, ErrLease
 	}

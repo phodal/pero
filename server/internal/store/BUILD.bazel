@@ -9,6 +9,7 @@ go_library(
         "community.go",
         "desktop_auth.go",
         "execution.go",
+        "runtime.go",
         "github.go",
         "models.go",
         "roadmap.go",
@@ -21,6 +22,7 @@ go_library(
     visibility = ["//server:__subpackages__"],
     deps = [
         "//server/migrations",
+        "//server/internal/runtimebinding",
         "@com_github_jackc_pgx_v5//:pgx",
         "@com_github_jackc_pgx_v5//pgxpool",
     ],
@@ -37,6 +39,7 @@ go_test(
         "community_test.go",
         "github_test.go",
         "integration_test.go",
+        "runtime_test.go",
         "roadmap_test.go",
     ],
     embed = [":store"],
@@ -51,6 +54,8 @@ go_test(
     ],
     visibility = ["//server:__pkg__"],
     deps = [
+        "//server/internal/runtimebinding",
+        "//server/internal/environments/model",
         "@com_github_jackc_pgx_v5//:pgx",
         "@com_github_jackc_pgx_v5//pgxpool",
     ],
