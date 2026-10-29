@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -159,7 +160,7 @@ func TestClusterRuntime(t *testing.T) {
 				// deletion. No exec, Worker logs, prompts or arbitrary errors are printed.
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
-				path := "/api/v1/namespaces/" + namespace + "/pods/" + warmPod.Metadata.Name + "/log?container=test-gateway&tailLines=20&limitBytes=4096"
+				path := "/api/v1/namespaces/" + namespace + "/pods/" + warmPod.Metadata.Name + "/log?container=test-gateway&tailLines=100&limitBytes=16384"
 				request, _ := http.NewRequestWithContext(ctx, http.MethodGet, api.base+path, nil)
 				response, err := api.client.Do(request)
 				if err != nil {
@@ -171,12 +172,15 @@ func TestClusterRuntime(t *testing.T) {
 					t.Logf("gateway_diagnostic_status=%d", response.StatusCode)
 					return
 				}
-				data, err := io.ReadAll(io.LimitReader(response.Body, 4096))
+				data, err := io.ReadAll(io.LimitReader(response.Body, 16384))
 				if err != nil {
 					t.Log("gateway_diagnostic_unavailable=read")
 					return
 				}
 				for _, line := range strings.Split(string(data), "\n") {
+					if at := strings.Index(line, "fixture_trace "); at >= 0 && safeFixtureTrace.MatchString(line[at:]) {
+						t.Log(line[at:])
+					}
 					if at := strings.Index(line, "fixture_proxy "); at >= 0 {
 						for _, role := range []string{"cloud", "provider"} {
 							prefix := "fixture_proxy role=" + role + " event="
@@ -455,4 +459,26 @@ func clusterObjects(namespace, image, revision, token, cloud, provider string) (
 	template := map[string]any{"apiVersion": kubernetes.ClaimAPI, "kind": "SandboxTemplate", "metadata": meta("fixture-template"), "spec": map[string]any{"service": false, "networkPolicyManagement": "Unmanaged", "envVarsInjectionPolicy": "Disallowed", "volumeClaimTemplatesPolicy": "Disallowed", "podTemplate": map[string]any{"metadata": map[string]any{"labels": map[string]string{"pero.dev/fixture": "agent-sandbox"}}, "spec": map[string]any{"automountServiceAccountToken": false, "enableServiceLinks": false, "restartPolicy": "Never", "terminationGracePeriodSeconds": 10, "securityContext": map[string]any{"runAsNonRoot": true, "runAsUser": 10001, "runAsGroup": 10001, "fsGroup": 10001, "seccompProfile": map[string]string{"type": "RuntimeDefault"}}, "containers": []any{worker, gateway}, "volumes": []any{map[string]any{"name": "config", "configMap": map[string]any{"name": "fixture-config", "defaultMode": 292}}, map[string]any{"name": "workspace", "emptyDir": map[string]string{"sizeLimit": "4Gi"}}, map[string]any{"name": "state", "emptyDir": map[string]string{"sizeLimit": "1Gi"}}, map[string]any{"name": "tmp", "emptyDir": map[string]string{"sizeLimit": "256Mi"}}, map[string]any{"name": "home", "emptyDir": map[string]string{"sizeLimit": "32Mi"}}}}}}}
 	pool := map[string]any{"apiVersion": kubernetes.ClaimAPI, "kind": "SandboxWarmPool", "metadata": meta("fixture-pool"), "spec": map[string]any{"replicas": 1, "updateStrategy": map[string]string{"type": "OnReplenish"}, "sandboxTemplateRef": map[string]string{"name": "fixture-template"}}}
 	return []map[string]any{config, secret, template, pool}, template
+}
+
+// Only the fixed transport metadata grammar may cross into CI artifacts.
+var safeFixtureTrace = regexp.MustCompile(`^fixture_trace role=provider ordinal=[0-9]{1,20} at=[0-9]{1,20} event=(started|upstream_headers|upstream_read_end|upstream_close|transport_error|downstream_context_done|handler_exit) category=(ok|eof|cancelled|deadline|transport|panic|abort) status=[0-9]{1,3} sse=(true|false) bytes=[0-9]{1,20}$`)
+
+func TestFixtureTraceArtifactGrammar(t *testing.T) {
+	valid := "fixture_trace role=provider ordinal=1 at=123 event=upstream_headers category=ok status=200 sse=true bytes=0"
+	for _, tc := range []struct {
+		line  string
+		valid bool
+	}{
+		{valid, true},
+		{valid + " secret=synthetic-secret", false},
+		{strings.ReplaceAll(valid, "category=ok", "category=http://synthetic-secret"), false},
+		{strings.ReplaceAll(valid, "role=provider", "role=synthetic-secret"), false},
+		{strings.ReplaceAll(valid, "bytes=0", "bytes=-1"), false},
+		{strings.ReplaceAll(valid, "event=upstream_headers", "event=raw_error"), false},
+	} {
+		if got := safeFixtureTrace.MatchString(tc.line); got != tc.valid {
+			t.Fatalf("trace grammar matched=%t expected=%t", got, tc.valid)
+		}
+	}
 }
