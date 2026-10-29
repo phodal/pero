@@ -1,0 +1,2 @@
+# Patch syntax and its cache digest must not depend on checkout line endings.
+patches/*.patch text eol=lf

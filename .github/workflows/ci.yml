@@ -312,7 +312,7 @@ jobs:
           esac
 
       - name: Font-tool environment recovery tests
-        run: node --test scripts/build/fonttools.test.mjs
+        run: node --test scripts/build/fonttools.test.mjs scripts/build/patch-checkout.test.mjs
       - name: Resolve pinned local GPUI packages
         run: node scripts/cargo.mjs check -p pero-contracts
 

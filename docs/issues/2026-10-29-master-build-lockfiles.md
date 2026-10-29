@@ -98,3 +98,21 @@ byte: all package and snapshot entries are unchanged. `package.json`,
 head. The original frozen check failed before sync; afterward
 `bazel test --config=ci //:checks` executed all seven checks successfully, with
 no lock rewrite. The sync used writable XDG data/cache paths in this container.
+
+## Patch checkout byte contract (2026-10-29)
+
+Windows run `40924600214` reached pinned GPUI patch application but rejected
+line 6 as corrupt. The canonical LF patch parses and applies to the pinned
+crate; converting its bytes to CRLF reproduces that exact parser failure.
+The patch contains blank context lines accepted as LF but not as CRLF.
+
+A targeted `patches/*.patch text eol=lf` attribute now fixes patch bytes at
+checkout, independently of Git's Windows `core.autocrlf` default. The patch,
+crate checksum and patch digest algorithm are unchanged. A real temporary Git
+index checkout test reproduces the CRLF failure without the attribute and
+verifies exact canonical bytes and successful parsing with it. CI runs this
+portable regression alongside the font-tool environment tests.
+
+The existing post-checkout LF conversion succeeds in the Linux reproduction;
+why it did not prevent the observed Windows failure has not been established.
+Native Windows CI remains required to verify the explicit attribute repair.
