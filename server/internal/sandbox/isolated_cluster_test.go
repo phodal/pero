@@ -368,6 +368,7 @@ func TestIsolatedClusterRuntime(t *testing.T) {
 			if err != nil || export.Source.VolumeName != pvc.VolumeName || export.Source.PodUID != b.Snapshot.Runtime.ID || export.Source.PVCUID != pvc.UID || export.Source.ImageDigest != config.ImageDigest {
 				t.Fatalf("frozen artifact tuple unavailable: %+v %v", export, err)
 			}
+			writeJSON(t, filepath.Join(requiredIsolatedEnv(t, "EVIDENCE"), "execution-before-export-"+scenario+".json"), map[string]any{"scenario": scenario, "run_id": run.ID, "status": result.Status, "provider_calls": model.calls.Load(), "events": len(events.Events), "compute_receipt": b.ComputeReceipt, "source": export.Source, "phase": b.Phase, "artifact_export_committed": false})
 			b, export = verifyIsolatedClusterArtifacts(t, ctx, runtime, db, owner, api, objects, b, export, controlURL, expectedArtifact)
 			evidencePath := filepath.Join(requiredIsolatedEnv(t, "EVIDENCE"), "execution-"+scenario+".json")
 			writeJSON(t, evidencePath, map[string]any{"scenario": scenario, "run_id": run.ID, "generation": run.Generation, "status": result.Status, "source": export.Source, "compute_receipt": b.ComputeReceipt, "data_cleanup_receipt": b.DataCleanupReceipt, "manifest_digest": export.Manifest.Digest, "artifact_entry": export.Manifest.Entries[0], "storage_fence_digest": export.Quiescence.StorageFenceDigest, "phase": b.Phase, "provider_calls": model.calls.Load(), "events": len(events.Events), "artifact_fixture": "Run-specific file written by dedicated test wrapper before unchanged Go ACP; not ACP tool approval", "generated_artifact": evidence.Artifact, "storage_scope": "single owned node; RWO is not a CSI/node-failover fencing proof"})
@@ -425,6 +426,7 @@ func verifyIsolatedClusterArtifacts(t *testing.T, ctx context.Context, runtime *
 		}
 		return export.Manifest != nil, nil
 	}); err != nil {
+		recordCollectorFailure(t, ctx, api, db, b.RunID, b.Config.Namespace)
 		t.Fatalf("trusted collector did not commit: %v last=%v", err, latest)
 	}
 	if export.Phase != artifacts.Committed || export.Manifest == nil || len(export.Manifest.Entries) != 1 || export.Collector == nil || export.CollectorJob == nil || export.Manifest.Source != export.Source || export.Source.VolumeName != b.Volume.VolumeName {

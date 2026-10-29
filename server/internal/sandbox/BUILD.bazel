@@ -12,7 +12,7 @@ go_library(
 
 go_test(
     name = "sandbox_test",
-    srcs = ["runtime_test.go", "isolated_test.go", "exporter_test.go", "isolated_cluster_test.go", "cluster_test.go", "http_test.go"],
+    srcs = ["runtime_test.go", "isolated_test.go", "exporter_test.go", "isolated_cluster_test.go", "isolated_cluster_diagnostics_test.go", "cluster_test.go", "http_test.go"],
     size = "large",
     env = {"PERO_REQUIRE_TEST_DATABASE": "1"},
     env_inherit = [
