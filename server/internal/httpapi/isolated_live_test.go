@@ -316,7 +316,7 @@ func TestIsolatedRealACPPathAdapter(t *testing.T) {
 		t.Skip("explicit local actual-process fixture only")
 	}
 	binaries := isolatedLiveBinaries(t)
-	for _, mode := range []string{"completion", "cancel", "rejected-provider-401", "rejected-provider-503", "rejected-provider-303"} {
+	for _, mode := range []string{"completion", "completion-split", "cancel", "rejected-provider-401", "rejected-provider-503", "rejected-provider-303"} {
 		t.Run(mode, func(t *testing.T) {
 			var calls atomic.Int32
 			cancelled := make(chan struct{}, 1)
@@ -342,6 +342,12 @@ func TestIsolatedRealACPPathAdapter(t *testing.T) {
 					cancelled <- struct{}{}
 					return
 				}
+				if mode == "completion-split" {
+					fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"PERO_\"}}]}\n\n")
+					w.(http.Flusher).Flush()
+					fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"LIVE_OK\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+					return
+				}
 				fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"PERO_LIVE_OK\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
 			}))
 			defer fixture.Close()
@@ -361,25 +367,8 @@ func TestIsolatedRealACPPathAdapter(t *testing.T) {
 }
 
 func retainedAssistantDelta(events *store.EventTail) bool {
-	if events == nil {
-		return false
-	}
-	for _, event := range events.Events {
-		if event.Kind != "session_update" {
-			continue
-		}
-		var data struct {
-			SessionUpdate string `json:"sessionUpdate"`
-			Content       struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			} `json:"content"`
-		}
-		if json.Unmarshal(event.Data, &data) == nil && data.SessionUpdate == "agent_message_chunk" && data.Content.Type == "text" && strings.TrimSpace(data.Content.Text) != "" {
-			return true
-		}
-	}
-	return false
+	turn := isolatedTurnEvidence(events)
+	return turn.Metrics.Scope == "bound" && turn.Metrics.TextDeltas > 0
 }
 
 func runIsolatedRealACP(t *testing.T, binaries map[string]string, provider runtimegateway.ProviderConfig, live bool, mode string) {
@@ -604,6 +593,7 @@ func runIsolatedRealACP(t *testing.T, binaries map[string]string, provider runti
 	case <-ctx.Done():
 		t.Fatal("outbound Agent wrapper did not settle")
 	}
+	diagnose() // Record bounded completion evidence before any semantic assertion.
 	wanted := "succeeded"
 	if mode == "cancel" {
 		wanted = "cancelled"
@@ -619,9 +609,8 @@ func runIsolatedRealACP(t *testing.T, binaries map[string]string, provider runti
 	if err != nil {
 		t.Fatal("durable candidate events unavailable")
 	}
-	data, _ := json.Marshal(events)
 	assertIsolatedEvidenceRedacted(t, db, run.ID, provider.APIKey, workerToken)
-	if mode == "completion" && !strings.Contains(string(data), "PERO_LIVE_OK") {
+	if strings.HasPrefix(mode, "completion") && !isolatedAnswerMatches(events) {
 		t.Fatal("synthetic answer marker missing; provider text is intentionally not logged")
 	}
 	if mode == "cancel" && !retainedAssistantDelta(events) {
@@ -632,241 +621,4 @@ func runIsolatedRealACP(t *testing.T, binaries map[string]string, provider runti
 		t.Fatal("provider attempts outside approved per-round allowance")
 	}
 	t.Logf("actual Worker→bridge→control-plane→outbound wrapper→Go ACP passed; live=%t mode=%s model=%s charged_attempts=%d max_requests=2 max_output_tokens=1024; cwd mapping and Pod identity are test-only, no cluster isolation claim", live, mode, provider.Model, channel.Requests)
-}
-
-// Only closed vocabularies and bounded counters cross this diagnostic boundary.
-// Agent/provider summaries, text, bodies, keys, paths and environment do not.
-type isolatedDiagnostic struct {
-	RunStatus       string            `json:"run_status"`
-	ChannelState    string            `json:"channel_state"`
-	ChargedRequests int               `json:"charged_requests"`
-	EventKinds      map[string]int    `json:"event_kinds"`
-	ErrorCategories map[string]int    `json:"error_categories"`
-	ControlPlane    isolatedCPSummary `json:"control_plane"`
-}
-
-func isolatedFailureDiagnostic(db *store.Store, runID string) isolatedDiagnostic {
-	d := isolatedDiagnostic{RunStatus: "unavailable", ChannelState: "unavailable", EventKinds: map[string]int{}, ErrorCategories: map[string]int{}}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if r, e := db.RuntimeRun(ctx, runID); e == nil {
-		switch r.Status {
-		case "queued", "running", "cancel_requested", "succeeded", "failed", "cancelled", "reconcile":
-			d.RunStatus = r.Status
-		default:
-			d.RunStatus = "other"
-		}
-	}
-	if c, e := db.RuntimeChannel(ctx, runID); e == nil {
-		switch c.State {
-		case runtimechannel.Reserved, runtimechannel.Attached, runtimechannel.Started, runtimechannel.Closed, runtimechannel.Lost:
-			d.ChannelState = c.State
-		default:
-			d.ChannelState = "other"
-		}
-		if c.Requests >= 0 && c.Requests <= 1000 {
-			d.ChargedRequests = c.Requests
-		}
-	}
-	if events, e := db.Events(ctx, runID); e == nil {
-		for _, event := range events.Events {
-			kind := "other"
-			switch event.Kind {
-			case "session_ready", "session_update", "session_error", "session_closed", "session_auth_required", "session_auth_error", "turn_finished", "worker_result", "configuration_changed", "permission_denied", "permission_approved":
-				kind = event.Kind
-			}
-			d.EventKinds[kind]++
-			if kind == "session_error" || kind == "session_auth_error" {
-				d.ErrorCategories[isolatedErrorCategory(event)]++
-			}
-		}
-	}
-	return d
-}
-func isolatedErrorCategory(event store.Event) string {
-	text := strings.ToLower(event.Text + " " + string(event.Data))
-	for _, category := range []struct {
-		name  string
-		words []string
-	}{
-		{"authentication", []string{"authentication", "api key", "credential"}},
-		{"budget", []string{"budget", "request limit", "token limit"}},
-		{"provider_or_transport", []string{"provider", "http", "upstream", "connection", "transport"}},
-		{"protocol", []string{"protocol", "session/new", "unsupported"}},
-		{"permission", []string{"permission"}},
-	} {
-		for _, word := range category.words {
-			if strings.Contains(text, word) {
-				return category.name
-			}
-		}
-	}
-	return "unspecified"
-}
-
-func isolatedRejectionStatus(mode string) int {
-	switch mode {
-	case "rejected-provider-401":
-		return http.StatusUnauthorized
-	case "rejected-provider-503":
-		return http.StatusServiceUnavailable
-	case "rejected-provider-303":
-		return http.StatusSeeOther
-	default:
-		return 0
-	}
-}
-
-func assertIsolatedEvidenceRedacted(t *testing.T, db *store.Store, runID string, credentials ...string) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	events, err := db.Events(ctx, runID)
-	if err != nil {
-		t.Fatal("retained evidence unavailable for private-data check")
-	}
-	data, _ := json.Marshal(events)
-	for _, marker := range append(credentials, "synthetic-pod-token", "synthetic-private-provider-body", "synthetic-private-redirect-location") {
-		if marker != "" && bytes.Contains(data, []byte(marker)) {
-			t.Fatal("private provider data or credential crossed into retained evidence")
-		}
-	}
-}
-
-// Generic Go ACP deliberately redacts provider error details. This local-only
-// observer records the trusted control plane's own bounded static 502 response,
-// not the external provider response. It introduces no forwarding/network hop.
-// Unwrap preserves ResponseController deadlines/flush through the wrapper.
-type isolatedCPSummary struct {
-	ProviderCodes    map[string]int `json:"provider_codes"`
-	UpstreamStatuses map[int]int    `json:"upstream_statuses"`
-	Unknown          int            `json:"unknown"`
-}
-type isolatedCPObserver struct {
-	mu      sync.Mutex
-	summary isolatedCPSummary
-}
-type isolatedCPResponse struct {
-	http.ResponseWriter
-	status    int
-	data      []byte
-	oversized bool
-}
-
-func (w *isolatedCPResponse) Unwrap() http.ResponseWriter { return w.ResponseWriter }
-func (w *isolatedCPResponse) WriteHeader(status int) {
-	if w.status == 0 {
-		w.status = status
-	}
-	w.ResponseWriter.WriteHeader(status)
-}
-func (w *isolatedCPResponse) Write(data []byte) (int, error) {
-	if w.status == 0 {
-		w.status = http.StatusOK
-	}
-	n, err := w.ResponseWriter.Write(data)
-	if w.status == http.StatusBadGateway && !w.oversized {
-		if len(w.data)+n > 1024 {
-			w.oversized = true
-			w.data = nil
-		} else {
-			w.data = append(w.data, data[:n]...)
-		}
-	}
-	return n, err
-}
-func (o *isolatedCPObserver) handler(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || !strings.HasPrefix(r.URL.Path, "/api/runtime/v1/runs/") || !strings.HasSuffix(r.URL.Path, "/provider/v1/chat/completions") {
-			next.ServeHTTP(w, r)
-			return
-		}
-		response := &isolatedCPResponse{ResponseWriter: w}
-		next.ServeHTTP(response, r)
-		if response.status != http.StatusBadGateway {
-			return
-		}
-		code, status := "unknown", 0
-		if !response.oversized && response.Header().Get("Content-Type") == "application/json" {
-			code, status = isolatedOwnProviderResponse(response.data)
-		}
-		o.mu.Lock()
-		defer o.mu.Unlock()
-		if o.summary.ProviderCodes == nil {
-			o.summary.ProviderCodes = map[string]int{}
-			o.summary.UpstreamStatuses = map[int]int{}
-		}
-		o.summary.ProviderCodes[code]++
-		if status != 0 {
-			o.summary.UpstreamStatuses[status]++
-		}
-		if code == "unknown" {
-			o.summary.Unknown++
-		}
-	})
-}
-func (o *isolatedCPObserver) snapshot() isolatedCPSummary {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	s := isolatedCPSummary{ProviderCodes: map[string]int{}, UpstreamStatuses: map[int]int{}, Unknown: o.summary.Unknown}
-	for code, n := range o.summary.ProviderCodes {
-		s.ProviderCodes[code] = n
-	}
-	for status, n := range o.summary.UpstreamStatuses {
-		s.UpstreamStatuses[status] = n
-	}
-	return s
-}
-func isolatedOwnProviderResponse(data []byte) (string, int) {
-	var response struct {
-		Error struct {
-			Message string `json:"message"`
-			Code    string `json:"code"`
-			Status  int    `json:"upstream_status,omitempty"`
-		} `json:"error"`
-	}
-	d := json.NewDecoder(bytes.NewReader(data))
-	d.DisallowUnknownFields()
-	if d.Decode(&response) != nil || d.Decode(new(any)) != io.EOF {
-		return "unknown", 0
-	}
-	e := response.Error
-	switch e.Code {
-	case "PERO_PROVIDER_UPSTREAM_HTTP":
-		if e.Status < 100 || e.Status > 599 || e.Message != fmt.Sprintf("%s status=%d", e.Code, e.Status) {
-			return "unknown", 0
-		}
-	case "PERO_PROVIDER_CONTENT_TYPE":
-		if e.Status != 200 || e.Message != "PERO_PROVIDER_CONTENT_TYPE status=200" {
-			return "unknown", 0
-		}
-	case "PERO_PROVIDER_TRANSPORT":
-		if e.Status != 0 || e.Message != e.Code {
-			return "unknown", 0
-		}
-	default:
-		return "unknown", 0
-	}
-	return e.Code, e.Status
-}
-
-func TestIsolatedSafeProviderDiagnostic(t *testing.T) {
-	for _, tc := range []struct {
-		body, code string
-		status     int
-	}{
-		{`{"error":{"message":"PERO_PROVIDER_UPSTREAM_HTTP status=401","code":"PERO_PROVIDER_UPSTREAM_HTTP","upstream_status":401}}`, "PERO_PROVIDER_UPSTREAM_HTTP", 401},
-		{`{"error":{"message":"PERO_PROVIDER_CONTENT_TYPE status=200","code":"PERO_PROVIDER_CONTENT_TYPE","upstream_status":200}}`, "PERO_PROVIDER_CONTENT_TYPE", 200},
-		{`{"error":{"message":"PERO_PROVIDER_TRANSPORT","code":"PERO_PROVIDER_TRANSPORT"}}`, "PERO_PROVIDER_TRANSPORT", 0},
-		{`{"error":{"message":"private provider body","code":"PERO_PROVIDER_UPSTREAM_HTTP","upstream_status":401}}`, "unknown", 0},
-		{`{"error":{"message":"PERO_PROVIDER_UPSTREAM_HTTP status=600","code":"PERO_PROVIDER_UPSTREAM_HTTP","upstream_status":600}}`, "unknown", 0},
-		{`{"error":{"message":"PERO_PROVIDER_UPSTREAM_HTTP status=401","code":"PERO_PROVIDER_UPSTREAM_HTTP","upstream_status":401,"private":"extra"}}`, "unknown", 0},
-		{`{"error":{"message":"PERO_PROVIDER_CONTENT_TYPE status=401","code":"PERO_PROVIDER_CONTENT_TYPE","upstream_status":401}}`, "unknown", 0},
-		{`{"error":{"message":"PERO_PROVIDER_TRANSPORT","code":"PERO_PROVIDER_TRANSPORT"}} {}`, "unknown", 0},
-	} {
-		code, status := isolatedOwnProviderResponse([]byte(tc.body))
-		if code != tc.code || status != tc.status {
-			t.Fatalf("safe diagnostic projection got %s/%d, wanted %s/%d", code, status, tc.code, tc.status)
-		}
-	}
 }

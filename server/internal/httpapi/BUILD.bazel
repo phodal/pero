@@ -37,6 +37,7 @@ go_test(
         "artifacts_test.go",
         "isolated_process_test.go",
         "isolated_live_test.go",
+        "isolated_live_diagnostics_test.go",
         "worker_devices_test.go",
         "desktop_github_test.go",
         "desktop_connector_test.go",
