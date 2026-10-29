@@ -1,14 +1,14 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "runtimebinding",
-    srcs = ["binding.go"],
+    srcs = ["binding.go", "volume.go"],
     importpath = "github.com/phodal/pero/server/internal/runtimebinding",
     visibility = ["//server:__subpackages__"],
     deps = ["//server/internal/environments/model", "//server/internal/environments/ports"],
 )
 go_test(
     name = "runtimebinding_test",
-    srcs = ["binding_test.go"],
+    srcs = ["binding_test.go", "volume_test.go"],
     embed = [":runtimebinding"],
     deps = ["//server/internal/environments/model"],
 )

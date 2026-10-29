@@ -29,6 +29,18 @@ const (
 // the kubelet observation; WorkspaceRevision and TemplateDigest are reviewed
 // build provenance, not claims that Kubernetes attests checkout contents.
 type Config struct {
+	Profile           string `json:"profile,omitempty"`
+	RuntimeClass      string `json:"runtime_class,omitempty"`
+	ServiceAccount    string `json:"service_account,omitempty"`
+	ServiceAccountUID string `json:"service_account_uid,omitempty"`
+	Audience          string `json:"audience,omitempty"`
+	ControlURL        string `json:"control_url,omitempty"`
+	ControlCAFile     string `json:"control_ca_file,omitempty"`
+	ImageRef          string `json:"image_ref,omitempty"`
+	Model             string `json:"model,omitempty"`
+	StorageClass      string `json:"storage_class,omitempty"`
+	StorageAccessMode string `json:"storage_access_mode,omitempty"`
+	VolumeSize        string `json:"volume_size,omitempty"`
 	ClusterID         string `json:"cluster_id"`
 	Namespace         string `json:"namespace"`
 	WarmPool          string `json:"warm_pool"`
@@ -46,8 +58,12 @@ var dns = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
 var revision = regexp.MustCompile(`^[a-f0-9]{40}$|^[a-f0-9]{64}$`)
 var digest = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 
+func (c Config) IsIsolated() bool { return c.Profile == "isolated-agent-v1" }
 func (c Config) Validate() error {
-	if !model.ValidKey(c.ClusterID) || !dns.MatchString(c.Namespace) || !dns.MatchString(c.WarmPool) || !model.ValidKey(c.WorkerID) || !model.ValidKey(c.ProjectID) || !model.ValidKey(c.WorkspaceKey) || !model.ValidKey(c.AgentID) || !digest.MatchString(c.ImageDigest) || !digest.MatchString(c.TemplateDigest) || !revision.MatchString(c.WorkspaceRevision) || c.TTLSeconds < 60 || c.TTLSeconds > 7*24*3600 {
+	if c.Profile != "" && c.Profile != "trusted-worker-pod" && !c.IsIsolated() {
+		return ErrInvalid
+	}
+	if !model.ValidKey(c.ClusterID) || !dns.MatchString(c.Namespace) || (c.IsIsolated() && (!dns.MatchString(c.RuntimeClass) || !dns.MatchString(c.ServiceAccount) || !model.ValidKey(c.ServiceAccountUID) || c.Audience != "pero-runtime" || c.ControlURL == "" || c.ImageRef == "" || c.Model == "" || c.StorageClass == "" || c.VolumeSize == "")) || (!c.IsIsolated() && !dns.MatchString(c.WarmPool)) || !model.ValidKey(c.WorkerID) || !model.ValidKey(c.ProjectID) || !model.ValidKey(c.WorkspaceKey) || !model.ValidKey(c.AgentID) || !digest.MatchString(c.ImageDigest) || !digest.MatchString(c.TemplateDigest) || !revision.MatchString(c.WorkspaceRevision) || c.TTLSeconds < 60 || c.TTLSeconds > 7*24*3600 {
 		return ErrInvalid
 	}
 	return nil
@@ -60,18 +76,21 @@ func (c Config) Recipe() *model.Ref {
 // Binding is persisted before create. RequestID can never change, and a resumed
 // pending binding only reconciles its original create; absence is not retry.
 type Binding struct {
-	RunID            string             `json:"run_id"`
-	RequestID        string             `json:"request_id"`
-	Version          int64              `json:"version"`
-	Config           Config             `json:"config"`
-	Phase            string             `json:"phase"`
-	Reason           string             `json:"reason"`
-	CreatedAt        time.Time          `json:"created_at"`
-	Resource         *model.ResourceRef `json:"resource,omitempty"`
-	Snapshot         *model.Observation `json:"snapshot,omitempty"`
-	ValidUntil       *time.Time         `json:"valid_until,omitempty"`
-	ReleaseRequested bool               `json:"release_requested"`
-	CleanupReceipt   *model.Ref         `json:"cleanup_receipt,omitempty"`
+	RunID              string             `json:"run_id"`
+	RequestID          string             `json:"request_id"`
+	Version            int64              `json:"version"`
+	Config             Config             `json:"config"`
+	Phase              string             `json:"phase"`
+	Reason             string             `json:"reason"`
+	CreatedAt          time.Time          `json:"created_at"`
+	Volume             *VolumeBinding     `json:"volume,omitempty"`
+	Resource           *model.ResourceRef `json:"resource,omitempty"`
+	Snapshot           *model.Observation `json:"snapshot,omitempty"`
+	ValidUntil         *time.Time         `json:"valid_until,omitempty"`
+	ReleaseRequested   bool               `json:"release_requested"`
+	ComputeReceipt     *model.Ref         `json:"compute_receipt,omitempty"`
+	DataCleanupReceipt *model.Ref         `json:"data_cleanup_receipt,omitempty"`
+	CleanupReceipt     *model.Ref         `json:"cleanup_receipt,omitempty"`
 }
 
 func New(runID string, config Config, now time.Time) Binding {
@@ -81,7 +100,11 @@ func (b Binding) Spec() ports.ProvisionSpec {
 	return ports.ProvisionSpec{EnvironmentID: b.RunID, SlotID: "worker", ResourceKind: "kubernetes.sandboxclaim", Acquisition: "pool", Recipe: b.Config.Recipe()}
 }
 func (b Binding) WithResource(resource model.ResourceRef) (Binding, error) {
-	if resource.Validate() != nil || resource.Kind != "kubernetes.sandboxclaim" || resource.Scope != b.Config.Namespace || resource.Owner != (model.Owner{Kind: "kubernetes", ID: b.Config.ClusterID}) || b.Resource != nil && *b.Resource != resource {
+	kind := "kubernetes.sandboxclaim"
+	if b.Config.IsIsolated() {
+		kind = "kubernetes.sandbox"
+	}
+	if resource.Validate() != nil || resource.Kind != kind || resource.Scope != b.Config.Namespace || resource.Owner != (model.Owner{Kind: "kubernetes", ID: b.Config.ClusterID}) || b.Resource != nil && *b.Resource != resource {
 		return b, ErrIdentity
 	}
 	b.Resource = &resource
@@ -103,9 +126,13 @@ func (b Binding) Observe(observation model.Observation, now time.Time) Binding {
 	if observation.Ready.Status != "True" || observation.Runtime == nil || observation.LeaseExpiresAt == nil || !observation.LeaseExpiresAt.After(now) {
 		return b.Failed("RuntimeNotReady")
 	}
+	containerName := "worker"
+	if b.Config.IsIsolated() {
+		containerName = "agent"
+	}
 	imageOK := false
 	for _, artifact := range observation.Artifacts {
-		if artifact.Kind == "container-image" && artifact.Revision == "worker" && artifact.Digest == b.Config.ImageDigest {
+		if artifact.Kind == "container-image" && artifact.Revision == containerName && artifact.Digest == b.Config.ImageDigest {
 			imageOK = true
 		}
 	}
@@ -158,6 +185,9 @@ func (b Binding) Cleanup(receipt model.Ref) Binding {
 func (b Binding) ValidateNext(previous Binding) error {
 	if b.RunID != previous.RunID || b.RequestID != previous.RequestID || b.Version != previous.Version || b.Config != previous.Config || !b.CreatedAt.Equal(previous.CreatedAt) || previous.ReleaseRequested && !b.ReleaseRequested {
 		return ErrIdentity
+	}
+	if err := b.validateVolume(previous); err != nil {
+		return err
 	}
 	if previous.Resource != nil && (b.Resource == nil || *b.Resource != *previous.Resource) {
 		return ErrIdentity
