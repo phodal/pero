@@ -49,7 +49,7 @@ func (s *Store) ConfigureRuntimeWorker(ctx context.Context, config runtimebindin
 			return ErrConflict
 		}
 	}
-	if _, err = tx.Exec(ctx, `UPDATE workers SET runtime_only=true WHERE id=$1`, config.WorkerID); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE workers SET runtime_only=true,runtime_profile=$2 WHERE id=$1`, config.WorkerID, config.Profile); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
