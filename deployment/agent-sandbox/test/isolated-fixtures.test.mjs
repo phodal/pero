@@ -105,3 +105,32 @@ test('admission observation rejects mismatched binding, selectors, actions and n
   const n=structuredClone(ns);delete n.metadata.labels[key];assert.throws(()=>verifyAdmissionTargets(manifest,binding,n));
  }
 });
+
+
+test('unsafe dry-run probes avoid contradictory API fields and preserve their intended violations',async(t)=>{
+ const {mkdtemp,writeFile,rm}=await import('node:fs/promises');
+ const {tmpdir}=await import('node:os');
+ const {join}=await import('node:path');
+ const {spawnSync}=await import('node:child_process');
+ const dir=await mkdtemp(join(tmpdir(),'pero-admission-probes-'));
+ t.after(()=>rm(dir,{recursive:true,force:true}));
+ const config=join(dir,'config.json');
+ await writeFile(config,JSON.stringify({namespace:'fixture',runtimeClass:'runsc',agentServiceAccount:'agent',agentImage:image}));
+ const probes={};
+ for(const variant of ['valid','wrong-runtime','privileged','hostpath']){
+  const result=spawnSync(process.execPath,[new URL('../isolated/admission-probes.mjs',import.meta.url).pathname,config,variant],{encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr);probes[variant]=JSON.parse(result.stdout);
+ }
+ const valid=probes.valid.spec;
+ assert.equal(valid.containers[0].securityContext.allowPrivilegeEscalation,false);
+ assert.equal(probes.privileged.spec.containers[0].securityContext.privileged,true);
+ assert.equal(probes.privileged.spec.containers[0].securityContext.allowPrivilegeEscalation,true);
+ const restored=structuredClone(probes.privileged.spec);
+ delete restored.containers[0].securityContext.privileged;
+ restored.containers[0].securityContext.allowPrivilegeEscalation=false;
+ assert.deepEqual(restored,valid);
+ assert.equal(probes['wrong-runtime'].spec.runtimeClassName,undefined);
+ assert.deepEqual(probes.hostpath.spec.volumes,[{name:'workspace',hostPath:{path:'/tmp/never-mounted-by-dry-run'}}]);
+ assert.deepEqual(probes.hostpath.spec.containers[0].volumeMounts,[{name:'workspace',mountPath:'/workspace'}]);
+ assert.deepEqual(probes.hostpath.spec.containers,valid.containers);
+});

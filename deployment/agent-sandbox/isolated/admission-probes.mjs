@@ -12,6 +12,8 @@ const pod={apiVersion:'v1',kind:'Pod',metadata:{name:`pero-admission-${variant}`
 // Omission selects the default runtime; do not use a nonexistent RuntimeClass
 // whose lookup failure would make an absent admission policy look enforced.
 if(variant==='wrong-runtime')delete pod.spec.runtimeClassName;
-if(variant==='privileged')pod.spec.containers[0].securityContext.privileged=true;
+// Keep this unsafe probe API-valid: Kubernetes rejects privileged=true with
+// allowPrivilegeEscalation=false before PSS/admission can evaluate it.
+if(variant==='privileged')Object.assign(pod.spec.containers[0].securityContext,{privileged:true,allowPrivilegeEscalation:true});
 if(variant==='hostpath')pod.spec.volumes=[{name:'workspace',hostPath:{path:'/tmp/never-mounted-by-dry-run'}}];
 process.stdout.write(`${JSON.stringify(pod,null,2)}\n`);
