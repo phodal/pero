@@ -634,3 +634,17 @@ fn isolated_restart_reconciles_original_secret_without_opening_or_prompting() {
     assert!(!fixture.root.join("bridge-secret").exists());
     assert!(!fixture.root.join("remote-marker").exists());
 }
+
+
+#[test]
+fn isolated_cancellation_seen_on_renewal_stops_bridge_without_reconciliation() {
+    let fixture = Fixture::new("wait", true, false);
+    fixture.remote(false);
+    let output = fixture.run();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let state = fixture.state.lock().unwrap();
+    assert_eq!(state.completion.as_ref().unwrap()["outcome"], "cancelled");
+    assert_eq!(state.channel_grants.len(), 1);
+    assert_eq!(std::fs::read_to_string(fixture.root.join("remote-marker")).unwrap(), "prompt\n");
+    fixture.descendant_gone();
+}

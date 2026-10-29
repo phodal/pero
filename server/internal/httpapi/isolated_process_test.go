@@ -124,13 +124,20 @@ func TestIsolatedRuntimeWorkerProcesses(t *testing.T) {
 			t.Fatalf("%s must name a built absolute fixture binary", name)
 		}
 	}
-	for _, mode := range []string{"success", "eof"} {
+	for _, mode := range []string{"success", "eof", "cancel", "release"} {
 		t.Run(mode, func(t *testing.T) {
 			var providers atomic.Int32
+			providerStarted := make(chan struct{}, 1)
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				attempt := providers.Add(1)
 				if r.Header.Get("Authorization") != "Bearer server-provider-secret" {
 					t.Error("server provider credential missing")
+				}
+				if mode == "cancel" || mode == "release" {
+					io.Copy(io.Discard, r.Body)
+					providerStarted <- struct{}{}
+					<-r.Context().Done()
+					return
 				}
 				if attempt == 1 {
 					connection, _, err := w.(http.Hijacker).Hijack()
@@ -323,12 +330,27 @@ func TestIsolatedRuntimeWorkerProcesses(t *testing.T) {
 				}
 				os.WriteFile(filepath.Join(dir, "finish"), []byte("go"), 0600)
 			}
+			if mode == "cancel" || mode == "release" {
+				os.WriteFile(filepath.Join(dir, "release"), []byte("go"), 0600)
+				select {
+				case <-providerStarted:
+				case <-ctx.Done():
+					t.Fatal("provider never entered held request")
+				}
+				if mode == "release" {
+					if _, e := db.ReleaseRuntime(ctx, run.ID); e != nil {
+						t.Fatal(e)
+					}
+				} else {
+					request(t, server, "POST", "/api/v1/tasks/"+task.ID+"/cancel", "test-operator", nil, "", 200)
+				}
+			}
 			workerErr := workerCmd.Wait()
 			agentErr := agentCmd.Wait()
 			if ctx.Err() != nil {
 				t.Fatalf("process deadline: worker=%s agent=%s", workerOutput.String(), agentOutput.String())
 			}
-			if mode == "success" && workerErr != nil || mode == "eof" && workerErr == nil || agentErr == nil {
+			if (mode == "success" || mode == "cancel" || mode == "release") && workerErr != nil || mode == "eof" && workerErr == nil || agentErr == nil {
 				t.Fatalf("process outcome: worker=%v agent=%v workerlog=%s agentlog=%s", workerErr, agentErr, workerOutput.String(), agentOutput.String())
 			}
 			current, err := db.RuntimeRun(ctx, run.ID)
@@ -338,6 +360,9 @@ func TestIsolatedRuntimeWorkerProcesses(t *testing.T) {
 			wanted := "succeeded"
 			if mode == "eof" {
 				wanted = "reconcile"
+			}
+			if mode == "cancel" || mode == "release" {
+				wanted = "cancelled"
 			}
 			if current.Status != wanted {
 				t.Fatalf("Run=%s wanted=%s", current.Status, wanted)
@@ -352,6 +377,17 @@ func TestIsolatedRuntimeWorkerProcesses(t *testing.T) {
 			}
 			if mode == "success" && (!strings.Contains(string(raw), "permission_denied") || !strings.Contains(string(raw), "isolated answer") || providers.Load() != 2) {
 				t.Fatalf("candidate evidence missing: %s providers=%d", raw, providers.Load())
+			}
+			if mode == "cancel" || mode == "release" {
+				// Either the trusted renewal or post-EOF inspection may observe
+				// cancellation first. Neither is a remote compute/data receipt.
+				retained, e := db.RuntimeBinding(ctx, run.ID)
+				if e != nil || retained.ComputeReceipt != nil || retained.DataCleanupReceipt != nil {
+					t.Fatal("Worker cancellation fabricated cleanup", e)
+				}
+				if providers.Load() != 1 {
+					t.Fatal("held provider request replayed")
+				}
 			}
 			marker, _ := os.ReadFile(filepath.Join(dir, "prompt-marker"))
 			if string(marker) != "prompt\n" {

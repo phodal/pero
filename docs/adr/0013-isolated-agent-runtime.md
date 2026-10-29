@@ -140,7 +140,8 @@ exec/tunnel, desktop feature or UI artifact preview is introduced.
 
 Local tests establish durable grant ordering, default-deny permissions, wrong
 Pod/audience rejection, one-shot attachment, provider quota including lost reply,
-retained events/results and success-versus-EOF completion over real PostgreSQL and
+retained events/results, success-versus-EOF completion and cancellation/release
+races over real PostgreSQL and
 actual Worker/bridge/wrapper processes. That fixture uses a fixed ACP process to
 avoid writing the container-only `/workspace/repo` on the host. A separate actual
 Go ACP CLI test verifies TLS, provider wire compatibility and EOF cleanup.

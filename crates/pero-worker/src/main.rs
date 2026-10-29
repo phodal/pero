@@ -292,7 +292,19 @@ fn run() -> Result<(), String> {
             Err(error) => Outcome::blocked(error),
         };
         if run.remote_execution.is_some() && result.outcome == "failed" {
-            result = Outcome::new("reconcile", "Remote execution stopped without a confirmed result; original Run requires reconciliation");
+            // A cancelled remote channel can close before the next renewal poll.
+            // Only an ordinary execution failure after confirmed LOCAL cleanup
+            // may acknowledge the trusted control-plane cancellation. Blocked
+            // launch, lease loss, or uncertain cleanup must remain reconciliation.
+            let cancelled = !result.needs_attention && control.inspect(&run).is_ok_and(|current| {
+                current.id == run.id && current.generation == run.generation
+                    && current.instance_id == run.instance_id && current.status == "cancel_requested"
+            });
+            result = if cancelled {
+                Outcome::new("cancelled", "Cloud cancellation confirmed; local remote bridge stopped; remote compute cleanup remains separate")
+            } else {
+                Outcome::new("reconcile", "Remote execution stopped without a confirmed result; original Run requires reconciliation")
+            };
         }
         eprintln!("Run {}: {}", run.id, result.outcome);
         let stop = result.outcome == "reconcile" || result.needs_attention;

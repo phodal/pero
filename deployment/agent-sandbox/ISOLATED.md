@@ -193,10 +193,10 @@ data cleanup visibly distinct.
 
 ## Verification status and commands
 
-Local implementation evidence: 29 Rust Worker tests; bounded remote ACP race
+Local implementation evidence: 30 Rust Worker tests; bounded remote ACP race
 tests including actual Go ACP CLI over synthetic TLS/provider; real PostgreSQL
 17.11 with actual external Worker/bridge/wrapper and a fixed ACP process fixture.
-The latter covers success/EOF reconciliation, default-deny permissions, wrong
+The latter covers success/EOF reconciliation, cancellation/release races, default-deny permissions, wrong
 Pod/audience, duplicate attach, wrong model, spent unknown provider attempt,
 retained evidence and no post-close provider use. It is not cluster isolation.
 
