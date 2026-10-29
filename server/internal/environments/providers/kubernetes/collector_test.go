@@ -124,3 +124,54 @@ func TestCollectorRejectsIdentityOrMountDrift(t *testing.T) {
 		})
 	}
 }
+
+func TestCollectorAPIDefaultsAndPrivateDiagnostics(t *testing.T) {
+	for _, changed := range []string{"defaults", "job-schema", "template-profile", "pod-profile"} {
+		t.Run(changed, func(t *testing.T) {
+			owner, api, request, ref := collectorFixture(t)
+			ref, err := owner.Provision(t.Context(), request, ref)
+			if err != nil {
+				t.Fatal(err)
+			}
+			const private = "DO_NOT_LOG_CREDENTIAL_PAYLOAD"
+			api.change(func(c *coldAPI) {
+				job := c.objects["jobs/"+ref.Name]
+				spec := job["spec"].(map[string]any)
+				template := spec["template"].(map[string]any)
+				// Pinned Kubernetes v1.36.4 batch/v1 defaults + Job selector strategy.
+				spec["manualSelector"] = false
+				spec["selector"] = map[string]any{"matchLabels": map[string]any{"batch.kubernetes.io/controller-uid": ref.UID}}
+				labels := template["metadata"].(map[string]any)["labels"].(map[string]any)
+				for _, key := range []string{"controller-uid", "batch.kubernetes.io/controller-uid"} {
+					labels[key] = ref.UID
+				}
+				for _, key := range []string{"job-name", "batch.kubernetes.io/job-name"} {
+					labels[key] = ref.Name
+				}
+				pod := template["spec"].(map[string]any)
+				pod["dnsPolicy"], pod["schedulerName"] = "ClusterFirst", "default-scheduler"
+				container := pod["containers"].([]any)[0].(map[string]any)
+				container["terminationMessagePath"], container["terminationMessagePolicy"] = "/dev/termination-log", "File"
+				switch changed {
+				case "job-schema":
+					spec[private] = private
+				case "template-profile":
+					container["env"] = []any{map[string]any{"name": private, "value": private}}
+				case "pod-profile":
+					c.objects["pods/"+ref.Name+"-pod"]["spec"].(map[string]any)["containers"].([]any)[0].(map[string]any)["env"] = []any{map[string]any{"name": private, "value": private}}
+				}
+			})
+			_, err = owner.Observe(t.Context(), request, ref)
+			if changed == "defaults" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			want := map[string]string{"job-schema": "collector Job spec schema", "template-profile": "collector Job Pod template profile", "pod-profile": "collector Pod profile"}[changed]
+			if !errors.Is(err, model.ErrIdentity) || !strings.Contains(err.Error(), want) || strings.Contains(err.Error(), private) {
+				t.Fatalf("missing safe identity diagnostic: %v", err)
+			}
+		})
+	}
+}

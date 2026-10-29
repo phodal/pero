@@ -115,27 +115,27 @@ func (o *CollectorOwner) spec(r CollectorRequest, ref CollectorRef) collectorJob
 func (o *CollectorOwner) check(r CollectorRequest, ref CollectorRef) error {
 	expected, err := o.Reservation(r, ref.ExpiresAt)
 	if err != nil || expected.Name != ref.Name || expected.ConfigDigest != ref.ConfigDigest || ref.UID != "" && !model.ValidKey(ref.UID) {
-		return model.ErrIdentity
+		return fmt.Errorf("collector reservation: %w", model.ErrIdentity)
 	}
 	return nil
 }
 func (o *CollectorOwner) validateJob(object coldObject, r CollectorRequest, ref CollectorRef) (CollectorRef, error) {
 	if object.APIVersion != "batch/v1" || object.Kind != "Job" || object.Metadata.Name != ref.Name || object.Metadata.Namespace != r.PVC.Namespace || object.Metadata.UID == "" || object.Metadata.ResourceVersion == "" || object.Metadata.Labels[labelPrefix+"spec"] != claimDigestLabel(ref.ConfigDigest) || ref.UID != "" && ref.UID != object.Metadata.UID || object.Metadata.DeletionTimestamp != "" || len(object.Metadata.OwnerReferences) != 0 {
-		return ref, model.ErrIdentity
+		return ref, fmt.Errorf("collector Job identity: %w", model.ErrIdentity)
 	}
 	var actual collectorJobSpec
 	if strictProfile(object.Spec, &actual) != nil {
-		return ref, model.ErrIdentity
+		return ref, fmt.Errorf("collector Job spec schema (sha256:%x): %w", sha256.Sum256(object.Spec), model.ErrIdentity)
 	}
 	expected := o.spec(r, ref)
 	if actual.ManualSelector != nil && *actual.ManualSelector {
-		return ref, model.ErrIdentity
+		return ref, fmt.Errorf("collector Job manual selector: %w", model.ErrIdentity)
 	}
 	actual.ManualSelector = nil
 	if actual.Selector != nil {
 		labels := actual.Selector.MatchLabels
 		if !reflect.DeepEqual(labels, map[string]string{"batch.kubernetes.io/controller-uid": object.Metadata.UID}) {
-			return ref, model.ErrIdentity
+			return ref, fmt.Errorf("collector Job generated selector: %w", model.ErrIdentity)
 		}
 		actual.Selector = nil
 	}
@@ -143,22 +143,25 @@ func (o *CollectorOwner) validateJob(object coldObject, r CollectorRequest, ref 
 		switch k {
 		case "batch.kubernetes.io/controller-uid", "controller-uid":
 			if v != object.Metadata.UID {
-				return ref, model.ErrIdentity
+				return ref, fmt.Errorf("collector Job template controller label: %w", model.ErrIdentity)
 			}
 			delete(actual.Template.Metadata.Labels, k)
 		case "batch.kubernetes.io/job-name", "job-name":
 			if v != ref.Name {
-				return ref, model.ErrIdentity
+				return ref, fmt.Errorf("collector Job template name label: %w", model.ErrIdentity)
 			}
 			delete(actual.Template.Metadata.Labels, k)
 		}
 	}
-	if len(actual.Template.Metadata.Annotations) != 0 || !samePodProfile(actual.Template.Spec, expected.Template.Spec) {
-		return ref, model.ErrIdentity
+	if len(actual.Template.Metadata.Annotations) != 0 {
+		return ref, fmt.Errorf("collector Job template annotations: %w", model.ErrIdentity)
+	}
+	if !samePodProfile(actual.Template.Spec, expected.Template.Spec) {
+		return ref, fmt.Errorf("collector Job Pod template profile (sha256:%x): %w", sha256.Sum256(object.Spec), model.ErrIdentity)
 	}
 	actual.Template.Spec = expected.Template.Spec
 	if !reflect.DeepEqual(actual, expected) {
-		return ref, model.ErrIdentity
+		return ref, fmt.Errorf("collector Job spec profile (sha256:%x): %w", sha256.Sum256(object.Spec), model.ErrIdentity)
 	}
 	ref.UID = object.Metadata.UID
 	return ref, nil
@@ -166,17 +169,17 @@ func (o *CollectorOwner) validateJob(object coldObject, r CollectorRequest, ref 
 func (o *CollectorOwner) verifyVolumeAndSA(ctx context.Context, r CollectorRequest) error {
 	volume, err := o.cold.ObserveVolume(ctx, r.PVC)
 	if err != nil {
-		return err
+		return fmt.Errorf("collector PVC observation: %w", err)
 	}
 	if volume.Phase != "Bound" || volume.VolumeName != r.PVC.VolumeName {
-		return model.ErrIdentity
+		return fmt.Errorf("collector bound PV identity: %w", model.ErrIdentity)
 	}
 	sa, err := o.cold.request(ctx, http.MethodGet, "ServiceAccount", o.config.ServiceAccountName, nil)
 	if err != nil {
 		return err
 	}
 	if !o.cold.matches(sa, "ServiceAccount", o.config.ServiceAccountName, o.config.ServiceAccountUID, "") || sa.Metadata.DeletionTimestamp != "" {
-		return model.ErrIdentity
+		return fmt.Errorf("collector service account identity: %w", model.ErrIdentity)
 	}
 	return nil
 }
@@ -219,7 +222,7 @@ func (o *CollectorOwner) pods(ctx context.Context, ref CollectorRef) ([]coldObje
 		return nil, err
 	}
 	if list.Kind != "PodList" || list.APIVersion != "v1" || list.Metadata.Continue != "" || len(list.Items) > 1 {
-		return nil, model.ErrIdentity
+		return nil, fmt.Errorf("collector Pod list identity or completeness: %w", model.ErrIdentity)
 	}
 	return list.Items, nil
 }
@@ -239,22 +242,25 @@ func (o *CollectorOwner) Observe(ctx context.Context, r CollectorRequest, ref Co
 	}
 	pod := pods[0]
 	if !o.cold.matches(pod, "Pod", pod.Metadata.Name, "", ref.ConfigDigest) || pod.Metadata.DeletionTimestamp != "" {
-		return CollectorPod{}, model.ErrIdentity
+		return CollectorPod{}, fmt.Errorf("collector Pod identity: %w", model.ErrIdentity)
 	}
 	owners := pod.Metadata.OwnerReferences
 	if len(owners) != 1 || !owners[0].Controller || owners[0].APIVersion != "batch/v1" || owners[0].Kind != "Job" || owners[0].Name != ref.Name || owners[0].UID != ref.UID {
-		return CollectorPod{}, model.ErrIdentity
+		return CollectorPod{}, fmt.Errorf("collector Pod owner identity: %w", model.ErrIdentity)
 	}
 	var actual coldPodSpec
-	if strictProfile(pod.Spec, &actual) != nil || !samePodProfile(actual, o.pod(r)) {
-		return CollectorPod{}, model.ErrIdentity
+	if strictProfile(pod.Spec, &actual) != nil {
+		return CollectorPod{}, fmt.Errorf("collector Pod spec schema (sha256:%x): %w", sha256.Sum256(pod.Spec), model.ErrIdentity)
+	}
+	if !samePodProfile(actual, o.pod(r)) {
+		return CollectorPod{}, fmt.Errorf("collector Pod profile (sha256:%x): %w", sha256.Sum256(pod.Spec), model.ErrIdentity)
 	}
 	var status Object
 	if len(pod.Status) == 0 {
 		return CollectorPod{}, ErrNotFound
 	}
 	if json.Unmarshal(pod.Status, &status.Status) != nil {
-		return CollectorPod{}, model.ErrIdentity
+		return CollectorPod{}, fmt.Errorf("collector Pod status schema: %w", model.ErrIdentity)
 	}
 	if len(status.Status.ContainerStatuses) != 1 {
 		return CollectorPod{}, ErrNotFound
@@ -265,7 +271,7 @@ func (o *CollectorOwner) Observe(ctx context.Context, r CollectorRequest, ref Co
 	}
 	image, ok := imageArtifact("collector", container.ImageID)
 	if container.Name != "collector" || !ok || image.Digest != o.config.ImageDigest {
-		return CollectorPod{}, model.ErrIdentity
+		return CollectorPod{}, fmt.Errorf("collector container image identity: %w", model.ErrIdentity)
 	}
 	return CollectorPod{Name: pod.Metadata.Name, UID: pod.Metadata.UID, ServiceAccount: o.config.ServiceAccountName, ServiceAccountUID: o.config.ServiceAccountUID, JobUID: ref.UID}, nil
 }
