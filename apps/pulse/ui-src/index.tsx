@@ -3,7 +3,7 @@ import { useAppApi, useAppI18n, useAppInfo } from '@pero/app-sdk';
 import { Button, Disclosure, EmptyState, Feedback, Field, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import exampleBrief from '../examples/brief.json';
 import { messages } from './messages';
-import { latestReport, projectBrief, type Card, type Edition, type Home } from './project';
+import { latestReport, projectBrief, setDismissed, settle, type Card, type Edition, type Home, type Mark } from './project';
 import css from './styles.css';
 
 const sample = exampleBrief as Edition;
@@ -30,6 +30,7 @@ export default function Pulse() {
   const [cadence, setCadence] = useState('brief');
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState('');
+  const [undo, setUndo] = useState<(Mark & { title: string }) | null>(null);
 
   function fail(reason: unknown) {
     const code = reason instanceof Error ? reason.message : String(reason);
@@ -37,8 +38,27 @@ export default function Pulse() {
   }
   async function run(work: () => Promise<Home>) {
     setBusy(true); setError('');
-    try { setHome(await work()); return true; }
+    try { return apply(await settle(api, work, opened?.id)); }
     catch (reason) { fail(reason); return false; }
+    finally { setBusy(false); }
+  }
+  function apply(next: { home: Home; opened: Edition | null }) {
+    setHome(next.home);
+    if (next.opened) setOpened(next.opened);
+    return true;
+  }
+  async function dismiss(card: Card, edition: string) {
+    const mark = { edition, card: card.id };
+    setBusy(true); setError('');
+    try { apply(await setDismissed(api, mark, true, opened?.id)); setUndo({ ...mark, title: card.title }); }
+    catch (reason) { fail(reason); }
+    finally { setBusy(false); }
+  }
+  async function restore() {
+    if (!undo) return;
+    setBusy(true); setError('');
+    try { apply(await setDismissed(api, undo, false, opened?.id)); setUndo(null); }
+    catch (reason) { fail(reason); }
     finally { setBusy(false); }
   }
   async function refresh() { await run(() => api.get<Home>('/api/home')); }
@@ -51,8 +71,8 @@ export default function Pulse() {
     const key = `${brief.current.id}:${brief.needsYou.filter(card => !card.seen).map(card => card.id).join(',')}`;
     if (seenKey.current === key) return;
     seenKey.current = key;
-    void api.post<Home>('/api/seen', { cards: brief.needsYou.filter(card => !card.seen).map(card => ({ edition: brief.current!.id, card: card.id })) })
-      .then(setHome)
+    void settle(api, () => api.post<Home>('/api/seen', { cards: brief.needsYou.filter(card => !card.seen).map(card => ({ edition: brief.current!.id, card: card.id })) }), brief.current.id === opened?.id ? opened.id : '')
+      .then(apply)
       .catch(reason => { seenKey.current = ''; fail(reason); });
   }, [active, view, brief.current?.id, brief.attention, home]);
 
@@ -89,6 +109,7 @@ export default function Pulse() {
     <input className="pulse-file" ref={file} type="file" accept="application/json,.json" aria-label={t('import')} onChange={event => { const picked = event.target.files?.[0]; event.target.value = ''; if (picked) void importFile(picked); }}/>
     {error && <Feedback kind="error">{error} <Button disabled={busy} onClick={() => void refresh()}>{t('retry')}</Button></Feedback>}
     {busy && !home && <Feedback>{t('busy')}</Feedback>}
+    {undo && <Feedback>{t('dismissed').replace('{title}', undo.title)} <Button disabled={busy} onClick={() => void restore()}>{t('undo')}</Button></Feedback>}
     {home && <Tabs value={view} onValueChange={setView}>
       <Toolbar className="pulse-toolbar" actions={<>
         <Button disabled={busy} onClick={() => file.current?.click()}>{t('import')}</Button>
@@ -106,10 +127,10 @@ export default function Pulse() {
         {brief.current && <>
           <p className="pulse-meta">{brief.current.goalId ? (home.watches.find(watch => watch.id === brief.current?.goalId)?.text ?? t('watchReport')) : t('daily')} · <time dateTime={brief.current.createdAt}>{brief.current.createdAt}</time></p>
           {!!brief.needsYou.length && <h2>{t('attention').replace('{n}', String(brief.needsYou.length))}</h2>}
-          {brief.needsYou.map(card => <CardView key={card.id} card={card} edition={brief.current!.id} t={t} note={notes[`${brief.current!.id}/${card.id}`] ?? ''} busy={busy} onNote={value => setNotes(prev => ({ ...prev, [`${brief.current!.id}/${card.id}`]: value }))} onAct={(path, body) => run(() => api.post<Home>(path, body))}/>)}
-          {brief.cards.map(card => <CardView key={card.id} card={card} edition={brief.current!.id} t={t} note={notes[`${brief.current!.id}/${card.id}`] ?? ''} busy={busy} onNote={value => setNotes(prev => ({ ...prev, [`${brief.current!.id}/${card.id}`]: value }))} onAct={(path, body) => run(() => api.post<Home>(path, body))}/>)}
+          {brief.needsYou.map(card => <CardView key={card.id} card={card} edition={brief.current!.id} t={t} note={notes[`${brief.current!.id}/${card.id}`] ?? ''} busy={busy} onDismiss={() => void dismiss(card, brief.current!.id)} onNote={value => setNotes(prev => ({ ...prev, [`${brief.current!.id}/${card.id}`]: value }))} onAct={(path, body) => run(() => api.post<Home>(path, body))}/>)}
+          {brief.cards.map(card => <CardView key={card.id} card={card} edition={brief.current!.id} t={t} note={notes[`${brief.current!.id}/${card.id}`] ?? ''} busy={busy} onDismiss={() => void dismiss(card, brief.current!.id)} onNote={value => setNotes(prev => ({ ...prev, [`${brief.current!.id}/${card.id}`]: value }))} onAct={(path, body) => run(() => api.post<Home>(path, body))}/>)}
           {!!brief.filtered.length && <Button onClick={() => setFilteredOpen(open => !open)}>{(filteredOpen ? t('hideFiltered') : t('filtered')).replace('{n}', String(brief.filtered.length))}</Button>}
-          {filteredOpen && brief.filtered.map(card => <CardView key={card.id} card={card} edition={brief.current!.id} t={t} note={notes[`${brief.current!.id}/${card.id}`] ?? ''} busy={busy} onNote={value => setNotes(prev => ({ ...prev, [`${brief.current!.id}/${card.id}`]: value }))} onAct={(path, body) => run(() => api.post<Home>(path, body))}/>)}
+          {filteredOpen && brief.filtered.map(card => <CardView key={card.id} card={card} edition={brief.current!.id} t={t} note={notes[`${brief.current!.id}/${card.id}`] ?? ''} busy={busy} onDismiss={() => void dismiss(card, brief.current!.id)} onNote={value => setNotes(prev => ({ ...prev, [`${brief.current!.id}/${card.id}`]: value }))} onAct={(path, body) => run(() => api.post<Home>(path, body))}/>)}
           {!brief.needsYou.length && !brief.cards.length && !brief.filtered.length && !brief.current.tomorrow && <p className="pulse-muted">{t('quiet')}</p>}
           {brief.current.tomorrow && <section><h2>{t('next')}</h2><p>{brief.current.tomorrow}</p></section>}
         </>}
@@ -141,7 +162,7 @@ export default function Pulse() {
   </section>;
 }
 
-function CardView({ card, edition, t, note, busy, onNote, onAct }: { card: Card; edition: string; t: (key: keyof typeof messages) => string; note: string; busy: boolean; onNote(value: string): void; onAct(path: string, body: unknown): Promise<boolean> }) {
+function CardView({ card, edition, t, note, busy, onDismiss, onNote, onAct }: { card: Card; edition: string; t: (key: keyof typeof messages) => string; note: string; busy: boolean; onDismiss(): void; onNote(value: string): void; onAct(path: string, body: unknown): Promise<boolean> }) {
   const mark = { edition, card: card.id };
   return <article className="pulse-card" data-kind={card.kind}>
     <header><span className="pulse-tag" data-kind={card.kind}>{kindLabel(card.kind, t)}</span>{card.handled && <span className="pulse-tag">{t('handled')}</span>}<strong>{card.title}</strong></header>
@@ -154,7 +175,7 @@ function CardView({ card, edition, t, note, busy, onNote, onAct }: { card: Card;
       {!!card.sources?.length && <ul>{card.sources.map(source => <li key={source.label}>{source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.label}</a> : source.label}</li>)}</ul>}
     </Disclosure>}
     <div className="pulse-actions">
-      <Button disabled={busy} onClick={() => void onAct('/api/dismissed', { ...mark, dismissed: true })}>{t('dismiss')}</Button>
+      <Button disabled={busy} onClick={onDismiss}>{t('dismiss')}</Button>
       <Button disabled={busy} aria-pressed={card.feedback?.vote === 'more'} onClick={() => void onAct('/api/feedback', { ...mark, vote: 'more', note })}>{t('more')}</Button>
       <Button disabled={busy} aria-pressed={card.feedback?.vote === 'less'} onClick={() => void onAct('/api/feedback', { ...mark, vote: 'less', note })}>{t('less')}</Button>
       <Input aria-label={t('note')} value={note} maxLength={300} placeholder={t('note')} onChange={event => onNote(event.target.value)}/>

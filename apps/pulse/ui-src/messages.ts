@@ -18,6 +18,8 @@ export const messages = {
   sources: { zh: '依据', en: 'Sources' },
   handled: { zh: '已处理', en: 'Handled' },
   dismiss: { zh: '取消提醒', en: 'Dismiss' },
+  dismissed: { zh: '已取消提醒：{title}', en: 'Dismissed: {title}' },
+  undo: { zh: '撤销', en: 'Undo' },
   more: { zh: '多来点这类', en: 'More like this' },
   less: { zh: '少来点这类', en: 'Less like this' },
   noted: { zh: '已记下', en: 'Noted' },

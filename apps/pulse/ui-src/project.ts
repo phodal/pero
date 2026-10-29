@@ -28,3 +28,15 @@ export function projectBrief(editions: Edition[], selectedId = '') {
 export function latestReport(editions: Edition[], watchId: string) {
   return editions.find(edition => edition.goalId === watchId) ?? null;
 }
+
+export type Mark = { edition: string; card: string };
+type Api = { get<T>(path: string): Promise<T>; post<T>(path: string, body: unknown): Promise<T> };
+
+/** `/api/home` carries hot editions only, so an opened archive is read again after every write. */
+export async function settle(api: Api, work: () => Promise<Home>, openedId = ''): Promise<{ home: Home; opened: Edition | null }> {
+  const home = await work();
+  return { home, opened: openedId ? await api.get<Edition>(`/api/editions/${openedId}`) : null };
+}
+
+export const setDismissed = (api: Api, mark: Mark, dismissed: boolean, openedId = '') =>
+  settle(api, () => api.post<Home>('/api/dismissed', { ...mark, dismissed }), openedId);
