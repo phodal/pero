@@ -15,6 +15,8 @@ const env={...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_LOC
 const args=[...(process.platform==='darwin'?['--use-mock-keychain']:[]),...(packaged?[]:[resolve(root,'desktop')])];
 const app=await electron.launch({...(packaged?{executablePath:packaged}:{}),args,cwd:packaged?temp:root,env});
 const errors=[];
+let invalidHostEventErrors=0;
+app.on('console',message=>{if(message.type()==='error' && message.text()==='Invalid Host event')invalidHostEventErrors=Math.min(invalidHostEventErrors+1,1000);});
 try{
  const page=await app.firstWindow();page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await page.waitForFunction(()=>window.peroDiagnostics,undefined,{timeout:60000});
@@ -80,17 +82,27 @@ try{
  await app.evaluate(({BrowserWindow})=>{
   const contents=BrowserWindow.getAllWindows()[0].webContents;
   const send=contents.send.bind(contents);
+  globalThis.workspaceReplayStartedAt=performance.now();
+  const trace=globalThis.workspaceReplayTrace={counts:{agents:0,workspace:0,local_roadmap:0,replay:0},firstMs:{agents:null,workspace:null,local_roadmap:null,replay:null},rendererReadyMs:null,releasedMs:null};
   contents.send=(channel,...args)=>{
+   const kind=args[0]?.kind;
+   if(channel==='pero:event' && Object.hasOwn(trace.counts,kind)){
+    trace.counts[kind]=Math.min(trace.counts[kind]+1,1000);
+    trace.firstMs[kind]??=performance.now()-globalThis.workspaceReplayStartedAt;
+   }
    if(channel==='pero:event' && args[0]?.kind==='replay'){
-    globalThis.releaseWorkspaceReplay=()=>{contents.send=send;send(channel,...args);};
+    globalThis.releaseWorkspaceReplay=()=>{trace.releasedMs=performance.now()-globalThis.workspaceReplayStartedAt;contents.send=send;send(channel,...args);};
     return;
    }
    send(channel,...args);
   };
  });
  await page.reload();
- await expect.poll(()=>app.evaluate(()=>typeof globalThis.releaseWorkspaceReplay)).toBe('function');
+ // Bootstrap requests replay only after async WASM/GPUI initialization. Keep
+ // its existing readiness barrier outside the separate replay-arrival budget.
  await page.waitForFunction(()=>window.peroDiagnostics && !document.getElementById('loading'));
+ await app.evaluate(()=>{globalThis.workspaceReplayTrace.rendererReadyMs=performance.now()-globalThis.workspaceReplayStartedAt;});
+ await expect.poll(()=>app.evaluate(()=>typeof globalThis.releaseWorkspaceReplay)).toBe('function');
  await page.mouse.click(100,28);
  await expect.poll(async()=>(await state()).activeContent?.kind).toBe('conversation');
  const draftItem=(await state()).activeContent;
@@ -117,4 +129,8 @@ try{
  console.log(JSON.stringify({checks:'stream,followup,cancel,permission,long-stream,scroll-up,reload,history-retained-draft,locale,dark,narrow',streamStats:stats,errors}));
  await writeFile(resolve(out,'result.json'),JSON.stringify({state:await state(),errors},null,2));
  expect(errors).toEqual([]);
-}catch(error){const page=await app.firstWindow();console.error({errors,state:await page.evaluate(()=>window.peroDiagnostics?.snapshot()).catch(e=>`snapshot unavailable: ${e.message}`)});await page.screenshot({path:resolve(out,'failure.png')});throw error;}finally{await app.close();}
+}catch(error){const page=await app.firstWindow();console.error({errors,state:await page.evaluate(()=>window.peroDiagnostics?.snapshot()).catch(e=>`snapshot unavailable: ${e.message}`)});await page.screenshot({path:resolve(out,'failure.png')});throw error;}finally{
+ const trace=await app.evaluate(()=>globalThis.workspaceReplayTrace??null).catch(()=>null);
+ console.log(JSON.stringify({workspaceReplayTrace:trace,invalidHostEventErrors}));
+ await app.close();
+}
