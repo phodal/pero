@@ -109,3 +109,14 @@ runtime mounts, with no concurrent external host mutation during admission/launc
 The native sandbox's workspace scan rejects hardlinked files and special endpoints;
 it does not provide an adversarial filesystem snapshot. Do not enroll untrusted
 shared checkouts or runtime mounts in this opt-in policy.
+
+### Trusted Agent Sandbox pool identity
+
+When launched from the fixed Agent Sandbox template, `PERO_RUNTIME_POD_UID` is
+provided by Kubernetes' Downward API. The Worker persists it in each pending claim
+and reuses that original value after a lost response or restart, even if the
+current environment differs. Old journals without the field remain readable.
+The control plane admits only the matching ready RuntimeBinding and rejects
+changed claim identity; this is not Pod attestation or untrusted-code isolation.
+The existing lease, journal, permission-denial and no-prompt-replay behavior is
+unchanged. See [deployment/agent-sandbox](../../deployment/agent-sandbox/README.md).

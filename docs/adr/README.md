@@ -12,3 +12,4 @@
 - [0009: Local contributions from public tasks](0009-local-contributions.md)
 - [0010: Desktop Worker enrollment](0010-desktop-worker-enrollment.md)
 - [0011: Local workspace ROADMAP execution](0011-local-roadmap.md)
+- [0012: Trusted Worker runtime on Agent Sandbox](0012-agent-sandbox-runtime.md)

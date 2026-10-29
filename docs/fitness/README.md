@@ -58,3 +58,7 @@ Current conversation and ACP UI acceptance: [conversation-verification.md](conve
 | L3 | A signed release package installs, upgrades and runs on the target system. |
 
 Record the source version, level, date, target system and remaining gaps in the relevant verification record before marking a feature complete. A checked source item is separate from Run verification and acceptance.
+
+The opt-in trusted Kubernetes Worker runtime and its separate fake-API,
+PostgreSQL, process and cluster evidence are tracked in
+[Agent Sandbox verification](agent-sandbox-runtime.md).
