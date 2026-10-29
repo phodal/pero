@@ -1,0 +1,104 @@
+name: Agent Sandbox isolated disposable acceptance
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-sandbox-isolated-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  isolated-kind:
+    # The separate label is applied only after review of the strong profile.
+    # Never execute an untrusted fork's code with the privileged CNI fixture.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       contains(github.event.pull_request.labels.*.name, 'agent-sandbox-isolated-e2e'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:17.11-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+        env:
+          POSTGRES_PASSWORD: isolated-fixture-only
+          POSTGRES_USER: isolated_fixture
+          POSTGRES_DB: isolated_fixture
+        ports: [5432/tcp]
+        options: >-
+          --health-cmd "pg_isready -U isolated_fixture -d isolated_fixture"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      GOTOOLCHAIN: local
+      PERO_REQUIRE_TEST_DATABASE: '1'
+    steps:
+      - name: Bind the owned PostgreSQL service port
+        shell: bash
+        env:
+          TEST_DATABASE_URL: postgresql://isolated_fixture:isolated-fixture-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/isolated_fixture?sslmode=disable
+        run: printf 'PERO_TEST_DATABASE_URL=%s\n' "$TEST_DATABASE_URL" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.26.4'
+          cache-dependency-path: |
+            server/go.sum
+            harness/go/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22.23.4'
+      - name: Prepare pinned Rust and workspace-only GPUI resolution
+        shell: bash
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup default 1.99.1
+          kit="$RUNNER_TEMP/gpui-kit"
+          git init --quiet "$kit"
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin ec89cfc36404667b7947aeb3d40b1c2859d729dd
+          git -C "$kit" checkout --detach FETCH_HEAD
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+      - name: Build external Worker and isolated ACP transports
+        shell: bash
+        run: |
+          node scripts/cargo.mjs test --locked -p pero-worker
+          node scripts/cargo.mjs build --locked --release -p pero-worker
+          CGO_ENABLED=0 go -C harness/go build -trimpath -o "$RUNNER_TEMP/pero-agent-acp" ./cmd/pero-agent-acp
+          CGO_ENABLED=0 go -C server build -trimpath -o "$RUNNER_TEMP/pero-agent-connect" ./cmd/pero-agent-connect
+          CGO_ENABLED=0 go -C server build -trimpath -o "$RUNNER_TEMP/pero-acp-bridge" ./cmd/pero-acp-bridge
+          CGO_ENABLED=0 go -C server build -trimpath -o "$RUNNER_TEMP/pero-artifact-collector" ./cmd/pero-artifact-collector
+          echo "PERO_TEST_WORKER_BIN=$PWD/target/release/pero-worker" >> "$GITHUB_ENV"
+          echo "PERO_TEST_AGENT_BIN=$RUNNER_TEMP/pero-agent-acp" >> "$GITHUB_ENV"
+          echo "PERO_ISOLATED_TEST_CONNECT_BINARY=$RUNNER_TEMP/pero-agent-connect" >> "$GITHUB_ENV"
+          echo "PERO_ISOLATED_TEST_BRIDGE_BINARY=$RUNNER_TEMP/pero-acp-bridge" >> "$GITHUB_ENV"
+          echo "PERO_ISOLATED_TEST_COLLECTOR_BINARY=$RUNNER_TEMP/pero-artifact-collector" >> "$GITHUB_ENV"
+          echo "PERO_ISOLATED_TEST_EVIDENCE=$RUNNER_TEMP/pero-isolated-evidence" >> "$GITHUB_ENV"
+      - name: Offline fixture and server contracts
+        shell: bash
+        run: |
+          mkdir -p "$PERO_ISOLATED_TEST_EVIDENCE"
+          bash -n deployment/agent-sandbox/isolated-kind.sh
+          node --test deployment/agent-sandbox/test/isolated-fixtures.test.mjs
+          go test -race deployment/agent-sandbox/isolated/probe{,_test}.go
+          go test -race deployment/agent-sandbox/isolated/artifact-writer{,_test}.go
+          go -C server test -race -count=1 ./... 2>&1 | tee "$PERO_ISOLATED_TEST_EVIDENCE/server-test.log"
+      - name: Create, probe, test, and destroy owned isolated infrastructure
+        env:
+          PERO_ISOLATED_ACCEPTANCE: '1'
+        shell: bash
+        run: deployment/agent-sandbox/isolated-kind.sh
+      - name: Retain non-secret acceptance and teardown receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: agent-sandbox-isolated-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/pero-isolated-evidence/
+          if-no-files-found: warn
+          retention-days: 7
