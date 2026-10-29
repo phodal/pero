@@ -30,6 +30,33 @@ Artifact `12909532979` ZIP SHA-256:
 The owned cluster, registry, MinIO and PostgreSQL were removed; the original
 failure exit status was retained.
 
+## Narrowed failure and typed-list regression
+
+[Run 40908702004](https://github.com/phodal/pero/actions/runs/40908702004)
+retained both intermediate execution/compute receipts. Both export failures are
+now specifically `collector Pod identity`: the original Job UID was persisted
+and matched the observed Job, but collector authority was not bound. The Job
+template's `creationTimestamp` was absent. Artifact `12913207576` ZIP SHA-256:
+`642a96c2f965228a5c573cbb8686140d5ab6168f5e9fd9938b248240751fdd42`.
+
+An exact `k8s.io/api` / `apimachinery` v0.36.4 harness using `runtime.Encode` and
+the registered v1 legacy codec reproduced a typed `PodList` with `apiVersion`
+and `kind` only on the envelope, not nested Pod items. This follows the
+[typed list](https://github.com/kubernetes/api/blob/v0.36.4/core/v1/types.go) and
+[versioning encoder](https://github.com/kubernetes/apimachinery/blob/v0.36.4/pkg/runtime/serializer/versioning/versioning.go)
+boundaries. The adapter incorrectly required standalone-object type fields on
+those items. `TestCollectorTypedPodListIdentity` reproduced the same rejection
+before the fix.
+
+The narrow fix derives only a **both-absent** item type pair after validating a
+complete `v1/PodList` envelope. Explicit conflicting or partial type pairs still
+fail. Namespace, UID, spec fingerprint, Job owner, Pod profile, image and
+pagination checks remain mandatory; standalone object validation is unchanged.
+Provider race tests pass, including negative identity-drift cases. This is a
+proven adapter defect consistent with the actual failure stage, not yet proof
+that it was the historical failure's only cause: raw Pod shape was not retained.
+Actual export, immutable manifest and explicit data-GC acceptance remain pending.
+
 ## Next verification
 
 Diagnostics retain only fixed rejection stages, digests and recognized response
@@ -38,8 +65,8 @@ The strict validation and `ErrIdentity` semantics remain unchanged. A temporary
 `k8s.io/api` / `apimachinery` v0.36.4 JSON roundtrip did not emit a zero
 `creationTimestamp`; older null-timestamp examples do not prove this failure.
 
-Use the next actual response evidence to reproduce a specific mismatch, then
-apply only a source-backed normalization with negative drift regressions. Keep
-manifest/backend verification and explicit UID-safe PVC cleanup mandatory. A
-green single-node fixture still does not supply a production CSI partition/fence
-adapter or the missing trusted export-orchestration integration.
+Require the next actual fixture to pass collector admission, verified manifest
+commit and explicit UID-safe PVC cleanup before closing this issue. Preserve the
+safe rejection diagnostics if another mismatch remains. A green single-node
+fixture still does not supply a production CSI partition/fence adapter or the
+missing trusted export-orchestration integration.

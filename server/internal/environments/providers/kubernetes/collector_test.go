@@ -175,3 +175,49 @@ func TestCollectorAPIDefaultsAndPrivateDiagnostics(t *testing.T) {
 		})
 	}
 }
+
+func TestCollectorTypedPodListIdentity(t *testing.T) {
+	for _, change := range []string{"omitted-type", "partial-type", "wrong-version", "wrong-kind", "missing-uid", "namespace", "spec-label", "owner", "partial-list"} {
+		t.Run(change, func(t *testing.T) {
+			owner, api, request, ref := collectorFixture(t)
+			ref, err := owner.Provision(t.Context(), request, ref)
+			if err != nil {
+				t.Fatal(err)
+			}
+			api.change(func(c *coldAPI) {
+				pod := c.objects["pods/"+ref.Name+"-pod"]
+				// Kubernetes v0.36.4's typed PodList JSON codec sets TypeMeta on
+				// the list, not its nested Pod items. Standalone GETs differ.
+				delete(pod, "apiVersion")
+				delete(pod, "kind")
+				meta := pod["metadata"].(map[string]any)
+				switch change {
+				case "partial-type":
+					pod["apiVersion"] = "v1"
+				case "wrong-version":
+					pod["apiVersion"], pod["kind"] = "v2", "Pod"
+				case "wrong-kind":
+					pod["apiVersion"], pod["kind"] = "v1", "ConfigMap"
+				case "missing-uid":
+					delete(meta, "uid")
+				case "namespace":
+					meta["namespace"] = "other-project"
+				case "spec-label":
+					meta["labels"].(map[string]any)[labelPrefix+"spec"] = "changed"
+				case "owner":
+					meta["ownerReferences"].([]any)[0].(map[string]any)["uid"] = "other-job"
+				case "partial-list":
+					c.listContinue = true
+				}
+			})
+			pod, err := owner.Observe(t.Context(), request, ref)
+			if change == "omitted-type" {
+				if err != nil || pod.UID != "collector-pod-uid" || pod.JobUID != ref.UID {
+					t.Fatalf("typed list identity lost: %+v %v", pod, err)
+				}
+			} else if !errors.Is(err, model.ErrIdentity) {
+				t.Fatalf("conflicting list identity admitted: %v", err)
+			}
+		})
+	}
+}

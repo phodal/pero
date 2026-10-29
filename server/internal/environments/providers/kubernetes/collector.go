@@ -224,6 +224,18 @@ func (o *CollectorOwner) pods(ctx context.Context, ref CollectorRef) ([]coldObje
 	if list.Kind != "PodList" || list.APIVersion != "v1" || list.Metadata.Continue != "" || len(list.Items) > 1 {
 		return nil, fmt.Errorf("collector Pod list identity or completeness: %w", model.ErrIdentity)
 	}
+	for i := range list.Items {
+		pod := &list.Items[i]
+		// The typed Kubernetes PodList codec sets TypeMeta on the envelope,
+		// not its nested Pods. Derive only that omitted pair from this validated
+		// complete v1/PodList; never repair an explicit conflicting/partial type.
+		if pod.APIVersion == "" && pod.Kind == "" {
+			pod.APIVersion, pod.Kind = "v1", "Pod"
+		}
+		if pod.APIVersion != "v1" || pod.Kind != "Pod" {
+			return nil, fmt.Errorf("collector Pod list item type: %w", model.ErrIdentity)
+		}
+	}
 	return list.Items, nil
 }
 func (o *CollectorOwner) Observe(ctx context.Context, r CollectorRequest, ref CollectorRef) (CollectorPod, error) {
