@@ -66,14 +66,14 @@ func reserveLiveAllowance(path string) error {
 	}
 	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 	var ledger struct {
-		Reserved int `json:"reserved_requests"`
+		Reserved *int `json:"reserved_requests"`
 	}
 	d := json.NewDecoder(io.LimitReader(f, 4097))
 	d.DisallowUnknownFields()
-	if d.Decode(&ledger) != nil || d.Decode(new(any)) != io.EOF || ledger.Reserved < 0 || ledger.Reserved > 4 || ledger.Reserved%2 != 0 {
+	if d.Decode(&ledger) != nil || d.Decode(new(any)) != io.EOF || ledger.Reserved == nil || *ledger.Reserved < 0 || *ledger.Reserved > 4 || *ledger.Reserved%2 != 0 {
 		return errors.New("live allowance exhausted or invalid; no request dispatched")
 	}
-	ledger.Reserved += 2
+	*ledger.Reserved += 2
 	data, _ := json.Marshal(ledger)
 	data = append(data, '\n')
 	if _, err = f.Seek(0, io.SeekStart); err != nil {
@@ -117,6 +117,19 @@ func TestIsolatedLiveAllowance(t *testing.T) {
 	}
 	if reserveLiveAllowance(path) == nil {
 		t.Fatal("public ledger accepted")
+	}
+	for _, body := range []string{`{}`, `{"reserved_requests":null}`, `{"reserved_requests":-2}`, `{"reserved_requests":1}`, `{"reserved_requests":6}`, `{"reserved_requests":0,"extra":true}`, `{"reserved_requests":`, `{"reserved_requests":0} {}`} {
+		bad := filepath.Join(t.TempDir(), "damaged-budget.json")
+		if os.WriteFile(bad, []byte(body), 0600) != nil {
+			t.Fatal("private synthetic ledger unavailable")
+		}
+		if reserveLiveAllowance(bad) == nil {
+			t.Fatal("damaged or exhausted ledger accepted")
+		}
+		retained, err := os.ReadFile(bad)
+		if err != nil || string(retained) != body {
+			t.Fatal("rejected ledger was changed")
+		}
 	}
 }
 
