@@ -1,5 +1,6 @@
 // Composer behavior against the actual Electron/GPUI renderer and a bounded ACP fixture.
-import { _electron as electron, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { electron } from './electron.mjs';
 import { mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -19,6 +20,7 @@ await writeFile(agents, JSON.stringify([
   { id: 'unsupported-fixture', name: 'ACP text fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs')] },
   { id: 'fixture', name: 'ACP composer fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs'), '--composer', `--capture=${capture}`] },
 ]));
+await writeFile(resolve(temp, 'settings.json'), JSON.stringify({ chat_agent: 'fixture' }));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(temp, 'profile'), PERO_SETTINGS_PATH: resolve(temp, 'settings.json'), PERO_HISTORY_PATH: resolve(temp, 'sessions.jsonl'), PERO_LOCALE: 'en', PERO_AGENTS_FILE: agents };
 delete env.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({ args: [...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []), resolve(root, 'desktop')], cwd: root, env });
@@ -68,10 +70,8 @@ try {
   await frame();
   await expect.poll(async () => (await state()).chats.length).toBe(1);
   await frame();
-  await page.mouse.click(1170, await height() - 20);
-  await page.keyboard.press('ArrowUp');
-  await page.keyboard.press('Enter');
   await expect.poll(async () => (await state()).chats[0].agent).toBe('fixture');
+  await expect.poll(async () => (await state()).chats[0].state).toBe('idle');
   await input('composer fixture ready');
   await send();
   await expect.poll(async () => (await state()).chats[0].commands?.map(command => command.name)).toContain('compact');
@@ -174,7 +174,8 @@ try {
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await state()).chats[0].permission !== null).toBe(true);
   await page.screenshot({ path: resolve(output, 'permission.png') });
-  await page.mouse.click(310, await height() - 142);
+  const permission = (await state()).permissionBounds.find(item => item.index === 0).bounds;
+  await page.mouse.click(permission.x + permission.width / 2, permission.y + permission.height / 2);
   await expect.poll(async () => (await state()).chats[0].state).toBe('idle');
 
   await input('@');
@@ -207,9 +208,9 @@ try {
   await frame();
   await page.mouse.click(100, 28);
   await expect.poll(async () => (await state()).chats.length).toBe(2);
+  await expect.poll(async () => (await state()).chats[1].state).toBe('idle');
   await frame();
-  await page.mouse.click(1170, await height() - 20);
-  await page.keyboard.press('ArrowUp');
+  await page.mouse.click(1130, await height() - 20);
   await page.keyboard.press('ArrowUp');
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await state()).chats[1].agent).toBe('unsupported-fixture');

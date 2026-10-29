@@ -1,5 +1,6 @@
 // Real Electron/Host/PostgreSQL/Git. GitHub and ACP provider are explicit seams.
-import { _electron as electron, chromium, expect } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
+import { electron } from './electron.mjs';
 import { spawn, execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, symlinkSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';

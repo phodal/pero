@@ -169,3 +169,7 @@ fonts/*.ttf
 
 # Shared per-workspace execution lease; never remove an active lock file.
 .pero-worker.lock
+
+/web/src/chat-wasm/
+
+/web/dist-chat/

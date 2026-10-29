@@ -3,13 +3,14 @@ use super::*;
 impl Workbench {
     pub(crate) fn remote_list(&self, narrow: bool, cx: &mut Context<Self>) -> impl IntoElement {
         use crate::projects::TaskStatusFilter;
-        let p = self.palettes.get(self.dark);
+        let owner = cx.entity().clone();
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let loading = self.remote.loading();
         let query = self.remote.search.read(cx).value().to_lowercase();
         let unbound = self
-            .current_project()
+            .current_project(cx)
             .is_some_and(|project| project.shared_id.is_none());
-        let project = self.current_project();
+        let project = self.current_project(cx);
         let all_projects = self.selected_project.is_none();
         let visible = self
             .remote
@@ -142,9 +143,9 @@ impl Workbench {
             .flex()
             .items_center()
             .gap(px(12.))
-            .bg(p.color("surface-muted"))
-            .text_size(px(12.))
-            .text_color(p.color("text-muted"))
+            .bg(p.surface_muted)
+            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+            .text_color(p.text_muted)
             .child(div().flex_1().child(self.t("cloud.col.task")))
             .child(div().w(px(105.)).child(self.t("cloud.col.status")))
             .when(!narrow, |el| {
@@ -165,7 +166,7 @@ impl Workbench {
                 el.child(
                     div()
                         .py(px(32.))
-                        .text_color(p.color("text-muted"))
+                        .text_color(p.text_muted)
                         .whitespace_normal()
                         .child(self.t(if loading {
                             "remote.loading"
@@ -218,6 +219,9 @@ impl Workbench {
             });
         div()
             .id("remote-list")
+            .on_prepaint(move |_, window, cx| {
+                owner.update(cx, |this, cx| this.follow_task_pages(window, cx))
+            })
             .w_full()
             .flex_1()
             .min_w_0()
@@ -258,7 +262,7 @@ impl Workbench {
         narrow: bool,
         cx: &mut Context<Self>,
     ) -> Button {
-        let p = self.palettes.get(self.dark);
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let id = string(task, "id").to_string();
         let title = string(task, "title").to_string();
         let state = phase(task);
@@ -278,7 +282,7 @@ impl Workbench {
             .rounded_none()
             .px(px(12.))
             .border_b_1()
-            .border_color(p.color("border"))
+            .border_color(p.border)
             .accessibility_label(label)
             .child(
                 div()
@@ -301,8 +305,8 @@ impl Workbench {
                                     div()
                                         .mt(px(4.))
                                         .truncate()
-                                        .text_size(px(11.))
-                                        .text_color(p.color("text-muted"))
+                                        .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                        .text_color(p.text_muted)
                                         .child(source),
                                 )
                             }),
@@ -310,7 +314,7 @@ impl Workbench {
                     .child(
                         div()
                             .w(px(105.))
-                            .text_size(px(12.))
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
                             .text_color(p.color(tone_colors(state.tone()).1))
                             .child(self.t(state.label_key())),
                     )
@@ -319,15 +323,15 @@ impl Workbench {
                             div()
                                 .w(px(100.))
                                 .truncate()
-                                .text_size(px(12.))
+                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
                                 .child(string(task, "agent_id").to_string()),
                         )
                         .child(
                             div()
                                 .w(px(150.))
                                 .truncate()
-                                .text_size(px(12.))
-                                .text_color(p.color("text-muted"))
+                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                .text_color(p.text_muted)
                                 .child(target),
                         )
                     }),
@@ -336,7 +340,7 @@ impl Workbench {
     }
 
     pub(crate) fn follow_task_pages(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.task_list_mounted(window)
+        if !self.task_list_mounted()
             || self.task_more_pending
             || self.remote.loading()
             || self.remote.data["error"].is_string()
@@ -353,8 +357,8 @@ impl Workbench {
         cx.on_next_frame(window, |this, _, cx| this.request_more_tasks(cx));
     }
 
-    fn task_list_mounted(&self, window: &Window) -> bool {
-        if self.navigation != 3
+    fn task_list_mounted(&self) -> bool {
+        if self.navigation.page() != WorkbenchPage::Tasks
             || self.project_tab != crate::projects::ProjectTab::Tasks
             || !self.remote.configured()
             || self.remote.connection.editing
@@ -364,9 +368,7 @@ impl Workbench {
         if self.remote.client() && self.remote.public_contributions {
             return false;
         }
-        let _ = window;
-        let selected = self.remote.data["selected_task_id"].as_str().unwrap_or("");
-        !self.remote.creating && selected.is_empty()
+        !self.remote.creating && !matches!(self.navigation.current(), Some(WorkspaceItem::Task(_)))
     }
 
     fn task_scroll_wants_more(&self) -> bool {

@@ -1,0 +1,140 @@
+// Host-owned appearance, live GPUI projection and recovery in actual Electron.
+import { expect } from '@playwright/test';
+import { electron, focusPage } from './electron.mjs';
+import { openSettings, setSidebarLocale } from './sidebar-controls.mjs';
+import { mkdir, mkdtemp, readFile, writeFile, realpath, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+
+const root=resolve(import.meta.dirname,'../..');
+const out=resolve(root,'test-results/appearance');
+const temp=await realpath(await mkdtemp(resolve(tmpdir(),'pero-appearance-')));
+await mkdir(out,{recursive:true});
+const settings=resolve(temp,'settings.json');
+const agents=resolve(temp,'agents.json');
+await writeFile(settings,JSON.stringify({chat_agent:'fixture',other:{preserve:true},workbench:{appearance:'system',projects:[]}}));
+await writeFile(agents,JSON.stringify([{id:'fixture',name:'ACP fixture',command:process.execPath,args:[resolve(root,'tests/fixtures/acp-agent.mjs')]}]));
+let app,page;
+const errors=[];
+const state=()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()));
+const frames=()=>page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));
+const capture=async name=>{await frames();await page.screenshot({path:resolve(out,name+'.png')});};
+async function launch(){
+  const env={...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_AGENTS_FILE:agents,PERO_LOCALE:'zh-CN'};
+  delete env.ELECTRON_RUN_AS_NODE;
+  app=await electron.launch({args:[...(process.platform==='darwin'?['--use-mock-keychain']:[]),resolve(root,'desktop')],cwd:root,env});
+  page=await app.firstWindow();await focusPage(page);
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.waitForFunction(()=>window.peroDiagnostics&&JSON.parse(window.peroDiagnostics.snapshot()).connected,undefined,{timeout:60000});
+  await expect.poll(async()=>(await state()).preferences.typography?.ui_size).toBeDefined();
+}
+async function save(patch){
+  const preferences={...(await state()).preferences,...patch};
+  await page.evaluate(preferences=>window.pero.sessionCommand({method:'settings.workbench',preferences}),preferences);
+  await expect.poll(async()=>(await state()).preferences).toEqual(preferences);
+  await frames();
+}
+async function settingsPage(){
+  if ((await state()).settingsOpen) return;
+  const navigation=(await state()).navigation;
+  await openSettings(page);await page.keyboard.press('ArrowUp');await page.keyboard.press('Enter');
+  await expect.poll(async()=>(await state()).settingsOpen).toBe(true);
+  expect((await state()).navigation).toBe(navigation);
+  await expect.poll(async()=>(await state()).settings.bounds.width).toBeGreaterThan(600);
+}
+try{
+  await launch();
+  expect((await state()).appearance.typography).toEqual({ui:14,chat:16,code:14});
+  await settingsPage();await capture('01-theme');
+  let bounds=(await state()).settings.bounds;
+  await page.mouse.click(bounds.x+100,bounds.y+24);await frames();await page.keyboard.insertText('字体');
+  await expect.poll(async()=>(await state()).settingsSearch).toBe('字体');
+  await capture('01-font-search');
+  await page.keyboard.press(process.platform==='darwin'?'Meta+A':'Control+A');await page.keyboard.press('Backspace');
+  await expect.poll(async()=>(await state()).settingsSearch).toBe('');
+  await page.mouse.click(bounds.x+70,bounds.y+60);
+  await expect.poll(async()=>(await state()).settings.section).toBe('settings.general');
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(async()=>(await state()).settings.section).toBe('settings.theme');
+  await page.keyboard.press('ArrowLeft');await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');
+  await expect.poll(async()=>(await state()).settings.section).toBe('settings.interface_font');
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(async()=>(await state()).settings.section).toBe('settings.chat_font');
+  await capture('01-tree-fonts');
+  let font=(await state()).settings.fontInputs[0];
+  await page.mouse.click(font.x+font.width/2,font.y+font.height/2);await frames();
+  await page.keyboard.press(process.platform==='darwin'?'Meta+A':'Control+A');
+  await frames();await page.keyboard.press('1');await frames();await page.keyboard.press('8');
+  await expect.poll(async()=>(await state()).settings.fontInputs[0].value).toBe('18');
+  await page.keyboard.press('Enter');
+  await expect.poll(async()=>(await state()).preferences.typography.ui_size).toBe(18);
+  font=(await state()).settings.fontInputs[0];
+  await page.mouse.click(font.x+font.width/2,font.y+font.height/2);await frames();
+  await page.keyboard.press(process.platform==='darwin'?'Meta+A':'Control+A');
+  await frames();await page.keyboard.press('1');await frames();await page.keyboard.press('1');
+  await expect.poll(async()=>(await state()).settings.fontInputs[0].value).toBe('11');
+  await page.keyboard.press('Enter');
+  await expect.poll(async()=>(await state()).settings.error).toBe('settings.font_size_range');
+  expect((await state()).preferences.typography.ui_size).toBe(18);
+  await capture('01-invalid-font');
+  bounds=(await state()).settings.bounds;
+  await page.mouse.click(bounds.x+100,bounds.y+24);await frames();
+  expect((await state()).preferences.typography.ui_size).toBe(18);
+  font=(await state()).settings.fontInputs[0];
+  await page.mouse.click(font.x+font.width/2,font.y+font.height/2);await frames();
+  await page.keyboard.press(process.platform==='darwin'?'Meta+A':'Control+A');
+  await frames();await page.keyboard.press('1');await frames();await page.keyboard.press('4');
+  await expect.poll(async()=>(await state()).settings.fontInputs[0].value).toBe('14');
+  await page.keyboard.press('Enter');
+  await expect.poll(async()=>(await state()).preferences.typography.ui_size).toBe(14);
+  await expect.poll(async()=>(await state()).settings.error).toBe(null);
+
+  await save({appearance:'dark',accent:'blue',typography:{ui_size:18,chat_size:20,code_size:14}});
+  expect((await state()).appearance).toMatchObject({dark:true,accent:'blue',typography:{ui:18,chat:20,code:14}});
+  expect(await page.evaluate(()=>document.documentElement.style.getPropertyValue('--pero-action'))).toBe((await state()).appearance.palette.action);
+  await capture('02-dark-blue');
+  bounds=(await state()).settings.bounds;
+  await page.mouse.click(bounds.x+bounds.width-38,bounds.y+20);
+  await expect.poll(async()=>(await state()).settingsOpen).toBe(false);
+  await setSidebarLocale(page,'en');
+  expect((await state()).appearance.typography).toEqual({ui:18,chat:20,code:14});
+  await app.close();app=undefined;
+  await launch();
+  expect((await state()).appearance).toMatchObject({dark:true,accent:'blue',typography:{ui:18,chat:20,code:14}});
+  expect(JSON.parse(await readFile(settings,'utf8')).other).toEqual({preserve:true});
+  await save({appearance:'system',typography:{ui_size:20,chat_size:null,code_size:14}});
+  await page.emulateMedia({colorScheme:'light'});
+  await expect.poll(async()=>(await state()).appearance.dark).toBe(false);
+  expect((await state()).appearance.typography).toEqual({ui:20,chat:20,code:14});
+  await page.emulateMedia({colorScheme:'dark'});
+  await expect.poll(async()=>(await state()).appearance.dark).toBe(true);
+  await settingsPage();
+  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1000,760));
+  await page.waitForFunction(()=>innerWidth===1000);await capture('03-large-narrow');
+  const before=(await state()).preferences;
+  await page.evaluate(preferences=>window.pero.sessionCommand({method:'settings.workbench',preferences}),{...before,typography:{ui_size:11,chat_size:null,code_size:14}});
+  await expect.poll(async()=>(await state()).error).toBe('error.preferences');
+  expect((await state()).preferences).toEqual(before);
+  const saved=await readFile(settings,'utf8');await writeFile(settings,'invalid');
+  await page.evaluate(preferences=>window.pero.sessionCommand({method:'settings.workbench',preferences}),{...before,accent:'neutral'});
+  await expect.poll(async()=>(await state()).error).toBe('error.preferences');
+  expect((await state()).appearance.accent).toBe('blue');
+  expect(await readFile(settings,'utf8')).toBe('invalid');
+  await capture('04-save-error');
+  await writeFile(settings,saved);
+  await save({appearance:'light',accent:'neutral',typography:{ui_size:14,chat_size:16,code_size:null}});
+  await expect.poll(async()=>(await state()).error).toBe(null);
+  await capture('05-recovered');
+  bounds=(await state()).settings.bounds;
+  await page.mouse.click(bounds.x+70,bounds.y+60);
+  for(let i=0;i<8;i++) { await page.keyboard.press('ArrowDown');await frames(); }
+  expect((await state()).settingsOpen).toBe(true);
+  await page.keyboard.press('Enter');
+  await expect.poll(async()=>(await state()).settingsOpen).toBe(false);
+  await expect.poll(async()=>(await state()).navigation).toBe(2);
+  expect(errors).toEqual([]);
+  await writeFile(resolve(out,'state.json'),JSON.stringify(await state(),null,2));
+  console.log('Passed: default compatibility, live palette/CSS, independent font scopes, language without reset, restart, inheritance, system appearance, narrow large text, rejected size, failed save preservation, recovery.');
+} catch(error){if(page){await capture('failure');await writeFile(resolve(out,'failure-state.json'),JSON.stringify(await state(),null,2));}throw error;}
+finally{await app?.close();await rm(temp,{recursive:true,force:true});}

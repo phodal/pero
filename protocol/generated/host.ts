@@ -32,14 +32,16 @@ export type HostCommand =
   | CloseCommand
   | DeleteCommand;
 export type ContextKind =
-  "file" | "directory" | "symbol" | "thread" | "skill" | "image" | "selection" | "branch_diff" | "fetch";
+  "file" | "directory" | "symbol" | "thread" | "skill" | "image" | "selection" | "branch_diff" | "fetch" | "app_object";
 export type ThreadId = string;
 export type ContextContent = TextContextContent | ImageContextContent;
-export type AppRequest = ListApps | InstallApp | EnableApp | DisableApp | UninstallApp | ResolveApp;
+export type AppRequest = ListApps | InstallApp | EnableApp | DisableApp | UninstallApp | ResolveApp | AgentApp;
 export type RequestId = string;
 export type AppName = string;
+export type AgentRequest = AgentInfoRequest | AgentStartRequest | AgentEventsRequest | AgentCancelRequest;
 export type ContributionRequest = ContributionPrepare | ContributionReview | ContributionPublish;
 export type HostEvent =
+  | ContentDocumentEvent
   | LocalWorkerStateEvent
   | ContributorStateEvent
   | ContributorSessionEvent
@@ -76,8 +78,7 @@ export type HostEvent =
   | SessionAuthenticatedEvent
   | PermissionEvent
   | PromptQueuedEvent
-  | CommandRejectedEvent
-  | TurnStartedEvent;
+  | CommandRejectedEvent;
 /**
  * Catalog key resolved by the UI from locales/*.json.
  */
@@ -86,9 +87,11 @@ export type MessageKey = string;
  * Events persisted to the session journal and replayed to the UI.
  */
 export type ThreadEvent =
+  | TurnStartedEvent
   | SessionCreatedEvent
   | UserMessageEvent
   | SessionUpdateEvent
+  | SessionUsageEvent
   | SessionReadyEvent
   | ModelChangedEvent
   | ConfigurationChangedEvent
@@ -97,6 +100,7 @@ export type ThreadEvent =
   | SessionClosedEvent
   | SessionDeletedEvent;
 export type AppResult = AppSuccess | AppFailure;
+export type AppAgentStatus = "running" | "text" | "needs_input" | "completed" | "cancelled" | "failed";
 
 export interface LocalWorkerStartCommand {
   action: "local_worker_start";
@@ -156,15 +160,27 @@ export interface SetWorkbenchSettingsRequest {
   preferences: WorkbenchPreferences;
 }
 export interface WorkbenchPreferences {
+  accent?: "teal" | "blue" | "neutral";
+  typography?: TypographyPreferences;
   appearance: "light" | "dark" | "system";
   /**
    * @maxItems 128
    */
   projects: ProjectBinding[];
+  layout?: LayoutPreferences;
+}
+export interface TypographyPreferences {
+  ui_size?: number;
+  chat_size?: number | null;
+  code_size?: number | null;
 }
 export interface ProjectBinding {
   workspace: string;
   project_id: string;
+}
+export interface LayoutPreferences {
+  chat_width?: number;
+  chat_open?: boolean;
 }
 export interface ListAgentsCommand {
   action: "list_agents";
@@ -203,6 +219,11 @@ export interface NewSessionCommand {
   action: "new_session";
   thread_id: ThreadId;
   agent_id: string;
+  scope?: AppChatScope;
+}
+export interface AppChatScope {
+  app: string;
+  panel: string;
 }
 export interface PromptCommand {
   action: "prompt";
@@ -290,6 +311,31 @@ export interface ResolveApp {
   method: "apps";
   id: RequestId;
 }
+export interface AgentApp {
+  action: "agent";
+  name: AppName;
+  request: AgentRequest;
+  method: "apps";
+  id: RequestId;
+}
+export interface AgentInfoRequest {
+  operation: "info";
+}
+export interface AgentStartRequest {
+  operation: "start";
+  requestId: string;
+  prompt: string;
+  agentId: string;
+}
+export interface AgentEventsRequest {
+  operation: "events";
+  sessionId: string;
+  after: number;
+}
+export interface AgentCancelRequest {
+  operation: "cancel";
+  sessionId: string;
+}
 export interface ContributionPrepare {
   method: "contribution";
   id: string;
@@ -315,6 +361,21 @@ export interface ContributionPublish {
   operation: "publish";
   workspace: string;
   review_token: string;
+}
+/**
+ * Read-only Desktop result-file transport. It never starts an Agent turn.
+ */
+export interface ContentDocumentEvent {
+  kind: "content_document";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    tool_call_id: string;
+    artifact_id: string;
+    status: "ready" | "error";
+  };
 }
 export interface LocalWorkerStateEvent {
   kind: "local_worker_state";
@@ -503,6 +564,13 @@ export interface ReplayData {
   events: ThreadEvent[];
   active: string[];
 }
+export interface TurnStartedEvent {
+  kind: "turn_started";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+}
 export interface SessionCreatedEvent {
   kind: "session_created";
   version: 1;
@@ -514,6 +582,14 @@ export interface SessionCreatedEvent {
 export interface SessionCreatedData {
   agent: string;
   workspace: string;
+  scope?: AppChatScope;
+  appBinding?: AppSessionBinding;
+}
+export interface AppSessionBinding {
+  app: AppName;
+  requestId: string;
+  agentId: string;
+  prompt: string;
 }
 export interface UserMessageEvent {
   kind: "user_message";
@@ -542,6 +618,28 @@ export interface SessionUpdateEvent {
  */
 export interface AcpPayload {
   [k: string]: unknown | undefined;
+}
+export interface SessionUsageEvent {
+  kind: "session_usage";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: SessionUsage;
+}
+export interface SessionUsage {
+  context_used?: number;
+  context_capacity?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  cost?: UsageCost;
+}
+/**
+ * Provider measurements: context occupancy and cumulative session cost.
+ */
+export interface UsageCost {
+  amount: number;
+  currency: string;
 }
 /**
  * `data` is the ACP NewSessionResponse, with configOptions refreshed after model selection.
@@ -725,11 +823,8 @@ export interface AppsResultEvent {
 }
 export interface AppSuccess {
   ok: true;
-  value: AppRecord[] | AppAccess;
+  value: AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled;
 }
-/**
- * Public catalog: no local paths or backend credentials.
- */
 export interface AppRecord {
   name: AppName;
   version: string;
@@ -737,11 +832,24 @@ export interface AppRecord {
   description: string;
   enabled: boolean;
   panels: AppPanel[];
+  writes?: AppWriteRoute[];
 }
 export interface AppPanel {
   id: AppName;
   title: string;
   entry: string;
+}
+export interface AppWriteRoute {
+  name: AppName;
+  description: string;
+  path: string;
+  schema: AppDocumentSchema;
+}
+/**
+ * Public catalog: no local paths or backend credentials.
+ */
+export interface AppDocumentSchema {
+  [k: string]: unknown | undefined;
 }
 export interface AppAccess {
   root: string;
@@ -754,6 +862,32 @@ export interface AppAccess {
 export interface BackendAccess {
   url: string;
   token: string;
+}
+export interface AppAgentInfo {
+  available: boolean;
+  workspace: string;
+  agents: AppAgentSummary[];
+}
+export interface AppAgentSummary {
+  id: string;
+  name: string;
+  available: boolean;
+}
+export interface AppAgentStarted {
+  sessionId: string;
+}
+export interface AppAgentTranscript {
+  events: AppAgentEvent[];
+  cursor: number;
+  status: AppAgentStatus;
+  text: string;
+}
+export interface AppAgentEvent {
+  kind: AppAgentStatus;
+  text: string;
+}
+export interface AppAgentCancelled {
+  cancelled: true;
 }
 export interface AppFailure {
   ok: false;
@@ -871,11 +1005,4 @@ export interface CommandRejectedEvent {
 }
 export interface CommandRejectedData {
   count: number;
-}
-export interface TurnStartedEvent {
-  kind: "turn_started";
-  version: 1;
-  request_id: string | null;
-  text: string;
-  thread_id: string;
 }

@@ -1,5 +1,6 @@
 //! Local execution setup carries public scope only; the shell owns credentials and processes.
 use crate::app::Workbench;
+use crate::workspace::WorkbenchPage;
 use gpui_kit::{
     component::{
         button::*,
@@ -111,7 +112,7 @@ impl Workbench {
     }
 
     pub(crate) fn show_local_execution_onboarding(&self) -> bool {
-        self.navigation == 1
+        self.navigation.page() == WorkbenchPage::Projects
             && self.local_execution.received_setup
             && !self.local_execution.setup.onboarding_complete
     }
@@ -147,7 +148,7 @@ impl Workbench {
                             self.local_execution.editing = false;
                         }
                         if finishing_welcome {
-                            self.navigation = 5;
+                            self.navigate(WorkbenchPage::Workers, cx);
                         }
                         if newly_configured && self.remote.configured() {
                             self.command(json!({"action":"remote_refresh"}), cx);
@@ -199,7 +200,7 @@ impl Workbench {
         first_run: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let local = &self.local_execution;
         let connected = self.remote.configured();
         let authenticating = self.remote.data["connection"]["authenticating"]
@@ -220,7 +221,7 @@ impl Workbench {
             .collect::<Vec<_>>();
         if self.remote.operator() {
             project_ids.extend(
-                self.project_catalog()
+                self.project_catalog(cx)
                     .into_iter()
                     .filter_map(|project| project.shared_id),
             );
@@ -229,6 +230,8 @@ impl Workbench {
         }
         let no_projects = project_ids.is_empty();
         let agents = self
+            .chat
+            .read(cx)
             .agents
             .iter()
             .filter(|agent| agent.available)
@@ -262,8 +265,8 @@ impl Workbench {
                 .gap(px(5.))
                 .child(
                     div()
-                        .text_size(px(12.))
-                        .text_color(p.color("text-muted"))
+                        .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                        .text_color(p.text_muted)
                         .child(label.to_string()),
                 )
                 .child(element)
@@ -286,8 +289,8 @@ impl Workbench {
                 .child(Icon::default().path("icons/devices.svg"))
                 .child(div().flex_1().text_size(px(if first_run {24.}else{18.})).font_weight(FontWeight::SEMIBOLD)
                     .child(self.t(if first_run {"worker.local.first_title"}else{"worker.local.title"})))
-                .when(!first_run,|el|el.child(div().text_size(px(12.)).text_color(p.color("text-muted")).child(self.t(status_key)))))
-            .when(first_run,|el|el.child(div().whitespace_normal().text_color(p.color("text-muted")).child(self.t("worker.local.first_hint"))))
+                .when(!first_run,|el|el.child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted).child(self.t(status_key)))))
+            .when(first_run,|el|el.child(div().whitespace_normal().text_color(p.text_muted).child(self.t("worker.local.first_hint"))))
             .when(!connected,|el|el.child(div().flex().flex_col().gap(px(8.))
                 .child(div().whitespace_normal().child(self.t("worker.local.restore_hint")))
                 .child(Button::new("local-worker-connect").primary().label(self.t(if restoring {"worker.local.restoring"}else{"worker.local.connect"}))
@@ -295,22 +298,22 @@ impl Workbench {
                     .on_click(cx.listener(|this,_,_,cx|this.connect_local_execution_account(cx))))
                 .when(authenticating,|el|el.child(Button::new("local-worker-login-cancel").ghost().label(self.t("connector.login_cancel"))
                     .on_click(cx.listener(|this,_,_,cx|this.command(json!({"action":"remote_login_cancel"}),cx)))))))
-            .when(connected && first_run,|el|el.child(div().text_size(px(12.)).text_color(p.color("text-muted"))
+            .when(connected && first_run,|el|el.child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted)
                 .child(format!("{} · {}",self.t("worker.local.connected"),self.remote.data["identity"]["name"].as_str().unwrap_or_default()))))
             .when_some(local.setup.error_message(&self.locale),|el,error|el.child(div().id("local-worker-error").role(Role::Alert)
-                .text_color(p.color("error")).whitespace_normal().child(error)
-                .when_some(local.setup.error_status,|el,status|el.child(div().text_size(px(12.)).text_color(p.color("text-muted")).child(format!("HTTP {status}"))))))
+                .text_color(p.error).whitespace_normal().child(error)
+                .when_some(local.setup.error_status,|el,status|el.child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted).child(format!("HTTP {status}"))))))
             .when(connected && local.setup.error_key.as_deref() == Some("worker.local.error.reauthenticate"),|el|el.child(Button::new("local-worker-reauthenticate").outline()
                 .label(self.t("worker.local.connect")).loading(authenticating).disabled(authenticating)
                 .on_click(cx.listener(|this,_,_,cx|this.connect_local_execution_account(cx)))))
             .when_some(self.remote.data["error"].as_str().filter(|error|!error.is_empty()),|el,error|el.child(div().id("local-worker-connection-error").role(Role::Alert)
-                .text_color(p.color("error")).whitespace_normal().child(error.to_string())))
+                .text_color(p.error).whitespace_normal().child(error.to_string())))
             .when(!local.status.message.is_empty() && !matches!(local.status.status,LocalWorkerStatus::Idle|LocalWorkerStatus::Stopped),|el| {
                 el.child(div().whitespace_normal().text_color(p.color(if matches!(local.status.status,LocalWorkerStatus::NeedsAttention|LocalWorkerStatus::Unavailable){"warning"}else{"text-muted"})).child(local.status.message.clone()))
             })
             .when(!show_form,|el| {
                 if let Some(configuration)=&local.setup.configuration {
-                    el.child(div().text_size(px(12.)).text_color(p.color("text-muted")).whitespace_normal()
+                    el.child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted).whitespace_normal()
                         .child(configuration.bindings.iter().map(|binding|format!("{} / {} · {} · {}",binding.project_id,binding.workspace_key,binding.path,binding.agent_ids.join(", "))).collect::<Vec<_>>().join("\n")))
                 } else {el}
             })
@@ -322,9 +325,9 @@ impl Workbench {
                         let id=id.clone();let workbench=project_workbench.clone();
                         menu.item(PopupMenuItem::new(id.clone()).on_click(move|_,_,cx|{let _=workbench.update(cx,|this,cx|{this.local_execution.project_id=id.clone();cx.notify();});}))
                     })).into_any_element()))
-                .when(no_projects,|el|el.child(div().text_size(px(12.)).text_color(p.color("warning")).child(self.t("worker.local.no_projects"))))
+                .when(no_projects,|el|el.child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.warning).child(self.t("worker.local.no_projects"))))
                 .child(field(self.t("worker.local.workspace_key"),Input::new(&local.workspace_key).accessibility_id("local-worker-workspace-key").aria_label(self.t("worker.local.workspace_key")).disabled(busy).into_any_element()))
-                .child(div().text_size(px(12.)).whitespace_normal().text_color(p.color("text-muted")).child(self.t("worker.local.workspace_hint")))
+                .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).whitespace_normal().text_color(p.text_muted).child(self.t("worker.local.workspace_hint")))
                 .child(field(self.t("worker.local.directory"),Button::new("local-worker-directory").outline().w_full().justify_start().icon(IconName::Folder)
                     .label(path_label).tooltip(local.path.clone()).disabled(busy).on_click(cx.listener(|this,_,_,cx|this.command(json!({"action":"choose_worker_workspace"}),cx))).into_any_element()))
                 .child(field(self.t("worker.local.agent"),Button::new("local-worker-agent").outline().w_full().justify_start().label(agent_label)
@@ -333,8 +336,8 @@ impl Workbench {
                         let id=agent.id.clone();let workbench=agent_workbench.clone();
                         menu.item(PopupMenuItem::new(agent.name.clone()).on_click(move|_,_,cx|{let _=workbench.update(cx,|this,cx|{this.local_execution.agent_id=id.clone();cx.notify();});}))
                     })).into_any_element()))
-                .when(self.agents.iter().all(|agent|!agent.available),|el|el.child(div().text_size(px(12.)).text_color(p.color("warning")).child(self.t("worker.local.no_agents"))))
-                .child(div().whitespace_normal().text_size(px(12.)).text_color(p.color("text-muted")).child(self.t("worker.local.enable_hint")))
+                .when(self.chat.read(cx).agents.iter().all(|agent|!agent.available),|el|el.child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.warning).child(self.t("worker.local.no_agents"))))
+                .child(div().whitespace_normal().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted).child(self.t("worker.local.enable_hint")))
                 .child(Button::new("local-worker-enable").primary().label(self.t("worker.local.enable")).loading(local.pending).disabled(!ready)
                     .on_click(cx.listener(|this,_,_,cx|{
                         this.local_execution.pending=true;
@@ -352,7 +355,7 @@ impl Workbench {
                         .loading(busy).disabled(busy || !connected && !local.setup.enabled)
                         .on_click(cx.listener(|this,_,_,cx|{this.local_execution.pending=true;this.command(json!({"action":if this.local_execution.setup.enabled{"local_worker_disable"}else{"local_worker_resume"}}),cx);})))
                     .child(Button::new("local-worker-configure").ghost().label(self.t("worker.local.configure")).disabled(busy)
-                        .on_click(cx.listener(|this,_,_,cx|{this.local_execution.pending_configuration=this.local_execution.setup.configuration.clone();this.local_execution.editing=true;cx.notify();}))))))
+                        .on_click(cx.listener(|this,_,window,cx|{this.local_execution.pending_configuration=this.local_execution.setup.configuration.clone();this.apply_local_execution(window,cx);this.local_execution.editing=true;cx.notify();}))))))
             .when(first_run,|el|el.child(Button::new("local-worker-skip").ghost().label(self.t("worker.local.skip")).disabled(busy)
                 .on_click(cx.listener(|this,_,_,cx|this.command(json!({"action":"local_worker_skip"}),cx)))))
     }

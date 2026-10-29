@@ -1,5 +1,6 @@
 // Two built fixture Apps prove product composition and retained panel state.
-import { _electron as electron, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { electron } from './electron.mjs';
 import { mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';

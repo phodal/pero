@@ -38,9 +38,20 @@ missing sources download from checksum-pinned URLs. See
 optional cached Python/fontTools toolchain.
 
 The maintainer checkout detects `../../test/gpui-kit` automatically. The Cargo
-wrapper patches only Kit packages; matching `gpui-pre-* =0.3.10` snapshots come
-from the registry. `/Users/phodal/test/zed` is a source reference, not a second
-GPUI dependency. No upstream source is modified.
+wrapper patches Kit packages and prepares `gpui-pre-web =0.3.10` with the
+tracked [IME patch](../patches/gpui-pre-web-0.3.10-ime.patch) under
+`target/patched-dependencies`. It verifies the original crate's crates.io
+checksum before applying the patch; the Cargo registry cache stays unchanged.
+Other matching `gpui-pre-* =0.3.10` snapshots come from the registry.
+`/Users/phodal/test/zed` remains a source reference, not a second GPUI dependency.
+
+After `npm run build:wasm && npm run build:web`, run `npm run test:ime` for
+the actual Electron/Wasm keyboard and composition regression. It covers the
+IME boundary key before `compositionstart`, successive Chinese words, editing,
+shortcuts, and Chromium composition confirmation/cancellation. The user also
+confirmed the local macOS Simplified Chinese Pinyin fix on 2026-10-29; see the
+[incident record](../docs/issues/2026-10-29-web-pinyin-leading-characters.md)
+for the verification scope.
 
 ## Agents and conversations
 
@@ -90,7 +101,10 @@ npm run test:e2e
 npm run test:e2e:real
 ```
 
-Run desktop tests sequentially because they control native input focus.
+Desktop E2E uses hidden Electron windows by default while retaining the real
+preload/IPC, GPUI and Host. Set `PERO_TEST_HEADED=1` for explicit foreground
+acceptance. Run suites sequentially; Linux still needs X11/Xvfb. Background
+launch details and the isolated-display command are in [tests/README.md](../tests/README.md#后台桌面测试).
 See [provider verification](../docs/fitness/acp-provider-verification.md) for
 actual Codex/Claude replies and the outstanding Grok authentication check.
 

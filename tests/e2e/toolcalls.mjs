@@ -1,5 +1,6 @@
 import { setAppearance } from './sidebar-controls.mjs';
-import { _electron as electron, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { electron } from './electron.mjs';
 import { resolve } from 'node:path';
 import { mkdir, writeFile, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -50,15 +51,17 @@ try{
  expect((await state()).attachments).toEqual([]);
  expect((await state()).toolViews[0]).toBe(0);
  await page.screenshot({path:resolve(out,'collapsed.png')});
- // A disclosure row follows the two short text segments; capture before fixing
- // coordinates from evidence if its layout intentionally changes.
- await page.mouse.click(760,295);
- await expect.poll(async()=>(await state()).toolViews[0]).toBe(1);
+ const toggle=async()=>{
+  const bounds=(await state()).toolBounds.find(item=>item.bounds?.height>0).bounds;
+  await page.mouse.click(bounds.x+24,bounds.y+bounds.height/2);
+ };
+ await toggle();
+ await expect.poll(async()=>(await state()).expandedTools.length).toBe(1);
  await page.screenshot({path:resolve(out,'expanded.png')});
- await page.mouse.click(760,295);
- await expect.poll(async()=>(await state()).toolViews[0]).toBe(0);
- await page.mouse.click(760,295);
- await expect.poll(async()=>(await state()).toolViews[0]).toBe(1);
+ await toggle();
+ await expect.poll(async()=>(await state()).expandedTools.length).toBe(0);
+ await toggle();
+ await expect.poll(async()=>(await state()).expandedTools.length).toBe(1);
  await setAppearance(page,'dark');
  await expect.poll(async()=>(await state()).dark).toBe(true);
  await page.screenshot({path:resolve(out,'dark.png')});

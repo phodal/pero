@@ -2,7 +2,7 @@
 
 This profile places the trusted Rust Worker **outside** each untrusted Agent Pod.
 It is distinct from [the trusted warm-pool profile](README.md), which is unchanged.
-Read [ADR 0013](../../docs/adr/0013-isolated-agent-runtime.md) before enabling it.
+Read [ADR 0017](../../docs/adr/0017-isolated-agent-runtime.md) before enabling it.
 This is not an installer or permission to modify an existing cluster.
 
 ## Prerequisites that startup does not prove

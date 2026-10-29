@@ -37,7 +37,16 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
     let agent_root = std::env::var_os("PERO_AGENT_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|| root.to_path_buf());
-    let grok_env=BTreeMap::from([("OPENCODE_CONFIG_CONTENT".into(),serde_json::json!({"model":"xai/grok-code-fast-1","provider":{"xai":{"npm":"@ai-sdk/xai","name":"xAI","models":{"grok-code-fast-1":{"name":"Grok Code Fast 1"}}}}}).to_string())]);
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let local_cli = |relative: &str, command: &str| {
+        home.as_ref().map(|home| home.join(relative)).filter(|path| path.is_file())
+            .map(|path| path.to_string_lossy().into_owned()).unwrap_or_else(|| command.to_owned())
+    };
+    // The Homebrew `grok` is a different program. Only use xAI's own installation
+    // location (or its unambiguous grok-build command), never a bare `grok` lookup.
+    let grok = home.as_ref().map(|home| home.join(".grok/bin/grok"))
+        .filter(|path| path.is_file()).map(|path| path.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "grok-build".into());
     let mut agents = vec![
         AgentConfig {
             id: "codex".into(),
@@ -69,12 +78,21 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
         AgentConfig {
-            id: "grok".into(),
-            name: "Grok · OpenCode".into(),
-            command: "opencode".into(),
-            args: vec!["acp".into()],
-            env: grok_env,
-            model: None,
+            id: "grok".into(), name: "Grok".into(), command: grok,
+            args: vec!["--no-auto-update".into(), "agent".into(), "stdio".into()],
+            env: BTreeMap::new(), model: None,
+            mcp_servers: vec![],
+        },
+        AgentConfig {
+            id: "qoder".into(), name: "Qoder".into(),
+            command: local_cli(".local/bin/qodercli", "qodercli"),
+            args: vec!["--acp".into()], env: BTreeMap::new(), model: None,
+            mcp_servers: vec![],
+        },
+        AgentConfig {
+            id: "opencode".into(), name: "OpenCode".into(),
+            command: local_cli(".opencode/bin/opencode", "opencode"),
+            args: vec!["acp".into()], env: BTreeMap::new(), model: None,
             mcp_servers: vec![],
         },
     ];

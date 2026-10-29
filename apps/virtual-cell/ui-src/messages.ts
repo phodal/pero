@@ -1,4 +1,6 @@
 export const messages = {
+  discussContext: { zh: '讨论上下文', en: 'Discuss context' },
+  captureContext: { zh: '截图到对话', en: 'Capture to chat' },
   scienceViews: { zh: '科学视图', en: 'Scientific views' },
   cellsView: { zh: '单细胞与扰动', en: 'Cells & perturbations' },
   mechanismView: { zh: '反应与模拟', en: 'Reactions & simulation' },

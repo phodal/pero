@@ -6,7 +6,7 @@ date: 2026-10-29
 # Isolated Agent acceptance: evidence and open gates
 
 This is a **Draft, not a production-readiness certificate**. The
-[isolated profile](../adr/0013-isolated-agent-runtime.md) is separate from the
+[isolated profile](../adr/0017-isolated-agent-runtime.md) is separate from the
 [trusted Worker pool](agent-sandbox-runtime.md). No production deployment or
 existing cluster is part of this verification.
 

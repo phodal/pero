@@ -1,4 +1,5 @@
 use crate::app::Workbench;
+use crate::workspace::{ConversationTab, WorkbenchPage};
 use gpui_kit::{
     component::{button::*, input::Input, *},
     prelude::*,
@@ -45,7 +46,7 @@ impl Workbench {
 
     pub(crate) fn project_tasks(&self, narrow: bool, cx: &mut Context<Self>) -> impl IntoElement {
         let local = self
-            .current_project()
+            .current_project(cx)
             .is_some_and(|project| project.workspace.is_some());
         div()
             .flex_1()
@@ -108,18 +109,22 @@ impl Workbench {
                     && session.goal == item.text
             })
             .and_then(|session| {
-                self.chats
+                self.chat
+                    .read(cx)
+                    .chats
                     .iter()
                     .position(|chat| chat.id == session.thread_id)
             })
         {
-            self.navigation = 0;
-            self.focus_chat(Some(index), 4, cx);
+            self.navigate(WorkbenchPage::Conversation, cx);
+            self.focus_chat(Some(index), ConversationTab::Chat, cx);
             return;
         }
         if !self
+            .chat
+            .read(cx)
             .agents
-            .get(self.agent_index)
+            .get(self.chat.read(cx).agent_index)
             .is_some_and(|agent| agent.available)
         {
             return;
@@ -129,21 +134,24 @@ impl Workbench {
         let path = data.path.clone();
         let goal = item.text.clone();
         self.new_chat(cx);
-        let chat = self.chats.last_mut().unwrap();
-        chat.queued = Some(prompt);
+        let thread_id = self.chat.update(cx, |panel, cx| {
+            panel.submit_prompt(prompt, vec![], cx);
+            panel.chats[panel.active_chat.expect("new roadmap chat")].id.clone()
+        });
         self.local_roadmap.sessions.push(RoadmapSession {
             workspace,
             path,
             goal,
-            thread_id: chat.id.clone(),
+            thread_id,
         });
-        self.connect_chat(cx);
     }
 
     fn local_roadmap_view(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+        let agents = self.chat.read(cx).agents.clone();
+        let agent_index = self.chat.read(cx).agent_index;
         let workspace = self
-            .current_project()
+            .current_project(cx)
             .and_then(|project| project.workspace)
             .unwrap_or_default();
         let data = self
@@ -184,8 +192,8 @@ impl Workbench {
                     .child(
                         div()
                             .flex_1()
-                            .text_size(px(12.))
-                            .text_color(p.color("text-muted"))
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                            .text_color(p.text_muted)
                             .child(if loading {
                                 self.t("roadmap.loading").into()
                             } else {
@@ -260,7 +268,7 @@ impl Workbench {
                                 el.child(
                                     div()
                                         .py(px(20.))
-                                        .text_color(p.color("text-muted"))
+                                        .text_color(p.text_muted)
                                         .child(self.t("roadmap.empty")),
                                 )
                             })
@@ -269,7 +277,7 @@ impl Workbench {
                                 div()
                                     .py(px(4.))
                                     .border_b_1()
-                                    .border_color(p.color("border"))
+                                    .border_color(p.border)
                                     .child(
                                         Button::new(("local-roadmap-item", line))
                                             .ghost()
@@ -302,8 +310,8 @@ impl Workbench {
                                                             .w_full()
                                                             .truncate()
                                                             .mt(px(3.))
-                                                            .text_size(px(12.))
-                                                            .text_color(p.color("text-muted"))
+                                                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                                            .text_color(p.text_muted)
                                                             .child(format!(
                                                                 "{} · L{}",
                                                                 item.headings.join(" / "),
@@ -330,7 +338,12 @@ impl Workbench {
                         })
                     })
                     .and_then(|session| {
-                        self.chats.iter().find(|chat| chat.id == session.thread_id)
+                        self.chat
+                            .read(cx)
+                            .chats
+                            .iter()
+                            .find(|chat| chat.id == session.thread_id)
+                            .map(|chat| chat.state.as_str().to_owned())
                     });
                 el.child(
                     div()
@@ -353,7 +366,7 @@ impl Workbench {
                         .child(
                             div()
                                 .mt(px(16.))
-                                .text_size(px(22.))
+                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Title))
                                 .font_weight(FontWeight::BOLD)
                                 .whitespace_normal()
                                 .child(item.title.clone()),
@@ -361,8 +374,8 @@ impl Workbench {
                         .child(
                             div()
                                 .mt(px(8.))
-                                .text_size(px(12.))
-                                .text_color(p.color("text-muted"))
+                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                .text_color(p.text_muted)
                                 .whitespace_normal()
                                 .child(format!("{} · L{}", item.headings.join(" / "), item.line)),
                         )
@@ -376,7 +389,7 @@ impl Workbench {
                             el.child(
                                 div()
                                     .mt(px(16.))
-                                    .text_color(p.color("text-muted"))
+                                    .text_color(p.text_muted)
                                     .child(self.t("roadmap.source_completed")),
                             )
                         })
@@ -387,15 +400,16 @@ impl Workbench {
                                     .flex()
                                     .flex_wrap()
                                     .gap(px(8.))
-                                    .children(self.agents.iter().enumerate().map(|(i, agent)| {
+                                    .children(agents.iter().enumerate().map(|(i, agent)| {
                                         Button::new(("roadmap-agent", i))
                                             .ghost()
                                             .small()
                                             .label(agent.name.clone())
-                                            .toggled(self.agent_index == i)
+                                            .toggled(agent_index == i)
                                             .disabled(!agent.available || session.is_some())
                                             .on_click(cx.listener(move |this, _, _, cx| {
-                                                this.agent_index = i;
+                                                this.chat
+                                                    .update(cx, |chat, _| chat.agent_index = i);
                                                 cx.notify();
                                             }))
                                     }))
@@ -412,9 +426,8 @@ impl Workbench {
                                                     || !self.connected
                                                     || self.workspace != workspace
                                                     || session.is_none()
-                                                        && !self
-                                                            .agents
-                                                            .get(self.agent_index)
+                                                        && !agents
+                                                            .get(agent_index)
                                                             .is_some_and(|agent| agent.available),
                                             )
                                             .on_click(cx.listener(|this, _, _, cx| {
@@ -423,8 +436,7 @@ impl Workbench {
                                     ),
                             )
                             .when(
-                                session.is_none()
-                                    && !self.agents.iter().any(|agent| agent.available),
+                                session.is_none() && !agents.iter().any(|agent| agent.available),
                                 |el| {
                                     el.child(
                                         div()
@@ -435,8 +447,8 @@ impl Workbench {
                                 },
                             )
                             .when_some(session, |el, chat| {
-                                el.child(div().mt(px(12.)).text_color(p.color("text-muted")).child(
-                                    self.t(match chat.state.as_str() {
+                                el.child(div().mt(px(12.)).text_color(p.text_muted).child(
+                                    self.t(match chat.as_str() {
                                         "running" | "connecting" => "roadmap.running",
                                         "idle" => "roadmap.finished",
                                         "auth_required" => "roadmap.auth_required",

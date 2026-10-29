@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { downloadFile, useAppI18n, useTheme } from '@pero/app-sdk';
+import { appObjectProps, downloadFile, useAppI18n, useAppObject, useAppChat, useAppDataChanged, useTheme } from '@pero/app-sdk';
 import { Button, Disclosure, EmptyState, Feedback, Icon, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import { Results } from './components';
 import { messages } from './messages';
@@ -41,8 +41,24 @@ export default function VirtualCell() {
       await lab.importFiles(files); setView('cells'); setMode('perturbation');
     } catch (e: any) { setDisplayError(e.message || String(e)); }
   }
+  const chat=useAppChat();
+  useAppDataChanged(()=>lab.refresh());
+  useAppObject({ id: 'virtual-cell', kind: 'perturbation-workbench', label: 'Virtual Cell', state: {
+    view, mode, displaySource: view === 'cells' && mode === 'perturbation' ? lab.input?.source.id ?? null : current.source.id,
+    status: lab.busy ? 'running' : lab.error || displayError ? 'error' : lab.output ? 'done' : 'ready',
+    inputId: lab.input?.id ?? null, artifactId: lab.output?.id ?? null, operation: lab.output?.operation ?? null,
+    isolation: 'unverified', acceptance: 'not_reviewed',
+  }, actions: { select_view: {
+    description: 'Select an existing science view',
+    parameters: { type: 'object', properties: { view: { type: 'string', enum: ['cells', 'mechanism', 'volume'] } }, required: ['view'], additionalProperties: false },
+    run: ({ view }) => { setView(view as 'cells' | 'mechanism' | 'volume'); },
+  }, import_file:{
+    description:'Import a selected perturbation input document from the conversation into the App',
+    parameters:{type:'object',properties:{file:{type:'string',format:'pero-file-ref'}},required:['file'],additionalProperties:false},
+    run:async({file})=>{const response=await fetch(file as string);if(!response.ok)throw new Error('The App input grant expired');const content=await response.text();const revision=await lab.importDocuments([content]);setView('cells');setMode('perturbation');return {inputId:revision.id};},
+  } } });
   const identity = (document: { source: { id: string; revision: string } }, slot: keyof typeof epochs) => `${document.source.id}:${document.source.revision}:${epochs[slot]}`;
-  return <section className="virtual-cell" style={legacyThemeStyle(theme.mode === 'dark')} data-app-object="virtual-cell" aria-label="Virtual Cell" aria-busy={lab.busy}><style>{css}</style>
+  return <section className="virtual-cell" style={legacyThemeStyle(theme.mode === 'dark')} {...appObjectProps('virtual-cell')} aria-label="Virtual Cell" aria-busy={lab.busy}><style>{css}</style>
     <input className="vc-file" ref={file} type="file" multiple accept=".json,application/json" aria-label={t('import')} onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; if (files.length) void importFiles(files); }}/>
     {(lab.error || displayError) && <Feedback kind="error">{lab.error || displayError} <Button disabled={lab.busy} onClick={() => { setDisplayError(''); void lab.refresh(); }}>{t('retry')}</Button></Feedback>}
     {lab.busy && <Feedback>{t('busy')}</Feedback>}
@@ -51,11 +67,12 @@ export default function VirtualCell() {
         <Button disabled={lab.busy} onClick={() => file.current?.click()}><Icon name="plus"/>{t('import')}</Button>
         <Button disabled={lab.busy} onClick={() => { void lab.example(); setView('cells'); setMode('perturbation'); }}>{t('example')}</Button>
         <Button disabled={lab.busy} onClick={lab.refresh}><Icon name="refresh"/>{t('refresh')}</Button>
+<Button onClick={()=>{void chat.open({attachments:[chat.objectReference('virtual-cell')]}).catch(error=>setDisplayError(String(error)));}}>{t('discussContext')}</Button><Button onClick={()=>{void chat.open({capture:true}).catch(error=>setDisplayError(String(error)));}}>{t('captureContext')}</Button>
       </>}>
         <TabsList aria-label={t('scienceViews')}>
           <TabsTrigger value="cells"><Icon name="app"/>{t('cellsView')}</TabsTrigger>
           <TabsTrigger value="mechanism"><Icon name="nodes"/>{t('mechanismView')}</TabsTrigger>
-          <TabsTrigger value="volume"><Icon family="shell" name="models"/>{t('volumeView')}</TabsTrigger>
+          <TabsTrigger value="volume"><Icon name="models"/>{t('volumeView')}</TabsTrigger>
         </TabsList>
       </Toolbar>
       <TabsContent value="cells" forceMount><div className="vc-data-toolbar"><Select label={t('dataMode')} value={mode} onChange={setMode} options={[{ value: 'atlas', label: t('atlasMode') }, { value: 'perturbation', label: t('perturbationMode') }]}/>{mode === 'atlas' ? <Button onClick={() => downloadFile('virtual-cell-atlas.json', JSON.stringify(atlas), 'application/json')}>{t('exportView')}</Button> : <>{!!lab.items.length && <Select label={t('inputs')} disabled={lab.busy} value={lab.selected} options={lab.items.map(i => ({ value: i.id, label: `${i.source.id} · ${i.id.slice(0, 8)}` }))} onChange={lab.choose}/>}<Button disabled={lab.busy || !lab.input} onClick={lab.exportInputs}>{t('template')}</Button></>}</div>

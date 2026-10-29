@@ -1,6 +1,7 @@
 // Actual Electron -> Host -> managed Worker -> ACP over a loopback Cloud fixture.
 // Credentials are disposable; no external account, service or workspace is used.
-import { _electron as electron, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { electron } from './electron.mjs';
 import { createServer } from 'node:http';
 import { mkdir, mkdtemp, readFile, realpath, readdir, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';

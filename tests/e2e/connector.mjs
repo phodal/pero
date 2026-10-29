@@ -1,6 +1,7 @@
 // Actual Desktop form -> encrypted preferences -> Go HTTP -> PostgreSQL -> sources.
 // Invoked by TestDesktopConnectorSources; never starts an Agent or writes GitHub.
-import { _electron as electron, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { electron } from './electron.mjs';
 import { mkdtemp, mkdir, readFile, writeFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';

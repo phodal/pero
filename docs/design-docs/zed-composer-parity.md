@@ -59,7 +59,7 @@ edit prediction. The feature list below remains the acceptance checklist.
 - [x] Shared `@`/`/` completion, keyboard navigation, multiline input, native token
   editing/undo, attachment labels, cancellation/stale query handling and UI states.
 - [x] Icons identify context sources; left controls hold context and permissions,
-  right controls hold ACP identity, model and thought level. Connected Agent
+  right controls hold ACP identity, model and thought level. Submitted Agent
   identity is fixed; modes and permissions share one compact menu. Advertised
   Off/None thought levels are selectable. Placeholder exposes `@` and `/`.
 - [x] Development Electron fixture acceptance: [batch 2 evidence](../fitness/zed-composer-batch-2.md).
@@ -84,3 +84,20 @@ edit prediction. The feature list below remains the acceptance checklist.
 Check boxes mean implementation only unless accompanied by execution evidence.
 Each batch records its own UI and backend receipts in `docs/fitness/`. The
 complete Zed parity claim remains open until all relevant rows are accepted.
+
+## Automatic Agent preparation (2026-10-29)
+
+Visible drafts prepare on opening and Agent selection, following Zed's draft
+activation flow. An empty connected session remains retargetable; submitting
+locks its identity. Rich draft restoration, explicit external authentication,
+startup retry, selected-Agent persistence and current acceptance boundaries are
+recorded in [Agent preparation](../fitness/agent-preparation.md). Process sharing
+and submitted-session restoration are not included in this UI alignment.
+
+## Streaming transcript presentation (2026-10-29)
+
+Shared Chat follows Zed's thinking-disclosure lifecycle, compact tool text,
+separate arguments/results and session title notifications. Expanded reasoning
+is additionally muted. Actual UI and real Qoder acceptance, including the
+provider's missing title-notification boundary, are recorded in
+[streaming presentation](../fitness/streaming-presentation.md).

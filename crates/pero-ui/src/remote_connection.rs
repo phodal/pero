@@ -106,7 +106,7 @@ impl Workbench {
     }
 
     pub(crate) fn remote_connection_view(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let busy = self.remote.connection.submitting
             || self.remote.data["loading"].as_bool().unwrap_or(false);
         let configured = self.remote.data["configured"].as_bool().unwrap_or(false);
@@ -130,14 +130,14 @@ impl Workbench {
                     .gap(px(16.))
                     .child(
                         div()
-                            .text_size(px(20.))
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading))
                             .font_weight(FontWeight::BOLD)
                             .child(self.t("connector.title")),
                     )
                     .child(
                         div()
                             .whitespace_normal()
-                            .text_color(p.color("text-muted"))
+                            .text_color(p.text_muted)
                             .child(self.t("connector.description")),
                     )
                     .child(
@@ -198,7 +198,7 @@ impl Workbench {
                             })
                             .child(
                                 div()
-                                    .text_color(p.color("text-muted"))
+                                    .text_color(p.text_muted)
                                     .child(self.t("connector.manual")),
                             )
                             .child(self.t("connector.token"))
@@ -214,8 +214,8 @@ impl Workbench {
                             )
                             .child(
                                 div()
-                                    .text_size(px(12.))
-                                    .text_color(p.color("text-muted"))
+                                    .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                    .text_color(p.text_muted)
                                     .child(self.t("connector.token_help")),
                             ),
                     )
@@ -248,7 +248,7 @@ impl Workbench {
                             div()
                                 .id("connector-required")
                                 .role(Role::Alert)
-                                .text_color(p.color("error"))
+                                .text_color(p.error)
                                 .child(self.t("connector.required")),
                         )
                     })
@@ -257,7 +257,7 @@ impl Workbench {
                             div()
                                 .id("connector-storage-error")
                                 .role(Role::Alert)
-                                .text_color(p.color("error"))
+                                .text_color(p.error)
                                 .whitespace_normal()
                                 .child(self.t("connector.storage_unavailable")),
                         )

@@ -1,5 +1,8 @@
 # Quality gates
 
+Global appearance, scoped typography and current Settings shell limits:
+[appearance](appearance.md).
+
 Remote dispatch is covered by the Worker tests and `tests/e2e/remote.mjs`. The incident note is [2026-10-28 remote worker descendant cleanup](../issues/2026-10-28-remote-worker-descendant-cleanup.md). Use an isolated PostgreSQL database for `PERO_TEST_DATABASE_URL`; `server/` integration tests create and remove isolated schemas. Run the Go suite with `go test -race ./...`.
 
 What each suite proves, and where screenshots land, is [tests/README.md](../../tests/README.md). Planned features are in [ROADMAP.md](../../ROADMAP.md).
@@ -19,7 +22,7 @@ not configured. Setup and invocation instructions live in [Bazel quality gates](
 
 1. `npm run build`: native Host, GPUI WASM, web assets, and the Electron shell.
 2. `npm run check`: TypeScript, generated DESIGN.md theme, locale catalogs, and generated contracts.
-3. `npm test`: Rust tests for `pero-contracts`, `pero-runtime`, `pero-host`, `pero-ui`, and `pero-worker`, including the ACP lifecycle cases in `tests/runtime/`.
+3. `npm test`: Rust tests for `pero-contracts`, `pero-runtime`, `pero-host`, `pero-chat-ui`, `pero-chat-web`, `pero-ui`, and `pero-worker`, including the ACP lifecycle cases in `tests/runtime/`.
 4. `npm run test:contracts`: every Host stdio JSONL line against `protocol/generated/host.schema.json`.
 5. `npm run test:e2e`: real Electron against the ACP fixture. Workbench session behavior, then the tool-call matrix.
 6. `npm run test:i18n`: shared catalogs in real Electron, including live switching, persistence after restart, native menus, and untranslated user content. Source rules are in [locales/README.md](../../locales/README.md).
@@ -33,7 +36,10 @@ not configured. Setup and invocation instructions live in [Bazel quality gates](
 
 `npm run test:e2e:real` is opt-in. It uses the local Codex login and sends one real model request. `npm run test:remote` is also opt-in: it needs `PERO_TEST_DATABASE_URL` and runs Electron, Go, PostgreSQL, and `pero-worker` together.
 
-Run Electron suites one at a time; they take native input focus. Chromium IME automation checks composition events. It does not certify a physical macOS input method, a signed package, or real tool execution. The ordinary fixture agent emits scripted ACP output without executing commands. Its explicit contribution scenario writes a file only in the disposable prepared checkout; the real-provider contribution mode uses actual Codex tools.
+Run Electron suites one at a time. They use hidden real Electron windows by default;
+`PERO_TEST_HEADED=1` opts into foreground acceptance. Linux still requires X11/Xvfb;
+the CI desktop job runs workbench, tool-call and native App Use suites in a separate Xvfb display.
+See [background test setup](../../tests/README.md#后台桌面测试). Chromium IME automation checks composition events. It does not certify a physical macOS input method, a signed package, or real tool execution. The ordinary fixture agent emits scripted ACP output without executing commands. Its explicit contribution scenario writes a file only in the disposable prepared checkout; the real-provider contribution mode uses actual Codex tools.
 
 Connector screenshots/results are in `test-results/connector/fixture/` and
 `test-results/connector/live/`; saved-connection evidence is in
@@ -46,7 +52,15 @@ First-run connection and local execution: [local-execution.md](local-execution.m
 
 Local workspace ROADMAP loading and ACP execution: [local-roadmap.md](local-roadmap.md).
 
+MCP 「工具与资源」 acceptance progress, with the ROADMAP checkbox still open: [mcp-tools-resources.md](mcp-tools-resources.md).
+
 Current conversation and ACP UI acceptance: [conversation-verification.md](conversation-verification.md). The bootstrap-only boundaries above are historical; actual provider replies and remaining limits are recorded separately.
+
+Shared GPUI App Chat, Workbench scope switching and optional standalone Product
+chat: [app-chat.md](app-chat.md). This record tracks source checks, actual
+Electron behavior, package size and platform acceptance separately. The
+`virtual-cell-chat` development Product uses system Python and `chat: true`;
+its results do not extend the existing Virtual Cell release acceptance.
 
 ## Acceptance levels
 
@@ -58,6 +72,19 @@ Current conversation and ACP UI acceptance: [conversation-verification.md](conve
 | L3 | A signed release package installs, upgrades and runs on the target system. |
 
 Record the source version, level, date, target system and remaining gaps in the relevant verification record before marking a feature complete. A checked source item is separate from Run verification and acceptance.
+
+Workspace content tabs, shared Chat layout, semantic icons and current Desktop
+acceptance: [workspace.md](workspace.md).
+
+Workspace navigation ownership and pure layout refactor:
+[workspace-architecture.md](workspace-architecture.md).
+
+Agent → App tools, task grants and panel evidence: [App Use](app-use.md).
+
+Automatic ACP Agent preparation, draft preservation and external login: [Agent preparation](agent-preparation.md).
+
+Reasoning, tool input/results and ACP session title replay:
+[streaming presentation](streaming-presentation.md).
 
 The opt-in trusted Kubernetes Worker runtime and its separate fake-API,
 PostgreSQL, process and cluster evidence are tracked in

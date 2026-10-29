@@ -3,6 +3,7 @@ import { realpath, stat } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { net } from 'electron';
+import { PreparedAppWrite, type AppWriteDefinition } from './app-write.ts';
 
 // These are transport values, generated from the same contract as the Rust Host.
 import type { AppAccess, AppRecord } from '../../../protocol/generated/host';
@@ -18,6 +19,7 @@ export class DesktopApps {
     private write: (request: object) => void,
     private send: (event: Event) => void,
     private choose: () => Promise<string | undefined>,
+    private input?: (app:string,token:string)=>Promise<{data:Buffer;name:string;mediaType:string}>,
   ) {}
 
   accept(event: Event): boolean {
@@ -41,7 +43,7 @@ export class DesktopApps {
     this.pending.clear();
   }
 
-  private request<T>(action: string, fields: Record<string, string> = {}): Promise<T> {
+  private request<T>(action: string, fields: Record<string, unknown> = {}): Promise<T> {
     const id = `apps-${randomUUID()}`;
     return new Promise((resolveRequest, reject) => {
       const timer = setTimeout(() => {
@@ -88,6 +90,20 @@ export class DesktopApps {
     }
   }
 
+  async describeWrites():Promise<AppWriteDefinition[]>{
+    const records=await this.request<AppRecord[]>('list');
+    return records.filter(record=>record.enabled).flatMap(record=>(record.writes||[]).map(route=>({app:record.name,panel:record.panels[0].id,version:record.version,...route})));
+  }
+  async applyWrite(prepared:PreparedAppWrite,signal:AbortSignal):Promise<unknown>{
+    const route=prepared.definition;prepared.requireCurrent((await this.describeWrites()).find(current=>current.app===route.app&&current.name===route.name));
+    const access=await this.request<AppAccess>('resolve',{name:route.app});
+    if(!access.backend)throw new Error('The App write backend is unavailable');
+    const response=await net.fetch(access.backend.url+route.path,{method:'POST',headers:{'Content-Type':'application/json','X-Pero-App-Token':access.backend.token},body:JSON.stringify(prepared.document),redirect:'error',signal:AbortSignal.any([signal,AbortSignal.timeout(15000)])});
+    const text=await response.text();if(Buffer.byteLength(text)>1000000)throw new Error('App write response exceeds 1 MiB');
+    if(!response.ok)throw new Error(text.slice(0,1000)||`App write failed (${response.status})`);
+    const value=JSON.parse(text);this.send({version:1,kind:'app_written',request_id:null,text:'',data:{app:route.app,tool:route.name,digest:prepared.digest}});return value;
+  }
+
   /** App origins have no Electron preload. Their /api is always this App's backend. */
   async serve(request: Request): Promise<Response> {
     try {
@@ -96,6 +112,18 @@ export class DesktopApps {
       const origin = `pero-app://${url.host}`;
       const caller = request.headers.get('Origin');
       if (caller && caller !== origin) return new Response('App origin refused', { status: 403 });
+      if(url.pathname.startsWith('/host/inputs/')){
+        if(request.method!=='GET'||!this.input||!/^\/host\/inputs\/[a-f0-9]{64}$/.test(url.pathname))return new Response('App input unavailable',{status:404});
+        const file=await this.input(url.hostname,url.pathname.split('/').at(-1)!);
+        return new Response(new Uint8Array(file.data),{headers:{'Content-Type':file.mediaType,'Content-Disposition':`inline; filename*=UTF-8''${encodeURIComponent(file.name).replace(/['()*]/g,char=>'%'+char.charCodeAt(0).toString(16).toUpperCase())}`,'Cache-Control':'no-store'}});
+      }
+      if (url.pathname === '/host/agent') {
+        if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
+        const body = await request.text();
+        if (Buffer.byteLength(body) > 256_000) return new Response('Research request too large', { status: 413 });
+        const result = await this.request('agent', { name: url.hostname, request: JSON.parse(body) });
+        return Response.json(result, { headers: { 'Cache-Control': 'no-store' } });
+      }
       const access = await this.request<AppAccess>('resolve', { name: url.hostname });
       if (url.pathname.startsWith('/api/')) {
         if (!access.backend) return new Response('This App has no backend', { status: 503 });
@@ -116,7 +144,7 @@ export class DesktopApps {
       if (!file.startsWith(assets + sep) || !(await stat(file)).isFile()) return new Response('Not found', { status: 404 });
       const response = await net.fetch(pathToFileURL(file).href);
       const headers = new Headers(response.headers);
-      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors pero://workbench");
+      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors pero://workbench");
       headers.set('Cache-Control', 'no-store');
       headers.set('X-Content-Type-Options', 'nosniff');
       return new Response(response.body, { status: response.status, headers });

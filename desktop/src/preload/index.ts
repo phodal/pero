@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('pero', {
   getLocale: () => ipcRenderer.invoke('pero:locale:get'),
   setLocale: (locale: string) => ipcRenderer.invoke('pero:locale:set', locale),
   sendProbe: (request: { id: string; text: string }) => ipcRenderer.invoke('pero:probe', request),
+  readContent: (request: object) => ipcRenderer.invoke('pero:content-read', request),
+  appUseCommand: (command: object) => ipcRenderer.invoke('pero:app-use', command),
   sessionCommand: (command: object) => ipcRenderer.invoke('pero:session', command),
   remoteCommand: (command: object) => ipcRenderer.invoke('pero:remote', command),
   appsCommand: (command: object) => ipcRenderer.invoke('pero:apps', command),

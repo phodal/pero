@@ -88,7 +88,11 @@ try {
   await host.next('error');
   host.send({ method: 'settings.locale', locale: 'zh-CN' });
   await host.next('settings', (e) => e.text === 'zh-CN');
-  const workbench = {appearance:'dark',projects:[{workspace:temp,project_id:'pero'}]};
+  const legacyWorkbench = {appearance:'dark',projects:[{workspace:temp,project_id:'pero'}]};
+  host.send({method:'settings.workbench',preferences:legacyWorkbench});
+  const migrated = await host.next('workbench_settings');
+  if (!isDeepStrictEqual(migrated.data,{...legacyWorkbench,layout:{chat_width:420,chat_open:false}})) failures.push('Legacy workbench preferences did not restore default layout');
+  const workbench = {...legacyWorkbench,layout:{chat_width:512,chat_open:true}};
   host.send({method:'settings.workbench',preferences:workbench});
   const applied = await host.next('workbench_settings');
   if (!isDeepStrictEqual(applied.data,workbench)) failures.push('Workbench preferences were not acknowledged');
@@ -134,8 +138,9 @@ try {
 
   const thread = 'contract-thread';
   const inThread = (e) => e.thread_id === thread;
-  host.send({ action: 'new_session', thread_id: thread, agent_id: 'fixture' });
-  await host.next('session_created', inThread);
+  host.send({ action: 'new_session', thread_id: thread, agent_id: 'fixture', scope: { app: 'fixture', panel: 'main' } });
+  const created = await host.next('session_created', inThread);
+  if (!isDeepStrictEqual(created.data.scope, { app: 'fixture', panel: 'main' })) failures.push('App scope did not survive session creation');
   await host.next('session_ready', inThread, 10000);
 
   host.send({ action: 'prompt', thread_id: thread, text: 'hello', contexts:[context.data] });
@@ -163,7 +168,7 @@ try {
   await host.next('session_closed', inThread);
   host.send({ action: 'prompt', thread_id: thread, text: 'after close' });
   await host.next('session_error', inThread);
-  host.send({action:'new_session',thread_id:'settings-contract',agent_id:'settings-fixture'});
+  host.send({action:'new_session',thread_id:'settings-contract',agent_id:'settings-fixture',scope:{app:'fixture',panel:'main'}});
   await host.next('session_ready',e=>e.thread_id==='settings-contract');
   host.send({action:'configure',thread_id:'settings-contract',config_id:'effort',value:'low'});
   await host.next('configuration_changed',e=>e.thread_id==='settings-contract');
@@ -200,6 +205,7 @@ try {
   if (!replay.data.events.length) failures.push('replay after restart contained no events');
   if (replay.data.events.some(event => event.thread_id === thread || event.thread_id === 'delete-live')) failures.push('deleted thread was replayed');
   if (!replay.data.events.some(event => event.thread_id === 'settings-contract')) failures.push('deleting a thread removed unrelated history');
+  if (!replay.data.events.some(event => event.thread_id === 'settings-contract' && event.kind === 'session_created' && isDeepStrictEqual(event.data.scope, {app:'fixture',panel:'main'}))) failures.push('App scope was lost after Host restart');
   await host.stop();
 } catch (error) {
   failures.push(String(error));

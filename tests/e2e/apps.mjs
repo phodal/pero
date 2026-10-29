@@ -1,6 +1,7 @@
 import { setAppearance, openSettings } from './sidebar-controls.mjs';
 // Real Electron, real Host installation and real Virtual Cell Python computation.
-import { _electron as electron, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { electron } from './electron.mjs';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -24,13 +25,13 @@ try {
   page.on('console', message => { if (message.type() === 'error') console.error('Renderer:', message.text()); });
   const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
-  await expect.poll(async () => (await state()).apps?.[0]?.name).toBe('virtual-cell');
+  await expect.poll(async () => (await state()).apps?.some(app => app.name === 'virtual-cell')).toBe(true);
   await page.mouse.click(80, await page.evaluate(() => innerHeight - 76));
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await page.screenshot({ path: resolve(out, 'catalog.png') });
   // GPUI buttons are canvas-rendered; select the catalog's Open button.
-  await page.mouse.click(1305, 110);
+  await page.mouse.click(1305, 110 + 79 * (await state()).apps.findIndex(app => app.name === 'virtual-cell'));
   await expect.poll(async () => (await state()).activeApp?.name).toBe('virtual-cell');
   const frame = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(frame.getByRole('tab', { name: 'Cells & perturbations' })).toBeVisible({ timeout: 20000 });
@@ -39,6 +40,19 @@ try {
   expect(await frame.locator('body').evaluate(() => typeof window.pero)).toBe('undefined');
   checks.push('builtin installation, live frame, 660-cell atlas, no Electron bridge in App');
   await page.screenshot({ path: resolve(out, 'atlas.png') });
+  await frame.locator('body').evaluate(() => parent.postMessage({ type: 'pero:app:chat', text: 'Discuss the selected experiment' }, '*'));
+  await expect.poll(async () => (await state()).appChatOpen).toBe(true);
+  await expect.poll(async () => (await state()).composer).toBe('Discuss the selected experiment');
+  await expect.poll(async () => page.locator('#pero-app-surface').evaluate(element => Math.round(element.getBoundingClientRect().width))).toBe(808);
+  await page.screenshot({ path: resolve(out, 'app-chat.png') });
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 788));
+  await expect(page.locator('#pero-app-surface')).toBeHidden();
+  await page.screenshot({ path: resolve(out, 'app-chat-narrow.png') });
+  await page.mouse.click(930, 24);
+  await expect.poll(async () => (await state()).appChatOpen).toBe(false);
+  await expect(page.locator('#pero-app-surface')).toBeVisible();
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1488, 1086));
+  checks.push('App SDK compose opens shared GPUI chat without sending; narrow chat preserves the App frame');
   await frame.getByRole('tab', { name: 'Reactions & simulation' }).click();
   await frame.getByLabel('Duration (s)', { exact: true }).fill('12');
   await expect(frame.getByText('Parameters changed · curves not updated')).toBeVisible();
@@ -89,14 +103,20 @@ try {
   await page.mouse.click(75, 70);
   await expect(page.locator('#pero-app-surface')).toBeHidden();
   await page.mouse.click(80, await page.evaluate(() => innerHeight - 76));
+  await expect.poll(async () => (await state()).navigation).toBe(7);
+  expect((await state()).activeContent).toBeNull();
+  await expect(page.locator('#pero-app-surface')).toBeHidden();
+  await page.screenshot({ path: resolve(out, 'app-library-retained-tab.png') });
+  // The Apps entry opens the library; the retained content tab restores its App.
+  await page.mouse.click(300, 24);
   await expect(page.locator('#pero-app-surface')).toBeVisible();
   expect(await page.locator('iframe').getAttribute('src')).toBe(originalFrame);
   await frame.getByRole('tab', { name: '反应与模拟' }).click();
   await expect(frame.getByLabel('时长 (s)', { exact: true })).toHaveValue('12');
-  checks.push('navigation retains frame and edited state');
+  checks.push('App library and content tab retain frame and edited state');
   await page.evaluate(() => window.pero.appsCommand({ action: 'apps_disable', name: 'virtual-cell' }));
   await expect(page.locator('iframe')).toHaveCount(0);
-  await expect.poll(async () => (await state()).apps[0].enabled).toBe(false);
+  await expect.poll(async () => (await state()).apps.find(app => app.name === 'virtual-cell').enabled).toBe(false);
   await page.evaluate(() => window.pero.appsCommand({ action: 'apps_open', name: 'virtual-cell', panel: 'main' }));
   await expect.poll(async () => (await state()).appError).toContain('Enable');
   await page.screenshot({ path: resolve(out, 'disabled-error.png') });
@@ -104,7 +124,7 @@ try {
   await app.close(); app = undefined;
   app = await launch(); page = await app.firstWindow();
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
-  await expect.poll(async () => (await state()).apps[0].enabled).toBe(false);
+  await expect.poll(async () => (await state()).apps.find(app => app.name === 'virtual-cell').enabled).toBe(false);
   checks.push('disable removes frame and survives Desktop restart');
   await page.evaluate(() => window.pero.appsCommand({ action: 'apps_enable', name: 'virtual-cell' }));
   await app.evaluate(({ Menu, BrowserWindow }) => {
@@ -116,7 +136,7 @@ try {
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await page.evaluate(() => new Promise(resolvePaint => requestAnimationFrame(() => requestAnimationFrame(resolvePaint))));
-  await page.mouse.click(1305, 110);
+  await page.mouse.click(1305, 110 + 79 * (await state()).apps.findIndex(app => app.name === 'virtual-cell'));
   const restored = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(restored.getByRole('tab', { name: 'Cells & perturbations' })).toBeVisible();
   await expect.poll(async () => restored.locator('body').evaluate(async () => (await (await fetch('/api/inputs')).json()).items.length)).toBe(1);

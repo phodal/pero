@@ -1,5 +1,6 @@
 import { setAppearance, setSidebarLocale } from './sidebar-controls.mjs';
-import { _electron as electron, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { electron, focusPage, headed } from './electron.mjs';
 import { resolve } from 'node:path';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -69,11 +70,12 @@ try {
 
   // Same WASM in a bridge-free window exercises the browser preview locale path.
   const previewReady = app.waitForEvent('window');
-  await app.evaluate(async ({ BrowserWindow }) => {
-    const preview = new BrowserWindow({ width: 1488, height: 1086, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  await app.evaluate(async ({ BrowserWindow }, headed) => {
+    const preview = new BrowserWindow({ show: headed, width: 1488, height: 1086, webPreferences: { backgroundThrottling: headed, contextIsolation: true, nodeIntegration: false, sandbox: true } });
     await preview.loadURL('pero://workbench/');
-  });
+  }, headed);
   const preview = await previewReady;
+  await focusPage(preview);
   preview.on('pageerror', error => errors.push(error.message));
   await preview.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).ready);
   expect(await preview.evaluate(() => typeof window.pero)).toBe('undefined');

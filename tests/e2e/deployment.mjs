@@ -1,5 +1,6 @@
 // Opt-in public HTTPS acceptance. Only a dedicated project executes an ACP fixture.
-import { _electron as electron, chromium, expect } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
+import { electron, focusPage, headed } from './electron.mjs';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
@@ -43,7 +44,8 @@ async function launch() {
     PERO_HISTORY_PATH: resolve(temp, 'history.jsonl'), PERO_LOCALE: 'zh-CN' });
   app = await electron.launch({ args: [resolve(root, 'desktop')], cwd: root, env });
   const page = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => { const window = BrowserWindow.getAllWindows()[0]; window.show(); window.focus(); });
+  if (headed) await app.evaluate(({ BrowserWindow }) => { const window = BrowserWindow.getAllWindows()[0]; window.show(); window.focus(); });
+  await focusPage(page);
   await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
   page.on('pageerror', error => errors.push(error.message));
   const state = () => page.evaluate(() => window.peroDiagnostics ? JSON.parse(window.peroDiagnostics.snapshot()) : { ready: false });

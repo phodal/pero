@@ -1,5 +1,6 @@
 //! Cloud-owned tasks. The main-process adapter owns HTTP and credentials.
 use crate::app::Workbench;
+use crate::workspace::WorkbenchPage;
 use gpui_kit::{
     component::input::{EditorState, InputEvent, InputState},
     *,
@@ -216,7 +217,7 @@ impl Workbench {
     pub fn receive_remote(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
         if event.kind == "remote_open" {
             if !self.show_local_execution_onboarding() {
-                self.navigation = 3;
+                self.navigate(WorkbenchPage::Tasks, cx);
             }
             self.selected_project = None;
             self.project_tab = crate::projects::ProjectTab::Tasks;
@@ -236,7 +237,7 @@ impl Workbench {
             .as_bool()
             .unwrap_or(false);
         self.remote.data = event.data.clone();
-        self.reconcile_project_selection();
+        self.reconcile_project_selection(cx);
         if !self.remote.loading() {
             self.task_more_pending = false;
         }
@@ -261,11 +262,11 @@ impl Workbench {
         if !self.remote.seen_connection && self.remote.configured() {
             self.remote.seen_connection = true;
             if !self.show_local_execution_onboarding()
-                && self.navigation == 1
-                && self.active_chat.is_none()
+                && self.navigation.page() == WorkbenchPage::Projects
+                && self.chat.read(cx).active_chat.is_none()
                 && self.selected_project.is_none()
             {
-                self.navigation = 3;
+                self.navigate(WorkbenchPage::Tasks, cx);
             }
             self.sync_follow(cx);
         }
@@ -281,6 +282,12 @@ impl Workbench {
         if !self.remote.loading() && self.remote.submitting {
             self.remote.submitting = false;
             if self.remote.data["error"].is_null() {
+                if self.remote.creating && self.navigation.page() == WorkbenchPage::Tasks {
+                    let id = self.remote.data["selected_task_id"]
+                        .as_str()
+                        .map(str::to_owned);
+                    self.record_task_selection(id);
+                }
                 self.remote.creating = false;
             }
         }
@@ -296,11 +303,14 @@ impl Workbench {
         cx.notify();
         true
     }
-    pub(crate) fn remote_agent(&self) -> String {
+    pub(crate) fn remote_agent(&self, cx: &App) -> String {
         self.remote
             .agent
             .clone()
-            .or_else(|| self.agents.get(self.agent_index).map(|a| a.id.clone()))
+            .or_else(|| {
+                let chat = self.chat.read(cx);
+                chat.agents.get(chat.agent_index).map(|a| a.id.clone())
+            })
             .unwrap_or_else(|| "codex".into())
     }
     pub(crate) fn create_remote(&mut self, cx: &mut Context<Self>) {
@@ -340,7 +350,7 @@ impl Workbench {
         self.remote.submitting = true;
         self.command(
             json!({"action":"remote_create","title":title,"prompt":prompt,"acceptance":acceptance,
-            "project_id":project,"workspace_key":workspace,"agent_id":self.remote_agent()}),
+            "project_id":project,"workspace_key":workspace,"agent_id":self.remote_agent(cx)}),
             cx,
         );
     }

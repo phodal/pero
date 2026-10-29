@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "com.openpero.virtualcellchat",
+  "name": "Virtual Cell Chat",
+  "version": "0.2.0",
+  "shell": "app",
+  "entry": { "app": "virtual-cell", "panel": "main" },
+  "apps": ["virtual-cell"],
+  "python": "system",
+  "chat": true
+}

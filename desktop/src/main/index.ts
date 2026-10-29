@@ -1,3 +1,4 @@
+import {ConversationContentRead} from '../../../packages/content-source/index.ts';
 import { app, BrowserWindow, ipcMain, Menu, protocol, net, dialog, shell } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -10,6 +11,8 @@ import { RemoteAdapter, type StoredRemoteConnection } from './remote';
 import { DesktopApps } from './apps';
 import { DesktopContributions } from './contributions';
 import { LocalExecutionController } from './local-execution';
+import { DesktopAppUse } from './app-use-mcp';
+import { backgroundTest, testWindowOptions } from './test-display';
 
 // Register before ready so macOS cannot deliver the callback before the listener.
 // pero://connect/ completes sign-in; pero://tasks/<id> opens a Cloud task from the task square.
@@ -36,6 +39,7 @@ const root = resolve(__dirname, '../..');
 let window: BrowserWindow;
 let host: ChildProcessWithoutNullStreams;
 let ready = false;
+let appUse: DesktopAppUse | undefined;
 let locale: Locale = 'en';
 const t = (key: MessageKey) => translate(locale, key);
 let localExecution: LocalExecutionController | undefined;
@@ -49,7 +53,7 @@ const apps = new DesktopApps(request => {
 }, send, async () => {
   const selected = await dialog.showOpenDialog(window, { properties: ['openDirectory'] });
   return selected.canceled ? undefined : selected.filePaths[0];
-});
+},async(name,token)=>{if(!appUse)throw new Error('App input unavailable');return appUse.input(name,token);});
 let runtimeSettingsPath = '';
 const preferenceWrites = new Map<string, { resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
 async function saveRemotePreference(connection: StoredRemoteConnection | null): Promise<void> {
@@ -126,10 +130,10 @@ app.whenReady().then(async () => {
     const url = new URL(request.url);
     const directory = resolve(root, 'web/dist');
     const file = resolve(directory, '.' + decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname));
-    if (url.host !== 'workbench' || !file.startsWith(directory + sep)) return new Response('Not found', { status: 404 });
+    if (!['workbench', 'chat'].includes(url.host) || !file.startsWith(directory + sep)) return new Response('Not found', { status: 404 });
     return net.fetch(pathToFileURL(file).href).then((response) => {
       const headers = new Headers(response.headers);
-      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src pero-app:; object-src 'none'");
+      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src pero-app: pero://chat; object-src 'none'");
       return new Response(response.body, { status: response.status, headers });
     });
   });
@@ -141,8 +145,10 @@ app.whenReady().then(async () => {
   },send);
   // Local Agents must not inherit the Desktop's cloud operator/database credentials.
   const hostEnvironment = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PERO_')));
+  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal)=>apps.applyWrite(write,signal)});
+  const appUseEnvironment = await appUse.start();
   host = spawn(resolve(root, `${app.isPackaged ? 'bin' : 'target/debug'}/pero-host${process.platform === 'win32' ? '.exe' : ''}`), ['--stdio'], { cwd: app.isPackaged ? app.getPath('home') : root, stdio: 'pipe', env: {
-    ...hostEnvironment, PATH: [resolve(root,'bin'),resolve(root,'node_modules/.bin'),process.env.PATH,resolve(app.getPath('home'),'.opencode/bin'),'/opt/homebrew/bin',resolve(app.getPath('home'),'.local/bin')].filter(Boolean).join(delimiter), PERO_LOCALE: locale,
+    ...hostEnvironment, ...appUseEnvironment, PATH: [resolve(root,'bin'),resolve(root,'node_modules/.bin'),process.env.PATH,resolve(app.getPath('home'),'.opencode/bin'),'/opt/homebrew/bin',resolve(app.getPath('home'),'.local/bin')].filter(Boolean).join(delimiter), PERO_LOCALE: locale,
     PERO_AGENT_ROOT: root,
     ...(app.isPackaged ? { PERO_ADAPTER_NODE: process.execPath } : {}),
     ...(process.env.PERO_AGENTS_FILE ? { PERO_AGENTS_FILE: process.env.PERO_AGENTS_FILE } : {}),
@@ -156,6 +162,7 @@ app.whenReady().then(async () => {
   createInterface({ input: host.stdout }).on('line', (line) => {
     try {
       const message = JSON.parse(line);
+      appUse?.accept(message);
       localExecution?.accept(message);
       if (apps.accept(message)) return;
       if (contributions.accept(message)) return;
@@ -175,8 +182,8 @@ app.whenReady().then(async () => {
     catch { console.error('Invalid Host event'); }
   });
   host.stderr.on('data', (data) => console.error(String(data)));
-  host.on('error', () => { ready = false; apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_start')); });
-  host.on('exit', () => { ready = false; apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_stopped')); });
+  host.on('error', () => { ready = false; appUse?.reset(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_start')); });
+  host.on('exit', () => { ready = false; appUse?.reset(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_stopped')); });
   void remote.initialize();
   const trusted = (sender: Electron.IpcMainInvokeEvent) => {
     if (sender.sender !== window.webContents || sender.senderFrame?.url !== 'pero://workbench/') throw new Error('Untrusted sender');
@@ -195,6 +202,19 @@ app.whenReady().then(async () => {
     await remote.command(command);
   });
   ipcMain.handle('pero:apps', (sender, command: unknown) => { trusted(sender); return apps.command(command); });
+  ipcMain.handle('pero:content-read', (sender, value: unknown) => {
+    trusted(sender);
+    if(!appUse) throw new Error('Result files are unavailable');
+    const request=ConversationContentRead.parse(value);
+    return appUse.results.read(request.thread,request.request);
+  });
+  ipcMain.handle('pero:app-use', async (sender, command: {action?:string;thread_id?:string;scope?:{app:string;panel:string};options?:unknown}) => {
+    trusted(sender);
+    if(command?.action==='context'&&command.scope&&typeof command.thread_id==='string'){if(!appUse)throw new Error('App context is unavailable');return appUse.draftContext.freeze(command.scope,command.thread_id,command.options);}
+    if(command?.action==='select'){appUse?.authority.select(command.thread_id||undefined);return;}
+    if(command?.action!=='revoke'||typeof command.thread_id!=='string')throw new Error('Invalid App Use command');
+    appUse?.authority.revoke(command.thread_id,command.scope);
+  });
   ipcMain.handle('pero:locale:set', (sender, value: string) => { trusted(sender); changeLocale(value); });
   ipcMain.handle('pero:probe', (sender, request: unknown) => {
     trusted(sender);
@@ -217,6 +237,7 @@ app.whenReady().then(async () => {
       return;
     }
     if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
+    appUse?.authority.command(command as {action?:string;thread_id?:string});
     host.stdin.write(JSON.stringify(command) + '\n');
   });
   ipcMain.handle('pero:workspace', async (sender) => {
@@ -239,9 +260,11 @@ app.whenReady().then(async () => {
     });
     if (!selected.canceled && selected.filePaths[0]) host.stdin.write(JSON.stringify({ action: 'resolve_context', request_id: command.request_id, kind: command.kind, source: selected.filePaths[0] }) + '\n');
   });
-  window = new BrowserWindow({ width: 1488, height: 1086, minWidth: 1000, minHeight: 680,
+  window = new BrowserWindow({ ...testWindowOptions, width: 1488, height: 1086, minWidth: 1000, minHeight: 680,
     title: t('window.title'), backgroundColor: '#F7F9FC',
-    webPreferences: { preload: resolve(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+    webPreferences: { ...testWindowOptions.webPreferences, preload: resolve(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  window.webContents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main) appUse?.reset(); });
+  window.webContents.on('render-process-gone', () => appUse?.reset());
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
@@ -250,8 +273,10 @@ app.whenReady().then(async () => {
   updateMenus();
   await window.loadURL('pero://workbench/');
   acceptDeepLink = url => {
-    if (window.isMinimized()) window.restore();
-    window.show(); window.focus();
+    if (!backgroundTest) {
+      if (window.isMinimized()) window.restore();
+      window.show(); window.focus();
+    }
     send({ version: 1, kind: 'remote_open', request_id: null, text: 'desktop_login' });
     // The adapter validates the identifier; without a connection the Cloud page shows its setup instead.
     if (url.startsWith('pero://tasks/')) void remote.command({ action: 'remote_select', task_id: new URL(url).pathname.slice(1) });
@@ -269,7 +294,7 @@ app.on('before-quit', quit => {
   quit.preventDefault();
   if (shuttingDown) return;
   shuttingDown = true;
-  localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();
+  appUse?.close(); localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();
   if (!host?.pid || host.exitCode !== null || host.signalCode !== null) {
     shutdownComplete = true; app.quit(); return;
   }

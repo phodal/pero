@@ -6,6 +6,7 @@ export type ProductFields = {
   python: 'system' | 'bundled';
   node?: 'system' | 'bundled';
   icon?: string;
+  chat?: boolean;
 };
 export class Product {
   readonly schemaVersion = 1;
@@ -18,12 +19,14 @@ export class Product {
   readonly python: 'system' | 'bundled';
   readonly node?: 'system' | 'bundled';
   readonly icon?: string;
+  readonly chat: boolean;
 
   private constructor(fields: ProductFields) {
     this.id = fields.id; this.name = fields.name; this.version = fields.version;
     this.shell = fields.shell; this.apps = Object.freeze([...fields.apps]);
     this.entry = fields.entry ? Object.freeze({ ...fields.entry }) : undefined;
     this.python = fields.python; this.node = fields.node; this.icon = fields.icon;
+    this.chat = fields.chat ?? false;
     Object.freeze(this);
   }
 
@@ -44,12 +47,13 @@ export class Product {
     const v = value as ProductFields;
     const slug = (s: unknown): s is string => typeof s === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s);
     if (!v || typeof v !== 'object' || Array.isArray(v) ||
-      Object.keys(v).some(key => !['schemaVersion', 'id', 'name', 'version', 'shell', 'apps', 'entry', 'python', 'node', 'icon'].includes(key)) ||
+      Object.keys(v).some(key => !['schemaVersion', 'id', 'name', 'version', 'shell', 'apps', 'entry', 'python', 'node', 'icon', 'chat'].includes(key)) ||
       v.schemaVersion !== 1 || typeof v.id !== 'string' || !/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*){2,}$/.test(v.id) ||
       typeof v.name !== 'string' || !/^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,63}$/u.test(v.name) ||
       typeof v.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(v.version) ||
       !['workbench', 'app'].includes(v.shell) || !['system', 'bundled'].includes(v.python) ||
       (v.node !== undefined && !['system', 'bundled'].includes(v.node)) ||
+      (v.chat !== undefined && typeof v.chat !== 'boolean') ||
       (v.icon !== undefined && (typeof v.icon !== 'string' || !/^(?:[a-zA-Z0-9_-]+\/)*[a-zA-Z0-9_-]+\.svg$/.test(v.icon))) ||
       !Array.isArray(v.apps) || !v.apps.every(slug) || new Set(v.apps).size !== v.apps.length) {
       throw new Error('Invalid Product definition');

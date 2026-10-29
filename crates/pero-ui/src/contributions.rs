@@ -1,10 +1,12 @@
 //! Public human contributions reuse local ACP sessions; no Worker execution is fabricated.
-use crate::{app::Workbench, conversation::Conversation, remote::string};
+use crate::workspace::{ConversationTab, WorkbenchPage};
+use crate::{app::Workbench, remote::string};
 use gpui_kit::{
     component::{button::*, *},
     prelude::*,
     *,
 };
+use pero_chat_ui::conversation::Conversation;
 use pero_contracts::HostEvent;
 use serde_json::{Value, json};
 
@@ -35,33 +37,38 @@ impl Workbench {
             return false;
         }
         if let Some(id) = event.thread_id.as_ref() {
-            let index = match self.chats.iter().position(|chat| &chat.id == id) {
-                Some(index) => index,
-                None => {
-                    self.chats.push(Conversation::new(
-                        id.clone(),
-                        string(&event.data, "agent_id").to_string(),
-                        event.text.clone(),
-                    ));
-                    self.chats.len() - 1
-                }
-            };
-            self.workspace = string(&event.data, "workspace").to_string();
-            self.navigation = 0;
-            self.focus_chat(Some(index), 4, cx);
+            let workspace = string(&event.data, "workspace").to_string();
+            self.workspace = workspace.clone();
+            let index = self.chat.update(cx, |panel, _| {
+                let index = match panel.chats.iter().position(|chat| &chat.id == id) {
+                    Some(index) => index,
+                    None => {
+                        panel.chats.push(Conversation::new(
+                            id.clone(),
+                            string(&event.data, "agent_id").to_string(),
+                            event.text.clone(),
+                        ));
+                        panel.chats.len() - 1
+                    }
+                };
+                panel.workspace = workspace;
+                index
+            });
+            self.navigate(WorkbenchPage::Conversation, cx);
+            self.focus_chat(Some(index), ConversationTab::Chat, cx);
         }
         true
     }
     fn contribution_action(&mut self, action: &str, cx: &mut Context<Self>) {
         let task_id = string(&self.contribution.data, "selected_task_id").to_string();
-        self.command(json!({"action":format!("remote_contribution_{action}"),"task_id":task_id,"agent_id":self.remote_agent()}), cx);
+        self.command(json!({"action":format!("remote_contribution_{action}"),"task_id":task_id,"agent_id":self.remote_agent(cx)}), cx);
     }
     pub(crate) fn contribution_view(
         &self,
         narrow: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let data = &self.contribution.data;
         let selected = string(data, "selected_task_id");
         let busy = data["loading"].as_bool().unwrap_or(false);
@@ -70,14 +77,14 @@ impl Workbench {
             .map(Vec::as_slice)
             .unwrap_or(&[]);
         div().flex_1().min_h_0().flex().flex_col()
-            .when(data["error"].is_string(), |el| el.child(div().id("contribution-error").role(Role::Alert).px(px(20.)).py(px(10.)).bg(p.color("error-bg")).text_color(p.color("error")).whitespace_normal().child(string(data,"error").to_string())))
-            .child(div().flex().items_center().justify_between().px(px(20.)).py(px(12.)).border_b_1().border_color(p.color("border"))
+            .when(data["error"].is_string(), |el| el.child(div().id("contribution-error").role(Role::Alert).px(px(20.)).py(px(10.)).bg(p.error_bg).text_color(p.error).whitespace_normal().child(string(data,"error").to_string())))
+            .child(div().flex().items_center().justify_between().px(px(20.)).py(px(12.)).border_b_1().border_color(p.border)
                 .child(div().font_weight(FontWeight::BOLD).child(self.t("contribution.title")))
                 .child(Button::new("contribution-refresh").outline().small().label(self.t(if busy {"contribution.loading"} else {"remote.refresh"})).disabled(busy).on_click(cx.listener(|this,_,_,cx|this.contribution_action("refresh",cx)))))
             .child(div().flex_1().min_h_0().flex()
-                .when(!narrow || selected.is_empty(), |el| el.child(div().id("contribution-list").w(if narrow {px(800.)} else {px(320.)}).min_w_0().h_full().flex().flex_col().border_r_1().border_color(p.color("border"))
+                .when(!narrow || selected.is_empty(), |el| el.child(div().id("contribution-list").w(if narrow {px(800.)} else {px(320.)}).min_w_0().h_full().flex().flex_col().border_r_1().border_color(p.border)
                     .child(div().id("contribution-rows").flex_1().overflow_y_scroll().py(px(6.))
-                        .when(rows.is_empty(), |el| el.child(div().p(px(20.)).whitespace_normal().text_color(p.color("text-muted")).child(self.t(if busy {"contribution.loading"} else {"contribution.empty"}))))
+                        .when(rows.is_empty(), |el| el.child(div().p(px(20.)).whitespace_normal().text_color(p.text_muted).child(self.t(if busy {"contribution.loading"} else {"contribution.empty"}))))
                         .children(rows.iter().enumerate().map(|(index,task)| {
                             let id=string(task,"task_id").to_string();
                             div().px(px(8.)).py(px(3.)).child(Button::new(("contribution-row",index)).ghost().w_full().h_auto().min_h(px(54.)).toggled(selected==id).disabled(busy)
@@ -100,7 +107,9 @@ impl Workbench {
         })
     }
     fn contribution_detail(&self, narrow: bool, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+        let agents = self.chat.read(cx).agents.clone();
+        let selected_agent = self.remote_agent(cx);
         let data = &self.contribution.data;
         let task = &data["detail"];
         let local = &data["local"];
@@ -130,7 +139,7 @@ impl Workbench {
             .when(task.is_null(), |el| {
                 el.child(
                     div()
-                        .text_color(p.color("text-muted"))
+                        .text_color(p.text_muted)
                         .child(self.t("contribution.select")),
                 )
             })
@@ -150,7 +159,7 @@ impl Workbench {
                 })
                 .child(
                     div()
-                        .text_size(px(20.))
+                        .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading))
                         .font_weight(FontWeight::BOLD)
                         .whitespace_normal()
                         .child(string(task, "title").to_string()),
@@ -161,7 +170,7 @@ impl Workbench {
                         .flex_wrap()
                         .items_center()
                         .gap(px(8.))
-                        .text_color(p.color("text-muted"))
+                        .text_color(p.text_muted)
                         .child(string(task, "repository").to_string())
                         .child(self.contribution_status(string(task, "state")))
                         .when(task["claimed_by"].is_object(), |el| {
@@ -246,13 +255,13 @@ impl Workbench {
                             .child(self.t("contribution.agent")),
                     )
                     .child(div().flex().flex_wrap().gap(px(8.)).children(
-                        self.agents.iter().enumerate().map(|(i, agent)| {
+                        agents.iter().enumerate().map(|(i, agent)| {
                             let id = agent.id.clone();
                             Button::new(("contribution-agent", i))
                                 .outline()
                                 .small()
                                 .label(agent.name.clone())
-                                .toggled(self.remote_agent() == agent.id)
+                                .toggled(selected_agent == agent.id)
                                 .disabled(!agent.available || busy)
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.remote.agent = Some(id.clone());
@@ -262,8 +271,8 @@ impl Workbench {
                     ))
                     .child(
                         div()
-                            .text_size(px(12.))
-                            .text_color(p.color("text-muted"))
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                            .text_color(p.text_muted)
                             .whitespace_normal()
                             .child(self.t("contribution.setup")),
                     )
@@ -271,8 +280,8 @@ impl Workbench {
                 .when(local.is_object(), |el| {
                     el.child(
                         div()
-                            .text_size(px(12.))
-                            .text_color(p.color("text-muted"))
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                            .text_color(p.text_muted)
                             .whitespace_normal()
                             .child(format!(
                                 "{}\n{}",
@@ -296,7 +305,7 @@ impl Workbench {
                                 div()
                                     .id("contribution-gh-state")
                                     .role(Role::Alert)
-                                    .text_color(p.color("warning"))
+                                    .text_color(p.warning)
                                     .whitespace_normal()
                                     .child(self.t("contribution.gh_missing")),
                             )
@@ -309,7 +318,7 @@ impl Workbench {
                                     div()
                                         .id("contribution-gh-state")
                                         .role(Role::Alert)
-                                        .text_color(p.color("warning"))
+                                        .text_color(p.warning)
                                         .whitespace_normal()
                                         .child(self.t("contribution.gh_auth")),
                                 )
@@ -339,9 +348,9 @@ impl Workbench {
                             .max_h(px(420.))
                             .overflow_y_scroll()
                             .p(px(12.))
-                            .bg(p.color("surface-muted"))
+                            .bg(p.surface_muted)
                             .font_family("JetBrains Mono")
-                            .text_size(px(12.))
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
                             .whitespace_normal()
                             .child(if string(local, "diff").is_empty() {
                                 self.t("contribution.no_changes").to_string()
@@ -351,8 +360,8 @@ impl Workbench {
                     )
                     .child(
                         div()
-                            .text_size(px(12.))
-                            .text_color(p.color("text-muted"))
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                            .text_color(p.text_muted)
                             .whitespace_normal()
                             .child(self.t("contribution.publish_help")),
                     )
@@ -377,7 +386,7 @@ impl Workbench {
                             div()
                                 .id("contribution-pr-state")
                                 .role(Role::Status)
-                                .text_color(p.color("success"))
+                                .text_color(p.success)
                                 .child(self.t(if task["pull_request"].is_object() {
                                     "contribution.pr_saved"
                                 } else {

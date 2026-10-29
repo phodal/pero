@@ -38,6 +38,7 @@ export function useWorkbench(t: Translate) {
   async function load(documents: string[]) {
     const revision = await api.post<InputRevision>(`${ROOT}/inputs`, { documents });
     await refresh(); setSelected(revision.id); setOutput(null);
+    return revision;
   }
   const choose = (id: string) => { setSelected(id); setOutput(null); setError(''); };
   const example = () => act(async () => { const doc = await api.get<{ content: string }>(`${ROOT}/example`); await load([doc.content]); });
@@ -64,5 +65,5 @@ export function useWorkbench(t: Translate) {
     const doc = await api.get<{ content: string }>(`${ROOT}/artifacts/${input.id}/export`);
     downloadFile(`virtual-cell-inputs-${input.id.slice(0, 12)}.json`, doc.content, 'application/json');
   });
-  return { items, input, bundle: loaded?.id === selected ? loaded.bundle : null, selected, choose, output, error, busy, refresh: () => act(refresh), example, importFiles, run, evidence, exportOutput, exportInputs };
+  return { items, input, bundle: loaded?.id === selected ? loaded.bundle : null, selected, choose, output, error, busy, refresh: () => act(refresh), example, importFiles, importDocuments: load, run, evidence, exportOutput, exportInputs };
 }

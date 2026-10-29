@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useId } from 'react';
+import { iconArtwork } from './icons.generated';
+export type { IconName } from './icons.generated';
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'ghost' };
 export function Button({ className = '', variant = 'secondary', ...props }: ButtonProps) {
@@ -7,19 +9,15 @@ export function Button({ className = '', variant = 'secondary', ...props }: Butt
 export function IconButton({ label, ...props }: ButtonProps & { label: string }) {
   return <Button aria-label={label} title={label} {...props}/>;
 }
-const icons: Record<string, React.ReactNode> = {
-  plus: <path d="M12 5v14M5 12h14"/>, minus: <path d="M5 12h14"/>,
-  refresh: <><path d="M20 7v5h-5"/><path d="M4 17a8 8 0 0 0 14 1M20 7A8 8 0 0 0 6 6L4 9"/></>,
-  play: <path d="m8 5 11 7-11 7Z"/>, fit: <path d="M9 4H4v5m11-5h5v5M4 15v5h5m6 0h5v-5"/>,
-  nodes: <><circle cx="5" cy="12" r="3"/><circle cx="19" cy="5" r="3"/><circle cx="19" cy="19" r="3"/><path d="m8 11 8-5M8 13l8 5"/></>,
-  app: <><circle cx="12" cy="12" r="9"/><circle cx="10" cy="10" r="3"/><path d="m17 15-2 2"/></>,
-  models: <><path d="m12 3 9 5v8l-9 5-9-5V8Z"/><path d="m3 8 9 5 9-5M12 13v8"/></>,
-};
-export function Icon({ name, family: _family }: { name: string; family?: string }) {
-  return <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{icons[name] ?? icons.app}</svg>;
+export function Icon({ name }: { name: string }) {
+  const icon = iconArtwork(name);
+  return <svg {...icon.props} aria-hidden="true" width="15" height="15">{icon.children}</svg>;
 }
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`pero-ui-input ${props.className ?? ''}`}/>;
+}
+export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea {...props} className={`pero-ui-input ${props.className ?? ''}`}/>;
 }
 export function Checkbox({ checked, onCheckedChange, ...props }: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'onChange'> & { onCheckedChange(value: boolean): void }) {
   return <input type="checkbox" {...props} checked={checked} onChange={event => onCheckedChange(event.target.checked)} className="pero-ui-checkbox"/>;

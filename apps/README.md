@@ -1,8 +1,10 @@
 # Pero Apps
 
 `npm run dev:apps` builds and opens the first App, Virtual Cell, in an isolated
-developer profile. `npm run dev` uses the ordinary Desktop profile. Both seed
-builtins once; a removed App stays removed on restart.
+developer profile. `npm run dev` uses the ordinary Desktop profile. Both discover newly bundled Apps at startup and when the Apps catalog is
+requested. Existing enable state is retained; removals are recorded per App so
+refreshing or restarting does not reinstall it. Installed packages are not
+automatically updated.
 
 An App is a built local directory. Install it from **Apps → Install from folder**,
 enable it and open its panel. Version 1 supports one HTML entry and an optional
@@ -44,6 +46,61 @@ The Host supplies `PERO_APP_DATA` for durable domain data and owns the process.
 Do not print the token or put it in responses. Domain data is outside the package
 and survives uninstall. The Python backend remains trusted machine-local code.
 
-Version 1 provides no App-to-Agent tools, Task/Run dispatch, remote installation,
+## Python environments
+
+Apps share one default Python environment. An App-specific environment is an
+optional override for dependencies that need separation. Without explicit
+environment settings, the existing Host default remains `PERO_APP_PYTHON` or
+`python3`, including Product-bundled Python.
+
+To select a prepared shared venv, create it and install the required locked
+dependencies there before opening the Apps:
+
+```sh
+python3 -m venv "$HOME/.local/share/pero/python/shared"
+```
+
+Merge `app_python` into the Host's existing `runtime-settings.json`
+(`PERO_SETTINGS_PATH` when set), preserving its other preferences:
+
+```json
+{
+  "app_python": {
+    "default": "/absolute/path/to/pero/python/shared",
+    "apps": {
+      "paper-agent": "/absolute/path/to/pero/python/paper-agent"
+    }
+  }
+}
+```
+
+`default` is shared by all Python Apps without an override. The optional `apps`
+map selects dedicated environments; omit it to use only the shared environment.
+Values are absolute **venv directories**, not executable paths or commands.
+Keep them outside the App package; installation excludes `.venv`. Restart the
+Host after changing bindings. The Host launches `bin/python` on macOS/Linux or
+`Scripts/python.exe` on Windows from the selected environment. It requires
+`pyvenv.cfg` with `include-system-site-packages = false`, ignores ambient Python
+environment variables and disables user-site packages. App sibling modules and
+the selected environment's packages remain importable. `VIRTUAL_ENV` points to
+the selected directory and its executable directory leads `PATH`, so child
+Python commands and installed console scripts also use that environment.
+
+Selection order is the App override, then `app_python.default`, then the existing
+Host default interpreter. A missing or invalid explicitly selected environment
+fails with a repair message, without falling back to the next choice. The Host
+does not create environments or install packages, and App manifests cannot
+change these trusted Host settings.
+
+Bindings live with Host preferences and survive App disable, uninstall and
+reinstall. Environment directories are externally prepared and retained. This
+separates dependencies for Apps with overrides and keeps one process per App;
+filesystem/network access still uses the current user's permissions.
+
+Paper Agent is available with `npm run dev:paper`; its
+[workflow and Python backend](paper-agent/README.md) use the Host's existing ACP
+sessions through the declared `agent` permission. Other Host grants are refused.
+
+Version 1 provides no domain Agent tools, Task/Run dispatch, remote installation,
 marketplace, update service or scientific acceptance. See [ADR 0007](../docs/adr/0007-local-app-platform.md)
 and [verification](../docs/fitness/apps.md).

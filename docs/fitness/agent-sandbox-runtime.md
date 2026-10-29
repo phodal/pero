@@ -15,7 +15,7 @@ Rebased before publication onto `27046fcf5352868c5e715a257f77c1f94e76af0d`
 Point source: `edff76d7dd39b2900cff707af1896fe8ff9fd2dc`.
 Upstream Agent Sandbox: v1.0.2 / `9a85153590e54cb980f3241f9e7a9228449412c9`.
 
-The [architecture decision](../adr/0012-agent-sandbox-runtime.md) defines the
+The [architecture decision](../adr/0016-agent-sandbox-runtime.md) defines the
 trusted scope; [operator instructions](../../deployment/agent-sandbox/README.md)
 define image preparation and explicit cluster setup. This feature is disabled
 unless `PERO_SANDBOX_CONFIG` is provided. No production configuration is changed.

@@ -1,4 +1,4 @@
-html,body{margin:0;width:100%;height:100%;overflow:hidden;font:14px system-ui}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;font:14px system-ui;background:var(--pero-bg);color:var(--pero-text)}
 #pero-app-surface{position:absolute;background:var(--pero-bg);color:var(--pero-text)}
 #pero-app-surface iframe{width:100%;height:100%;border:0;display:block}
 #pero-app-surface [hidden]{display:none}
@@ -9,3 +9,11 @@ nav{box-sizing:border-box;display:flex;height:44px;align-items:center;padding:0 
 nav[hidden]{display:none}
 nav select{font:inherit;max-width:100%;background:var(--pero-surface);color:var(--pero-text);border:1px solid var(--pero-input-border);border-radius:4px;padding:4px 8px}
 nav select:focus-visible{outline:2px solid var(--pero-focus);outline-offset:2px}
+nav{gap:12px}
+nav span{font-weight:600}
+#product-chat-toggle{margin-left:auto;padding:4px 10px}
+#product-chat{position:absolute;box-sizing:border-box;border-left:1px solid var(--pero-border);background:var(--pero-surface)}
+#product-chat[hidden]{display:none}
+#product-chat iframe{display:block;width:100%;height:100%;border:0}
+.chat-panel-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;padding:20px;background:var(--pero-surface)}
+.chat-panel-status[hidden]{display:none}

@@ -1,5 +1,6 @@
 // Probe the CI graphics adapter without rebuilding Rust or packaging a product.
-import { _electron as electron, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { electron } from './electron.mjs';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,7 +18,7 @@ const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 let app;
 try {
-  app = await electron.launch({ args: [join(scratch, 'main.cjs'), '--use-gl=angle', '--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader'], env });
+  app = await electron.launch({ requiresNativeWindow: true, args: [join(scratch, 'main.cjs'), '--use-gl=angle', '--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader'], env });
   const page = await app.firstWindow();
   const result = await page.evaluate(() => {
     const gl = document.querySelector('canvas').getContext('webgl2');

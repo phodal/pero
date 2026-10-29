@@ -1,6 +1,7 @@
 //! Native developer preview: shared GPUI workbench, the stdio Host, and cloud sign-in.
 use crate::native_cloud::CloudSession;
 use crate::native_device::NativeDevice;
+use crate::workspace::WorkbenchPage;
 use crate::{app::Workbench, theme::Palettes};
 use gpui_kit::*;
 use pero_contracts::HostEvent;
@@ -254,7 +255,8 @@ pub fn run() -> anyhow::Result<()> {
             .expect("native catalog fonts");
         gpui_kit::init(cx);
         gpui_kit::component::set_locale(&locale);
-        palettes.apply(false, cx);
+        let system_dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
+        pero_theme::ResolvedAppearance::resolve(&Default::default(), system_dark, &palettes).install(cx);
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                 None,
@@ -264,11 +266,15 @@ pub fn run() -> anyhow::Result<()> {
             window_min_size: Some(size(px(1000.), px(680.))),
             ..Default::default()
         };
-        let (_, view) = gpui_kit::open_window(options, cx, move |window, cx| {
+        let (window, view) = gpui_kit::open_window(options, cx, move |window, cx| {
             window.set_window_title("Pero Native Preview — local sessions");
             cx.new(|cx| {
-                let mut view = Workbench::new(palettes, false, locale, window, cx);
-                view.navigation = 0;
+                let mut view = Workbench::new(palettes, system_dark, locale, window, cx);
+                view.navigation.show(WorkbenchPage::Conversation);
+                view._subscriptions.push(cx.observe_window_appearance(window, |view, window, cx| {
+                    view.system_dark = matches!(window.appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
+                    view.install_appearance(cx);
+                }));
                 view
             })
         })
@@ -298,7 +304,9 @@ pub fn run() -> anyhow::Result<()> {
                         _ => {
                             if typed_context {
                                 let failure = HostEvent::new("context_error", event.data["request_id"].as_str().map(str::to_string), "Could not open the file picker. Retry or use context search.".into());
-                                let _ = view.update(cx, |view,cx| view.receive(failure,cx));
+                                let _ = window.update(cx, |_, window, cx| {
+                                    view.update(cx, |view, cx| view.receive(failure, window, cx))
+                                }).and_then(|result| result);
                             }
                             continue;
                         }
@@ -307,7 +315,10 @@ pub fn run() -> anyhow::Result<()> {
                         if let Some(path) = paths.first() {
                             if worker_workspace {
                                 let mut selected=HostEvent::new("local_worker_workspace",None,String::new());selected.data=serde_json::json!({"path":path});
-                                let _=view.update(cx,|view,cx|view.receive(selected,cx));continue;
+                                let _ = window.update(cx, |_, window, cx| {
+                                    view.update(cx, |view, cx| view.receive(selected, window, cx))
+                                }).and_then(|result| result);
+                                continue;
                             }
                             let command = if workspace {
                                 serde_json::json!({"action":"workspace","path":path})
@@ -319,7 +330,9 @@ pub fn run() -> anyhow::Result<()> {
                             let _ = session_command(&command.to_string());
                         }
                     }
-                } else if let Err(error) = view.update(cx, |view, cx| view.receive(event, cx)) {
+                } else if let Err(error) = window.update(cx, |_, window, cx| {
+                    view.update(cx, |view, cx| view.receive(event, window, cx))
+                }).and_then(|result| result) {
                     eprintln!("Native UI delivery: {error}");
                     break;
                 }
@@ -329,8 +342,8 @@ pub fn run() -> anyhow::Result<()> {
         let _ = commands.send(serde_json::json!({"action":"local_worker_init"}).to_string());
         let _ = commands.send(serde_json::json!({"method":"settings.workbench.get"}).to_string());
         let _ = commands.send(serde_json::json!({"action":"list_agents"}).to_string());
-        cx.on_window_closed(|cx, _| {
-            if cx.windows().is_empty() {
+        cx.on_window_closed(move |cx, closed| {
+            if closed == window.window_id() {
                 cx.quit();
             }
         })

@@ -1,4 +1,6 @@
+use pero_chat_ui::theme::WorkbenchStyle as W;
 use super::{ActionHandler, Ui, click};
+use crate::workspace::WorkbenchPage;
 use gpui_kit::{
     component::{
         button::*,
@@ -33,7 +35,7 @@ pub(crate) struct ProjectGroup {
     pub rows: Vec<RecentRow>,
 }
 pub(crate) struct SidebarProps<'a> {
-    pub navigation: usize,
+    pub navigation: WorkbenchPage,
     pub local_connected: bool,
     pub groups: Vec<ProjectGroup>,
     pub ungrouped: Vec<RecentRow>,
@@ -42,7 +44,7 @@ pub(crate) struct SidebarProps<'a> {
 #[derive(Clone)]
 pub(crate) enum SidebarAction {
     NewChat,
-    Navigate(usize),
+    Navigate(WorkbenchPage),
     OpenProject(String),
     ToggleProject(String),
     SelectSession(usize),
@@ -69,9 +71,10 @@ fn recent_row(
     let button = Button::new(("recent-work", index))
         .ghost()
         .small()
-        .h(px(34.))
+        .h(px(ui.typography.row_height()))
         .justify_start()
         .child(div().flex_1())
+        .selected(row.active)
         .toggled(row.active)
         .icon(Icon::default().path(format!(
             "icons/{}.svg",
@@ -85,12 +88,14 @@ fn recent_row(
         )))
         .label(row.label)
         .accessibility_label(label)
+        .tooltip(title.clone())
         .on_click(click(on_action, row.action))
         .when(!deletable, |button| button.w_full())
         .when(deletable, |button| {
             button
-                .max_w(px(if confirming { 96. } else { 176. }))
-                .flex_shrink_0()
+                .flex_1()
+                .min_w_0()
+                .when(confirming, |button| button.max_w(px(96.)))
         });
     let delete = row.delete.map(|delete| {
         let request = delete.request.clone();
@@ -107,8 +112,8 @@ fn recent_row(
                     Button::new(("recent-delete", index))
                         .ghost()
                         .small()
-                        .w(px(28.))
-                        .h(px(28.))
+                        .w(px(ui.typography.control_height()))
+                        .h(px(ui.typography.control_height()))
                         .icon(Icon::default().path("icons/x.svg"))
                         .tooltip(ui.t("chat.delete"))
                         .accessibility_label(format!("{}, {}", ui.t("chat.delete"), title))
@@ -120,7 +125,7 @@ fn recent_row(
                     Button::new(("recent-delete-cancel", index))
                         .ghost()
                         .small()
-                        .h(px(28.))
+                        .h(px(ui.typography.control_height()))
                         .label(ui.t("chat.delete_cancel"))
                         .on_click(click(on_action, cancel)),
                 )
@@ -128,7 +133,7 @@ fn recent_row(
                     Button::new(("recent-delete-confirm", index))
                         .outline()
                         .small()
-                        .h(px(28.))
+                        .h(px(ui.typography.control_height()))
                         .label(ui.t("chat.delete_confirm"))
                         .accessibility_label(format!(
                             "{}, {}",
@@ -141,12 +146,12 @@ fn recent_row(
     });
     div()
         .w_full()
-        .h(px(34.))
+        .h(px(ui.typography.row_height()))
         .flex()
         .items_center()
         .overflow_hidden()
         .child(button)
-        .when(deletable, |el| el.child(div().flex_1().min_w(px(0.))))
+
         .children(delete)
 }
 
@@ -166,16 +171,18 @@ pub(crate) fn sidebar(
         .flex_shrink_0()
         .flex()
         .flex_col()
-        .bg(p.color("bg"))
+        .bg(p.bg)
+        .text_size(px(pero_theme::TextRole::Body.pixels(ui.typography.ui)))
         .border_r_1()
-        .border_color(p.color("border"))
-        .p(px(10.))
-        .gap(px(4.))
+        .border_color(p.border)
+        .p(px(W::INSET))
+        .gap(px(W::GAP))
         .child(
             Button::new("sidebar-new-chat")
-                .primary()
+                .ghost()
+                .small()
                 .w_full()
-                .h(px(38.))
+                .h(px(34.))
                 .justify_start()
                 .child(div().flex_1())
                 .icon(IconName::Plus)
@@ -185,19 +192,27 @@ pub(crate) fn sidebar(
         .child(
             Button::new("sidebar-projects")
                 .ghost()
+                .small()
                 .w_full()
-                .h(px(36.))
+                .h(px(ui.typography.row_height()))
                 .justify_start()
                 .child(div().flex_1())
                 .icon(Icon::default().path("icons/folder.svg"))
                 .label(ui.t("nav.projects"))
-                .toggled(matches!(props.navigation, 1 | 3))
-                .on_click(click(&on_action, SidebarAction::Navigate(1))),
+                .selected(matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks))
+                .toggled(matches!(
+                    props.navigation,
+                    WorkbenchPage::Projects | WorkbenchPage::Tasks
+                ))
+                .on_click(click(
+                    &on_action,
+                    SidebarAction::Navigate(WorkbenchPage::Projects),
+                )),
         )
         .child(
             div()
                 .py(px(6.))
-                .child(Input::new(props.search).prefix(ui.icon("search")).w_full()),
+                .child(Input::new(props.search).h(px(ui.typography.control_height())).prefix(ui.icon("search").size(px(W::ICON))).w_full()),
         )
         .child(
             div()
@@ -232,7 +247,7 @@ pub(crate) fn sidebar(
                                                 .ghost()
                                                 .small()
                                                 .w(px(26.))
-                                                .h(px(32.))
+                                                .h(px(ui.typography.row_height()))
                                                 .icon(Icon::default().path(if group.collapsed {
                                                     "icons/chevron-right.svg"
                                                 } else {
@@ -258,11 +273,12 @@ pub(crate) fn sidebar(
                                                 .small()
                                                 .flex_1()
                                                 .min_w_0()
-                                                .h(px(32.))
+                                                .h(px(ui.typography.row_height()))
                                                 .justify_start()
                                                 .child(div().flex_1())
                                                 .label(group.name)
                                                 .tooltip(group.path)
+                                                .selected(group.active)
                                                 .toggled(group.active)
                                                 .on_click(click(
                                                     &on_action,
@@ -279,8 +295,8 @@ pub(crate) fn sidebar(
                                                     div()
                                                         .px(px(8.))
                                                         .py(px(8.))
-                                                        .text_size(px(12.))
-                                                        .text_color(p.color("text-muted"))
+                                                        .text_size(px(pero_theme::TextRole::Caption.pixels(ui.typography.ui)))
+                                                        .text_color(p.text_muted)
                                                         .child(ui.t("project.no_recent")),
                                                 )
                                             },
@@ -297,8 +313,8 @@ pub(crate) fn sidebar(
                                 div()
                                     .px(px(8.))
                                     .py(px(5.))
-                                    .text_size(px(12.))
-                                    .text_color(p.color("text-muted"))
+                                    .text_size(px(pero_theme::TextRole::Caption.pixels(ui.typography.ui)))
+                                    .text_color(p.text_muted)
                                     .child(ui.t("project.unassigned")),
                             )
                             .children(
@@ -315,33 +331,43 @@ pub(crate) fn sidebar(
             div()
                 .pt(px(8.))
                 .border_t_1()
-                .border_color(p.color("border"))
+                .border_color(p.border)
                 .flex()
                 .flex_col()
                 .gap(px(2.))
                 .child(
                     Button::new("sidebar-insights")
                         .ghost()
+                        .small()
                         .w_full()
-                        .h(px(36.))
+                        .h(px(ui.typography.row_height()))
                         .justify_start()
                         .child(div().flex_1())
                         .icon(Icon::default().path("icons/layout-list.svg"))
                         .label(ui.t("nav.insights"))
-                        .toggled(props.navigation == 8)
-                        .on_click(click(&on_action, SidebarAction::Navigate(8))),
+                        .selected(props.navigation == WorkbenchPage::Insights)
+                        .toggled(props.navigation == WorkbenchPage::Insights)
+                        .on_click(click(
+                            &on_action,
+                            SidebarAction::Navigate(WorkbenchPage::Insights),
+                        )),
                 )
                 .child(
                     Button::new("sidebar-apps")
                         .ghost()
+                        .small()
                         .w_full()
-                        .h(px(36.))
+                        .h(px(ui.typography.row_height()))
                         .justify_start()
                         .child(div().flex_1())
                         .icon(Icon::default().path("icons/file-code.svg"))
                         .label(ui.t("nav.apps"))
-                        .toggled(props.navigation == 7)
-                        .on_click(click(&on_action, SidebarAction::Navigate(7))),
+                        .selected(props.navigation == WorkbenchPage::Apps)
+                        .toggled(props.navigation == WorkbenchPage::Apps)
+                        .on_click(click(
+                            &on_action,
+                            SidebarAction::Navigate(WorkbenchPage::Apps),
+                        )),
                 ),
         )
         .when(!props.local_connected, |el| {
@@ -349,8 +375,8 @@ pub(crate) fn sidebar(
                 div()
                     .px(px(8.))
                     .py(px(6.))
-                    .text_size(px(12.))
-                    .text_color(p.color("warning"))
+                    .text_size(px(pero_theme::TextRole::Caption.pixels(ui.typography.ui)))
+                    .text_color(p.warning)
                     .child(ui.t("status.disconnected")),
             )
         })
@@ -358,7 +384,7 @@ pub(crate) fn sidebar(
             div()
                 .pt(px(8.))
                 .border_t_1()
-                .border_color(p.color("border"))
+                .border_color(p.border)
                 .child(settings),
         )
 }

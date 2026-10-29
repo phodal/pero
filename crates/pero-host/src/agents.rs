@@ -3,7 +3,10 @@ use pero_contracts::{
     context::{ContextKind, ContextReference},
 };
 use pero_runtime::acp::{self, AgentConfig, SessionCommand, SessionHandle};
+use pero_runtime::apps::agent::AppSessionBinding;
 use pero_runtime::context::ContextSources;
+#[path = "app_agent.rs"]
+mod app_agent;
 use std::{
     collections::HashMap,
     io::Write,
@@ -20,6 +23,9 @@ pub struct Manager {
     sessions: HashMap<String, SessionHandle>,
     tx: Sender<HostEvent>,
     history: Arc<Mutex<Vec<HostEvent>>>,
+    app_bindings: HashMap<String, AppSessionBinding>,
+    app_use: Option<acp::AppUseEndpoint>,
+    settings_path: Option<PathBuf>,
 }
 impl Manager {
     pub fn new(root: PathBuf) -> Self {
@@ -33,6 +39,17 @@ impl Manager {
             .take(5000)
             .filter_map(|line| serde_json::from_str::<HostEvent>(line).ok())
             .collect::<Vec<_>>();
+        let app_bindings = stored
+            .iter()
+            .filter_map(|event| {
+                if event.kind != "session_created" {
+                    return None;
+                }
+                let binding: AppSessionBinding =
+                    serde_json::from_value(event.data.get("appBinding")?.clone()).ok()?;
+                Some((event.thread_id.clone()?, binding))
+            })
+            .collect();
         let history = Arc::new(Mutex::new(stored.into_iter().rev().collect::<Vec<_>>()));
         let saved = history.clone();
         if let Some(parent) = history_file.parent() {
@@ -52,9 +69,11 @@ impl Manager {
                         "session_created"
                             | "user_message"
                             | "session_update"
+                            | "session_usage"
                             | "session_ready"
                             | "model_changed"
                             | "configuration_changed"
+                            | "turn_started"
                             | "turn_finished"
                             | "session_error"
                             | "session_closed"
@@ -84,16 +103,26 @@ impl Manager {
                 }
             }
         });
-        let agents = acp::registry(&root).unwrap_or_else(|error| {
+        let mut agents = acp::registry(&root).unwrap_or_else(|error| {
             eprintln!("Agent config: {error}");
             vec![]
         });
+        let settings_path = std::env::var_os("PERO_SETTINGS_PATH").map(PathBuf::from);
+        if let Some(selected) = settings_path.as_deref().and_then(pero_runtime::settings::load_chat_agent) {
+            if let Some(index) = agents.iter().position(|agent| agent.id == selected && agent.available()) {
+                let preferred = agents.remove(index);
+                agents.insert(0, preferred);
+            }
+        }
         Self {
             workspace: root,
             agents,
             sessions: HashMap::new(),
             tx,
             history,
+            app_bindings,
+            app_use: acp::AppUseEndpoint::from_environment(),
+            settings_path,
         }
     }
     fn visible_history(&self) -> Vec<HostEvent> {
@@ -127,6 +156,10 @@ impl Manager {
                 return;
             }
         };
+        self.command(command);
+    }
+
+    fn command(&mut self, command: HostCommand) {
         match command {
             HostCommand::LoadRoadmap => self.publish_roadmap(),
             HostCommand::ListAgents => {
@@ -242,45 +275,12 @@ impl Manager {
             HostCommand::NewSession {
                 thread_id,
                 agent_id,
+                scope,
             } => {
-                self.sessions.retain(|_, session| !session.tx.is_closed());
-                if thread_id.is_empty()
-                    || thread_id.len() > 128
-                    || self.sessions.len() >= 16
-                    || self.sessions.contains_key(&thread_id)
-                {
-                    let mut e = HostEvent::new(
-                        "session_error",
-                        None,
-                        "Session exists or limit reached".into(),
-                    );
-                    e.thread_id = Some(thread_id);
-                    let _ = self.tx.send(e);
-                    return;
-                }
-                if let Some(agent) = self
-                    .agents
-                    .iter()
-                    .find(|a| a.id == agent_id && a.available())
-                {
-                    let mut event = HostEvent::new("session_created", None, String::new());
-                    event.thread_id = Some(thread_id.clone());
-                    event.data = serde_json::json!({"agent":agent.id,"workspace":self.workspace});
+                if let Err(error) = self.create_session(thread_id.clone(), &agent_id, None, scope) {
+                    let mut event = HostEvent::new("session_error", None, error);
+                    event.thread_id = Some(thread_id);
                     let _ = self.tx.send(event);
-                    self.sessions.insert(
-                        thread_id.clone(),
-                        acp::start(
-                            agent.clone(),
-                            self.workspace.clone(),
-                            thread_id,
-                            self.tx.clone(),
-                        ),
-                    );
-                } else {
-                    let mut e =
-                        HostEvent::new("session_error", None, "Agent is not installed".into());
-                    e.thread_id = Some(thread_id);
-                    let _ = self.tx.send(e);
                 }
             }
             HostCommand::Permission {

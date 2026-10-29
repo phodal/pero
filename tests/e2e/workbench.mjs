@@ -1,5 +1,6 @@
 import { setAppearance } from './sidebar-controls.mjs';
-import { _electron as electron, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { electron } from './electron.mjs';
 import { resolve } from 'node:path';
 import { mkdir, writeFile, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -8,6 +9,7 @@ const packaged=process.env.PERO_PACKAGED_EXECUTABLE;
 const out=resolve(root,packaged?'test-results/package/workbench':'test-results/workbench');await mkdir(out,{recursive:true});
 const temp=await mkdtemp(resolve(tmpdir(),'pero-session-'));
 const agents=resolve(temp,'agents.json');await writeFile(agents,JSON.stringify([{id:'fixture',name:'ACP test fixture',command:process.execPath,args:[resolve(root,'tests/fixtures/acp-agent.mjs')]}]));
+await writeFile(resolve(temp,'settings.json'),JSON.stringify({chat_agent:'fixture'}));
 const env={...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_LOCALE:'zh-CN',PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'sessions.jsonl'),PERO_AGENTS_FILE:agents};delete env.ELECTRON_RUN_AS_NODE;
 // No real credentials in this fixture; macOS must not prompt for the user's keychain.
 const args=[...(process.platform==='darwin'?['--use-mock-keychain']:[]),...(packaged?[]:[resolve(root,'desktop')])];
@@ -26,11 +28,9 @@ try{
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await expect.poll(async()=>(await state()).chats.length).toBe(1);
  await page.screenshot({path:resolve(out,'chat-empty.png')});
- await page.mouse.click(await page.evaluate(()=>innerWidth-208),await page.evaluate(()=>innerHeight-20));
- await page.screenshot({path:resolve(out,'agent-options.png')});
- await page.keyboard.press('ArrowUp');
- await page.keyboard.press('Enter');
  await expect.poll(async()=>(await state()).chats[0].agent).toBe('fixture');
+ await expect.poll(async()=>(await state()).chats[0].state).toBe('idle');
+ await page.screenshot({path:resolve(out,'agent-ready.png')});
  const input=async(text)=>{
   await page.mouse.click(950,975);await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(resolve)));
   const cdp=await page.context().newCDPSession(page);
@@ -53,7 +53,8 @@ try{
  await input('permission');
  await expect.poll(async()=>(await state()).chats[0].permission!==null).toBe(true);
  await page.screenshot({path:resolve(out,'permission.png')});
- await page.mouse.click(342,912);
+ const permission=(await state()).permissionBounds.find(item=>item.index===0).bounds;
+ await page.mouse.click(permission.x+permission.width/2,permission.y+permission.height/2);
  await expect.poll(async()=>(await state()).chats[0].state).toBe('idle');
  await input('longstream');
  await expect.poll(async()=>(await state()).chats[0].messages.at(-1).text.includes('中文片段200'),{intervals:[50],timeout:15000}).toBe(true);
@@ -73,12 +74,37 @@ try{
  expect(stats[0]).toBe(1000);expect(stats[1]).toBeLessThan(500);
  await page.screenshot({path:resolve(out,'long-stream.png')});
  const count=streamed.chats[0].messages.length;
+ const restoredThread=streamed.chats[0];
+ // Hold the first actual Host replay after reload so a user can open an empty
+ // draft before history arrives. History must not replace that explicit route.
+ await app.evaluate(({BrowserWindow})=>{
+  const contents=BrowserWindow.getAllWindows()[0].webContents;
+  const send=contents.send.bind(contents);
+  contents.send=(channel,...args)=>{
+   if(channel==='pero:event' && args[0]?.kind==='replay'){
+    globalThis.releaseWorkspaceReplay=()=>{contents.send=send;send(channel,...args);};
+    return;
+   }
+   send(channel,...args);
+  };
+ });
  await page.reload();
- await expect.poll(async()=>(await state()).chats?.[0]?.messages.length,{timeout:30000}).toBe(count);
- await page.mouse.click(100,185);
+ await expect.poll(()=>app.evaluate(()=>typeof globalThis.releaseWorkspaceReplay)).toBe('function');
+ await page.waitForFunction(()=>window.peroDiagnostics && !document.getElementById('loading'));
+ await page.mouse.click(100,28);
+ await expect.poll(async()=>(await state()).activeContent?.kind).toBe('conversation');
+ const draftItem=(await state()).activeContent;
+ await app.evaluate(()=>{globalThis.releaseWorkspaceReplay();delete globalThis.releaseWorkspaceReplay;});
+ await expect.poll(async()=>(await state()).chats?.find(chat=>chat.id===restoredThread.id)?.messages.length,{timeout:30000}).toBe(count);
+ await expect.poll(async()=>{const snapshot=await state();return snapshot.chats[snapshot.activeChat]?.id;}).toBe(draftItem.value);
+ expect((await state()).activeContent).toEqual(draftItem);
+ await page.screenshot({path:resolve(out,'history-retained-draft.png')});
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ await page.mouse.click(100,166);
  await expect.poll(async()=>(await state()).navigation).toBe(0);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
- await expect.poll(async()=>(await state()).activeChat).toBe(0);
+ await expect.poll(async()=>(await state()).activeContent).toEqual({kind:'conversation',value:restoredThread.id});
+ await expect.poll(async()=>{const snapshot=await state();return snapshot.chats[snapshot.activeChat]?.id;}).toBe(restoredThread.id);
  await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('locale-en').click());
  await expect.poll(async()=>(await state()).locale).toBe('en');
  await page.screenshot({path:resolve(out,'english.png')});
@@ -88,7 +114,7 @@ try{
  await page.screenshot({path:resolve(out,'dark.png')});
  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1000,788));
  await page.screenshot({path:resolve(out,'narrow.png')});
- console.log(JSON.stringify({checks:'stream,followup,cancel,permission,long-stream,scroll-up,reload,locale,dark,narrow',streamStats:stats,errors}));
+ console.log(JSON.stringify({checks:'stream,followup,cancel,permission,long-stream,scroll-up,reload,history-retained-draft,locale,dark,narrow',streamStats:stats,errors}));
  await writeFile(resolve(out,'result.json'),JSON.stringify({state:await state(),errors},null,2));
  expect(errors).toEqual([]);
 }catch(error){const page=await app.firstWindow();console.error({errors,state:await page.evaluate(()=>window.peroDiagnostics?.snapshot()).catch(e=>`snapshot unavailable: ${e.message}`)});await page.screenshot({path:resolve(out,'failure.png')});throw error;}finally{await app.close();}

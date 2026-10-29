@@ -11,6 +11,31 @@
         "title": "Virtual Cell",
         "entry": "dist/index.html"
       }
+    ],
+    "writes": [
+      {
+        "name": "import-inputs",
+        "description": "Import explicit Virtual Cell JSON input documents; the backend validates scientific input contracts. This does not run or accept an experiment.",
+        "path": "/api/inputs",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "documents": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 12,
+              "items": {
+                "type": "string",
+                "maxLength": 65536
+              }
+            }
+          },
+          "required": [
+            "documents"
+          ],
+          "additionalProperties": false
+        }
+      }
     ]
   },
   "backend": {

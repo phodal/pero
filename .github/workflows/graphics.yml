@@ -28,6 +28,8 @@ jobs:
           fi
       - name: Probe software WebGL2 and pixel readback
         shell: bash
+        env:
+          PERO_TEST_HEADED: '1'
         run: |
           if [[ "$RUNNER_OS" == Linux ]]; then
             xvfb-run -a node tests/e2e/graphics.mjs

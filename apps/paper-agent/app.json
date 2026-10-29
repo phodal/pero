@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "name": "paper-agent",
+  "version": "0.1.0",
+  "displayName": "Paper Agent",
+  "description": "论文阅读、证据核对与研究报告。",
+  "permissions": {
+    "host": [
+      "agent"
+    ]
+  },
+  "contributes": {
+    "panels": [
+      {
+        "id": "main",
+        "title": "Paper Agent",
+        "entry": "dist/index.html"
+      }
+    ],
+    "writes": [
+      {
+        "name": "import-paper",
+        "description": "Save an explicitly supplied source snapshot in this App library. It does not fetch a URL, execute research or accept a scientific claim.",
+        "path": "/api/papers/import",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            "sourceId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "url": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "authors": {
+              "type": "array",
+              "maxItems": 30,
+              "items": {
+                "type": "string",
+                "maxLength": 300
+              }
+            },
+            "contentKind": {
+              "type": "string",
+              "enum": [
+                "abstract",
+                "report",
+                "full-text"
+              ]
+            },
+            "content": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536
+            }
+          },
+          "required": [
+            "title",
+            "sourceId",
+            "url",
+            "authors",
+            "contentKind",
+            "content"
+          ],
+          "additionalProperties": false
+        }
+      }
+    ]
+  },
+  "backend": {
+    "type": "python",
+    "entry": "backend/server.py"
+  }
+}

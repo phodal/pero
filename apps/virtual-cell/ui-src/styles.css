@@ -15,6 +15,7 @@
 .vc-tag-warning{border-color:var(--pero-chart-5);color:var(--pero-text)}
 .vc-workspace{display:grid;grid-template-columns:200px minmax(0,1fr) 240px;gap:10px;align-items:start;min-width:0}
 .vc-sidebar,.vc-science-main,.vc-inspector{display:flex;flex-direction:column;gap:10px;min-width:0}
+.vc-sidebar .pero-ui-button{max-width:100%;white-space:normal}
 .virtual-cell .vc-sidebar,.virtual-cell .vc-inspector{margin:0;padding:0;border:0;width:auto}
 .virtual-cell .vc-pane{--pero-card-padding:0;border-radius:var(--pero-radius-xs,4px);overflow:hidden;display:flex;flex-direction:column;gap:0;min-width:0}
 .vc-pane>.pero-ui-card-header{padding:8px 10px;min-height:39px;background:var(--pero-surface-muted);border-bottom:1px solid var(--pero-border-subtle);gap:8px;flex-wrap:wrap}

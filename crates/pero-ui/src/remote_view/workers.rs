@@ -17,7 +17,7 @@ impl Workbench {
     /// Cloud reports Worker identity and scope but no heartbeat, so a row
     /// shows only whether a loaded Task is running there.
     pub fn workers_view(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let workers = self.remote.workers();
         let running = |worker: &str| {
             self.remote.tasks().iter().find(|t| {
@@ -25,14 +25,15 @@ impl Workbench {
                     && matches!(phase(t), Phase::Running | Phase::Stopping)
             })
         };
+        let caption = pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption);
         let header = div()
             .flex()
             .px(px(14.))
             .py(px(8.))
-            .bg(p.color("surface-muted"))
-            .text_size(px(12.))
+            .bg(p.surface_muted)
+            .text_size(caption)
             .font_weight(FontWeight::SEMIBOLD)
-            .text_color(p.color("text-muted"))
+            .text_color(p.text_muted)
             .child(div().w(px(240.)).child(self.t("cloud.col.worker")))
             .child(div().w(px(110.)).child(self.t("cloud.col.status")))
             .child(div().flex_1().child(self.t("cloud.col.projects")))
@@ -46,7 +47,7 @@ impl Workbench {
                 .px(px(14.))
                 .py(px(10.))
                 .border_t_1()
-                .border_color(p.color("border"))
+                .border_color(p.border)
                 .child(
                     div()
                         .w(px(240.))
@@ -62,8 +63,8 @@ impl Workbench {
                         .child(
                             div()
                                 .truncate()
-                                .text_size(px(12.))
-                                .text_color(p.color("text-muted"))
+                                .text_size(caption)
+                                .text_color(p.text_muted)
                                 .child(joined(&w["labels"], " · ")),
                         ),
                 )
@@ -126,7 +127,7 @@ impl Workbench {
                             .child(
                                 div()
                                     .flex_1()
-                                    .text_size(px(20.))
+                                    .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading))
                                     .font_weight(FontWeight::BOLD)
                                     .child(self.t("nav.workers")),
                             )
@@ -145,14 +146,14 @@ impl Workbench {
                     .child(
                         div()
                             .whitespace_normal()
-                            .text_color(p.color("text-muted"))
+                            .text_color(p.text_muted)
                             .child(self.t("cloud.workers_hint")),
                     )
                     .when(workers.is_empty(), |el| {
                         el.child(
                             div()
                                 .py(px(12.))
-                                .text_color(p.color("text-muted"))
+                                .text_color(p.text_muted)
                                 .child(self.t("cloud.no_workers")),
                         )
                     })
@@ -161,7 +162,7 @@ impl Workbench {
                             div()
                                 .rounded(px(8.))
                                 .border_1()
-                                .border_color(p.color("border"))
+                                .border_color(p.border)
                                 .overflow_hidden()
                                 .child(header)
                                 .children(rows),

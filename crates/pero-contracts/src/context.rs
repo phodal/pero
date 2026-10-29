@@ -13,6 +13,7 @@ pub enum ContextKind {
     Selection,
     BranchDiff,
     Fetch,
+    AppObject,
 }
 
 impl ContextKind {
@@ -27,6 +28,7 @@ impl ContextKind {
             Self::Selection => "selection",
             Self::BranchDiff => "diff",
             Self::Fetch => "fetch",
+            Self::AppObject => "app",
         }
     }
     pub fn from_keyword(keyword: &str) -> Option<Self> {
@@ -40,6 +42,7 @@ impl ContextKind {
             Self::Selection,
             Self::BranchDiff,
             Self::Fetch,
+            Self::AppObject,
         ]
         .into_iter()
         .find(|kind| kind.keyword() == keyword)

@@ -45,7 +45,7 @@ request. It is a trusted-pool identity guard, not Kubernetes attestation. Runtim
 Worker credentials cannot omit it to consume ordinary tasks. Operator-only
 `RuntimeBinding` / `SandboxDispatchResult` carry the fixed reviewed configuration,
 observed resource/runtime snapshot and separate cleanup receipt; none is an
-execution grant or a bearer credential. See ADR 0012 for the opt-in endpoints.
+execution grant or a bearer credential. See ADR 0016 for the opt-in endpoints.
 
 The isolated profile's optional `Run.remote_execution` is control-plane-owned:
 its session ID identifies the original Run and its working directory is the

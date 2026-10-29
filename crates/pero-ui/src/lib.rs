@@ -3,20 +3,13 @@ mod app;
 #[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
 mod apps;
 #[cfg(any(target_family = "wasm", feature = "native"))]
-mod assets;
-#[cfg(any(target_family = "wasm", feature = "native"))]
-mod chat;
+use pero_chat_ui::assets;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod components;
 #[cfg(any(target_family = "wasm", feature = "native"))]
-mod conversation;
-#[cfg(any(target_family = "wasm", feature = "native"))]
-mod theme;
+use pero_chat_ui::theme;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod view;
-
-#[cfg(any(target_family = "wasm", feature = "native"))]
-mod composer;
 
 // Rendered only by the wasm Workbench; native builds compile it for its tests.
 #[cfg_attr(not(target_family = "wasm"), allow(dead_code))]
@@ -29,8 +22,10 @@ mod project_view;
 mod projects;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod settings_menu;
-mod stream;
-mod tool_ui;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod settings_view;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod settings_window;
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod contributions;
@@ -51,19 +46,17 @@ pub mod native;
 mod native_cloud;
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
-mod composer_actions;
-#[cfg(any(target_family = "wasm", feature = "native"))]
-mod composer_picker;
-#[cfg(any(target_family = "wasm", feature = "native", test))]
-mod composer_state;
-
-#[cfg(any(target_family = "wasm", feature = "native"))]
-mod session_controls;
-
-#[cfg(any(target_family = "wasm", feature = "native"))]
 mod local_execution;
 
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
 mod native_device;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
 mod native_secrets;
+
+#[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
+mod workspace;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod workspace_view;
+
+#[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
+mod layout;

@@ -2,7 +2,40 @@
 
 同一行为只在一层证明。验收层级 L0–L3 与命令入口见 [docs/fitness/README.md](../docs/fitness/README.md#acceptance-levels)。`docs/fitness/` 里的其余文件是当日验证记录，不是这套测试的说明。
 
-截图和 `result.json` 写到仓库根的 `test-results/`，已被 gitignore。Electron 套件会抢本机输入焦点，一次只跑一个。
+截图和 `result.json` 写到仓库根的 `test-results/`，已被 gitignore。
+
+## 后台桌面测试
+
+桌面 E2E 共用 `e2e/electron.mjs`，默认启动隐藏的真实 Electron。主进程、
+preload/IPC、GPUI、Host 和各套件原有的 Agent/App 后端继续运行；不把桌面桥换成
+浏览器 mock。窗口不显示，macOS 使用 accessory 策略避免激活 Dock；动画帧保持
+运行，键盘与组字通过 CDP 页面焦点接入。启动器会检查窗口是否隐藏，旧 Desktop
+或 Product 构建会报错，需先重新构建。
+
+```sh
+npm run build
+npm run test:e2e
+npm run test:i18n
+# 显式前台验收或调试；会占用输入焦点。
+PERO_TEST_HEADED=1 npm run test:e2e
+# Linux 独立 runner：真实可见窗口运行在虚拟显示中。
+PERO_TEST_HEADED=1 PERO_TEST_SOFTWARE_GL=1 xvfb-run -a -s '-screen 0 1920x1200x24' npm run test:e2e
+```
+
+`PERO_TEST_HEADED=1` 也适用于其他桌面套件；PowerShell 用
+`$env:PERO_TEST_HEADED='1'` 设置。`PERO_TEST_SOFTWARE_GL=1` 显式选择 ANGLE
+SwiftShader WebGL2，供无 GPU 的 runner 使用。Linux 隐藏模式仍需 X11/Xvfb。
+普通 `npm run dev` 不受这些测试默认值影响。`graphics.mjs` 是原生显示检查，
+同样要求 `PERO_TEST_HEADED=1`；graphics CI 已显式设置。release smoke 继续
+使用其仅限独立 CI runner 的原有入口。
+
+`app-use.mjs` 与 `app-use-workbench.mjs` 验证真实截图和隐藏窗口拒绝规则，要求
+`PERO_TEST_HEADED=1`，默认会在启动 Electron 前拒绝运行。用独立 VM/runner 的
+桌面或 Linux Xvfb 执行，保持产品原有的“隐藏窗口不能捕获”规则。
+
+后台结果覆盖各套件既有的应用链路；原生窗口激活、物理输入法、系统弹窗和真实
+硬件 GPU 需在相应平台单独验收。fixture、真实 provider 和安装包的边界保持各
+套件原有定义。套件仍顺序运行，独立 profile 不代表所有系统资源都已隔离。
 
 ## 目录
 
@@ -82,3 +115,29 @@ URL 恢复、390px 深色与无 JavaScript 回退。设置 `PERO_TEST_DATABASE_U
 
 - Host 契约里没走到的 `kind` 继续只打印。`disconnected` 和 `notice` 由 Electron 发出，stdio 里的 Host 进程发不出来。
 - 诊断快照里还没有稳定命中区域，e2e 继续用固定坐标。
+
+## 工作区内容与共享聊天
+
+`npm run test:workspace` 使用独立 profile、真实 Electron/GPUI、Virtual Cell
+iframe 和 ACP fixture 验证内容标签切换、草稿保留、关闭与源对象删除的区别、
+App 文档保留、拖动和键盘调整聊天宽度、Host 偏好重启恢复、全局错误不被 iframe
+遮挡，以及明暗和窄窗。它不会调用真实模型；结果与截图在
+`test-results/workspace/`。构建前置条件和边界见
+[Workspace 验证记录](../docs/fitness/workspace.md)。
+
+## App Use
+
+`PERO_TEST_HEADED=1 npm run test:app-use` runs the task/SDK behavior tests, the official MCP client
+contract, strict-CSP cross-origin browser checks, then actual Workbench and App
+Product Electron fixtures in sequence. Build Host, Web, Desktop and Virtual Cell
+assets first. It sends no real model request. Captures and results are written to
+`test-results/app-use*`. The Product suite also proves frozen Composer refs,
+image annotation/undo, explicit-file grants, automatic declared writes, Agent-policy denial and
+PNG/receipt hash consistency. Workbench checks that a delayed context result
+returns to its original draft after a conversation switch. Only Agent-originated
+permission requests appear; Desktop adds no second approval.
+
+`npm run test:app-use:real` opts into one read-only live Codex prompt against the
+actual App. It uses the installed provider login, writes evidence under
+`test-results/app-use-real`, and stays outside the default deterministic suite.
+See `docs/fitness/app-use.md` for acceptance boundaries.

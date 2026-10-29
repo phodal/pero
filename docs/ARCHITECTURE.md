@@ -10,9 +10,10 @@ Pero 面向研究者、Agent 与计算环境，围绕 Project 组织上下文、
 
 本地 App 机制以 [ADR 0007](adr/0007-local-app-platform.md) 为准：Rust Host
 管理安装、启停与 Python 后端，GPUI 管理导航和面板区域，Web 层承载独立来源的
-HTML iframe。`apps/virtual-cell` 是首个接入实例，`packages/app-sdk` 提供 App
-的主题、语言、活动状态和本 App 后端接口。Task/Run、Agent 工具和远程 App 部署
-尚未与此机制连接。
+HTML iframe。`apps/virtual-cell` 是首个接入实例，`apps/paper-agent` 提供 Python
+论文快照、引用校验和报告工作流。`packages/app-sdk` 提供主题、语言、活动状态、
+本 App 后端接口，以及声明 `agent` 权限后的有界 Host 会话接入。会话和审批仍由
+Host 管理；Task/Run、领域 Agent 工具和远程 App 部署尚未与此机制连接。
 
 ## 可组合应用与产品
 
@@ -26,11 +27,58 @@ HTML iframe。`apps/virtual-cell` 是首个接入实例，`packages/app-sdk` 提
 
 ```text
 领域 App + App SDK + Rust Host
-  ├─ workbench：Electron + GPUI/Wasm 导航 → Pero 工作台
-  └─ app：Electron 全窗口壳 + 固定 App 面板 + 所选 Python → 独立产品
+  ├─ workbench：Electron + GPUI/Wasm 导航 + 共享 ChatPanel → Pero 工作台
+  └─ app：Electron App 壳 + 领域面板 + 可选 chat-only Wasm + 所选运行时 → 独立产品
 ```
 
 两条路径复用 `DesktopApps` 代理与 Host 的 App 生命周期实现。独立产品使用自己的 Host 进程、配置和领域数据目录；这不表示多个产品已连接到一个共享 Host 服务。App iframe 不持有 Electron preload 或后端凭据。控制面按共享任务需求接入，独立 App 的本地计算无需 Go 服务或 PostgreSQL。
+
+### 共享 GPUI App Chat
+
+[ADR 0012](adr/0012-shared-gpui-app-chat.md) 定义两条共享实现的装配路径：
+`crates/pero-chat-ui` 拥有 Composer、消息流、折叠和已报告用量的展示；工作台的
+`pero-ui` 与独立入口 `pero-chat-web` 依赖它。共享 Rust crate 不等于共享 Wasm
+实例：工作台在原有 GPUI 应用内复用同一个 `Entity<ChatPanel>`，独立产品则把
+chat-only Wasm 放在 `pero://chat/chat.html` iframe 中，不加载完整工作台导航。
+
+工作台的项目、任务和 App 可展开同一个右侧聊天栏；会话、项目、任务和 App
+以稳定身份进入内容标签，关闭标签只收起视图。聊天栏宽度与开闭状态通过 Host
+保存，窄窗切换为聊天视图并保留领域 App iframe。布局与标签语义见
+[ADR 0013](adr/0013-workspace-content-tabs.md)，本轮验收见
+[Workspace 验证记录](fitness/workspace.md)。
+`AppChatScope { app, panel }` 将会话与来源面板关联，切换时保留各范围最近会话和
+草稿。scope 不授予工具、文件或跨 App 权限。独立产品继续使用自己的 Host 和
+数据目录，不与另一个产品或工作台共享运行中的 GPUI Entity。
+
+App SDK 的 `useAppChat().open()` 和 `compose(text)` 只打开聊天或填入草稿，
+由宿主确认消息来自受管 App iframe；它们不自动发送。用户在共享 Composer
+中提交后，命令仍经已有 Host 的 ACP、授权、工作区租约与取消路径执行。消息、
+模型配置、权限请求及会话历史不由领域 App 后端另建实现。
+
+`Product.chat` 默认 `false`；显式启用时，产品构建包含 chat-only Web/Wasm 产物
+和 Agent adapters。`products/virtual-cell-chat` 是使用系统 Python 的开发装配示例，
+原 Virtual Cell 产品继续使用其已有运行时策略。两者包体、Agent 准备条件、目标
+平台和安装包验收分别记录，见 [App Chat 验证记录](fitness/app-chat.md)。
+用量只展示 provider 实际报告的数据，缺失值不估算成真实消耗；产品装配与本地
+源码检查不代表 Electron、签名包或真实 Agent 已通过验收。
+
+### Agent App Use
+
+[ADR 0014](adr/0014-app-use.md) 补齐 Agent → App 方向：Rust Host 通过 ACP
+`session/new` 提供本机 MCP `app_use`，Desktop 绑定实际会话、面板实例、动作与授权，
+父壳通过受管跨来源 iframe 桥接 App SDK 的语义状态和操作。Workbench 与独立
+Product 共用此实现。普通会话可发现已挂载 App；App 会话限定对应面板。语义状态
+可读保留的隐藏面板，操作与截图要求面板可见、活动且未被覆盖。
+
+审批遵循 Agent 会话策略：自动模式直接执行，Agent 明确询问时使用 Chat 审批卡片；
+Desktop 不再追加人工确认。只读会话授权可在 App 状态条撤销。语义操作、
+有限 DOM 操作、面板截图、等待、计划和独立验证均有实际链路。执行成功不等于
+验证通过，截图也不自动成为结论。Composer 支持冻结对象引用、截图与区域标注；
+会话文件只通过绑定 App/任务的临时输入引用传入。`app_describe/app_write` 使用
+安装包声明的数据路由，写入沿用同一 Agent 审批策略；后端继续拥有领域校验。
+Host 内置 `/app-use` 工作流，完整回执保存会话、任务、实例、裁剪、时间与图片哈希。
+具体证据和剩余平台边界见
+[App Use 验证](fitness/app-use.md)。
 
 ### 从产品装配到领域组合
 
@@ -40,7 +88,7 @@ HTML iframe。`apps/virtual-cell` 是首个接入实例，`packages/app-sdk` 提
 | --- | --- | --- |
 | App 界面与领域计算 | Virtual Cell 的本地界面与 Python 后端已接入 | 按具体领域需求扩展方法 |
 | 产品交付 | 工作台与独立 App 壳；Virtual Cell macOS arm64 开发包已有验证记录 | 更新、迁移与其他平台打包需分别实现和验证 |
-| Agent 协作 | 工作台已有 ACP 会话；独立壳尚无聊天入口 | 先复用 Host 会话、取消和审批，再定义 App 上下文与领域工具契约 |
+| Agent 协作 | 工作台 App 侧栏和可选独立产品聊天复用共享 GPUI ChatPanel、Host ACP 会话、取消与审批 | App 领域工具与结构化上下文需分别接线和验收 |
 | 方法、任务与验收组合 | App 尚未接入 Task/Run、Agent 工具或产物登记 | 明确输入、输出、方法版本与验证规则，再接已有执行与复核边界 |
 
 领域包可逐步组合界面、方法、上下文、工具和验证规则；当前 `app.json` 与 Product 配置只承载已实现的范围。Product 负责选择交付内容，Host 负责本机进程、凭据和执行，控制面负责共享任务及协调。独立产品继续调用这些所有者，领域 App 不另建通用调度、审批或任务状态机。
@@ -59,6 +107,8 @@ pero/
 │   ├── pero-host/      # stdio JSONL Host
 │   ├── pero-runtime/   # ACP 会话
 │   ├── pero-ui/        # GPUI Wasm 工作台
+│   ├── pero-chat-ui/   # 共享 GPUI Composer、会话与展示
+│   ├── pero-chat-web/  # 独立 chat-only Wasm 装配入口
 │   └── pero-worker/    # 独立远程执行入口
 ├── desktop/            # Electron 壳
 ├── web/                # Wasm 加载与共享静态资源

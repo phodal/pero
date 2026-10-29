@@ -91,6 +91,7 @@ beyond loopback unless the test is an explicit opt-in, such as
 ## UI
 
 Use [DESIGN.md](DESIGN.md) for color design and implementation.
+Review UI changes against [DESIGN-REVIEW.md](DESIGN-REVIEW.md).
 Optimize for task completion, not visual minimalism. Every screen should make it obvious what matters, what the user can do, what is happening, and what needs attention.
 
 - **Task-first**: Design around user goals, not internal modules. Every screen should clearly communicate its primary content, actions, and current state.

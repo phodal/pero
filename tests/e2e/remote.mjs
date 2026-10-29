@@ -1,6 +1,7 @@
 // Real Electron -> Go HTTP -> PostgreSQL -> independent Rust Worker -> ACP fixture.
 // This does not contact model providers or deploy to a public host.
-import { _electron as electron, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { electron } from './electron.mjs';
 import { spawn, execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

@@ -71,7 +71,7 @@ fn main() -> io::Result<()> {
             continue;
         }
         if value.get("method").and_then(|v| v.as_str()) == Some("apps") {
-            emit(apps.dispatch(value))?;
+            emit(apps.dispatch(value, &mut agents))?;
             continue;
         }
         if value

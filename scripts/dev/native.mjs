@@ -2,7 +2,7 @@
 import { spawn } from 'node:child_process';
 import { watch } from 'node:fs';
 import { resolve } from 'node:path';
-import { cargoArgs } from '../lib/cargo.mjs';
+import { cargoArgs, ensureGpuiLock } from '../lib/cargo.mjs';
 import { root } from '../lib/paths.mjs';
 import { run } from '../lib/run.mjs';
 
@@ -89,5 +89,6 @@ watch(sources, { recursive: true }, (_event, filename) => {
 });
 
 console.log('Building the debug Host and native preview.');
+await ensureGpuiLock();
 await run('cargo', cargoArgs(['build', '--locked', '-p', 'pero-host', '-p', 'pero-worker']));
 await cycle();

@@ -1,5 +1,5 @@
 import readline from 'node:readline';
-import { appendFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, writeFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 const send = value => process.stdout.write(JSON.stringify({jsonrpc:'2.0',...value})+'\n');
 let turn = 0;
@@ -18,7 +18,13 @@ const configs = () => [
   {id:'approval',name:'Tool permissions',category:'_permission',type:'select',currentValue:settings.approval,options:[{value:'ask',name:'Ask before tools',description:'Request approval before using tools'},{value:'read',name:'Allow reads',description:'Allow read tools only'}]},
  ] : []),
 ];
-const finish = reason => {clearInterval(timer);if(active!==undefined){send({id:active,result:{stopReason:reason}});active=undefined;}};
+const finish = reason => {
+ clearInterval(timer);
+ if(active!==undefined){
+  if(reason==='end_turn')send({method:'session/update',params:{sessionId:'fixture-session',update:{sessionUpdate:'usage_update',used:5000,size:20000,cost:{amount:0.02,currency:'USD'}}}});
+  send({id:active,result:{stopReason:reason}});active=undefined;
+ }
+};
 readline.createInterface({input:process.stdin}).on('line',line=>{
  const message=JSON.parse(line),{id,method,params}=message;
  if (method==='initialize') send({id,result:{protocolVersion:1,agentCapabilities:composerFixture?{promptCapabilities:{image:true,embeddedContext:true}}:{},agentInfo:{name:'test-fixture',version:'1'}}});
@@ -78,6 +84,13 @@ readline.createInterface({input:process.stdin}).on('line',line=>{
     ()=>{notify({sessionUpdate:'agent_message_chunk',content:{type:'text',text:'Tool matrix complete: read/search/fetch, execution, edit diff, review, custom fallback, a visible failure and a canceled empty operation. All results above are simulated fixture data.'}});finish('end_turn');},
    ];
    let phase=0;timer=setInterval(()=>phases[phase++](),350);return;
+  }
+  if(text.includes('contentview')){
+   const path=process.argv.find(arg=>arg.startsWith('--content-file='))?.slice('--content-file='.length);
+   const source=readFileSync(path,'utf8');
+   notify({sessionUpdate:'tool_call',toolCallId:`content-${turn}`,title:'Structured result',kind:'other',status:'completed',content:[{type:'content',content:{type:'text',text:source}}]});
+   notify({sessionUpdate:'agent_message_chunk',content:{type:'text',text:'Result ready.'}});
+   finish('end_turn');return;
   }
   if(text.includes('longstream')){
    let i=0;timer=setInterval(()=>{notify({sessionUpdate:'agent_message_chunk',content:{type:'text',text:`中文片段${i} `}});if(++i===1000)finish('end_turn');},2);return;

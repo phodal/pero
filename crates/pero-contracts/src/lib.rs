@@ -1,10 +1,14 @@
 use serde::{Deserialize, Serialize};
+pub mod app_chat;
+pub use app_chat::AppChatScope;
 pub mod composer_capabilities;
 pub mod context;
+pub mod content_document;
 pub mod i18n;
 pub mod local_worker;
 pub mod roadmap;
 pub mod session_settings;
+pub mod usage;
 pub mod workbench;
 
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -71,7 +75,7 @@ impl HostEvent {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum HostCommand {
     ListAgents,
@@ -103,6 +107,8 @@ pub enum HostCommand {
     NewSession {
         thread_id: String,
         agent_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        scope: Option<AppChatScope>,
     },
     Prompt {
         thread_id: String,
@@ -270,3 +276,5 @@ mod history_tests {
         assert!(visible[1].thread_id.is_none());
     }
 }
+
+pub mod appearance;

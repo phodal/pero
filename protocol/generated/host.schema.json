@@ -19,6 +19,79 @@
       "additionalProperties": {},
       "description": "ACP payload forwarded unchanged; its shape is owned by the ACP schema."
     },
+    "AgentApp": {
+      "title": "AgentApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "agent"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "request": {
+          "$ref": "#/$defs/AgentRequest"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "request",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "AgentCancelRequest": {
+      "title": "AgentCancelRequest",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "cancel"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentEventsRequest": {
+      "title": "AgentEventsRequest",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "events"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "after": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "operation",
+        "sessionId",
+        "after"
+      ],
+      "additionalProperties": false
+    },
     "AgentInfoEvent": {
       "title": "AgentInfoEvent",
       "type": "object",
@@ -62,6 +135,37 @@
       "additionalProperties": false,
       "description": "`data` is the ACP InitializeResponse."
     },
+    "AgentInfoRequest": {
+      "title": "AgentInfoRequest",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "info"
+        }
+      },
+      "required": [
+        "operation"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRequest": {
+      "title": "AgentRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AgentInfoRequest"
+        },
+        {
+          "$ref": "#/$defs/AgentStartRequest"
+        },
+        {
+          "$ref": "#/$defs/AgentEventsRequest"
+        },
+        {
+          "$ref": "#/$defs/AgentCancelRequest"
+        }
+      ]
+    },
     "AgentsEvent": {
       "title": "AgentsEvent",
       "type": "object",
@@ -103,6 +207,37 @@
       ],
       "additionalProperties": false,
       "description": "`text` is the current workspace path."
+    },
+    "AgentStartRequest": {
+      "title": "AgentStartRequest",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "start"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128000
+        },
+        "agentId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "requestId",
+        "prompt",
+        "agentId"
+      ],
+      "additionalProperties": false
     },
     "AgentSummary": {
       "title": "AgentSummary",
@@ -160,11 +295,166 @@
       ],
       "additionalProperties": false
     },
+    "AppAgentCancelled": {
+      "title": "AppAgentCancelled",
+      "type": "object",
+      "properties": {
+        "cancelled": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": [
+        "cancelled"
+      ],
+      "additionalProperties": false
+    },
+    "AppAgentEvent": {
+      "title": "AppAgentEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/AppAgentStatus"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "AppAgentInfo": {
+      "title": "AppAgentInfo",
+      "type": "object",
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "workspace": {
+          "type": "string"
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppAgentSummary"
+          }
+        }
+      },
+      "required": [
+        "available",
+        "workspace",
+        "agents"
+      ],
+      "additionalProperties": false
+    },
+    "AppAgentStarted": {
+      "title": "AppAgentStarted",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "AppAgentStatus": {
+      "title": "AppAgentStatus",
+      "type": "string",
+      "enum": [
+        "running",
+        "text",
+        "needs_input",
+        "completed",
+        "cancelled",
+        "failed"
+      ]
+    },
+    "AppAgentSummary": {
+      "title": "AppAgentSummary",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "available": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "available"
+      ],
+      "additionalProperties": false
+    },
+    "AppAgentTranscript": {
+      "title": "AppAgentTranscript",
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppAgentEvent"
+          }
+        },
+        "cursor": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "status": {
+          "$ref": "#/$defs/AppAgentStatus"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "events",
+        "cursor",
+        "status",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "AppChatScope": {
+      "title": "AppChatScope",
+      "type": "object",
+      "properties": {
+        "app": {
+          "type": "string"
+        },
+        "panel": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "app",
+        "panel"
+      ],
+      "additionalProperties": false
+    },
     "AppClosed": {
       "title": "AppClosed",
       "type": "object",
       "properties": {},
       "additionalProperties": false
+    },
+    "AppDocumentSchema": {
+      "title": "AppDocumentSchema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "description": "Public catalog: no local paths or backend credentials."
     },
     "AppFailure": {
       "title": "AppFailure",
@@ -257,6 +547,12 @@
           "items": {
             "$ref": "#/$defs/AppPanel"
           }
+        },
+        "writes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppWriteRoute"
+          }
         }
       },
       "required": [
@@ -267,8 +563,7 @@
         "enabled",
         "panels"
       ],
-      "additionalProperties": false,
-      "description": "Public catalog: no local paths or backend credentials."
+      "additionalProperties": false
     },
     "AppRequest": {
       "title": "AppRequest",
@@ -290,6 +585,9 @@
         },
         {
           "$ref": "#/$defs/ResolveApp"
+        },
+        {
+          "$ref": "#/$defs/AgentApp"
         }
       ]
     },
@@ -376,6 +674,31 @@
         "version",
         "request_id",
         "text"
+      ],
+      "additionalProperties": false
+    },
+    "AppSessionBinding": {
+      "title": "AppSessionBinding",
+      "type": "object",
+      "properties": {
+        "app": {
+          "$ref": "#/$defs/AppName"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "agentId": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "app",
+        "requestId",
+        "agentId",
+        "prompt"
       ],
       "additionalProperties": false
     },
@@ -474,6 +797,18 @@
             },
             {
               "$ref": "#/$defs/AppAccess"
+            },
+            {
+              "$ref": "#/$defs/AppAgentInfo"
+            },
+            {
+              "$ref": "#/$defs/AppAgentStarted"
+            },
+            {
+              "$ref": "#/$defs/AppAgentTranscript"
+            },
+            {
+              "$ref": "#/$defs/AppAgentCancelled"
             }
           ]
         }
@@ -481,6 +816,31 @@
       "required": [
         "ok",
         "value"
+      ],
+      "additionalProperties": false
+    },
+    "AppWriteRoute": {
+      "title": "AppWriteRoute",
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "description": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "schema": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "path",
+        "schema"
       ],
       "additionalProperties": false
     },
@@ -741,6 +1101,75 @@
       ],
       "additionalProperties": false
     },
+    "ContentDocumentEvent": {
+      "title": "ContentDocumentEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "content_document"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "tool_call_id": {
+              "type": "string"
+            },
+            "artifact_id": {
+              "type": "string"
+            },
+            "status": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "ready"
+                },
+                {
+                  "type": "string",
+                  "const": "error"
+                }
+              ]
+            }
+          },
+          "required": [
+            "tool_call_id",
+            "artifact_id",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false,
+      "description": "Read-only Desktop result-file transport. It never starts an Agent turn."
+    },
     "ContextCandidate": {
       "title": "ContextCandidate",
       "type": "object",
@@ -926,7 +1355,8 @@
         "image",
         "selection",
         "branch_diff",
-        "fetch"
+        "fetch",
+        "app_object"
       ]
     },
     "ContextReference": {
@@ -1758,6 +2188,9 @@
       "title": "HostEvent",
       "oneOf": [
         {
+          "$ref": "#/$defs/ContentDocumentEvent"
+        },
+        {
           "$ref": "#/$defs/LocalWorkerStateEvent"
         },
         {
@@ -1867,9 +2300,6 @@
         },
         {
           "$ref": "#/$defs/CommandRejectedEvent"
-        },
-        {
-          "$ref": "#/$defs/TurnStartedEvent"
         }
       ]
     },
@@ -1969,6 +2399,23 @@
         "method",
         "id"
       ],
+      "additionalProperties": false
+    },
+    "LayoutPreferences": {
+      "title": "LayoutPreferences",
+      "type": "object",
+      "properties": {
+        "chat_width": {
+          "type": "integer",
+          "minimum": 320,
+          "maximum": 640,
+          "default": 420
+        },
+        "chat_open": {
+          "type": "boolean",
+          "default": false
+        }
+      },
       "additionalProperties": false
     },
     "ListAgentsCommand": {
@@ -2479,6 +2926,9 @@
         },
         "agent_id": {
           "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/AppChatScope"
         }
       },
       "required": [
@@ -3421,6 +3871,12 @@
         },
         "workspace": {
           "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/AppChatScope"
+        },
+        "appBinding": {
+          "$ref": "#/$defs/AppSessionBinding"
         }
       },
       "required": [
@@ -3681,6 +4137,74 @@
       "additionalProperties": false,
       "description": "`data` is the ACP SessionUpdate."
     },
+    "SessionUsage": {
+      "title": "SessionUsage",
+      "type": "object",
+      "properties": {
+        "context_used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "context_capacity": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost": {
+          "$ref": "#/$defs/UsageCost"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SessionUsageEvent": {
+      "title": "SessionUsageEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "session_usage"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/SessionUsage"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
     "SetLocaleRequest": {
       "title": "SetLocaleRequest",
       "type": "object",
@@ -3867,6 +4391,9 @@
       "title": "ThreadEvent",
       "oneOf": [
         {
+          "$ref": "#/$defs/TurnStartedEvent"
+        },
+        {
           "$ref": "#/$defs/SessionCreatedEvent"
         },
         {
@@ -3874,6 +4401,9 @@
         },
         {
           "$ref": "#/$defs/SessionUpdateEvent"
+        },
+        {
+          "$ref": "#/$defs/SessionUsageEvent"
         },
         {
           "$ref": "#/$defs/SessionReadyEvent"
@@ -4019,6 +4549,46 @@
       ],
       "additionalProperties": false
     },
+    "TypographyPreferences": {
+      "title": "TypographyPreferences",
+      "type": "object",
+      "properties": {
+        "ui_size": {
+          "type": "integer",
+          "minimum": 12,
+          "maximum": 24
+        },
+        "chat_size": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "minimum": 12,
+          "maximum": 24
+        },
+        "code_size": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "minimum": 12,
+          "maximum": 24
+        }
+      },
+      "additionalProperties": false
+    },
     "UninstallApp": {
       "title": "UninstallApp",
       "type": "object",
@@ -4045,6 +4615,26 @@
         "id"
       ],
       "additionalProperties": false
+    },
+    "UsageCost": {
+      "title": "UsageCost",
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "minimum": 0
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        }
+      },
+      "required": [
+        "amount",
+        "currency"
+      ],
+      "additionalProperties": false,
+      "description": "Provider measurements: context occupancy and cumulative session cost."
     },
     "UserMessageContext": {
       "title": "UserMessageContext",
@@ -4107,6 +4697,25 @@
       "title": "WorkbenchPreferences",
       "type": "object",
       "properties": {
+        "accent": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "teal"
+            },
+            {
+              "type": "string",
+              "const": "blue"
+            },
+            {
+              "type": "string",
+              "const": "neutral"
+            }
+          ]
+        },
+        "typography": {
+          "$ref": "#/$defs/TypographyPreferences"
+        },
         "appearance": {
           "anyOf": [
             {
@@ -4129,6 +4738,9 @@
             "$ref": "#/$defs/ProjectBinding"
           },
           "maxItems": 128
+        },
+        "layout": {
+          "$ref": "#/$defs/LayoutPreferences"
         }
       },
       "required": [

@@ -46,7 +46,18 @@ model SetLocaleRequest {
 }
 
 model ProjectBinding { @minLength(1) @maxLength(4096) workspace: string; @maxLength(128) project_id: string; ...Closed }
-model WorkbenchPreferences { appearance: "light" | "dark" | "system"; @maxItems(128) projects: ProjectBinding[]; ...Closed }
+model LayoutPreferences {
+  @minValue(320) @maxValue(640) chat_width?: uint16 = 420;
+  chat_open?: boolean = false;
+  ...Closed;
+}
+model TypographyPreferences {
+  @minValue(12) @maxValue(24) ui_size?: uint8;
+  @minValue(12) @maxValue(24) chat_size?: uint8 | null;
+  @minValue(12) @maxValue(24) code_size?: uint8 | null;
+  ...Closed
+}
+model WorkbenchPreferences { accent?: "teal" | "blue" | "neutral"; typography?: TypographyPreferences; appearance: "light" | "dark" | "system"; @maxItems(128) projects: ProjectBinding[]; layout?: LayoutPreferences; ...Closed }
 model GetWorkbenchSettingsRequest { method: "settings.workbench.get"; ...Closed }
 model SetWorkbenchSettingsRequest { method: "settings.workbench"; preferences: WorkbenchPreferences; ...Closed }
 
@@ -68,7 +79,7 @@ model ListAgentsCommand { action: "list_agents"; ...Closed }
 model WorkspaceCommand { action: "workspace"; path: string; ...Closed }
 model LoadRoadmapCommand { action: "load_roadmap"; ...Closed }
 model AttachFilesCommand { action: "attach_files"; paths: string[]; ...Closed }
-enum ContextKind { file, directory, symbol, thread, skill, image, selection, branch_diff, fetch }
+enum ContextKind { file, directory, symbol, thread, skill, image, selection, branch_diff, fetch, app_object }
 model TextContextContent { type: "text"; text: string; ...Closed }
 model ImageContextContent { type: "image"; data: string; mime_type: "image/png" | "image/jpeg" | "image/gif" | "image/webp"; ...Closed }
 @oneOf union ContextContent {TextContextContent, ImageContextContent}
@@ -77,7 +88,8 @@ model ContextReference { id: string; kind: ContextKind; label: string; source: s
 model SearchContextCommand {action: "search_context"; request_id: string; kind: ContextKind; query: string; ...Closed}
 model ResolveContextCommand {action: "resolve_context"; request_id: string; kind: ContextKind; source: string; start_line?: uint32 | null; end_line?: uint32 | null; ...Closed}
 model AuthenticateCommand { action: "authenticate"; thread_id: string; method_id: string; ...Closed }
-model NewSessionCommand { action: "new_session"; thread_id: ThreadId; agent_id: string; ...Closed }
+model AppChatScope { app: string; panel: string; ...Closed }
+model NewSessionCommand { action: "new_session"; thread_id: ThreadId; agent_id: string; scope?: AppChatScope; ...Closed }
 model PromptCommand { action: "prompt"; thread_id: string; @maxLength(64000) text: string; contexts?: ContextReference[]; ...Closed }
 model CancelCommand { action: "cancel"; thread_id: string; ...Closed }
 model PermissionCommand {
@@ -187,6 +199,9 @@ model ContextCandidatesEvent {kind: "context_candidates"; ...EventBase; data: Co
 model ContextResolvedEvent {kind: "context_resolved"; ...EventBase; data: ContextReference}
 model ContextErrorEvent {kind: "context_error"; ...EventBase}
 model ContextFilesEvent { kind: "context_files"; ...EventBase; data: ContextFile[] }
+/** Read-only Desktop result-file transport. It never starts an Agent turn. */
+model ContentDocumentEvent {kind:"content_document";...ThreadEventBase;data:{tool_call_id:string;artifact_id:string;status:"ready"|"error";...Closed}}
+
 /** Main-process HTTP adapter snapshot; validated by protocol/remote.tsp. */
 model RemoteSnapshotPayload is Record<unknown>;
 model RemoteStateEvent { kind: "remote_state"; ...EventBase; data: RemoteSnapshotPayload }
@@ -199,7 +214,7 @@ model AppsErrorEvent { kind: "apps_error"; ...EventBase }
 model AppOpenedData { name: string; panel: string; url: string; ...Closed; }
 model AppsOpenedEvent { kind: "apps_opened"; ...EventBase; data: AppOpenedData }
 
-model SessionCreatedData { agent: string; workspace: string; ...Closed }
+model SessionCreatedData { agent: string; workspace: string; scope?: AppChatScope; appBinding?: Pero.Apps.AppSessionBinding; ...Closed }
 model SessionCreatedEvent { kind: "session_created"; ...ThreadEventBase; data: SessionCreatedData }
 model UserMessageContext {contexts: ContextReference[]; ...Closed}
 model UserMessageEvent { kind: "user_message"; ...ThreadEventBase; data?: UserMessageContext }
@@ -216,6 +231,17 @@ model SessionAuthenticatedEvent { kind: "session_authenticated"; ...ThreadEventB
 model SessionReadyEvent { kind: "session_ready"; ...ThreadEventBase; data: AcpPayload }
 /** `data` is the ACP SessionUpdate. */
 model SessionUpdateEvent { kind: "session_update"; ...ThreadEventBase; data: AcpPayload }
+/** Provider measurements: context occupancy and cumulative session cost. */
+model UsageCost { @minValue(0) amount: float64; @pattern("^[A-Z]{3}$") currency: string; ...Closed }
+model SessionUsage {
+  @minValue(0) context_used?: integer;
+  @minValue(1) context_capacity?: integer;
+  @minValue(0) input_tokens?: integer;
+  @minValue(0) output_tokens?: integer;
+  cost?: UsageCost;
+  ...Closed;
+}
+model SessionUsageEvent { kind: "session_usage"; ...ThreadEventBase; data: SessionUsage }
 /** The ACP RequestPermissionRequest plus the Host-issued `permission_id`. */
 model PermissionData { ...Record<unknown>; permission_id: string }
 model PermissionEvent { kind: "permission"; ...ThreadEventBase; data: PermissionData }
@@ -239,9 +265,11 @@ model SessionDeletedEvent { kind: "session_deleted"; ...ThreadEventBase }
 /** Events persisted to the session journal and replayed to the UI. */
 @oneOf
 union ThreadEvent {
+  TurnStartedEvent,
   SessionCreatedEvent,
   UserMessageEvent,
   SessionUpdateEvent,
+  SessionUsageEvent,
   SessionReadyEvent,
   ModelChangedEvent,
   ConfigurationChangedEvent,
@@ -257,6 +285,7 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 
 @oneOf
 union HostEvent {
+  ContentDocumentEvent,
   LocalWorkerStateEvent,
   ContributorStateEvent,
   ContributorSessionEvent,
@@ -294,5 +323,4 @@ union HostEvent {
   PermissionEvent,
   PromptQueuedEvent,
   CommandRejectedEvent,
-  TurnStartedEvent,
 }

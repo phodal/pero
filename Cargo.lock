@@ -2689,8 +2689,6 @@ dependencies = [
 [[package]]
 name = "gpui-pre-web"
 version = "0.3.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1acd86af2347f0dd8b63c441a5dbd43b3fcd7dac69b340827c3497da5a13d6fb"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -4724,6 +4722,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
+name = "pero-chat-ui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "gpui-kit",
+ "js-sys",
+ "pero-contracts",
+ "pero-theme",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "pero-chat-web"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "gpui-kit",
+ "pero-chat-ui",
+ "pero-contracts",
+ "pero-theme",
+ "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "pero-contracts"
 version = "0.1.0"
 dependencies = [
@@ -4768,18 +4793,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "pero-theme"
+version = "0.1.0"
+dependencies = [
+ "gpui-kit",
+ "pero-contracts",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "pero-ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-channel",
- "base64 0.22.1",
  "chrono",
  "console_error_panic_hook",
  "getrandom 0.2.17",
  "gpui-kit",
  "js-sys",
+ "pero-chat-ui",
  "pero-contracts",
+ "pero-theme",
  "reqwest",
  "security-framework",
  "serde",

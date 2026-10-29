@@ -34,13 +34,66 @@ pub struct ProjectBinding {
     pub project_id: String,
 }
 
+/// Persistent layout choices, independent of the current viewport's available space.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+pub struct LayoutPreferences {
+    #[serde(deserialize_with = "LayoutPreferences::deserialize_chat_width")]
+    chat_width: u16,
+    pub chat_open: bool,
+}
+
+impl Default for LayoutPreferences {
+    fn default() -> Self {
+        Self {
+            chat_width: 420,
+            chat_open: false,
+        }
+    }
+}
+
+impl LayoutPreferences {
+    const MIN_CHAT_WIDTH: u16 = 320;
+    const MAX_CHAT_WIDTH: u16 = 640;
+
+    pub fn chat_width(&self) -> f32 {
+        self.chat_width.into()
+    }
+
+    /// Dragging beyond either edge keeps the nearest supported preference.
+    pub fn resize_chat(&mut self, width: f32) {
+        self.chat_width = width
+            .round()
+            .max(Self::MIN_CHAT_WIDTH.into())
+            .min(Self::MAX_CHAT_WIDTH.into()) as u16;
+    }
+
+    fn deserialize_chat_width<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<u16, D::Error> {
+        let width = u16::deserialize(deserializer)?;
+        if !(Self::MIN_CHAT_WIDTH..=Self::MAX_CHAT_WIDTH).contains(&width) {
+            return Err(serde::de::Error::custom(
+                "Chat width must be between 320 and 640",
+            ));
+        }
+        Ok(width)
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct WorkbenchPreferences {
     #[serde(default)]
     pub appearance: Appearance,
     #[serde(default)]
+    pub accent: crate::appearance::AccentColor,
+    #[serde(default)]
+    pub typography: crate::appearance::TypographyPreferences,
+    #[serde(default)]
     pub projects: Vec<ProjectBinding>,
+    #[serde(default)]
+    pub layout: LayoutPreferences,
 }
 
 impl WorkbenchPreferences {
@@ -157,6 +210,38 @@ mod repository_tests {
                 same,
                 "{remote}"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod layout_tests {
+    use super::*;
+
+    #[test]
+    fn layout_preferences_restore_compatible_settings_and_bound_drag_changes() {
+        for (input, expected) in [
+            (serde_json::json!({}), Some((420., false))),
+            (serde_json::json!({"chat_open":true}), Some((420., true))),
+            (serde_json::json!({"chat_width":320}), Some((320., false))),
+            (
+                serde_json::json!({"chat_width":640,"chat_open":true}),
+                Some((640., true)),
+            ),
+            (serde_json::json!({"chat_width":319}), None),
+            (serde_json::json!({"chat_width":641}), None),
+            (serde_json::json!({"chat_width":420.5}), None),
+            (serde_json::json!({"chat_width":"420"}), None),
+        ] {
+            let restored = serde_json::from_value::<LayoutPreferences>(input.clone())
+                .map(|layout| (layout.chat_width(), layout.chat_open))
+                .ok();
+            assert_eq!(restored, expected, "{input}");
+        }
+        let mut layout = LayoutPreferences::default();
+        for (requested, expected) in [(200., 320.), (400.7, 401.), (800., 640.)] {
+            layout.resize_chat(requested);
+            assert_eq!(layout.chat_width(), expected);
         }
     }
 }

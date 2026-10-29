@@ -1,3 +1,4 @@
+use super::PythonEnvironment;
 use super::definition::{AppDefinition, BackendKind};
 use serde::Serialize;
 use std::{
@@ -20,16 +21,50 @@ pub(super) struct AppProcess {
 }
 
 impl AppProcess {
-    pub fn start(definition: &AppDefinition, root: &Path, data: &Path) -> Result<Self, String> {
+    pub fn start(
+        definition: &AppDefinition,
+        root: &Path,
+        data: &Path,
+        python: Option<&PythonEnvironment>,
+    ) -> Result<Self, String> {
         let backend = definition.backend.as_ref().ok_or("App has no backend")?;
         std::fs::create_dir_all(data).map_err(|error| error.to_string())?;
         let token = uuid::Uuid::new_v4().to_string();
-        let (setting, fallback, label) = match backend.kind {
-            BackendKind::Python => ("PERO_APP_PYTHON", "python3", "Python"),
-            BackendKind::Node => ("PERO_APP_NODE", "node", "Node"),
+        let (executable, label) = match (&backend.kind, python) {
+            (BackendKind::Python, Some(environment)) => {
+                let config = environment.root().join("pyvenv.cfg");
+                let contents = std::fs::read_to_string(&config).map_err(|error| {
+                    format!(
+                        "App {} Python environment {} is unavailable: {error}. Prepare the virtual environment or update app_python and restart the Host.",
+                        definition.name.as_str(), config.display(),
+                    )
+                })?;
+                environment.validate_config(&contents)?;
+                let executable = environment.executable();
+                if !executable.is_file() {
+                    return Err(format!(
+                        "App {} Python interpreter {} is missing. Recreate the virtual environment or update app_python and restart the Host.",
+                        definition.name.as_str(),
+                        executable.display(),
+                    ));
+                }
+                (executable.into_os_string(), "Python")
+            }
+            (BackendKind::Python, None) => (
+                std::env::var_os("PERO_APP_PYTHON").unwrap_or_else(|| "python3".into()),
+                "Python",
+            ),
+            (BackendKind::Node, _) => (
+                std::env::var_os("PERO_APP_NODE").unwrap_or_else(|| "node".into()),
+                "Node",
+            ),
         };
-        let executable = std::env::var_os(setting).unwrap_or_else(|| fallback.into());
         let mut command = Command::new(executable);
+        if matches!(backend.kind, BackendKind::Python) {
+            // Ignore ambient Python settings and user-site packages, while
+            // retaining the entry directory for the App's sibling modules.
+            command.args(["-E", "-s", "-u", "-B"]);
+        }
         command
             .arg(root.join(&backend.entry))
             .current_dir(root)
@@ -38,6 +73,24 @@ impl AppProcess {
             if let Some(value) = std::env::var_os(key) {
                 command.env(key, value);
             }
+        }
+        if let (BackendKind::Python, Some(environment)) = (&backend.kind, python) {
+            let executable = environment.executable();
+            let mut paths = vec![
+                executable
+                    .parent()
+                    .expect("venv executable directory")
+                    .to_path_buf(),
+            ];
+            if let Some(path) = std::env::var_os("PATH") {
+                paths.extend(std::env::split_paths(&path));
+            }
+            command.env("VIRTUAL_ENV", environment.root()).env(
+                "PATH",
+                std::env::join_paths(paths).map_err(|error| {
+                    format!("Cannot configure App Python environment PATH: {error}")
+                })?,
+            );
         }
         command
             .env("PERO_APP_DATA", data)
@@ -55,7 +108,7 @@ impl AppProcess {
         }
         let child = command
             .spawn()
-            .map_err(|error| format!("Cannot start App {label} backend: {error}"))?;
+            .map_err(|error| format!("Cannot start App {label} backend {}: {error}. Check its configured interpreter and environment.", definition.name.as_str()))?;
         let mut process = Self {
             child,
             access: BackendAccess {

@@ -3,6 +3,7 @@ use crate::{
     projects::{Project, ProjectTab},
     remote::string,
     remote_view::phase,
+    workspace::{ConversationTab, WorkbenchPage, WorkspaceItem},
 };
 use gpui_kit::{
     component::{button::*, input::Input, *},
@@ -12,7 +13,7 @@ use gpui_kit::{
 use serde_json::{Value, json};
 
 impl Workbench {
-    pub(crate) fn project_catalog(&self) -> Vec<Project> {
+    pub(crate) fn project_catalog(&self, cx: &App) -> Vec<Project> {
         let mut workspaces = vec![self.workspace.clone()];
         workspaces.extend(
             self.preferences
@@ -20,7 +21,13 @@ impl Workbench {
                 .iter()
                 .map(|binding| binding.workspace.clone()),
         );
-        workspaces.extend(self.chats.iter().map(|chat| chat.workspace.clone()));
+        workspaces.extend(
+            self.chat
+                .read(cx)
+                .chats
+                .iter()
+                .map(|chat| chat.workspace.clone()),
+        );
         let mut shared = self.remote.data["identity"]["projects"]
             .as_array()
             .into_iter()
@@ -67,23 +74,23 @@ impl Workbench {
         )
     }
 
-    pub(crate) fn reconcile_project_selection(&mut self) {
-        if let Some(project) = self.current_project() {
+    pub(crate) fn reconcile_project_selection(&mut self, cx: &App) {
+        if let Some(project) = self.current_project(cx) {
             self.selected_project = Some(project.key);
         }
     }
 
-    pub(crate) fn current_project(&self) -> Option<Project> {
+    pub(crate) fn current_project(&self, cx: &App) -> Option<Project> {
         let key = self.selected_project.as_deref()?;
-        self.project_catalog()
+        self.project_catalog(cx)
             .into_iter()
             .find(|project| project.matches_key(key))
     }
 
-    pub(crate) fn task_in_project(&self, task: &Value) -> bool {
+    pub(crate) fn task_in_project(&self, task: &Value, cx: &App) -> bool {
         self.selected_project.is_none()
             || self
-                .current_project()
+                .current_project(cx)
                 .is_some_and(|project| project.contains_task(string(task, "project_id")))
     }
 
@@ -94,18 +101,21 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) {
         let Some(project) = self
-            .project_catalog()
+            .project_catalog(cx)
             .into_iter()
-            .find(|project| project.key == key)
+            .find(|project| project.matches_key(&key))
         else {
             return;
         };
-        self.selected_project = Some(key);
+        let canonical = WorkspaceItem::Project(project.key.clone());
+        self.navigation
+            .replace_identity(&WorkspaceItem::Project(key), canonical.clone());
+        self.navigation.open(canonical);
+        self.selected_project = Some(project.key.clone());
         self.project_tab = ProjectTab::Tasks;
         self.local_roadmap.show_cloud = project.workspace.is_none();
         self.local_roadmap.selected_line = None;
         self.task_status = Default::default();
-        self.navigation = 3;
         self.remote.creating = false;
         self.remote.connection.editing = false;
         self.remote.public_contributions = false;
@@ -139,15 +149,15 @@ impl Workbench {
             .iter()
             .find(|task| string(task, "id") == id)
         {
-            if !self.task_in_project(task) {
+            if !self.task_in_project(task, cx) {
                 self.selected_project = self
-                    .project_catalog()
+                    .project_catalog(cx)
                     .into_iter()
                     .find(|project| project.contains_task(string(task, "project_id")))
                     .map(|project| project.key);
             }
         }
-        self.navigation = 3;
+        self.navigation.open(WorkspaceItem::Task(id.clone()));
         self.project_tab = ProjectTab::Tasks;
         self.local_roadmap.show_cloud = true;
         self.remote.creating = false;
@@ -159,7 +169,7 @@ impl Workbench {
     }
 
     pub(crate) fn projects_view(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         div()
             .id("projects")
             .flex_1()
@@ -175,7 +185,7 @@ impl Workbench {
                     .child(
                         div()
                             .flex_1()
-                            .text_size(px(26.))
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Title))
                             .font_weight(FontWeight::BOLD)
                             .child(self.t("nav.projects")),
                     )
@@ -192,7 +202,7 @@ impl Workbench {
                 div()
                     .mt(px(20.))
                     .border_t_1()
-                    .border_color(p.color("border"))
+                    .border_color(p.border)
                     .child(
                         Button::new("all-project-tasks")
                             .ghost()
@@ -203,14 +213,14 @@ impl Workbench {
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.selected_project = None;
                                 this.project_tab = ProjectTab::Tasks;
-                                this.navigation = 3;
+                                this.navigate(WorkbenchPage::Tasks, cx);
                                 this.remote.connection.editing = false;
                                 this.remote.public_contributions = false;
                                 this.command(json!({"action":"remote_select","task_id":null}), cx);
                                 this.sync_follow(cx);
                             })),
                     )
-                    .children(self.project_catalog().into_iter().enumerate().map(
+                    .children(self.project_catalog(cx).into_iter().enumerate().map(
                         |(i, project)| {
                             let path = project
                                 .workspace
@@ -220,7 +230,7 @@ impl Workbench {
                             div()
                                 .py(px(14.))
                                 .border_b_1()
-                                .border_color(p.color("border"))
+                                .border_color(p.border)
                                 .flex()
                                 .items_center()
                                 .gap(px(12.))
@@ -238,8 +248,8 @@ impl Workbench {
                                             div()
                                                 .mt(px(4.))
                                                 .truncate()
-                                                .text_size(px(12.))
-                                                .text_color(p.color("text-muted"))
+                                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                                .text_color(p.text_muted)
                                                 .child(path),
                                         ),
                                 )
@@ -262,8 +272,8 @@ impl Workbench {
         narrow: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
-        let project = self.current_project();
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+        let project = self.current_project(cx);
         let name = project
             .as_ref()
             .map(|project| project.name.clone())
@@ -286,7 +296,7 @@ impl Workbench {
                     .flex_shrink_0()
                     .child(
                         div()
-                            .text_size(px(26.))
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Title))
                             .font_weight(FontWeight::BOLD)
                             .child(name),
                     )
@@ -295,8 +305,8 @@ impl Workbench {
                             div()
                                 .mt(px(4.))
                                 .truncate()
-                                .text_size(px(12.))
-                                .text_color(p.color("text-muted"))
+                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                .text_color(p.text_muted)
                                 .child(path),
                         )
                     })
@@ -306,7 +316,7 @@ impl Workbench {
                             .flex()
                             .gap(px(16.))
                             .border_b_1()
-                            .border_color(p.color("border"))
+                            .border_color(p.border)
                             .children(ProjectTab::ALL.into_iter().enumerate().map(|(i, tab)| {
                                 Button::new(("project-tab", i))
                                     .ghost()
@@ -343,8 +353,8 @@ impl Workbench {
     }
 
     fn project_sources(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
-        let project = self.current_project();
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+        let project = self.current_project(cx);
         let repositories = self
             .remote
             .repositories()
@@ -392,7 +402,7 @@ impl Workbench {
                 el.child(
                     div()
                         .py(px(24.))
-                        .text_color(p.color("text-muted"))
+                        .text_color(p.text_muted)
                         .child(self.t("project.no_sources")),
                 )
             })
@@ -400,7 +410,7 @@ impl Workbench {
                 div()
                     .py(px(16.))
                     .border_b_1()
-                    .border_color(p.color("border"))
+                    .border_color(p.border)
                     .child(format!(
                         "{}/{}",
                         string(repo, "owner"),
@@ -409,8 +419,8 @@ impl Workbench {
                     .child(
                         div()
                             .mt(px(4.))
-                            .text_size(px(12.))
-                            .text_color(p.color("text-muted"))
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                            .text_color(p.text_muted)
                             .child(string(repo, "roadmap_path").to_string()),
                     )
             }))
@@ -421,7 +431,7 @@ impl Workbench {
                         .small()
                         .label(self.t("settings.connections"))
                         .on_click(cx.listener(|this, _, window, cx| {
-                            this.navigation = 9;
+                            this.navigate(WorkbenchPage::Connections, cx);
                             this.open_remote_connection(window, cx);
                         })),
                 ),
@@ -429,8 +439,8 @@ impl Workbench {
     }
 
     fn project_execution(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
-        let project = self.current_project();
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+        let project = self.current_project(cx);
         let workers = self
             .remote
             .workers()
@@ -457,7 +467,7 @@ impl Workbench {
                     .child(self.t("project.workspace")),
             )
             .child(
-                div().mt(px(8.)).text_color(p.color("text-muted")).child(
+                div().mt(px(8.)).text_color(p.text_muted).child(
                     project
                         .as_ref()
                         .and_then(|project| project.workspace.clone())
@@ -474,7 +484,7 @@ impl Workbench {
                 el.child(
                     div()
                         .py(px(16.))
-                        .text_color(p.color("text-muted"))
+                        .text_color(p.text_muted)
                         .child(self.t("project.no_workers")),
                 )
             })
@@ -482,13 +492,13 @@ impl Workbench {
                 div()
                     .py(px(12.))
                     .border_b_1()
-                    .border_color(p.color("border"))
+                    .border_color(p.border)
                     .child(string(worker, "name").to_string())
             }))
             .child(
                 div()
                     .mt(px(24.))
-                    .text_color(p.color("text-muted"))
+                    .text_color(p.text_muted)
                     .whitespace_normal()
                     .child(self.t("project.environment_limit")),
             )
@@ -499,7 +509,7 @@ impl Workbench {
                         .small()
                         .label(self.t("settings.resources"))
                         .on_click(cx.listener(|this, _, _, cx| {
-                            this.navigation = 5;
+                            this.navigate(WorkbenchPage::Workers, cx);
                             this.command(json!({"action":"remote_refresh"}), cx);
                         })),
                 ),
@@ -507,8 +517,8 @@ impl Workbench {
     }
 
     fn project_settings(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
-        let project = self.current_project();
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+        let project = self.current_project(cx);
         div()
             .flex_1()
             .min_w_0()
@@ -524,7 +534,7 @@ impl Workbench {
             )
             .child(
                 div()
-                    .text_color(p.color("text-muted"))
+                    .text_color(p.text_muted)
                     .whitespace_normal()
                     .child(self.t("project.binding_hint")),
             )
@@ -556,8 +566,9 @@ impl Workbench {
                                     == crate::settings_menu::PreferenceSaveState::Saving,
                             )
                             .on_click(cx.listener(|this, _, _, cx| {
-                                let Some(workspace) =
-                                    this.current_project().and_then(|project| project.workspace)
+                                let Some(workspace) = this
+                                    .current_project(cx)
+                                    .and_then(|project| project.workspace)
                                 else {
                                     return;
                                 };
@@ -591,12 +602,24 @@ impl Workbench {
     }
 
     pub(crate) fn insights_view(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let sessions = self
+            .chat
+            .read(cx)
             .chats
             .iter()
             .enumerate()
             .filter(|(_, chat)| chat.permission.is_some() || chat.error.is_some() || chat.busy())
+            .map(|(i, chat)| {
+                let status = self.t(if chat.permission.is_some() {
+                    "insights.approval"
+                } else if chat.error.is_some() {
+                    "insights.attention"
+                } else {
+                    "filter.running"
+                });
+                (i, chat.title.display().to_owned(), status)
+            })
             .collect::<Vec<_>>();
         let tasks = self
             .remote
@@ -623,7 +646,7 @@ impl Workbench {
             .p(px(24.))
             .child(
                 div()
-                    .text_size(px(26.))
+                    .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Title))
                     .font_weight(FontWeight::BOLD)
                     .child(self.t("nav.insights")),
             )
@@ -631,27 +654,20 @@ impl Workbench {
                 el.child(
                     div()
                         .py(px(28.))
-                        .text_color(p.color("text-muted"))
+                        .text_color(p.text_muted)
                         .child(self.t("insights.empty")),
                 )
             })
-            .children(sessions.into_iter().map(|(i, chat)| {
-                let status = self.t(if chat.permission.is_some() {
-                    "insights.approval"
-                } else if chat.error.is_some() {
-                    "insights.attention"
-                } else {
-                    "filter.running"
-                });
+            .children(sessions.into_iter().map(|(i, title, status)| {
                 Button::new(("insight-session", i))
                     .ghost()
                     .w_full()
                     .h(px(44.))
                     .justify_start()
-                    .label(format!("{} · {}", chat.title, status))
+                    .label(format!("{} · {}", title, status))
                     .on_click(cx.listener(move |this, _, _, cx| {
-                        this.navigation = 0;
-                        this.focus_chat(Some(i), 4, cx);
+                        this.navigate(WorkbenchPage::Conversation, cx);
+                        this.focus_chat(Some(i), ConversationTab::Chat, cx);
                     }))
             }))
             .children(tasks.into_iter().enumerate().map(|(i, task)| {

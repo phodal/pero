@@ -1,0 +1,21 @@
+[package]
+name = "pero-theme"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+native = ["dep:gpui-kit"]
+
+[dependencies]
+pero-contracts.workspace = true
+serde.workspace = true
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+gpui-kit.workspace = true
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+gpui-kit = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true

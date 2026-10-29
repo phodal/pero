@@ -23,21 +23,21 @@ pub(crate) fn environments(
         .flex_1()
         .child(
             div()
-                .text_size(px(28.))
+                .text_size(px(pero_theme::TextRole::Title.pixels(ui.typography.ui)))
                 .font_weight(FontWeight::BOLD)
                 .child(ui.t("settings.agents")),
         )
         .child(
             div()
                 .mt(px(12.))
-                .text_color(p.color("text-muted"))
+                .text_color(p.text_muted)
                 .child(ui.t("agents.description")),
         )
         .children(agents.iter().enumerate().map(|(i, a)| {
             div()
                 .py(px(24.))
                 .border_b_1()
-                .border_color(p.color("border"))
+                .border_color(p.border)
                 .flex()
                 .items_center()
                 .gap(px(16.))

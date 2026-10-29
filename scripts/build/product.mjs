@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { build } from 'esbuild';
 import { Product } from '../../packages/product/product.ts';
 import { readAppBundle, stageAppBundle } from './app-bundle.mjs';
+import { stageAgentAdapters } from './agent-adapters.mjs';
 const root = resolve(import.meta.dirname, '../..');
 const args = process.argv.slice(2);
 const option = flag => {
@@ -54,6 +55,12 @@ for (const { app, input } of inputs) {
   if (!input) execFileSync(process.execPath, [resolve(root, 'scripts/build/apps.mjs'), '--app', app], { stdio: 'inherit' });
 }
 execFileSync(process.execPath, [resolve(root, 'scripts/cargo.mjs'), 'build', '--release', '--locked', '-p', 'pero-host', '-p', 'pero-worker'], { stdio: 'inherit' });
+if (product.chat) {
+  execFileSync(process.execPath, [resolve(root, 'scripts/build/wasm.mjs'), '--chat-only'], { stdio: 'inherit' });
+  execFileSync(process.execPath, [resolve(root, 'node_modules/vite/bin/vite.js'), 'build', '--outDir', resolve(root, 'web/dist-chat')], {
+    cwd: resolve(root, 'web'), stdio: 'inherit', env: { ...process.env, PERO_CHAT_ONLY: '1' },
+  });
+}
 rmSync(output, { recursive: true, force: true });
 mkdirSync(join(output, 'desktop/dist'), { recursive: true });
 mkdirSync(join(output, 'bin'), { recursive: true });
@@ -68,7 +75,14 @@ if (icon) {
 if (existsSync(resolve(root, 'desktop/dist/release.json'))) cpSync(resolve(root, 'desktop/dist/release.json'), join(output, 'desktop/dist/release.json'));
 writeFileSync(join(output, 'product.json'), JSON.stringify(product, null, 2));
 writeFileSync(join(output, 'package.json'), JSON.stringify({ name: name || product.entry.app, version: product.version, main: 'desktop/dist/product.cjs' }));
-cpSync(resolve(root, 'target/release/pero-host'), join(output, 'bin/pero-host'));
+const host = process.platform === 'win32' ? 'pero-host.exe' : 'pero-host';
+cpSync(resolve(root, 'target/release', host), join(output, 'bin', host));
+if (product.chat) {
+  cpSync(resolve(root, 'web/dist-chat'), join(output, 'web/chat'), { recursive: true });
+  // The Chat Wasm embeds its fonts. Avoid shipping Vite's duplicate public copy.
+  rmSync(join(output, 'web/chat/fonts'), { recursive: true, force: true });
+  await stageAgentAdapters(output);
+}
 for (const { app, input } of inputs) {
   if (input) {
     stageAppBundle(input, join(output, 'apps', app));

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/pero-contracts", "crates/pero-runtime", "crates/pero-host", "crates/pero-ui", "crates/pero-worker"]
+members = ["crates/pero-contracts", "crates/pero-theme", "crates/pero-runtime", "crates/pero-host", "crates/pero-ui", "crates/pero-chat-ui", "crates/pero-chat-web", "crates/pero-worker"]
 resolver = "2"
 
 [workspace.package]
@@ -12,6 +12,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 pero-contracts = { path = "crates/pero-contracts" }
 pero-runtime = { path = "crates/pero-runtime" }
+pero-theme = { path = "crates/pero-theme" }
+pero-chat-ui = { path = "crates/pero-chat-ui" }
 gpui-kit = "=0.8.1"
 
 [profile.dev]

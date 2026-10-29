@@ -1,6 +1,7 @@
 // Real Electron safeStorage and Host preference writes against a bounded HTTP fixture.
 // Source/provider and Go/PostgreSQL acceptance belongs to the separate GitHub suite.
-import { _electron as electron, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { electron } from './electron.mjs';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, writeFile, stat, rm } from 'node:fs/promises';

@@ -1,0 +1,45 @@
+// Explicit real-provider acceptance; default deterministic suites never contact a model.
+import {expect} from '@playwright/test';
+import {electron} from './electron.mjs';
+import {mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {tmpdir} from 'node:os';
+if(process.env.PERO_APP_USE_REAL_AGENT!=='1')throw new Error('Opt in with PERO_APP_USE_REAL_AGENT=1; this sends one prompt to the signed-in Codex provider.');
+const root=resolve(import.meta.dirname,'../..'),temp=await mkdtemp(resolve(tmpdir(),'pero-app-use-real-')),output=resolve(root,'test-results/app-use-real');
+await mkdir(output,{recursive:true});await rm(resolve(output,'result.json'),{force:true});await mkdir(resolve(temp,'workspace'));
+const agents=resolve(temp,'agents.json');await writeFile(agents,JSON.stringify(['codex','claude','copilot','grok'].map(id=>id==='codex'?{id,name:'Codex',command:process.execPath,args:[resolve(root,'node_modules/@agentclientprotocol/codex-acp/dist/index.js')],env:{CODEX_PATH:process.env.CODEX_PATH||'codex'}}:{id,name:id,command:resolve(temp,'unavailable-'+id)})));
+const env={...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_AGENTS_FILE:agents,PERO_LOCALE:'en'};delete env.ELECTRON_RUN_AS_NODE;delete env.PERO_APPS_ROOT;
+let app;const errors=[];
+try{
+ app=await electron.launch({args:[...(process.platform==='darwin'?['--use-mock-keychain']:[]),resolve(root,'desktop')],cwd:root,env});
+ const page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));
+ await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
+ const state=()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()));
+ const active=async()=>{const s=await state();return s.chats[s.activeChat];};
+ await app.evaluate(({dialog},path)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[path]});},resolve(temp,'workspace'));
+ await page.evaluate(()=>window.pero.chooseWorkspace());
+ await expect.poll(async()=>(await state()).workspace).toContain('pero-app-use-real-');
+ await expect.poll(async()=>(await state()).apps?.some(app=>app.name==='virtual-cell')).toBe(true);
+ await page.mouse.click(80,await page.evaluate(()=>innerHeight-76));
+ await expect.poll(async()=>(await state()).navigation).toBe(7);
+ await expect.poll(async()=>(await state()).appsLoading).toBe(false);
+ await page.evaluate(()=>window.pero.appsCommand({action:'apps_open',name:'virtual-cell',panel:'main'}));
+ const frame=page.frameLocator('iframe[title="virtual-cell"]');await frame.locator('body').waitFor({state:'attached',timeout:20000});
+ const prompt='/app-use Use only the app_use MCP tool for this check. Call inventory, start an observe-only task for virtual-cell, observe virtual-cell, then stop that task. Do not use filesystem, shell, browser, network or write tools. Do not operate the UI. Report the actual observed view and finish with PERO_APP_USE_REAL_OK.';
+ await frame.locator('body').evaluate((_,text)=>parent.postMessage({type:'pero:app:chat',text},'*'),prompt);
+ await expect(frame.getByLabel('Find gene',{exact:true})).toBeVisible({timeout:20000});
+ await expect.poll(async()=>(await state()).composer).toBe(prompt);
+ const left=await page.locator('#pero-app-surface').evaluate(element=>element.getBoundingClientRect().right);
+ await page.mouse.click(left+150,await page.evaluate(()=>innerHeight-70));await page.keyboard.press('Enter');
+ await expect.poll(async()=>{const chat=await active();if(chat?.error)throw new Error(chat.error);return chat?.messages.filter(message=>message.role==='assistant').map(message=>message.text).join('')||'';},{timeout:120000,intervals:[500,1000,2000]}).toContain('PERO_APP_USE_REAL_OK');
+ await expect.poll(async()=>(await active()).state,{timeout:15000}).toBe('idle');
+ const chat=await active(),calls=chat.tools.filter(tool=>JSON.stringify(tool).includes('app_use'));
+ expect(calls.length).toBeGreaterThanOrEqual(4);
+ expect(chat.messages.filter(message=>message.role==='assistant').map(message=>message.text).join('')).toContain('cells');
+ expect(errors).toEqual([]);
+ await writeFile(resolve(output,'result.json'),JSON.stringify({provider:'codex',model:chat.model,calls:chat.tools,reply:chat.messages.filter(message=>message.role==='assistant').map(message=>message.text),errors},null,2));
+ await page.screenshot({path:resolve(output,'observed.png')});
+ await rm(resolve(output,'failure.json'),{force:true});
+ console.log('Real Codex ACP -> Desktop MCP -> actual App inventory/start/observe/stop passed');
+}catch(error){if(app){const page=await app.firstWindow();const state=await page.evaluate(()=>window.peroDiagnostics?.snapshot());await writeFile(resolve(output,'failure.json'),JSON.stringify({error:String(error),state:state?JSON.parse(state):null,errors},null,2));}throw error;
+}finally{if(app)await app.close();await rm(temp,{recursive:true,force:true});}

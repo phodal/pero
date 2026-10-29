@@ -116,6 +116,7 @@ impl ContextSources<'_> {
                 }
             }
             ContextKind::Skill => {
+                if "app-use".contains(&query.to_lowercase()) {items.push(ContextCandidate{kind,label:"app-use".into(),source:"pero-skill:app-use".into(),detail:"App objects, operations, evidence and declared data writes".into()});}
                 for root in self.skill_roots() {
                     for entry in ignore::WalkBuilder::new(&root)
                         .hidden(false)
@@ -179,6 +180,7 @@ impl ContextSources<'_> {
                     detail: "Working tree, staged and committed changes against base".into(),
                 });
             }
+            ContextKind::AppObject => return Ok(vec![]),
             ContextKind::Fetch => {
                 let url = context_url(query)?;
                 items.push(ContextCandidate {
@@ -206,8 +208,12 @@ impl ContextSources<'_> {
         if source.is_empty() || source.len() > 4096 {
             return Err("Invalid context source".into());
         }
+        if kind==ContextKind::Skill && source=="pero-skill:app-use" {
+            return Ok(ContextReference{id:"pero-skill:app-use".into(),kind,label:"app-use".into(),source:source.into(),content:ContextContent::Text{text:crate::acp::APP_USE_SKILL.into()}});
+        }
         let label;
         let content = match kind {
+            ContextKind::AppObject => return Err("App context must be selected from its managed panel".into()),
             ContextKind::Fetch => {
                 let url = context_url(source)?;
                 let client = reqwest::blocking::Client::builder()
@@ -691,6 +697,10 @@ mod tests {
             .resolve(skill.kind, &skill.source, None, None)
             .unwrap();
         assert_eq!(resolved_skill.label, "example");
+        let bundled = sources.search(ContextKind::Skill, "app-use").unwrap();
+        let bundled = bundled.iter().find(|item|item.source=="pero-skill:app-use").unwrap();
+        let bundled = sources.resolve(bundled.kind,&bundled.source,None,None).unwrap();
+        assert!(matches!(bundled.content,ContextContent::Text{text} if text.contains("app_describe") && text.contains("fileReferences")));
         let directory = sources
             .resolve(ContextKind::Directory, ".agents/skills", None, None)
             .unwrap();

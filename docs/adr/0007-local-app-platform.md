@@ -21,9 +21,15 @@ App port; its existing scientific methods and source attribution stay in the App
   second installation or backend lifecycle owner. Go Task/Run authority is unchanged.
 - Installation copies a selected local package into the managed App root and
   leaves it disabled until explicitly enabled. Installation state is durable.
-  Builtins are pretrusted by the composition root: a one-time seed installs and
-  enables the bundled catalog, with a durable marker so an uninstall survives
-  restart. There is no marketplace or automatic update mechanism in this slice.
+  Builtins are pretrusted by the composition root. Startup and catalog requests
+  discover newly bundled identities and install/enable them. A per-App discovery
+  receipt retains prior decisions: existing enable state and installed package
+  bytes are not overwritten; explicit removal prevents automatic reinstallation.
+  There is no marketplace, source watcher or automatic package update mechanism.
+  The 2026-10-29 migration replaces the old global `.builtins-seeded` gate.
+  Its `1` marker has no identity history: migration preserves installed names
+  and the original Virtual Cell builtin, including its prior removal. Other
+  pre-migration removals cannot be inferred from that marker alone.
 - Domain data lives outside the package at the App root's sibling
   `app-data/<name>`. Disable stops the backend; uninstall removes the installed
   package and retains domain data. Reinstall does not import a source package's
@@ -35,6 +41,14 @@ App port; its existing scientific methods and source attribution stay in the App
   environment variables. Host shutdown, disable and uninstall clean up the
   owned backend. The trusted `PERO_APP_PYTHON` setting selects the interpreter;
   App manifests cannot choose an arbitrary command or install dependencies.
+  Host runtime settings may select one prepared shared venv through
+  `app_python.default`; `app_python.apps` provides optional App-specific overrides.
+  Selection uses the App override, shared venv, then existing Host default.
+  Explicit environments require absolute paths and disabled system-site packages,
+  and fail without interpreter fallback if unusable.
+  Python starts with ambient Python settings and user-site packages disabled.
+  Environment preparation and dependency installation remain explicit external
+  steps; see [App environment setup](../../apps/README.md#python-environments).
 - Private `apps_result` replies carry installed paths and optional backend
   URL/token only to Electron main. Main consumes every such reply rather than
   publishing it to the renderer. Public catalog events contain display metadata,
@@ -63,12 +77,39 @@ illustrative examples and recorded evaluations retain their original labels.
 Rendering the App or completing a calculation does not establish scientific
 validity or research acceptance.
 
-This slice does not connect Apps to Task/Run creation, Agent tools, ACP/MCP
-injection, Project artifact registration, remote Worker environments or automatic
-dependency provisioning. It does not claim binary compatibility with Point App
-bundles, portable packaged-Desktop acceptance or production hosting.
+Task/Run creation, domain Agent tools, MCP injection, Project artifact registration,
+remote Worker environments and automatic dependency provisioning remain outside
+this slice. It does not claim binary compatibility with Point App bundles,
+portable packaged-Desktop acceptance or production hosting.
+
+## Paper Agent integration
+
+Paper Agent ports Point's source snapshot, exact quotation and report behavior
+to a standard-library Python backend and a fresh Pero SDK UI. Its `agent` grant
+allows a narrow `/host/agent` endpoint for info/start/events/cancel. The Desktop
+derives App identity from its origin; the Host checks installed enable state and
+the declared grant for every operation. Session creation, write leases, provider
+authentication, tool approvals and cancellation use the existing Host manager.
+
+A frozen App request is associated with one Host session and persisted in its
+existing `session_created` journal entry. Repeating the same request returns the
+original session; changed input under the same request ID is refused. Event
+projection only exposes that App's sessions. Disabling or removing the App closes
+its sessions. Source text travels as frozen context within the existing 128 KB
+limit, rather than bypassing the normal prompt budget. App documents retain no
+model credentials and create no second execution or retry system.
+
+See [Paper Agent](../../apps/paper-agent/README.md) and its
+[verification](../fitness/paper-agent.md).
 
 ## Verification
 
 See [App platform verification](../fitness/apps.md). Contracts are defined in
 [`protocol/apps.tsp`](../../protocol/apps.tsp), imported by the Host contract.
+
+## Agent control of App panels
+
+[ADR 0014](0014-app-use.md) extends the original first-slice boundary with the
+shared Desktop App Use MCP path, declared SDK objects, task authorization and
+panel evidence. This is distinct from the App-initiated research sessions above.
+See [App Use verification](../fitness/app-use.md) for actual acceptance scope.

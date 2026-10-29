@@ -2,8 +2,8 @@ use super::*;
 use crate::cloud::Stage;
 
 impl Workbench {
-    pub(crate) fn progress(&self, phase: Phase) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
+    pub(crate) fn progress(&self, phase: Phase, cx: &App) -> impl IntoElement {
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let (current, stopped) = phase.stage();
         let at = Stage::ALL.iter().position(|s| *s == current).unwrap_or(0);
         let done_all = matches!(phase, Phase::Succeeded);
@@ -44,7 +44,7 @@ impl Workbench {
                     .role(Role::ListItem)
                     .aria_label(format!("{} · {state}", self.t(stage.label_key())))
                     .when(i > 0, |el| {
-                        el.child(div().w(px(16.)).h(px(1.)).bg(p.color("border")))
+                        el.child(div().w(px(16.)).h(px(1.)).bg(p.border))
                     })
                     .child(
                         div()
@@ -57,7 +57,7 @@ impl Workbench {
                             .when(now && !stopped, |el| el.border_2())
                             .border_color(p.color(ring))
                             .bg(p.color(fill))
-                            .text_size(px(10.))
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
                             .font_weight(FontWeight::BOLD)
                             .text_color(p.color(if done || stopped && now {
                                 "surface"
@@ -72,7 +72,7 @@ impl Workbench {
                     )
                     .child(
                         div()
-                            .text_size(px(12.))
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
                             .when(now, |el| el.font_weight(FontWeight::SEMIBOLD))
                             .text_color(p.color(text))
                             .child(self.t(stage.label_key())),
@@ -86,7 +86,7 @@ impl Workbench {
         run: &Value,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let id = string(task, "id").to_string();
         let phase = phase(task);
         let operator = self.remote.operator();
@@ -185,11 +185,11 @@ impl Workbench {
                     .items_center()
                     .gap(px(8.))
                     .when(matches!(phase, Phase::Running), |el| {
-                        el.child(div().size(px(8.)).rounded_full().bg(p.color("info")))
+                        el.child(div().size(px(8.)).rounded_full().bg(p.info))
                     })
                     .child(
                         div()
-                            .text_size(px(15.))
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
                             .font_weight(FontWeight::SEMIBOLD)
                             .child(title),
                     ),
@@ -200,7 +200,7 @@ impl Workbench {
                     .flex_wrap()
                     .gap_x(px(18.))
                     .gap_y(px(4.))
-                    .text_size(px(12.))
+                    .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
                     .children(
                         facts
                             .into_iter()
@@ -209,7 +209,7 @@ impl Workbench {
                                 div()
                                     .flex()
                                     .gap(px(4.))
-                                    .child(div().text_color(p.color("text-muted")).child(k))
+                                    .child(div().text_color(p.text_muted).child(k))
                                     .child(div().font_weight(FontWeight::SEMIBOLD).child(v))
                             }),
                     ),
@@ -226,7 +226,7 @@ impl Workbench {
                 el.child(
                     div()
                         .whitespace_normal()
-                        .text_color(p.color("warning"))
+                        .text_color(p.warning)
                         .child(self.t(if !string(task, "current_run_id").is_empty() {
                             "remote.source_changed_ran"
                         } else if claimed {
@@ -241,9 +241,9 @@ impl Workbench {
                     div()
                         .p(px(10.))
                         .rounded(px(6.))
-                        .bg(p.color("surface"))
+                        .bg(p.surface)
                         .border_1()
-                        .border_color(p.color("border"))
+                        .border_color(p.border)
                         .whitespace_normal()
                         .child(string(run, "summary").to_string()),
                 )
@@ -262,7 +262,7 @@ impl Workbench {
                             let workspace_key = string(task, "workspace_key").to_string();
                             let agent_id = string(task, "agent_id").to_string();
                             let path = self
-                                .project_catalog()
+                                .project_catalog(cx)
                                 .into_iter()
                                 .find(|project| project.contains_task(&project_id))
                                 .and_then(|project| project.workspace)
@@ -279,7 +279,7 @@ impl Workbench {
                                         },
                                     ))
                                     .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.navigation = 5;
+                                        this.navigate(WorkbenchPage::Workers, cx);
                                         if this.local_execution.setup.configuration.is_none() {
                                             this.local_execution.project_id = project_id.clone();
                                             this.local_execution.agent_id = agent_id.clone();
@@ -411,13 +411,18 @@ impl Workbench {
     }
 
     pub(crate) fn remote_detail(&self, narrow: bool, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = self.palettes.get(self.dark);
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let detail = &self.remote.data["detail"];
         let task = &detail["task"];
         let run = &detail["run"];
         let id = string(task, "id").to_string();
-        let selected = self.remote.data["selected_task_id"].as_str().unwrap_or("");
-        let active = !id.is_empty() && id == selected;
+        let selected = match self.navigation.current() {
+            Some(WorkspaceItem::Task(id)) => id.as_str(),
+            _ => "",
+        };
+        let active = !id.is_empty()
+            && id == selected
+            && self.remote.data["selected_task_id"].as_str() == Some(selected);
         let events = detail["events"]
             .as_array()
             .map(Vec::as_slice)
@@ -456,11 +461,11 @@ impl Workbench {
                         .flex()
                         .flex_col()
                         .gap(px(8.))
-                        .child(div().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).child(self.t(
+                        .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body)).font_weight(FontWeight::SEMIBOLD).child(self.t(
                             if selected.is_empty() { "cloud.select_title" } else { "remote.loading" },
                         )))
                         .when(selected.is_empty(), |el| {
-                            el.child(div().text_color(p.color("text-muted")).child(self.t("cloud.select_hint")))
+                            el.child(div().text_color(p.text_muted).child(self.t("cloud.select_hint")))
                         }),
                 )
             })
@@ -485,8 +490,8 @@ impl Workbench {
                                         .flex_wrap()
                                         .items_center()
                                         .gap(px(8.))
-                                        .text_size(px(12.))
-                                        .text_color(p.color("text-muted"))
+                                        .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                        .text_color(p.text_muted)
                                         .child(string(task, "project_id").to_string())
                                         .when(github, |el| {
                                             el.child("·").child(
@@ -520,17 +525,17 @@ impl Workbench {
                                             div()
                                                 .flex_1()
                                                 .min_w_0()
-                                                .text_size(px(22.))
+                                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Title))
                                                 .font_weight(FontWeight::BOLD)
                                                 .child(string(task, "title").to_string()),
                                         )
                                         .child(div().pt(px(6.)).child(phase_tag(p, self.t(phase.label_key()), phase.tone()))),
                                 )
                                 .when(!source_context(task).is_empty(), |el| {
-                                    el.child(div().text_size(px(12.)).text_color(p.color("text-muted")).child(source_context(task)))
+                                    el.child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted).child(source_context(task)))
                                 }),
                         )
-                        .child(self.progress(phase))
+                        .child(self.progress(phase, cx))
                         .child(self.execution_card(task, run, cx))
                         .when(!string(task, "parent_task_id").is_empty() || !task_tags(task).is_empty(), |el| {
                             el.child(
@@ -572,7 +577,7 @@ impl Workbench {
                                 .flex()
                                 .flex_col()
                                 .gap(px(6.))
-                                .child(section_title(p, self.t("remote.prompt")))
+                                .child(section_title(p, self.t("remote.prompt"), pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)))
                                 .child(div().child(string(task, "prompt").to_string())),
                         )
                         .child(
@@ -580,7 +585,7 @@ impl Workbench {
                                 .flex()
                                 .flex_col()
                                 .gap(px(6.))
-                                .child(section_title(p, self.t("remote.acceptance")))
+                                .child(section_title(p, self.t("remote.acceptance"), pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)))
                                 .child(div().child(string(task, "acceptance").to_string())),
                         )
                         .child(
@@ -590,13 +595,13 @@ impl Workbench {
                                 .gap(px(4.))
                                 .pt(px(12.))
                                 .border_t_1()
-                                .border_color(p.color("border"))
+                                .border_color(p.border)
                                 .child(
                                     div()
                                         .flex()
                                         .items_center()
                                         .gap(px(8.))
-                                        .child(section_title(p, self.t("remote.events")))
+                                        .child(section_title(p, self.t("remote.events"), pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)))
                                         .child(div().flex_1())
                                         .when(!run.is_null(), |el| {
                                             el.child(
@@ -616,10 +621,10 @@ impl Workbench {
                                         div()
                                             .p(px(8.))
                                             .rounded(px(6.))
-                                            .bg(p.color("surface-muted"))
+                                            .bg(p.surface_muted)
                                             .font_family("JetBrains Mono")
-                                            .text_size(px(11.))
-                                            .text_color(p.color("text-muted"))
+                                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                            .text_color(p.text_muted)
                                             .child(format!(
                                                 "run {} · worker {} · generation {}",
                                                 string(run, "id"),
@@ -631,8 +636,8 @@ impl Workbench {
                                 .when(detail["events_truncated"].as_bool().unwrap_or(false), |el| {
                                     el.child(
                                         div()
-                                            .text_size(px(12.))
-                                            .text_color(p.color("text-muted"))
+                                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                            .text_color(p.text_muted)
                                             .child(self.t("remote.recent_events"))
                                             .when_some(
                                                 detail["events_first_seq"].as_u64().zip(detail["events_last_seq"].as_u64()),
@@ -641,7 +646,7 @@ impl Workbench {
                                     )
                                 })
                                 .when(events.is_empty(), |el| {
-                                    el.child(div().py(px(8.)).text_color(p.color("text-muted")).child(self.t("remote.no_events")))
+                                    el.child(div().py(px(8.)).text_color(p.text_muted).child(self.t("remote.no_events")))
                                 })
                                 .children(events.iter().rev().map(|event| {
                                     let summary = remote_event_summary(event);
@@ -651,13 +656,13 @@ impl Workbench {
                                         .gap(px(12.))
                                         .py(px(8.))
                                         .border_b_1()
-                                        .border_color(p.color("border"))
+                                        .border_color(p.border)
                                         .child(
                                             div()
                                                 .w(px(32.))
                                                 .flex_shrink_0()
-                                                .text_size(px(12.))
-                                                .text_color(p.color("text-muted"))
+                                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                                .text_color(p.text_muted)
                                                 .child(event["seq"].as_u64().map(|n| format!("#{n}")).unwrap_or_default()),
                                         )
                                         .child(
@@ -669,7 +674,7 @@ impl Workbench {
                                                 .gap(px(2.))
                                                 .child(if summary.is_empty() { kind.clone() } else { summary })
                                                 .when(self.remote.technical, |el| {
-                                                    el.child(div().text_size(px(11.)).text_color(p.color("text-muted")).child(kind))
+                                                    el.child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted).child(kind))
                                                 }),
                                         )
                                 })),

@@ -1,5 +1,6 @@
 // Invoked by the opt-in Go harness with a real database, API and GitHub fixture.
-import { _electron as electron, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { electron, focusPage } from './electron.mjs';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -75,7 +76,7 @@ try {
   expect((await api(`/api/client/v1/tasks/${privateID}`, tokens.alice)).status).toBe(404);
   expect((await api('/api/v1/github/sync', tokens.bob, 'POST', {})).status).toBe(401);
   await alice.select(human.id); await bob.select(human.id);
-  await alice.page.bringToFront();
+  await focusPage(alice.page);
   await alice.page.screenshot({ path: resolve(out, 'available.png') });
   await alice.page.mouse.click(515, 217);
   await expect.poll(async () => (await alice.state()).remote.state.detail?.task?.claimed_by?.name).toBe('Alice');
@@ -86,7 +87,7 @@ try {
   await alice.page.mouse.click(515, 217);
   await expect.poll(async () => (await alice.state()).remote.state.detail?.task?.claimed_by).toBe(undefined);
   await expect.poll(async () => (await bob.state()).remote.state.detail?.task?.claimed_by, { timeout: 10000 }).toBe(undefined);
-  await bob.page.bringToFront(); await bob.page.mouse.click(515, 217);
+  await focusPage(bob.page); await bob.page.mouse.click(515, 217);
   await expect.poll(async () => (await bob.state()).remote.state.detail?.task?.claimed_by?.name).toBe('Bob');
   await bob.page.mouse.click(590, 217);
   await expect.poll(async () => (await bob.state()).remote.state.detail?.task?.state).toBe('queued');

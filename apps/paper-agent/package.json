@@ -1,0 +1,37 @@
+{
+  "name": "@pero/app-paper-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../scripts/build/apps.mjs --app paper-agent",
+    "test": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test -v",
+    "typecheck": "../../node_modules/.bin/tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@embedpdf/core": "2.15.1",
+    "@embedpdf/engines": "2.15.1",
+    "@embedpdf/models": "2.15.1",
+    "@embedpdf/pdfium": "2.15.1",
+    "@embedpdf/plugin-capture": "2.15.1",
+    "@embedpdf/plugin-document-manager": "2.15.1",
+    "@embedpdf/plugin-interaction-manager": "2.15.1",
+    "@embedpdf/plugin-render": "2.15.1",
+    "@embedpdf/plugin-scroll": "2.15.1",
+    "@embedpdf/plugin-selection": "2.15.1",
+    "@embedpdf/plugin-viewport": "2.15.1",
+    "@embedpdf/plugin-zoom": "2.15.1",
+    "katex": "0.16.25",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-markdown": "10.1.0",
+    "rehype-highlight": "7.0.2",
+    "rehype-katex": "7.0.1",
+    "remark-gfm": "4.0.1",
+    "remark-math": "6.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
+  }
+}

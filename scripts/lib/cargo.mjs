@@ -3,10 +3,11 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { root } from './paths.mjs';
 import { run } from './run.mjs';
+import { prepareWebBackend, webBackend } from './gpui-web.mjs';
 
 export const kit = resolve(process.env.PERO_GPUI_KIT_PATH || resolve(root, '../../test/gpui-kit'));
 
-const patchedCrates = ['gpui-kit', 'gpui-base', 'gpui-component', 'gpui-component-macros', 'gpui-kit-assets'];
+const patchedCrates = ['gpui-kit', 'gpui-base', 'gpui-component', 'gpui-component-macros', 'gpui-kit-assets', 'gpui-pre-web'];
 
 export function cargoArgs(args) {
   if (!existsSync(resolve(kit, 'crates/kit/Cargo.toml'))) {
@@ -17,7 +18,7 @@ export function cargoArgs(args) {
   const toolchain = args[0]?.startsWith('+') ? [args.shift()] : [];
   return [...toolchain, ...Object.entries(crates).flatMap(([name, path]) => [
     '--config', `patch.crates-io.${name}.path=${JSON.stringify(resolve(kit, 'crates', path))}`,
-  ]), ...args];
+  ]), '--config', `patch.crates-io.gpui-pre-web.path=${JSON.stringify(webBackend)}`, ...args];
 }
 
 function lockUsesRegistryGpui() {
@@ -33,6 +34,7 @@ function lockUsesRegistryGpui() {
 // and a --locked build refuses to rewrite the lock. Resolve once, and restore the
 // committed lock if resolution stops halfway (Cargo writes before downloads finish).
 export async function ensureGpuiLock() {
+  await prepareWebBackend();
   if (!lockUsesRegistryGpui()) return;
   const lock = resolve(root, 'Cargo.lock');
   const backup = resolve(tmpdir(), `pero-Cargo.lock.${process.pid}`);

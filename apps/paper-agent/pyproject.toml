@@ -1,0 +1,13 @@
+[project]
+name = "pero-paper-agent"
+version = "0.1.0"
+description = "Immutable paper research and exact citation evidence for Pero"
+requires-python = ">=3.10"
+dependencies = ["pypdfium2==5.0.0", "Pillow==12.0.0"]
+license = "Apache-2.0"
+
+[tool.setuptools]
+package-dir = {"" = "backend"}
+
+[tool.setuptools.packages.find]
+where = ["backend"]

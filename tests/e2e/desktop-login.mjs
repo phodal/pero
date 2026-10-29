@@ -1,6 +1,7 @@
 // Go/PostgreSQL + OAuth fixture + Chromium + Electron. OS URL delivery is tested
 // separately with the local .app; here app.emit drives the native event boundary.
-import { _electron as electron, chromium, expect } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
+import { electron } from './electron.mjs';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

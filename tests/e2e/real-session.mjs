@@ -1,6 +1,7 @@
 import { setAppearance } from './sidebar-controls.mjs';
 // Explicit real-provider smoke check, separate from deterministic fixture acceptance.
-import { _electron as electron, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { electron } from './electron.mjs';
 import { resolve } from 'node:path';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
