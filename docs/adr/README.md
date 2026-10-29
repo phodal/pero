@@ -13,3 +13,5 @@
 - [0010: Desktop Worker enrollment](0010-desktop-worker-enrollment.md)
 - [0011: Local workspace ROADMAP execution](0011-local-roadmap.md)
 - [0012: Trusted Worker runtime on Agent Sandbox](0012-agent-sandbox-runtime.md)
+
+- [0013: Isolated Agent runtime and durable artifacts](0013-isolated-agent-runtime.md)
