@@ -134,3 +134,60 @@ test('unsafe dry-run probes avoid contradictory API fields and preserve their in
  assert.deepEqual(probes.hostpath.spec.containers[0].volumeMounts,[{name:'workspace',mountPath:'/workspace'}]);
  assert.deepEqual(probes.hostpath.spec.containers,valid.containers);
 });
+
+test('MinIO pre-use readiness waits only on bounded startup observations',async()=>{
+ const {waitForMinio,projectState,healthDecision}=await import('../isolated/minio-readiness.mjs');
+ const id='a'.repeat(64),image=`sha256:${'b'.repeat(64)}`;
+ const raw={id,image,status:'running',running:true,paused:false,restarting:false,oom_killed:false,exit_code:0,restart_count:0};
+ const running=projectState(raw,id,image);
+ const ok={exit_code:0,http_status:200,process_timeout:false};
+ const reset={exit_code:56,http_status:0,process_timeout:false};
+ const cases=[
+  {name:'healthy',health:[ok],ready:true,attempts:1},
+  {name:'reset then ready',health:[reset,ok],ready:true,attempts:2},
+  {name:'initializing then ready',health:[{...ok,http_status:503},ok],ready:true,attempts:2},
+  {name:'created then ready',states:[{...running,status:'created',running:false},running,running],health:[ok],ready:true,attempts:2},
+  {name:'exited',states:[{...running,status:'exited',running:false,exit_code:1}],ready:false,reason:'container-stopped',attempts:1},
+  {name:'OOM',states:[{...running,oom_killed:true}],ready:false,reason:'oom-killed',attempts:1},
+  {name:'restarted',states:[{...running,restart_count:1}],ready:false,reason:'unexpected-lifecycle',attempts:1},
+  {name:'wrong identity',states:[{...running,identity_match:false}],ready:false,reason:'identity-mismatch',attempts:1},
+  {name:'daemon unavailable',states:[{inspection_error:'timeout'}],ready:false,reason:'inspection-failed',attempts:1},
+  {name:'exited during reset',states:[running,{...running,status:'exited',running:false}],health:[reset],ready:false,reason:'container-stopped',attempts:1},
+  {name:'fatal403',health:[{...ok,http_status:403}],ready:false,reason:'fatal-health',attempts:1},
+  {name:'redirect',health:[{...ok,http_status:302}],ready:false,reason:'fatal-health',attempts:1},
+  {name:'deadline',health:[reset],repeat:true,ready:false,reason:'deadline',attempts:5},
+  {name:'late200',health:[ok],advance:5001,ready:false,reason:'deadline',attempts:1},
+ ];
+ for(const c of cases){
+  let now=0,stateIndex=0,healthIndex=0;const records=[];
+  const result=await waitForMinio({
+   now:()=>now,
+   observe:ms=>{assert.ok(ms>0&&ms<=2000,c.name);return c.states?.[stateIndex++]??running;},
+   probe:ms=>{assert.ok(ms>0&&ms<=2000,c.name);now+=c.advance??0;const h=c.health?.[healthIndex++]??(c.repeat?reset:undefined);assert.ok(h,`${c.name} unexpectedly probed`);return h;},
+   pause:async ms=>{assert.ok(ms>0&&ms<=1000,c.name);now+=ms;},
+   record:r=>records.push(r),
+  },5000);
+  assert.deepEqual(result,{ready:c.ready,...(!c.ready?{reason:c.reason}:{}),attempts:c.attempts},c.name);
+  assert.equal(records.length,c.attempts,c.name);
+ }
+ for(const exit_code of [7,28,52,56])assert.equal(healthDecision({...reset,exit_code}),'pending');
+ assert.equal(healthDecision({exit_code:null,http_status:null,process_timeout:true}),'pending');
+ for(const exit_code of [1,3,6,22,55,60,137])assert.equal(healthDecision({...reset,exit_code}),'fatal-health');
+ assert.equal(healthDecision({...ok,http_status:204}),'fatal-health');
+});
+
+test('MinIO diagnostics project fixed fields/categories without log or environment secrets',async()=>{
+ const {projectState,logCategories}=await import('../isolated/minio-readiness.mjs');
+ const secret='DO-NOT-EXPORT-synthetic-root-password',user='DO-NOT-EXPORT-synthetic-root-user';
+ const id='a'.repeat(64),image=`sha256:${'b'.repeat(64)}`;
+ const state=projectState({id,image,status:'running',running:true,paused:false,restarting:false,oom_killed:false,exit_code:0,restart_count:0,Env:[secret],Error:secret},id,image);
+ const logs=logCategories(`RootUser: ${user}\nRootPass: ${secret}\nmc alias set x http://secret-endpoint ${user} ${secret}\nFATAL Unable to initialize the certs directory: permission denied ${secret}\npanic: unknown error ${secret}\nopaque ${secret}\n`);
+ const serialized=JSON.stringify({state,logs});
+ for(const hidden of [secret,user,'secret-endpoint','opaque','Env','Error'])assert.ok(!serialized.includes(hidden));
+ assert.equal(logs.categories['credential-line-omitted'],3);
+ assert.equal(logs.categories.fatal,2);
+ assert.equal(logs.categories['cert-directory'],1);
+ assert.equal(logs.categories['permission-denied'],1);
+ assert.equal(logs.unclassified_lines,1);
+ assert.throws(()=>projectState({id:secret},id,image),/Invalid Docker state projection/);
+});

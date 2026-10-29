@@ -510,10 +510,10 @@ openssl rand -hex 32 > "$PERO_ISOLATED_TEST_MINIO_SECRET_KEY_FILE"
 printf 'MINIO_ROOT_USER=%s\nMINIO_ROOT_PASSWORD=%s\nMINIO_BROWSER=off\nMINIO_UPDATE=off\n' "$(cat "$PERO_ISOLATED_TEST_MINIO_ACCESS_KEY_FILE")" "$(cat "$PERO_ISOLATED_TEST_MINIO_SECRET_KEY_FILE")" > "$work/private/minio.env"
 chmod 600 "$work/private/"*
 minio_owned=1
-docker run -d --name "$minio" -p 127.0.0.1::9000 --env-file "$work/private/minio.env" --tmpfs /data:rw,uid=10001,gid=10001,mode=0700,size=268435456 --read-only --memory 1g --cpus 1 --pids-limit 256 --cap-drop ALL --security-opt no-new-privileges "$minio_image" server /data --address :9000 >/dev/null
+minio_id=$(docker run -d --name "$minio" -p 127.0.0.1::9000 --env-file "$work/private/minio.env" --tmpfs /data:rw,uid=10001,gid=10001,mode=0700,size=268435456 --read-only --memory 1g --cpus 1 --pids-limit 256 --cap-drop ALL --security-opt no-new-privileges "$minio_image" server /data --address :9000)
 minio_port=$(docker port "$minio" 9000/tcp | sed 's/.*://')
 export PERO_ISOLATED_TEST_MINIO_ENDPOINT="http://127.0.0.1:$minio_port"
-curl --fail --silent --show-error --retry 15 --retry-connrefused --retry-delay 1 --max-time 2 "$PERO_ISOLATED_TEST_MINIO_ENDPOINT/minio/health/live" >/dev/null
+node "$fixture/minio-readiness.mjs" "$minio_id" "$minio_image" "$PERO_ISOLATED_TEST_MINIO_ENDPOINT" "$evidence"
 export PERO_TEST_S3_ENDPOINT="$PERO_ISOLATED_TEST_MINIO_ENDPOINT"
 export PERO_TEST_S3_BUCKET="pero-conformance-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}"
 export PERO_TEST_S3_ACCESS_KEY_FILE="$PERO_ISOLATED_TEST_MINIO_ACCESS_KEY_FILE"

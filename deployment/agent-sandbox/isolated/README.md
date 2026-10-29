@@ -172,6 +172,18 @@ values; rendered component images must all contain a digest.
   The source revision, LICENSE hash and built binary hash are recorded. Its
   temporary S3 keys stay on the trusted host and are not mounted into Agent Pods.
 
+## Object-store startup observation
+
+Before S3 tests, `minio-readiness.mjs` waits at most 60 seconds on the owned
+container's fixed loopback `GET /minio/health/cluster`, which checks initialization
+and write quorum in the pinned source. `/live` can return 200 before initialization.
+Each bounded attempt records only safe state fields and curl/HTTP statuses.
+Stopped, OOM-killed, restarted or mismatched containers and non-startup errors
+fail immediately. Failure logs are capped and projected to fixed category counts;
+raw logs, environment, credentials and endpoints are never uploaded. No container
+restart or object-write retry is added. Actual conditional-write/no-skip S3 and
+product acceptance tests remain required after health activation.
+
 ## Offline checks
 
 These do not install infrastructure or establish runtime/network acceptance:
