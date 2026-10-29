@@ -98,6 +98,9 @@ func task(t *testing.T, db *store.Store, prompt string) *store.Task {
 // adapters read this server; the driver/store and its PostgreSQL transactions
 // are real. The fixture's controller effects are not real Kubernetes evidence.
 type kubeFixture struct {
+	cold                                       bool
+	loseColdSandbox                            bool
+	volumePath                                 string
 	mu                                         sync.Mutex
 	objects                                    map[string]map[string]any
 	posts, deletes                             int
@@ -146,6 +149,10 @@ func (k *kubeFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer k.mu.Unlock()
 	if k.requiredToken != "" && r.Header.Get("Authorization") != "Bearer "+k.requiredToken {
 		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if k.cold && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/pods")) {
+		k.serveCold(w, r)
 		return
 	}
 	switch r.Method {
