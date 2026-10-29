@@ -13,9 +13,9 @@ go_library(
 
 go_test(
     name = "kubernetes_test",
-    srcs = ["claim_test.go", "lifecycle_test.go", "owner_test.go"],
+    srcs = ["claim_test.go", "isolated_test.go", "lifecycle_test.go", "owner_test.go"],
+    embed = [":kubernetes"],
     deps = [
-        ":kubernetes",
         "//server/internal/environments/model",
         "//server/internal/environments/ports",
     ],
