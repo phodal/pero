@@ -33,6 +33,9 @@ try {
   await expect.poll(async () => (await state()).activeApp?.name).toBe('pulse');
   const pulse = page.frameLocator('iframe[title="pulse"]');
   await expect(pulse.getByRole('button', { name: 'Add the example' })).toBeVisible({ timeout: 20000 });
+  // The shared SDK stylesheet is a separate esbuild asset; each built page must link it.
+  for (const name of ['pulse', 'virtual-cell']) expect(await readFile(resolve(root, 'apps', name, 'dist/index.html'), 'utf8')).toContain('href="./index.css"');
+  expect(await pulse.locator('body').evaluate(() => getComputedStyle(document.body).marginTop)).toBe('0px');
   expect(await pulse.locator('body').evaluate(() => typeof window.pero)).toBe('undefined');
   await pulse.getByRole('button', { name: 'Add the example' }).click();
   await expect(pulse.getByRole('heading', { name: '1 for you' })).toBeVisible();

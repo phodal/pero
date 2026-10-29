@@ -39,7 +39,7 @@ async function buildApp(appName) {
     } }],
   });
   const title = escapeHtml(String(manifest.displayName || appName));
-  await writeFile(resolve(outdir, 'index.html'), `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head><body><div id="app"></div><script type="module" src="./index.js"></script></body></html>\n`);
+  await writeFile(resolve(outdir, 'index.html'), `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="./index.css"></head><body><div id="app"></div><script type="module" src="./index.js"></script></body></html>\n`);
   console.log(`Built App: apps/${appName}/dist/index.html`);
 }
 

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node ../../scripts/build/apps.mjs",
+    "build": "node ../../scripts/build/apps.mjs --app virtual-cell",
     "test": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test -v",
     "test:ui": "node --test test/science.test.ts",
     "typecheck": "../../node_modules/.bin/tsc -p tsconfig.json"
