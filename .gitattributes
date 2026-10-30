@@ -4,10 +4,8 @@ patches/*.patch text eol=lf
 # Icon generation compares exact bytes; keep outputs and embedded licenses canonical.
 crates/pero-chat-ui/src/assets.rs text eol=lf
 packages/app-sdk/src/icons.generated.tsx text eol=lf
-web/public/icons/LICENSE.txt text eol=lf
-packages/icons/LICENSE-LUCIDE text eol=lf
-
-# Generated content associations use the same byte contract as the icon renderers.
 packages/icons/content-data.generated.js text eol=lf
 packages/icons/content-data.generated.d.ts text eol=lf
 crates/pero-contracts/src/content_icon_data.rs text eol=lf
+web/public/icons/LICENSE.txt text eol=lf
+packages/icons/LICENSE-LUCIDE text eol=lf

@@ -244,3 +244,48 @@ fn backend_lifecycle() {
         drop(store);
     }
 }
+
+#[test]
+fn builtin_catalog_skips_an_unbuilt_app_and_honours_the_product_list() {
+    let workspace = Workspace::new();
+    let catalog = workspace.0.join("builtin");
+    fs::create_dir(&catalog).unwrap();
+    fs::rename(workspace.package(None), catalog.join("virtual-cell")).unwrap();
+    // A second builtin whose dist/ was never built.
+    let broken = workspace.package(None);
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(broken.join("app.json")).unwrap()).unwrap();
+    manifest["name"] = serde_json::json!("data-agent");
+    fs::write(
+        broken.join("app.json"),
+        serde_json::to_vec(&manifest).unwrap(),
+    )
+    .unwrap();
+    fs::remove_dir_all(broken.join("dist")).unwrap();
+    fs::rename(&broken, catalog.join("data-agent")).unwrap();
+    let root = workspace.0.join("managed/apps");
+    let data = AppName::try_from("data-agent".to_owned()).unwrap();
+
+    let mut store = AppStore::open(root.clone(), PythonEnvironments::default()).unwrap();
+    store.seed_builtins(&catalog).unwrap();
+    assert_eq!(store.list().len(), 1);
+    assert_eq!(
+        store.list()[0].name,
+        AppName::try_from("virtual-cell".to_owned()).unwrap()
+    );
+
+    // The skipped App was not recorded as discovered: once built, it is offered.
+    fs::create_dir_all(catalog.join("data-agent/dist")).unwrap();
+    fs::write(catalog.join("data-agent/dist/index.html"), "<h1>Data</h1>").unwrap();
+    store
+        .seed_builtins_only(&catalog, Some(&["virtual-cell".to_owned()]))
+        .unwrap();
+    assert!(store.list().iter().all(|app| app.name != data));
+    store.seed_builtins(&catalog).unwrap();
+    assert!(
+        store
+            .list()
+            .iter()
+            .any(|app| app.name == data && app.enabled)
+    );
+}

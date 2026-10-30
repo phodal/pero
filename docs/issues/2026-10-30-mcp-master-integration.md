@@ -108,3 +108,13 @@ now explicitly select the single non-input render canvas; the native-window
 guard, selected Agent, scope and all actual tool/effect assertions are unchanged.
 The failure artifact confirms an idle scripted Agent and an unsent draft, not a
 failed tool execution. Fresh headed acceptance is still required.
+
+## Shared CI repair reconciliation
+
+Master `da450eb` includes #56's overlapping CI repairs. Reuse its expanded icon
+fixture and cache-integrity repair, deduplicate LF rules and Go setup, and retain
+this PR's additional fixture Agent identity checks, exactly-one render-canvas
+assertion, measured retained-history paint readiness and independent fail-at-end
+acceptance commands. The four overlapping test conflicts are resolved without
+restoring removed workflows or dropping tool/effect assertions. Fresh integrated
+CI remains required against this parent.

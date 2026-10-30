@@ -75,7 +75,7 @@ try {
   const chat = page.frames().find(frame => frame.url().startsWith('pero://chat/'));
   await chat.waitForFunction(() => window.peroChatDiagnostics && JSON.parse(window.peroChatDiagnostics.snapshot()).connected, undefined, { timeout: 60000 });
   // GPUI also owns a 1px EditContext input canvas; clicks target only the render surface.
-  const renderCanvas = chat.locator('canvas:not([data-gpui-input])');
+  const renderCanvas = chat.locator('canvas:not([role="textbox"])');
   await expect(renderCanvas).toHaveCount(1);
   const state = () => chat.evaluate(() => JSON.parse(window.peroChatDiagnostics.snapshot()));
   const active = async () => { const snapshot = await state(); return snapshot.chats[snapshot.activeChat]; };

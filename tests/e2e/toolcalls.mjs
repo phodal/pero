@@ -9,7 +9,7 @@ const out=resolve(root,'test-results/toolcalls');await mkdir(out,{recursive:true
 const temp=await mkdtemp(resolve(tmpdir(),'pero-toolcalls-'));
 const agents=resolve(temp,'agents.json');
 await writeFile(agents,JSON.stringify([{id:'fixture',name:'ACP test fixture',command:process.execPath,args:[resolve(root,'tests/fixtures/acp-agent.mjs')]}]));
-// Bind this tool matrix to the local ACP fixture, never the product default provider.
+// Select the fixture directly; picker position changes as built-in agents are added.
 await writeFile(resolve(temp,'settings.json'),JSON.stringify({chat_agent:'fixture'}));
 const context=resolve(temp,'context.txt');await writeFile(context,'USER_SELECTED_CONTEXT_42');
 const env={...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_LOCALE:'zh-CN',PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'sessions.jsonl'),PERO_AGENTS_FILE:agents};delete env.ELECTRON_RUN_AS_NODE;

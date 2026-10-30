@@ -20,3 +20,4 @@
 - [0017: Isolated Agent runtime and durable artifacts](0017-isolated-agent-runtime.md)
 - [0018: Trusted Worker runtime on Agent Sandbox](0018-agent-sandbox-runtime.md)
 - [0019: Grok-style Computer Use isolated Linux desktop](0019-grok-computer-use-isolated-desktop.md)
+- [0020: Grok-style Computer Use input gaps](0020-grok-computer-use-input-gaps.md)

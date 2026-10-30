@@ -84,9 +84,9 @@ try {
   expect((await state()).chats[0].messages.some(message => message.role === 'assistant' && message.text.includes('中文流式回复'))).toBe(true);
   expect((await state()).chats[0].usage).toMatchObject({ context_used: 5000, context_capacity: 20000, cost: { amount: 0.02, currency: 'USD' } });
   checks.push('cross-origin Chat, Host ACP reply, App compose does not send, real keyboard input');
-  await chat.locator('canvas').click({ position: { x: 180, y: 105 } });
+  await chat.locator('canvas:not([role="textbox"])').click({ position: { x: 180, y: 105 } });
   await expect.poll(async () => (await state()).expandedTools.length).toBe(1);
-  await chat.locator('canvas').click({ position: { x: 180, y: 105 } });
+  await chat.locator('canvas:not([role="textbox"])').click({ position: { x: 180, y: 105 } });
   await expect.poll(async () => (await state()).expandedTools.length).toBe(0);
   const fill = async text => {
     await domainFrame.locator('body').evaluate((_, text) => parent.postMessage({ type: 'pero:app:chat', text }, '*'), text);
@@ -99,7 +99,7 @@ try {
   await page.evaluate(() => window.product.sessionCommand({ action: 'list_agents' }));
   await expect.poll(async () => (await state()).chats[0]?.state).toBe('running');
   expect((await state()).chats[0].messages.length).toBe(runningMessages);
-  const bounds = await chat.locator('canvas').boundingBox();
+  const bounds = await chat.locator('canvas:not([role="textbox"])').boundingBox();
   await page.mouse.click(bounds.x + bounds.width - 42, bounds.y + bounds.height - 20);
   await expect.poll(async () => (await state()).chats[0]?.state).toBe('idle');
   checks.push('tool disclosure and cancellation in the shared composer');
