@@ -119,8 +119,11 @@ calls share one summary. Permission requests and failure reasons stay visible.
 
 History is saved in the app's user-data directory (`sessions.jsonl`). Renderer
 reload reconstructs live conversations; restarting the app reopens history as
-read-only, without automatically resuming or replaying Agent work. Temporary
-overrides: `PERO_HISTORY_PATH`, `PERO_SETTINGS_PATH`, `PERO_DESKTOP_DATA_DIR`.
+read-only, without automatically resuming or replaying Agent work. Installed
+Apps, their domain data and runtime settings live under `~/.pero` (`apps`,
+`app-data`, `config/runtime-settings.json`). The shared Python environment is
+`~/.pero/environment/pero-default`. Temporary overrides: `PERO_HISTORY_PATH`,
+`PERO_SETTINGS_PATH`, `PERO_APPS_ROOT`, `PERO_DESKTOP_DATA_DIR`.
 
 ## Verification
 

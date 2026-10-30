@@ -3,8 +3,9 @@
 `npm run dev:apps` builds and opens the first App, Virtual Cell, in an isolated
 developer profile. `npm run dev` uses the ordinary Desktop profile. Both discover newly bundled Apps at startup and when the Apps catalog is
 requested. Existing enable state is retained; removals are recorded per App so
-refreshing or restarting does not reinstall it. Installed packages are not
-automatically updated.
+refreshing or restarting does not reinstall it. An installed builtin is
+replaced when the bundled package changes. Its enable state and domain data
+stay.
 
 An App is a built local directory. Install it from **Apps → Install from folder**,
 enable it and open its panel. Version 1 supports one HTML entry and an optional
@@ -49,15 +50,29 @@ and survives uninstall. The Python backend remains trusted machine-local code.
 ## Python environments
 
 Apps share one default Python environment. An App-specific environment is an
-optional override for dependencies that need separation. Without explicit
-environment settings, the existing Host default remains `PERO_APP_PYTHON` or
-`python3`, including Product-bundled Python.
+optional override for dependencies that need separation. The workbench stores
+that shared environment at `~/.pero/environment/pero-default` and records it as
+`app_python.default`. Without explicit environment settings, the Host default
+remains `PERO_APP_PYTHON` or `python3`, including Product-bundled Python.
 
-To select a prepared shared venv, create it and install the required locked
-dependencies there before opening the Apps:
+The same home holds installed Apps and runtime settings:
+
+```text
+~/.pero/apps
+~/.pero/app-data
+~/.pero/config/runtime-settings.json
+~/.pero/environment/pero-default
+```
+
+`PERO_DESKTOP_DATA_DIR` keeps a profile out of this home. `PERO_APPS_ROOT` and
+`PERO_SETTINGS_PATH` still select other directories. A normal workbench launch
+moves an older Electron `apps` directory and its `app-data` sibling into this
+home once.
+
+To prepare the shared venv yourself:
 
 ```sh
-python3 -m venv "$HOME/.local/share/pero/python/shared"
+python3 -m venv "$HOME/.pero/environment/pero-default"
 ```
 
 Merge `app_python` into the Host's existing `runtime-settings.json`
@@ -66,7 +81,7 @@ Merge `app_python` into the Host's existing `runtime-settings.json`
 ```json
 {
   "app_python": {
-    "default": "/absolute/path/to/pero/python/shared",
+    "default": "/Users/example/.pero/environment/pero-default",
     "apps": {
       "paper-agent": "/absolute/path/to/pero/python/paper-agent"
     }

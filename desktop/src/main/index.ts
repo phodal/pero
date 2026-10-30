@@ -3,7 +3,7 @@ import {ConversationContentRead} from '../../../packages/content-source/index.ts
 import { app, BrowserWindow, ipcMain, Menu, protocol, net, dialog, shell, globalShortcut } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { resolve, sep, delimiter, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -18,6 +18,7 @@ import { DesktopAppUse } from './app-use-mcp';
 import { DesktopComputer } from './computer';
 import { computerPermissions } from './computer-electron';
 import { backgroundTest, testWindowOptions } from './test-display';
+import { prepareWorkbenchHome } from './home.ts';
 
 // Register before ready so macOS cannot deliver the callback before the listener.
 // pero://connect/ completes sign-in; pero://tasks/<id> opens a Cloud task from the task square.
@@ -151,7 +152,8 @@ app.whenReady().then(async () => {
     });
   });
   protocol.handle('pero-app', request => apps.serve(request));
-  runtimeSettingsPath = process.env.PERO_SETTINGS_PATH || resolve(app.getPath('userData'), 'runtime-settings.json');
+  const home = prepareWorkbenchHome(process.env, app.getPath('userData'));
+  runtimeSettingsPath = home.settings;
   harness = new HarnessPreferences(process.env.PERO_ENV_FILE || resolve(app.isPackaged ? app.getPath('userData') : root, '.env'), runtimeSettingsPath, send, fields => savePreference('settings.harness', fields));
   await harness.initialize();
   localExecution = new LocalExecutionController(resolve(app.getPath('userData'),'local-execution.json'),remote,request=>{
@@ -174,12 +176,13 @@ app.whenReady().then(async () => {
     ...(process.env.PERO_AGENTS_FILE ? { PERO_AGENTS_FILE: process.env.PERO_AGENTS_FILE } : {}),
     PERO_SETTINGS_PATH: runtimeSettingsPath,
     PERO_MCP_EXTERNAL:'1',
-    PERO_APPS_ROOT: process.env.PERO_APPS_ROOT || resolve(app.getPath('userData'), 'apps'),
+    PERO_APPS_ROOT: home.apps,
     PERO_BUILTIN_APPS_ROOT: resolve(root, 'apps'),
     // A source checkout holds test-only Apps too; seed only those the Pero product builds.
     // Required names stay enabled. They are not a field of the App manifest.
     ...(() => {
-      const product = JSON.parse(readFileSync(resolve(root, 'products/pero.json'), 'utf8')) as { apps?: string[]; required?: string[] };
+      const productPath = resolve(root, 'products/pero.json');
+      const product = existsSync(productPath) ? JSON.parse(readFileSync(productPath, 'utf8')) as { apps?: string[]; required?: string[] } : {};
       return {
         PERO_REQUIRED_APPS: process.env.PERO_REQUIRED_APPS || (product.required || []).join(','),
         ...(app.isPackaged ? {} : { PERO_BUILTIN_APPS: process.env.PERO_BUILTIN_APPS || (product.apps || []).join(',') }),
@@ -288,9 +291,14 @@ app.whenReady().then(async () => {
     try {if(!webPages)throw new Error('Web views are unavailable');await webPages.command(command);}
     catch(error){send({version:1,kind:'web_error',request_id:null,text:error instanceof Error?error.message:String(error)});}
   });
+  const waitUntilReady = async () => {
+    for (let i = 0; i < 250 && !ready; i++) await new Promise(resolveWait => setTimeout(resolveWait, 20));
+    return ready;
+  };
   ipcMain.handle('pero:session', async (sender, command: unknown) => {
     trusted(sender);
-    if (!ready || !command || typeof command !== 'object') throw new Error('Invalid session command');
+    if (!command || typeof command !== 'object') throw new Error('Invalid session command');
+    if (!await waitUntilReady()) throw new Error('The local runtime is unavailable');
     const action = (command as { action?: string }).action;
     const method = (command as { method?: string }).method;
     if(method==='mcp'){

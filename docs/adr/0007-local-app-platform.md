@@ -19,13 +19,19 @@ App port; its existing scientific methods and source attribution stay in the App
   enable state, data locations and backend children. `pero-host` exposes these
   operations through the existing stdio transport. Electron is an adapter, not a
   second installation or backend lifecycle owner. Go Task/Run authority is unchanged.
+- The workbench keeps that catalog at `~/.pero/apps`, domain data at
+  `~/.pero/app-data`, and runtime settings at `~/.pero/config/runtime-settings.json`.
+  The shared Python environment is `~/.pero/environment/pero-default`.
+  `PERO_DESKTOP_DATA_DIR`, `PERO_APPS_ROOT` and `PERO_SETTINGS_PATH` keep isolated
+  profiles and explicit overrides. The Desktop shell prepares the default
+  environment; the Host still does not install packages itself.
 - Installation copies a selected local package into the managed App root and
   leaves it disabled until explicitly enabled. Installation state is durable.
   Builtins are pretrusted by the composition root. Startup and catalog requests
-  discover newly bundled identities and install/enable them. A per-App discovery
-  receipt retains prior decisions: existing enable state and installed package
-  bytes are not overwritten; explicit removal prevents automatic reinstallation.
-  There is no marketplace, source watcher or automatic package update mechanism.
+  discover newly bundled identities and install/enable them. The same pass
+  replaces an installed builtin when the bundled package changes, keeps its
+  enable flag, and leaves domain data in place. Explicit removal prevents
+  automatic reinstallation. There is no marketplace or filesystem watcher.
   The 2026-10-29 migration replaces the old global `.builtins-seeded` gate.
   Its `1` marker has no identity history: migration preserves installed names
   and the original Virtual Cell builtin, including its prior removal. Other
