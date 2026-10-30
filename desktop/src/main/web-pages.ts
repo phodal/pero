@@ -20,7 +20,7 @@ export class WebPages {
   private navigate(page:Page,address:WebAddress) {
     page.document.observation.url=address.text;
     page.document.observation.load={kind:'loading'};this.emit('web_state',page);
-    if(this.window.isVisible()&&this.window.isFocused())page.view.webContents.focus();
+    if(page.view.getVisible()&&this.window.isVisible()&&this.window.isFocused())page.view.webContents.focus();
     void page.view.webContents.loadURL(address.text).catch(error=>{if(!page.view.webContents.isDestroyed()&&error.code!=='ERR_ABORTED')this.fail(page,error.message);});
   }
   private open(address:WebAddress,current=address,restored=false) {
