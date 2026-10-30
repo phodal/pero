@@ -81,3 +81,6 @@ mod document_save_as;
 
 #[cfg(any(target_family="wasm",feature="native"))]
 mod workspace_sources;
+
+#[cfg(any(target_family="wasm",feature="native"))]
+mod workspace_pane_views;

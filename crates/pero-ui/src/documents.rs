@@ -1,11 +1,7 @@
 //! Retained document items. Navigation owns selection; each item owns its view.
 use crate::{app::Workbench, workspace::WorkspaceItem};
-use gpui_kit::{
-    component::{ActiveTheme, Disableable, Sizable, button::ButtonVariants as _},
-    prelude::*,
-    *,
-};
-use pero_chat_ui::content_reader::{ContentReader, ReaderAction};
+use gpui_kit::{prelude::*, *};
+use pero_chat_ui::content_reader::ContentReader;
 use pero_contracts::content_document::ContentDocument;
 use pero_contracts::content_origin::ContentOrigin;
 
@@ -54,31 +50,13 @@ impl Workbench {
             let view =
                 cx.new(|cx| ContentReader::new(document, locale, window, cx).workspace(window, cx));
             let close_item = item.clone();
-            let subscription=cx.subscribe_in(&view,window,move |this,_,action,window,cx| {
-                match action {
-                    ReaderAction::Save {source,revision,text}=>this.command(serde_json::json!({"method":"documents","action":"save","request_id":format!("save:{source}"),"source":source,"revision":revision,"text":text}),cx),
-                    ReaderAction::Navigate {before,after}=>this.record_document_jump(&close_item,before.clone(),after.clone(),cx),
-                    ReaderAction::Reload {path}=>this.command(serde_json::json!({"method":"documents","action":"open","request_id":"reload","path":path}),cx),
-                    ReaderAction::DiscardAndClose=>this.discard_document(&close_item,window,cx),
-                    ReaderAction::Link(href)=> {
-                        let origin=match &close_item {WorkspaceItem::Document {origin,..}=>origin,_=>return};
-                        match pero_contracts::content_link::ContentLink::resolve(origin,href) {
-                            pero_contracts::content_link::ContentLink::File(href)=> {
-                                let WorkspaceItem::Document {source,..}=&close_item else {return;};
-                                this.command(serde_json::json!({"method":"documents","action":"follow","request_id":"link","source":source,"href":href}),cx);
-                            }
-                            pero_contracts::content_link::ContentLink::External(url)=>cx.open_url(&url),
-                            _=> {this.error=Some(this.t("content.link_unavailable").into());cx.notify();}
-                        }
-                    }
-                }
-            });
+            let subscription =
+                cx.subscribe_in(&view, window, move |this, reader, action, window, cx| {
+                    this.handle_document_action(&close_item, reader, action, window, cx)
+                });
             let observed_item = item.clone();
             let observer = cx.observe(&view, move |this, view, cx| {
-                this.navigation
-                    .observe_reading(&observed_item, view.read(cx).reading_state(cx));
-                this.queue_workspace_checkpoint(cx);
-                cx.notify();
+                this.observe_document_view(&observed_item, &view, cx)
             });
             self.documents.push(WorkspaceDocument {
                 item: item.clone(),
@@ -93,6 +71,10 @@ impl Workbench {
             view.update(cx, |view, cx| view.restore_reading_state(state, window, cx));
         }
         self.navigation.open(item);
+        self.navigation.ensure_document_layout();
+        if !self.recovery.applying {
+            self.ensure_document_panes(window, cx);
+        }
         self.sync_follow(cx);
         self.queue_workspace_checkpoint(cx);
         view.update(cx, |view, cx| view.focus(window, cx));
@@ -125,10 +107,11 @@ impl Workbench {
                 true
             }
             "document_file" | "document_open" => {
-                match serde_json::from_value::<pero_contracts::content_document::DocumentHeader>(
+                match serde_json::from_value::<pero_contracts::content_location::DocumentOpening>(
                     event.data.clone(),
                 ) {
-                    Ok(header) => {
+                    Ok(opening) => {
+                        let (header, location) = opening.into_parts();
                         let document = header.into_document(event.text.clone());
                         if event
                             .request_id
@@ -140,7 +123,17 @@ impl Workbench {
                                 .iter()
                                 .find(|open| open.view.read(cx).document.id == document.id)
                             {
-                                open.view.update(cx, |view, cx| view.saved(document, cx));
+                                open.view
+                                    .update(cx, |view, cx| view.saved(document.clone(), cx));
+                                for pane in &self.pane_views {
+                                    if pane.item == open.item && pane.view != open.view {
+                                        pane.view.update(cx, |view, cx| {
+                                            view.saved(document.clone(), cx)
+                                        });
+                                    }
+                                }
+                                self.navigation
+                                    .bind_document_revision(&open.item, document.revision);
                             }
                         } else if event.request_id.as_deref() == Some("reload") {
                             if let Some(open) = self
@@ -148,11 +141,28 @@ impl Workbench {
                                 .iter()
                                 .find(|open| open.view.read(cx).document.id == document.id)
                             {
-                                open.view
-                                    .update(cx, |view, cx| view.reload(document, window, cx));
+                                open.view.update(cx, |view, cx| {
+                                    view.reload(document.clone(), window, cx)
+                                });
+                                for pane in &self.pane_views {
+                                    if pane.item == open.item && pane.view != open.view {
+                                        pane.view.update(cx, |view, cx| {
+                                            view.reload(document.clone(), window, cx)
+                                        });
+                                    }
+                                }
                             }
                         } else {
                             self.open_document(document, window, cx);
+                            if let Some(location) = location {
+                                if let Some(item) = self.navigation.current().cloned() {
+                                    if let Some(view) = self.active_document_view(&item) {
+                                        view.update(cx, |view, cx| {
+                                            view.reveal_record(location.record as usize, window, cx)
+                                        });
+                                    }
+                                }
+                            }
                         }
                         self.error = None;
                     }
@@ -171,6 +181,11 @@ impl Workbench {
                     Some(open.view.read(cx).document.id.as_str()) == event.data["source"].as_str()
                 }) {
                     open.view.update(cx, |view, cx| view.file_failed(key, cx));
+                    for pane in &self.pane_views {
+                        if pane.item == open.item && pane.view != open.view {
+                            pane.view.update(cx, |view, cx| view.file_failed(key, cx));
+                        }
+                    }
                 } else {
                     self.error = Some(self.t(key).into());
                 }
@@ -197,6 +212,7 @@ impl Workbench {
             );
         }
         self.documents.retain(|open| &open.item != item);
+        self.pane_views.retain(|view| &view.item != item);
         self.recovery
             .deferred
             .retain(|document| &document.saved.item() != item);
@@ -244,124 +260,27 @@ impl Workbench {
         for (view, document) in updates {
             view.update(cx, |view, cx| view.replace(document, cx));
         }
+        for pane in &self.pane_views {
+            if let Some(primary) = self.documents.iter().find(|open| open.item == pane.item) {
+                let document = primary.view.read(cx).document.clone();
+                if pane.view != primary.view
+                    && !pane.view.read(cx).document.shares_source(&document)
+                {
+                    pane.view.update(cx, |view, cx| view.replace(document, cx));
+                }
+            }
+        }
     }
 
     pub(crate) fn document_content(&self, cx: &mut Context<Self>) -> AnyElement {
-        let panes = self.navigation.panes();
-        let items = panes
-            .map(|(left, right, focused)| (vec![left.clone(), right.clone()], focused))
-            .unwrap_or_else(|| {
-                (
-                    self.navigation.current().cloned().into_iter().collect(),
-                    crate::workspace::PaneSide::Left,
-                )
-            });
-        let split = items.0.len() == 2;
+        if let Some(layout) = self.navigation.pane_layout() {
+            if let Some(root) = &layout.root {
+                return self.render_pane_tree(root, cx);
+            }
+        }
         div()
-            .flex()
             .flex_1()
-            .min_h_0()
-            .min_w_0()
-            .children(items.0.into_iter().enumerate().map(|(index, item)| {
-                let open = self.documents.iter().find(|open| open.item == item);
-                let cached = open.is_some_and(|open| open.cached);
-                let selected = item.clone();
-                div()
-                    .id(("document-pane", index))
-                    .flex()
-                    .flex_col()
-                    .flex_1()
-                    .min_w_0()
-                    .min_h_0()
-                    .when(split, |pane| {
-                        pane.border_l_1().border_color(cx.theme().border)
-                    })
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _, window, cx| {
-                            if let Some(route) = this.navigation.select(&selected) {
-                                this.activate_route(route, window, cx);
-                            }
-                            this.queue_workspace_checkpoint(cx);
-                        }),
-                    )
-                    .map(|pane| {
-                        pane.child(
-                            div()
-                                .h(px(28.))
-                                .flex()
-                                .items_center()
-                                .px(px(8.))
-                                .text_size(px(12.))
-                                .child(
-                                    div().flex_1().truncate().child(
-                                        open.map(|open| open.view.read(cx).document.title.clone())
-                                            .unwrap_or_default(),
-                                    ),
-                                )
-                                .child(
-                                    gpui_kit::component::button::Button::new("save-document-as")
-                                        .ghost()
-                                        .small()
-                                        .label(self.t(if self.save_as_pending(&item) {
-                                            "content.saving_as"
-                                        } else {
-                                            "content.save_as"
-                                        }))
-                                        .disabled(self.pending_save_as.is_some())
-                                        .accessibility_label(self.t("content.save_as"))
-                                        .on_click(cx.listener({
-                                            let item = item.clone();
-                                            move |this, _, _, cx| {
-                                                this.choose_document_copy(&item, cx)
-                                            }
-                                        })),
-                                )
-                                .when(index == 1 && split, |header| {
-                                    header.child(
-                                        gpui_kit::component::button::Button::new(
-                                            "close-document-split",
-                                        )
-                                        .ghost()
-                                        .small()
-                                        .icon(gpui_kit::component::IconName::Close)
-                                        .tooltip(self.t("workspace.close_split"))
-                                        .on_click(
-                                            cx.listener(|this, _, window, cx| {
-                                                this.toggle_document_split(window, cx)
-                                            }),
-                                        ),
-                                    )
-                                }),
-                        )
-                    })
-                    .when(
-                        self.save_as_feedback
-                            .as_ref()
-                            .is_some_and(|feedback| feedback.item == item),
-                        |pane| {
-                            pane.child(
-                                div()
-                                    .px(px(8.))
-                                    .text_size(px(12.))
-                                    .child(self.t(self.save_as_feedback.as_ref().unwrap().key)),
-                            )
-                        },
-                    )
-                    .when(cached, |pane| {
-                        pane.child(
-                            div()
-                                .p(px(8.))
-                                .text_size(px(12.))
-                                .text_color(cx.theme().muted_foreground)
-                                .child(self.t("workspace.cached_source")),
-                        )
-                    })
-                    .children(open.map(|open| open.view.clone()))
-                    .when(open.is_none(), |pane| {
-                        pane.child(self.deferred_document_content(&item, cx))
-                    })
-            }))
+            .child(self.t("content.unavailable"))
             .into_any_element()
     }
 

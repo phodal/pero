@@ -42,6 +42,10 @@ pub(crate) struct Workbench {
     pub workspace_focus:FocusHandle,
     pub input: Entity<InputState>,
     pub documents:Vec<crate::documents::WorkspaceDocument>,
+    pub pane_views:Vec<crate::workspace_pane_views::PaneReader>,
+    pub pane_surfaces:Vec<pero_contracts::workspace_panes::PaneSurface>,
+    pub pane_split_bounds:Vec<(u64,pero_contracts::workspace_panes::PaneBounds)>,
+    pub pane_resize:Option<crate::workspace_pane_views::PaneResize>,
     pub pending_save_as:Option<crate::document_save_as::PendingSaveAs>,
     pub save_as_feedback:Option<crate::document_save_as::SaveAsFeedback>,
     #[cfg(not(target_family="wasm"))]
@@ -109,12 +113,26 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> Self {
         cx.bind_keys([
+            KeyBinding::new("cmd-alt-shift-left",crate::workspace_pane_views::SplitPaneLeft,None),
+            KeyBinding::new("ctrl-alt-shift-left",crate::workspace_pane_views::SplitPaneLeft,None),
+            KeyBinding::new("ctrl-alt-left",crate::workspace_pane_views::FocusPaneLeft,None),
+            KeyBinding::new("cmd-alt-shift-right",crate::workspace_pane_views::SplitPaneRight,None),
+            KeyBinding::new("ctrl-alt-shift-right",crate::workspace_pane_views::SplitPaneRight,None),
+            KeyBinding::new("ctrl-alt-right",crate::workspace_pane_views::FocusPaneRight,None),
+            KeyBinding::new("cmd-alt-shift-up",crate::workspace_pane_views::SplitPaneUp,None),
+            KeyBinding::new("ctrl-alt-shift-up",crate::workspace_pane_views::SplitPaneUp,None),
+            KeyBinding::new("ctrl-alt-up",crate::workspace_pane_views::FocusPaneUp,None),
+            KeyBinding::new("cmd-alt-shift-down",crate::workspace_pane_views::SplitPaneDown,None),
+            KeyBinding::new("ctrl-alt-shift-down",crate::workspace_pane_views::SplitPaneDown,None),
+            KeyBinding::new("ctrl-alt-down",crate::workspace_pane_views::FocusPaneDown,None),
+            KeyBinding::new("cmd-shift-w",crate::workspace_pane_views::ClosePane,None),
+            KeyBinding::new("ctrl-shift-w",crate::workspace_pane_views::ClosePane,None),
             KeyBinding::new("cmd-shift-s",crate::document_save_as::SaveDocumentAs,None),
             KeyBinding::new("ctrl-shift-s",crate::document_save_as::SaveDocumentAs,None),
             KeyBinding::new("alt-left",crate::workspace_view::WorkspaceBack,None),
             KeyBinding::new("alt-right",crate::workspace_view::WorkspaceForward,None),
             KeyBinding::new("cmd-alt-right",crate::workspace_view::SplitDocument,None),
-            KeyBinding::new("ctrl-alt-right",crate::workspace_view::SplitDocument,None),
+
             KeyBinding::new("cmd-l",crate::web_documents::OpenWeb,None),
             KeyBinding::new("ctrl-l",crate::web_documents::OpenWeb,None),
             KeyBinding::new("cmd-o",crate::workspace_view::OpenDocument,None),
@@ -232,7 +250,7 @@ impl Workbench {
             resizing_chat: false,
             chat_resize_focus: cx.focus_handle().tab_stop(true),
             input,
-            documents:vec![],pending_save_as:None,save_as_feedback:None,
+            documents:vec![],pane_views:vec![],pane_surfaces:vec![],pane_split_bounds:vec![],pane_resize:None,pending_save_as:None,save_as_feedback:None,
             input_locale: String::new(),
             locale,
             palettes,
@@ -712,6 +730,8 @@ pub fn snapshot() -> String {
         value["webEntryOpen"]=json!(ui.web_entry_open);
         value["documents"]=json!(ui.documents.iter().map(|open|json!({"item":open.item,"title":open.view.read(cx).document.title,"reader":open.view.read(cx).snapshot(cx)})).collect::<Vec<_>>());
         value["contentTabs"] = serde_json::json!(ui.navigation.items());
+        value["paneSurfaces"]=serde_json::json!(ui.pane_surfaces);
+        value["paneViews"]=serde_json::json!(ui.pane_views.iter().map(|view|serde_json::json!({"pane":view.id,"item":view.item,"reader":view.view.read(cx).snapshot(cx)})).collect::<Vec<_>>());
         value["workspaceNavigation"]=serde_json::json!(ui.navigation.snapshot());
         value["activeContent"] = serde_json::json!(ui.navigation.current());
         if let Some(index)=ui.navigation.current().and_then(|item|ui.navigation.items().iter().position(|candidate|candidate==item)) {

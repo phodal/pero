@@ -312,7 +312,17 @@ impl Render for Workbench {
             .capture_action(cx.listener(|this,_:&crate::workspace_view::WorkspaceBack,window,cx|this.navigate_history(false,window,cx)))
             .capture_action(cx.listener(|this,_:&crate::workspace_view::WorkspaceForward,window,cx|this.navigate_history(true,window,cx)))
             .capture_action(cx.listener(|this,_:&crate::workspace_view::SplitDocument,window,cx|this.toggle_document_split(window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::SplitPaneLeft,window,cx|{this.split_document_pane(pero_contracts::workspace_panes::SplitDirection::Left,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::FocusPaneLeft,window,cx|{this.focus_document_pane_direction(pero_contracts::workspace_panes::SplitDirection::Left,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::SplitPaneRight,window,cx|{this.split_document_pane(pero_contracts::workspace_panes::SplitDirection::Right,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::FocusPaneRight,window,cx|{this.focus_document_pane_direction(pero_contracts::workspace_panes::SplitDirection::Right,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::SplitPaneUp,window,cx|{this.split_document_pane(pero_contracts::workspace_panes::SplitDirection::Up,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::FocusPaneUp,window,cx|{this.focus_document_pane_direction(pero_contracts::workspace_panes::SplitDirection::Up,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::SplitPaneDown,window,cx|{this.split_document_pane(pero_contracts::workspace_panes::SplitDirection::Down,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::FocusPaneDown,window,cx|{this.focus_document_pane_direction(pero_contracts::workspace_panes::SplitDirection::Down,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::ClosePane,window,cx|{this.close_active_document_pane(window,cx);cx.stop_propagation();}))
             .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, window, cx| {
+                this.resize_document_pane(event.position,cx);
                 if this.resizing_chat {
                     let width: f32 = window.viewport_size().width.into();
                     let x: f32 = event.position.x.into();
@@ -323,6 +333,7 @@ impl Render for Workbench {
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(|this, _, _, cx| {
+                    if this.pane_resize.take().is_some() {this.queue_workspace_checkpoint(cx);cx.notify();}
                     if this.resizing_chat {
                         this.resizing_chat = false;
                         this.save_preferences(this.preferences.clone(), cx);

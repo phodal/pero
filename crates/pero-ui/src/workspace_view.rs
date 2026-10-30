@@ -126,8 +126,9 @@ impl Workbench {
             }
             WorkspaceRoute::Content(item @ WorkspaceItem::Document { .. }) => {
                 self.request_workspace_source(&item, cx);
-                if let Some(open) = self.documents.iter().find(|open| open.item == item) {
-                    open.view.update(cx, |view, cx| view.focus(window, cx));
+                self.ensure_document_panes(window, cx);
+                if let Some(view) = self.active_document_view(&item) {
+                    view.update(cx, |view, cx| view.focus(window, cx));
                 }
             }
             WorkspaceRoute::Content(WorkspaceItem::Project(key)) => {
@@ -155,7 +156,12 @@ impl Workbench {
         }
     }
 
-    fn close_content(&mut self, item: &WorkspaceItem, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn close_content(
+        &mut self,
+        item: &WorkspaceItem,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.remember_current_location(cx);
         self.queue_workspace_checkpoint(cx);
         if let WorkspaceItem::Web(id) = item {
@@ -180,9 +186,12 @@ impl Workbench {
         }
         if let Some(open) = self.documents.iter().find(|open| &open.item == item) {
             if open.view.read(cx).dirty() {
-                open.view.update(cx, |view, cx| {
-                    view.request_close(cx);
-                });
+                if let Some(route) = self.navigation.select(item) {
+                    self.activate_route(route, window, cx);
+                }
+                if let Some(view) = self.active_document_view(item) {
+                    view.update(cx, |view, cx| view.request_close(cx));
+                }
                 self.navigation.select(item);
                 cx.notify();
                 return;
@@ -396,7 +405,6 @@ impl Workbench {
                         .ghost()
                         .small()
                         .icon(Icon::default().path("icons/panel-right-open.svg"))
-                        .disabled(self.navigation.panes().is_none() && self.documents.len() < 2)
                         .tooltip(self.t("workspace.split"))
                         .accessibility_label(self.t("workspace.split"))
                         .on_click(cx.listener(|this, _, window, cx| {
