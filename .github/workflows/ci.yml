@@ -340,7 +340,7 @@ jobs:
           PERO_TEST_HEADED: '1'
           PERO_TEST_SOFTWARE_GL: '1'
         run: |
-          node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs
+          node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs
           xvfb-run -a -s '-screen 0 1920x1200x24' npm run test:e2e
           xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use.mjs
           xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use-workbench.mjs

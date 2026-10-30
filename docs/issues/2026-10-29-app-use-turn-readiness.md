@@ -150,3 +150,39 @@ ZIP SHA-256 `0b6e3ec3c12e86d0f442da92dd2d3b6d8daf22f8bedd3081325e6d920c99ac80`.
 This closes the pending Electron checkpoints above. macOS and Windows Desktop
 E2E were skipped under existing workflow conditions; no native E2E acceptance
 is inferred for those platforms.
+
+## Workbench chat launch acknowledgement (2026-10-30)
+
+Run40994868420 (head b7b9d80, merge f3f8fe75) failed the initial Workbench
+`app-use:full` composer assertion. Artifact12951321477 SHA256
+`d491836a3ba3be720d00cb0e6f20a609c6c52993039f37e77c649b588133f8b1`
+shows the exact text already visible in the failure screenshot and retained
+state, in the sole `virtual-cell/main` chat `chat-1793329796417-1`, idle with
+fixture session `app-use-fixture` and no error. This is late delivery, not
+observed intent loss. The artifact does not timestamp individual launch stages.
+
+The test posted a fire-and-forget message then immediately started a five-second
+composer poll. The shared launcher first opens/selects a scoped draft (its own
+five-second readiness bound), awaits main-process context freezing and App status
+RPC, and only then queues the insertion for the Chat render. Agent preparation
+can interleave with this flow; it does not own the insertion or its destination.
+
+Use the existing correlated `pero:app:chat-result` acknowledgement for both direct
+Workbench chat launches before asserting the rendered effect. Match the parent
+source, origin, request ID and response type; reject errors without resending.
+Use the SDK's existing 125-second request deadline, not a longer composer poll.
+This explicitly permits a longer acknowledged launch window in this test; it
+does not claim the old total five-second wall-clock budget is unchanged.
+Keep the original exact-text five-second assertion, scoped chat identity and all
+App Use/default-deny checks. Real Electron acceptance remains pending.
+
+Local validation: all 34 fixture tests passed (including seven launch cases:
+acknowledgement after the former five-second window, wrong source/origin/id/type,
+negative response and deadline cleanup), with no sleeps or resends. The actual
+serialized browser callback is tested with explicit reply events and clock
+values. JavaScript syntax and diff checks passed. The SDK launch is enclosed in
+a React hook rather than an importable browser request helper; this fixture
+implements only its wire contract, without changing production code. The
+Workbench now also checks the acknowledged thread and exact App scope before
+submission, and the original thread acknowledgement on return. This environment
+has no built Web distribution/Xvfb; real Electron execution is still required.

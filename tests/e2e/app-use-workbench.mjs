@@ -1,6 +1,7 @@
 // Workbench and standalone Products share the same MCP authority and App RPC.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { requestAppChat } from '../fixtures/app-chat-launch.mjs';
 import { waitForFullAppUse } from '../fixtures/app-use-progress.mjs';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -31,11 +32,14 @@ try{
  await expect.poll(async()=>(await state()).activeContent).toEqual({kind:'app',value:{name:'virtual-cell',panel:'main'}});
  const frame=page.frameLocator('iframe[title="virtual-cell"]');
  await expect(frame.getByLabel('Find gene',{exact:true})).toBeVisible({timeout:20000});
- await frame.locator('body').evaluate(()=>parent.postMessage({type:'pero:app:chat',text:'app-use:full'},'*'));
+ const parentOrigin=await page.evaluate(()=>location.origin);
+ const launch=await frame.locator('body').evaluate(requestAppChat,{text:'app-use:full',parentOrigin});
  await expect.poll(async()=>(await state()).composer).toBe('app-use:full');
  const left=await page.locator('#pero-app-surface').evaluate(element=>element.getBoundingClientRect().right);
  const active=async()=>{const s=await state();return s.chats[s.activeChat];};
  const beforeFull=await active();
+ expect(beforeFull.id).toBe(launch.threadId);
+ expect(beforeFull.scope).toEqual({app:'virtual-cell',panel:'main'});
  await page.mouse.click(left+150,await page.evaluate(()=>innerHeight-70));await page.keyboard.press('Enter');
  const fullProgress=await waitForFullAppUse(active,beforeFull);
  await expect.poll(async()=>(await active()).messages.filter(m=>m.role==='assistant').at(-1)?.text||'',{timeout:30000}).toContain('APP_USE_RESULT:');
@@ -56,7 +60,8 @@ try{
  await page.mouse.click(100,28);await expect.poll(async()=>(await active()).scope).toBeNull();
  await page.evaluate(()=>window.releaseContext());
  await expect.poll(async()=>(await state()).attachments.length).toBe(0);
- await frame.locator('body').evaluate(()=>parent.postMessage({type:'pero:app:chat',text:''},'*'));
+ const restored=await frame.locator('body').evaluate(requestAppChat,{text:'',parentOrigin});
+ expect(restored.threadId).toBe(original);
  await expect.poll(async()=>(await active()).id).toBe(original);
  await expect.poll(async()=>(await state()).attachments.length).toBe(1);
  await page.screenshot({path:resolve(output,'original-draft.png')});
