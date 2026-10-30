@@ -353,12 +353,18 @@ jobs:
           node -e "require('esbuild').buildSync({entryPoints:['desktop/src/main/app-use.test.ts','desktop/src/main/app-context.test.ts'],outdir:process.env.RUNNER_TEMP+'/app-use-tests',bundle:true,platform:'node',format:'esm',external:['electron']})"
           node --test "$RUNNER_TEMP"/app-use-tests/*.js
           node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs
-          xvfb-run -a -s '-screen 0 1920x1200x24' npm run test:e2e
-          xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use.mjs
-          xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use-workbench.mjs
-          node tests/contracts/mcp-settings.mjs
-          node tests/contracts/mcp-ownership.mjs
-          xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/mcp-settings.mjs
+          # Independent suites keep separate profiles/displays. Collect every receipt,
+          # but retain a failing step if any acceptance command fails.
+          failed=0
+          run_acceptance() { "$@" || failed=1; }
+          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/workbench.mjs
+          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/toolcalls.mjs
+          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use.mjs
+          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use-workbench.mjs
+          run_acceptance node tests/contracts/mcp-settings.mjs
+          run_acceptance node tests/contracts/mcp-ownership.mjs
+          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/mcp-settings.mjs
+          exit "$failed"
 
       - name: Desktop E2E evidence
         if: always() && runner.os == 'Linux'
