@@ -34,7 +34,9 @@ with closing(pdfium.PdfDocument(data)) as pdf, closing(pdf[0]) as page, closing(
 `, resolve(root, 'apps/paper-agent/test/test_pdf.py'), pdfPath, process.env.PERO_PAPER_PDF_FILE || ''], { encoding: 'utf8' }));
 const capture = resolve(profile, 'fixture-turns.jsonl');
 const agents = resolve(profile, 'agents.json');
-await writeFile(agents, JSON.stringify([{ id: 'paper-fixture', name: 'Synthetic Paper fixture', command: process.execPath,
+await writeFile(agents, JSON.stringify([
+  ...['pero', 'codex', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({ id, name: id, command: resolve(profile, `unavailable-${id}`) })),
+  { id: 'paper-fixture', name: 'Synthetic Paper fixture', command: process.execPath,
   args: [resolve(root, 'tests/fixtures/paper-agent.mjs'), `--capture=${capture}`] }]));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop'), PERO_LOCALE: 'en',
   PERO_SETTINGS_PATH: resolve(profile, 'settings.json'), PERO_HISTORY_PATH: resolve(profile, 'sessions.jsonl'), PERO_AGENTS_FILE: agents };
@@ -63,19 +65,27 @@ const observe = page => {
   });
 };
 
-async function openPaper(page) {
+async function openPaper(page, name = 'paper-agent') {
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await page.evaluate(path => window.pero.sessionCommand({ action: 'workspace', path }), profile);
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).workspace)).toBe(profile);
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(item => item.name === 'paper-agent') ?? false)).toBe(true);
-  await page.mouse.click(80, await page.evaluate(() => innerHeight - 52));
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector('canvas');
+    return canvas?.width === Math.round(innerWidth * devicePixelRatio) && canvas.height === Math.round(innerHeight * devicePixelRatio);
+  });
+  await page.mouse.click(80, await page.evaluate(() => innerHeight - 60));
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).navigation)).toBe(7);
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).appsLoading)).toBe(false);
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
-  await page.mouse.click(await page.evaluate(() => innerWidth - 172), 76);
-  await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).activeApp?.name)).toBe('paper-agent');
-  const frame = page.frameLocator('iframe[title="paper-agent"]');
-  await expect(frame.getByRole('button', { name: 'Add papers', exact: true }).first()).toBeVisible({ timeout: 20000 });
+  const catalog = await page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
+  const row = catalog.apps.findIndex(app => app.name === name);
+  expect(row).toBeGreaterThanOrEqual(0);
+  await page.mouse.click(await page.evaluate(() => innerWidth - 172), 76 + (catalog.contentTabs.length ? 30 : 0) + row * 58);
+  await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).activeApp?.name)).toBe(name);
+  const frame = page.frameLocator(`iframe[title="${name}"]`);
+  await expect(frame.locator('body')).toBeAttached({ timeout: 20000 });
+  if (name === 'paper-agent') await expect(frame.getByRole('button', { name: 'Add papers', exact: true }).first()).toBeVisible({ timeout: 20000 });
   return frame;
 }
 const library = frame => frame.locator('body').evaluate(async () => (await (await fetch('/api/library')).json()));
@@ -275,9 +285,7 @@ try {
   expect((await fixtureTurns()).length).toBe(beforeRestart);
   checks.push('conversation history, reports, PDF bytes, annotations, matrices and exact citations survive Desktop restart without Agent replay');
   await page.screenshot({path:resolve(out,'conversation-reopened.png')});
-  await page.evaluate(()=>window.pero.appsCommand({action:'apps_open',name:'virtual-cell',panel:'main'}));
-  const other=page.frameLocator('iframe[title="virtual-cell"]');
-  await expect(other.locator('body')).toBeAttached();
+  const other=await openPaper(page, 'virtual-cell');
   const denied=await other.locator('body').evaluate(async()=>{const response=await fetch('/host/agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'info'})});return{status:response.status,text:await response.text()};});
   expect(denied.status).toBeGreaterThanOrEqual(400);expect(denied.text).toMatch(/permission|grant|Agent|agent/i);
   checks.push('real Host Agent grant boundary remains enforced');
