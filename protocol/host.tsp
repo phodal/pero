@@ -71,6 +71,17 @@ model WebSurfaceCommand {action:"web_surface";id:string|null;bounds?:SurfaceBoun
 /** Private Desktop/native browser-engine commands, not Host stdin. */
 @oneOf union WebCommand {WebOpenCommand,WebNavigateCommand,WebControlCommand,WebSurfaceCommand}
 
+// User-managed non-secret MCP configuration, scoped to one local ACP Agent.
+model McpStdioTransport { type:"stdio";command:string;args?:string[];...Closed }
+model McpHttpTransport { type:"http";url:string;...Closed }
+@oneOf union McpTransport { McpStdioTransport,McpHttpTransport }
+model McpServerConfig {name:string;enabled?:boolean=false;transport:McpTransport;...Closed}
+model GetMcpSettingsRequest {method:"settings.mcp.get";request_id:string;agent_id:string;...Closed}
+model SetMcpSettingsRequest {method:"settings.mcp.set";request_id:string;agent_id:string;revision:safeint;servers:McpServerConfig[];...Closed}
+@oneOf union McpSettingsRequest {GetMcpSettingsRequest,SetMcpSettingsRequest}
+model McpSettingsEvent {kind:"mcp_settings";...EventBase;data:{agent_id:string;revision:safeint;servers:McpServerConfig[];...Closed}}
+model McpSettingsErrorEvent {kind:"mcp_settings_error";...EventBase;data:{agent_id:string;reason:"conflict"|"invalid"|"unavailable"|"read_write";...Closed}}
+
 // ---------- Host input: one JSON object per stdin line ----------
 
 /** Bootstrap transport probe. */
@@ -166,6 +177,7 @@ union HostCommand {
 
 @oneOf
 union HostInput {
+  McpSettingsRequest,
   FileDocumentRequest,
   LocalWorkerRequest,
   EchoRequest,
@@ -327,6 +339,7 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 
 @oneOf
 union HostEvent {
+  McpSettingsEvent, McpSettingsErrorEvent,
   WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,
   DocumentOpenEvent,
   DocumentChooseEvent,
