@@ -12,7 +12,7 @@ const out = resolve(root, 'test-results/control-lab');
 await mkdir(out, { recursive: true });
 for (const name of ['result.json', 'failure.json']) await rm(resolve(out, name), { force: true });
 const execute = promisify(execFile);
-const checks = [], requests = [], errors = [], cleanup = [], experiments = {};
+const checks = [], requests = [], errors = [], consoleErrors = [], cleanup = [], experiments = {};
 let expect, electron, setAppearance, temp, app, page, frame, failure;
 const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const read = path => frame.locator('body').evaluate(async (_body, path) => {
@@ -82,10 +82,15 @@ async function closeDesktop() {
   if (failures.length) throw new AggregateError(failures, 'Desktop/backend shutdown failed; recovery cannot establish PASS');
 }
 async function captureFailure(error) {
-  const evidence = { status: 'failed', scope: 'real-local-numerical-development', error: String(error.stack || error), checks, experiments, requests, errors, cleanup };
+  const evidence = { status: 'failed', scope: 'real-local-numerical-development', error: String(error.stack || error), checks, experiments, requests, errors, consoleErrors, cleanup };
   if (page && !page.isClosed()) {
     try { evidence.desktop = await state(); } catch {}
     try { evidence.appText = await frame.locator('body').innerText(); } catch {}
+    try { evidence.formInputs = await frame.locator('form input, form select').evaluateAll(inputs => inputs.map(input => ({
+      label: input.getAttribute('aria-label') || [...input.labels ?? []].map(label => label.textContent.trim()).join(' '),
+      value: input.value, validity: Object.fromEntries(['valid', 'badInput', 'rangeOverflow', 'rangeUnderflow', 'stepMismatch', 'typeMismatch', 'valueMissing', 'customError'].map(key => [key, input.validity[key]])),
+      validationMessage: input.validationMessage,
+    }))); } catch {}
     try { await page.screenshot({ path: resolve(out, 'failure.png') }); } catch {}
   }
   await writeFile(resolve(out, 'failure.json'), JSON.stringify(evidence, null, 2));
@@ -131,6 +136,7 @@ try {
     app = await electron.launch({ args: [...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []), ...(process.env.PERO_CONTROL_LAB_HEADLESS === '1' ? ['--headless'] : []), resolve(root, 'desktop')], cwd: root, env });
     page = await app.firstWindow();
     page.on('pageerror', error => errors.push({ type: 'pageerror', message: error.message }));
+    page.on('console', message => { if (message.type() === 'error') consoleErrors.push({ message: message.text(), location: message.location().url.split('?')[0] }); });
     page.on('request', request => {
       const url = new URL(request.url());
       if (url.protocol === 'pero-app:' && url.hostname === 'control-lab' && url.pathname.startsWith('/api/')) requests.push({ method: request.method(), path: url.pathname });
@@ -154,9 +160,17 @@ try {
     const beforeInvalid = requests.filter(item => item.method === 'POST').length;
     await frame.getByRole('button', { name: 'Freeze specification', exact: true }).click();
     expect(requests.filter(item => item.method === 'POST')).toHaveLength(beforeInvalid);
+    await budget.press('Enter');
+    expect(requests.filter(item => item.method === 'POST')).toHaveLength(beforeInvalid);
     const candidateCount = template.id.endsWith('-golden') ? 1 : 2;
     await budget.fill(String(candidateCount));
-    const frozen = await action('Freeze specification', '/api/experiments');
+    let frozen;
+    if (template.id === 'pi-golden') {
+      const created = page.waitForResponse(response => new URL(response.url()).pathname === '/api/experiments' && response.request().method() === 'POST');
+      await budget.press('Enter');
+      const response = await created; expect(response.status()).toBe(201); frozen = await response.json();
+      checks.push('Invalid click/Enter creates no POST; valid Enter freezes PI specification through the explicit App action');
+    } else frozen = await action('Freeze specification', '/api/experiments');
     expect(frozen.specHash).toMatch(/^[a-f0-9]{64}$/);
     expect(frozen.scenarios.filter(item => item.role === 'verification').length).toBeGreaterThan(0);
     await expect(frame.getByLabel('Template', { exact: true })).toHaveCount(0);
@@ -217,6 +231,13 @@ try {
       expect(createHash('sha256').update(artifact.text).digest('hex')).toBe(reference.sha256);
     }
     checks.push(`${template.engine}: real bounded search, numerical series/artifact hashes, immutable policy, locked separate verification, full denominator and saved-evidence reevaluation/export`);
+    const responseHeading = frame.getByRole('heading', { name: 'Baseline and candidate', exact: true });
+    await responseHeading.evaluate(element => element.scrollIntoView({ block: 'start' }));
+    await expect(responseHeading).toBeInViewport();
+    await page.screenshot({ path: resolve(out, `${template.id}-response.png`) });
+    const verdictHeading = frame.getByRole('heading', { name: 'Independent verification', exact: true });
+    await verdictHeading.evaluate(element => element.scrollIntoView({ block: 'start' }));
+    await expect(verdictHeading).toBeInViewport();
     await page.screenshot({ path: resolve(out, `${template.id}-verified.png`) });
   }
   const first = finished[0];
@@ -303,5 +324,5 @@ finally {
 }
 if (failure) throw failure;
 await writeFile(resolve(out, 'result.json'), JSON.stringify({ status: 'passed', scope: 'real-local-numerical-development', realLLM: false,
-  headless: process.env.PERO_CONTROL_LAB_HEADLESS === '1', checks, experiments, requests, errors, cleanup, temporaryProfileRemoved: true }, null, 2));
+  headless: process.env.PERO_CONTROL_LAB_HEADLESS === '1', checks, experiments, requests, errors, consoleErrors, cleanup, temporaryProfileRemoved: true }, null, 2));
 console.log(JSON.stringify({ status: 'passed', checks }));

@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 const root = resolve(import.meta.dirname, '../..'), out = resolve(root, 'test-results/control-lab-app-use');
 await mkdir(out, { recursive: true });
 for (const name of ['result.json', 'failure.json']) await rm(resolve(out, name), { force: true });
-const execute = promisify(execFile), errors = [], cleanup = [];
+const execute = promisify(execFile), errors = [], consoleErrors = [], cleanup = [];
 let expect, electron, app, page, frame, temp, failure, result, frozen, final;
 const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } };
@@ -35,9 +35,14 @@ async function closeDesktop() {
   if (failures.length) throw new AggregateError(failures, 'App/Host/ACP cleanup failed; no success receipt');
 }
 async function recordFailure(error) {
-  const receipt = { status: 'failed', fixture: true, realModel: false, error: String(error.stack || error), errors, cleanup, result };
+  const receipt = { status: 'failed', fixture: true, realModel: false, error: String(error.stack || error), errors, consoleErrors, cleanup, result };
   if (page && !page.isClosed()) {
     try { receipt.state = await state(); } catch {}
+    try { receipt.formInputs = await frame.locator('form input, form select').evaluateAll(inputs => inputs.map(input => ({
+      label: input.getAttribute('aria-label') || [...input.labels ?? []].map(label => label.textContent.trim()).join(' '),
+      value: input.value, validity: Object.fromEntries(['valid', 'badInput', 'rangeOverflow', 'rangeUnderflow', 'stepMismatch', 'typeMismatch', 'valueMissing', 'customError'].map(key => [key, input.validity[key]])),
+      validationMessage: input.validationMessage,
+    }))); } catch {}
     try { await page.screenshot({ path: resolve(out, 'failure.png') }); } catch {}
   }
   await writeFile(resolve(out, 'failure.json'), JSON.stringify(receipt, null, 2));
@@ -58,6 +63,7 @@ try {
   delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT;
   app = await electron.launch({ requiresNativeWindow: true, args: [...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []), resolve(root, 'desktop')], cwd: root, env });
   page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') consoleErrors.push({ message: message.text(), location: message.location().url.split('?')[0] }); });
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1488, 1086));
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await expect.poll(async () => (await state()).apps?.some(item => item.name === 'control-lab')).toBe(true);
@@ -119,5 +125,5 @@ finally {
 }
 if (failure) throw failure;
 await writeFile(resolve(out, 'result.json'), JSON.stringify({ status: 'passed', scope: 'real-Desktop-ACP-MCP-App-transport', fixture: true, realModel: false,
-  result, experiment: final, errors, cleanup, temporaryProfileRemoved: true }, null, 2));
+  result, experiment: final, errors, consoleErrors, cleanup, temporaryProfileRemoved: true }, null, 2));
 console.log(JSON.stringify({ status: 'passed', fixture: true, realModel: false, experimentId: final.id }));

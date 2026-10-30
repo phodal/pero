@@ -194,6 +194,12 @@ export default function ControlLab() {
       setBusy(false);
     }
   }
+  function freezeSpecification(form: HTMLFormElement | null) {
+    // App frames intentionally do not grant allow-forms. Validate locally,
+    // then use the authenticated App API rather than native form submission.
+    if (loading || busy || pending.current || !form?.reportValidity()) return;
+    void create().catch(onError);
+  }
   async function act(action: string, body: object = {}) {
     if (!experiment) throw new Error("Freeze a specification first.");
     if (pending.current) throw new Error("An operation is already pending.");
@@ -372,9 +378,16 @@ export default function ControlLab() {
             <section>
               <h2>Design specification</h2>
               <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void create().catch(onError);
+                onSubmit={(event) => event.preventDefault()}
+                onKeyDown={(event) => {
+                  if (
+                    event.key === "Enter" &&
+                    !event.nativeEvent.isComposing &&
+                    event.target instanceof HTMLInputElement
+                  ) {
+                    event.preventDefault();
+                    freezeSpecification(event.currentTarget);
+                  }
                 }}
               >
                 <label>
@@ -464,7 +477,10 @@ export default function ControlLab() {
                     </p>
                     <button
                       className="primary"
-                      type="submit"
+                      type="button"
+                      onClick={(event) =>
+                        freezeSpecification(event.currentTarget.form)
+                      }
                       disabled={busy || loading}
                     >
                       {busy ? "Freezing…" : "Freeze specification"}
