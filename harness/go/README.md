@@ -175,3 +175,25 @@ read-only guarantee: explicitly granted parent-scoped MCP tools may be inherited
 and may have side effects. No external provider, continuation or model-facing
 async wait/cancel interface is exposed. Clean restart/no automatic replay was
 tested; crash-exactly-once recovery is not claimed. See [delegation](subagents/README.md).
+
+## Conversation charts
+
+The ACP executable mounts `charts.Mount`, advertising `chart_render` to the
+model. Python 3.9+ runs the embedded data core; `--chart-python` selects a trusted
+interpreter. This needs no App server or shell-tool grant. The plugin accepts
+`{document: ...}` for the version 1 chart JSON, or
+`{dataset:{name,content,format},chartDocument:{title,chart},view?,aggregation?}`
+for exact source-backed projections. `format` is `json` or `json_lines`;
+aggregation uses `x:label`, `y:value` and sum/count.
+
+Successful receipts contain a digest-bound canonical document and, for a
+dataset projection, the original source text, query/view identity, exact
+aggregate values and record pointers. The ordinary session journal retains the
+receipt. Pero's shared GPUI ChatPanel renders it outside the collapsed tool
+body and offers data/source readers. Replay reads the receipt without rerunning
+Python or contacting the model. Labels and supplied data are declarations;
+a digest binds bytes and does not establish their correctness.
+
+`go test -race ./charts` exercises the actual Python core. The Desktop test
+`node tests/e2e/harness-chart.mjs` uses a loopback model fixture and the real Go
+harness, ACP, persistence and GPUI surface, without opening Data Agent.
