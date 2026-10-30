@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "name": "insights",
+  "version": "0.1.0",
+  "displayName": "Insights",
+  "description": "阅读本机会话记录。",
+  "permissions": {
+    "host": ["insights", "agent"]
+  },
+  "contributes": {
+    "panels": [
+      {
+        "id": "main",
+        "title": "Insights",
+        "entry": "dist/index.html"
+      }
+    ]
+  }
+}

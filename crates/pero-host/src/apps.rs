@@ -48,6 +48,13 @@ enum Request {
         name: AppName,
         request: AgentRequest,
     },
+    Insights {
+        method: Method,
+        id: String,
+        name: AppName,
+        #[serde(default, rename = "threadId")]
+        thread_id: Option<String>,
+    },
 }
 
 pub struct Apps {
@@ -145,6 +152,15 @@ impl Apps {
                     let catalog = store.uninstall(&name).map_err(|error| error.to_string())?;
                     agents.stop_app_sessions(&name);
                     serde_json::to_value(catalog)
+                }
+                Request::Insights { method, id, name, thread_id } => {
+                    let _ = (method, id);
+                    store.require_grant(&name, "insights")?;
+                    let sessions = match thread_id {
+                        Some(thread) => vec![agents.insights_value(&thread)?],
+                        None => agents.insights_catalog(),
+                    };
+                    serde_json::to_value(serde_json::json!({ "sessions": sessions }))
                 }
                 Request::Resolve { method, id, name } => {
                     let _ = (method, id);

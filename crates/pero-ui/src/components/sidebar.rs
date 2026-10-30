@@ -37,6 +37,7 @@ pub(crate) struct ProjectGroup {
 }
 pub(crate) struct SidebarProps<'a> {
     pub navigation: WorkbenchPage,
+    pub insights_open: bool,
     pub local_connected: bool,
     pub groups: Vec<ProjectGroup>,
     pub ungrouped: Vec<RecentRow>,
@@ -46,6 +47,7 @@ pub(crate) struct SidebarProps<'a> {
 pub(crate) enum SidebarAction {
     NewChat,
     Navigate(WorkbenchPage),
+    OpenApp { name: String, panel: String },
     ToggleProject(String),
     RevealSessions(String),
     SelectSession(usize),
@@ -420,18 +422,18 @@ pub(crate) fn sidebar(
                     ui.t("nav.insights"),
                     None,
                     None,
-                    props.navigation == WorkbenchPage::Insights,
+                    props.insights_open,
                     pero_theme::RowLevel::Nav,
                     Some(Icon::default().path("icons/layout-list.svg").into_any_element()),
                     chrome,
-                    click(&on_action, SidebarAction::Navigate(WorkbenchPage::Insights)),
+                    click(&on_action, SidebarAction::OpenApp { name: "insights".into(), panel: "main".into() }),
                 ))
                 .child(pero_theme::sidebar_row(
                     "sidebar-apps",
                     ui.t("nav.apps"),
                     None,
                     None,
-                    props.navigation == WorkbenchPage::Apps,
+                    props.navigation == WorkbenchPage::Apps && !props.insights_open,
                     pero_theme::RowLevel::Nav,
                     Some(Icon::default().path("icons/file-code.svg").into_any_element()),
                     chrome,

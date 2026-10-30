@@ -139,10 +139,13 @@ impl AppDefinition {
         {
             return Err("Invalid App version, displayName or description".into());
         }
-        if value.permissions.host.iter().any(|grant| grant != "agent")
-            || value.permissions.host.len() > 1
-        {
-            return Err("This Host supports only the App agent permission".into());
+        let mut seen = std::collections::BTreeSet::new();
+        for grant in &value.permissions.host {
+            if (grant != "agent" && grant != "insights") || !seen.insert(grant.as_str()) {
+                return Err(
+                    "This Host supports only the App agent and insights permissions".into(),
+                );
+            }
         }
         if value.contributes.panels.len() != 1 {
             return Err("This Host requires exactly one App panel".into());
@@ -208,6 +211,9 @@ mod tests {
             ("displayName", serde_json::json!(" "), false),
             ("permissions", serde_json::json!({"host":["shell"]}), false),
             ("permissions", serde_json::json!({"host":["agent"]}), true),
+            ("permissions", serde_json::json!({"host":["insights"]}), true),
+            ("permissions", serde_json::json!({"host":["agent","insights"]}), true),
+            ("permissions", serde_json::json!({"host":["agent","agent"]}), false),
             (
                 "backend",
                 serde_json::json!({"type":"python","entry":"../server.py"}),

@@ -118,6 +118,15 @@ export class DesktopApps {
         const file=await this.input(url.hostname,url.pathname.split('/').at(-1)!);
         return new Response(new Uint8Array(file.data),{headers:{'Content-Type':file.mediaType,'Content-Disposition':`inline; filename*=UTF-8''${encodeURIComponent(file.name).replace(/['()*]/g,char=>'%'+char.charCodeAt(0).toString(16).toUpperCase())}`,'Cache-Control':'no-store'}});
       }
+      if (url.pathname === '/host/insights') {
+        if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
+        const body = await request.text();
+        if (Buffer.byteLength(body) > 4096) return new Response('Request too large', { status: 413 });
+        const operation = body ? JSON.parse(body) as { threadId?: string } : {};
+        const fields: Record<string, unknown> = { name: url.hostname };
+        if (operation.threadId) fields.threadId = operation.threadId;
+        return Response.json(await this.request('insights', fields), { headers: { 'Cache-Control': 'no-store' } });
+      }
       if (url.pathname === '/host/agent') {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
         const body = await request.text();

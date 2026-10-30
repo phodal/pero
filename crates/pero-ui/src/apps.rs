@@ -17,6 +17,8 @@ pub(crate) struct InstalledApp {
     #[serde(default)]
     pub description: String,
     pub enabled: bool,
+    #[serde(default)]
+    pub tenure: String,
     pub panels: Vec<AppPanel>,
 }
 
@@ -131,7 +133,13 @@ mod surface {
                     }
                 }
                 "apps_catalog" => match serde_json::from_value(event.data.clone()) {
-                    Ok(catalog) => self.apps.replace_catalog(catalog),
+                    Ok(catalog) => {
+                        self.apps.replace_catalog(catalog);
+                        if let Some((name, panel)) = self.pending_app.clone() {
+                            self.pending_app = None;
+                            self.open_app(name, panel, cx);
+                        }
+                    }
                     Err(_) => {
                         self.apps.loading = false;
                         self.apps.error = Some(self.t("apps.invalid_catalog").into());
@@ -253,6 +261,7 @@ mod surface {
                     let remove_name = name.clone();
                     let confirming = self.apps.removing.as_deref() == Some(name.as_str());
                     let enabled = app.enabled;
+                    let required = app.tenure == "required";
                     div().py(px(8.)).border_b_1().border_color(p.border)
                         .child(div().flex().items_center().gap(px(10.))
                             .child(div().flex_1().min_w_0().flex().flex_col().gap(px(5.))
@@ -273,6 +282,7 @@ mod surface {
                                         cx.notify();
                                     }))
                             }))
+                            .when(!required, |row| row
                             .child(Button::new(("app-toggle", index)).outline().small()
                                 .label(self.t(if enabled { "apps.disable" } else { "apps.enable" })).disabled(busy || !cfg!(target_family = "wasm"))
                                 .on_click(cx.listener(move |this, _, _, cx| {
@@ -282,7 +292,7 @@ mod surface {
                             .child(Button::new(("app-remove", index)).ghost().small().label(self.t("apps.remove")).disabled(busy || !cfg!(target_family = "wasm"))
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.apps.removing = Some(remove_name.clone()); cx.notify();
-                                }))))
+                                })))))
                         .when(confirming, |el| {
                             let name = name.clone();
                             el.child(div().mt(px(10.)).flex().items_center().gap(px(10.))
@@ -317,6 +327,7 @@ mod tests {
                 version: "1".into(),
                 display_name: "Cell".into(),
                 description: String::new(),
+                tenure: String::new(),
                 enabled,
                 panels: if exists {
                     vec![AppPanel {

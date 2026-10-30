@@ -60,6 +60,17 @@ impl Workbench {
                         let composer = this.chat.read(cx).composer.clone();
                         composer.update(cx, |input, cx| input.focus(window, cx));
                     }
+                    SidebarAction::OpenApp { name, panel } => {
+                        this.chat.update(cx, |panel_state, _| panel_state.deleting_chat = None);
+                        if cfg!(target_family = "wasm") {
+                            this.pending_app = Some((name.clone(), panel.clone()));
+                            this.refresh_apps(cx);
+                            this.open_app(name.clone(), panel.clone(), cx);
+                        } else {
+                            this.apps.error = Some(this.t("apps.native_unavailable").into());
+                            this.navigate(WorkbenchPage::Apps, cx);
+                        }
+                    }
                     SidebarAction::Navigate(index) => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
                         this.navigate(*index, cx);
@@ -205,6 +216,7 @@ impl Workbench {
             width,
             SidebarProps {
                 navigation: self.navigation.page(),
+                insights_open: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == "insights"),
                 local_connected: self.connected,
                 groups,
                 ungrouped,
@@ -479,10 +491,6 @@ impl Render for Workbench {
                                         .when(!pane_tree&&self.navigation.page() == WorkbenchPage::Apps, |el| {
                                             el.child(self.apps_view(cx))
                                         })
-                                        .when(
-                                            self.navigation.page() == WorkbenchPage::Insights,
-                                            |el| el.child(self.insights_view(cx)),
-                                        )
                                 )
                             })
                             .when(dock, |el| {
