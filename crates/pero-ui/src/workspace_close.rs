@@ -72,10 +72,20 @@ mod shell {
                     return;
                 };
                 plan.prompting = false;
+                // The next prompt must capture a live workspace focus handle, not its predecessor.
+                if let Some(view) = this
+                    .navigation
+                    .current()
+                    .and_then(|item| this.active_document_view(item))
+                {
+                    view.update(cx, |view, cx| view.focus(window, cx));
+                } else {
+                    this.workspace_focus.focus(window, cx);
+                }
                 match answer {
                     Some((source, true)) => this.save_before_close(source, window, cx),
                     Some((source, false)) => {
-                        plan.discarded.push(source);
+                        this.pending_close.as_mut().unwrap().discarded.push(source);
                         this.advance_workspace_close(window, cx);
                     }
                     None => {
@@ -238,17 +248,19 @@ mod shell {
                         .close_button(false)
                         .overlay_closable(false)
                         .on_cancel(move |_, window, cx| {
+                            window.close_dialog(cx);
                             defer_answer(cancel_owner.clone(), None, window, cx);
-                            true
+                            false
                         })
                         .on_ok(move |_, window, cx| {
+                            window.close_dialog(cx);
                             defer_answer(
                                 save_owner.clone(),
                                 Some((save_source.clone(), true)),
                                 window,
                                 cx,
                             );
-                            true
+                            false
                         })
                         .footer(
                             DialogFooter::new().children(

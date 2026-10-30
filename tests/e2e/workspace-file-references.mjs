@@ -57,4 +57,4 @@ try {
   await writeFile(resolve(out,'result.json'),JSON.stringify({sourceBytes:Buffer.byteLength(source),rows:100000,checkpointMs,journalBytes,metadataBytes:(await stat(resolve(recovery,'session.json'))).size,checks:['actual 100k-row edit','bounded incremental draft IPC','reference-only checkpoint metadata','actual Host crash/restart draft recovery','save by reference writes exact disk contents','Save As by reference migrates the File view']},null,2));
   console.log('Verified actual 100k-row draft checkpoint/restart/Save/Save As with small reference frames.');
 } catch(error){if(page&&!page.isClosed()){await page.screenshot({scale:'css',path:resolve(out,'failure.png')});await writeFile(resolve(out,'failure.json'),await page.evaluate(()=>window.peroDiagnostics.snapshot()));}throw error;}
-finally {if(app){await app.evaluate(({dialog})=>{dialog.showMessageBoxSync=()=>1;}).catch(()=>{});await app.close();}}
+finally {if(app){await app.evaluate(({BrowserWindow})=>{for(const window of BrowserWindow.getAllWindows())window.destroy();}).catch(()=>{});await app.close();}}
