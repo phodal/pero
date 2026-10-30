@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node ../../scripts/build/apps.mjs",
     "test": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test -v",
-    "test:ui": "node --test test/science.test.ts",
+    "test:ui": "node --test test/*.test.ts",
     "typecheck": "../../node_modules/.bin/tsc -p tsconfig.json"
   },
   "dependencies": {
