@@ -1,5 +1,6 @@
 //! A pane is a view identity; source identity and navigation remain separate.
 use crate::{
+    pane_tabs::{OpenIntent, OpenTab, PaneItem, PaneTabSet, ViewId},
     reader_state::ReaderState,
     workspace_session::{WorkspaceItem, WorkspaceRoute},
 };
@@ -32,13 +33,66 @@ impl SplitDirection {
         matches!(self, Self::Left | Self::Up)
     }
 }
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct PaneLeaf {
     pub id: PaneId,
-    pub route: WorkspaceRoute,
-    pub reading: Option<ReaderState>,
+    pub tabs: PaneTabSet,
 }
+impl PaneLeaf {
+    pub fn active(&self) -> Option<&PaneItem> {
+        self.tabs.active()
+    }
+    pub fn route(&self) -> Option<&WorkspaceRoute> {
+        self.active().map(|item| &item.route)
+    }
+    pub fn reading(&self) -> Option<&ReaderState> {
+        self.active().and_then(|item| item.reading.as_ref())
+    }
+}
+impl<'de> Deserialize<'de> for PaneLeaf {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Current {
+            id: PaneId,
+            tabs: PaneTabSet,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Legacy {
+            id: PaneId,
+            route: WorkspaceRoute,
+            #[serde(default)]
+            reading: Option<ReaderState>,
+        }
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Saved {
+            Current(Current),
+            Legacy(Legacy),
+        }
+        Ok(match Saved::deserialize(deserializer)? {
+            Saved::Current(saved) => Self {
+                id: saved.id,
+                tabs: saved.tabs,
+            },
+            Saved::Legacy(saved) => {
+                let mut tabs = PaneTabSet::default();
+                tabs.open(
+                    PaneItem {
+                        id: ViewId(saved.id.0),
+                        route: saved.route,
+                        reading: saved.reading,
+                    },
+                    OpenIntent::Permanent,
+                )
+                .map_err(|error| serde::de::Error::custom(format!("{error:?}")))?;
+                Self { id: saved.id, tabs }
+            }
+        })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PaneNode {
@@ -189,12 +243,47 @@ impl PaneNode {
         }
     }
 }
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct PaneLayout {
     pub root: Option<PaneNode>,
     pub focused: Option<PaneId>,
     pub next_id: u64,
+    next_view_id: u64,
+}
+impl<'de> Deserialize<'de> for PaneLayout {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::deserialize_snapshot(deserializer).map(|(layout, _)| layout)
+    }
+}
+impl PaneLayout {
+    pub(crate) fn deserialize_snapshot<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<(Self, bool), D::Error> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Saved {
+            root: Option<PaneNode>,
+            focused: Option<PaneId>,
+            next_id: u64,
+            #[serde(default)]
+            next_view_id: Option<u64>,
+        }
+        let saved = Saved::deserialize(deserializer)?;
+        let mut layout = Self {
+            root: saved.root,
+            focused: saved.focused,
+            next_id: saved.next_id,
+            next_view_id: saved.next_view_id.unwrap_or(1),
+        };
+        if saved.next_view_id.is_none() {
+            layout.next_view_id = layout
+                .items()
+                .iter()
+                .map(|item| item.id.0)
+                .max()
+                .unwrap_or(0)
+                + 1;
+        }
+        Ok((layout, saved.next_view_id.is_none()))
+    }
 }
 impl WorkspaceRoute {
     pub fn supports_pane(&self) -> bool {
@@ -225,19 +314,164 @@ impl WorkspaceRoute {
 }
 impl PaneLayout {
     pub fn conversation(&self) -> Option<&str> {
-        self.leaves()
+        self.active_items()
             .into_iter()
-            .find_map(|leaf| match &leaf.route {
+            .find_map(|item| match &item.route {
                 WorkspaceRoute::Content(WorkspaceItem::Conversation(id)) => Some(id.as_str()),
                 _ => None,
             })
     }
+    pub fn active_items(&self) -> Vec<&PaneItem> {
+        self.leaves()
+            .into_iter()
+            .filter_map(PaneLeaf::active)
+            .collect()
+    }
+    pub fn items(&self) -> Vec<&PaneItem> {
+        self.leaves()
+            .into_iter()
+            .flat_map(|leaf| leaf.tabs.items())
+            .collect()
+    }
+    pub fn view(&self, id: ViewId) -> Option<(PaneId, &PaneItem)> {
+        self.leaves()
+            .into_iter()
+            .find_map(|leaf| leaf.tabs.item(id).map(|item| (leaf.id, item)))
+    }
+    pub fn allocate_view_id(&mut self) -> ViewId {
+        let id = self.next_view_id.max(1);
+        self.next_view_id = id + 1;
+        ViewId(id)
+    }
+    pub fn open_tab(
+        &mut self,
+        pane: PaneId,
+        route: WorkspaceRoute,
+        reading: Option<ReaderState>,
+        intent: OpenIntent,
+    ) -> Option<(PaneId, OpenTab)> {
+        if !route.can_clone_pane() {
+            if let Some((owner, view, old_route)) = self
+                .items()
+                .into_iter()
+                .find(|item| item.route.shares_pane_instance(&route))
+                .and_then(|item| {
+                    self.view(item.id)
+                        .map(|(pane, _)| (pane, item.id, item.route.clone()))
+                })
+            {
+                let tabs = &mut self.leaf_mut(owner)?.tabs;
+                let result = if old_route == route {
+                    tabs.activate(view);
+                    if intent == OpenIntent::Permanent {
+                        tabs.promote(view);
+                    }
+                    OpenTab {
+                        active: view,
+                        inserted: false,
+                        replaced: None,
+                    }
+                } else {
+                    let old = tabs.take(view)?;
+                    let mut result = tabs
+                        .open(
+                            PaneItem {
+                                id: view,
+                                route,
+                                reading,
+                            },
+                            intent,
+                        )
+                        .ok()?;
+                    result.replaced = Some(old);
+                    result
+                };
+                self.focused = Some(owner);
+                return Some((owner, result));
+            }
+        }
+        let id = self.allocate_view_id();
+        let tab = self
+            .leaf_mut(pane)?
+            .tabs
+            .open(PaneItem { id, route, reading }, intent)
+            .ok()?;
+        self.focused = Some(pane);
+        Some((pane, tab))
+    }
+    pub fn activate_view(&mut self, view: ViewId) -> Option<WorkspaceRoute> {
+        let (pane, route) = self
+            .view(view)
+            .map(|(pane, item)| (pane, item.route.clone()))?;
+        self.leaf_mut(pane)?.tabs.activate(view);
+        self.focused = Some(pane);
+        Some(route)
+    }
+    pub fn close_tab(&mut self, view: ViewId) -> Option<PaneItem> {
+        let pane = self.view(view)?.0;
+        self.leaf_mut(pane)?.tabs.close(view)
+    }
+    pub fn move_tab(&mut self, view: ViewId, target: PaneId, index: usize) -> Option<ViewId> {
+        let source = self.view(view)?.0;
+        if source == target {
+            return self
+                .leaf_mut(target)?
+                .tabs
+                .move_tab(view, index)
+                .then_some(view);
+        }
+        self.leaf(target)?;
+        let item = self.leaf_mut(source)?.tabs.take(view)?;
+        let opened = self
+            .leaf_mut(target)?
+            .tabs
+            .open(item, OpenIntent::Permanent)
+            .ok()?;
+        self.leaf_mut(target)?.tabs.move_tab(opened.active, index);
+        self.focused = Some(target);
+        if self
+            .leaf(source)
+            .is_some_and(|leaf| leaf.tabs.items().is_empty())
+        {
+            self.close(source);
+            self.focused = Some(target);
+        }
+        Some(opened.active)
+    }
     pub fn is_active(&self, route: &WorkspaceRoute) -> bool {
         self.focused
             .and_then(|id| self.leaf(id))
-            .is_some_and(|leaf| &leaf.route == route)
+            .is_some_and(|leaf| {
+                leaf.route().map_or(
+                    *route
+                        == WorkspaceRoute::Page(crate::workspace_session::WorkbenchPage::Document),
+                    |active| active == route,
+                )
+            })
     }
-    /// Opening an existing single-instance surface moves its leaf; documents clone.
+    pub fn new(route: WorkspaceRoute, reading: Option<ReaderState>) -> Self {
+        let mut tabs = PaneTabSet::default();
+        tabs.open(
+            PaneItem {
+                id: ViewId(1),
+                route,
+                reading,
+            },
+            OpenIntent::Permanent,
+        )
+        .expect("initial pane item");
+        Self {
+            root: Some(PaneNode::Leaf {
+                view: PaneLeaf {
+                    id: PaneId(1),
+                    tabs,
+                },
+            }),
+            focused: Some(PaneId(1)),
+            next_id: 2,
+            next_view_id: 2,
+        }
+    }
     pub fn place(
         &mut self,
         target: PaneId,
@@ -245,38 +479,69 @@ impl PaneLayout {
         route: WorkspaceRoute,
         reading: Option<ReaderState>,
     ) -> Option<PaneId> {
-        let existing = (!route.can_clone_pane())
-            .then(|| {
-                self.leaves()
-                    .into_iter()
-                    .find(|view| view.route.shares_pane_instance(&route))
-                    .map(|view| view.id)
-            })
-            .flatten();
-        if let Some(id) = existing {
-            if id == target {
-                return None;
-            }
-            if self.move_to(id, target, direction) {
-                self.leaf_mut(id)?.route = route;
+        if !route.can_clone_pane() {
+            if let Some((pane, view)) = self
+                .items()
+                .into_iter()
+                .find(|item| item.route.shares_pane_instance(&route))
+                .and_then(|item| self.view(item.id).map(|(pane, _)| (pane, item.id)))
+            {
+                let mut item = self.leaf_mut(pane)?.tabs.take(view)?;
+                item.route = route;
+                let id = self.insert_leaf(target, direction, Some(item))?;
+                if pane != target
+                    && self
+                        .leaf(pane)
+                        .is_some_and(|leaf| leaf.tabs.items().is_empty())
+                {
+                    self.close(pane);
+                    self.focus(id);
+                }
                 return Some(id);
             }
+        }
+        let view = self.allocate_view_id();
+        self.insert_leaf(
+            target,
+            direction,
+            Some(PaneItem {
+                id: view,
+                route,
+                reading,
+            }),
+        )
+    }
+    fn insert_leaf(
+        &mut self,
+        target: PaneId,
+        direction: SplitDirection,
+        item: Option<PaneItem>,
+    ) -> Option<PaneId> {
+        if self.leaf(target).is_none() {
             return None;
         }
-        self.split(target, direction, route, reading)
-    }
-    pub fn new(route: WorkspaceRoute, reading: Option<ReaderState>) -> Self {
-        Self {
-            root: Some(PaneNode::Leaf {
-                view: PaneLeaf {
-                    id: PaneId(1),
-                    route,
-                    reading,
-                },
-            }),
-            focused: Some(PaneId(1)),
-            next_id: 2,
+        let mut tabs = PaneTabSet::default();
+        if let Some(item) = item {
+            tabs.open(item, OpenIntent::Permanent).ok()?;
         }
+        let view = PaneLeaf {
+            id: PaneId(self.next_id),
+            tabs,
+        };
+        self.next_id += 2;
+        if self
+            .root
+            .as_mut()?
+            .insert(target, view.clone(), self.next_id - 1, direction)
+        {
+            self.focused = Some(view.id);
+            Some(view.id)
+        } else {
+            None
+        }
+    }
+    pub fn split_empty(&mut self, target: PaneId, direction: SplitDirection) -> Option<PaneId> {
+        self.insert_leaf(target, direction, None)
     }
     pub fn leaves(&self) -> Vec<&PaneLeaf> {
         let mut leaves = vec![];
@@ -292,7 +557,13 @@ impl PaneLayout {
         self.root.as_mut()?.leaf_mut(id)
     }
     pub fn focus(&mut self, id: PaneId) -> Option<WorkspaceRoute> {
-        let route = self.leaf(id)?.route.clone();
+        let route = self
+            .leaf(id)?
+            .route()
+            .cloned()
+            .unwrap_or(WorkspaceRoute::Page(
+                crate::workspace_session::WorkbenchPage::Document,
+            ));
         self.focused = Some(id);
         Some(route)
     }
@@ -306,28 +577,14 @@ impl PaneLayout {
         if self.leaf(target).is_none()
             || (!route.can_clone_pane()
                 && self
-                    .leaves()
+                    .items()
                     .iter()
-                    .any(|view| view.route.shares_pane_instance(&route)))
+                    .any(|item| item.route.shares_pane_instance(&route)))
         {
             return None;
         }
-        let view = PaneLeaf {
-            id: PaneId(self.next_id),
-            route,
-            reading,
-        };
-        self.next_id += 2;
-        if self
-            .root
-            .as_mut()?
-            .insert(target, view.clone(), self.next_id - 1, direction)
-        {
-            self.focused = Some(view.id);
-            Some(view.id)
-        } else {
-            None
-        }
+        let id = self.allocate_view_id();
+        self.insert_leaf(target, direction, Some(PaneItem { id, route, reading }))
     }
     pub fn close(&mut self, id: PaneId) -> bool {
         let Some(root) = self.root.take() else {
@@ -432,13 +689,7 @@ impl PaneLayout {
             }
             ids.push(id);
             match node {
-                PaneNode::Leaf { view } => {
-                    view.reading.is_none()
-                        || matches!(
-                            view.route,
-                            WorkspaceRoute::Content(WorkspaceItem::Document { .. })
-                        )
-                }
+                PaneNode::Leaf { view } => view.tabs.valid(),
                 PaneNode::Split {
                     ratio,
                     first,
@@ -457,11 +708,16 @@ impl PaneLayout {
             && self.focused == self.focused.filter(|id| self.leaf(*id).is_some())
             && (self.root.is_some() == self.focused.is_some())
             && ids.iter().all(|id| *id < self.next_id)
-            && self.leaves().iter().enumerate().all(|(index, view)| {
-                view.route.can_clone_pane()
-                    || !self.leaves()[..index]
+            && self.items().iter().enumerate().all(|(index, item)| {
+                item.id.0 > 0
+                    && item.id.0 < self.next_view_id
+                    && !self.items()[..index]
                         .iter()
-                        .any(|previous| previous.route.shares_pane_instance(&view.route))
+                        .any(|previous| previous.id == item.id)
+                    && (item.route.can_clone_pane()
+                        || !self.items()[..index]
+                            .iter()
+                            .any(|previous| previous.route.shares_pane_instance(&item.route)))
             })
     }
 }
@@ -483,7 +739,7 @@ pub struct PaneSurface {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{content_origin::ContentOrigin, workspace_session::WorkbenchPage};
+    use crate::content_origin::ContentOrigin;
     #[test]
     fn shared_surfaces_move_without_cloning_chat_or_app_state() {
         let app = WorkspaceRoute::Content(WorkspaceItem::App {
@@ -506,24 +762,29 @@ mod tests {
                 .split(browser, SplitDirection::Left, other_chat.clone(), None)
                 .is_none()
         );
-        assert_eq!(
-            layout.place(first, SplitDirection::Left, other_chat.clone(), None),
-            Some(conversation)
-        );
-        assert_eq!(layout.leaf(conversation).unwrap().route, other_chat);
-        assert_eq!(
-            layout.place(conversation, SplitDirection::Up, web, None),
-            Some(browser)
-        );
+        let chat_view = layout.leaf(conversation).unwrap().active().unwrap().id;
+        let web_view = layout.leaf(browser).unwrap().active().unwrap().id;
+        let moved = layout
+            .place(first, SplitDirection::Left, other_chat.clone(), None)
+            .unwrap();
+        assert_eq!(layout.view(chat_view).unwrap().0, moved);
+        assert_eq!(layout.leaf(moved).unwrap().route(), Some(&other_chat));
+        let browser = layout.place(moved, SplitDirection::Up, web, None).unwrap();
+        assert_eq!(layout.view(web_view).unwrap().0, browser);
         assert_eq!(layout.leaves().len(), 3);
         assert!(layout.valid());
-        assert!(layout.is_active(&layout.leaf(browser).unwrap().route));
+        assert!(layout.is_active(layout.leaf(browser).unwrap().route().unwrap()));
         let restored: PaneLayout =
             serde_json::from_str(&serde_json::to_string(&layout).unwrap()).unwrap();
         assert_eq!(restored, layout);
-        assert!(layout.close(conversation));
+        assert!(layout.close(moved));
         assert!(layout.valid());
-        assert!(layout.leaves().iter().any(|view| view.route == app));
+        assert!(
+            layout
+                .leaves()
+                .iter()
+                .any(|view| view.route() == Some(&app))
+        );
     }
 
     #[test]
@@ -560,13 +821,7 @@ mod tests {
             assert_ne!(id, first);
             assert!(layout.valid());
             assert_eq!(
-                layout
-                    .leaf(first)
-                    .unwrap()
-                    .reading
-                    .as_ref()
-                    .unwrap()
-                    .selection,
+                layout.leaf(first).unwrap().reading().unwrap().selection,
                 3..9
             );
         }
@@ -592,7 +847,10 @@ mod tests {
             assert!(layout.valid());
         }
         assert!(layout.root.is_none());
-        let app = WorkspaceRoute::Page(WorkbenchPage::Apps);
+        let app = WorkspaceRoute::Content(WorkspaceItem::App {
+            name: "fixture".into(),
+            panel: "main".into(),
+        });
         let mut layout = PaneLayout::new(app.clone(), None);
         assert!(
             layout

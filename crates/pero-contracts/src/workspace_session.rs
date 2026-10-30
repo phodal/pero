@@ -66,19 +66,165 @@ pub enum PaneSide {
     Left,
     Right,
 }
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WorkspaceSnapshot {
     pub items: Vec<WorkspaceItem>,
     pub route: WorkspaceRoute,
-    #[serde(default)]
     pub other: Option<WorkspaceRoute>,
-    #[serde(default)]
     pub focused: PaneSide,
-    #[serde(default)]
     pub panes: Option<crate::workspace_panes::PaneLayout>,
-    #[serde(flatten)]
     pub history: WorkspaceHistory,
+}
+impl Serialize for WorkspaceSnapshot {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        #[derive(Serialize)]
+        struct Current<'a> {
+            items: &'a [WorkspaceItem],
+            route: &'a WorkspaceRoute,
+            other: &'a Option<WorkspaceRoute>,
+            focused: PaneSide,
+            panes: &'a crate::workspace_panes::PaneLayout,
+            #[serde(flatten)]
+            history: &'a WorkspaceHistory,
+        }
+        // Even an empty current layout carries its view counter. Only old flat
+        // snapshots need their source registry interpreted as open tabs.
+        let empty = crate::workspace_panes::PaneLayout::default();
+        Current {
+            items: &self.items,
+            route: &self.route,
+            other: &self.other,
+            focused: self.focused,
+            panes: self.panes.as_ref().unwrap_or(&empty),
+            history: &self.history,
+        }
+        .serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for WorkspaceSnapshot {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use crate::{
+            pane_tabs::{OpenIntent, PaneTabSet},
+            workspace_panes::{PaneLayout, SplitDirection},
+        };
+        struct SavedPanes {
+            layout: PaneLayout,
+            legacy: bool,
+        }
+        impl<'de> Deserialize<'de> for SavedPanes {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                PaneLayout::deserialize_snapshot(deserializer)
+                    .map(|(layout, legacy)| Self { layout, legacy })
+            }
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Saved {
+            items: Vec<WorkspaceItem>,
+            route: WorkspaceRoute,
+            #[serde(default)]
+            other: Option<WorkspaceRoute>,
+            #[serde(default)]
+            focused: PaneSide,
+            #[serde(default)]
+            panes: Option<SavedPanes>,
+            #[serde(flatten)]
+            history: WorkspaceHistory,
+        }
+        let saved = Saved::deserialize(deserializer)?;
+        let legacy = saved.panes.as_ref().is_none_or(|panes| panes.legacy);
+        let mut panes = saved.panes.map(|panes| panes.layout);
+        if legacy {
+            if panes.is_none() {
+                let current = saved
+                    .route
+                    .supports_pane()
+                    .then(|| saved.route.clone())
+                    .or_else(|| {
+                        saved
+                            .items
+                            .iter()
+                            .map(|item| WorkspaceRoute::Content(item.clone()))
+                            .find(WorkspaceRoute::supports_pane)
+                    });
+                if let Some(route) = current {
+                    let reading = (route == saved.route)
+                        .then(|| saved.history.reading.clone())
+                        .flatten();
+                    let mut layout = PaneLayout::new(route, reading);
+                    if let (Some(first), Some(other)) = (layout.focused, saved.other.clone()) {
+                        let direction = if saved.focused == PaneSide::Left {
+                            SplitDirection::Right
+                        } else {
+                            SplitDirection::Left
+                        };
+                        layout.split(first, direction, other, None);
+                        layout.focus(first);
+                    }
+                    panes = Some(layout);
+                }
+            }
+            if let Some(layout) = &mut panes {
+                if let Some(focused) = layout.focused {
+                    let previous = layout
+                        .leaf(focused)
+                        .map(|pane| pane.tabs.clone())
+                        .unwrap_or_default();
+                    let others: Vec<_> = layout
+                        .leaves()
+                        .iter()
+                        .filter(|pane| pane.id != focused)
+                        .flat_map(|pane| pane.tabs.items().iter().map(|item| item.route.clone()))
+                        .collect();
+                    let mut tabs = PaneTabSet::default();
+                    for item in &saved.items {
+                        let route = WorkspaceRoute::Content(item.clone());
+                        if !route.supports_pane()
+                            || (previous.find_route(&route).is_none()
+                                && others.iter().any(|other| route.shares_pane_instance(other)))
+                        {
+                            continue;
+                        }
+                        // A singleton retained surface stays with its active instance.
+                        if !route.can_clone_pane()
+                            && previous.active().is_some_and(|active| {
+                                active.route != route && active.route.shares_pane_instance(&route)
+                            })
+                        {
+                            continue;
+                        }
+                        let view = previous.find_route(&route).cloned().unwrap_or_else(|| {
+                            crate::pane_tabs::PaneItem {
+                                id: layout.allocate_view_id(),
+                                route,
+                                reading: None,
+                            }
+                        });
+                        tabs.open(view, OpenIntent::Permanent)
+                            .map_err(serde::de::Error::custom)?;
+                    }
+                    if let Some(active) = previous.active() {
+                        let opened = tabs
+                            .open(active.clone(), OpenIntent::Permanent)
+                            .map_err(serde::de::Error::custom)?;
+                        tabs.activate(opened.active);
+                    }
+                    tabs.restore_legacy_history(saved.history.clone());
+                    if let Some(pane) = layout.leaf_mut(focused) {
+                        pane.tabs = tabs;
+                    }
+                }
+            }
+        }
+        Ok(Self {
+            items: saved.items,
+            route: saved.route,
+            other: saved.other,
+            focused: saved.focused,
+            panes: panes.filter(|layout| layout.root.is_some()),
+            history: saved.history,
+        })
+    }
 }
 impl Default for WorkspaceSnapshot {
     fn default() -> Self {
@@ -104,14 +250,23 @@ impl WorkspaceSnapshot {
             .all(|(i, item)| !self.items[..i].contains(item))
             && self.panes.as_ref().is_none_or(|panes| {
                 panes.valid()
-                    && panes.leaves().iter().all(|view| admitted(&view.route))
+                    && panes.items().iter().all(|item| admitted(&item.route))
+                    && panes.leaves().iter().all(|pane| {
+                        pane.tabs
+                            .history()
+                            .back
+                            .iter()
+                            .chain(&pane.tabs.history().forward)
+                            .chain(pane.tabs.closed_items())
+                            .all(|entry| admitted(&entry.route))
+                    })
                     && (!matches!(
                         self.route,
                         WorkspaceRoute::Content(WorkspaceItem::Document { .. })
                     ) || panes
                         .focused
                         .and_then(|id| panes.leaf(id))
-                        .is_some_and(|view| view.route == self.route))
+                        .is_some_and(|view| view.route() == Some(&self.route)))
             })
             && admitted(&self.route)
             && self.other.as_ref().is_none_or(|other| {
@@ -314,6 +469,72 @@ pub enum WorkspaceCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn legacy_tabs_migrate_once_without_reopening_current_history_only_sources() {
+        let item = |path: &str| WorkspaceItem::Document {
+            origin: ContentOrigin::File { path: path.into() },
+            source: path.into(),
+        };
+        let (a, b, c) = (item("/a"), item("/b"), item("/c"));
+        let route = WorkspaceRoute::Content(a.clone());
+        let reading = ReaderState {
+            source: true,
+            selection: 5..8,
+            ..Default::default()
+        };
+        for (format, expected) in [
+            ("flat", vec![a.clone(), b.clone(), c.clone()]),
+            ("one-pane", vec![a.clone(), b.clone(), c.clone()]),
+            ("two-pane", vec![a.clone(), c.clone()]),
+            ("current", vec![a.clone()]),
+        ] {
+            let mut saved = serde_json::json!({"items":[a,b,c],"route":route,"other":null,"focused":"left",
+                "reading":reading,"back":[],"forward":[]});
+            let leaf = |id, route| serde_json::json!({"kind":"leaf","view":{"id":id,"route":route,"reading":reading}});
+            match format {
+                "flat" => {}
+                "one-pane" => {
+                    saved["panes"] =
+                        serde_json::json!({"root":leaf(1, route.clone()),"focused":1,"next_id":2})
+                }
+                "two-pane" => {
+                    saved["panes"] = serde_json::json!({"root":{"kind":"split","id":2,"axis":"horizontal","ratio":0.5,
+                    "first":leaf(1,route.clone()),"second":leaf(3,WorkspaceRoute::Content(b.clone()))},"focused":1,"next_id":4})
+                }
+                "current" => {
+                    saved["panes"] = serde_json::to_value(crate::workspace_panes::PaneLayout::new(
+                        route.clone(),
+                        Some(reading.clone()),
+                    ))
+                    .unwrap()
+                }
+                _ => unreachable!(),
+            }
+            let restored: WorkspaceSnapshot = serde_json::from_value(saved).unwrap();
+            assert!(restored.valid(), "{format}");
+            let layout = restored.panes.as_ref().unwrap();
+            let pane = layout.leaf(layout.focused.unwrap()).unwrap();
+            let items: Vec<_> = pane
+                .tabs
+                .items()
+                .iter()
+                .filter_map(|view| match &view.route {
+                    WorkspaceRoute::Content(item) => Some(item.clone()),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(items, expected, "{format}");
+            assert_eq!(pane.route(), Some(&route));
+            assert_eq!(pane.reading(), Some(&reading));
+            assert_eq!(
+                serde_json::from_value::<WorkspaceSnapshot>(
+                    serde_json::to_value(&restored).unwrap()
+                )
+                .unwrap(),
+                restored
+            );
+        }
+    }
     #[test]
     fn saved_navigation_rejects_dangling_sources_and_invalid_panes() {
         let item = WorkspaceItem::Document {
