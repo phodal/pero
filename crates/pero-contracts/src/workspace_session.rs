@@ -4,6 +4,9 @@ use crate::{
     web_document::WebAddress,
 };
 use serde::{Deserialize, Serialize};
+#[path = "workspace_history.rs"]
+mod history;
+pub use history::{HistoryEntry, WorkspaceHistory};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
@@ -63,7 +66,7 @@ pub enum PaneSide {
     Left,
     Right,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkspaceSnapshot {
     pub items: Vec<WorkspaceItem>,
@@ -72,10 +75,8 @@ pub struct WorkspaceSnapshot {
     pub other: Option<WorkspaceRoute>,
     #[serde(default)]
     pub focused: PaneSide,
-    #[serde(default)]
-    pub back: Vec<WorkspaceRoute>,
-    #[serde(default)]
-    pub forward: Vec<WorkspaceRoute>,
+    #[serde(flatten)]
+    pub history: WorkspaceHistory,
 }
 impl Default for WorkspaceSnapshot {
     fn default() -> Self {
@@ -84,8 +85,7 @@ impl Default for WorkspaceSnapshot {
             route: WorkspaceRoute::Page(WorkbenchPage::Projects),
             other: None,
             focused: PaneSide::Left,
-            back: vec![],
-            forward: vec![],
+            history: WorkspaceHistory::default(),
         }
     }
 }
@@ -113,7 +113,17 @@ impl WorkspaceSnapshot {
                     && other != &self.route
             })
             && (self.other.is_some() || self.focused == PaneSide::Left)
-            && self.back.iter().chain(&self.forward).all(admitted)
+            && (self.history.reading.is_none()
+                || matches!(
+                    self.route,
+                    WorkspaceRoute::Content(WorkspaceItem::Document { .. })
+                ))
+            && self
+                .history
+                .back
+                .iter()
+                .chain(&self.history.forward)
+                .all(|entry| admitted(&entry.route) && entry.valid())
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -304,8 +314,16 @@ mod tests {
                     route,
                     other,
                     focused,
-                    back,
-                    forward: vec![]
+                    history: WorkspaceHistory {
+                        back: back
+                            .into_iter()
+                            .map(|route| HistoryEntry {
+                                route,
+                                reading: None
+                            })
+                            .collect(),
+                        ..Default::default()
+                    },
                 }
                 .valid(),
                 expected

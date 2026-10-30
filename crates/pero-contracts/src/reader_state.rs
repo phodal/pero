@@ -33,6 +33,13 @@ pub struct ReaderState {
     pub path: Vec<Range<usize>>,
 }
 impl ReaderState {
+    pub fn same_location(&self, other: &Self) -> bool {
+        self.source == other.source
+            && self.selection == other.selection
+            && self.scroll == other.scroll
+            && self.preview_scroll == other.preview_scroll
+            && self.path == other.path
+    }
     /// A changed source can shorten a restored selection. Keep every offset on
     /// its UTF-8 boundary and discard projection ranges that no longer exist.
     pub fn for_source(mut self, source: &str) -> Self {
