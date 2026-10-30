@@ -330,6 +330,9 @@ mod shell {
             if let Some(command) = self.workspace_checkpoint(false, true, cx) {
                 self.command(command, cx);
             }
+            for item in &plan.discarded {
+                self.navigation.clear_document_locations(item);
+            }
             for view in plan.views {
                 self.navigation.close_view(view);
             }
@@ -363,7 +366,11 @@ mod shell {
                     self.recovery.deferred.push(DeferredDocument {
                         saved: SavedDocument {
                             header: document.header(),
-                            reading: open.view.read(cx).reading_state(cx),
+                            reading: if open.view.read(cx).dirty() {
+                                open.view.read(cx).reading_state(cx).without_location()
+                            } else {
+                                open.view.read(cx).reading_state(cx)
+                            },
                             draft: None,
                             draft_ref: None,
                             legacy_draft: false,
@@ -382,6 +389,9 @@ mod shell {
                     .iter_mut()
                     .find(|open| open.saved.item() == item)
                 {
+                    if plan.discarded.contains(&item) {
+                        open.saved.reading = open.saved.reading.clone().without_location();
+                    }
                     open.saved.draft = None;
                     open.saved.draft_ref = None;
                     open.saved.legacy_draft = false;

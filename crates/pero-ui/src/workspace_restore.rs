@@ -327,9 +327,18 @@ impl Workbench {
         }
         for view in &self.pane_views {
             self.navigation
-                .observe_pane_reading(view.id, view.view.read(cx).reading_state(cx));
+                .observe_view_reading(view.id, view.view.read(cx).reading_state(cx));
         }
         self.remember_current_location(cx);
+        let expired = self.navigation.prune_document_registry();
+        self.documents.retain(|open| !expired.contains(&open.item));
+        self.pane_views.retain(|view| !expired.contains(&view.item));
+        self.recovery.deferred.retain(|open| !expired.contains(&open.saved.item()));
+        for item in expired {
+            if let WorkspaceItem::Document { origin: ContentOrigin::File { .. }, source } = item {
+                self.command(serde_json::json!({"method":"documents","action":"release","source":source}), cx);
+            }
+        }
         let navigation = self.navigation.snapshot();
         let mut documents = Vec::new();
         let sources: Vec<WorkspaceSource> = Vec::new();
