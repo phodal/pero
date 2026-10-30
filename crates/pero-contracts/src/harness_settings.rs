@@ -21,7 +21,7 @@ pub struct HarnessState {
     pub error: Option<String>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "action")]
 pub enum HarnessControl {
     #[serde(rename = "harness_get")]

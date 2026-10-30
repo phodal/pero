@@ -1,7 +1,6 @@
 //! Native developer preview: shared GPUI workbench, the stdio Host, and cloud sign-in.
 use crate::native_cloud::CloudSession;
 use crate::native_device::NativeDevice;
-use crate::workspace::WorkbenchPage;
 use crate::{app::Workbench, theme::Palettes};
 use gpui_kit::*;
 use pero_contracts::HostEvent;
@@ -23,7 +22,8 @@ pub(crate) fn session_command(json: &str) -> Result<(), String> {
     let action = value["action"].as_str().unwrap_or_default();
     let controller = action.starts_with("remote_")
         || action.starts_with("local_worker_")
-        || action.starts_with("choose_");
+        || action.starts_with("choose_")
+        || matches!(action, "harness_get" | "harness_save");
     let channel = if controller {
         &COMMANDS
     } else {
@@ -99,13 +99,19 @@ pub fn run() -> anyhow::Result<()> {
     paths.extend(std::env::split_paths(
         &std::env::var_os("PATH").unwrap_or_default(),
     ));
+    let settings_path = data.join("settings.json");
+    let harness = crate::native_harness::NativeHarness::open(&data, &settings_path, ephemeral_secrets);
+    let (provider_endpoint, provider_model, provider_key) = harness.process_env();
     let mut host = Command::new(executable)
         .arg("--stdio")
         .current_dir(&root)
         .env("PERO_AGENT_ROOT", &root)
         .env("PATH", std::env::join_paths(paths)?)
         .env("PERO_LOCALE", &locale)
-        .env("PERO_SETTINGS_PATH", data.join("settings.json"))
+        .env("PERO_SETTINGS_PATH", &settings_path)
+        .env("DEEPSEEK_BASE_URL", &provider_endpoint)
+        .env("DEEPSEEK_MODEL", &provider_model)
+        .env("DEEPSEEK_API_KEY", &provider_key)
         .env("PERO_HISTORY_PATH", data.join("sessions.jsonl"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -143,6 +149,16 @@ pub fn run() -> anyhow::Result<()> {
             let Ok(line) = line else { break };
             match serde_json::from_str::<HostEvent>(&line) {
                 Ok(event) if event.version == pero_contracts::PROTOCOL_VERSION => {
+                    if matches!(event.kind.as_str(), "harness_settings_saved" | "harness_settings_error") {
+                        let _ = worker_states.send(
+                            serde_json::json!({
+                                "action": "native_harness_result",
+                                "ok": event.kind == "harness_settings_saved",
+                            })
+                            .to_string(),
+                        );
+                        continue;
+                    }
                     if event.kind == "local_worker_state"
                         && matches!(
                             event.data["status"].as_str(),
@@ -171,6 +187,7 @@ pub fn run() -> anyhow::Result<()> {
     });
     let reply = commands.clone();
     std::thread::spawn(move || {
+        let mut harness = harness;
         let mut cloud = CloudSession::with_store(&data, ephemeral_secrets);
         let mut device = NativeDevice::new(&data, cloud.has_connection(), ephemeral_secrets);
         loop {
@@ -188,6 +205,22 @@ pub fn run() -> anyhow::Result<()> {
             let action = value["action"].as_str().unwrap_or_default();
             if action == "native_host_disconnected" {
                 let _ = events.send_blocking(device.command_failed(&cloud));
+                if let Some(event) = harness.abandon() {
+                    let _ = events.send_blocking(event);
+                }
+            } else if matches!(action, "harness_get" | "harness_save" | "native_harness_result") {
+                let outcome = harness.handle(&value);
+                if let Some(command) = outcome.host {
+                    if host_commands.send(command).is_err() {
+                        if let Some(event) = harness.abandon() {
+                            let _ = events.send_blocking(event);
+                        }
+                        break;
+                    }
+                }
+                if let Some(event) = outcome.event {
+                    let _ = events.send_blocking(event);
+                }
             } else if action == "native_local_worker_attention" {
                 let _ = events.send_blocking(device.needs_attention(&cloud));
             } else if action.starts_with("local_worker_") {
@@ -484,9 +517,15 @@ mod tests {
             super::session_command(command).unwrap();
             assert_eq!(local.try_recv().unwrap(), command);
         }
+        super::session_command(r#"{"action":"harness_get"}"#).unwrap();
+        assert!(local.try_recv().is_err());
         assert_eq!(
             pending_cloud.try_recv().unwrap(),
             r#"{"action":"remote_refresh"}"#
+        );
+        assert_eq!(
+            pending_cloud.try_recv().unwrap(),
+            r#"{"action":"harness_get"}"#
         );
         super::COMMANDS.with(|slot| *slot.borrow_mut() = None);
         super::HOST_COMMANDS.with(|slot| *slot.borrow_mut() = None);
@@ -510,6 +549,36 @@ mod tests {
         assert!(!browser_target("https://evil.example/steal"));
         assert!(!browser_target("https://user@github.com/phodal/pero"));
     }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_preview_bundle_uses_the_app_icon_when_one_is_staged() {
+        let temp = std::env::temp_dir().join(format!("pero-native-icon-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp);
+        std::fs::create_dir_all(&temp).unwrap();
+        let exe = temp.join("pero-native");
+        let icon = temp.join("AppIcon.icns");
+        std::fs::write(&exe, b"bin").unwrap();
+        std::fs::write(&icon, b"icns").unwrap();
+        let app = temp.join("Pero Native.app");
+        super::stage_native_bundle(&exe, &app, Some(icon.as_path())).unwrap();
+        let plist = std::fs::read_to_string(app.join("Contents/Info.plist")).unwrap();
+        assert!(plist.contains("<key>CFBundleIconFile</key><string>AppIcon.icns</string>"));
+        assert_eq!(
+            std::fs::read(app.join("Contents/Resources/AppIcon.icns")).unwrap(),
+            b"icns"
+        );
+        assert_eq!(
+            std::fs::read(app.join("Contents/MacOS/pero-native")).unwrap(),
+            b"bin"
+        );
+        let bare = temp.join("bare.app");
+        super::stage_native_bundle(&exe, &bare, None).unwrap();
+        assert!(!std::fs::read_to_string(bare.join("Contents/Info.plist"))
+            .unwrap()
+            .contains("CFBundleIconFile"));
+        std::fs::remove_dir_all(&temp).unwrap();
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -529,14 +598,15 @@ fn relaunch_in_bundle() {
     }
     let Some(dir) = exe.parent() else { return };
     let app = dir.join("Pero Native.app");
-    let macos = app.join("Contents/MacOS");
-    let bundled = macos.join("pero-native");
-    let staged = (|| {
-        std::fs::create_dir_all(&macos)?;
-        std::fs::write(app.join("Contents/Info.plist"), BUNDLE_PLIST)?;
-        std::fs::copy(&exe, &bundled)?;
-        Ok::<(), std::io::Error>(())
-    })();
+    let bundled = app.join("Contents/MacOS/pero-native");
+    let icon = std::env::var_os("PERO_NATIVE_ICON")
+        .map(PathBuf::from)
+        .filter(|path| path.is_file())
+        .or_else(|| {
+            let sibling = dir.join("AppIcon.icns");
+            sibling.is_file().then_some(sibling)
+        });
+    let staged = stage_native_bundle(&exe, &app, icon.as_deref());
     if let Err(error) = staged {
         eprintln!("Native preview cannot receive the GitHub return link: {error}");
         return;
@@ -552,6 +622,30 @@ fn relaunch_in_bundle() {
         .env("PERO_NATIVE_BUNDLED", "1")
         .exec();
     eprintln!("Could not switch to the native app bundle: {error}");
+}
+
+#[cfg(target_os = "macos")]
+fn stage_native_bundle(
+    exe: &std::path::Path,
+    app: &std::path::Path,
+    icon: Option<&std::path::Path>,
+) -> std::io::Result<()> {
+    let macos = app.join("Contents/MacOS");
+    std::fs::create_dir_all(&macos)?;
+    let mut plist = BUNDLE_PLIST.to_string();
+    if let Some(icon) = icon.filter(|path| path.is_file()) {
+        let resources = app.join("Contents/Resources");
+        std::fs::create_dir_all(&resources)?;
+        std::fs::copy(icon, resources.join("AppIcon.icns"))?;
+        plist = plist.replacen(
+            "<key>CFBundlePackageType</key>",
+            "<key>CFBundleIconFile</key><string>AppIcon.icns</string>\n<key>CFBundlePackageType</key>",
+            1,
+        );
+    }
+    std::fs::write(app.join("Contents/Info.plist"), plist)?;
+    std::fs::copy(exe, macos.join("pero-native"))?;
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]

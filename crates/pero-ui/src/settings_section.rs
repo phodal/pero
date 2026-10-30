@@ -24,11 +24,11 @@ impl SettingsSection {
         Self::ChatFont,
         Self::CodeFont,
         Self::Agents,
+        Self::Harness,
         Self::Workers,
         Self::Connections,
-        Self::Computer,
         Self::Mcp,
-        Self::Harness,
+        Self::Computer,
     ];
     pub(crate) fn key(self) -> &'static str {
         match self {

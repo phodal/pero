@@ -83,16 +83,6 @@ impl McpEditor {
     }
 }
 impl Workbench {
-    pub(crate) fn open_mcp_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(panel) = &self.settings_panel {
-            panel.update(cx, |panel, cx| {
-                panel.show_mcp(window, cx);
-            });
-        } else {
-            self.settings_mcp_requested = true;
-        }
-        self.open_settings(window, cx);
-    }
     pub(crate) fn receive_mcp(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
         if event.kind == "agents" {
             if let (Some(panel), Ok(agents)) = (

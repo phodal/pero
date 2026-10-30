@@ -67,7 +67,6 @@ pub(crate) struct Workbench {
     pub settings_menu_open: bool,
     pub harness: Option<pero_contracts::harness_settings::HarnessState>,
     pub computer: Option<pero_contracts::computer_runtime::ComputerUseState>,
-    pub settings_mcp_requested: bool,
     pub settings_panel: Option<Entity<crate::settings_view::SettingsPanel>>,
     pub settings_section: Option<crate::settings_view::SettingsSection>,
     #[cfg(not(target_family = "wasm"))]
@@ -324,7 +323,6 @@ impl Workbench {
             settings_menu_open: false,
             harness: None,
             computer: None,
-            settings_mcp_requested: false,
             settings_panel: None,
             settings_section: None,
             #[cfg(not(target_family = "wasm"))]

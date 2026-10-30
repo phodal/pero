@@ -1,5 +1,4 @@
 use crate::app::{Workbench, request_locale};
-use crate::workspace::WorkbenchPage;
 use gpui_kit::{
     component::{
         button::*,
@@ -20,32 +19,6 @@ pub(crate) enum PreferenceSaveState {
     Idle,
     Saving,
     Saved,
-}
-
-#[derive(Clone, Copy)]
-pub(crate) struct SettingsDestination {
-    pub label_key: &'static str,
-    pub icon: &'static str,
-    pub page: WorkbenchPage,
-}
-impl SettingsDestination {
-    pub const ALL: [Self; 3] = [
-        Self {
-            label_key: "settings.connections",
-            icon: "external-link",
-            page: WorkbenchPage::Connections,
-        },
-        Self {
-            label_key: "settings.resources",
-            icon: "server",
-            page: WorkbenchPage::Workers,
-        },
-        Self {
-            label_key: "settings.agents",
-            icon: "sparkles",
-            page: WorkbenchPage::Agents,
-        },
-    ];
 }
 
 impl Workbench {
@@ -80,10 +53,7 @@ impl Workbench {
             .trim_start_matches("http://")
             .trim_end_matches('/')
             .to_string();
-        let destinations =
-            SettingsDestination::ALL.map(|destination| (destination, t(destination.label_key)));
         let all = t("settings.all");
-        let mcp = t("mcp.title");
         let appearance = format!(
             "{} · {}",
             t("settings.appearance"),
@@ -125,50 +95,28 @@ impl Workbench {
                 if !host.is_empty() {
                     menu = menu.item(PopupMenuItem::label(host.clone()));
                 }
-                menu = menu.separator();
-                for (destination, label) in &destinations {
-                    let target = workbench.clone();
-                    let page = destination.page;
-                    menu = menu.item(
-                        PopupMenuItem::new(label.clone())
-                            .icon(Icon::default().path(format!("icons/{}.svg", destination.icon)))
-                            .on_click(move |_, window, cx| {
-                                let _ = target.update(cx, |this, cx| {
-                                    this.show_settings_page(page, window, cx);
-                                    this.sync_follow(cx);
-                                    cx.notify();
-                                });
-                            }),
-                    );
+                if !identity.is_empty() || !host.is_empty() {
+                    menu = menu.separator();
                 }
-                let target = workbench.clone();
-                menu = menu.item(PopupMenuItem::new(mcp.clone()).on_click(move |_,window,cx| {
-                    let _ = target.update(cx, |this,cx| this.open_mcp_settings(window,cx));
-                }));
                 let target = workbench.clone();
                 let saved = preferences.clone();
                 let appearance_choices = appearance_choices.clone();
-                menu =
-                    menu.separator()
-                        .submenu(appearance.clone(), window, cx, move |menu, _, _| {
-                            appearance_choices.iter().fold(
-                                menu.min_w(px(170.)),
-                                |menu, (mode, label)| {
-                                    let target = target.clone();
-                                    let mut next = saved.clone();
-                                    next.appearance = *mode;
-                                    menu.item(
-                                        PopupMenuItem::new(label.clone())
-                                            .checked(saved.appearance == *mode)
-                                            .on_click(move |_, _, cx| {
-                                                let _ = target.update(cx, |this, cx| {
-                                                    this.save_preferences(next.clone(), cx)
-                                                });
-                                            }),
-                                    )
-                                },
-                            )
-                        });
+                menu = menu.submenu(appearance.clone(), window, cx, move |menu, _, _| {
+                    appearance_choices.iter().fold(menu.min_w(px(170.)), |menu, (mode, label)| {
+                        let target = target.clone();
+                        let mut next = saved.clone();
+                        next.appearance = *mode;
+                        menu.item(
+                            PopupMenuItem::new(label.clone())
+                                .checked(saved.appearance == *mode)
+                                .on_click(move |_, _, cx| {
+                                    let _ = target.update(cx, |this, cx| {
+                                        this.save_preferences(next.clone(), cx)
+                                    });
+                                }),
+                        )
+                    })
+                });
                 let target = workbench.clone();
                 let selected_locale = locale.clone();
                 menu = menu.submenu(language.clone(), window, cx, move |menu, _, _| {
