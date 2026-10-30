@@ -25,7 +25,8 @@ try{
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await expect.poll(async()=>(await state()).chats?.length).toBe(1);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
- await page.mouse.click(await page.evaluate(()=>innerWidth-208),await page.evaluate(()=>innerHeight-20));
+ // The compact composer places the Codex picker 154px from the right edge.
+ await page.mouse.click(await page.evaluate(()=>innerWidth-154),await page.evaluate(()=>innerHeight-20));
  await page.keyboard.press('ArrowUp');
  await page.keyboard.press('Enter');
  await expect.poll(async()=>(await state()).chats?.[0]?.agent).toBe('fixture');

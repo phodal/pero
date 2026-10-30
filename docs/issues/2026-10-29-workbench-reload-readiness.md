@@ -138,3 +138,53 @@ The screenshot archive is
 SHA-256 `c02ee4fdeaecb06785f9e0d58c7536ce020b94cd0beeffe2b63c60986ddd068b`.
 JavaScript syntax and diff checks pass. Actual Electron verification on the
 corrected head is still required; screenshot inspection is not a new UI pass.
+
+
+## Compact composer Agent selection (2026-10-30)
+
+Standard CI [40989854364](https://github.com/phodal/pero/actions/runs/40989854364)
+at head `b4ee1b7` passed the complete Workbench suite, including the corrected
+history selection. Linux job `123849340961` then failed the tool-call suite's
+Agent identity assertion: the new conversation remained on `codex` instead of
+`fixture`.
+
+The actual failure screenshot is 1488×1059. Its compact composer shows the
+Codex picker centered around `(1333,1036)`, while the unchanged test clicked
+`(1280,1039)` (`innerWidth-208`, `innerHeight-20`), in the empty space to its
+left. The authentication-required card belongs to the untouched default Codex
+conversation. `composer.rs` renders the right-aligned Agent, workspace and send
+controls; the empty conversation remains retargetable. No existing Agent-picker
+painted-bounds diagnostic is available.
+
+Correct only the horizontal target to `innerWidth-154`, inside the visible
+Codex picker. Keep the actual pointer click, ArrowUp/Enter menu selection,
+`fixture` identity assertion, all later tool assertions and original wait
+budgets. The finite audit of the remaining Product App Use and Workbench App Use
+suites found no Agent-picker coordinate or keyboard selection to update: both
+supply fixture commands for their default Agent IDs. No production changes,
+new diagnostics, retries or timeout increases are needed for this stale target.
+
+Evidence: [Desktop artifact 12949171631](https://github.com/phodal/pero/actions/runs/40989854364/artifacts/12949171631),
+12 files; independently verified ZIP SHA-256
+`eff3817821c4e878ac6dc9ac8dcad328d593d5a968b411d520a0b8c2eaa02b6f`.
+JavaScript syntax and diff checks pass. Actual Electron acceptance still
+requires the next CI run; this workspace has neither a built Desktop
+distribution nor Xvfb. The two App Use suites were not reached by this failure.
+
+The finite follow-on audit also checked the existing diagnostic contracts:
+`attachments` still projects context labels, `activeChat` is an index, and
+`toolBounds`/`toolViews` retain the tested shapes. The Toolcalls textarea click
+is the same `(950,975)` used by the now-passing Workbench suite and lies inside
+the captured compact textarea. App Use composer offsets remain inside that
+shared textarea layout; their actual execution is not yet verified.
+
+One additional stale target is concrete: Product App Use's `choose()` computes
+permission positions with text-width guesses and `height-138`. In the captured
+shared compact permission UI this Y crosses card text, above the buttons near
+`height-121`. Reuse the existing `permissionBounds` for the requested option in
+the same conversation, wait for nonempty painted bounds using the existing
+default five-second poll budget, and add the Chat canvas origin before the real
+pointer click. Keep option-kind lookup and permission/result/effect assertions;
+there is no estimated-coordinate fallback. The existing Workbench permission
+click already passed using this diagnostic. Synthetic offset/index arithmetic
+checks and syntax checks pass, but are not a substitute for Product Electron CI.

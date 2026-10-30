@@ -94,15 +94,17 @@ try {
     if (approval) await expect.poll(async () => Boolean((await active())?.permission)).toBe(true);
   };
   const choose = async allow => {
-    const permission = (await active()).permission;
+    const conversation = await active();
+    const permission = conversation.permission;
     const options = permission.options;
     const index = options.findIndex(option => allow ? option.kind === 'allow_once' : option.kind === 'reject_once');
     expect(index).toBeGreaterThanOrEqual(0);
+    // GPUI exposes the painted option bounds in the Chat canvas coordinates.
+    const optionBounds = async () => (await state()).permissionBounds.find(item => item.chat === conversation.id && item.index === index)?.bounds;
+    await expect.poll(async () => { const bounds = await optionBounds(); return Boolean(bounds && bounds.width > 0 && bounds.height > 0); }).toBe(true);
     const bounds = await chat.locator('canvas').boundingBox();
-    // GPUI renders these buttons into its canvas, in the order from the Host.
-    // This fixture has no usage row and the Composer has two empty text lines.
-    const preceding = options.slice(0, index).reduce((width, option) => width + Math.max(64, option.name.length * 7 + 24) + 8, 0);
-    await page.mouse.click(bounds.x + 42 + preceding + 25, bounds.y + bounds.height - 138);
+    const option = await optionBounds();
+    await page.mouse.click(bounds.x + option.x + option.width / 2, bounds.y + option.y + option.height / 2);
     await expect.poll(async () => (await active()).permission).toBeNull();
   };
   const result = async () => {
