@@ -58,7 +58,7 @@ class DatasetView:
         rows = self.query.apply(dataset)
         selected = self.selection.apply(rows)
         chart = Chart.calculate(selected, self.chart) if self.chart else None
-        identity = sha256((dataset.id + json.dumps(self.spec(), sort_keys=True)).encode()).hexdigest()
+        identity = self.identity(dataset)
         return {"dataset": metadata(dataset), "view": self.spec(), "viewId": identity, "matching": len(rows), "selected": len(selected), "offset": self.offset,
                 "sample": record_window(selected, self.columns[:8], 0, 10),
                 "rows": [{"ordinal": row.ordinal, "pointer": row.pointer, "line": row.line,
@@ -66,6 +66,9 @@ class DatasetView:
                          for row in rows[self.offset:self.offset + self.limit]],
                 "chart": {"points": [{"label": point.label, "exact": point.exact, "ratio": point.ratio, "count": point.count} for point in chart.points],
                           "omittedGroups": chart.omitted_groups, "excludedValues": chart.excluded_values} if chart else None}
+
+    def identity(self, dataset: Dataset):
+        return sha256((dataset.id + json.dumps(self.spec(), sort_keys=True)).encode()).hexdigest()
 
     def read(self, dataset: Dataset):
         if self.limit > 20 or len(self.columns) > 8:
