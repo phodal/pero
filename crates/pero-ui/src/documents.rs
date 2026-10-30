@@ -46,9 +46,17 @@ impl Workbench {
             });
             open.view.clone()
         } else {
+            let fresh_file = !self.recovery.applying && matches!(document.origin, ContentOrigin::File { .. });
             let locale = self.locale.clone();
             let view =
                 cx.new(|cx| ContentReader::new(document, locale, window, cx).workspace(window, cx));
+            if fresh_file {
+                view.update(cx, |view, cx| {
+                    let mut reading = view.reading_state(cx);
+                    reading.source = true;
+                    view.restore_reading_state(reading, window, cx);
+                });
+            }
             let close_item = item.clone();
             let subscription =
                 cx.subscribe_in(&view, window, move |this, reader, action, window, cx| {
