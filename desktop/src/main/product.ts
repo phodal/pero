@@ -1,3 +1,4 @@
+import { harnessEnvironment } from './harness-environment';
 import {ConversationContentRead} from '../../../packages/content-source/index.ts';
 import { app, BrowserWindow, ipcMain, Menu, protocol, nativeTheme, net, dialog, globalShortcut, shell } from 'electron';
 import { spawn } from 'node:child_process';
@@ -99,6 +100,7 @@ app.whenReady().then(async () => {
   const appUseEnvironment = await appUse?.start();
   host = spawn(resolve(root, 'bin', process.platform === 'win32' ? 'pero-host.exe' : 'pero-host'), ['--stdio'], { cwd: app.getPath('home'), env: {
     ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PERO_'))),
+    ...harnessEnvironment(process.env.PERO_ENV_FILE || resolve(profile, '.env')),
     ...appUseEnvironment,
     PERO_SETTINGS_PATH: resolve(profile, 'runtime-settings.json'), PERO_HISTORY_PATH: resolve(profile, 'sessions.jsonl'),
     PERO_APPS_ROOT: resolve(profile, 'apps'), PERO_BUILTIN_APPS_ROOT: resolve(root, 'apps'),
