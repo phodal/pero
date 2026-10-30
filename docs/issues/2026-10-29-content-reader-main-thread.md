@@ -77,3 +77,24 @@ features were removed. This remains an open performance incident: a low warm
 p95 does not excuse a delayed highlighter or whole-selection stall. These are
 functional release-Wasm receipts, not release-Oz, cold-start distributions or
 installed-package results. `allLongTasks` contains the complete record.
+
+## 2026-10-30 actual Worker and native mirror measurement
+
+The hidden 1px IME textarea previously soft-wrapped the full native selection.
+Disabling hidden wrapping and containing its layout retains the actual textarea
+text/selection/clipboard path. An isolated CSS-only experiment reduced 21 long
+tasks to two: a 338 ms delayed highlighter and a 68 ms Select All task.
+
+The dedicated content Worker now performs JSON syntax and large root preview
+parsing. Shared immutable sources retain their preview and syntax indexes across
+views. Actual Desktop asserts both Worker completions and no Worker errors,
+structural gutter fold/unfold, precise clipboard and the existing table/search
+operations. Three release-Wasm functional runs of the same 1,086,892-byte/8,000-row
+source recorded thirty-switch p95 30.6–31.3 ms, maximum 31.5–33 ms and no long task
+inside timed open/switch samples. The full trace still has a roughly 61 ms
+Select All task. Screenshots/receipts remain in `test-results/content-reader/`.
+
+The incident stays open: this improves the main-thread path without disabling
+features, but whole native selection has not met the frame budget. Large nested
+projection, sorting/filtering, cold distributions, 100k-row actual UI, physical IME
+and installed packages are not certified by the 8k functional benchmark.

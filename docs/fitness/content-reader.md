@@ -72,8 +72,8 @@ ellipsis; cell copy and Source retain the complete serialized token.
 
 A retained reader shares its preview metadata with the table and reuses it
 when an unchanged immutable source switches modes. Query, sort and column
-width survive those switches. This is a per-reader lifetime; a global parse
-cache and worker execution remain separate work.
+width survive those switches. The current immutable source snapshot now shares those indexes across its
+inline and workspace views; it releases them when the source is released.
 
 The existing actual Electron probe now checks filtering 8,000 rows down to 11,
 exact big-integer and Unicode cell clipboard values, ArrowRight, sort/reset,
@@ -91,35 +91,46 @@ and maximum 369.8 ms. The full interaction trace still recorded 21 long tasks,
 peaking at 776 ms around Select All. Keep the performance incident open; this
 is a functionality and retained-state receipt, not a frame-budget pass.
 
+## 2026-10-30 Worker and folding acceptance
+
+The actual background Electron release-Wasm probe now asserts both preview
+and syntax Worker requests completed without errors. The dedicated Worker
+Wasm is about 174 kB before gzip; it has no GPUI startup. Preview exchange
+contains column names and source spans, never a second graph of JSON values.
+Revision crosses the JS boundary as bigint. Root JSON/JSONL previews above
+64 KiB parse in that Worker; replacement parsing debounces 200 ms. Native and
+small-source parsing stay synchronous. Worker parsing does not use the former
+2 MiB synchronous-UI guard. The pure Worker test also verifies 100,000 JSONL
+records, original big-number spans and u64 revision precision; this is not a
+100k-row UI performance receipt.
+
+The Kit cache applies its patch without editing the original checkout. Wasm's
+blanket folding disable was removed: the probe actually clicks the JSON root
+gutter to fold and unfold, then verifies full/partial native selection and
+exact copying. Color, search, read-only protection and table operations remain.
+
+Across three functional release-Wasm runs of the same 1,086,892-byte, 8,000-row
+source, thirty retained switches had median about 30 ms, p95 30.6–31.3 ms and
+maximum 31.5–33 ms. None of those timed samples contains a long task. The full
+interaction trace still includes a roughly 61 ms Select All task; the previous
+trace had 21 long tasks with a 776 ms maximum. Keep the performance incident
+open. Single preview/source opening samples are not a cold-start distribution.
+Receipts and actual light/dark/narrow/fold screenshots remain under
+`test-results/content-reader/`.
+
 ## Current boundaries
 
-- The shared reader now serves inline results and retained workspace file/App
-  documents. File editing and a real App handoff are recorded in
-  [workspace acceptance](workspace-documents.md). Multi-buffer operations,
-  regex search, restart recovery and a global document cache remain separate work.
-- Kit's selected Syntect backend folds multiline braces, but does not provide
-  structural JSON array folding. Full JSON folding remains a functional gap;
-  merely rendering an Editor does not complete that requirement.
-- Table selection currently covers one cell. Cell ranges, Data Agent dataset/
-  chart integration and exporting transformed datasets remain incomplete.
-- Preview parsing is explicitly bounded to 2 MiB and 128 columns. Complete
-  source remains available. Malformed records and duplicate keys report errors;
-  missing values, nulls, exact numeric spelling and source positions stay distinct.
-- Large-source highlighting and native full selection can still block the
-  Wasm thread. [The incident remains open](../issues/2026-10-29-content-reader-main-thread.md).
-  Functionality is preserved; neither best performance nor a frame-budget pass
-  is claimed.
-- Desktop-owned `app_use`, `app_describe` and `app_write` results keep up to
-  16 KiB inline. Larger JSON is stored by conversation and SHA-256. Both the
-  Agent's ordinary `content_read` tool and the trusted UI use the same range
-  and UTF-8 chunk rules. UI reads do not become Agent tool results.
-- Byte reads seek into the file. JSON Pointer reads currently scan the whole
-  stored source. The App producer may already have normalized numeric values;
-  preserving its serialized text cannot recover previously lost precision.
-- External ACP Agents control their own model context; this Host cannot
-  rewrite those independent requests. Complete-file UI loading is a Desktop
-  capability; native preview and installed Windows/Linux packages are not
-  certified by this probe.
-- MCP Apps capability negotiation, resource discovery, sandbox policy,
-  `AppBridge` and `ui/*` lifecycle are not implemented. Existing iframe and
-  file-read capabilities do not establish compatibility.
+- Large nested projections and table sorting/filtering still run synchronously.
+  A Worker for root parsing does not establish a bounded cost for every operation.
+- Selection is one cell. Fixed Zed also uses single-cell selection; cell ranges,
+  transformed export and Data Agent context are Pero extensions.
+- Synchronous preview retains its 2 MiB guard and all previews have 128 columns.
+  Missing/null/value identity and original numeric spelling remain distinct.
+- Full native Select All still has a long task. No logical selection substitute
+  or disabled highlighter is used to claim a performance pass.
+- Source-position back/forward, Save As, generic pane trees, physical IME,
+  assistive technology and installed cross-platform packages remain separate gates.
+- Output files, SHA-256 references and UTF-8 range reads remain unchanged. JSON
+  Pointer reads scan the stored source; external ACP Agents own their model context.
+- MCP Apps transport/resource/official bridge and Data Agent dataset lifecycle
+  remain unimplemented; generic Web embedding does not establish compatibility.

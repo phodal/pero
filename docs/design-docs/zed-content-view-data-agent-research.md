@@ -425,3 +425,33 @@ Pero 现有 App iframe、主题/语言和 Host 生命周期是可复用的基础
 对 Data Agent，优先采用“模型获摘要与 dataset 引用，View 通过 app 可见工具分页读取数据，用户选中范围时才更新模型上下文”的路径。`structuredContent` 的存在本身不能证明数据不会进入模型上下文；Host 必须明确控制结果路由和上下文选择。完整行集、图表状态和每次滚动操作不应自动变成新的模型输入。
 
 当前 `content_read` 是普通 MCP 工具的文件读取基础，不等于 MCP Apps 支持。当前先以完整来源阅读和用户操作的功能等价为验收门槛，再优化性能与输出体积；MCP Apps Host 属于后续明确的兼容能力，实施时直接评估官方 SDK 的 `AppBridge`/`App`，不另造一套相似的 RPC 协议。
+
+## 2026-10-30 parity scope audit
+
+The local reference still resolves to the fixed Zed commit above. The content
+implementation now includes typed/durable ReaderState, regex/whole-word search,
+Markdown heading/source mapping, root JSON folds, shared content icons,
+workspace checkpoints, two different document panes and real Worker syntax/root
+preview parsing. Observable receipts live in the fitness documents; source
+implementation alone does not close their runtime gates.
+
+The reference table is not a range-selection target: `table_view.rs:279` creates
+`single_cell` and `renderer/table_cell.rs:10` copies a cell. Its keyboard cursor
+is restricted to test/debug at `table_view.rs:242`. Multi-cell ranges and
+transformed export are Pero/Data extensions. Likewise the fixed source has no
+MCP Apps `AppBridge`/`ui/initialize` resource lifecycle. Those remain explicitly
+separate product extensions.
+
+Real remaining behavior differences include background sort/filter
+(`table_view.rs:214`), same-document position history (`workspace/pane.rs:507`,
+`editor/items.rs:653`), Save As and wider panes (`workspace/pane.rs:240`). Current
+Pero history stores routes rather than each source position, and its pane scope
+is exactly two distinct open documents. It does not implement same-buffer clones
+or a general pane/dock tree. Source restore is eager even though editor creation
+is lazy. The root preview Worker follows Zed's parser/background/cooldown shape
+(`tabular_data_preview/parser.rs:18,149`); large nested projections still need
+that treatment. Compact nested display preserves original source tokens.
+
+Full native selection remains real and can still exceed the interaction budget.
+The 8k-row release-Wasm probe and 100k-row pure Worker test are different lanes;
+neither certifies 100k-row UI latency, physical IME or installed OS packages.

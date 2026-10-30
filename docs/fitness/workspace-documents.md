@@ -98,16 +98,35 @@ This proves App integration and computation wiring; it is not scientific
 acceptance or a Data Agent/model run. Receipts live under
 `test-results/app-documents/`.
 
+## 2026-10-30 workspace recovery acceptance
+
+`tests/e2e/workspace-recovery.mjs` runs the real Desktop and Host with temporary
+files. It waits for a Host-acknowledged checkpoint, force-kills Desktop, changes
+the original file externally and restarts with the same data home. Actual
+acceptance passes for two different document panes, exact unsaved UTF-8 draft,
+closed-search query retention, file conflict preservation, focus and back/forward,
+reload Keep Editing and normal quit Discard. Discard is checkpointed before Host
+shutdown; it never overwrites the changed disk file. Only native picker/dialog
+choices are stubbed. Receipts are under the isolated build's
+`test-results/workspace-recovery/`, including screenshots and `result.json`.
+
+Immutable source bytes live in separate Host blobs, reading state/drafts in the
+checkpoint. A revision is materialized once; closing/replacing sources releases
+unreferenced blobs and view caches. The same-key App republish path replaces its
+stored bytes. Native compilation includes close acknowledgement and a disconnected
+exit path; physical native window acceptance is still separate.
+
 ## Remaining scope
 
-The complete matrix stays active in
-[the implementation plan](../exec-plans/2026-10-30-content-view-parity.md).
-Markdown heading anchors and rendered/source selection mapping, Save As,
-split panes, navigation history and restart/draft recovery remain incomplete.
-Generic Web/native WebView items now have a separate
-[Web acceptance record](web-documents.md). MCP Apps negotiation/resource/bridge,
-advanced editor/table interactions and the dataset/Data Agent workflow remain
-unimplemented. Icon mapping/extension admission and
-cross-platform package/accessibility evidence remain separate gates.
-The existing large-source incident is still open: immutable text does not yet
-share every parse or move the Wasm parsing/IME work onto a worker.
+Save As and source-position navigation history are not implemented. The current
+history selects workspace routes; it does not record every same-document jump.
+Panes are two distinct documents side by side, without same-buffer cloning,
+four-direction splitting or a general dock tree. Restart reads every saved source
+at once; inactive editors are lazy, Host source reads are not yet lazy.
+
+Web restores the stable identity and final URL, not browser history, scroll or
+forms. Corrupt recovery data has an error but no Reset Recovery control. Physical
+native dialogs, installed OS packages and assistive technology remain separate.
+MCP Apps and dataset/Data Agent flows are Pero extensions, not established by
+this workspace or generic Web acceptance. The full-selection performance
+[incident](../issues/2026-10-29-content-reader-main-thread.md) remains open.
