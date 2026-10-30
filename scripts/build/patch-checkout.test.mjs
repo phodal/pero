@@ -51,11 +51,15 @@ test('icon generation retains exact bytes with Windows checkout defaults', t => 
     cwd: root, encoding: 'utf8',
   });
   write('scripts/generate-icons.mjs', readFileSync(new URL('../generate-icons.mjs', import.meta.url)));
+  write('scripts/lib/content-icons.mjs', readFileSync(new URL('../lib/content-icons.mjs', import.meta.url)));
+  write('packages/icons/content.json', JSON.stringify({ kinds: {}, languages: {}, filenames: {}, extensions: {}, apps: {} }));
   write('packages/icons/catalog.json', JSON.stringify({ 'layout-grid': {} }));
   write('web/public/icons/layout-grid.svg', '<svg viewBox="0 0 24 24">\n<path d="M0 0"/>\n</svg>\n');
   const licenses = ['web/public/icons/LICENSE.txt', 'packages/icons/LICENSE-LUCIDE'];
   for (const path of licenses) write(path, readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8').replaceAll('\r\n', '\n'));
-  const outputs = ['crates/pero-chat-ui/src/assets.rs', 'packages/app-sdk/src/icons.generated.tsx'];
+  const outputs = ['crates/pero-chat-ui/src/assets.rs', 'packages/app-sdk/src/icons.generated.tsx',
+    'packages/icons/content-data.generated.js', 'packages/icons/content-data.generated.d.ts',
+    'crates/pero-contracts/src/content_icon_data.rs'];
   for (const path of outputs) write(path, '');
   const initial = generate();
   assert.equal(initial.status, 0, initial.stderr);

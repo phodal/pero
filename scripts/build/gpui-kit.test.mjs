@@ -10,6 +10,9 @@ import { test } from 'node:test';
 test('patched Kit retains its own workspace and leaves the source immutable', t => {
   const root = mkdtempSync(join(tmpdir(), 'pero-kit-workspace-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
+  // Match the consumer checkout's canonical LF policy, not machine-wide Git defaults.
+  execFileSync('git', ['init', '-q'], { cwd: root, stdio: 'pipe' });
+  execFileSync('git', ['config', '--local', 'core.autocrlf', 'false'], { cwd: root, stdio: 'pipe' });
   const write = (path, contents) => {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), contents);

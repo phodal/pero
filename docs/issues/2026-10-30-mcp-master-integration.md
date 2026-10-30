@@ -79,3 +79,23 @@ All five icon lifecycle checks passed. Built-in Go readiness was checked only
 with a synthetic key and isolated loopback endpoint: zero provider requests or
 messages. The natural unavailable secure-storage form rejected saving as expected;
 this is not an encrypted-persistence or real-provider acceptance claim.
+
+## Integrated CI fixture follow-up
+
+The first integrated CI run `41026137382` stopped before UI acceptance because
+its reduced icon-generator fixture omitted master's new `content-icons.mjs`
+input. The fixture now includes that helper and association data, and checks all
+five generated outputs rather than only the original two. The three new outputs
+also retain LF checkout bytes; the new Rust association formatter explicitly
+uses Unix line endings, matching the established generated-byte contract.
+The Kit regression creates an isolated LF-configured consumer repository instead
+of inheriting Windows machine-wide Git conversion. All 11 build-fixture tests
+pass, including simulated Windows checkout defaults; stale-content and CRLF
+rejection assertions remain intact.
+
+Master's new default Agent also invalidated the tool-matrix fixture's old Codex
+picker coordinate. Fixture preferences now explicitly select the local scripted
+Agent, retaining all tool-state assertions and adding Agent identity checks to
+both native-window App Use suites. Workbench and all nine tool states passed in
+local actual headless Electron. Native-window App Use guards are retained and
+must pass in integrated headed CI; no real/default provider is used as a fixture.
