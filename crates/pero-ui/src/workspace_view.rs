@@ -467,7 +467,9 @@ impl Workbench {
                         cx.listener(|this, _, window, cx| this.navigate_history(true, window, cx)),
                     ),
             )
-            .when(self.navigation.route().supports_pane(), |strip|strip.child(self.workspace_split_control(cx)))
+            .when(self.navigation.route().can_clone_pane(), |strip| {
+                strip.child(self.workspace_split_control(cx))
+            })
             .child(
                 Button::new("web-open")
                     .ghost()

@@ -115,12 +115,12 @@ impl WorkspaceNavigation {
         self.ensure_pane_layout();
         let layout = self.pane_layout.as_mut()?;
         let target = layout.focused?;
-        let active = layout.leaf(target)?.active().cloned();
-        let id = if let Some(item) = active.filter(|item| item.route.can_clone_pane()) {
-            layout.split(target, direction, item.route, item.reading)?
-        } else {
-            layout.split_empty(target, direction)?
-        };
+        let item = layout
+            .leaf(target)?
+            .active()
+            .cloned()
+            .filter(|item| item.route.can_clone_pane())?;
+        let id = layout.split(target, direction, item.route, item.reading)?;
         self.focus_pane(id)?;
         Some(id)
     }
@@ -378,5 +378,14 @@ mod tests {
                 .is_none()
         );
         assert!(navigation.pane_layout_visible());
+    }
+    #[test]
+    fn conversation_split_keeps_the_single_chat_pane() {
+        let mut navigation = WorkspaceNavigation::default();
+        navigation.open(WorkspaceItem::Conversation("thread".into()));
+        navigation.ensure_pane_layout();
+        assert!(navigation.split_pane(SplitDirection::Right).is_none());
+        assert_eq!(navigation.pane_layout().unwrap().leaves().len(), 1);
+        assert!(navigation.snapshot().valid());
     }
 }
