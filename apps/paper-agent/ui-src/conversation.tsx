@@ -66,7 +66,10 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
   const current = task.intent && (!paper || task.intent.papers.some(p => p.id === paper.id)) ? task.intent : null;
   const history = library.intents.filter(intent => (!paper || intent.paperIds?.includes(paper.id)) && intent.id !== current?.id).sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''));
   useEffect(() => { panel.current?.querySelector<HTMLTextAreaElement>('#paper-question')?.focus(); }, []);
-  useEffect(() => { bottom.current?.scrollIntoView({ block: 'nearest' }); }, [task.report?.id, task.intent?.id, task.study?.id]);
+  useEffect(() => {
+    const scroll = bottom.current?.parentElement;
+    if (scroll) scroll.scrollTop = scroll.scrollHeight;
+  }, [task.report?.id, task.intent?.id, task.study?.id, task.study?.steps.length, task.plannedQuestion, task.status, locked]);
   function close() { onClose(); }
   return <aside className="pa-conversation" aria-label={t('ask')} ref={panel} onKeyDown={event => {
     if (event.key === 'Escape') { event.stopPropagation(); if (citation) onCloseEvidence(); else if (settings) setSettings(false); else close(); }

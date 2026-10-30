@@ -233,6 +233,13 @@ try {
     }, { timeout: 30000 }).toBe(true);
     await frame.getByRole('button', { name: 'Cancel research', exact: true }).click();
     await expect(frame.getByRole('button', { name: 'Continue research', exact: true })).toBeVisible();
+    await writeFile(resolve(out, 'paused-layout.json'), JSON.stringify(await frame.locator('.pa-conversation').evaluate(element => {
+      const scroll = element.querySelector('.pa-conversation-scroll'), composer = element.querySelector('.pa-composer');
+      const rect = node => ({ top: node.getBoundingClientRect().top, bottom: node.getBoundingClientRect().bottom });
+      return { scrollTop: scroll.scrollTop, scrollHeight: scroll.scrollHeight, clientHeight: scroll.clientHeight,
+        scroll: rect(scroll), composer: rect(composer), buttons: [...scroll.querySelectorAll('button')].slice(-3).map(node => ({ text: node.textContent, ...rect(node) })) };
+    }), null, 2));
+    await expect(frame.getByRole('button', { name: 'Continue research', exact: true })).toBeInViewport({ ratio: 1 });
     paused = await api(`/api/studies/${paused.id}`);
     expect(paused.reportId).toBeNull();
     expect(agentStarts).toHaveLength(beforePauseStarts + 1);
