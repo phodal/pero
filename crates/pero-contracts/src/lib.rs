@@ -283,3 +283,9 @@ mod history_tests {
 }
 
 pub mod appearance;
+
+pub mod reader_state;
+
+pub mod content_search;
+
+pub mod markdown_source;

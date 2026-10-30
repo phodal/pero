@@ -5434,7 +5434,10 @@ dependencies = [
 name = "pero-contracts"
 version = "0.1.0"
 dependencies = [
+ "markdown",
  "num-bigint",
+ "percent-encoding",
+ "regex",
  "serde",
  "serde_json",
  "url",
