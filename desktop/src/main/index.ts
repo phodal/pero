@@ -303,8 +303,13 @@ app.whenReady().then(async () => {
       if(!selected.canceled && selected.filePaths[0]) host.stdin!.write(JSON.stringify({method:'documents',action:'open',request_id:'open-file',path:selected.filePaths[0]})+'\n');
       return;
     }
+    if(action==='choose_icon_theme'){
+      const selected=await dialog.showOpenDialog(window,{title:t('icons.install'),properties:['openFile'],filters:[{name:'Icon theme JSON',extensions:['json']}]});
+      host.stdin.write(JSON.stringify(selected.canceled||!selected.filePaths[0]?{method:'icons',action:'get',request_id:'icons'}:
+        {method:'icons',action:'install',request_id:'icons',path:realpathSync(selected.filePaths[0])})+'\n');return;
+    }
     if(method==='workspace') {
-      if(action==='get'||action==='read'||action==='reset'){host.stdin.write(JSON.stringify(command)+'\n');return;}
+      if(['get','read','reset','source_begin','source_chunk','store_draft'].includes(action||'')){host.stdin.write(JSON.stringify(command)+'\n');return;}
       const request=command as {request_id?:unknown};
       if(action!=='save'||typeof request.request_id!=='string'||!request.request_id||request.request_id.length>128||JSON.stringify(command).length>16_000_000)throw new Error('Invalid workspace checkpoint');
       const id=request.request_id;
@@ -314,7 +319,7 @@ app.whenReady().then(async () => {
         host.stdin.write(JSON.stringify(command)+'\n',error=>{if(error){clearTimeout(timer);preferenceWrites.delete(id);rejectWrite(error);}});
       });return;
     }
-    if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'documents'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
+    if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'documents','icons'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
     appUse?.authority.command(command as {action?:string;thread_id?:string});
     host.stdin.write(JSON.stringify(command) + '\n');
   });

@@ -631,8 +631,8 @@
   "content.whole_word": "整词匹配",
   "workspace.back": "后退",
   "workspace.forward": "前进",
-  "workspace.split": "并排打开另一个文档",
-  "workspace.close_split": "关闭右侧窗格",
+  "workspace.split": "拆分",
+  "workspace.close_split": "关闭分栏",
   "workspace.cached_source": "已保存的快照，原始来源当前不可用。",
   "workspace.recovery_failed": "无法恢复保存的工作区。",
   "workspace.save_failed": "无法保存工作区恢复数据。",
@@ -679,5 +679,16 @@
   "content.saving_as": "正在另存…",
   "content.save_as_cancelled": "已取消另存为。",
   "content.save_as_conflict": "目标文件有未保存修改或已被外部改动，请先保存或重新加载再替换。",
-  "content.transforming": "正在更新行…"
+  "content.transforming": "正在更新行…",
+  "icons.title": "图标主题",
+  "icons.default": "默认图标",
+  "icons.install": "安装图标主题…",
+  "icons.remove": "移除 {name}…",
+  "icons.confirm_remove": "移除主题",
+  "icons.loading": "正在更新图标主题…",
+  "icons.cancel": "取消",
+  "workspace.open_left": "在左侧打开",
+  "workspace.open_right": "在右侧打开",
+  "workspace.open_up": "在上方打开",
+  "workspace.open_down": "在下方打开"
 }

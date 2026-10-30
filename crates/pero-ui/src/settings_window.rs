@@ -38,6 +38,7 @@ impl Workbench {
                         SettingsAction::Save(preferences) => {
                             this.save_preferences(preferences.clone(), cx)
                         }
+                        SettingsAction::Icons(action) => this.icon_theme_action(action.clone(),cx),
                         SettingsAction::Locale(locale) => {
                             if request_locale(locale).is_err() {
                                 this.error = Some("error.preferences".into());

@@ -425,7 +425,7 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) {
         let event_kind = event.kind.clone();
-        let feature_handled = self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
+        let feature_handled = self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
             || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
             || self.receive_local_execution(&event, cx)
             || self.receive_contribution(&event, cx)

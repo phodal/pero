@@ -631,8 +631,8 @@
   "content.whole_word": "Whole word",
   "workspace.back": "Back",
   "workspace.forward": "Forward",
-  "workspace.split": "Open another document beside",
-  "workspace.close_split": "Close right pane",
+  "workspace.split": "Split",
+  "workspace.close_split": "Close split",
   "workspace.cached_source": "Saved snapshot; the original source is unavailable.",
   "workspace.recovery_failed": "Could not restore the saved workspace.",
   "workspace.save_failed": "Could not save workspace recovery.",
@@ -679,5 +679,16 @@
   "content.saving_as": "Saving copy…",
   "content.save_as_cancelled": "Save As cancelled.",
   "content.save_as_conflict": "The destination has unsaved changes or changed on disk. Save or reload it before replacing.",
-  "content.transforming": "Updating rows…"
+  "content.transforming": "Updating rows…",
+  "icons.title": "Icon theme",
+  "icons.default": "Default icons",
+  "icons.install": "Install icon theme…",
+  "icons.remove": "Remove {name}…",
+  "icons.confirm_remove": "Remove theme",
+  "icons.loading": "Updating icon theme…",
+  "icons.cancel": "Cancel",
+  "workspace.open_left": "Open to the left",
+  "workspace.open_right": "Open to the right",
+  "workspace.open_up": "Open upward",
+  "workspace.open_down": "Open downward"
 }

@@ -65,6 +65,7 @@ impl SettingsSection {
 
 #[derive(Clone)]
 pub(crate) enum SettingsAction {
+    Icons(crate::icon_themes::IconThemeAction),
     Save(WorkbenchPreferences),
     Locale(&'static str),
     Navigate(WorkbenchPage),
@@ -418,6 +419,7 @@ impl SettingsPanel {
                 false,
                 cx,
             ))
+            .child(setting_row(self.t("icons.title"),"",None,crate::icon_themes::controls(&self.locale,cx),false,cx))
             .into_any_element()
     }
 
@@ -471,7 +473,7 @@ impl SettingsPanel {
                 let keys: &[&str] = match section {
                     SettingsSection::General => &["menu.language"],
                     SettingsSection::Computer => &["computer.enable", "computer.permissions", "computer.stop"],
-                    SettingsSection::Theme => &["settings.appearance", "settings.accent"],
+                    SettingsSection::Theme => &["settings.appearance", "settings.accent", "icons.title"],
                     SettingsSection::InterfaceFont => &[
                         "settings.font_size",
                         "settings.interface_font_hint",

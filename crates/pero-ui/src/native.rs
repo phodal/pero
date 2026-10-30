@@ -238,6 +238,7 @@ pub fn run() -> anyhow::Result<()> {
                     | "choose_worker_workspace"
                     | "choose_document"
                     | "choose_document_save"
+                    | "choose_icon_theme"
             ) {
                 let mut event = HostEvent::new(&format!("native_{action}"), None, String::new());
                 event.data = value;
@@ -338,8 +339,9 @@ pub fn run() -> anyhow::Result<()> {
                 }
                 if matches!(
                     event.kind.as_str(),
-                    "native_choose_workspace" | "native_choose_context" | "native_choose_worker_workspace" | "native_choose_document"
+                    "native_choose_workspace" | "native_choose_context" | "native_choose_worker_workspace" | "native_choose_document" | "native_choose_icon_theme"
                 ) {
+                    let icon_theme=event.kind=="native_choose_icon_theme";
                     let file_document=event.kind=="native_choose_document";
                     let worker_workspace=event.kind=="native_choose_worker_workspace";
                     let workspace = event.kind == "native_choose_workspace" || worker_workspace;
@@ -350,13 +352,14 @@ pub fn run() -> anyhow::Result<()> {
                         cx.prompt_for_paths(PathPromptOptions {
                             files: !directory,
                             directories: directory,
-                            multiple: !directory && !typed_context && !file_document,
-                            prompt: (typed_context && context_kind == "image").then(|| "Image (PNG, JPEG, GIF, WebP)".into()),
+                            multiple: !directory && !typed_context && !file_document && !icon_theme,
+                            prompt: if icon_theme {Some("Icon theme JSON".into())}else{(typed_context && context_kind == "image").then(|| "Image (PNG, JPEG, GIF, WebP)".into())},
                         })
                     });
                     let paths = match paths.await {
                         Ok(Ok(paths)) => paths,
                         _ => {
+                            if icon_theme {let _=session_command(r#"{"method":"icons","action":"get","request_id":"icons"}"#);}
                             if typed_context {
                                 let failure = HostEvent::new("context_error", event.data["request_id"].as_str().map(str::to_string), "Could not open the file picker. Retry or use context search.".into());
                                 let _ = window.update(cx, |_, window, cx| {
@@ -366,6 +369,7 @@ pub fn run() -> anyhow::Result<()> {
                             continue;
                         }
                     };
+                    if icon_theme && paths.is_none(){let _=session_command(r#"{"method":"icons","action":"get","request_id":"icons"}"#);}
                     if let Some(paths) = paths {
                         if let Some(path) = paths.first() {
                             if worker_workspace {
@@ -375,7 +379,9 @@ pub fn run() -> anyhow::Result<()> {
                                 }).and_then(|result| result);
                                 continue;
                             }
-                            let command = if file_document {
+                            let command = if icon_theme {
+                                serde_json::json!({"method":"icons","action":"install","request_id":"icons","path":path})
+                            } else if file_document {
                                 serde_json::json!({"method":"documents","action":"open","request_id":"open-file","path":path})
                             } else if workspace {
                                 serde_json::json!({"action":"workspace","path":path})

@@ -14,6 +14,8 @@ mod view;
 mod documents;
 #[cfg(any(target_family="wasm",feature="native"))]
 mod web_documents;
+#[cfg(any(target_family="wasm",feature="native"))]
+mod icon_themes;
 
 // Rendered only by the wasm Workbench; native builds compile it for its tests.
 #[cfg_attr(not(target_family = "wasm"), allow(dead_code))]
