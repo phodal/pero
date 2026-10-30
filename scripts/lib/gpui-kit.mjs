@@ -49,6 +49,14 @@ export async function prepareKit() {
   mkdirSync(patchedKit,{recursive:true});
   // Keep Kit's relative symlinks (for example crates/*/LICENSE-APACHE) relative to the copy.
   cpSync(kit,patchedKit,{recursive:true,verbatimSymlinks:true,filter:path=>!relative(kit,path).split(/[\\/]/).some(part=>excluded.has(part))});
+  // Patches are LF (.gitattributes). A Windows Kit checkout may use CRLF, so normalize
+  // only the files the patches touch before applying them.
+  for (const patch of patches) {
+    for (const [, path] of readFileSync(patch,'utf8').matchAll(/^\+\+\+ b\/(.+)$/gm)) {
+      const file = resolve(patchedKit,path);
+      if (existsSync(file)) writeFileSync(file,readFileSync(file,'utf8').replaceAll('\r\n','\n'));
+    }
+  }
   for (const patch of patches) await run('git',['apply','--unsafe-paths',`--directory=${patchedKit}`,patch]);
   writeFileSync(stamp,stampFor());
 }
