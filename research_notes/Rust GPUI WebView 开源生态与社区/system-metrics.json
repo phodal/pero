@@ -1,0 +1,609 @@
+{
+  "observed_from_utc": "2026-10-30T05:00:07Z",
+  "observed_to_utc": "2026-10-30T05:01:20Z",
+  "method": "GitHub connector GET repository, releases (first 10), default-branch commits (first 5); tags via GitHub REST HTTPS fallback because connector rejects tags endpoint. Stars/forks are a point-in-time count, not a growth rate. pushed_at is repository push metadata, not evidence of substantive code work. License API field may select only one of dual licenses; package Cargo declarations recorded separately.",
+  "repositories": [
+    {
+      "repo": "tauri-apps/wry",
+      "source": "https://api.github.com/repos/tauri-apps/wry",
+      "html_url": "https://github.com/tauri-apps/wry",
+      "stars": 5032,
+      "forks": 584,
+      "archived": false,
+      "license_api": "Apache-2.0",
+      "license_declaration": "Apache-2.0 OR MIT",
+      "pushed_at": "2026-10-28T10:57:54Z",
+      "default_branch": "dev",
+      "releases_source": "https://api.github.com/repos/tauri-apps/wry/releases?per_page=10",
+      "releases": [
+        {
+          "tag_name": "wry-v0.57.1",
+          "published_at": "2026-10-23T11:20:46Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/wry/releases/tag/wry-v0.57.1"
+        },
+        {
+          "tag_name": "wry-v0.57.0",
+          "published_at": "2026-09-08T03:54:08Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/wry/releases/tag/wry-v0.57.0"
+        },
+        {
+          "tag_name": "wry-v0.56.1",
+          "published_at": "2026-08-13T11:07:23Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/wry/releases/tag/wry-v0.56.1"
+        },
+        {
+          "tag_name": "wry-v0.56.0",
+          "published_at": "2026-07-30T03:16:08Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/wry/releases/tag/wry-v0.56.0"
+        },
+        {
+          "tag_name": "wry-v0.55.1",
+          "published_at": "2026-05-04T15:34:37Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/wry/releases/tag/wry-v0.55.1"
+        },
+        {
+          "tag_name": "wry-v0.24.12",
+          "published_at": "2026-03-26T14:16:17Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/wry/releases/tag/wry-v0.24.12"
+        },
+        {
+          "tag_name": "wry-v0.55.0",
+          "published_at": "2026-03-23T11:37:17Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/wry/releases/tag/wry-v0.55.0"
+        },
+        {
+          "tag_name": "wry-v0.54.4",
+          "published_at": "2026-03-17T15:32:51Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/wry/releases/tag/wry-v0.54.4"
+        },
+        {
+          "tag_name": "wry-v0.54.3",
+          "published_at": "2026-03-09T21:01:20Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/wry/releases/tag/wry-v0.54.3"
+        },
+        {
+          "tag_name": "wry-v0.54.2",
+          "published_at": "2026-02-14T13:38:23Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/wry/releases/tag/wry-v0.54.2"
+        }
+      ],
+      "commits_source": "https://api.github.com/repos/tauri-apps/wry/commits?per_page=5",
+      "recent_default_branch_commits": [
+        {
+          "sha": "5006b49b3a643b5544263ff9863b797a810d549b",
+          "committer_date": "2026-10-28T10:55:56Z",
+          "title": "fix(windows): preserve parent subclass when child webviews drop (#1914)",
+          "url": "https://github.com/tauri-apps/wry/commit/5006b49b3a643b5544263ff9863b797a810d549b"
+        },
+        {
+          "sha": "eccc972d3ad5937e1c275ec2ceb2ae5daf1b14ee",
+          "committer_date": "2026-10-28T07:35:49Z",
+          "title": "fix(android): don't crash when a URL has no cookies (#1838)",
+          "url": "https://github.com/tauri-apps/wry/commit/eccc972d3ad5937e1c275ec2ceb2ae5daf1b14ee"
+        },
+        {
+          "sha": "790ca0df48c12a565d0fd88db4ef79104e6edf23",
+          "committer_date": "2026-10-28T07:35:17Z",
+          "title": "fix(android): don't abort when the activity is already gone (#1846)",
+          "url": "https://github.com/tauri-apps/wry/commit/790ca0df48c12a565d0fd88db4ef79104e6edf23"
+        },
+        {
+          "sha": "ba7e1dadfd6fccb3e19669a3c44c276d7bcff9b9",
+          "committer_date": "2026-10-28T07:15:54Z",
+          "title": "fix(macos): cancel file upload when NSOpenPanel can't be created (#1881)",
+          "url": "https://github.com/tauri-apps/wry/commit/ba7e1dadfd6fccb3e19669a3c44c276d7bcff9b9"
+        },
+        {
+          "sha": "b3dc94a7834bcbf1b3814f0e351d5a1d1758eb09",
+          "committer_date": "2026-10-28T05:54:00Z",
+          "title": "fix(android): keep getCookies and clearAllBrowsingData in ProGuard rules (#1913)",
+          "url": "https://github.com/tauri-apps/wry/commit/b3dc94a7834bcbf1b3814f0e351d5a1d1758eb09"
+        }
+      ]
+    },
+    {
+      "repo": "tauri-apps/tao",
+      "source": "https://api.github.com/repos/tauri-apps/tao",
+      "html_url": "https://github.com/tauri-apps/tao",
+      "stars": 2228,
+      "forks": 433,
+      "archived": false,
+      "license_api": "Apache-2.0",
+      "license_declaration": "Apache-2.0",
+      "pushed_at": "2026-10-28T11:31:23Z",
+      "default_branch": "dev",
+      "releases_source": "https://api.github.com/repos/tauri-apps/tao/releases?per_page=10",
+      "releases": [
+        {
+          "tag_name": "tao-v0.37.2",
+          "published_at": "2026-10-23T11:19:38Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tao/releases/tag/tao-v0.37.2"
+        },
+        {
+          "tag_name": "tao-v0.37.1",
+          "published_at": "2026-09-26T10:50:00Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tao/releases/tag/tao-v0.37.1"
+        },
+        {
+          "tag_name": "tao-v0.37.0",
+          "published_at": "2026-08-21T18:29:42Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tao/releases/tag/tao-v0.37.0"
+        },
+        {
+          "tag_name": "tao-v0.36.0",
+          "published_at": "2026-07-29T02:10:02Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tao/releases/tag/tao-v0.36.0"
+        },
+        {
+          "tag_name": "tao-macros-v0.1.4",
+          "published_at": "2026-07-29T02:09:57Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tao/releases/tag/tao-macros-v0.1.4"
+        },
+        {
+          "tag_name": "tao-v0.35.3",
+          "published_at": "2026-05-23T03:05:11Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tao/releases/tag/tao-v0.35.3"
+        },
+        {
+          "tag_name": "tao-v0.35.2",
+          "published_at": "2026-05-04T16:36:06Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tao/releases/tag/tao-v0.35.2"
+        },
+        {
+          "tag_name": "tao-v0.35.0",
+          "published_at": "2026-03-23T10:59:04Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tao/releases/tag/tao-v0.35.0"
+        },
+        {
+          "tag_name": "tao-v0.34.8",
+          "published_at": "2026-03-22T12:32:44Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tao/releases/tag/tao-v0.34.8"
+        },
+        {
+          "tag_name": "tao-v0.34.7",
+          "published_at": "2026-03-22T10:01:20Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tao/releases/tag/tao-v0.34.7"
+        }
+      ],
+      "commits_source": "https://api.github.com/repos/tauri-apps/tao/commits?per_page=5",
+      "recent_default_branch_commits": [
+        {
+          "sha": "39d130f9bd604bea1b183581b5fb47939a193a40",
+          "committer_date": "2026-10-28T11:06:15Z",
+          "title": "fix(android): migrate `poll_all` to `poll_once` (#1309)",
+          "url": "https://github.com/tauri-apps/tao/commit/39d130f9bd604bea1b183581b5fb47939a193a40"
+        },
+        {
+          "sha": "7b412ce68a152bc23c3660fb512e4b9aaf6efdfa",
+          "committer_date": "2026-10-28T02:55:28Z",
+          "title": "Support window dragging from outside the main thread (#1400)",
+          "url": "https://github.com/tauri-apps/tao/commit/7b412ce68a152bc23c3660fb512e4b9aaf6efdfa"
+        },
+        {
+          "sha": "2d9b2ba15247879787878ae565e350bcc1b9f622",
+          "committer_date": "2026-10-23T11:16:54Z",
+          "title": "publish new versions (#1357)",
+          "url": "https://github.com/tauri-apps/tao/commit/2d9b2ba15247879787878ae565e350bcc1b9f622"
+        },
+        {
+          "sha": "1316232de1bac08a3b07ef2d726083007d36a30b",
+          "committer_date": "2026-10-23T04:18:05Z",
+          "title": "fix(macos): don't abort on drags without file paths (#1267)",
+          "url": "https://github.com/tauri-apps/tao/commit/1316232de1bac08a3b07ef2d726083007d36a30b"
+        },
+        {
+          "sha": "749385b474d5cf3b72528d65b5b9c82e9f5edc78",
+          "committer_date": "2026-10-23T02:40:20Z",
+          "title": "fix(linux): return the right scancode from `KeyCode::to_scancode` (#1391)",
+          "url": "https://github.com/tauri-apps/tao/commit/749385b474d5cf3b72528d65b5b9c82e9f5edc78"
+        }
+      ]
+    },
+    {
+      "repo": "tauri-apps/tauri",
+      "source": "https://api.github.com/repos/tauri-apps/tauri",
+      "html_url": "https://github.com/tauri-apps/tauri",
+      "stars": 112320,
+      "forks": 4136,
+      "archived": false,
+      "license_api": "Apache-2.0",
+      "license_declaration": "Apache-2.0 OR MIT",
+      "pushed_at": "2026-10-29T17:10:26Z",
+      "default_branch": "dev",
+      "releases_source": "https://api.github.com/repos/tauri-apps/tauri/releases?per_page=10",
+      "releases": [
+        {
+          "tag_name": "tauri-v2.12.5",
+          "published_at": "2026-10-21T11:54:49Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tauri/releases/tag/tauri-v2.12.5"
+        },
+        {
+          "tag_name": "tauri-runtime-wry-v2.12.3",
+          "published_at": "2026-10-21T11:52:25Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tauri/releases/tag/tauri-runtime-wry-v2.12.3"
+        },
+        {
+          "tag_name": "tauri-macros-v2.7.4",
+          "published_at": "2026-10-21T11:53:26Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tauri/releases/tag/tauri-macros-v2.7.4"
+        },
+        {
+          "tag_name": "tauri-macos-sign-v2.4.3",
+          "published_at": "2026-10-21T11:50:13Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tauri/releases/tag/tauri-macos-sign-v2.4.3"
+        },
+        {
+          "tag_name": "tauri-codegen-v2.7.4",
+          "published_at": "2026-10-21T11:52:53Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tauri/releases/tag/tauri-codegen-v2.7.4"
+        },
+        {
+          "tag_name": "tauri-cli-v2.12.4",
+          "published_at": "2026-10-21T11:56:45Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tauri/releases/tag/tauri-cli-v2.12.4"
+        },
+        {
+          "tag_name": "tauri-bundler-v2.10.4",
+          "published_at": "2026-10-21T11:51:28Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tauri/releases/tag/tauri-bundler-v2.10.4"
+        },
+        {
+          "tag_name": "tauri-build-v2.7.4",
+          "published_at": "2026-10-21T11:53:44Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tauri/releases/tag/tauri-build-v2.7.4"
+        },
+        {
+          "tag_name": "@tauri-apps/cli-v2.12.4",
+          "published_at": "2026-10-21T11:54:51Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/tauri-apps/tauri/releases/tag/%40tauri-apps/cli-v2.12.4"
+        },
+        {
+          "tag_name": "tauri-v3.0.0-alpha.5",
+          "published_at": "2026-10-14T21:14:12Z",
+          "prerelease_api": false,
+          "semantic_prerelease": true,
+          "url": "https://github.com/tauri-apps/tauri/releases/tag/tauri-v3.0.0-alpha.5"
+        }
+      ],
+      "commits_source": "https://api.github.com/repos/tauri-apps/tauri/commits?per_page=5",
+      "recent_default_branch_commits": [
+        {
+          "sha": "548a3692f59405aeb239c5b63fa589824eee51e8",
+          "committer_date": "2026-10-28T12:15:12Z",
+          "title": "docs(tauri-build): keep Common Control v6 dependency in app_manifest example (#16421)",
+          "url": "https://github.com/tauri-apps/tauri/commit/548a3692f59405aeb239c5b63fa589824eee51e8"
+        },
+        {
+          "sha": "7e39750cf6a4e05234a781088ff5fb8cb890370a",
+          "committer_date": "2026-10-27T02:16:38Z",
+          "title": "chore(deps): update vulnerable Zstandard dependencies",
+          "url": "https://github.com/tauri-apps/tauri/commit/7e39750cf6a4e05234a781088ff5fb8cb890370a"
+        },
+        {
+          "sha": "0e5809589026982976e49718c9a34c68680df0c3",
+          "committer_date": "2026-10-26T14:43:23Z",
+          "title": "perf(tauri-utils): mark `parse_json` and `parse_json5` `#[inline]` (#16402)",
+          "url": "https://github.com/tauri-apps/tauri/commit/0e5809589026982976e49718c9a34c68680df0c3"
+        },
+        {
+          "sha": "0ed2998421652800a1e74b067eadf605f46e4124",
+          "committer_date": "2026-10-26T03:31:32Z",
+          "title": "chore(deps): update rust crate jsonschema to 0.60 (#16378)",
+          "url": "https://github.com/tauri-apps/tauri/commit/0ed2998421652800a1e74b067eadf605f46e4124"
+        },
+        {
+          "sha": "d5997473caf0f1ead6c02f424dbbd7b6b673b129",
+          "committer_date": "2026-10-26T02:53:25Z",
+          "title": "chore(deps): update rust crate minisign to 0.10 (#16382)",
+          "url": "https://github.com/tauri-apps/tauri/commit/d5997473caf0f1ead6c02f424dbbd7b6b673b129"
+        }
+      ]
+    },
+    {
+      "repo": "webview/webview",
+      "source": "https://api.github.com/repos/webview/webview",
+      "html_url": "https://github.com/webview/webview",
+      "stars": 14328,
+      "forks": 1095,
+      "archived": false,
+      "license_api": "MIT",
+      "license_declaration": "MIT",
+      "pushed_at": "2026-10-22T01:30:29Z",
+      "default_branch": "master",
+      "releases_source": "https://api.github.com/repos/webview/webview/releases?per_page=10",
+      "releases": [],
+      "commits_source": "https://api.github.com/repos/webview/webview/commits?per_page=5",
+      "recent_default_branch_commits": [
+        {
+          "sha": "f244320ab0d82fdab98a094e02996fc26d0ffd0c",
+          "committer_date": "2026-10-22T01:30:29Z",
+          "title": "Replace deprecated std::aligned_storage with alignas in optional<T> (#1381)",
+          "url": "https://github.com/webview/webview/commit/f244320ab0d82fdab98a094e02996fc26d0ffd0c"
+        },
+        {
+          "sha": "e98ad229413544744d7cd904b70c017b50cb2bef",
+          "committer_date": "2026-10-20T00:01:05Z",
+          "title": "Add new Python webview repository to README (#1367)",
+          "url": "https://github.com/webview/webview/commit/e98ad229413544744d7cd904b70c017b50cb2bef"
+        },
+        {
+          "sha": "da461a14f37ab19ef921cc1c4985f03c994b9240",
+          "committer_date": "2026-10-19T23:59:29Z",
+          "title": "Null-terminate the version string of the built-in WebView2 loader (#1379)",
+          "url": "https://github.com/webview/webview/commit/da461a14f37ab19ef921cc1c4985f03c994b9240"
+        },
+        {
+          "sha": "cbbdee44afff22867de9fd88a9fc8350d9bdd399",
+          "committer_date": "2026-03-09T07:51:25Z",
+          "title": "Add Zig Binding (#1352)",
+          "url": "https://github.com/webview/webview/commit/cbbdee44afff22867de9fd88a9fc8350d9bdd399"
+        },
+        {
+          "sha": "a4caad73f0ce3e311de8c90be3f0bbfdb1530d83",
+          "committer_date": "2026-03-03T07:11:04Z",
+          "title": "Add PHP webview extension (#1351)",
+          "url": "https://github.com/webview/webview/commit/a4caad73f0ce3e311de8c90be3f0bbfdb1530d83"
+        }
+      ]
+    },
+    {
+      "repo": "Boscop/web-view",
+      "source": "https://api.github.com/repos/Boscop/web-view",
+      "html_url": "https://github.com/Boscop/web-view",
+      "stars": 1953,
+      "forks": 179,
+      "archived": false,
+      "license_api": "MIT",
+      "license_declaration": "MIT",
+      "pushed_at": "2024-05-09T14:44:36Z",
+      "default_branch": "master",
+      "releases_source": "https://api.github.com/repos/Boscop/web-view/releases?per_page=10",
+      "releases": [],
+      "commits_source": "https://api.github.com/repos/Boscop/web-view/commits?per_page=5",
+      "recent_default_branch_commits": [
+        {
+          "sha": "82d7cbce6228b1a964673cc0f22944ad808eab42",
+          "committer_date": "2023-05-16T13:33:20Z",
+          "title": "Fix uninitialized webview_init error",
+          "url": "https://github.com/Boscop/web-view/commit/82d7cbce6228b1a964673cc0f22944ad808eab42"
+        },
+        {
+          "sha": "e87e08cab3a2d500d54068ec9c7aaa055a711465",
+          "committer_date": "2021-06-14T09:12:01Z",
+          "title": "Use freshmost actix in the examples",
+          "url": "https://github.com/Boscop/web-view/commit/e87e08cab3a2d500d54068ec9c7aaa055a711465"
+        },
+        {
+          "sha": "38d43cc2c025863d27ef7ec826d3bad127b87e97",
+          "committer_date": "2021-06-14T09:11:32Z",
+          "title": "fix builds for arm based macs",
+          "url": "https://github.com/Boscop/web-view/commit/38d43cc2c025863d27ef7ec826d3bad127b87e97"
+        },
+        {
+          "sha": "c21e47b4bd1aaa59190ef647a8ecb882cd6685e0",
+          "committer_date": "2021-05-27T07:55:18Z",
+          "title": "Bump browserslist in /webview-examples/examples/todo-vue",
+          "url": "https://github.com/Boscop/web-view/commit/c21e47b4bd1aaa59190ef647a8ecb882cd6685e0"
+        },
+        {
+          "sha": "0d92ed6b6eb5c4f7376b501bc833b339e934767d",
+          "committer_date": "2021-05-20T15:16:05Z",
+          "title": "Bump y18n from 4.0.0 to 4.0.1 in /webview-examples/examples/todo-vue",
+          "url": "https://github.com/Boscop/web-view/commit/0d92ed6b6eb5c4f7376b501bc833b339e934767d"
+        }
+      ]
+    },
+    {
+      "repo": "DioxusLabs/dioxus",
+      "source": "https://api.github.com/repos/DioxusLabs/dioxus",
+      "html_url": "https://github.com/DioxusLabs/dioxus",
+      "stars": 39538,
+      "forks": 1948,
+      "archived": false,
+      "license_api": "Apache-2.0",
+      "license_declaration": "MIT OR Apache-2.0",
+      "pushed_at": "2026-10-29T18:35:47Z",
+      "default_branch": "main",
+      "releases_source": "https://api.github.com/repos/DioxusLabs/dioxus/releases?per_page=10",
+      "releases": [
+        {
+          "tag_name": "v0.8.0-alpha.3",
+          "published_at": "2026-10-16T19:56:24Z",
+          "prerelease_api": true,
+          "semantic_prerelease": true,
+          "url": "https://github.com/DioxusLabs/dioxus/releases/tag/v0.8.0-alpha.3"
+        },
+        {
+          "tag_name": "v0.8.0-alpha.2",
+          "published_at": "2026-10-14T20:53:40Z",
+          "prerelease_api": true,
+          "semantic_prerelease": true,
+          "url": "https://github.com/DioxusLabs/dioxus/releases/tag/v0.8.0-alpha.2"
+        },
+        {
+          "tag_name": "v0.8.0-alpha.1",
+          "published_at": "2026-07-31T00:29:19Z",
+          "prerelease_api": true,
+          "semantic_prerelease": true,
+          "url": "https://github.com/DioxusLabs/dioxus/releases/tag/v0.8.0-alpha.1"
+        },
+        {
+          "tag_name": "v0.7.10",
+          "published_at": "2026-07-30T23:46:58Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/DioxusLabs/dioxus/releases/tag/v0.7.10"
+        },
+        {
+          "tag_name": "v0.8.0-alpha.0",
+          "published_at": "2026-05-19T19:56:57Z",
+          "prerelease_api": true,
+          "semantic_prerelease": true,
+          "url": "https://github.com/DioxusLabs/dioxus/releases/tag/v0.8.0-alpha.0"
+        },
+        {
+          "tag_name": "v0.7.9",
+          "published_at": "2026-05-08T00:11:18Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/DioxusLabs/dioxus/releases/tag/v0.7.9"
+        },
+        {
+          "tag_name": "v0.7.8",
+          "published_at": "2026-05-07T22:29:43Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/DioxusLabs/dioxus/releases/tag/v0.7.8"
+        },
+        {
+          "tag_name": "v0.7.7",
+          "published_at": "2026-05-01T00:59:51Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/DioxusLabs/dioxus/releases/tag/v0.7.7"
+        },
+        {
+          "tag_name": "v0.7.6",
+          "published_at": "2026-04-22T01:43:20Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/DioxusLabs/dioxus/releases/tag/v0.7.6"
+        },
+        {
+          "tag_name": "v0.7.5",
+          "published_at": "2026-04-06T17:57:39Z",
+          "prerelease_api": false,
+          "semantic_prerelease": false,
+          "url": "https://github.com/DioxusLabs/dioxus/releases/tag/v0.7.5"
+        }
+      ],
+      "commits_source": "https://api.github.com/repos/DioxusLabs/dioxus/commits?per_page=5",
+      "recent_default_branch_commits": [
+        {
+          "sha": "430cfb563f1b70602ef387f0c80f171d84527b41",
+          "committer_date": "2026-10-29T18:35:45Z",
+          "title": "web: make dioxus-devtools an optional dependency behind the devtools feature (#6028)",
+          "url": "https://github.com/DioxusLabs/dioxus/commit/430cfb563f1b70602ef387f0c80f171d84527b41"
+        },
+        {
+          "sha": "6d305314f97bc3ef19b9dbaeb4747b0fa8ba6d0a",
+          "committer_date": "2026-10-29T16:24:59Z",
+          "title": "Add `dioxus-core` crate and base the dioxus prelude on it (#6024)",
+          "url": "https://github.com/DioxusLabs/dioxus/commit/6d305314f97bc3ef19b9dbaeb4747b0fa8ba6d0a"
+        },
+        {
+          "sha": "9f7d2eb1b9d518baacebd74f49eb4ac982f470eb",
+          "committer_date": "2026-10-29T06:41:59Z",
+          "title": "Resolve renamed `dioxus` in vdom-macro and router-macro via proc-macro-crate (#6023)",
+          "url": "https://github.com/DioxusLabs/dioxus/commit/9f7d2eb1b9d518baacebd74f49eb4ac982f470eb"
+        },
+        {
+          "sha": "3d50a01bdcb49192a86450576b087148a3df14b5",
+          "committer_date": "2026-10-29T03:25:45Z",
+          "title": "Invert dioxus-router's dependency on dioxus-fullstack-core (#6022)",
+          "url": "https://github.com/DioxusLabs/dioxus/commit/3d50a01bdcb49192a86450576b087148a3df14b5"
+        },
+        {
+          "sha": "47a4486d7842c613e4a7d0e8c14966f486773c44",
+          "committer_date": "2026-10-29T01:44:40Z",
+          "title": "Rename dioxus-core to dioxus-vdom (#6021)",
+          "url": "https://github.com/DioxusLabs/dioxus/commit/47a4486d7842c613e4a7d0e8c14966f486773c44"
+        }
+      ]
+    }
+  ],
+  "tag_fallback": {
+    "webview": {
+      "tag": "0.12.0",
+      "tagged_commit": {
+        "sha": "3ab4b5d722438fc8a13e6ca830c5e2372d19a01d",
+        "date": "2024-09-11T16:21:07Z",
+        "title": "Prepare for release",
+        "url": "https://github.com/webview/webview/commit/3ab4b5d722438fc8a13e6ca830c5e2372d19a01d"
+      },
+      "note": "No GitHub Releases returned. Commit date is not a release publication date."
+    },
+    "boscop": {
+      "tag": "0.1.3",
+      "note": "No GitHub Releases returned. Tag is not package-registry latest version."
+    }
+  },
+  "adoption": [
+    {
+      "repo": "tauri-apps/tauri",
+      "path": "crates/tauri-runtime-wry/Cargo.toml",
+      "url": "https://github.com/tauri-apps/tauri/blob/dev/crates/tauri-runtime-wry/Cargo.toml",
+      "evidence": [
+        "wry = { version = \"0.57.0\", ... }",
+        "tao = { version = \"0.37.0\", ... }"
+      ]
+    },
+    {
+      "repo": "DioxusLabs/dioxus",
+      "path": "packages/desktop/Cargo.toml",
+      "url": "https://github.com/DioxusLabs/dioxus/blob/main/packages/desktop/Cargo.toml",
+      "evidence": [
+        "wry = { workspace = true, default-features = false, features = [\"os-webview\"] }",
+        "tao = { workspace = true, features = [\"rwh_05\"] }"
+      ]
+    }
+  ]
+}

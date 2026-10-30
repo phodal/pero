@@ -188,6 +188,9 @@ mod tests {
                 layout
             },
         };
+        save_harness(&path, &pero_contracts::harness_settings::HarnessSettings {
+            endpoint: "https://api.deepseek.com".into(), model: "deepseek-chat".into(), encrypted_api_key: Some("Y2lwaGVy".into()),
+        }).unwrap();
         save_workbench(&path, &preferences).unwrap();
         assert_eq!(load_workbench(&path), preferences);
         save_locale(&path, "en").unwrap();
@@ -202,6 +205,8 @@ mod tests {
         let value: serde_json::Value =
             serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         assert!(value["remote_connection"].is_null());
+        assert_eq!(value["harness"]["model"], "deepseek-chat");
+        assert_eq!(value["harness"]["encrypted_api_key"], "Y2lwaGVy");
         assert_eq!(load_locale(&path).as_deref(), Some("en"));
         assert_eq!(load_workbench(&path), preferences);
         #[cfg(unix)]
@@ -217,4 +222,8 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "invalid");
         std::fs::remove_file(path).unwrap();
     }
+}
+
+pub fn save_harness(path: &Path, settings: &pero_contracts::harness_settings::HarnessSettings) -> io::Result<()> {
+    update(path, |value| value["harness"] = serde_json::to_value(settings).expect("harness settings"))
 }

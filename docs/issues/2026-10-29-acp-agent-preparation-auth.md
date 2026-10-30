@@ -37,3 +37,13 @@ as unavailable; no installer, credentials or user-global configuration was chang
 This installation prerequisite is separate from the resolved UI/registry defects.
 
 Verification and remaining boundaries: [Agent preparation](../fitness/agent-preparation.md).
+
+## 2026-10-30 verification follow-up
+
+While integrating the built-in harness, the broader preparation fixture failed
+at its fixed-coordinate second Agent switch. Adjusting the picker coordinate
+locally progressed to another missed authentication-button click; that temporary
+coordinate change was removed. This does not establish a provider lifecycle
+failure. The real built-in DeepSeek Desktop preparation/reply check passed;
+full fixture-regression acceptance remains outstanding. Evidence and scope:
+[built-in harness verification](../fitness/builtin-harness.md).
