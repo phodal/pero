@@ -64,7 +64,8 @@ const apps = new DesktopApps(request => {
 }, send, async () => {
   const selected = await dialog.showOpenDialog(window, { properties: ['openDirectory'] });
   return selected.canceled ? undefined : selected.filePaths[0];
-},async(name,token)=>{if(!appUse)throw new Error('App input unavailable');return appUse.input(name,token);});
+},async(name,token)=>{if(!appUse)throw new Error('App input unavailable');return appUse.input(name,token);},
+sessionId => appUse?.authority.command({ action: 'cancel', thread_id: sessionId }));
 let harness: HarnessPreferences;
 let runtimeSettingsPath = '';
 const preferenceWrites = new Map<string, { resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();

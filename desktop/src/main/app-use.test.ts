@@ -434,6 +434,7 @@ test('MCP writes use Agent approval and still reject invalid or foreign document
   const { runInNewContext } = await import('node:vm');
   const { tmpdir } = await import('node:os');
   let effects = 0;
+  let selected = 'thread';
   const events: { kind: string }[] = [];
   const definition = {
     app: 'demo',
@@ -453,7 +454,7 @@ test('MCP writes use Agent approval and still reject invalid or foreign document
     webContents: {
       mainFrame: { frames: [] },
       executeJavaScript: (expression: string) =>
-        runInNewContext(expression, { window: { peroDiagnostics: { snapshot: () => JSON.stringify({ chats: [{ id: 'thread' }], activeChat: 0 }) } } }),
+        runInNewContext(expression, { window: { peroDiagnostics: { snapshot: () => JSON.stringify({ chats: [{ id: selected }], activeChat: 0 }) } } }),
     },
   };
   const desktop = new DesktopAppUse(
@@ -461,7 +462,7 @@ test('MCP writes use Agent approval and still reject invalid or foreign document
     (event) => events.push(event),
     tmpdir(),
     {
-      describe: async () => [definition],
+      describe: async () => [definition, { ...definition, app: 'other' }, { ...definition, name: 'secondary', panel: 'secondary' }],
       apply: async (prepared) => {
         effects++;
         return prepared.document;
@@ -475,10 +476,10 @@ test('MCP writes use Agent approval and still reject invalid or foreign document
     data: { scope: { app: 'demo', panel: 'main' } },
   });
   desktop.accept({ kind: 'turn_started', thread_id: 'thread' });
-  const tool = async (name: string, args: object) => {
+  const tool = async (name: string, args: object, thread = 'thread') => {
     const r = await fetch(env.PERO_APP_USE_URL, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${env.PERO_APP_USE_TOKEN}`, 'X-Pero-Thread': 'thread' },
+      headers: { Authorization: `Bearer ${env.PERO_APP_USE_TOKEN}`, 'X-Pero-Thread': thread },
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
@@ -503,12 +504,104 @@ test('MCP writes use Agent approval and still reject invalid or foreign document
     const foreign = await tool('app_write', { app: 'other', tool: 'import', document: { value: 1 } });
     assert.equal(foreign.isError, true);
     assert.equal(effects, 2);
+    // Only Host App bindings grant background access. A normal scoped Chat
+    // and a mismatched binding still require the selected conversation.
+    for (const [thread, appBinding] of [
+      ['app-owned', { app: 'demo' }],
+      ['scope-only', undefined],
+      ['binding-mismatch', { app: 'other' }],
+    ] as const) {
+      desktop.accept({ kind: 'session_created', thread_id: thread, data: {
+        scope: { app: 'demo', panel: 'main' }, ...(appBinding ? { appBinding } : {}),
+      } });
+      desktop.accept({ kind: 'turn_started', thread_id: thread });
+      const result = await tool('app_describe', {}, thread);
+      assert.equal(result.isError, thread !== 'app-owned', thread);
+      if (thread === 'app-owned') {
+        assert.deepEqual(JSON.parse(result.content[0].text).apps.map((app: { app: string }) => app.app), ['demo']);
+      } else assert.match(result.content[0].text, /APP_SESSION_INACTIVE/);
+    }
+    selected = 'unrelated';
+    const background = await tool('app_write', { app: 'demo', tool: 'import', document: { value: 3 } }, 'app-owned');
+    assert.equal(background.isError, false);
+    assert.deepEqual(JSON.parse(background.content[0].text).result, { value: 3 });
+    const foreignBackground = await tool('app_write', { app: 'other', tool: 'import', document: { value: 4 } }, 'app-owned');
+    assert.match(foreignBackground.content[0].text, /APP_SCOPE_FOREIGN/);
+    const foreignPanel = await tool('app_write', { app: 'demo', tool: 'secondary', document: { value: 4 } }, 'app-owned');
+    assert.match(foreignPanel.content[0].text, /APP_SCOPE_FOREIGN/);
+    const backgroundUi = await tool('app_use', { action: 'inventory' }, 'app-owned');
+    assert.match(backgroundUi.content[0].text, /APP_SESSION_INACTIVE/);
+    const ordinary = await tool('app_write', { app: 'demo', tool: 'import', document: { value: 5 } });
+    assert.match(ordinary.content[0].text, /APP_SESSION_INACTIVE/);
+    desktop.accept({ kind: 'turn_finished', thread_id: 'app-owned' });
+    const completed = await tool('app_write', { app: 'demo', tool: 'import', document: { value: 6 } }, 'app-owned');
+    assert.match(completed.content[0].text, /APP_SESSION_INACTIVE/);
+    assert.equal(effects, 3);
     assert.equal(
       events.some((event) => event.kind === 'permission'),
       false,
     );
   } finally {
     desktop.close();
+  }
+});
+
+test('App-owned data access waits for a running turn and ends with the Host turn', async () => {
+  const scope = { app: 'demo', panel: 'main' };
+  const use = new AppUse({
+    selectedThread: async () => 'unrelated',
+    page: async () => { throw new Error('Backend access must not use an App panel'); },
+    presence: () => {},
+    capture: async () => { throw new Error('Backend access must not capture'); },
+  });
+  const create = (thread: string) => use.accept({
+    kind: 'session_created', thread_id: thread, data: { scope, appBinding: { app: 'demo' } },
+  });
+  const signal = new AbortController().signal;
+  let effects = 0;
+  create('starting');
+  const waiting = use.access('starting', scope, async () => ++effects, signal, 'app-data');
+  assert.equal(effects, 0);
+  use.accept({ kind: 'turn_started', thread_id: 'starting' });
+  assert.equal(await waiting, 1);
+  await assert.rejects(use.access('starting', scope, async () => ++effects, signal), /selected in Chat/);
+  await assert.rejects(use.access('starting', { ...scope, panel: 'foreign' }, async () => ++effects, signal, 'app-data'), /scoped to another App/);
+
+  create('cancel-before-start');
+  const cancelled = use.access('cancel-before-start', scope, async () => ++effects, signal, 'app-data');
+  use.command({ action: 'cancel', thread_id: 'cancel-before-start' });
+  await assert.rejects(cancelled, /did not start/);
+  assert.equal(effects, 1);
+
+  for (const ending of ['selection', 'turn_finished', 'cancel', 'session_closed', 'disconnected'] as const) {
+    const thread = `app-${ending}`;
+    create(thread);
+    use.accept({ kind: 'turn_started', thread_id: thread });
+    let enter!: () => void, release!: () => void, operationSignal!: AbortSignal;
+    const entered = new Promise<void>(resolve => { enter = resolve; });
+    const released = new Promise<void>(resolve => { release = resolve; });
+    const pending = use.access(thread, scope, async (_scope, bounded) => {
+      operationSignal = bounded;
+      enter();
+      await released;
+      bounded.throwIfAborted();
+      return ++effects;
+    }, signal, 'app-data');
+    await entered;
+    if (ending === 'selection') {
+      use.select('another-chat');
+      assert.equal(operationSignal.aborted, false);
+      release();
+      assert.equal(await pending, 2);
+    } else {
+      if (ending === 'cancel') use.command({ action: 'cancel', thread_id: thread });
+      else use.accept({ kind: ending, thread_id: thread });
+      await assert.rejects(pending, /stopped waiting/);
+      assert.equal(operationSignal.aborted, true);
+      release();
+      await assert.rejects(use.access(thread, scope, async () => ++effects, signal, 'app-data'), /selected in Chat/);
+      assert.equal(effects, 2);
+    }
   }
 });
 

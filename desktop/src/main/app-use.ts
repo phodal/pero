@@ -15,9 +15,11 @@ import {
 } from './app-use-task.ts';
 
 export type AppUseEvent = { kind: string; thread_id?: string; data?: unknown; text?: string };
-type AppUseCall = { controller: AbortController; scope?: AppScope };
+type SessionAccess = 'selected' | 'app-data';
+type AppUseCall = { controller: AbortController; scope?: AppScope; access: SessionAccess };
 type Session = {
   scope?: AppScope;
+  appOwned: boolean;
   visited: Map<string, AppScope>;
   title: string;
   epoch: number;
@@ -121,19 +123,26 @@ export class AppUse {
         if (!data.active?.includes(id)) {
           const session = this.sessions.get(id);
           if (session) session.running = false;
+          this.pendingTurns.delete(id);
         }
       return;
     }
     if (event.kind === 'session_created' && thread) {
-      const data = event.data as { scope?: AppScope; agent?: string };
+      const data = event.data as { scope?: AppScope; agent?: string; appBinding?: { app: string } };
+      const appOwned = !!data?.scope && data.appBinding?.app === data.scope.app;
       this.sessions.set(thread, {
         scope: data?.scope,
+        appOwned,
         visited: new Map(),
         title: data?.agent || 'Agent',
         epoch: 0,
         running: false,
       });
+      // Host-created App runs submit their first prompt internally, without a
+      // renderer command. Wait for its real turn_started event as Chat does.
+      if (appOwned) this.pendingTurns.add(thread);
     } else if (thread && ['session_closed', 'session_deleted'].includes(event.kind)) {
+      this.endTurn(thread);
       this.revoke(thread);
       this.sessions.delete(thread);
     } else if (thread && event.kind === 'turn_started') {
@@ -143,31 +152,38 @@ export class AppUse {
       for (const notify of this.turnWaiters.get(thread) || []) notify(true);
       this.turnWaiters.delete(thread);
     } else if (thread && ['turn_finished', 'session_error'].includes(event.kind)) {
-      const session = this.sessions.get(thread);
-      if (session) session.running = false;
+      this.endTurn(thread);
     } else if (event.kind === 'disconnected') this.reset(true);
   }
   command(value: { action?: string; thread_id?: string }) {
     if (!value.thread_id) return;
     if (value.action === 'prompt') this.pendingTurns.add(value.thread_id);
     if (['cancel', 'close', 'delete'].includes(value.action || '')) {
-      this.pendingTurns.delete(value.thread_id);
-      for (const notify of this.turnWaiters.get(value.thread_id) || []) notify(false);
-      this.turnWaiters.delete(value.thread_id);
+      this.endTurn(value.thread_id);
       this.revoke(value.thread_id);
-      const session = this.sessions.get(value.thread_id);
-      if (session) session.running = false;
     }
+  }
+  private endTurn(thread: string) {
+    this.pendingTurns.delete(thread);
+    for (const notify of this.turnWaiters.get(thread) || []) notify(false);
+    this.turnWaiters.delete(thread);
+    const session = this.sessions.get(thread);
+    if (session) session.running = false;
+    this.interruptCalls(thread);
+  }
+  private interruptCalls(thread: string, preserveAppData = false) {
+    for (const call of this.calls.get(thread) || [])
+      if (!preserveAppData || call.access !== 'app-data') call.controller.abort();
+    if (!preserveAppData) this.calls.delete(thread);
   }
   private end(task: AppUseTask) {
     task.ended = true;
     this.tasks.delete(task.id);
     for (const [id, image] of this.evidence) if (image.taskId === task.id) this.evidence.delete(id);
   }
-  private endTasks(thread: string) {
+  private endTasks(thread: string, preserveAppData = false) {
     for (const task of this.tasks.values()) if (task.thread === thread) this.end(task);
-    for (const call of this.calls.get(thread) || []) call.controller.abort();
-    this.calls.delete(thread);
+    this.interruptCalls(thread, preserveAppData);
     this.publish(thread);
   }
   revoke(thread: string, scope?: AppScope) {
@@ -188,7 +204,10 @@ export class AppUse {
   }
   select(thread: string | undefined) {
     if (this.selected !== thread) {
-      this.reset();
+      for (const [id, session] of this.sessions) {
+        this.endTasks(id, true);
+        session.epoch++;
+      }
       this.selected = thread;
     }
   }
@@ -231,9 +250,10 @@ export class AppUse {
           .map((t) => ({ id: t.id, actions: t.actions, expiresAt: t.expiresAt })),
       });
   }
-  private async session(thread: string) {
-    const selected = await this.ports.selectedThread();
-    this.select(selected);
+  private async session(thread: string, access: SessionAccess = 'selected') {
+    const appData = access === 'app-data' && this.sessions.get(thread)?.appOwned;
+    const selected = appData ? undefined : await this.ports.selectedThread();
+    if (!appData) this.select(selected);
     if (this.pendingTurns.has(thread) && !this.sessions.get(thread)?.running) {
       const ready = await new Promise<boolean>((resolve) => {
         const waiters = this.turnWaiters.get(thread) || new Set<(ready: boolean) => void>();
@@ -250,7 +270,7 @@ export class AppUse {
       if (!ready) fail('APP_TURN_UNAVAILABLE', 'The Host did not start the requested turn.');
     }
     const session = this.sessions.get(thread);
-    if (!session || !session.running || selected !== thread)
+    if (!session || !session.running || (!appData && selected !== thread))
       fail('APP_SESSION_INACTIVE', 'App Use belongs to the running conversation selected in Chat.');
     return session;
   }
@@ -298,10 +318,15 @@ export class AppUse {
     scope: AppScope | undefined,
     signal: AbortSignal,
     operation: (session: Session, signal: AbortSignal, call: AppUseCall) => Promise<T>,
+    access: SessionAccess = 'selected',
   ): Promise<T> {
-    const session = await this.session(thread);
+    const session = await this.session(thread, access);
     const controller = new AbortController();
-    const call: AppUseCall = { controller, scope: scope || session.scope };
+    const call: AppUseCall = {
+      controller,
+      scope: scope || session.scope,
+      access: session.appOwned ? access : 'selected',
+    };
     const calls = this.calls.get(thread) || new Set<AppUseCall>();
     calls.add(call);
     this.calls.set(thread, calls);
@@ -318,17 +343,18 @@ export class AppUse {
     scope: AppScope | undefined,
     operation: (scope: AppScope | undefined, signal: AbortSignal) => Promise<T>,
     signal: AbortSignal,
+    access: SessionAccess = 'selected',
   ): Promise<T> {
     return this.executeCall(thread, scope, signal, async (session, bounded) => {
       if (scope && session.scope && (scope.app !== session.scope.app || scope.panel !== session.scope.panel))
         fail('APP_SCOPE_FOREIGN', 'This conversation is scoped to another App.');
       bounded.throwIfAborted();
-      await this.session(thread);
+      await this.session(thread, access);
       const value = await operation(session.scope, bounded);
       bounded.throwIfAborted();
-      await this.session(thread);
+      await this.session(thread, access);
       return value;
-    });
+    }, access);
   }
   async call(
     thread: string,

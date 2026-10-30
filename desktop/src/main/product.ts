@@ -33,7 +33,8 @@ const hostReady = new Promise<void>(resolve => { resolveReady = resolve; });
 const apps = new DesktopApps(request => {
   if (!ready || !host.stdin?.writable) throw new Error('The local runtime is unavailable. Restart the application.');
   host.stdin.write(JSON.stringify(request) + '\n');
-}, event => { if (!window.isDestroyed()) window.webContents.send('product:event', event); }, async () => undefined,async(name,token)=>{if(!appUse)throw new Error('App input unavailable');return appUse.input(name,token);});
+}, event => { if (!window.isDestroyed()) window.webContents.send('product:event', event); }, async () => undefined,async(name,token)=>{if(!appUse)throw new Error('App input unavailable');return appUse.input(name,token);},
+sessionId => appUse?.authority.command({ action: 'cancel', thread_id: sessionId }));
 let locale: 'en' | 'zh-CN' = 'en';
 function context() { return { product, locale, dark: nativeTheme.shouldUseDarkColors, connected: ready }; }
 function menus() {
