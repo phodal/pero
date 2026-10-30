@@ -1,5 +1,7 @@
-# 0019: Computer Use isolated Linux desktop mode
+# 0019: Grok-style Computer Use isolated Linux desktop
 
+
+This ADR follows the Grok-style cloud isolated desktop plus human handoff pattern; it is a separate track from the Cursor-based documents in #44 and #45.
 Status: proposed (design only, no implementation), 2026-10-30.
 
 Builds on [0016: Computer Use v1 contract](0016-computer-use-contract.md).
@@ -29,7 +31,7 @@ Non-goals:
   a separate ADR later.
 - Wayland, macOS or Windows guests inside the isolated backend.
 - New input vocabulary (`move`, `hover`, `hold_ms`), app allowlists and other
-  input gaps. Those are covered by a separate ADR (0020, Computer Use input
+  input gaps. Those are covered by a separate ADR (0020, Grok-style Computer Use input
   gaps).
 - A hosted multi-tenant cloud service, billing or remote fleet management
   (a remote Worker may host the same backend later; see open questions).
