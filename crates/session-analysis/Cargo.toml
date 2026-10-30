@@ -1,0 +1,15 @@
+[package]
+name = "session-analysis"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Pure fold of one session transcript. Not a harness."
+
+[dependencies]
+futures-util = { version = "=0.3.34", default-features = false, features = ["std", "async-await"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "=0.10.9"
+
+[dev-dependencies]
+futures-executor = "=0.3.34"

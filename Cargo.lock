@@ -7126,6 +7126,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "session-analysis"
+version = "0.1.0"
+dependencies = [
+ "futures-executor",
+ "futures-util",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "sha1_smol"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
