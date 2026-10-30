@@ -532,14 +532,16 @@ impl DesktopDriver for Desktop {
                 aim(end)?;
                 aim(start)?;
                 fake(BUTTON_PRESS_EVENT, 1, 0, 0)?;
-                for step in 1..=12 {
+                // Once pressed, the button is released even if a motion step fails.
+                let moved = (1..=12).try_for_each(|step| {
                     let x =
                         i32::from(start.0) + (i32::from(end.0) - i32::from(start.0)) * step / 12;
                     let y =
                         i32::from(start.1) + (i32::from(end.1) - i32::from(start.1)) * step / 12;
-                    fake(MOTION_NOTIFY_EVENT, 0, x as i16, y as i16)?;
-                }
-                fake(BUTTON_RELEASE_EVENT, 1, 0, 0)?;
+                    fake(MOTION_NOTIFY_EVENT, 0, x as i16, y as i16)
+                });
+                let released = fake(BUTTON_RELEASE_EVENT, 1, 0, 0);
+                moved.and(released)?;
             }
             ComputerInput::Scroll {
                 anchor: a,
@@ -575,11 +577,10 @@ impl DesktopDriver for Desktop {
                     if shifted {
                         emit(shift, true)?;
                     }
-                    emit(code, true)?;
-                    emit(code, false)?;
-                    if shifted {
-                        emit(shift, false)?;
-                    }
+                    // Every key pressed here is released before reporting a failure.
+                    let typed = emit(code, true).and_then(|_| emit(code, false));
+                    let unshifted = if shifted { emit(shift, false) } else { Ok(()) };
+                    typed.and(unshifted)?;
                 }
             }
             ComputerInput::PressKey { anchor: a, keys } => {
@@ -591,12 +592,20 @@ impl DesktopDriver for Desktop {
                 aim(anchor(&a)?)?;
                 click(1, 1)?;
                 focus()?;
-                for (code, _) in &inputs {
+                // Release exactly the keys that went down, in reverse order, even
+                // when a later press fails.
+                let mut down = Vec::with_capacity(inputs.len());
+                let pressed = inputs.iter().try_for_each(|(code, _)| {
                     emit(*code, true)?;
+                    down.push(*code);
+                    Ok::<_, ComputerError>(())
+                });
+                let mut released = Ok(());
+                for code in down.iter().rev() {
+                    // Attempt every release; keep the first failure.
+                    released = released.and(emit(*code, false));
                 }
-                for (code, _) in inputs.iter().rev() {
-                    emit(*code, false)?;
-                }
+                pressed.and(released)?;
             }
         }
         c.flush().map_err(failure)
