@@ -6,9 +6,10 @@ import {
   readFile,
   writeFile,
   symlink,
+  lstat,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve, join } from 'node:path';
+import { resolve, join, relative, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import { build } from 'esbuild';
 import { run } from './lib/run.mjs';
@@ -18,83 +19,7 @@ const isolated = join(parent, 'pero');
 await mkdir(isolated, { recursive: true });
 const out = resolve(root, 'test-results/content-reader');
 await mkdir(out, { recursive: true });
-const sources = [
-  'Cargo.toml',
-  'Cargo.lock',
-  'crates/pero-reader-web/src/web.rs',
-  'crates/pero-chat-ui/src/web_platform.rs',
-  'web/src/reader.ts',
-  'packages/app-sdk/src/reader-surface.ts',
-  'crates/pero-content-worker/src/lib.rs',
-  'scripts/lib/gpui-kit.mjs',
-  'patches/gpui-pre-web-0.3.10-ime.patch',
-  'patches/gpui-pre-web-input-conduit.js',
-  'patches/gpui-pre-web-input-conduit.rs',
-  'scripts/lib/gpui-web.mjs',
-  'crates/pero-contracts/src/web_document.rs',
-  'crates/pero-contracts/src/table_projection.rs',
-  'crates/pero-chat-ui/src/content_table.rs',
-  'crates/pero-theme/src/appearance.rs',
-  'crates/pero-ui/src/web_documents.rs',
-  'desktop/src/main/web-pages.ts',
-  'packages/content-source/web-address.ts',
-  'crates/pero-contracts/src/file_document.rs',
-  'crates/pero-runtime/src/file_documents.rs',
-  'crates/pero-host/src/documents.rs',
-  'crates/pero-chat-ui/src/artifact_read.rs',
-  'crates/pero-contracts/src/content_document.rs',
-  'crates/pero-contracts/src/content_syntax.rs',
-  'crates/pero-contracts/src/content_preview_tape.rs',
-  'crates/pero-contracts/src/reader_state.rs',
-  'crates/pero-contracts/src/workspace_session.rs',
-  'crates/pero-contracts/src/workspace_history.rs',
-  'crates/pero-contracts/src/workspace_panes.rs',
-  'crates/pero-contracts/src/pane_tabs.rs',
-  'crates/pero-contracts/src/workspace_source.rs',
-  'crates/pero-contracts/src/workspace_draft.rs',
-  'crates/pero-contracts/src/icon_theme.rs',
-  'crates/pero-runtime/src/workspace_store.rs',
-  'crates/pero-host/src/workspace.rs',
-  'crates/pero-ui/src/workspace_restore.rs',
-  'crates/pero-ui/src/workspace_panes.rs',
-  'crates/pero-ui/src/workspace_pane_views.rs',
-  'crates/pero-ui/src/workspace_pane_tabs.rs',
-  'crates/pero-ui/src/workspace_tab_navigation.rs',
-  'crates/pero-ui/src/workspace_tab_actions.rs',
-  'crates/pero-ui/src/workspace_close.rs',
-  'crates/pero-ui/src/workspace_sources.rs',
-  'crates/pero-ui/src/workspace_source_registry.rs',
-  'crates/pero-ui/src/workspace_draft_upload.rs',
-  'crates/pero-ui/src/workspace_surface_views.rs',
-  'crates/pero-ui/src/document_save_as.rs',
-  'crates/pero-chat-ui/src/content_reader/search.rs',
-  'crates/pero-chat-ui/src/content_reader/state.rs',
-  'crates/pero-chat-ui/src/content_reader/preview.rs',
-  'patches/gpui-base-0.8.1-source-search.patch',
-  'patches/gpui-base-0.8.1-edit-events.patch',
-  'crates/pero-chat-ui/src/source_syntax.rs',
-  'web/src/content-analysis.ts',
-  'web/src/content-analysis.worker.ts',
-  'crates/pero-ui/src/documents.rs',
-  'crates/pero-ui/src/workspace.rs',
-  'crates/pero-chat-ui/src/content_reader.rs',
-  'crates/pero-chat-ui/src/stream.rs',
-  'crates/pero-chat-ui/src/conversation.rs',
-  'crates/pero-chat-ui/src/tool_ui.rs',
-  'crates/pero-chat-ui/src/panel.rs',
-  'crates/pero-ui/src/app.rs',
-  'crates/pero-ui/src/view.rs',
-  'crates/pero-ui/src/workspace_view.rs',
-  'packages/content-source/app-document.ts',
-  'packages/app-sdk/src/document.ts',
-  'packages/app-sdk/src/ui.tsx',
-  'apps/virtual-cell/ui-src/components.tsx',
-  'web/src/apps.ts',
-  'web/src/bootstrap.ts',
-  'desktop/src/main/index.ts',
-  'locales/en.json',
-  'locales/zh-CN.json',
-];
+const sources = [];
 const fingerprints = async (base) =>
   Object.fromEntries(
     await Promise.all(
@@ -134,10 +59,15 @@ for (const path of [
 ]) {
   await cp(resolve(root, path), resolve(isolated, path), {
     recursive: true,
-    filter: (path) =>
-      !/[\\/](node_modules|__pycache__)([\\/]|$)/.test(path) && !/[\\/]web[\\/]src[\\/](wasm|chat-wasm|reader-wasm|content-wasm)([\\/]|$)/.test(path),
+    filter: async (path) => {
+      if (/[\\/](node_modules|__pycache__|dist)([\\/]|$)/.test(path) ||
+          /[\\/]web[\\/]src[\\/](wasm|chat-wasm|reader-wasm|content-wasm)([\\/]|$)/.test(path)) return false;
+      if ((await lstat(path)).isFile()) sources.push(relative(root, path).split(sep).join('/'));
+      return true;
+    },
   });
 }
+sources.sort();
 await symlink(
   resolve(root, 'node_modules'),
   join(isolated, 'node_modules'),
