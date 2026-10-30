@@ -99,3 +99,12 @@ Agent, retaining all tool-state assertions and adding Agent identity checks to
 both native-window App Use suites. Workbench and all nine tool states passed in
 local actual headless Electron. Native-window App Use guards are retained and
 must pass in integrated headed CI; no real/default provider is used as a fixture.
+
+A subsequent integrated headed run (`41027691947`, head `488cd7e`) passed core
+Workbench and tool-call acceptance but stopped before Product's first App Use
+tool request: the frame now contains a render canvas and a 1px native EditContext
+input canvas. The old broad Playwright locator matched both. Geometry lookups
+now explicitly select the single non-input render canvas; the native-window
+guard, selected Agent, scope and all actual tool/effect assertions are unchanged.
+The failure artifact confirms an idle scripted Agent and an unsent draft, not a
+failed tool execution. Fresh headed acceptance is still required.
