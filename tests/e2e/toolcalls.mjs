@@ -9,6 +9,8 @@ const out=resolve(root,'test-results/toolcalls');await mkdir(out,{recursive:true
 const temp=await mkdtemp(resolve(tmpdir(),'pero-toolcalls-'));
 const agents=resolve(temp,'agents.json');
 await writeFile(agents,JSON.stringify([{id:'fixture',name:'ACP test fixture',command:process.execPath,args:[resolve(root,'tests/fixtures/acp-agent.mjs')]}]));
+// Bind this tool matrix to the local ACP fixture, never the product default provider.
+await writeFile(resolve(temp,'settings.json'),JSON.stringify({chat_agent:'fixture'}));
 const context=resolve(temp,'context.txt');await writeFile(context,'USER_SELECTED_CONTEXT_42');
 const env={...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_LOCALE:'zh-CN',PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'sessions.jsonl'),PERO_AGENTS_FILE:agents};delete env.ELECTRON_RUN_AS_NODE;
 const app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});
@@ -25,10 +27,6 @@ try{
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await expect.poll(async()=>(await state()).chats?.length).toBe(1);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
- // The compact composer places the Codex picker 154px from the right edge.
- await page.mouse.click(await page.evaluate(()=>innerWidth-154),await page.evaluate(()=>innerHeight-20));
- await page.keyboard.press('ArrowUp');
- await page.keyboard.press('Enter');
  await expect.poll(async()=>(await state()).chats?.[0]?.agent).toBe('fixture');
  await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},context);
  await page.evaluate(()=>window.pero.chooseContext());

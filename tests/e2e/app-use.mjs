@@ -38,6 +38,9 @@ await cp(resolve(root, 'apps/virtual-cell'), join(distribution, 'apps/virtual-ce
   filter: path => !path.includes('/node_modules') && !path.includes('/__pycache__') });
 const agents = join(temp, 'agents.json');
 await writeFile(agents, JSON.stringify(['codex', 'claude', 'copilot', 'grok'].map(id => ({ id, name: `App Use fixture (${id})`, command: process.execPath, args: [resolve(root, 'tests/fixtures/app-use-agent.mjs')], env: { PERO_APP_USE_FIXTURE_OUTPUT: output,PERO_APP_USE_FIXTURE_INPUT:join(temp,'inputs.json') } }))));
+// Product owns this settings path; select the overridden local ACP fixture explicitly.
+await mkdir(join(temp,'profile'), {recursive:true});
+await writeFile(join(temp,'profile/runtime-settings.json'),JSON.stringify({chat_agent:'codex'}));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: join(temp, 'profile'), PERO_AGENTS_FILE: agents, PERO_LOCALE: 'en' };
 delete env.ELECTRON_RUN_AS_NODE;
 let app;
@@ -89,6 +92,7 @@ try {
   const submit = async (prompt, approval = false) => {
     expectedScenario = prompt.replace(/^app-use:/, '');
     const destination = await active();
+    expect(destination.agent).toBe('codex');
     const launch = await frame.locator('body').evaluate(requestAppChat, { text: prompt, parentOrigin });
     expect(launch.threadId).toBe(destination.id);
     expect((await active()).id).toBe(destination.id);
