@@ -205,6 +205,28 @@ impl Workbench {
         })
         .detach();
     }
+    pub(crate) fn remember_current_location(&mut self, cx: &App) {
+        let Some(item) = self.navigation.current().cloned() else {
+            return;
+        };
+        if let Some(open) = self.documents.iter().find(|open| open.item == item) {
+            self.navigation
+                .observe_reading(&item, open.view.read(cx).reading_state(cx));
+        }
+    }
+    pub(crate) fn record_document_jump(
+        &mut self,
+        item: &WorkspaceItem,
+        before: pero_contracts::reader_state::ReaderState,
+        after: pero_contracts::reader_state::ReaderState,
+        cx: &mut Context<Self>,
+    ) {
+        self.remember_current_location(cx);
+        self.navigation.select(item);
+        self.navigation.jump(item, before, after);
+        self.queue_workspace_checkpoint(cx);
+        cx.notify();
+    }
     /// Force is used at a window boundary, where the caller waits for the Host acknowledgement.
     pub(crate) fn workspace_checkpoint(
         &mut self,
@@ -215,6 +237,7 @@ impl Workbench {
         if !self.recovery.ready || self.recovery.applying {
             return None;
         }
+        self.remember_current_location(cx);
         let navigation = self.navigation.snapshot();
         let mut documents = Vec::new();
         let mut sources = Vec::new();
@@ -298,7 +321,9 @@ impl Workbench {
         discard: bool,
         cx: &mut Context<Self>,
     ) -> bool {
-        if !self.connected { return true; }
+        if !self.connected {
+            return true;
+        }
         if self.recovery.native_close.is_some() {
             return false;
         }
@@ -315,13 +340,17 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let route = if forward {
-            self.navigation.go_forward()
-        } else {
-            self.navigation.go_back()
-        };
-        if let Some(route) = route {
-            self.activate_route(route, window, cx);
+        self.remember_current_location(cx);
+        if let Some(entry) = self.navigation.step_history(forward) {
+            if let (WorkspaceRoute::Content(item @ WorkspaceItem::Document { .. }), Some(state)) =
+                (&entry.route, entry.reading)
+            {
+                if let Some(open) = self.documents.iter().find(|open| &open.item == item) {
+                    open.view
+                        .update(cx, |view, cx| view.restore_reading_state(state, window, cx));
+                }
+            }
+            self.activate_route(entry.route, window, cx);
         }
         self.queue_workspace_checkpoint(cx);
     }

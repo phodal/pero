@@ -1,6 +1,8 @@
 use pero_contracts::content_origin::ContentOrigin;
+use pero_contracts::reader_state::ReaderState;
 pub(crate) use pero_contracts::workspace_session::{
-    PaneSide, WorkbenchPage, WorkspaceItem, WorkspaceRoute, WorkspaceSnapshot,
+    HistoryEntry, PaneSide, WorkbenchPage, WorkspaceHistory, WorkspaceItem, WorkspaceRoute,
+    WorkspaceSnapshot,
 };
 #[cfg(target_family = "wasm")]
 pub(crate) trait LegacyPage {
@@ -45,14 +47,13 @@ impl ConversationTab {
 
 /// Owns open content and the one visible route. Closing a tab changes this
 /// value only; it never deletes a source object or stops its execution.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct WorkspaceNavigation {
     items: Vec<WorkspaceItem>,
     route: WorkspaceRoute,
     other: Option<WorkspaceRoute>,
     focused: PaneSide,
-    back: Vec<WorkspaceRoute>,
-    forward: Vec<WorkspaceRoute>,
+    history: WorkspaceHistory,
 }
 
 impl Default for WorkspaceNavigation {
@@ -62,8 +63,7 @@ impl Default for WorkspaceNavigation {
             route: WorkspaceRoute::Page(WorkbenchPage::Projects),
             other: None,
             focused: PaneSide::Left,
-            back: vec![],
-            forward: vec![],
+            history: WorkspaceHistory::default(),
         }
     }
 }
@@ -113,8 +113,7 @@ impl WorkspaceNavigation {
         if self.route == route {
             return None;
         }
-        self.back.push(self.route.clone());
-        self.forward.clear();
+        self.history.depart(&self.route);
         self.set_route(route);
         Some(self.route.clone())
     }
@@ -124,8 +123,7 @@ impl WorkspaceNavigation {
             route: self.route.clone(),
             other: self.other.clone(),
             focused: self.focused,
-            back: self.back.clone(),
-            forward: self.forward.clone(),
+            history: self.history.clone(),
         }
     }
     pub(crate) fn restore(&mut self, snapshot: WorkspaceSnapshot) {
@@ -133,42 +131,35 @@ impl WorkspaceNavigation {
         self.route = snapshot.route;
         self.other = snapshot.other;
         self.focused = snapshot.focused;
-        self.back = snapshot.back;
-        self.forward = snapshot.forward;
+        self.history = snapshot.history;
     }
     pub(crate) fn can_back(&self) -> bool {
-        self.back.iter().any(|route| route != &self.route)
+        self.history.can_step(&self.route, false)
     }
     pub(crate) fn can_forward(&self) -> bool {
-        self.forward.iter().any(|route| route != &self.route)
+        self.history.can_step(&self.route, true)
     }
-    pub(crate) fn go_back(&mut self) -> Option<WorkspaceRoute> {
-        while let Some(route) = self.back.pop() {
-            if route != self.route {
-                self.forward.push(self.route.clone());
-                self.set_route(route);
-                return Some(self.route.clone());
-            }
-        }
-        None
+    pub(crate) fn step_history(&mut self, forward: bool) -> Option<HistoryEntry> {
+        let entry = self.history.step(&self.route, forward)?;
+        self.set_route(entry.route.clone());
+        Some(entry)
     }
-    pub(crate) fn go_forward(&mut self) -> Option<WorkspaceRoute> {
-        while let Some(route) = self.forward.pop() {
-            if route != self.route {
-                self.back.push(self.route.clone());
-                self.set_route(route);
-                return Some(self.route.clone());
-            }
+    pub(crate) fn observe_reading(&mut self, item: &WorkspaceItem, state: ReaderState) {
+        if self.current() == Some(item) {
+            self.history.observe(&self.route, state);
         }
-        None
+    }
+    pub(crate) fn jump(&mut self, item: &WorkspaceItem, before: ReaderState, after: ReaderState) {
+        if self.current() == Some(item) {
+            self.history.jump(&self.route, before, after);
+        }
     }
     fn prune_history(&mut self) {
         let available = |route: &WorkspaceRoute| match route {
             WorkspaceRoute::Page(_) => true,
             WorkspaceRoute::Content(item) => self.items.contains(item),
         };
-        self.back.retain(available);
-        self.forward.retain(available);
+        self.history.retain(available);
         if self.other.as_ref().is_some_and(|route| !available(route)) {
             self.other = None;
             self.focused = PaneSide::Left;
@@ -189,8 +180,7 @@ impl WorkspaceNavigation {
     pub(crate) fn collapse_panes(&mut self) -> Option<WorkspaceRoute> {
         let other = self.other.take()?;
         let changed = if self.focused == PaneSide::Right {
-            self.back.push(self.route.clone());
-            self.forward.clear();
+            self.history.depart(&self.route);
             self.route = other;
             Some(self.route.clone())
         } else {
@@ -257,9 +247,7 @@ impl WorkspaceNavigation {
         if let Some(other) = &mut self.other {
             replace(other);
         }
-        for route in self.back.iter_mut().chain(&mut self.forward) {
-            replace(route);
-        }
+        self.history.replace_identity(old, &new);
         if self.other.as_ref() == Some(&self.route) {
             self.other = None;
             self.focused = PaneSide::Left;
@@ -816,8 +804,8 @@ mod tests {
                     Reconcile(available) => tabs.reconcile(&available),
                     Next => tabs.select_next(),
                     Previous => tabs.select_previous(),
-                    Back => tabs.go_back(),
-                    Forward => tabs.go_forward(),
+                    Back => tabs.step_history(false).map(|entry| entry.route),
+                    Forward => tabs.step_history(true).map(|entry| entry.route),
                 };
                 assert_eq!(
                     activation,
@@ -880,7 +868,7 @@ mod tests {
         navigation.select(&left);
         navigation.split_document(&right);
         navigation.select(&right);
-        navigation.go_back();
+        navigation.step_history(false);
         assert_eq!(navigation.current(), Some(&left));
         assert_eq!(navigation.panes().unwrap().2, super::PaneSide::Left);
         navigation.select(&right);

@@ -166,6 +166,9 @@ mod tests {
             let mut history = WorkspaceHistory::default();
             assert!(!history.jump(&page, position(0), position(50)));
             history.observe(&document, position(0));
+            let mut mode_only = position(0);
+            mode_only.source = false;
+            assert!(!history.jump(&document, position(0), mode_only));
             assert!(history.jump(&document, position(0), position(50)));
             assert!(!history.jump(&document, position(50), position(50)));
             assert_eq!(

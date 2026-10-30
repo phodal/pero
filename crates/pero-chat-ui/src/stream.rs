@@ -194,6 +194,26 @@ impl StreamText {
     pub fn source_reveal(&self) -> Option<std::ops::Range<usize>> {
         self.last_source_reveal.clone()
     }
+    pub fn forget_source_reveal(&mut self) {
+        self.last_source_reveal = None;
+        self.pending_source_reveal = None;
+    }
+    pub fn restore_source_reveal(
+        &mut self,
+        source: &pero_contracts::content_document::ContentDocument,
+        range: Option<std::ops::Range<usize>>,
+        cx: &mut Context<Self>,
+    ) {
+        self.forget_source_reveal();
+        self.observed_selection = None;
+        self.document.update(cx, |document, cx| {
+            document.clear_selection(cx);
+            document.clear_range_highlights(cx);
+        });
+        if let Some(range) = range {
+            self.reveal_source(source, range, cx);
+        }
+    }
     pub fn observed_source_selection(
         &self,
         source: &pero_contracts::content_document::ContentDocument,

@@ -30,6 +30,10 @@ pub enum ReaderAction {
     },
     DiscardAndClose,
     Link(String),
+    Navigate {
+        before: ReaderState,
+        after: ReaderState,
+    },
 }
 impl EventEmitter<ReaderAction> for ContentReader {}
 
@@ -543,6 +547,7 @@ impl ContentReader {
                 &table,
                 window,
                 |this, _, event: &crate::content_table::OpenCell, window, cx| {
+                    let before = this.reading_state(cx);
                     let range = &event.0;
                     if this.preview_document.text(range).starts_with(['{', '[']) {
                         this.preview = this.preview_document.shared_project(range.clone());
@@ -553,6 +558,7 @@ impl ContentReader {
                     } else {
                         this.open_source(Some(range.clone()), window, cx);
                     }
+                    this.finish_navigation(before, cx);
                 },
             ));
             self.table = Some(table);
@@ -626,8 +632,16 @@ impl Render for ContentReader {
                                 let range = matches!(event, ClickEvent::Mouse(_))
                                     .then_some(captured)
                                     .flatten();
+                                let mut before = this.reading_state(cx);
+                                let explicit_location = range.is_some();
+                                if let Some(range) = &range {
+                                    before.selection = range.clone();
+                                }
                                 this.open_source(range, window, cx);
                                 this.focus(window, cx);
+                                if explicit_location {
+                                    this.finish_navigation(before, cx);
+                                }
                             })),
                     ),
             )
@@ -649,8 +663,10 @@ impl Render for ContentReader {
                         .small()
                         .label(self.t("content.back"))
                         .on_click(cx.listener(|this, _, window, cx| {
+                            let before = this.reading_state(cx);
                             this.path.pop();
                             this.refresh_projection(false, window, cx);
+                            this.finish_navigation(before, cx);
                             cx.notify();
                         })),
                 )
@@ -731,6 +747,14 @@ impl Render for ContentReader {
                 }
             }))
             .relative()
+            .on_scroll_wheel(cx.listener(|this, _, _, cx| {
+                if !this.source {
+                    if let Some(markdown) = &this.markdown {
+                        markdown.update(cx, |view, _| view.forget_source_reveal());
+                    }
+                }
+                cx.notify();
+            }))
             .child(self.bounds.probe())
             .flex()
             .flex_col()

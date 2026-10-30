@@ -9,6 +9,11 @@ impl ContentReader {
         state.search = self.search_options;
         state.search_open = self.search_open;
         state.path = self.path.clone();
+        state.preview_reveal = self
+            .markdown
+            .as_ref()
+            .filter(|_| !self.source)
+            .and_then(|view| view.read(cx).source_reveal());
         let offset = self.preview_scroll.offset();
         state.preview_scroll = [f32::from(offset.x), f32::from(offset.y)];
         if let Some(editor) = &self.editor {
@@ -45,6 +50,8 @@ impl ContentReader {
     ) {
         let draft = self.draft(cx);
         let state = state.for_source(draft.as_deref().unwrap_or_else(|| self.document.source()));
+        self.pending_anchor = None;
+        self.source_pointer_selection = None;
         if self.dirty {
             self.refresh_preview(window, cx);
         }
@@ -71,7 +78,21 @@ impl ContentReader {
             self.deferred_editor_state = Some(state.clone());
         }
         self.source = source;
+        if let Some(markdown) = &self.markdown {
+            let reveal = (!source).then_some(state.preview_reveal).flatten();
+            markdown.update(cx, |view, cx| {
+                view.restore_source_reveal(&self.preview_document, reveal, cx)
+            });
+        }
         cx.notify();
+    }
+    pub(super) fn finish_navigation(&mut self, before: ReaderState, cx: &mut Context<Self>) {
+        if self.placement == ReaderPlacement::Workspace {
+            let after = self.reading_state(cx);
+            if !before.same_location(&after) {
+                cx.emit(ReaderAction::Navigate { before, after });
+            }
+        }
     }
     fn apply_editor_state(&mut self, state: &ReaderState, cx: &mut Context<Self>) {
         if let Some(editor) = self.editor.clone() {
@@ -155,6 +176,7 @@ impl ContentReader {
         if !matches!(self.document.format, ContentFormat::Markdown) {
             return false;
         }
+        let before = self.reading_state(cx);
         self.show_preview(window, cx);
         let index = self
             .markdown_index
@@ -178,6 +200,7 @@ impl ContentReader {
             });
         }
         self.source = false;
+        self.finish_navigation(before, cx);
         cx.notify();
         true
     }

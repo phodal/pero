@@ -9,9 +9,19 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use serde_json::json;
 use pero_chat_ui::theme::WorkbenchStyle as W;
-gpui_kit::actions!(workspace, [NextContent, PreviousContent, OpenDocument,WorkspaceBack,WorkspaceForward,SplitDocument]);
+use serde_json::json;
+gpui_kit::actions!(
+    workspace,
+    [
+        NextContent,
+        PreviousContent,
+        OpenDocument,
+        WorkspaceBack,
+        WorkspaceForward,
+        SplitDocument
+    ]
+);
 
 impl Workbench {
     pub(crate) fn record_task_selection(&mut self, task: Option<String>) {
@@ -38,7 +48,10 @@ impl Workbench {
             .iter()
             .filter_map(|item| {
                 if let WorkspaceItem::Conversation(id) = item {
-                    return self.chat.read(cx).replacement_thread(id)
+                    return self
+                        .chat
+                        .read(cx)
+                        .replacement_thread(id)
                         .map(|id| (item.clone(), WorkspaceItem::Conversation(id.to_owned())));
                 }
                 let WorkspaceItem::Project(key) = item else {
@@ -61,8 +74,10 @@ impl Workbench {
                 WorkspaceItem::Conversation(id) => {
                     self.chat.read(cx).chats.iter().any(|chat| &chat.id == id)
                 }
-                WorkspaceItem::Web(id)=>self.web_documents.iter().any(|page|&page.id==id),
-                WorkspaceItem::Document {..} => self.documents.iter().any(|open|&open.item==*item),
+                WorkspaceItem::Web(id) => self.web_documents.iter().any(|page| &page.id == id),
+                WorkspaceItem::Document { .. } => {
+                    self.documents.iter().any(|open| &open.item == *item)
+                }
                 WorkspaceItem::Project(key) => {
                     projects.iter().any(|project| project.matches_key(key))
                 }
@@ -79,6 +94,7 @@ impl Workbench {
 
     pub(crate) fn open_app(&mut self, name: String, panel: String, cx: &mut Context<Self>) {
         if self.apps.contains_panel(&name, &panel) {
+            self.remember_current_location(cx);
             self.navigation.open(WorkspaceItem::App {
                 name: name.clone(),
                 panel: panel.clone(),
@@ -106,9 +122,14 @@ impl Workbench {
                     .position(|chat| chat.id == id);
                 self.focus_chat(index, ConversationTab::Chat, cx);
             }
-            WorkspaceRoute::Content(WorkspaceItem::Web(_))=>{self.sync_web_address(true,window,cx);self.workspace_focus.focus(window,cx);},
-            WorkspaceRoute::Content(item @ WorkspaceItem::Document {..}) => {
-                if let Some(open)=self.documents.iter().find(|open|open.item==item) {open.view.update(cx,|view,cx|view.focus(window,cx));}
+            WorkspaceRoute::Content(WorkspaceItem::Web(_)) => {
+                self.sync_web_address(true, window, cx);
+                self.workspace_focus.focus(window, cx);
+            }
+            WorkspaceRoute::Content(item @ WorkspaceItem::Document { .. }) => {
+                if let Some(open) = self.documents.iter().find(|open| open.item == item) {
+                    open.view.update(cx, |view, cx| view.focus(window, cx));
+                }
             }
             WorkspaceRoute::Content(WorkspaceItem::Project(key)) => {
                 self.open_project(key, window, cx)
@@ -129,20 +150,30 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.remember_current_location(cx);
         if let Some(route) = self.navigation.select(&item) {
             self.activate_route(route, window, cx);
         }
     }
 
     fn close_content(&mut self, item: &WorkspaceItem, window: &mut Window, cx: &mut Context<Self>) {
+        self.remember_current_location(cx);
         self.queue_workspace_checkpoint(cx);
-        if let WorkspaceItem::Web(id)=item {self.web_command(json!({"action":"web_close","id":id}),window,cx);return;}
-        if let Some(open)=self.documents.iter().find(|open|&open.item==item) {
+        if let WorkspaceItem::Web(id) = item {
+            self.web_command(json!({"action":"web_close","id":id}), window, cx);
+            return;
+        }
+        if let Some(open) = self.documents.iter().find(|open| &open.item == item) {
             if open.view.read(cx).dirty() {
-                open.view.update(cx,|view,cx| {view.request_close(cx);});
-                self.navigation.select(item);cx.notify();return;
+                open.view.update(cx, |view, cx| {
+                    view.request_close(cx);
+                });
+                self.navigation.select(item);
+                cx.notify();
+                return;
             }
-            self.discard_document(item,window,cx);return;
+            self.discard_document(item, window, cx);
+            return;
         }
         if let Some(route) = self.navigation.close(item) {
             self.activate_route(route, window, cx);
@@ -178,8 +209,15 @@ impl Workbench {
                     .unwrap_or_else(|| self.t("chat.session").into()),
                 "message-circle",
             ),
-            WorkspaceItem::Web(id)=>(self.web_documents.iter().find(|page|&page.id==id).map(|page|page.observation.title.clone()).unwrap_or_else(||self.t("web.open_url").into()),"globe"),
-            item @ WorkspaceItem::Document {..} => self.document_label(item,cx),
+            WorkspaceItem::Web(id) => (
+                self.web_documents
+                    .iter()
+                    .find(|page| &page.id == id)
+                    .map(|page| page.observation.title.clone())
+                    .unwrap_or_else(|| self.t("web.open_url").into()),
+                "globe",
+            ),
+            item @ WorkspaceItem::Document { .. } => self.document_label(item, cx),
             WorkspaceItem::Project(key) => (
                 self.project_catalog(cx)
                     .into_iter()
@@ -205,7 +243,11 @@ impl Workbench {
                     .find(|app| &app.name == name)
                     .map(|app| app.display_name.clone())
                     .unwrap_or_else(|| name.clone()),
-                pero_chat_ui::assets::UiIcon::for_app(name,pero_theme::UiAppearance::global(cx).dark).name(),
+                pero_chat_ui::assets::UiIcon::for_app(
+                    name,
+                    pero_theme::UiAppearance::global(cx).dark,
+                )
+                .name(),
             ),
         }
     }
@@ -215,7 +257,9 @@ impl Workbench {
         let current = self.navigation.current();
         div()
             .id("workspace-tabs")
-            .h(px(W::TAB.max(pero_theme::UiAppearance::global(cx).typography.row_height() + 4.)))
+            .h(px(W::TAB.max(
+                pero_theme::UiAppearance::global(cx).typography.row_height() + 4.,
+            )))
             .flex_shrink_0()
             .flex()
             .items_center()
@@ -262,9 +306,14 @@ impl Workbench {
                                     .small()
                                     .flex_1()
                                     .min_w_0()
-                                    .h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+                                    .h(px(pero_theme::UiAppearance::global(cx)
+                                        .typography
+                                        .control_height()))
                                     .justify_start()
-                                    .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
+                                    .text_size(
+                                        pero_theme::UiAppearance::global(cx)
+                                            .text(pero_theme::TextRole::Body),
+                                    )
                                     .icon(
                                         Icon::default()
                                             .size(px(W::ICON))
@@ -285,7 +334,9 @@ impl Workbench {
                                 .ghost()
                                 .small()
                                 .w(px(26.))
-                                .h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+                                .h(px(pero_theme::UiAppearance::global(cx)
+                                    .typography
+                                    .control_height()))
                                 .icon(Icon::default().path("icons/x.svg"))
                                 .tooltip(self.t("workspace.close_tab"))
                                 .accessibility_label(format!(
@@ -300,16 +351,62 @@ impl Workbench {
                             )
                     })),
             )
-            .child(Button::new("workspace-back").ghost().small().icon(IconName::ChevronLeft).disabled(!self.navigation.can_back()).tooltip(self.t("workspace.back")).accessibility_label(self.t("workspace.back"))
-                .on_click(cx.listener(|this,_,window,cx|this.navigate_history(false,window,cx))))
-            .child(Button::new("workspace-forward").ghost().small().icon(IconName::ChevronRight).disabled(!self.navigation.can_forward()).tooltip(self.t("workspace.forward")).accessibility_label(self.t("workspace.forward"))
-                .on_click(cx.listener(|this,_,window,cx|this.navigate_history(true,window,cx))))
-            .when(self.navigation.page()==WorkbenchPage::Document,|strip|strip.child(Button::new("workspace-split").ghost().small().icon(Icon::default().path("icons/panel-right-open.svg"))
-                .disabled(self.navigation.panes().is_none() && self.documents.len()<2).tooltip(self.t("workspace.split")).accessibility_label(self.t("workspace.split"))
-                .on_click(cx.listener(|this,_,window,cx|this.toggle_document_split(window,cx)))))
-            .child(Button::new("web-open").ghost().small().icon(Icon::default().path("icons/globe.svg")).tooltip(self.t("web.open_url")).accessibility_label(self.t("web.open_url")).on_click(cx.listener(|this,_,window,cx|this.choose_web(window,cx))))
-            .child(Button::new("document-open").ghost().small().icon(IconName::File).tooltip(self.t("content.open_file"))
-                .accessibility_label(self.t("content.open_file")).on_click(cx.listener(|this,_,_,cx|this.choose_document(cx))))
+            .child(
+                Button::new("workspace-back")
+                    .ghost()
+                    .small()
+                    .icon(IconName::ChevronLeft)
+                    .disabled(!self.navigation.can_back())
+                    .tooltip(self.t("workspace.back"))
+                    .accessibility_label(self.t("workspace.back"))
+                    .on_click(
+                        cx.listener(|this, _, window, cx| this.navigate_history(false, window, cx)),
+                    ),
+            )
+            .child(
+                Button::new("workspace-forward")
+                    .ghost()
+                    .small()
+                    .icon(IconName::ChevronRight)
+                    .disabled(!self.navigation.can_forward())
+                    .tooltip(self.t("workspace.forward"))
+                    .accessibility_label(self.t("workspace.forward"))
+                    .on_click(
+                        cx.listener(|this, _, window, cx| this.navigate_history(true, window, cx)),
+                    ),
+            )
+            .when(self.navigation.page() == WorkbenchPage::Document, |strip| {
+                strip.child(
+                    Button::new("workspace-split")
+                        .ghost()
+                        .small()
+                        .icon(Icon::default().path("icons/panel-right-open.svg"))
+                        .disabled(self.navigation.panes().is_none() && self.documents.len() < 2)
+                        .tooltip(self.t("workspace.split"))
+                        .accessibility_label(self.t("workspace.split"))
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.toggle_document_split(window, cx)
+                        })),
+                )
+            })
+            .child(
+                Button::new("web-open")
+                    .ghost()
+                    .small()
+                    .icon(Icon::default().path("icons/globe.svg"))
+                    .tooltip(self.t("web.open_url"))
+                    .accessibility_label(self.t("web.open_url"))
+                    .on_click(cx.listener(|this, _, window, cx| this.choose_web(window, cx))),
+            )
+            .child(
+                Button::new("document-open")
+                    .ghost()
+                    .small()
+                    .icon(IconName::File)
+                    .tooltip(self.t("content.open_file"))
+                    .accessibility_label(self.t("content.open_file"))
+                    .on_click(cx.listener(|this, _, _, cx| this.choose_document(cx))),
+            )
             .when(
                 matches!(self.navigation.current(), Some(WorkspaceItem::App { .. })),
                 |el| {
@@ -318,7 +415,9 @@ impl Workbench {
                             .ghost()
                             .small()
                             .w(px(32.))
-                            .h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+                            .h(px(pero_theme::UiAppearance::global(cx)
+                                .typography
+                                .control_height()))
                             .icon(Icon::default().path("icons/layout-grid.svg"))
                             .tooltip(self.t("apps.back"))
                             .accessibility_label(self.t("apps.back"))
@@ -330,14 +429,17 @@ impl Workbench {
                 },
             )
             .when(
-                self.navigation.page() == WorkbenchPage::Tasks || self.navigation.page()==WorkbenchPage::Web
+                self.navigation.page() == WorkbenchPage::Tasks
+                    || self.navigation.page() == WorkbenchPage::Web
                     || matches!(self.navigation.current(), Some(WorkspaceItem::App { .. })),
                 |el| {
                     el.child(
                         Button::new("workspace-chat-toggle")
                             .ghost()
                             .small()
-                            .h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+                            .h(px(pero_theme::UiAppearance::global(cx)
+                                .typography
+                                .control_height()))
                             .mr(px(8.))
                             .icon(Icon::default().path(if self.chat_dock_visible() {
                                 "icons/panel-right-close.svg"
@@ -424,6 +526,7 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.remember_current_location(cx);
         let route = if previous {
             self.navigation.select_previous()
         } else {

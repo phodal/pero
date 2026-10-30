@@ -26,6 +26,7 @@ pub struct ReaderState {
     pub selection: Range<usize>,
     pub scroll: [f32; 2],
     pub preview_scroll: [f32; 2],
+    pub preview_reveal: Option<Range<usize>>,
     pub query: String,
     pub search_open: bool,
     pub search: SearchOptions,
@@ -34,11 +35,11 @@ pub struct ReaderState {
 }
 impl ReaderState {
     pub fn same_location(&self, other: &Self) -> bool {
-        self.source == other.source
-            && self.selection == other.selection
+        self.selection == other.selection
             && self.scroll == other.scroll
             && self.preview_scroll == other.preview_scroll
             && self.path == other.path
+            && self.preview_reveal == other.preview_reveal
     }
     /// A changed source can shorten a restored selection. Keep every offset on
     /// its UTF-8 boundary and discard projection ranges that no longer exist.
@@ -53,6 +54,12 @@ impl ReaderState {
         self.selection =
             boundary(self.selection.start)..boundary(self.selection.end.max(self.selection.start));
         self.path.retain(|range| {
+            range.start < range.end
+                && range.end <= source.len()
+                && source.is_char_boundary(range.start)
+                && source.is_char_boundary(range.end)
+        });
+        self.preview_reveal = self.preview_reveal.filter(|range| {
             range.start < range.end
                 && range.end <= source.len()
                 && source.is_char_boundary(range.start)

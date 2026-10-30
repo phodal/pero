@@ -53,6 +53,32 @@ try {
   await expect.poll(async () => (await reader()).previewScroll[1]).toBeLessThan(-500);
   expect((await state()).documents.length).toBe(1);
   await screen('heading-anchor');
+  const anchorHistory = (await state()).workspaceNavigation.back.length;
+  await page.keyboard.press('Alt+ArrowLeft');
+  await expect.poll(async () => (await reader()).previewScroll[1]).toBe(0);
+  expect((await reader()).source).toBe(false);
+  expect((await reader()).markdownReveal).toBe(null);
+  await page.keyboard.press('Alt+ArrowRight');
+  await expect.poll(async () => (await reader()).markdownReveal?.start).toBe(target);
+  await expect.poll(async () => (await reader()).previewScroll[1]).toBeLessThan(-500);
+  expect((await state()).workspaceNavigation.back.length).toBe(anchorHistory);
+  // The same location entries must survive a Host checkpoint and renderer
+  // restart; restoring them must not append another navigation entry.
+  await page.evaluate(() => window.peroWorkspaceCheckpoint(false));
+  await Promise.all([
+    page.waitForEvent('domcontentloaded'),
+    app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.reload()),
+  ]);
+  await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected && JSON.parse(window.peroDiagnostics.snapshot()).documents.length === 1 && !document.getElementById('loading'), undefined, { timeout: 30000 });
+  await expect.poll(async () => (await state()).workspaceNavigation.back.length).toBe(anchorHistory);
+  await page.keyboard.press('Alt+ArrowLeft');
+  await expect.poll(async () => (await reader()).previewScroll[1]).toBe(0);
+  await page.keyboard.press('Alt+ArrowRight');
+  await expect.poll(async () => (await reader()).markdownReveal?.start).toBe(target);
+  await expect.poll(async () => (await reader()).previewScroll[1]).toBeLessThan(-500);
+  expect((await state()).workspaceNavigation.back.length).toBe(anchorHistory);
+  bounds = (await reader()).bounds;
+  await screen('restored-heading-history');
   await page.mouse.click(bounds.x + 100, bounds.y + 16);
   await expect.poll(async () => (await reader()).source).toBe(true);
   expect((await reader()).selection.start).toBe(target);
@@ -158,7 +184,7 @@ try {
   await query('row');
   await expect.poll(async () => (await reader()).search.matches).toBe(2);
   expect(errors).toEqual([]);
-  await writeFile(resolve(out, 'result.json'), JSON.stringify({ checks: ['actual Markdown heading link', 'rendered selection to exact source range', 'source selection to rendered reveal', 'cancelled source gesture and cleared rendered selection', 'regex match painting and Enter/Shift+Enter navigation', 'invalid regex recovery', 'whole-word keyboard toggle'], errors }, null, 2));
+  await writeFile(resolve(out, 'result.json'), JSON.stringify({ checks: ['actual Markdown heading link', 'position back/forward across Host checkpoint and renderer restart', 'rendered selection to exact source range', 'source selection to rendered reveal', 'cancelled source gesture and cleared rendered selection', 'regex match painting and Enter/Shift+Enter navigation', 'invalid regex recovery', 'whole-word keyboard toggle'], errors }, null, 2));
   console.log('Verified Markdown anchors, rendered/source mapping, regex and whole-word search.');
 } catch (error) {
   if (page) {
