@@ -28,4 +28,14 @@ button:disabled,input:disabled,select:disabled{cursor:default;opacity:.5}
 .pero-ui-disclosure>summary{min-height:28px;display:list-item;align-content:center}.pero-ui-disclosure-body{padding:8px 0}
 .pero-ui-result{padding:12px;display:flex;flex-direction:column;gap:10px}.pero-ui-table-scroll{max-width:100%;overflow:auto}.pero-ui-result table{border-collapse:collapse;width:100%;font-size:var(--pero-font-caption,12px)}.pero-ui-result th,.pero-ui-result td{padding:8px;text-align:left;border-bottom:1px solid var(--pero-border)}.pero-ui-result th{background:var(--pero-surface-muted);font-weight:600}.pero-ui-result-source{font-size:var(--pero-font-caption,12px);color:var(--pero-text-muted);overflow-wrap:anywhere}
 
-.pero-content-source {box-sizing:border-box;width:100%;min-height:240px;max-height:70vh;resize:vertical;white-space:pre;overflow:auto;background:var(--pero-bg);color:var(--pero-text);border:1px solid var(--pero-border);font:var(--pero-code-size,13px)/1.5 "JetBrains Mono",monospace;}
+.pero-standalone-reader{position:relative;box-sizing:border-box;width:100%;height:65vh;min-height:280px;overflow:hidden;border:1px solid var(--pero-border)}
+.pero-standalone-reader iframe{display:block;border:0;width:100%;height:100%}
+.pero-reader-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;padding:12px;background:var(--pero-surface)}
+.pero-reader-status[hidden]{display:none}
+.pero-reader-status button{font:inherit;color:inherit;background:var(--pero-surface);border:1px solid var(--pero-border);border-radius:5px;padding:2px 8px;min-height:24px}
+.pero-standalone-document{box-sizing:border-box;width:94vw;height:90vh;max-width:1600px;max-height:none;padding:0;border:1px solid var(--pero-border);color:var(--pero-text);background:var(--pero-surface);overflow:hidden}
+.pero-standalone-document[open]{display:flex;flex-direction:column}.pero-standalone-document::backdrop{background:#0005}
+.pero-standalone-document>header{height:30px;display:flex;align-items:center;gap:8px;padding:0 8px;border-bottom:1px solid var(--pero-border);flex-shrink:0}
+.pero-standalone-document>header strong{font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pero-standalone-document>header button{font:inherit;min-height:24px;padding:1px 7px;color:inherit;background:var(--pero-surface);border:1px solid var(--pero-border);border-radius:5px}
+.pero-standalone-document-body{position:relative;flex:1;min-height:0}.pero-standalone-document-body iframe{width:100%;height:100%;border:0;display:block}

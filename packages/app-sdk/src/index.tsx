@@ -48,6 +48,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 }
 
 export const useAppInfo = () => ({ active: useContext(Context).active });
+export const useAppContext = () => useContext(Context);
 
 /** Opens the host-owned chat or fills its draft. Neither action submits a prompt. */
 export function useAppChat() {
