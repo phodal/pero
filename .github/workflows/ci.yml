@@ -25,6 +25,37 @@ defaults:
     shell: bash
 
 jobs:
+  control-lab:
+    name: Control Lab actual python-control and ngspice
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install real numerical engines
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ngspice
+          python -m pip install -r apps/control-lab/requirements.txt
+          mkdir -p test-results/control-lab-science
+          python -c 'import control; print(control.__version__)' | tee test-results/control-lab-science/python-control-version.txt
+          ngspice --version | tee test-results/control-lab-science/ngspice-version.txt
+      - name: Require both numerical engines and scientific contracts without dependency skips
+        env:
+          CONTROL_LAB_REQUIRE_SOLVERS: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python -m unittest discover -s apps/control-lab/test -p 'test_*.py' -v 2>&1 | tee test-results/control-lab-science/tests.log
+      - name: Numerical engine versions and scientific results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: control-lab-science-linux
+          path: test-results/control-lab-science/
+          if-no-files-found: warn
+          retention-days: 7
+
   virtual-cell:
     name: Virtual Cell local comparison contracts
     runs-on: ubuntu-latest
@@ -352,6 +383,8 @@ jobs:
           npm run check
           npm --prefix apps/virtual-cell run typecheck
           npm --prefix apps/virtual-cell run test:ui
+          npm --prefix apps/control-lab run typecheck
+          npm --prefix apps/control-lab run test:ui
 
       - name: Test
         run: npm test
@@ -364,6 +397,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64 xvfb
+
+      - name: Install Control Lab numerical engines for real Desktop acceptance
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install --yes ngspice
+          python3 -m venv "$RUNNER_TEMP/control-lab-python"
+          "$RUNNER_TEMP/control-lab-python/bin/python" -m pip install -r apps/control-lab/requirements.txt
 
       - name: Desktop E2E in isolated display
         if: runner.os == 'Linux'
@@ -380,6 +420,7 @@ jobs:
           run_acceptance() { "$@" || failed=1; }
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/workbench.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/toolcalls.mjs
+          run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/control-lab.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/virtual-cell-comparison.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/virtual-cell-dataset-download.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use.mjs

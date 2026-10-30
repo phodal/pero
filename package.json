@@ -60,6 +60,8 @@
     "test:product:chat": "node tests/e2e/product-chat.mjs",
     "test:sidebar": "node tests/e2e/sidebar.mjs",
     "test:local-roadmap": "node tests/e2e/local-roadmap.mjs",
+    "test:control-lab": "node tests/e2e/control-lab.mjs",
+    "test:control-lab:science": "CONTROL_LAB_REQUIRE_SOLVERS=1 python3 -m unittest discover -s apps/control-lab/test -p 'test_*.py' -v",
     "test:app-use:unit": "node --test desktop/src/main/app-use.test.ts desktop/src/main/app-context.test.ts && node --disallow-code-generation-from-strings --test packages/app-sdk/src/app-use.test.ts",
     "test:app-use:real": "PERO_APP_USE_REAL_AGENT=1 node tests/e2e/app-use-real.mjs",
     "test:app-use:bridge": "node tests/e2e/app-use-bridge.mjs",
