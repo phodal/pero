@@ -122,8 +122,12 @@ impl Workbench {
             cx.notify();
         }
     }
-    pub(crate) fn cancel_pane_tab_switch(&mut self, cx: &mut Context<Self>) {
-        if self.pane_tabs.switcher.borrow_mut().take().is_some() {
+    pub(crate) fn cancel_pane_tab_switch(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let state = self.pane_tabs.switcher.borrow_mut().take();
+        if let Some(state) = state {
+            if let Some(view) = state.order.first() {
+                self.activate_pane_tab(state.pane, *view, window, cx);
+            }
             cx.notify();
         }
     }
@@ -476,7 +480,7 @@ impl Workbench {
                         .label(title)
                         .toggled(index == switcher.selected)
                         .on_click(cx.listener(move |this, _, window, cx| {
-                            this.cancel_pane_tab_switch(cx);
+                            this.pane_tabs.switcher.borrow_mut().take();
                             this.activate_pane_tab(pane, view, window, cx);
                         })),
                 )
