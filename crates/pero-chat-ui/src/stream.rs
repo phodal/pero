@@ -6,8 +6,8 @@
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
 use gpui_kit::{
+    base::text::{RangeHighlight, TextView, TextViewStyle},
     component::{ActiveTheme as _, text::TextViewState},
-    base::text::{TextView, TextViewStyle},
     *,
 };
 #[cfg(any(target_family = "wasm", feature = "native"))]
@@ -109,22 +109,33 @@ impl PendingText {
 }
 
 #[derive(Clone, Copy, Default)]
-pub enum StreamAppearance { #[default] Answer, Thought, Tool }
+pub enum StreamAppearance {
+    #[default]
+    Answer,
+    Thought,
+    Tool,
+}
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub struct StreamText {
-    pub capture_links:bool,
+    pub capture_links: bool,
     pub appearance: StreamAppearance,
     document: Entity<TextViewState>,
     pending: PendingText,
     follow_scroll: Option<ScrollHandle>,
+    reveal_scroll: Option<ScrollHandle>,
+    pending_source_reveal: Option<(
+        pero_contracts::content_document::ContentDocument,
+        std::ops::Range<usize>,
+    )>,
+    last_source_reveal: Option<std::ops::Range<usize>>,
     observed_bytes: usize,
     _document_observer: Subscription,
 }
 
 #[derive(Clone)]
 pub struct MarkdownLink(pub String);
-#[cfg(any(target_family="wasm",feature="native"))]
+#[cfg(any(target_family = "wasm", feature = "native"))]
 impl EventEmitter<MarkdownLink> for StreamText {}
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
@@ -135,17 +146,21 @@ impl StreamText {
             // push_str queues an asynchronous parse. Follow only when that
             // parsed source commits, so the next layout has its actual height.
             let committed_bytes = document.read(cx).rendered_text().source().len();
+            this.apply_source_reveal(cx);
             if committed_bytes != this.observed_bytes {
                 this.observed_bytes = committed_bytes;
                 cx.notify();
             }
         });
         Self {
-            capture_links:false,
+            capture_links: false,
             appearance: StreamAppearance::Answer,
             document,
             pending: PendingText::default(),
             follow_scroll: None,
+            reveal_scroll: None,
+            pending_source_reveal: None,
+            last_source_reveal: None,
             observed_bytes: text.len(),
             _document_observer: observer,
         }
@@ -154,6 +169,55 @@ impl StreamText {
     /// Attach only while this message belongs to the active conversation.
     pub fn set_scroll_handle(&mut self, scroll: Option<ScrollHandle>) {
         self.follow_scroll = scroll;
+    }
+
+    pub fn set_reveal_scroll(&mut self, scroll: ScrollHandle) {
+        self.reveal_scroll = Some(scroll);
+    }
+
+    pub fn selected_source_range(
+        &self,
+        source: &pero_contracts::content_document::ContentDocument,
+        cx: &App,
+    ) -> Option<std::ops::Range<usize>> {
+        let document = self.document.read(cx);
+        (document.rendered_text().source() == source.source())
+            .then(|| document.selected_source_range())
+            .flatten()
+    }
+    pub fn source_reveal(&self) -> Option<std::ops::Range<usize>> {
+        self.last_source_reveal.clone()
+    }
+    pub fn reveal_source(
+        &mut self,
+        source: &pero_contracts::content_document::ContentDocument,
+        range: std::ops::Range<usize>,
+        cx: &mut Context<Self>,
+    ) {
+        self.pending_source_reveal = Some((source.clone(), range));
+        self.apply_source_reveal(cx);
+    }
+    fn apply_source_reveal(&mut self, cx: &mut Context<Self>) {
+        let Some((source, range)) = &self.pending_source_reveal else {
+            return;
+        };
+        let rendered = self.document.read(cx).rendered_text();
+        if rendered.source() != source.source() {
+            return;
+        }
+        let range = range.clone();
+        let target = rendered.range_for_source(range.clone());
+        self.pending_source_reveal = None;
+        if let Some(target) = target {
+            let color = cx.theme().selection;
+            self.document.update(cx, |document, cx| {
+                document.clear_selection(cx);
+                let _ =
+                    document.set_range_highlights([RangeHighlight::new(target.clone(), color)], cx);
+                let _ = document.reveal_range(target, cx);
+            });
+            self.last_source_reveal = Some(range);
+        }
     }
 
     pub fn has_pending(&self) -> bool {
@@ -209,6 +273,8 @@ impl StreamText {
     /// growth itself and uses its append path instead of replacing that source.
     pub fn replace(&mut self, text: &str, cx: &mut Context<Self>) {
         self.pending.clear();
+        self.pending_source_reveal = None;
+        self.last_source_reveal = None;
         self.document
             .update(cx, |document, cx| document.set_text(text, cx));
         cx.notify();
@@ -227,18 +293,49 @@ impl Render for StreamText {
         let (size, color) = match self.appearance {
             StreamAppearance::Answer => (typography.chat, cx.theme().foreground),
             StreamAppearance::Thought => (typography.chat, cx.theme().muted_foreground),
-            StreamAppearance::Tool => (pero_theme::TextRole::Caption.pixels(typography.chat), cx.theme().muted_foreground),
+            StreamAppearance::Tool => (
+                pero_theme::TextRole::Caption.pixels(typography.chat),
+                cx.theme().muted_foreground,
+            ),
         };
-        let style = TextViewStyle::default().with_foreground(color)
-            .with_muted_foreground(cx.theme().muted_foreground).with_link(cx.theme().link)
-            .with_selection(cx.theme().selection).with_code_background(cx.theme().muted)
-            .with_border(cx.theme().border).with_dark(cx.theme().is_dark())
+        let style = TextViewStyle::default()
+            .with_foreground(color)
+            .with_muted_foreground(cx.theme().muted_foreground)
+            .with_link(cx.theme().link)
+            .with_selection(cx.theme().selection)
+            .with_code_background(cx.theme().muted)
+            .with_border(cx.theme().border)
+            .with_dark(cx.theme().is_dark())
             .with_paragraph_gap(rems(0.4))
-            .with_code_block(StyleRefinement::default().font_family("JetBrains Mono").text_size(px(typography.code)));
-        let mut view=TextView::new(&self.document).selectable(true).style(style);
+            .with_code_block(
+                StyleRefinement::default()
+                    .font_family("JetBrains Mono")
+                    .text_size(px(typography.code)),
+            );
+        let mut view = TextView::new(&self.document).selectable(true).style(style);
+        if let Some(scroll) = &self.reveal_scroll {
+            let scroll = scroll.clone();
+            view = view.on_reveal(move |bounds, window, _| {
+                let viewport = scroll.bounds();
+                let shift = if bounds.top() < viewport.top() {
+                    viewport.top() - bounds.top()
+                } else if bounds.bottom() > viewport.bottom() {
+                    viewport.bottom() - bounds.bottom()
+                } else {
+                    px(0.)
+                };
+                if shift != px(0.) {
+                    let offset = scroll.offset();
+                    scroll.set_offset(point(offset.x, offset.y + shift));
+                    window.refresh();
+                }
+            });
+        }
         if self.capture_links {
-            let entity=cx.entity().downgrade();
-            view=view.on_link_click(move |url,_,_,cx| {let _=entity.update(cx,|_,cx|cx.emit(MarkdownLink(url.to_string())));});
+            let entity = cx.entity().downgrade();
+            view = view.on_link_click(move |url, _, _, cx| {
+                let _ = entity.update(cx, |_, cx| cx.emit(MarkdownLink(url.to_string())));
+            });
         }
         pero_theme::TypographyScope::new(px(size))
             .text_size(rems(1.))

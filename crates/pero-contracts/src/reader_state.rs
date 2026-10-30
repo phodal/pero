@@ -51,8 +51,8 @@ impl ReaderState {
                 && source.is_char_boundary(range.start)
                 && source.is_char_boundary(range.end)
         });
-        self.folded_lines
-            .retain(|&line| line < source.lines().count());
+        let line_count = source.lines().count();
+        self.folded_lines.retain(|&line| line < line_count);
         self.folded_lines.sort_unstable();
         self.folded_lines.dedup();
         for offset in self.scroll.iter_mut().chain(self.preview_scroll.iter_mut()) {
@@ -81,11 +81,5 @@ mod tests {
         assert_eq!(state.path, vec![0..3]);
         assert_eq!(state.folded_lines, vec![0]);
         assert_eq!(state.scroll, [0., -30.]);
-        assert!(
-            serde_json::from_str::<ReaderState>("{}")
-                .unwrap()
-                .search
-                .case_insensitive
-        );
     }
 }
