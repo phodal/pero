@@ -43,3 +43,16 @@ diff --git a/crates/base/src/input/editor/search.rs b/crates/base/src/input/edit
      /// End the search: hide the built-in panel and the match highlights. The
      /// query is kept so the next [`InputBaseState::open_search`] resumes it.
      pub fn close_search(&mut self, cx: &mut Context<Self>) {
+diff --git a/crates/base/src/input/base/mode.rs b/crates/base/src/input/base/mode.rs
+--- a/crates/base/src/input/base/mode.rs
++++ b/crates/base/src/input/base/mode.rs
+@@ -102,9 +102,5 @@
+     /// Return true if this layout is a code editor with folding enabled.
+     #[inline]
+     pub(crate) fn is_folding(&self) -> bool {
+-        if cfg!(target_family = "wasm") {
+-            return false;
+-        }
+-
+         matches!(self, LayoutMode::CodeEditor { folding: true, .. })
+     }
