@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
-import {openDocument,type AppDocumentInput} from './document';
+import React, { createContext, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
+import {openDocument,standaloneDocuments,type AppDocumentInput} from './document';
 import { iconArtwork } from './icons.generated';
 import { useAppContext, useTheme } from './index';
 import { mountReaderSurface } from './reader-surface';
@@ -75,12 +75,13 @@ export function ResultView({ result, labels, className = '' }: { result: { title
 function StandaloneContent({document:source}:{document:AppDocumentInput}) {
   const container=useRef<HTMLDivElement>(null),surface=useRef<ReturnType<typeof mountReaderSurface>>(null);
   const context=useAppContext();
+  const reading=useMemo(()=>standaloneDocuments.admit(source),[source.id,source.title,source.text,JSON.stringify(source.format),source.location?.record]);
   useEffect(()=>{
-    const mounted=mountReaderSurface(container.current!,{source:{document:source},context,url:'./_reader/reader.html',link:url=>window.open(url,'_blank','noopener')});
+    const mounted=mountReaderSurface(container.current!,{source:reading,context,url:'./_reader/reader.html',link:url=>window.open(url,'_blank','noopener')});
     surface.current=mounted;
     return ()=>{mounted.dispose();surface.current=null;};
   },[]);
-  useEffect(()=>{surface.current?.source({document:source});},[source.id,source.title,source.text,JSON.stringify(source.format),source.location?.record]);
+  useEffect(()=>{surface.current?.source(reading);},[reading]);
   useEffect(()=>{surface.current?.context(context);},[context]);
   return <div ref={container} className="pero-standalone-reader"/>;
 }

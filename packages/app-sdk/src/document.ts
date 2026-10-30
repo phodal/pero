@@ -1,4 +1,4 @@
-import type { AppDocumentInput } from '../../content-source/app-document';
+import {AppDocuments, type AppDocumentInput} from '../../content-source/app-document';
 import {mountReaderSurface} from './reader-surface';
 import {normalizeLocale,translate} from '../../../locales';
 export type { AppDocumentInput };
@@ -6,10 +6,12 @@ export type { AppDocumentInput };
 let standalone:ReturnType<typeof mountReaderSurface>|undefined;
 let standalonePanel:HTMLDialogElement|undefined;
 let standaloneTitle:HTMLElement|undefined;
+export const standaloneDocuments=new AppDocuments('standalone','content');
 
 /** Opens source in the owning reader. It never submits an Agent prompt. */
 export function openDocument(document:AppDocumentInput):Promise<void> {
   if(window.parent===window){
+    const source=standaloneDocuments.admit(document);
     const locale=normalizeLocale(window.document.documentElement.lang),dark=getComputedStyle(window.document.documentElement).colorScheme==='dark';
     if(!standalonePanel){
       const panel=window.document.createElement('dialog');panel.className='pero-standalone-document';
@@ -19,9 +21,9 @@ export function openDocument(document:AppDocumentInput):Promise<void> {
       header.append(title,close);const body=window.document.createElement('div');body.className='pero-standalone-document-body';panel.append(header,body);
       window.document.body.append(panel);standalonePanel=panel;standaloneTitle=title;
       panel.addEventListener('close',()=>{standalone?.dispose();standalone=undefined;panel.remove();standalonePanel=undefined;standaloneTitle=undefined;},{once:true});
-      standalone=mountReaderSurface(body,{source:{document},context:{locale,dark},url:'./_reader/reader.html',link:url=>window.open(url,'_blank','noopener')});
+      standalone=mountReaderSurface(body,{source,context:{locale,dark},url:'./_reader/reader.html',link:url=>window.open(url,'_blank','noopener')});
       panel.showModal();
-    }else{standaloneTitle!.textContent=document.title;standalone!.source({document});}
+    }else{standaloneTitle!.textContent=document.title;standalone!.source(source);}
     return Promise.resolve();
   }
   return new Promise((resolve,reject)=> {

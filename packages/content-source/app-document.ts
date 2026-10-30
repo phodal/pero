@@ -1,5 +1,7 @@
 import type { ContentFormat, DocumentHeader, ReaderLocation } from '../../protocol/generated/host';
 export type AppDocumentInput = { id: string; title: string; text: string; format: ContentFormat; location?: ReaderLocation };
+// A complete exported source also includes its query and record provenance.
+const MAX_APP_DOCUMENT_CHARS = 32 * 1024 * 1024;
 
 /** One installed App panel owns its revision namespace; callers cannot choose an origin. */
 export class AppDocuments {
@@ -9,7 +11,7 @@ export class AppDocuments {
   admit(value:unknown):{header:DocumentHeader;text:string;location?:ReaderLocation} {
     if(!value || typeof value!=='object' || Array.isArray(value))throw new Error('Invalid document');
     const input=value as Record<string,unknown>;
-    if(Object.keys(input).some(key=>!['id','title','text','format','location'].includes(key)) || typeof input.id!=='string' || !input.id || input.id.length>256 || typeof input.title!=='string' || !input.title || input.title.length>512 || typeof input.text!=='string' || input.text.length>16_000_000)throw new Error('Invalid document source');
+    if(Object.keys(input).some(key=>!['id','title','text','format','location'].includes(key)) || typeof input.id!=='string' || !input.id || input.id.length>256 || typeof input.title!=='string' || !input.title || input.title.length>512 || typeof input.text!=='string' || input.text.length>MAX_APP_DOCUMENT_CHARS)throw new Error('Invalid document source');
     const location=input.location as ReaderLocation|undefined;
     if(location!==undefined && (!location || typeof location!=='object' || Array.isArray(location) || Object.keys(location).some(key=>key!=='record') || !Number.isInteger(location.record) || location.record<0 || location.record>0xffffffff))throw new Error('Invalid document location');
     const format=input.format as Record<string,unknown>;

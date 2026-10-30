@@ -22,10 +22,11 @@ export function mountReaderSurface(container: HTMLElement, options: {
   const retry = document.createElement('button'); retry.type = 'button';
   const download = document.createElement('button'); download.type = 'button';
   status.append(label, retry, download); container.append(frame, status);
-  let context = options.context, source = options.source, connected = false;
+  let context = options.context, source = options.source, connected = false, failure = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const post = (type: string, value: object) => frame.contentWindow?.postMessage({ type, nonce, ...value }, origin);
-  const render = (failed = false) => {
+  const render = (failed = failure) => {
+    failure = failed;
     const locale = normalizeLocale(context.locale);
     label.textContent = translate(locale, failed ? 'content.reader_failed' : 'workspace.source_loading');
     retry.textContent = translate(locale, 'workspace.source_retry');
@@ -33,14 +34,14 @@ export function mountReaderSurface(container: HTMLElement, options: {
     retry.hidden = download.hidden = !failed; status.hidden = connected;
   };
   const start = () => {
-    clearTimeout(timer); connected = false; render(); frame.src = url.href;
+    clearTimeout(timer); connected = false; render(false); frame.src = url.href;
     timer = setTimeout(() => { render(true); }, 30000);
   };
   const publish = () => post('pero:reader:document', { reading: { ...source, context } });
   const receive = (event: MessageEvent) => {
     if (event.source !== frame.contentWindow || event.origin !== origin || event.data?.nonce !== nonce) return;
     if (event.data.type === 'pero:reader:connect') publish();
-    else if (event.data.type === 'pero:reader:ready') { clearTimeout(timer); connected = true; render(); }
+    else if (event.data.type === 'pero:reader:ready') { clearTimeout(timer); connected = true; render(false); }
     else if (event.data.type === 'pero:reader:error') { clearTimeout(timer); connected = false; render(true); }
     else if (event.data.type === 'pero:reader:link' && typeof event.data.url === 'string') {
       const url = new URL(event.data.url);
@@ -57,7 +58,7 @@ export function mountReaderSurface(container: HTMLElement, options: {
   window.addEventListener('message', receive); start();
   return {
     frame,
-    source(value: ReadingSource) { source = value; if (connected) publish(); },
+    source(value: ReadingSource) { source = value; frame.title = 'document' in source ? source.document.title : source.header.source.title; if (connected) publish(); },
     context(value: ReaderContext) { context = value; render(); post('pero:reader:context', { context }); },
     dispose() { clearTimeout(timer); window.removeEventListener('message', receive); frame.remove(); status.remove(); },
   };
