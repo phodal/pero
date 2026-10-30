@@ -5,6 +5,7 @@ import { build } from 'esbuild';
 import { Product } from '../../packages/product/product.ts';
 import { readAppBundle, stageAppBundle } from './app-bundle.mjs';
 import { stageAgentAdapters } from './agent-adapters.mjs';
+import { buildReader } from './reader.mjs';
 const root = resolve(import.meta.dirname, '../..');
 const args = process.argv.slice(2);
 const option = flag => {
@@ -51,8 +52,9 @@ for (const [kind, policy, executable] of [['python', product.python, 'python3'],
   if (source === output || source.startsWith(output + sep) || output.startsWith(source + sep)) throw new Error('Product output overlaps runtime input');
   runtimes.push({ kind, executable, source });
 }
+await buildReader({ release: true });
 for (const { app, input } of inputs) {
-  if (!input) execFileSync(process.execPath, [resolve(root, 'scripts/build/apps.mjs'), '--app', app], { stdio: 'inherit' });
+  if (!input) execFileSync(process.execPath, [resolve(root, 'scripts/build/apps.mjs'), '--app', app, '--reader-dist', resolve(root, 'web/dist-reader')], { stdio: 'inherit' });
 }
 execFileSync(process.execPath, [resolve(root, 'scripts/cargo.mjs'), 'build', '--release', '--locked', '-p', 'pero-host', '-p', 'pero-worker'], { stdio: 'inherit' });
 if (product.chat) {
@@ -78,6 +80,8 @@ writeFileSync(join(output, 'product.json'), JSON.stringify(product, null, 2));
 writeFileSync(join(output, 'package.json'), JSON.stringify({ name: name || product.entry.app, version: product.version, main: 'desktop/dist/product.cjs' }));
 const host = process.platform === 'win32' ? 'pero-host.exe' : 'pero-host';
 cpSync(resolve(root, 'target/release', host), join(output, 'bin', host));
+cpSync(resolve(root, 'web/dist-reader'), join(output, 'web/reader'), { recursive: true });
+rmSync(join(output, 'web/reader/fonts'), { recursive: true, force: true });
 if (product.chat) {
   cpSync(resolve(root, 'target/release', process.platform === 'win32' ? 'pero-computer.exe' : 'pero-computer'), join(output, 'bin', process.platform === 'win32' ? 'pero-computer.exe' : 'pero-computer'));
   cpSync(resolve(root, 'target/release/computer-source.json'), join(output, 'bin/computer-source.json'));

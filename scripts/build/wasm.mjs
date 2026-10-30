@@ -9,9 +9,11 @@ const release = process.env.PERO_BUILD_RELEASE === '1';
 if (!existsSync(bindgen)) await run('cargo', ['install', 'wasm-bindgen-cli', '--version', '0.2.127', '--locked', '--root', `${root}/target/tools`]);
 await ensureGpuiLock();
 const chatOnly = process.argv.includes('--chat-only');
+const readerOnly = process.argv.includes('--reader-only');
 for (const [pkg, artifact, folder] of [
-  ...(!chatOnly ? [['pero-ui', 'pero_ui', 'wasm']] : []),
-  ['pero-chat-web', 'pero_chat_web', 'chat-wasm'],
+  ...(!chatOnly && !readerOnly ? [['pero-ui', 'pero_ui', 'wasm']] : []),
+  ...(!readerOnly ? [['pero-chat-web', 'pero_chat_web', 'chat-wasm']] : []),
+  ...(!chatOnly ? [['pero-reader-web', 'pero_reader_web', 'reader-wasm']] : []),
   ['pero-content-worker', 'pero_content_worker', 'content-wasm'],
 ]) {
   await run('cargo', cargoArgs(['+nightly-2026-10-28', 'build', '--locked', ...(release ? ['--release'] : []), '-p', pkg, '--target', 'wasm32-unknown-unknown']));

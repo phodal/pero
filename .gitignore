@@ -176,3 +176,5 @@ fonts/*.ttf
 /web/dist-chat/
 
 /web/src/content-wasm/
+/web/src/reader-wasm/
+/web/dist-reader/
