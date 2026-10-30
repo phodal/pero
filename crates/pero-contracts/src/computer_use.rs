@@ -408,21 +408,25 @@ impl ComputerAction {
                 "The requested action, delivery and addressing combination is not supported",
             ));
         }
-        match (&self.input, self.input.anchor()) {
-            (_, Some(anchor)) => observation.check_anchor(anchor, kind, capabilities)?,
-            (
-                ComputerInput::Drag {
-                    screenshot_id,
-                    from,
-                    to,
-                },
-                None,
-            ) => {
+        match &self.input {
+            ComputerInput::Drag {
+                screenshot_id,
+                from,
+                to,
+            } => {
                 for point in [from, to] {
                     observation.check_pixel(screenshot_id, *point, capabilities)?;
                 }
             }
-            (_, None) => unreachable!("only drag has no single anchor"),
+            ComputerInput::Click { anchor, .. }
+            | ComputerInput::TypeText { anchor, .. }
+            | ComputerInput::PressKey { anchor, .. }
+            | ComputerInput::Scroll { anchor, .. }
+            | ComputerInput::Move { anchor }
+            | ComputerInput::Hover { anchor, .. }
+            | ComputerInput::Hold { anchor, .. } => {
+                observation.check_anchor(anchor, kind, capabilities)?
+            }
         }
         if matches!(
             &self.input,
