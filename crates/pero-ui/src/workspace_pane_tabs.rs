@@ -11,7 +11,7 @@ use gpui_kit::{
 };
 use pero_chat_ui::theme::WorkbenchStyle as W;
 use pero_contracts::{
-    pane_tabs::{PaneItem, ViewId},
+    pane_tabs::{PaneItem, PaneItemKind, ViewId},
     workspace_panes::{PaneId, PaneLayout, PaneLeaf},
 };
 use std::{cell::RefCell, collections::HashMap};
@@ -93,6 +93,13 @@ impl Render for PaneTabDrag {
 }
 
 impl Workbench {
+    fn pane_tab_title(&self, item: &PaneItem, source_title: String) -> String {
+        if item.kind == PaneItemKind::RenderedPreview {
+            format!("{}: {source_title}", self.t("content.preview"))
+        } else {
+            source_title
+        }
+    }
     /// Capture the MRU order once, then move the highlight until Control is released.
     /// Activating only on commit keeps embedded surfaces from taking keyboard focus.
     pub(crate) fn cycle_pane_tab_mru(
@@ -234,7 +241,10 @@ impl Workbench {
                 let WorkspaceRoute::Content(source) = &item.route else {
                     return None;
                 };
-                Some((id, self.content_label(source, cx).0))
+                Some((
+                    id,
+                    self.pane_tab_title(item, self.content_label(source, cx).0),
+                ))
             })
             .collect::<Vec<_>>();
         let target = cx.entity().downgrade();
@@ -337,6 +347,7 @@ impl Workbench {
             return div().into_any_element();
         };
         let (title, icon) = self.content_label(source, cx);
+        let title = self.pane_tab_title(item, title);
         let pane = leaf.id;
         let view = item.id;
         let active = leaf.tabs.active_id() == Some(view);
@@ -361,6 +372,10 @@ impl Workbench {
         };
         div()
             .id(("pane-tab", view.0 as usize))
+            .tooltip({
+                let title = title.clone();
+                move |window, cx| Tooltip::new(title.clone()).build(window, cx)
+            })
             .h_full()
             .flex()
             .items_center()
@@ -492,6 +507,7 @@ impl Workbench {
                     return None;
                 };
                 let (title, icon) = self.content_label(source, cx);
+                let title = self.pane_tab_title(item, title);
                 let view = *id;
                 Some(
                     Button::new(("pane-tab-mru", view.0 as usize))
