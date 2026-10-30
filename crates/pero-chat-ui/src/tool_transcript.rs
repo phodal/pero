@@ -42,26 +42,8 @@ impl ToolTranscript {
         }
     }
     pub fn output(&self) -> Vec<Value> {
-        let content = self
-            .content
-            .iter()
-            .filter(|block| {
-                let Some(input) = &self.input else {
-                    return true;
-                };
-                if block["type"] != "content" || block["content"]["type"] != "text" {
-                    return true;
-                }
-                block["content"]["text"]
-                    .as_str()
-                    .and_then(|text| serde_json::from_str::<Value>(text).ok())
-                    .as_ref()
-                    != Some(input)
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-        if !content.is_empty() {
-            return content;
+        if !self.content.is_empty() {
+            return self.content.clone();
         }
         self.raw_output
             .as_ref()
@@ -93,15 +75,25 @@ impl ToolTranscript {
 mod tests {
     use super::*;
     #[test]
-    fn input_mirrors_results_and_incremental_updates_remain_distinct() {
+    fn input_and_output_remain_distinct_across_incremental_updates() {
         let mut transcript = ToolTranscript::default();
         for (patch, input, text) in [
             (
                 json!({"rawInput":{"url":"https://example.test"},"content":[{"type":"content","content":{"type":"text","text":"{\"url\":\"https://example.test\"}"}}]}),
                 true,
-                "",
+                "{\"url\":\"https://example.test\"}",
             ),
-            (json!({"status":"in_progress"}), true, ""),
+            (json!({"status":"in_progress"}), true, "{\"url\":\"https://example.test\"}"),
+            (
+                json!({"status":"completed"}),
+                true,
+                "{\"url\":\"https://example.test\"}",
+            ),
+            (
+                json!({"content":[{"type":"content","content":{"type":"text","text":"{\"url\":\"https://example.test\"}"}}]}),
+                true,
+                "{\"url\":\"https://example.test\"}",
+            ),
             (
                 json!({"content":[{"type":"content","content":{"type":"text","text":"Fetched evidence"}}],"rawOutput":"duplicate fallback"}),
                 true,

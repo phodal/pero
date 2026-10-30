@@ -33,8 +33,8 @@ and permission bounds; no test-only message injection replaces the Host path.
 - Streaming reasoning opens; manual collapse survives later chunks; a manual
   expansion survives the transition to tools; later untouched reasoning closes
   when the turn completes.
-- Input-equivalent JSON is absent from results, independently disclosed input
-  does not create a result reader, and real structured output is retained.
+- Input is disclosed separately. ACP content is retained even when it equals
+  the input; a raw-input-only call does not create a result reader.
 - Search text is smaller and muted. Permission options work by the tool group.
   A request for an older tool remains at the conversation footer so it cannot
   disappear into history. Small JSON and short source results use compact
