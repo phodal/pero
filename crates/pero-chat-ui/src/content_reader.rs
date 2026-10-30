@@ -637,8 +637,8 @@ impl Render for ContentReader {
         let toolbar = div()
             .flex()
             .items_center()
-            .gap(px(4.))
-            .h(px(32.))
+            .gap(px(pero_theme::SPACE_4))
+            .h(px(pero_theme::ACTION_BUTTON_HEIGHT))
             .flex_shrink_0()
             .when(structured, |el| {
                 el.child(
@@ -918,7 +918,9 @@ impl Render for ContentReader {
                 );
             }
         } else if let Some(markdown) = &self.markdown {
-            view = view.child(
+            view = view.child(pero_theme::reader_frame(
+                self.document.title.clone(),
+                None,
                 div()
                     .id("content-markdown")
                     .min_w_0()
@@ -928,8 +930,10 @@ impl Render for ContentReader {
                             .overflow_y_scroll()
                             .track_scroll(&self.preview_scroll)
                     })
-                    .child(markdown.clone()),
-            );
+                    .child(markdown.clone())
+                    .into_any_element(),
+                pero_theme::Chrome::from_app(cx),
+            ));
         } else if self.preview_loading {
             view = view.child(div().p(px(12.)).child(self.t("content.preparing_preview")));
         } else {

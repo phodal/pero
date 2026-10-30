@@ -71,7 +71,7 @@ fn recent_row(
     let button = Button::new(("recent-work", index))
         .ghost()
         .small()
-        .h(px(ui.typography.row_height()))
+        .h(px(pero_theme::ROW_SUB))
         .justify_start()
         .child(div().flex_1())
         .selected(row.active)
@@ -109,11 +109,7 @@ fn recent_row(
             .gap(px(2.))
             .when(!delete.confirming, |el| {
                 el.child(
-                    Button::new(("recent-delete", index))
-                        .ghost()
-                        .small()
-                        .w(px(ui.typography.control_height()))
-                        .h(px(ui.typography.control_height()))
+                    pero_theme::ghost_icon_button(("recent-delete", index), ui.chrome())
                         .icon(Icon::default().path("icons/x.svg"))
                         .tooltip(ui.t("chat.delete"))
                         .accessibility_label(format!("{}, {}", ui.t("chat.delete"), title))
@@ -125,7 +121,7 @@ fn recent_row(
                     Button::new(("recent-delete-cancel", index))
                         .ghost()
                         .small()
-                        .h(px(ui.typography.control_height()))
+                        .h(px(pero_theme::ACTION_BUTTON_HEIGHT))
                         .label(ui.t("chat.delete_cancel"))
                         .on_click(click(on_action, cancel)),
                 )
@@ -133,7 +129,7 @@ fn recent_row(
                     Button::new(("recent-delete-confirm", index))
                         .outline()
                         .small()
-                        .h(px(ui.typography.control_height()))
+                        .h(px(pero_theme::ACTION_BUTTON_HEIGHT))
                         .label(ui.t("chat.delete_confirm"))
                         .accessibility_label(format!(
                             "{}, {}",
@@ -146,7 +142,7 @@ fn recent_row(
     });
     div()
         .w_full()
-        .h(px(ui.typography.row_height()))
+        .h(px(pero_theme::ROW_SUB))
         .flex()
         .items_center()
         .overflow_hidden()
@@ -162,7 +158,12 @@ pub(crate) fn sidebar(
     on_action: ActionHandler<SidebarAction>,
 ) -> Stateful<Div> {
     let p = ui.palette;
+    let chrome = ui.chrome();
     let mut index = 0;
+    let projects_active = matches!(
+        props.navigation,
+        WorkbenchPage::Projects | WorkbenchPage::Tasks
+    );
     div()
         .id("sidebar")
         .w(px(width))
@@ -170,57 +171,39 @@ pub(crate) fn sidebar(
         .flex_shrink_0()
         .flex()
         .flex_col()
-        .bg(p.bg)
-        .text_size(px(pero_theme::TextRole::Body.pixels(ui.typography.ui)))
+        .bg(p.surface_muted)
+        .text_size(chrome.text(pero_theme::TYPE_BODY))
+        .text_color(p.text)
         .border_r_1()
         .border_color(p.border)
-        .p(px(W::INSET))
-        .gap(px(W::GAP))
+        .p(px(pero_theme::SPACE_8))
+        .gap(px(pero_theme::SPACE_4))
+        .child(pero_theme::sidebar_row(
+            "sidebar-new-chat",
+            ui.t("chat.new"),
+            None,
+            None,
+            false,
+            pero_theme::RowLevel::Nav,
+            Some(Icon::new(IconName::Plus).into_any_element()),
+            chrome,
+            click(&on_action, SidebarAction::NewChat),
+        ))
+        .child(pero_theme::sidebar_row(
+            "sidebar-projects",
+            ui.t("nav.projects"),
+            None,
+            None,
+            projects_active,
+            pero_theme::RowLevel::Nav,
+            Some(Icon::default().path("icons/folder.svg").into_any_element()),
+            chrome,
+            click(&on_action, SidebarAction::Navigate(WorkbenchPage::Projects)),
+        ))
         .child(
-            Button::new("sidebar-new-chat")
-                .ghost()
-                .small()
-                .w_full()
-                .h(px(ui.typography.row_height()))
-                .justify_start()
-                .child(div().flex_1())
-                .icon(IconName::Plus)
-                .label(ui.t("chat.new"))
-                .on_click(click(&on_action, SidebarAction::NewChat)),
-        )
-        .child(
-            Button::new("sidebar-projects")
-                .ghost()
-                .small()
-                .w_full()
-                .h(px(ui.typography.row_height()))
-                .justify_start()
-                .child(div().flex_1())
-                .icon(Icon::default().path("icons/folder.svg"))
-                .label(ui.t("nav.projects"))
-                .selected(matches!(
-                    props.navigation,
-                    WorkbenchPage::Projects | WorkbenchPage::Tasks
-                ))
-                .toggled(matches!(
-                    props.navigation,
-                    WorkbenchPage::Projects | WorkbenchPage::Tasks
-                ))
-                .on_click(click(
-                    &on_action,
-                    SidebarAction::Navigate(WorkbenchPage::Projects),
-                )),
-        )
-        .child(
-            div().py(px(2.)).child(
-                Styled::h(
-                    Input::new(props.search).small(),
-                    px(ui.typography.control_height()),
-                )
-                .text_size(px(ui.typography.ui))
+            pero_theme::search_field(Input::new(props.search), chrome)
                 .prefix(ui.icon("search").size(px(W::ICON)))
                 .w_full(),
-            ),
         )
         .child(
             div()
@@ -255,7 +238,7 @@ pub(crate) fn sidebar(
                                                 .ghost()
                                                 .small()
                                                 .w(px(26.))
-                                                .h(px(ui.typography.row_height()))
+                                                .h(px(pero_theme::ROW_NAV))
                                                 .icon(Icon::default().path(if group.collapsed {
                                                     "icons/chevron-right.svg"
                                                 } else {
@@ -281,7 +264,7 @@ pub(crate) fn sidebar(
                                                 .small()
                                                 .flex_1()
                                                 .min_w_0()
-                                                .h(px(ui.typography.row_height()))
+                                                .h(px(pero_theme::ROW_NAV))
                                                 .justify_start()
                                                 .child(div().flex_1())
                                                 .label(group.name)
@@ -348,40 +331,28 @@ pub(crate) fn sidebar(
                 .flex()
                 .flex_col()
                 .gap(px(2.))
-                .child(
-                    Button::new("sidebar-insights")
-                        .ghost()
-                        .small()
-                        .w_full()
-                        .h(px(ui.typography.row_height()))
-                        .justify_start()
-                        .child(div().flex_1())
-                        .icon(Icon::default().path("icons/layout-list.svg"))
-                        .label(ui.t("nav.insights"))
-                        .selected(props.navigation == WorkbenchPage::Insights)
-                        .toggled(props.navigation == WorkbenchPage::Insights)
-                        .on_click(click(
-                            &on_action,
-                            SidebarAction::Navigate(WorkbenchPage::Insights),
-                        )),
-                )
-                .child(
-                    Button::new("sidebar-apps")
-                        .ghost()
-                        .small()
-                        .w_full()
-                        .h(px(ui.typography.row_height()))
-                        .justify_start()
-                        .child(div().flex_1())
-                        .icon(Icon::default().path("icons/file-code.svg"))
-                        .label(ui.t("nav.apps"))
-                        .selected(props.navigation == WorkbenchPage::Apps)
-                        .toggled(props.navigation == WorkbenchPage::Apps)
-                        .on_click(click(
-                            &on_action,
-                            SidebarAction::Navigate(WorkbenchPage::Apps),
-                        )),
-                ),
+                .child(pero_theme::sidebar_row(
+                    "sidebar-insights",
+                    ui.t("nav.insights"),
+                    None,
+                    None,
+                    props.navigation == WorkbenchPage::Insights,
+                    pero_theme::RowLevel::Nav,
+                    Some(Icon::default().path("icons/layout-list.svg").into_any_element()),
+                    chrome,
+                    click(&on_action, SidebarAction::Navigate(WorkbenchPage::Insights)),
+                ))
+                .child(pero_theme::sidebar_row(
+                    "sidebar-apps",
+                    ui.t("nav.apps"),
+                    None,
+                    None,
+                    props.navigation == WorkbenchPage::Apps,
+                    pero_theme::RowLevel::Nav,
+                    Some(Icon::default().path("icons/file-code.svg").into_any_element()),
+                    chrome,
+                    click(&on_action, SidebarAction::Navigate(WorkbenchPage::Apps)),
+                )),
         )
         .when(!props.local_connected, |el| {
             el.child(

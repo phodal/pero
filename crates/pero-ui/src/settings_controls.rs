@@ -9,7 +9,7 @@ use gpui_kit::{
     *,
 };
 use pero_contracts::appearance::FontSize;
-use pero_theme::{TextRole, UiAppearance};
+use pero_theme::UiAppearance;
 use std::rc::Rc;
 
 pub(crate) fn selection_button(
@@ -38,15 +38,17 @@ pub(crate) fn setting_row(
     divider: bool,
     cx: &App,
 ) -> Div {
-    let appearance = UiAppearance::global(cx);
+    let chrome = pero_theme::Chrome::from_app(cx);
     div()
         .min_w_0()
-        .py(px(6.))
+        .min_h(chrome.geo(pero_theme::ROW_NAV))
+        .px(chrome.geo(pero_theme::SPACE_16))
+        .py(chrome.geo(pero_theme::SPACE_8))
         .flex()
         .items_center()
-        .gap(px(16.))
+        .gap(chrome.geo(pero_theme::ICON_GAP))
         .when(divider, |el| {
-            el.border_b(px(0.5)).border_color(appearance.palette.border)
+            el.border_b_1().border_color(chrome.palette.border)
         })
         .child(
             div()
@@ -54,21 +56,23 @@ pub(crate) fn setting_row(
                 .min_w_0()
                 .flex()
                 .flex_col()
-                .gap(px(4.))
+                .gap(chrome.geo(pero_theme::SPACE_4))
                 .child(
                     div()
                         .flex()
                         .flex_wrap()
                         .items_center()
-                        .gap(px(8.))
+                        .gap(chrome.geo(pero_theme::SPACE_8))
+                        .text_size(chrome.text(pero_theme::TYPE_BODY))
+                        .text_color(chrome.palette.text)
                         .child(label.to_owned())
                         .children(accessory),
                 )
                 .when(!description.is_empty(), |el| {
                     el.child(
                         div()
-                            .text_size(appearance.text(TextRole::Caption))
-                            .text_color(appearance.palette.text_muted)
+                            .text_size(chrome.text(pero_theme::TYPE_CAPTION))
+                            .text_color(chrome.palette.text_muted)
                             .whitespace_normal()
                             .child(description.to_owned()),
                     )

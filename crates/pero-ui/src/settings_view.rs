@@ -584,7 +584,7 @@ impl SettingsPanel {
                             .text_color(p.text_muted)
                             .child(self.t(section.key())),
                     )
-                    .child(body),
+                    .child(pero_theme::settings_panel(body, pero_theme::Chrome::from_app(cx))),
             );
         }
         let destinations = crate::settings_menu::SettingsDestination::ALL
@@ -599,10 +599,11 @@ impl SettingsPanel {
             .collect::<Vec<_>>();
         if visible.is_empty() && destinations.is_empty() {
             content = content.child(
-                div()
-                    .id("settings-empty")
-                    .text_color(p.text_muted)
-                    .child(self.t("settings.no_results")),
+                div().id("settings-empty").child(pero_theme::empty_state(
+                    self.t("settings.no_results"),
+                    None,
+                    pero_theme::Chrome::from_app(cx),
+                )),
             );
         }
         for destination in destinations {
@@ -627,7 +628,7 @@ impl SettingsPanel {
         }
         let navigation = self.navigation.clone();
         let owner = cx.entity().downgrade();
-        let row_height = appearance.typography.row_height();
+        let row_height = pero_theme::ROW_NAV;
         let navigation_focused =
             self.navigation_focus.contains_focused(window, cx) && window.last_input_was_keyboard();
         div()
@@ -637,16 +638,16 @@ impl SettingsPanel {
             .flex()
             .child(
                 div()
-                    .w(px(220.))
+                    .w(px(pero_theme::SIDEBAR_WIDTH))
                     .flex_shrink_0()
                     .flex()
                     .flex_col()
-                    .bg(p.bg)
-                    .border_r(px(0.5))
+                    .bg(p.surface_muted)
+                    .border_r_1()
                     .border_color(p.border)
                     .child(
-                        div().p(px(12.)).child(
-                            W::input(Input::new(&self.search), cx)
+                        div().p(px(pero_theme::SPACE_12)).child(
+                            pero_theme::search_field(Input::new(&self.search), pero_theme::Chrome::from_app(cx))
                                 .cleanable(true)
                                 .aria_label(self.t("settings.search")),
                         ),
@@ -707,28 +708,19 @@ impl SettingsPanel {
                                                 })
                                             })
                                             .h(px(row_height))
-                                            .px(px(6.))
+                                            .px(px(pero_theme::SPACE_8))
                                             .flex()
                                             .items_center()
-                                            .gap(px(6.))
-                                            .rounded(px(3.))
-                                            .border_1()
-                                            .border_color(if state.is_selected() {
-                                                if navigation_focused {
-                                                    p.focus
-                                                } else {
-                                                    p.border.opacity(0.4)
-                                                }
-                                            } else {
-                                                p.border.opacity(0.)
+                                            .gap(px(pero_theme::ICON_GAP))
+                                            .rounded(px(pero_theme::RADIUS_SELECTION))
+                                            .text_color(p.text)
+                                            .when(state.is_selected(), |el| el.bg(p.accent_soft))
+                                            .when(state.is_selected() && navigation_focused, |el| {
+                                                el.border_1().border_color(p.focus)
                                             })
-                                            .text_color(if state.is_selected() {
-                                                p.text
-                                            } else {
-                                                p.text_muted
+                                            .when(!state.is_selected(), |el| {
+                                                el.hover(|el| el.bg(p.text.opacity(0.08)))
                                             })
-                                            .when(state.is_selected(), |el| el.bg(p.surface_muted))
-                                            .hover(|el| el.bg(p.surface_muted))
                                             .child(
                                                 div()
                                                     .w(px(if entry.depth() > 0 {

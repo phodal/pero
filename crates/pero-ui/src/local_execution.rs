@@ -283,7 +283,7 @@ impl Workbench {
             LocalWorkerStatus::NeedsAttention => "worker.local.needs_attention",
             LocalWorkerStatus::Unavailable => "worker.local.unavailable",
         };
-        div().id("local-execution").flex().flex_col().gap(px(pero_theme::WorkbenchStyle::SECTION)).max_w(px(720.))
+        div().id("local-execution").flex().flex_col().gap(px(pero_theme::WorkbenchStyle::SECTION)).max_w(px(pero_theme::READER_MAX_WIDTH))
             .when(first_run,|el|el.p(px(pero_theme::WorkbenchStyle::PAGE)).w_full())
             .child(div().flex().items_center().gap(px(8.))
                 .child(Icon::default().path("icons/devices.svg"))

@@ -25,7 +25,7 @@
     "package:desktop": "node scripts/build/desktop-package.mjs",
     "package:macos": "npm run build:apps && PERO_BUILD_RELEASE=1 node scripts/build/wasm.mjs && node scripts/cargo.mjs build --release --locked -p pero-host -p pero-worker && node scripts/build/computer.mjs --release && npm run build:web && npm run build:desktop && node scripts/build/macos-package.mjs",
     "build:desktop": "node scripts/build/desktop.mjs",
-    "check": "tsc --noEmit && node scripts/codegen/theme.mjs --check && node scripts/check/locales.mjs && node scripts/codegen/contracts.mjs --check && node scripts/generate-icons.mjs --check",
+    "check": "tsc --noEmit && node scripts/codegen/theme.mjs --check && node scripts/codegen/design.mjs --check && node scripts/check/locales.mjs && node scripts/codegen/contracts.mjs --check && node scripts/generate-icons.mjs --check",
     "gen:icons": "node scripts/generate-icons.mjs",
     "test:workspace": "node tests/e2e/workspace.mjs",
     "gen:theme": "node scripts/codegen/theme.mjs",
