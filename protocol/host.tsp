@@ -74,9 +74,10 @@ model WorkspacePageRoute {kind:"page";value:"conversation"|"document"|"web"|"pro
 model WorkspaceContentRoute {kind:"content";value:WorkspaceItem;...Closed}
 @oneOf union WorkspaceRoute {WorkspacePageRoute,WorkspaceContentRoute}
 // Legacy route-only history and one-item leaves migrate only while reading local checkpoints.
-model HistoryEntry {route:WorkspaceRoute;reading?:ReaderState|null;preview?:boolean;...Closed}
-model WorkspaceHistory {reading:ReaderState|null;preview?:boolean;back:HistoryEntry[];forward:HistoryEntry[];...Closed}
-model PaneItem {id:safeint;route:WorkspaceRoute;reading?:ReaderState|null;...Closed}
+union PaneItemKind {"primary","rendered_preview"}
+model HistoryEntry {route:WorkspaceRoute;reading?:ReaderState|null;preview?:boolean;view_kind?:PaneItemKind;...Closed}
+model WorkspaceHistory {reading:ReaderState|null;preview?:boolean;view_kind?:PaneItemKind;back:HistoryEntry[];forward:HistoryEntry[];...Closed}
+model PaneItem {id:safeint;route:WorkspaceRoute;kind?:PaneItemKind;reading?:ReaderState|null;...Closed}
 model PaneTabSet {items:PaneItem[];active:safeint|null;preview:safeint|null;pinned_count:safeint;activation_history:safeint[];history:WorkspaceHistory;closed:HistoryEntry[];...Closed}
 model PaneLeaf {id:safeint;tabs:PaneTabSet;...Closed}
 model PaneLeafNode {kind:"leaf";view:PaneLeaf;...Closed}

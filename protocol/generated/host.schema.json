@@ -2877,6 +2877,9 @@
         },
         "preview": {
           "type": "boolean"
+        },
+        "view_kind": {
+          "$ref": "#/$defs/PaneItemKind"
         }
       },
       "required": [
@@ -4384,6 +4387,9 @@
         "route": {
           "$ref": "#/$defs/WorkspaceRoute"
         },
+        "kind": {
+          "$ref": "#/$defs/PaneItemKind"
+        },
         "reading": {
           "anyOf": [
             {
@@ -4400,6 +4406,19 @@
         "route"
       ],
       "additionalProperties": false
+    },
+    "PaneItemKind": {
+      "title": "PaneItemKind",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "primary"
+        },
+        {
+          "type": "string",
+          "const": "rendered_preview"
+        }
+      ]
     },
     "PaneLayout": {
       "title": "PaneLayout",
@@ -7821,6 +7840,9 @@
         "preview": {
           "type": "boolean"
         },
+        "view_kind": {
+          "$ref": "#/$defs/PaneItemKind"
+        },
         "back": {
           "type": "array",
           "items": {
@@ -8238,6 +8260,9 @@
         },
         "preview": {
           "type": "boolean"
+        },
+        "view_kind": {
+          "$ref": "#/$defs/PaneItemKind"
         },
         "back": {
           "type": "array",

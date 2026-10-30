@@ -31,6 +31,7 @@ export type ContentOrigin = ConversationOrigin | FileOrigin | AppOrigin | McpOri
 export type WorkspaceItem = WorkspaceSimpleItem | WorkspaceDocumentItem | WorkspaceAppItem;
 export type WorkspaceRoute = WorkspacePageRoute | WorkspaceContentRoute;
 export type PaneNode = PaneLeafNode | PaneSplitNode;
+export type PaneItemKind = "primary" | "rendered_preview";
 export type ContentFormat = PlainContentFormat | CodeContentFormat;
 export type FileDocumentRequest =
   | OpenFileDocument
@@ -245,6 +246,7 @@ export interface WorkspaceSnapshot {
   panes: PaneLayout;
   reading: ReaderState | null;
   preview?: boolean;
+  view_kind?: PaneItemKind;
   back: HistoryEntry[];
   forward: HistoryEntry[];
 }
@@ -310,6 +312,7 @@ export interface PaneTabSet {
 export interface PaneItem {
   id: number;
   route: WorkspaceRoute;
+  kind?: PaneItemKind;
   reading?: ReaderState | null;
 }
 export interface ReaderState {
@@ -345,6 +348,7 @@ export interface ReaderSearch {
 export interface WorkspaceHistory {
   reading: ReaderState | null;
   preview?: boolean;
+  view_kind?: PaneItemKind;
   back: HistoryEntry[];
   forward: HistoryEntry[];
 }
@@ -352,6 +356,7 @@ export interface HistoryEntry {
   route: WorkspaceRoute;
   reading?: ReaderState | null;
   preview?: boolean;
+  view_kind?: PaneItemKind;
 }
 export interface PaneSplitNode {
   kind: "split";
