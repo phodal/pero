@@ -59,7 +59,7 @@ impl SourceRows {
         };
         // Nested JSON is a compact display projection. Copy/open still use
         // the original source range, including whitespace and numeric spelling.
-        let nested = matches!(raw.as_bytes().first(), Some(b'{' | b'['));
+        let nested = range.is_some() && matches!(raw.as_bytes().first(), Some(b'{' | b'['));
         let mut quoted = false;
         let mut escaped = false;
         let mut chars = raw.chars().filter(|&ch| {
