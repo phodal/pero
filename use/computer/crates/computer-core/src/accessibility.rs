@@ -47,6 +47,8 @@ impl ObservedControl {
             value: (!self.secure && !self.value.is_empty()).then_some(self.value),
             depth: self.depth,
             actions,
+            state: None,
+            semantic_actions: Vec::new(),
         }
     }
 }

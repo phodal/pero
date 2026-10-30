@@ -27,9 +27,12 @@ CFDataRef pero_capture_window(uint32_t windowID, uint32_t maxPixels, uint32_t *w
                     }
                     SCContentFilter *filter = [[SCContentFilter alloc] initWithDesktopIndependentWindow:selected];
                     SCStreamConfiguration *config = [SCStreamConfiguration new];
-                    double scale = MIN(filter.pointPixelScale, (double)maxPixels / MAX(selected.frame.size.width, selected.frame.size.height));
-                    config.width = MAX(1, llround(selected.frame.size.width * scale));
-                    config.height = MAX(1, llround(selected.frame.size.height * scale));
+                    // The desktop may show a Stage Manager thumbnail; capture the filter's logical content.
+                    CGSize size = filter.contentRect.size;
+                    if (size.width <= 0 || size.height <= 0) { dispatch_semaphore_signal(done); return; }
+                    double scale = MIN(filter.pointPixelScale, (double)maxPixels / MAX(size.width, size.height));
+                    config.width = MAX(1, llround(size.width * scale));
+                    config.height = MAX(1, llround(size.height * scale));
                     config.showsCursor = NO;
                     config.ignoreShadowsSingleWindow = YES;
                     config.scalesToFit = YES;

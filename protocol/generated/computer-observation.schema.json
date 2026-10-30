@@ -24,9 +24,12 @@
         "press_key",
         "scroll",
         "drag",
+        "set_value",
+        "perform_action",
         "move",
         "hover",
-        "hold"
+        "hold",
+        "focus_window"
       ]
     },
     "ComputerActionSupport": {
@@ -59,7 +62,8 @@
       "type": "string",
       "enum": [
         "element",
-        "pixel"
+        "pixel",
+        "target"
       ]
     },
     "ComputerCapabilities": {
@@ -156,6 +160,22 @@
           "items": {
             "$ref": "#/$defs/ComputerActionKind"
           }
+        },
+        "state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerElementState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "semantic_actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerSemanticAction"
+          }
         }
       },
       "required": [
@@ -164,6 +184,51 @@
         "label",
         "depth",
         "actions"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerElementState": {
+      "title": "ComputerElementState",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "secure": {
+          "type": "boolean"
+        },
+        "focused": {
+          "type": "boolean"
+        },
+        "value_settable": {
+          "type": "boolean"
+        },
+        "selected": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expanded": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "enabled",
+        "secure",
+        "focused",
+        "value_settable"
       ],
       "additionalProperties": false
     },
@@ -293,6 +358,20 @@
       "additionalProperties": false,
       "description": "The Host resolves this immutable image reference to bytes; no local path is exposed."
     },
+    "ComputerSemanticAction": {
+      "title": "ComputerSemanticAction",
+      "type": "string",
+      "enum": [
+        "press",
+        "open",
+        "confirm",
+        "cancel",
+        "show_menu",
+        "scroll_to_visible",
+        "increment",
+        "decrement"
+      ]
+    },
     "ComputerTarget": {
       "title": "ComputerTarget",
       "type": "object",
@@ -316,6 +395,16 @@
           "type": "string"
         },
         "application": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "application_id": {
           "anyOf": [
             {
               "type": "string"

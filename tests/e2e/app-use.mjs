@@ -1,6 +1,7 @@
 // Actual Electron, Virtual Cell and ACP -> MCP -> App Use. No model login.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { requestAppChat } from '../fixtures/app-chat-launch.mjs';
 import { waitForFullAppUse } from '../fixtures/app-use-progress.mjs';
 import { build } from 'esbuild';
 import { cp, mkdir, mkdtemp, readFile, realpath, readdir, rm, writeFile } from 'node:fs/promises';
@@ -83,10 +84,15 @@ try {
     expect(prepared.scope).toEqual({app:'virtual-cell',panel:'main'});
     checks.push('Chat draft initializes before the real Host startup signal and keeps its identity through automatic session preparation');
   }
+  const parentOrigin = await page.evaluate(() => location.origin);
   let expectedScenario;
   const submit = async (prompt, approval = false) => {
     expectedScenario = prompt.replace(/^app-use:/, '');
-    await frame.locator('body').evaluate((_, text) => parent.postMessage({ type: 'pero:app:chat', text }, '*'), prompt);
+    const destination = await active();
+    const launch = await frame.locator('body').evaluate(requestAppChat, { text: prompt, parentOrigin });
+    expect(launch.threadId).toBe(destination.id);
+    expect((await active()).id).toBe(destination.id);
+    expect((await active()).scope).toEqual({ app: 'virtual-cell', panel: 'main' });
     await expect.poll(async () => (await state()).composer).toBe(prompt);
     const bounds = await chat.locator('canvas').boundingBox();
     await page.mouse.click(bounds.x + 150, bounds.y + bounds.height - 70);

@@ -12,3 +12,10 @@ mod capture;
 mod scroll;
 #[cfg(target_os = "macos")]
 mod window_input;
+
+#[cfg(target_os = "macos")]
+mod applications;
+#[cfg(target_os = "macos")]
+mod input;
+#[cfg(target_os = "macos")]
+mod observation;

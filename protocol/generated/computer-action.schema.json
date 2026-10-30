@@ -223,13 +223,70 @@
         "status": {
           "type": "string",
           "const": "executed"
+        },
+        "execution": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerExecution"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
         "status"
       ],
-      "additionalProperties": false,
+      "additionalProperties": false
+    },
+    "ComputerExecution": {
+      "title": "ComputerExecution",
+      "type": "object",
+      "properties": {
+        "route": {
+          "$ref": "#/$defs/ComputerExecutionRoute"
+        },
+        "semantic_action": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerSemanticAction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "route"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerExecutionRoute": {
+      "title": "ComputerExecutionRoute",
+      "type": "string",
+      "enum": [
+        "semantic",
+        "window_event",
+        "foreground_event"
+      ],
       "description": "Execution acknowledgement only; it does not assert a verified task outcome."
+    },
+    "ComputerFocusWindow": {
+      "title": "ComputerFocusWindow",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "focus_window"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false,
+      "description": "Explicit foreground focus; never implicit in a background input."
     },
     "ComputerHold": {
       "title": "ComputerHold",
@@ -256,7 +313,7 @@
         "hold_ms"
       ],
       "additionalProperties": false,
-      "description": "Presses one button at the anchor, keeps it down for `hold_ms`, then releases it."
+      "description": "Presses one button at the anchor, keeps it down for `hold_ms`, then always releases it."
     },
     "ComputerHoldMs": {
       "title": "ComputerHoldMs",
@@ -307,6 +364,12 @@
           "$ref": "#/$defs/ComputerDrag"
         },
         {
+          "$ref": "#/$defs/ComputerSetValue"
+        },
+        {
+          "$ref": "#/$defs/ComputerPerformAction"
+        },
+        {
           "$ref": "#/$defs/ComputerMove"
         },
         {
@@ -314,6 +377,9 @@
         },
         {
           "$ref": "#/$defs/ComputerHold"
+        },
+        {
+          "$ref": "#/$defs/ComputerFocusWindow"
         }
       ]
     },
@@ -349,7 +415,29 @@
         "anchor"
       ],
       "additionalProperties": false,
-      "description": "Moves the pointer to the anchor without button or key events."
+      "description": "Foreground moves the real pointer; background posts a window-directed move."
+    },
+    "ComputerPerformAction": {
+      "title": "ComputerPerformAction",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "perform_action"
+        },
+        "element_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "action": {
+          "$ref": "#/$defs/ComputerSemanticAction"
+        }
+      },
+      "required": [
+        "kind",
+        "element_id",
+        "action"
+      ],
+      "additionalProperties": false
     },
     "ComputerPixelAnchor": {
       "title": "ComputerPixelAnchor",
@@ -480,6 +568,42 @@
       "additionalProperties": false,
       "description": "Logical content pixels: positive right/down. An adapter must refuse unsupported units."
     },
+    "ComputerSemanticAction": {
+      "title": "ComputerSemanticAction",
+      "type": "string",
+      "enum": [
+        "press",
+        "open",
+        "confirm",
+        "cancel",
+        "show_menu",
+        "scroll_to_visible",
+        "increment",
+        "decrement"
+      ]
+    },
+    "ComputerSetValue": {
+      "title": "ComputerSetValue",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "set_value"
+        },
+        "element_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "value": {
+          "$ref": "#/$defs/ComputerValue"
+        }
+      },
+      "required": [
+        "kind",
+        "element_id",
+        "value"
+      ],
+      "additionalProperties": false
+    },
     "ComputerTargetRef": {
       "title": "ComputerTargetRef",
       "type": "object",
@@ -543,6 +667,12 @@
       ],
       "additionalProperties": false,
       "description": "Effects may have happened. Observe again; never silently replay the input."
+    },
+    "ComputerValue": {
+      "title": "ComputerValue",
+      "type": "string",
+      "maxLength": 10000,
+      "description": "Replacement permits an empty value to clear the field."
     }
   }
 }

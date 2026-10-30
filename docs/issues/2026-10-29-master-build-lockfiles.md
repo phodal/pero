@@ -164,3 +164,20 @@ without attributes, exact generation/check success with Windows checkout default
 and a Windows formatter preference, and rejection of both CRLF drift and stale
 content in each generated output. No CI gate, dependency pin or generated content
 is changed.
+
+## macOS Computer Use script cache (2026-10-30)
+
+PR #51 added the macOS native acceptance command to `package.json`. Standard CI
+[41004124147](https://github.com/phodal/pero/actions/runs/41004124147) failed the
+Linux and macOS frozen Bazel checks before target analysis with exit 48: the
+rules_js input cache still held the previous package.json hash. Native Computer
+Use CI on all three operating systems passed independently. This is the same
+script-only cache invalidation described above; no dependency upgrade is needed.
+
+Regenerate the existing cache with the pinned Bazel/pnpm toolchain, then rerun the
+frozen generated checks. Retain the lockfiles, dependency pins and freeze gate.
+
+The pinned Bazel 9.2.0 `bazel run @npm//:sync` regenerated only the package.json
+input hash. `pnpm-lock.yaml`, `package-lock.json` and `MODULE.bazel.lock` remain
+byte-identical. `bazel test --config=ci //:checks` then passed all seven frozen
+checks locally. Publication must rerun the remote frozen jobs; no gate was removed.

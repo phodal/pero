@@ -1,6 +1,6 @@
 //! Linux X11 window capture and explicit foreground XTest input.
 //! Like Cua's native dispatch, Wayland is a separate backend, never an X11 fallback.
-use crate::{interrupt, profile};
+use crate::profile;
 use computer_core::{Window, WindowBounds, WindowImage};
 use computer_runtime::{DesktopDriver, WindowObservation, error};
 use image::{ExtendedColorType, codecs::jpeg::JpegEncoder};
@@ -29,7 +29,6 @@ pub struct X11Snapshot {
 }
 impl Desktop {
     pub fn connect() -> Self {
-        interrupt::install();
         let connection = x11rb::connect(None);
         let environment = profile::environment(
             connection.is_ok(),
@@ -201,7 +200,17 @@ impl DesktopDriver for Desktop {
         }
         Ok(apps)
     }
-    fn open(&self, name: &str) -> Result<(Option<Window>, String), ComputerError> {
+    fn open(
+        &self,
+        application: &ComputerApplicationSelector,
+    ) -> Result<(Option<Window>, String), ComputerError> {
+        let ComputerApplicationSelector::Name(name) = application else {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "Bundle ID selection is available on macOS",
+            ));
+        };
+        let name = name.as_str();
         if let Some(app) = self
             .targets()?
             .into_iter()
@@ -279,9 +288,38 @@ impl DesktopDriver for Desktop {
     fn bounds(&self, app: &Window) -> Option<WindowBounds> {
         self.geometry(app).ok()
     }
-    fn observe(&self, app: &Window) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
+    fn observe(
+        &self,
+        app: &Window,
+        options: &ComputerObserveOptions,
+        _: Option<&Self::Snapshot>,
+    ) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
+        let defaults = ComputerObserveOptions::default();
+        if options.root.is_some()
+            || options.max_nodes != defaults.max_nodes
+            || options.max_depth != defaults.max_depth
+        {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "This platform does not support bounded accessibility subtree observations",
+            ));
+        }
+
         let (c, screen) = self.x()?;
         let bounds = self.geometry(app)?;
+        if !options.want_image {
+            return Ok(WindowObservation {
+                source: X11Snapshot {
+                    window_bounds: bounds,
+                    image_width: 0,
+                    image_height: 0,
+                },
+                bounds: Some(bounds),
+                elements: Vec::new(),
+                image: None,
+                truncated: false,
+            });
+        }
         let (w, h) = (bounds.w as u16, bounds.h as u16);
         if u32::from(w) * u32::from(h) > 8_388_608 || w == 0 || h == 0 {
             return Err(error(
@@ -371,7 +409,8 @@ impl DesktopDriver for Desktop {
         app: &Window,
         snap: &X11Snapshot,
         action: ComputerAction,
-    ) -> Result<(), ComputerError> {
+        cancellation: &computer_runtime::Cancellation,
+    ) -> Result<Option<ComputerExecution>, ComputerError> {
         let (c, screen) = self.x()?;
         let bounds = snap.window_bounds;
         let point = |p: ComputerPoint| {
@@ -488,12 +527,7 @@ impl DesktopDriver for Desktop {
             } => {
                 aim(anchor(&a)?)?;
                 c.flush().map_err(failure)?;
-                if !interrupt::wait(dwell_ms.duration()) {
-                    return Err(error(
-                        ComputerErrorCode::Cancelled,
-                        "Stopped during the hover dwell",
-                    ));
-                }
+                cancellation.wait(dwell_ms.duration())?;
             }
             ComputerInput::Hold {
                 anchor: a,
@@ -502,28 +536,24 @@ impl DesktopDriver for Desktop {
             } => {
                 let button = x11_button(button);
                 aim(anchor(&a)?)?;
-                interrupt::set_held(button);
                 let pressed = fake(BUTTON_PRESS_EVENT, button, 0, 0);
-                // From here on always attempt the release, end the hold early on
-                // stop, and report the first failure without replaying the press.
+                // From here on always release exactly once: closing the connection
+                // cancels the wait early, and the first failure is reported without
+                // replaying the press.
                 let held = pressed
                     .and_then(|_| c.flush().map_err(failure))
-                    .and_then(|_| {
-                        if interrupt::wait(hold_ms.duration()) {
-                            Ok(())
-                        } else {
-                            Err(error(
-                                ComputerErrorCode::Cancelled,
-                                "Stopped during the hold; the button was released early",
-                            ))
-                        }
-                    });
+                    .and_then(|_| cancellation.wait(hold_ms.duration()));
                 let released = fake(BUTTON_RELEASE_EVENT, button, 0, 0)
                     .and_then(|_| c.flush().map_err(failure));
-                if released.is_ok() {
-                    interrupt::set_held(0);
-                }
                 held.and(released)?;
+            }
+            ComputerInput::FocusWindow {}
+            | ComputerInput::SetValue { .. }
+            | ComputerInput::PerformAction { .. } => {
+                return Err(error(
+                    ComputerErrorCode::Unsupported,
+                    "This input is not implemented on this platform",
+                ));
             }
             ComputerInput::Drag { from, to, .. } => {
                 let start = point(from);
@@ -608,7 +638,7 @@ impl DesktopDriver for Desktop {
                 pressed.and(released)?;
             }
         }
-        c.flush().map_err(failure)
+        c.flush().map(|()| None).map_err(failure)
     }
 }
 
