@@ -2,8 +2,9 @@ import type { DocumentHeader, ReaderLocation } from '../../../protocol/generated
 import type { AppDocumentInput } from '../../content-source/app-document';
 import type { AppearanceSnapshot } from './appearance';
 import { normalizeLocale, translate } from '../../../locales';
+import {getActiveIconTheme,type IconThemePackage} from '../../icons/theme';
 
-export type ReaderContext = { locale: string; dark: boolean; appearance?: AppearanceSnapshot };
+export type ReaderContext = { locale: string; dark: boolean; appearance?: AppearanceSnapshot; iconTheme?: IconThemePackage|null };
 export type ReadingSource = { header: DocumentHeader; text: string; location?: ReaderLocation } | { document: AppDocumentInput };
 
 /** A complete source enters the same GPUI reader; this shell grants no Host commands. */
@@ -23,6 +24,8 @@ export function mountReaderSurface(container: HTMLElement, options: {
   const download = document.createElement('button'); download.type = 'button';
   status.append(label, retry, download); container.append(frame, status);
   let context = options.context, source = options.source, connected = false, failure = false;
+  let sentTheme:IconThemePackage|null|undefined;
+  let sentSource:ReadingSource|undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const post = (type: string, value: object) => frame.contentWindow?.postMessage({ type, nonce, ...value }, origin);
   const render = (failed = failure) => {
@@ -33,15 +36,28 @@ export function mountReaderSurface(container: HTMLElement, options: {
     download.textContent = translate(locale, 'content.download_source');
     retry.hidden = download.hidden = !failed; status.hidden = connected;
   };
+  const readerContext = () => {
+    const iconTheme=context.iconTheme===undefined?getActiveIconTheme():context.iconTheme;
+    const payload={...context,iconTheme:iconTheme===sentTheme?undefined:iconTheme};sentTheme=iconTheme;return payload;
+  };
   const start = () => {
+    sentTheme=undefined;
+    sentSource=undefined;
     clearTimeout(timer); connected = false; render(false); frame.src = url.href;
     timer = setTimeout(() => { render(true); }, 30000);
   };
-  const publish = () => post('pero:reader:document', { reading: { ...source, context } });
+  const publish = () => {
+    sentSource=source;
+    const reading='document' in source ? {...source,context:readerContext()} : {source,context:readerContext()};
+    post('pero:reader:document',{reading});
+  };
   const receive = (event: MessageEvent) => {
     if (event.source !== frame.contentWindow || event.origin !== origin || event.data?.nonce !== nonce) return;
     if (event.data.type === 'pero:reader:connect') publish();
-    else if (event.data.type === 'pero:reader:ready') { clearTimeout(timer); connected = true; render(false); }
+    else if (event.data.type === 'pero:reader:ready') {
+      clearTimeout(timer); connected = true; render(false);
+      if(source!==sentSource)publish();else post('pero:reader:context',{context:readerContext()});
+    }
     else if (event.data.type === 'pero:reader:error') { clearTimeout(timer); connected = false; render(true); }
     else if (event.data.type === 'pero:reader:link' && typeof event.data.url === 'string') {
       const url = new URL(event.data.url);
@@ -59,7 +75,7 @@ export function mountReaderSurface(container: HTMLElement, options: {
   return {
     frame,
     source(value: ReadingSource) { source = value; frame.title = 'document' in source ? source.document.title : source.header.source.title; if (connected) publish(); },
-    context(value: ReaderContext) { context = value; render(); post('pero:reader:context', { context }); },
+    context(value: ReaderContext) { context = value; render(); if(connected)post('pero:reader:context', { context:readerContext() }); },
     dispose() { clearTimeout(timer); window.removeEventListener('message', receive); frame.remove(); status.remove(); },
   };
 }

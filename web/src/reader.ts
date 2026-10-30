@@ -1,5 +1,5 @@
 import { installContentAnalysis } from './content-analysis';
-import init, { run, receive_document, set_context, snapshot } from './reader-wasm/pero_reader_web';
+import init, { run, receive_document, set_context, set_icon_theme, snapshot } from './reader-wasm/pero_reader_web';
 import { AppDocuments, type AppDocumentInput } from '../../packages/content-source/app-document';
 import { applyAppearance, readAppearance } from '../../packages/app-sdk/src/appearance';
 import type { DocumentHeader } from '../../protocol/generated/host';
@@ -28,6 +28,7 @@ const apply = () => {
   const appearance = readAppearance(context.appearance);
   if (appearance) applyAppearance(appearance);
   set_context(context.dark, context.locale, appearance ? JSON.stringify(appearance) : '');
+  if(context.iconTheme!==undefined)set_icon_theme(JSON.stringify(context.iconTheme));
   // Workbench sources are already admitted by the owning AppDocuments. Bare Apps
   // enter that same boundary here; arbitrary origins never reach the reader.
   const source = reading.document ? standalone.admit(reading.document) : reading.source;
@@ -36,19 +37,24 @@ const apply = () => {
 };
 window.addEventListener('message', event => {
   if (event.source !== window.parent || event.origin !== parentOrigin || event.data?.nonce !== nonce) return;
+  try {
   if (event.data.type === 'pero:reader:document') {
     const value = event.data.reading as Reading;
     if (!value?.context || typeof value.context.locale !== 'string' || typeof value.context.dark !== 'boolean') return;
     if (value.context.appearance !== undefined && !readAppearance(value.context.appearance)) return;
     reading = value; initialReading(value);
-    try { apply(); } catch (error) { post('pero:reader:error', { error: String(error) }); }
+    apply();
   } else if (event.data.type === 'pero:reader:context' && reading) {
     const context = event.data.context as ReaderContext;
     const appearance = readAppearance(context?.appearance);
     if (typeof context?.locale !== 'string' || typeof context.dark !== 'boolean' || context.appearance !== undefined && !appearance) return;
-    reading.context = { ...context, appearance };
-    if (initialized) { if(appearance)applyAppearance(appearance); set_context(context.dark,context.locale,appearance?JSON.stringify(appearance):''); }
+    reading.context = { ...reading.context, ...context, appearance };
+    if (initialized) {
+      if(appearance)applyAppearance(appearance); set_context(context.dark,context.locale,appearance?JSON.stringify(appearance):'');
+      if(context.iconTheme!==undefined)set_icon_theme(JSON.stringify(context.iconTheme));
+    }
   }
+  } catch (error) { post('pero:reader:error', { error: String(error) }); }
 });
 window.peroReaderOpenLink = value => {
   try { const url = new URL(value); if (url.protocol === 'https:' || url.protocol === 'http:') post('pero:reader:link', { url: url.href }); } catch { /* malformed source link */ }

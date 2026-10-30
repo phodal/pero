@@ -183,3 +183,26 @@ pub fn snapshot() -> String {
     });
     value.to_string()
 }
+
+#[wasm_bindgen]
+pub fn set_icon_theme(value: &str) -> Result<(), JsValue> {
+    use pero_contracts::icon_theme::{IconTheme, IconThemeInfo, IconThemeState};
+    // A bare App is its own parent. Admit its vectors here before they enter
+    // GPUI assets, using exactly the same importer as installed Desktop themes.
+    let state = if value == "null" {
+        IconThemeState::default()
+    } else {
+        let theme = IconTheme::parse(value).map_err(|error| JsValue::from_str(&error))?;
+        IconThemeState {
+            selected: Some(theme.id.clone()),
+            installed: vec![IconThemeInfo {
+                id: theme.id.clone(),
+                name: theme.name.clone(),
+            }],
+            theme: Some(theme),
+        }
+    };
+    pero_chat_ui::icon_theme::install(state);
+    update(|_, cx| cx.notify());
+    Ok(())
+}

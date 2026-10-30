@@ -1,6 +1,7 @@
 import {AppDocuments, type AppDocumentInput} from '../../content-source/app-document';
 import {mountReaderSurface} from './reader-surface';
 import {normalizeLocale,translate} from '../../../locales';
+import type {ReaderContext} from './reader-surface';
 export type { AppDocumentInput };
 
 let standalone:ReturnType<typeof mountReaderSurface>|undefined;
@@ -20,7 +21,9 @@ export function openDocument(document:AppDocumentInput):Promise<void> {
       close.type='button';close.textContent=translate(locale,'workspace.close_tab');close.onclick=()=>panel.close();
       header.append(title,close);const body=window.document.createElement('div');body.className='pero-standalone-document-body';panel.append(header,body);
       window.document.body.append(panel);standalonePanel=panel;standaloneTitle=title;
-      panel.addEventListener('close',()=>{standalone?.dispose();standalone=undefined;panel.remove();standalonePanel=undefined;standaloneTitle=undefined;},{once:true});
+      const contextChanged=(event:Event)=>standalone?.context((event as CustomEvent<ReaderContext>).detail);
+      window.addEventListener('pero:app:context-changed',contextChanged);
+      panel.addEventListener('close',()=>{window.removeEventListener('pero:app:context-changed',contextChanged);standalone?.dispose();standalone=undefined;panel.remove();standalonePanel=undefined;standaloneTitle=undefined;},{once:true});
       standalone=mountReaderSurface(body,{source,context:{locale,dark},url:'./_reader/reader.html',link:url=>window.open(url,'_blank','noopener')});
       panel.showModal();
     }else{standaloneTitle!.textContent=document.title;standalone!.source(source);}
