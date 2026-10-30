@@ -4,6 +4,7 @@ import { resolve, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { stageWorkbench } from './workbench-payload.mjs';
 import { Product } from '../../packages/product/product.ts';
+import { writeIcns } from '../lib/macos-icon.mjs';
 const root = resolve(import.meta.dirname, '../..');
 if (process.platform !== 'darwin') throw new Error('macOS packaging requires macOS.');
 const staged = process.env.PERO_PRODUCT_PAYLOAD;
@@ -33,15 +34,7 @@ await stageWorkbench(payload, product);
 }
 // Generate platform assets from the Product's SVG; keep generated binaries out of source.
 if (product.icon) {
-  const svg = resolve(staged || resolve(root, 'products'), product.icon);
-  const iconset = join(destination, 'product.iconset');
-  rmSync(iconset, { recursive: true, force: true });
-  mkdirSync(iconset, { recursive: true });
-  for (const size of [16, 32, 128, 256, 512]) for (const scale of [1, 2]) {
-    execFileSync('rsvg-convert', ['--width', String(size * scale), '--height', String(size * scale),
-      '--output', join(iconset, `icon_${size}x${size}${scale === 2 ? '@2x' : ''}.png`), svg]);
-  }
-  execFileSync('/usr/bin/iconutil', ['--convert', 'icns', '--output', join(resources, 'product.icns'), iconset]);
+  writeIcns(resolve(staged || resolve(root, 'products'), product.icon), join(resources, 'product.icns'));
   rmSync(join(resources, 'electron.icns'), { force: true });
 }
 const plist = join(output, 'Contents/Info.plist');

@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { watch } from 'node:fs';
 import { resolve } from 'node:path';
 import { cargoArgs, ensureGpuiLock } from '../lib/cargo.mjs';
+import { writeIcns } from '../lib/macos-icon.mjs';
 import { root } from '../lib/paths.mjs';
 import { run } from '../lib/run.mjs';
 
@@ -10,6 +11,7 @@ if (process.platform !== 'darwin') throw new Error('This preview is for macOS.')
 
 const host = resolve(root, 'target/debug/pero-host');
 const binary = resolve(root, 'target/debug/pero-native');
+const icon = resolve(root, 'target/debug/AppIcon.icns');
 const sources = resolve(root, 'crates/pero-ui');
 
 let preview = null;
@@ -41,7 +43,7 @@ function openPreview() {
   const child = spawn(binary, [], {
     cwd: root,
     stdio: 'inherit',
-    env: { ...process.env, PERO_NATIVE_HOST: host, PERO_NATIVE_EPHEMERAL_SECRETS: '1' },
+    env: { ...process.env, PERO_NATIVE_HOST: host, PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_NATIVE_ICON: icon },
   });
   preview = child;
   child.on('exit', (code, signal) => {
@@ -89,6 +91,7 @@ watch(sources, { recursive: true }, (_event, filename) => {
 });
 
 console.log('Building the debug Host and native preview. Secrets stay in this process; the login keychain is not opened.');
+writeIcns(resolve(root, 'resources/app-icon.svg'), icon);
 await ensureGpuiLock();
 await run('cargo', cargoArgs(['build', '--locked', '-p', 'pero-host', '-p', 'pero-worker']));
 await cycle();
