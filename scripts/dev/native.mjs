@@ -11,6 +11,7 @@ if (process.platform !== 'darwin') throw new Error('This preview is for macOS.')
 const host = resolve(root, 'target/debug/pero-host');
 const binary = resolve(root, 'target/debug/pero-native');
 const sources = resolve(root, 'crates/pero-ui');
+const features = process.argv.includes('--fast') ? 'native-fast' : 'native';
 
 let preview = null;
 let replacing = false;
@@ -62,7 +63,7 @@ async function cycle() {
   do {
     queued = false;
     try {
-      await run('cargo', cargoArgs(['+nightly-2026-10-28', 'build', '--locked', '-p', 'pero-ui', '--features', 'native', '--bin', 'pero-native']));
+      await run('cargo', cargoArgs(['+nightly-2026-10-28', 'build', '--locked', '-p', 'pero-ui', '--features', features, '--bin', 'pero-native']));
     } catch (error) {
       console.error(error.message);
       if (!opened) process.exit(1);

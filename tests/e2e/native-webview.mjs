@@ -6,7 +6,8 @@ import {resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import assert from 'node:assert/strict';
 const root=resolve(import.meta.dirname,'../..');
-const out=resolve(root,'test-results/native-webview');
+const fast=process.argv.includes('--fast');
+const out=resolve(root,fast?'test-results/native-webview-fast':'test-results/native-webview');
 const temp=await mkdtemp(resolve(tmpdir(),'pero-native-webview-'));
 await mkdir(out,{recursive:true});
 const server=createServer((request,response)=>{
@@ -30,5 +31,7 @@ try {
   await writeFile(resolve(out,'result.json'),JSON.stringify(value,null,2));
   assert.equal(exit.code,0,'Native process failed during teardown');
   assert.equal(value.passed,true,JSON.stringify(value));assert.equal(value.window_active,false);assert.equal(value.released,true);
-  console.log('Native Wry passed: page DOM, authority, retention, history and teardown in a hidden GPUI workspace.');
+  assert.equal(value.gpui_fast,fast,'The native binary does not match the requested GPUI backend');
+  if(fast&&process.platform!=='win32') assert.equal(value.native_surfaces,2,'Both Wry sources must register GPUI native composition surfaces');
+  console.log(`Native Wry (${fast?'GPUI Fast':'GPUI Pre'}) passed: page DOM, authority, retention, history and teardown in a hidden GPUI workspace.`);
 } finally {clearTimeout(timer);child.kill();await new Promise(done=>server.close(done));}

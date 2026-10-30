@@ -6,6 +6,8 @@ publish.workspace = true
 
 [features]
 native-probe = ["native"]
+# Select one GPUI backend for Kit and its native WebView adapter together.
+native-fast = ["native", "gpui-kit/gpui-fast", "gpui-webview/gpui-fast"]
 native = ["pero-theme/native", "pero-chat-ui/native", "dep:gpui-kit", "dep:anyhow", "dep:async-channel", "dep:chrono", "dep:sha2", "dep:getrandom", "dep:reqwest", "dep:gpui-webview", "dep:wry", "dep:webkit2gtk"]
 
 [[bin]]

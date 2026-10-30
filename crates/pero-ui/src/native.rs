@@ -54,7 +54,10 @@ pub(crate) fn native_application()->Application {
 pub fn run() -> anyhow::Result<()> {
     #[cfg(target_os="windows")]
     unsafe {std::env::set_var("GPUI_DISABLE_DIRECT_COMPOSITION","true");}
-    if std::env::args().nth(1).as_deref()==Some("--verify-webview") {
+    if matches!(
+        std::env::args().nth(1).as_deref(),
+        Some("--verify-webview" | "--preview-webview")
+    ) {
         #[cfg(feature="native-probe")]
         {return crate::native_web_probe::run();}
         #[cfg(not(feature="native-probe"))]

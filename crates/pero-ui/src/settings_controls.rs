@@ -78,7 +78,7 @@ pub(crate) fn setting_row(
 }
 
 /// One editor owns focus; step buttons and keys request the same domain action.
-#[derive(IntoElement)]
+#[derive(gpui_kit::IntoElement)]
 pub(crate) struct FontSizeField {
     input: Entity<InputState>,
     size: FontSize,

@@ -1,5 +1,6 @@
-//! Opt-in native engine acceptance. No Host, credentials, visible window or URL registration.
+//! Opt-in native acceptance and composition preview. No Host, credentials or URL registration.
 use crate::{app::Workbench, theme::Palettes, workspace::WorkbenchPage};
+use gpui_kit::component::{ActiveTheme, button::*};
 use gpui_kit::{prelude::*, *};
 use pero_contracts::web_document::WebLoad;
 use std::{cell::Cell, path::PathBuf, rc::Rc, time::Duration};
@@ -21,6 +22,8 @@ enum Reply {
     Retained(String),
 }
 struct Probe {
+    preview: bool,
+    overlay_clicks: u32,
     root: Entity<Workbench>,
     uri: String,
     receipt: PathBuf,
@@ -32,6 +35,7 @@ struct Probe {
 }
 impl Probe {
     fn new(
+        preview: bool,
         uri: String,
         receipt: PathBuf,
         passed: Rc<Cell<bool>>,
@@ -59,6 +63,9 @@ impl Probe {
         })
         .detach();
         cx.spawn_in(window, async move |this, cx| {
+            if preview {
+                return;
+            }
             cx.background_executor()
                 .timer(Duration::from_secs(30))
                 .await;
@@ -81,6 +88,8 @@ impl Probe {
             )
         });
         Self {
+            preview,
+            overlay_clicks: 0,
             root,
             uri,
             receipt,
@@ -176,7 +185,7 @@ impl Probe {
         }
     }
     fn progress(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.stage == 255 {
+        if self.preview || self.stage == 255 {
             return;
         }
         let page = self.root.read(cx).web_documents.first().cloned();
@@ -283,6 +292,23 @@ impl Probe {
     fn finish(&mut self, error: Option<String>, window: &mut Window, cx: &mut Context<Self>) {
         self.stage = 255;
         let active = window.is_window_active();
+        // Confirm Wry actually registered native surfaces, rather than silently
+        // falling back to ordinary child views on a Fast backend.
+        #[cfg(all(feature = "native-fast", any(target_os = "macos", target_os = "linux")))]
+        let native_surfaces = window
+            .enable_window_composition()
+            .and_then(|composition| {
+                Ok(composition
+                    .children(None)?
+                    .into_iter()
+                    .filter(|id| {
+                        composition.surface_kind(*id).ok() == Some(CompositionSurfaceKind::Native)
+                    })
+                    .count())
+            })
+            .ok();
+        #[cfg(not(all(feature = "native-fast", any(target_os = "macos", target_os = "linux"))))]
+        let native_surfaces: Option<usize> = None;
         self.root.update(cx, |root, cx| {
             let ids: Vec<_> = root
                 .web_documents
@@ -299,20 +325,66 @@ impl Probe {
         });
         let released = self.root.read(cx).native_web_pages.is_empty()
             && self.root.read(cx).web_documents.is_empty();
-        let success = error.is_none() && !active && released;
+        let success = error.is_none() && (self.preview || !active) && released;
         self.passed.set(success);
-        let receipt = serde_json::json!({"passed":success,"error":error,"window_active":active,"released":released,"checks":["actual Wry page DOM","no Host bridge","retained native page and form","native back and forward","inactive and covered native views hidden","source and native handle teardown"],"visual_acceptance":false});
+        let receipt = serde_json::json!({
+            "passed": success,
+            "error": error,
+            "window_active": active,
+            "released": released,
+            "gpui_fast": gpui_kit::GPUI_FAST,
+            "native_surfaces": native_surfaces,
+            "preview": self.preview,
+            "overlay_clicks": self.overlay_clicks,
+            "checks": if self.preview {
+                vec!["interactive composition preview; inspect screenshots separately"]
+            } else {
+                vec!["actual Wry page DOM", "no Host bridge", "retained native page and form",
+                    "native back and forward", "inactive and covered native views hidden",
+                    "source and native handle teardown"]
+            },
+            "visual_acceptance": false,
+        });
         let _ = std::fs::write(&self.receipt, serde_json::to_vec_pretty(&receipt).unwrap());
         cx.quit();
     }
 }
 impl Render for Probe {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        self.root.clone()
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !self.preview {
+            return self.root.clone().into_any_element();
+        }
+        div()
+            .relative()
+            .size_full()
+            .child(self.root.clone())
+            .child(deferred(
+                div()
+                    .id("composition-preview-overlay")
+                    .absolute()
+                    .top(px(180.))
+                    .left(px(300.))
+                    .p(px(16.))
+                    .bg(cx.theme().background)
+                    .border_1()
+                    .border_color(cx.theme().border)
+                    .occlude()
+                    .child(
+                        Button::new("composition-preview-click")
+                            .primary()
+                            .label(format!("Overlay clicks: {}", self.overlay_clicks))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.overlay_clicks += 1;
+                                cx.notify();
+                            })),
+                    ),
+            ))
+            .into_any_element()
     }
 }
 
 pub(crate) fn run() -> anyhow::Result<()> {
+    let preview = std::env::args().nth(1).as_deref() == Some("--preview-webview");
     let uri = std::env::args()
         .nth(2)
         .ok_or_else(|| anyhow::anyhow!("Provide a loopback fixture URL"))?;
@@ -343,18 +415,28 @@ pub(crate) fn run() -> anyhow::Result<()> {
                 ])
                 .expect("probe fonts");
             let options = WindowOptions {
-                show: false,
-                focus: false,
+                show: preview,
+                focus: preview,
                 window_bounds: Some(WindowBounds::Windowed(Bounds::new(
                     point(px(0.), px(0.)),
                     size(px(1000.), px(788.)),
                 ))),
                 ..Default::default()
             };
-            gpui_kit::open_window(options, cx, move |window, cx| {
-                cx.new(|cx| Probe::new(uri, receipt, outcome, window, cx))
+            let (window, probe) = gpui_kit::open_window(options, cx, move |window, cx| {
+                window.set_window_title("Pero WebView composition preview");
+                cx.new(|cx| Probe::new(preview, uri, receipt, outcome, window, cx))
             })
-            .expect("hidden native probe");
+            .expect("native WebView probe");
+            if preview {
+                let probe = probe.downgrade();
+                let _ = window.update(cx, |_, window, cx| {
+                    window.on_window_should_close(cx, move |window, cx| {
+                        let _ = probe.update(cx, |probe, cx| probe.finish(None, window, cx));
+                        false
+                    });
+                });
+            }
         });
     if !passed.get() {
         anyhow::bail!("Native Web view acceptance failed");

@@ -277,9 +277,18 @@ Run `npm run dev:native` while editing the workbench. It builds a debug Host and
 under `crates/pero-ui` changes. Close the window to stop. A failed rebuild leaves
 the current window open.
 
+Use `npm run dev:native -- --fast` to try the optional GPUI Fast backend. The
+`native-fast` feature selects Fast for both Kit and its Wry adapter; ordinary
+native and Wasm builds keep their existing backend. The lock pins Fast 0.1.12
+and its compatible `taffy`/`unicode-properties` versions. This is a composition
+experiment, not a change to the shipping default. See
+[Fast verification](../docs/fitness/native-webview-fast.md) for reproduction,
+visible-window evidence and remaining input/platform limits.
+
 `npm run build:macos-native` still writes the release bundle at
 `target/native/Pero Native.app`. This preview reuses the GPUI workbench and Rust
-Host without Electron, Chromium, WebView or Wasm. Local ACP sessions use the
+Host without Electron, Chromium or Wasm; HTTP(S) sources use native Wry WebViews.
+Local ACP sessions use the
 existing installed adapters and model authentication. Preview history and
 preferences are isolated under `~/.pero/native-preview`; they do not overwrite
 the Electron profile.
