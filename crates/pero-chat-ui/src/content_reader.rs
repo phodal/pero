@@ -628,7 +628,8 @@ impl Render for ContentReader {
                 .clamp(112., 400.)
         } else {
             self.preview.as_ref().map_or(120., |preview| {
-                (60. + 28. * preview.rows.len().max(1) as f32).min(400.)
+                // Reader toolbar, table filter/header, rows and outer border.
+                (94. + 28. * preview.rows.len().max(1) as f32).min(400.)
             })
         };
         let editor_height: DefiniteLength = if workspace {
