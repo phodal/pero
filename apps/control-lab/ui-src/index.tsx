@@ -194,6 +194,33 @@ export default function ControlLab() {
       setBusy(false);
     }
   }
+  async function exportEvidence(id: string) {
+    const response = await fetch(
+      `/api/experiments/${encodeURIComponent(id)}/export`,
+      {
+        headers: { Accept: "application/json" },
+      },
+    );
+    if (!response.ok)
+      throw new Error(
+        `Evidence export failed (${response.status}). Try exporting again.`,
+      );
+    if (
+      response.headers
+        .get("content-type")
+        ?.split(";")[0]
+        .trim()
+        .toLowerCase() !== "application/json"
+    ) {
+      throw new Error(
+        "Evidence export returned an unsupported response. Expected JSON.",
+      );
+    }
+    // Preserve canonical numeric spellings (including -0.0 and 1.0). Parsing
+    // and reserializing here changes the bytes used by scientific evidence IDs.
+    const evidence = await response.text();
+    downloadFile(`control-lab-${id}.json`, evidence, "application/json");
+  }
   function freezeSpecification(form: HTMLFormElement | null) {
     // App frames intentionally do not grant allow-forms. Validate locally,
     // then use the authenticated App API rather than native form submission.
@@ -527,18 +554,7 @@ export default function ControlLab() {
                   </button>
                   <button
                     onClick={() =>
-                      void api
-                        .get<unknown>(
-                          `/api/experiments/${encodeURIComponent(experiment.id)}/export`,
-                        )
-                        .then((evidence) =>
-                          downloadFile(
-                            `control-lab-${experiment.id}.json`,
-                            JSON.stringify(evidence, null, 2),
-                            "application/json",
-                          ),
-                        )
-                        .catch(onError)
+                      void exportEvidence(experiment.id).catch(onError)
                     }
                   >
                     Export evidence

@@ -100,11 +100,20 @@ async function exportEvidence(id) {
   await rm(path, { force: true });
   await app.evaluate(({ session }, path) => session.defaultSession.once('will-download', (_event, item) => item.setSavePath(path)), path);
   await frame.getByRole('button', { name: 'Export evidence', exact: true }).click();
-  let document;
+  let document, downloadedText;
   await expect.poll(async () => {
-    try { document = JSON.parse(await readFile(path, 'utf8')); return true; }
+    try { downloadedText = await readFile(path, 'utf8'); document = JSON.parse(downloadedText); return true; }
     catch (error) { if (error.code === 'ENOENT' || error instanceof SyntaxError) return false; throw error; }
   }).toBe(true);
+  const backendText = await frame.locator('body').evaluate(async (_body, id) => {
+    const response = await fetch(`/api/experiments/${id}/export`);
+    if (!response.ok) throw new Error(`Export read failed: ${response.status}`);
+    return response.text();
+  }, id);
+  expect(downloadedText, 'Portable export must preserve the backend JSON bytes, including -0.0 and float types').toBe(backendText);
+  const validation = await execute(process.env.PERO_APP_PYTHON || 'python3', ['-E', '-s', '-B', resolve(root, 'tests/fixtures/control-lab-export.py'), path], { encoding: 'utf8', timeout: 30000 });
+  await writeFile(resolve(out, `${id}-export-validation.json`), validation.stdout);
+  expect(JSON.parse(validation.stdout).experimentId).toBe(id);
   return document;
 }
 async function selectExperiment(id) {
