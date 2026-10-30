@@ -370,6 +370,26 @@ impl WorkspaceNavigation {
         let previous = items[index].clone();
         self.select(&previous)
     }
+
+    /// Conversations share one pane view, but each remains an open content tab.
+    pub(crate) fn cycle_conversation(&mut self, previous: bool) -> Option<WorkspaceRoute> {
+        let current = self.current()?;
+        if !matches!(current, WorkspaceItem::Conversation(_)) {
+            return None;
+        }
+        let conversations = self
+            .items
+            .iter()
+            .filter(|item| matches!(item, WorkspaceItem::Conversation(_)))
+            .cloned()
+            .collect::<Vec<_>>();
+        if conversations.len() < 2 {
+            return None;
+        }
+        let index = conversations.iter().position(|item| item == current)?;
+        let offset = if previous { conversations.len() - 1 } else { 1 };
+        self.select(&conversations[(index + offset) % conversations.len()])
+    }
 }
 
 #[cfg(test)]
@@ -387,6 +407,8 @@ mod tests {
         Reconcile(Vec<WorkspaceItem>),
         Next,
         Previous,
+        NextConversation,
+        PreviousConversation,
         Back,
         Forward,
     }
@@ -820,6 +842,21 @@ mod tests {
                 items: vec![conversation.clone()],
                 route: WorkspaceRoute::Content(conversation.clone()),
             },
+            Case {
+                name: "shared conversation view cycles open conversation identities in both directions",
+                actions: vec![
+                    Open(conversation.clone()),
+                    Open(WorkspaceItem::Conversation("second".into())),
+                    PreviousConversation,
+                    NextConversation,
+                    PreviousConversation,
+                ],
+                items: vec![
+                    conversation.clone(),
+                    WorkspaceItem::Conversation("second".into()),
+                ],
+                route: WorkspaceRoute::Content(conversation.clone()),
+            },
         ];
 
         for case in cases {
@@ -839,6 +876,8 @@ mod tests {
                     Reconcile(available) => tabs.reconcile(&available),
                     Next => tabs.select_next(),
                     Previous => tabs.select_previous(),
+                    NextConversation => tabs.cycle_conversation(false),
+                    PreviousConversation => tabs.cycle_conversation(true),
                     Back => tabs.step_history(false).map(|entry| entry.route),
                     Forward => tabs.step_history(true).map(|entry| entry.route),
                 };

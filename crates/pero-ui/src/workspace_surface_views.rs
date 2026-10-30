@@ -240,14 +240,16 @@ impl Workbench {
                 .items_center()
                 .justify_center()
                 .child(
-                    Button::new(("empty-pane-open", leaf.id.0 as usize))
+                    Button::new(("empty-pane-new-chat", leaf.id.0 as usize))
                         .ghost()
-                        .label(self.t("content.open_file"))
+                        .label(self.t("chat.new"))
                         .on_click({
                             let id = leaf.id;
                             cx.listener(move |this, _, window, cx| {
                                 this.focus_pane(id, window, cx);
-                                this.choose_document(cx);
+                                this.new_chat(cx);
+                                let composer = this.chat.read(cx).composer.clone();
+                                composer.update(cx, |input, cx| input.focus(window, cx));
                             })
                         }),
                 )

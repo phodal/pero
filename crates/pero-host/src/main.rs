@@ -55,6 +55,21 @@ fn main() -> io::Result<()> {
         if value.get("method").and_then(|value|value.as_str())==Some("mcp") {
             emit(mcp.dispatch(value,&agents,&locale))?;continue;
         }
+        if value.get("method").and_then(|v| v.as_str()) == Some("settings.harness") {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Request { method: String, id: String, settings: pero_contracts::harness_settings::HarnessSettings, api_key: String }
+            let mut event = HostEvent::new("harness_settings_error", value.get("id").and_then(|v| v.as_str()).map(str::to_owned), String::new());
+            if let Ok(request) = serde_json::from_value::<Request>(value) {
+                let _ = (&request.method, &request.id);
+                if settings_path.as_deref().is_some_and(|path| pero_runtime::settings::save_harness(path, &request.settings).is_ok()) {
+                    agents.configure_harness(&request.settings, request.api_key);
+                    event.kind = "harness_settings_saved".into();
+                }
+            }
+            emit(event)?;
+            continue;
+        }
         if value.get("method").and_then(|value| value.as_str()).is_some_and(|method| method.starts_with("settings.computer")) {
             use pero_contracts::computer_runtime::ComputerSettingsRequest;
             let mut event = HostEvent::new("computer_settings_error", value.get("id").and_then(|id|id.as_str()).map(str::to_owned), String::new());

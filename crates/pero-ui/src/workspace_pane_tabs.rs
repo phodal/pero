@@ -150,6 +150,10 @@ impl Workbench {
         if state.as_ref().is_none_or(|state| state.pane != pane) {
             let order = leaf.tabs.mru_items();
             if order.len() < 2 {
+                drop(state);
+                if let Some(route) = self.navigation.cycle_conversation(reverse) {
+                    self.activate_route(route, window, cx);
+                }
                 return;
             }
             *state = Some(TabSwitcher {

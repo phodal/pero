@@ -268,6 +268,13 @@ jobs:
       - name: Computer Use loopback transport contracts
         run: node tests/e2e/computer-transport.mjs
 
+      # npm run build includes build:harness, which compiles the bundled Go ACP agent.
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: harness/go/go.mod
+          cache-dependency-path: harness/go/go.sum
+
       - name: Set up Rust nightly
         uses: dtolnay/rust-toolchain@v1
         with:

@@ -65,6 +65,7 @@ pub(crate) struct Workbench {
     pub preferences: pero_contracts::workbench::WorkbenchPreferences,
     pub preferences_status: crate::settings_menu::PreferenceSaveState,
     pub settings_menu_open: bool,
+    pub harness: Option<pero_contracts::harness_settings::HarnessState>,
     pub computer: Option<pero_contracts::computer_runtime::ComputerUseState>,
     pub settings_panel: Option<Entity<crate::settings_view::SettingsPanel>>,
     #[cfg(not(target_family = "wasm"))]
@@ -131,8 +132,6 @@ impl Workbench {
             KeyBinding::new("ctrl-alt-down",crate::workspace_pane_views::FocusPaneDown,None),
             KeyBinding::new("cmd-shift-w",crate::workspace_pane_views::ClosePane,None),
             KeyBinding::new("ctrl-shift-w",crate::workspace_pane_views::ClosePane,None),
-            KeyBinding::new("cmd-shift-s",crate::document_save_as::SaveDocumentAs,None),
-            KeyBinding::new("ctrl-shift-s",crate::document_save_as::SaveDocumentAs,None),
             KeyBinding::new("alt-left",crate::workspace_view::WorkspaceBack,None),
             KeyBinding::new("alt-right",crate::workspace_view::WorkspaceForward,None),
             KeyBinding::new("cmd-alt-right",crate::workspace_view::NextContent,None),
@@ -152,8 +151,6 @@ impl Workbench {
             KeyBinding::new("ctrl-l",crate::web_documents::OpenWeb,None),
             KeyBinding::new("cmd-p",crate::workspace_recent::OpenRecentContent,None),
             KeyBinding::new("ctrl-p",crate::workspace_recent::OpenRecentContent,None),
-            KeyBinding::new("cmd-o",crate::workspace_view::OpenDocument,None),
-            KeyBinding::new("ctrl-o",crate::workspace_view::OpenDocument,None),
             KeyBinding::new("ctrl-tab", crate::workspace_pane_tabs::NextPaneTabMru, None),
             KeyBinding::new("ctrl-shift-tab", crate::workspace_pane_tabs::PreviousPaneTabMru, None),
         ]);
@@ -296,6 +293,7 @@ impl Workbench {
             preferences,
             preferences_status: Default::default(),
             settings_menu_open: false,
+            harness: None,
             computer: None,
             settings_panel: None,
             #[cfg(not(target_family = "wasm"))]
@@ -463,7 +461,7 @@ impl Workbench {
     ) {
         let event_kind = event.kind.clone();
         let feature_handled = self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
-            || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
+            || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
             || self.receive_local_execution(&event, cx)
             || self.receive_contribution(&event, cx)
             || self.receive_apps(&event, cx)

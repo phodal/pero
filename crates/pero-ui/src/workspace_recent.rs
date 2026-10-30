@@ -117,7 +117,7 @@ impl ListDelegate for RecentContent {
         let owner = self.owner.clone();
         let origin = self.origin.clone();
         div().p(px(12.)).child(
-            Button::new("recent-open-file")
+            Button::new("recent-new-chat")
                 .label(self.open_label.clone())
                 .on_click(move |_, window, cx| {
                     window.close_dialog(cx);
@@ -127,7 +127,9 @@ impl ListDelegate for RecentContent {
                         let _ = owner.update(cx, |this, cx| {
                             this.navigation.cancel_preview(origin);
                             this.ensure_document_panes(window, cx);
-                            this.choose_document(cx);
+                            this.new_chat(cx);
+                            let composer = this.chat.read(cx).composer.clone();
+                            composer.update(cx, |input, cx| input.focus(window, cx));
                         });
                     });
                 }),
@@ -151,7 +153,7 @@ impl Workbench {
             .collect::<Vec<_>>();
         let delegate = RecentContent {
             owner: cx.entity().downgrade(),
-            open_label: self.t("content.open_file").to_owned(),
+            open_label: self.t("chat.new").to_owned(),
             filtered: (0..entries.len()).collect(),
             entries,
             selected: None,

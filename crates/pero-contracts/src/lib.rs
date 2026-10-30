@@ -1,3 +1,4 @@
+pub mod harness_settings;
 use serde::{Deserialize, Serialize};
 pub mod app_chat;
 pub use app_chat::AppChatScope;

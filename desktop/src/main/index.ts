@@ -1,3 +1,4 @@
+import { HarnessPreferences } from './harness-settings';
 import {ConversationContentRead} from '../../../packages/content-source/index.ts';
 import { app, BrowserWindow, ipcMain, Menu, protocol, net, dialog, shell, globalShortcut } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -64,9 +65,10 @@ const apps = new DesktopApps(request => {
   const selected = await dialog.showOpenDialog(window, { properties: ['openDirectory'] });
   return selected.canceled ? undefined : selected.filePaths[0];
 },async(name,token)=>{if(!appUse)throw new Error('App input unavailable');return appUse.input(name,token);});
+let harness: HarnessPreferences;
 let runtimeSettingsPath = '';
 const preferenceWrites = new Map<string, { resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
-async function savePreference(method: 'settings.remote' | 'settings.computer', fields: object): Promise<void> {
+async function savePreference(method: 'settings.remote' | 'settings.computer' | 'settings.harness', fields: object): Promise<void> {
   for (let i = 0; i < 100 && !ready; i++) await new Promise(resolveWait => setTimeout(resolveWait, 20));
   if (!ready || !host?.stdin.writable) throw new Error('The local runtime is unavailable. Reopen Desktop and reconnect.');
   const id = `settings-${randomUUID()}`;
@@ -123,7 +125,7 @@ function updateMenus() {
       { role: 'cut', label: t('menu.cut') }, { role: 'copy', label: t('menu.copy') },
       { role: 'paste', label: t('menu.paste') }, { role: 'selectAll', label: t('menu.select_all') },
     ] },
-    { label: t('menu.workbench'), submenu: [{id:'open-url',label:t('web.open_url'),click:()=>send({version:1,kind:'web_choose',request_id:null,text:''})}, {id:'save-as',label:t('content.save_as'),accelerator:'CmdOrCtrl+Shift+S',click:()=>send({version:1,kind:'document_save_choose',request_id:null,text:''})}, { id:'open-file',label:t('content.open_file'),accelerator:'CmdOrCtrl+O',click:()=>send({version:1,kind:'document_choose',request_id:null,text:''}) }, { id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
+    { label: t('menu.workbench'), submenu: [{id:'open-url',label:t('web.open_url'),click:()=>send({version:1,kind:'web_choose',request_id:null,text:''})}, { id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
     { label: t('menu.language'), submenu: [
       { id: 'locale-zh-CN', label: '简体中文', type: 'radio', checked: locale === 'zh-CN', click: () => changeLocale('zh-CN') },
       { id: 'locale-en', label: 'English', type: 'radio', checked: locale === 'en', click: () => changeLocale('en') },
@@ -149,6 +151,8 @@ app.whenReady().then(async () => {
   });
   protocol.handle('pero-app', request => apps.serve(request));
   runtimeSettingsPath = process.env.PERO_SETTINGS_PATH || resolve(app.getPath('userData'), 'runtime-settings.json');
+  harness = new HarnessPreferences(process.env.PERO_ENV_FILE || resolve(app.isPackaged ? app.getPath('userData') : root, '.env'), runtimeSettingsPath, send, fields => savePreference('settings.harness', fields));
+  await harness.initialize();
   localExecution = new LocalExecutionController(resolve(app.getPath('userData'),'local-execution.json'),remote,request=>{
     if (!ready || !host?.stdin.writable) throw new Error('The local runtime is unavailable.');
     host.stdin.write(JSON.stringify(request)+'\n');
@@ -163,7 +167,7 @@ app.whenReady().then(async () => {
   appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal)=>apps.applyWrite(write,signal)},computer);
   const appUseEnvironment = await appUse.start();
   host = spawn(resolve(root, `${app.isPackaged ? 'bin' : 'target/debug'}/pero-host${process.platform === 'win32' ? '.exe' : ''}`), ['--stdio'], { cwd: app.isPackaged ? app.getPath('home') : root, stdio: 'pipe', env: {
-    ...hostEnvironment, ...appUseEnvironment, PATH: [resolve(root,'bin'),resolve(root,'node_modules/.bin'),process.env.PATH,resolve(app.getPath('home'),'.opencode/bin'),'/opt/homebrew/bin',resolve(app.getPath('home'),'.local/bin')].filter(Boolean).join(delimiter), PERO_LOCALE: locale,
+    ...hostEnvironment, ...harness.environment(), ...appUseEnvironment, PATH: [resolve(root,'bin'),resolve(root,'node_modules/.bin'),process.env.PATH,resolve(app.getPath('home'),'.opencode/bin'),'/opt/homebrew/bin',resolve(app.getPath('home'),'.local/bin')].filter(Boolean).join(delimiter), PERO_LOCALE: locale,
     PERO_AGENT_ROOT: root,
     ...(app.isPackaged ? { PERO_ADAPTER_NODE: process.execPath } : {}),
     ...(process.env.PERO_AGENTS_FILE ? { PERO_AGENTS_FILE: process.env.PERO_AGENTS_FILE } : {}),
@@ -171,6 +175,8 @@ app.whenReady().then(async () => {
     PERO_MCP_EXTERNAL:'1',
     PERO_APPS_ROOT: process.env.PERO_APPS_ROOT || resolve(app.getPath('userData'), 'apps'),
     PERO_BUILTIN_APPS_ROOT: resolve(root, 'apps'),
+    // A source checkout holds test-only Apps too; seed only those the Pero product builds.
+    ...(app.isPackaged ? {} : { PERO_BUILTIN_APPS: process.env.PERO_BUILTIN_APPS || (JSON.parse(readFileSync(resolve(root, 'products/pero.json'), 'utf8')).apps as string[]).join(',') }),
     ...(process.env.PERO_APP_NODE ? { PERO_APP_NODE: process.env.PERO_APP_NODE } : {}),
     ...(process.env.PERO_APP_PYTHON ? { PERO_APP_PYTHON: process.env.PERO_APP_PYTHON } : {}),
     PERO_HISTORY_PATH: process.env.PERO_HISTORY_PATH || resolve(app.getPath('userData'), 'sessions.jsonl'),
@@ -191,6 +197,12 @@ app.whenReady().then(async () => {
         })().catch(error=>{mcpReady=undefined;send({version:1,kind:'mcp_error',request_id:message.request_id,text:error instanceof Error?error.message:String(error)});});return;
       }
       if(message.kind==='session_deleted'&&message.thread_id)mcpHost?.forgetThread(message.thread_id);
+      if (message.kind === 'harness_settings_saved' || message.kind === 'harness_settings_error') {
+        const pending = preferenceWrites.get(message.request_id);
+        if (pending) { clearTimeout(pending.timer); preferenceWrites.delete(message.request_id);
+          if (message.kind === 'harness_settings_saved') pending.resolve(); else pending.reject(new Error('harness.save_error')); }
+        return;
+      }
       if(message.kind==='computer_settings'||message.kind==='computer_settings_error'){
         const pending=preferenceWrites.get(message.request_id);
         if(pending){clearTimeout(pending.timer);preferenceWrites.delete(message.request_id);}
@@ -280,6 +292,8 @@ app.whenReady().then(async () => {
       mcpRequests.set(id,thread);
       host.stdin.write(JSON.stringify({method:'mcp',action:'open',request_id:id,thread_id:thread})+'\n');return;
     }
+    if (action === 'harness_get' || action === 'harness_save') return harness.command(command);
+    if (method === 'settings.harness') throw new Error('Use harness controls');
     if (action?.startsWith('local_worker_')) {
       if (!['local_worker_init','local_worker_enroll','local_worker_resume','local_worker_disable','local_worker_skip'].includes(action)) throw new Error('Invalid local execution action');
       await localExecution!.command(command);return;

@@ -12,6 +12,7 @@ impl Workbench {
     pub(crate) fn sync_settings_panel(&self, cx: &mut Context<Self>) {
         if let Some(panel) = &self.settings_panel {
             panel.update(cx, |panel, cx| {
+                if panel.harness.is_none() { panel.harness = self.harness.clone(); panel.harness_sync = true; }
                 panel.computer = self.computer.clone();
                 panel.computer_pending = false;
                 panel.receive(
@@ -54,6 +55,9 @@ impl Workbench {
                             this.sync_follow(cx);
                         }
                         SettingsAction::Close => this.close_settings(window, cx),
+                        SettingsAction::Harness(control) => {
+                            this.command(serde_json::to_value(control).expect("harness control"), cx);
+                        }
                         SettingsAction::Computer(control) => {
                             this.command(serde_json::to_value(control).expect("computer control"), cx);
                         }
@@ -62,6 +66,8 @@ impl Workbench {
                 }),
             ];
         self.settings_panel = Some(panel);
+        #[cfg(target_family = "wasm")]
+        self.command(serde_json::json!({"action":"harness_get"}), cx);
         self.sync_settings_panel(cx);
         cx.notify();
     }

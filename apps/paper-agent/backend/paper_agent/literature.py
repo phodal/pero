@@ -127,6 +127,19 @@ class PaperIdentity:
         return cls(source, paper_id, full)
 
 
+def _scalars(value):
+    """Provider JSON may contain unpaired UTF-16 surrogates. UTF-8 cannot encode them."""
+    if isinstance(value, str):
+        if any("\ud800" <= char <= "\udfff" for char in value):
+            return "".join("\ufffd" if "\ud800" <= char <= "\udfff" else char for char in value)
+        return value
+    if isinstance(value, list):
+        return [_scalars(item) for item in value]
+    if isinstance(value, dict):
+        return {_scalars(key) if isinstance(key, str) else key: _scalars(item) for key, item in value.items()}
+    return value
+
+
 def _text(value):
     return value if isinstance(value, str) else ""
 
@@ -267,7 +280,7 @@ class LiteratureClient:
             if parsed.hostname == "arxiv.org" and "text/html" not in response.headers.get("Content-Type", ""):
                 raise Invalid("Publisher metadata did not return HTML")
             text = body.decode("utf-8")
-            return json.loads(text) if json_body else text
+            return _scalars(json.loads(text)) if json_body else text
         except HTTPError as error:
             error.close()
             if optional and error.code == 404:

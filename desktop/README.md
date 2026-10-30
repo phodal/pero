@@ -61,6 +61,7 @@ native file chooser. The Agent and workspace are fixed once connected.
 
 | Agent | Local adapter | Setup |
 | --- | --- | --- |
+| Pero (DeepSeek) | Built-in `harness/go` ACP executable | Default for a fresh profile. Configure `DEEPSEEK_API_KEY` in `.env`. |
 | Codex | Project dependency `@agentclientprotocol/codex-acp` 2.3.0 | `npm ci` installs the official [Codex ACP adapter](https://github.com/agentclientprotocol/codex-acp) and its locked Codex CLI. Authenticate Codex, then select a model offered by the Agent. |
 | Claude | Bundled `@agentclientprotocol/claude-agent-acp` | Authenticate Claude using its supported local login. |
 | Grok | `opencode acp` | Install OpenCode and configure xAI authentication. The registry selects `xai/grok-code-fast-1`. |
@@ -73,6 +74,30 @@ does not automatically resend a failed prompt.
 The built-in Codex entry uses this project's `node_modules/.bin/codex-acp` and
 does not fall back to a global adapter. Run
 `node_modules/.bin/codex login` for the installed CLI's supported login flow.
+
+The built-in harness starts a compiled Go binary, without npm, `go run`, model
+catalog requests or a login subprocess during preparation. `npm run build:harness`
+builds it for development; the normal build includes it and packaging compiles it
+into `bin/pero-agent-acp`. After building, `npm start` launches existing outputs
+without rebuilding Wasm or Apps. Saved Agent preferences take precedence over the
+first-run default.
+
+In Workbench, open **Settings → Built-in Agent** to set the API URL, model and
+API Key. The key field stays masked; leaving it blank preserves the existing key.
+Save encrypts the key with Desktop system storage and writes through Host runtime
+settings. Saved settings override dotenv and exported values, and apply to new
+conversations without restarting Desktop. Remove key requires a second click and
+persists an explicit empty credential, so dotenv does not silently restore it.
+
+Development reads the checkout `.env`; installed Workbench and App Products read
+`.env` in their own user-data directory. `PERO_ENV_FILE=/absolute/path/.env`
+selects another file. Only `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL` (default
+`https://api.deepseek.com`) and `DEEPSEEK_MODEL` (default `deepseek-chat`) are
+loaded; exported variables override file values. Restart Desktop after editing.
+Dotenv credentials are never included in a distribution or sent to the renderer.
+Harness sessions live beside runtime settings under `harness/sessions`; native
+file/shell access uses the conversation workspace and ACP approval. Shell tools
+are enabled on Unix; Windows needs separate explicit sandbox configuration.
 
 Optional adapters live in ignored `agents.local.json`, or a path supplied with
 `PERO_AGENTS_FILE`.

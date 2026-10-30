@@ -17,7 +17,6 @@ use gpui_kit::{
     *,
 };
 use pero_contracts::content_document::{ContentDocument, ContentFormat, StructuredPreview};
-use pero_contracts::content_origin::ContentOrigin;
 use pero_contracts::markdown_source::MarkdownSource;
 use pero_contracts::reader_state::{ReaderState, SearchOptions};
 use std::{ops::Range, sync::Arc};
@@ -330,8 +329,7 @@ impl ContentReader {
         self.dirty
     }
     fn editable(&self) -> bool {
-        self.placement == ReaderPlacement::Workspace
-            && matches!(self.document.origin, ContentOrigin::File { .. })
+        false
     }
     pub fn file_failed(&mut self, key: &str, cx: &mut Context<Self>) {
         self.saving = false;
@@ -350,7 +348,7 @@ impl ContentReader {
         cx.notify();
     }
     fn save(&mut self, cx: &mut Context<Self>) {
-        if !self.editable() || !self.dirty || self.saving {
+        if !self.dirty || self.saving {
             return;
         }
         if let Some(editor) = &self.editor {
@@ -719,7 +717,7 @@ impl Render for ContentReader {
                         })),
                 )
             })
-            .when(self.editable(), |el| {
+            .when(self.dirty, |el| {
                 el.child(
                     Button::new("document-save")
                         .ghost()
