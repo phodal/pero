@@ -44,3 +44,26 @@ remain responsible for contrast and meaning.
 `node --test packages/icons/content.test.ts` tests association precedence,
 unknown kinds and reversible theme overrides. The matching Rust behavior test
 lives in `pero-contracts::content_icon`; neither test depends on a native window.
+
+## Local icon themes
+
+Settings → Theme → Icon theme imports a JSON package, selects it, or removes it.
+The runtime retains packages beside its settings in `icon-themes/<id>.json` and
+persists the selected ID in the existing `icon_theme` settings key.
+`tests/fixtures/icon-themes/source-shapes.json` is a complete sample.
+
+The version 1 package has `id`, `name`, `icons`, and `associations`. IDs use
+lowercase ASCII letters, digits, `-` and `_`. Each glyph has an embedded `light`
+SVG and optional `dark` SVG; a missing dark variant uses light. Associations use
+`kinds`, `languages`, `filenames`, `extensions` and `apps`, following the same
+source precedence as built-in icons. They may reference an embedded glyph or a
+bundled catalog name. Missing associations retain readable built-in fallback.
+
+Import/load parses SVG once. The supported subset is SVG vector shapes,
+groups, gradients, local `use`/clip/mask references, titles and descriptions.
+DTD, processing instructions, script/event attributes, stylesheets and inline
+CSS, `foreignObject`, text/fonts, filters, animation, raster images and external
+resource references are rejected with an import error. The original package
+file is retained when an installed copy is removed. GPUI uses its existing
+monochrome SVG painter; `currentColor` follows the interface palette. Asset paths
+include the actual SVG digest so replacement glyphs do not reuse stale drawings.

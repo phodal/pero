@@ -343,6 +343,9 @@ impl AssetSource for UiAssets {
         if let Some(svg) = crate::icon_theme::load(path) {
             return Ok(Some(Cow::Owned(svg)));
         }
+        if path.starts_with("icon-themes/") {
+            return self.load(UiIcon::File.path());
+        }
         let icon = path
             .strip_prefix("icons/")
             .and_then(|name| name.strip_suffix(".svg"))

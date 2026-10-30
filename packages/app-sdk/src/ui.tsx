@@ -23,7 +23,10 @@ export function Icon({ name }: { name: string }) {
 /** Decorative content glyph; the surrounding title/action supplies the accessible name. */
 export function ContentIcon({source,registry=contentIcons}:{source:ContentIconInput;registry?:ContentIconRegistry}) {
   const theme=useTheme();
-  return <Icon name={registry.resolve({...source,dark:source.dark??theme.mode==='dark'})}/>;
+  const artwork=registry.artwork({...source,dark:source.dark??theme.mode==='dark'});
+  if(artwork.kind==='bundled')return <Icon name={artwork.name}/>;
+  return artwork.monochrome?<span aria-hidden="true" style={{display:'inline-block',width:15,height:15,flexShrink:0,backgroundColor:'currentColor',maskImage:`url("${artwork.src}")`,maskSize:'contain',maskRepeat:'no-repeat',maskPosition:'center'}}/>:
+    <img aria-hidden="true" alt="" width="15" height="15" src={artwork.src} style={{flexShrink:0}}/>;
 }
 
 export function Checkbox({ checked, onCheckedChange, ...props }: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'onChange'> & { onCheckedChange(value: boolean): void }) {

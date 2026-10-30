@@ -13,8 +13,11 @@ export { openDocument } from './document';
 export type { AppDocumentInput } from './document';
 export {ContentIconRegistry,contentIcons,contentIcon} from '../../icons/content';
 export type {ContentIconInput,ContentIconKind,ContentIconAssociation,BundledIconName} from '../../icons/content';
+import {setActiveIconTheme,type IconThemePackage} from '../../icons/theme';
+export {getActiveIconTheme} from '../../icons/theme';
+export type {IconThemePackage} from '../../icons/theme';
 
-export type AppContext = { locale: 'en' | 'zh-CN'; dark: boolean; active: boolean; appearance?: AppearanceSnapshot };
+export type AppContext = { locale: 'en' | 'zh-CN'; dark: boolean; active: boolean; appearance?: AppearanceSnapshot; iconTheme?:IconThemePackage|null };
 const Context = createContext<AppContext>({ locale: 'en', dark: false, active: true });
 
 /** The parent owns context; the App frame never receives Desktop credentials. */
@@ -23,13 +26,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const receive = (event: MessageEvent) => {
       if(event.source!==window.parent)return;
+      if(event.data?.type==='pero:app:icon-theme'){
+        const iconTheme=event.data.theme??null;setActiveIconTheme(iconTheme);setContext(previous=>({...previous,iconTheme}));return;
+      }
       if(event.data?.type==='pero:app:data-changed'){window.dispatchEvent(new Event('pero:app:data-changed'));return;}
       if(event.data?.type!=='pero:app:context')return;
       const value = event.data.context;
       if (!value || !['en', 'zh-CN'].includes(value.locale) || typeof value.dark !== 'boolean' || typeof value.active !== 'boolean') return;
       const appearance = readAppearance(value.appearance);
       if (value.appearance !== undefined && !appearance) return;
-      setContext({ locale: value.locale, dark: value.dark, active: value.active, appearance });
+      setContext(previous=>({ locale: value.locale, dark: value.dark, active: value.active, appearance, iconTheme:previous.iconTheme }));
     };
     const stopAppUse = installAppUseBridge();
     window.addEventListener('message', receive);
@@ -43,7 +49,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.style.setProperty('--pero-text-secondary', (context.dark ? themes.dark : themes.light)['text-muted']);
     document.documentElement.style.setProperty('--pero-border-subtle', (context.dark ? themes.dark : themes.light).border);
     if (context.appearance) applyAppearance(context.appearance);
-  }, [context.locale, context.dark, context.appearance]);
+    window.dispatchEvent(new CustomEvent('pero:app:context-changed',{detail:context}));
+  }, [context.locale, context.dark, context.active,context.appearance,context.iconTheme]);
   return <Context.Provider value={context}>{children}</Context.Provider>;
 }
 
