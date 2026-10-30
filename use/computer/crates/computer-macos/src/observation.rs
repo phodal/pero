@@ -104,7 +104,10 @@ pub fn observe(
     // Electron exposes its content tree only after this explicit AX opt-in.
     ffi::ax_set_true(&app, "AXManualAccessibility");
     let windows = ffi::ax_retained_elements(&app, "AXWindows", 128);
-    let withheld = windows.is_empty() || windows.iter().all(|w| ffi::ax_str(w, "AXRole") == "AXApplication");
+    let withheld = windows.is_empty()
+        || windows
+            .iter()
+            .all(|w| ffi::ax_str(w, "AXRole") == "AXApplication");
     let native_window = windows.into_iter().find(|w| ffi::ax_window_id(w) == window.window_id)
         .ok_or_else(|| if withheld {
             error(ComputerErrorCode::PermissionRequired, "macOS withheld accessible windows. Check Accessibility permission and reopen the application; preflight alone is advisory.")
@@ -201,9 +204,7 @@ pub fn observe(
             id: ControlId(controls.len() as u32 + 1).reference(),
             role: role.clone(),
             label: text(label),
-            value: (!secure).then(|| {
-                text(ffi::ax_str(&element, "AXValue"))
-            }),
+            value: (!secure).then(|| text(ffi::ax_str(&element, "AXValue"))),
             depth,
             actions,
             state: Some(ComputerElementState {

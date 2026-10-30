@@ -8,6 +8,7 @@ struct App {
     bounds: WindowBounds,
     clicks: u32,
     fail_after_input: bool,
+    refuse_before_input: bool,
 }
 struct OwnedDesktop(Rc<RefCell<App>>);
 struct AppSnapshot(u32);
@@ -84,6 +85,12 @@ impl DesktopDriver for OwnedDesktop {
             truncated: false,
         })
     }
+    fn admit(&self, _: &AppSnapshot, _: &ComputerAction) -> Result<(), ComputerError> {
+        if self.0.borrow().refuse_before_input {
+            return Err(error(ComputerErrorCode::Unsupported, "Not expressible"));
+        }
+        Ok(())
+    }
     fn input(
         &self,
         _: &Window,
@@ -107,14 +114,32 @@ impl DesktopDriver for OwnedDesktop {
 
 #[test]
 fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
-    for (name, moved, stopped, fail_after_input, expected, clicks) in [
-        ("acknowledged", false, false, false, "executed", 1),
-        ("lost acknowledgement", false, false, true, "unknown", 1),
-        ("window moved", true, false, false, "rejected", 0),
+    for (name, moved, stopped, fail_after_input, refuse_before_input, expected, clicks) in [
+        ("acknowledged", false, false, false, false, "executed", 1),
+        (
+            "lost acknowledgement",
+            false,
+            false,
+            true,
+            false,
+            "unknown",
+            1,
+        ),
+        (
+            "adapter refusal before input",
+            false,
+            false,
+            false,
+            true,
+            "rejected",
+            0,
+        ),
+        ("window moved", true, false, false, false, "rejected", 0),
         (
             "stop revoked the observation",
             false,
             true,
+            false,
             false,
             "rejected",
             0,
@@ -129,6 +154,7 @@ fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
             },
             clicks: 0,
             fail_after_input,
+            refuse_before_input,
         }));
         let mut runtime = ComputerRuntime::new(OwnedDesktop(app.clone()), 99);
         let thread: ComputerRef = "thread-1".to_owned().try_into().unwrap();

@@ -6,7 +6,8 @@
       "delivery": "background",
       "supported": [
         "macos",
-        "windows"
+        "windows",
+        "linux"
       ]
     },
     {
