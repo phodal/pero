@@ -1,7 +1,7 @@
 //! Workbench content selection and the single shared conversation dock.
 use crate::{
     app::Workbench,
-    layout::{ChatPlacement, WorkspaceLayout},
+    layout::ChatPlacement,
     workspace::{ConversationTab, WorkbenchPage, WorkspaceItem, WorkspaceRoute},
 };
 use gpui_kit::{
@@ -174,7 +174,7 @@ impl Workbench {
             .iter_mut()
             .find(|document| &document.saved.item() == item)
         {
-            if deferred.saved.draft.is_some() {
+            if deferred.saved.draft.is_some() || deferred.saved.draft_ref.is_some() || deferred.saved.legacy_draft {
                 deferred.close_after_load = true;
                 self.navigation.select(item);
                 self.request_workspace_source(item, cx);
@@ -206,13 +206,11 @@ impl Workbench {
     }
 
     pub(crate) fn chat_visible(&self) -> bool {
-        WorkspaceLayout::chat_placement(self.navigation.route(), self.tab, &self.preferences.layout)
-            != ChatPlacement::Hidden
+        self.layout.chat != ChatPlacement::Hidden || self.navigation.pane_layout().filter(|_|self.navigation.pane_layout_visible()).is_some_and(|layout|layout.conversation().is_some())
     }
 
     pub(crate) fn chat_dock_visible(&self) -> bool {
-        WorkspaceLayout::chat_placement(self.navigation.route(), self.tab, &self.preferences.layout)
-            == ChatPlacement::Dock
+        self.layout.chat == ChatPlacement::Dock
     }
 
     pub(crate) fn set_chat_dock(&mut self, open: bool, cx: &mut Context<Self>) {
@@ -221,7 +219,7 @@ impl Workbench {
         self.sync_follow(cx);
     }
 
-    fn content_label(&self, item: &WorkspaceItem, cx: &App) -> (String, String) {
+    pub(crate) fn content_label(&self, item: &WorkspaceItem, cx: &App) -> (String, String) {
         match item {
             WorkspaceItem::Conversation(id) => (
                 self.chat
@@ -398,19 +396,7 @@ impl Workbench {
                         cx.listener(|this, _, window, cx| this.navigate_history(true, window, cx)),
                     ),
             )
-            .when(self.navigation.page() == WorkbenchPage::Document, |strip| {
-                strip.child(
-                    Button::new("workspace-split")
-                        .ghost()
-                        .small()
-                        .icon(Icon::default().path("icons/panel-right-open.svg"))
-                        .tooltip(self.t("workspace.split"))
-                        .accessibility_label(self.t("workspace.split"))
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.toggle_document_split(window, cx)
-                        })),
-                )
-            })
+            .when(self.navigation.route().supports_pane(), |strip|strip.child(self.workspace_split_control(cx)))
             .child(
                 Button::new("web-open")
                     .ghost()

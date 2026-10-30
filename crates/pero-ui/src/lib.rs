@@ -84,3 +84,6 @@ mod workspace_sources;
 
 #[cfg(any(target_family="wasm",feature="native"))]
 mod workspace_pane_views;
+
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod workspace_surface_views;

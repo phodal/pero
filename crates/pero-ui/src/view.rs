@@ -280,12 +280,14 @@ impl Render for Workbench {
             self.revealed_tab = tab;
         }
         let width: f32 = viewport_width.into();
+        let pane_tree=self.navigation.pane_layout_visible()&&!(self.navigation.page()==WorkbenchPage::Conversation&&self.tab!=ConversationTab::Chat);
         let layout = WorkspaceLayout::resolve(
             width,
             self.navigation.route(),
             self.tab,
             &self.preferences.layout,
-            self.settings_menu_open || self.resizing_chat || self.settings_panel.is_some(),
+            self.settings_menu_open || self.resizing_chat || self.settings_panel.is_some() || gpui_kit::component::GlobalState::is_in_deferred_context(cx),
+            self.navigation.pane_layout().filter(|_|pane_tree),
         );
         self.layout = layout;
         let sidebar_width = layout.sidebar_width;
@@ -398,8 +400,9 @@ impl Render for Workbench {
                                         .h_full()
                                         .flex()
                                         .flex_col()
-                                        .when(self.navigation.page()==WorkbenchPage::Web,|el|el.child(self.web_content(cx)))
-                                        .when(self.navigation.page()==WorkbenchPage::Document,|el|el.child(self.document_content(cx)))
+                                        .when(pane_tree,|el|el.child(self.render_pane_tree(self.navigation.pane_layout().unwrap().root.as_ref().unwrap(),cx)))
+                                        .when(!pane_tree&&self.navigation.page()==WorkbenchPage::Web,|el|el.child(self.web_content(cx)))
+                                        .when(!pane_tree&&self.navigation.page()==WorkbenchPage::Document,|el|el.child(self.document_content(cx)))
                                         .when(
                                             self.navigation.page() == WorkbenchPage::Tasks,
                                             |el| {
@@ -407,7 +410,7 @@ impl Render for Workbench {
                                             },
                                         )
                                         .when(
-                                            self.navigation.page() == WorkbenchPage::Conversation,
+                                            !pane_tree&&self.navigation.page() == WorkbenchPage::Conversation,
                                             |el| el.child(self.detail(window, cx)),
                                         )
                                         .when(
@@ -435,7 +438,7 @@ impl Render for Workbench {
                                             self.navigation.page() == WorkbenchPage::Agents,
                                             |el| el.child(self.environments(cx)),
                                         )
-                                        .when(self.navigation.page() == WorkbenchPage::Apps, |el| {
+                                        .when(!pane_tree&&self.navigation.page() == WorkbenchPage::Apps, |el| {
                                             el.child(self.apps_view(cx))
                                         })
                                         .when(

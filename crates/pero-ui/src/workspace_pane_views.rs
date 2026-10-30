@@ -305,7 +305,7 @@ impl Workbench {
         id: PaneId,
         route: WorkspaceRoute,
         bounds: Bounds<Pixels>,
-        _cx: &mut Context<Self>,
+        cx: &mut Context<Self>,
     ) {
         let focused = self
             .navigation
@@ -331,6 +331,7 @@ impl Workbench {
         } else {
             self.pane_surfaces.push(surface);
         }
+        self.sync_pane_surfaces(cx);
     }
     pub(crate) fn resize_document_pane(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
         let Some(resize) = &self.pane_resize else {
@@ -348,19 +349,16 @@ impl Workbench {
             cx.notify();
         }
     }
-    fn pane_actions(&self, id: PaneId, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn pane_actions(&self, id: PaneId, cx: &mut Context<Self>) -> AnyElement {
         let owner = cx.entity().downgrade();
+        let menu_owner=owner.clone();
         let locale = self.locale.clone();
+        let candidates = self.pane_open_candidates(Some(id),cx);
         let clone_allowed = self
             .navigation
             .pane_layout()
             .and_then(|layout| layout.leaf(id))
-            .is_some_and(|view| {
-                matches!(
-                    view.route,
-                    WorkspaceRoute::Content(WorkspaceItem::Document { .. })
-                )
-            });
+            .is_some_and(|view| view.route.can_clone_pane());
         let movable = [
             SplitDirection::Left,
             SplitDirection::Right,
@@ -381,7 +379,7 @@ impl Workbench {
             .tooltip(self.t("workspace.pane_actions"))
             .accessibility_label(self.t("workspace.pane_actions"))
             .dropdown_caret(false)
-            .dropdown_menu_with_anchor(Anchor::BottomRight, move |menu, _, _| {
+            .dropdown_menu_with_anchor(Anchor::BottomRight, move |menu, window, cx| {
                 let mut menu = menu;
                 for (direction, split, move_key) in [
                     (
@@ -417,6 +415,16 @@ impl Workbench {
                                 }),
                         );
                     }
+                    if !candidates.is_empty() {
+                        let entries=candidates.clone();let target=owner.clone();
+                        let label=match direction {SplitDirection::Left=>"workspace.open_left",SplitDirection::Right=>"workspace.open_right",SplitDirection::Up=>"workspace.open_up",SplitDirection::Down=>"workspace.open_down"};
+                        menu=menu.submenu(pero_contracts::i18n::text(&locale,label),window,cx,move|mut submenu,_,_| {
+                            for (item,title) in &entries {let item=item.clone();let target=target.clone();
+                                submenu=submenu.item(PopupMenuItem::new(title.clone()).on_click(move|_,window,cx| {let _=target.update(cx,|this,cx|this.open_item_in_pane(item.clone(),Some(id),direction,window,cx));}));
+                            }
+                            submenu
+                        });
+                    }
                     let target = owner.clone();
                     menu = menu.item(
                         PopupMenuItem::new(pero_contracts::i18n::text(&locale, move_key))
@@ -434,160 +442,12 @@ impl Workbench {
                 }
                 menu
             })
+            .on_open_change(move|_,_,cx| {let _=menu_owner.update(cx,|_,cx|cx.notify());})
             .into_any_element()
     }
     pub(crate) fn render_pane_tree(&self, node: &PaneNode, cx: &mut Context<Self>) -> AnyElement {
         match node {
-            PaneNode::Leaf { view } => {
-                let id = view.id;
-                let route = view.route.clone();
-                let selected = route.clone();
-                let owner = cx.entity().clone();
-                let item = match &route {
-                    WorkspaceRoute::Content(item) => Some(item.clone()),
-                    _ => None,
-                };
-                let reader = self.pane_views.iter().find(|pane| pane.id == id);
-                let focused = self
-                    .navigation
-                    .pane_layout()
-                    .is_some_and(|layout| layout.focused == Some(id));
-                div()
-                    .id(("workspace-pane", id.0 as usize))
-                    .flex()
-                    .flex_col()
-                    .flex_1()
-                    .min_h_0()
-                    .min_w_0()
-                    .overflow_hidden()
-                    .on_prepaint(move |bounds, _, cx| {
-                        owner.update(cx, |this, cx| {
-                            this.observe_pane_surface(id, route.clone(), bounds, cx)
-                        })
-                    })
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _, window, cx| {
-                            if this
-                                .navigation
-                                .pane_layout()
-                                .is_some_and(|layout| layout.focused != Some(id))
-                            {
-                                this.focus_pane(id, window, cx);
-                            }
-                        }),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .h(px(28.))
-                            .flex_shrink_0()
-                            .px(px(4.))
-                            .gap(px(4.))
-                            .border_b_1()
-                            .border_color(if focused {
-                                cx.theme().accent
-                            } else {
-                                cx.theme().border
-                            })
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .truncate()
-                                    .text_size(px(12.))
-                                    .child(
-                                        item.as_ref()
-                                            .map(|item| self.document_label(item, cx).0)
-                                            .unwrap_or_default(),
-                                    ),
-                            )
-                            .child(self.pane_actions(id, cx))
-                            .child(
-                                Button::new(("pane-save-as", id.0 as usize))
-                                    .ghost()
-                                    .small()
-                                    .label(self.t("content.save_as"))
-                                    .disabled(self.pending_save_as.is_some())
-                                    .tooltip(
-                                        self.t(
-                                            if item
-                                                .as_ref()
-                                                .is_some_and(|item| self.save_as_pending(item))
-                                            {
-                                                "content.saving_as"
-                                            } else {
-                                                "content.save_as"
-                                            },
-                                        ),
-                                    )
-                                    .accessibility_label(self.t("content.save_as"))
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        if let WorkspaceRoute::Content(item) = &selected {
-                                            this.choose_document_copy(item, cx);
-                                        }
-                                    })),
-                            )
-                            .when(
-                                self.navigation
-                                    .pane_layout()
-                                    .is_some_and(|layout| layout.leaves().len() > 1),
-                                |header| {
-                                    header.child(
-                                        Button::new(("close-pane", id.0 as usize))
-                                            .ghost()
-                                            .small()
-                                            .icon(IconName::Close)
-                                            .tooltip(self.t("workspace.close_split"))
-                                            .on_click(cx.listener(move |this, _, window, cx| {
-                                                this.close_document_pane(id, window, cx)
-                                            })),
-                                    )
-                                },
-                            ),
-                    )
-                    .when(
-                        item.as_ref().is_some_and(|item| {
-                            self.documents
-                                .iter()
-                                .any(|open| &open.item == item && open.cached)
-                        }),
-                        |pane| {
-                            pane.child(
-                                div()
-                                    .px(px(8.))
-                                    .py(px(4.))
-                                    .text_size(px(12.))
-                                    .child(self.t("workspace.cached_source")),
-                            )
-                        },
-                    )
-                    .when(
-                        item.as_ref().is_some_and(|item| {
-                            self.save_as_feedback
-                                .as_ref()
-                                .is_some_and(|feedback| &feedback.item == item)
-                        }),
-                        |pane| {
-                            pane.child(
-                                div()
-                                    .px(px(8.))
-                                    .text_size(px(12.))
-                                    .child(self.t(self.save_as_feedback.as_ref().unwrap().key)),
-                            )
-                        },
-                    )
-                    .when_some(reader, |pane, reader| pane.child(reader.view.clone()))
-                    .when(reader.is_none(), |pane| {
-                        if let Some(item) = &item {
-                            pane.child(self.deferred_document_content(item, cx))
-                        } else {
-                            pane
-                        }
-                    })
-                    .into_any_element()
-            }
+            PaneNode::Leaf { view } => self.render_pane_leaf(view, cx),
             PaneNode::Split {
                 id,
                 axis,

@@ -235,6 +235,7 @@ impl Workbench {
             ConversationTab::Chat,
             &preferences.layout,
             false,
+            None,
         );
         Self {
             workspace_focus,
@@ -294,12 +295,14 @@ impl Workbench {
     }
 
     pub fn sync_follow(&mut self, cx: &mut Context<Self>) {
-        let origin=match self.navigation.current() {
+        let pane_thread=self.navigation.pane_layout().filter(|_|self.navigation.pane_layout_visible()).and_then(|layout|layout.conversation().map(str::to_owned));
+        let origin=pane_thread.as_ref().map(|id|pero_contracts::content_origin::ContentOrigin::Conversation {thread_id:id.clone()}).or_else(||match self.navigation.current() {
             Some(WorkspaceItem::App {name,panel})=>Some(pero_contracts::content_origin::ContentOrigin::App {app:name.clone(),panel:panel.clone()}),
             Some(WorkspaceItem::Conversation(id))=>Some(pero_contracts::content_origin::ContentOrigin::Conversation {thread_id:id.clone()}),
             Some(WorkspaceItem::Document {origin,..})=>Some(origin.clone()),
             _=>None,
-        };
+        });
+        let pinned=pane_thread.and_then(|id|self.chat.read(cx).chats.iter().position(|chat|chat.id==id));
         let scope=origin.and_then(|origin|match origin {
             pero_contracts::content_origin::ContentOrigin::App {app,panel}=>Some(pero_contracts::AppChatScope {app,panel}),
             origin=>origin.thread_id().and_then(|id|self.chat.read(cx).chats.iter().find(|chat|chat.id==id).and_then(|chat|chat.scope.clone())),
@@ -316,6 +319,7 @@ impl Workbench {
         self.chat.update(cx, |chat, cx| {
             if !visible { chat.set_visible(false, cx); }
             chat.set_scope(scope, cx);
+            if let Some(index)=pinned {if chat.active_chat!=Some(index) {chat.focus_chat(Some(index),cx);}}
             chat.set_visible(visible, cx);
             chat.show_return_to_review = show_return;
         });
