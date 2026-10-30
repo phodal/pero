@@ -32,6 +32,7 @@ struct Reading {
 
 struct ReaderWindow {
     reader: Option<Entity<ContentReader>>,
+    chart: Option<crate::chart::Chart>,
     subscriptions: Vec<Subscription>,
     locale: String,
     palettes: Palettes,
@@ -48,6 +49,9 @@ impl Render for ReaderWindow {
             .bg(appearance.palette.surface)
             .text_color(appearance.palette.text)
             .text_size(appearance.text(pero_theme::TextRole::Body))
+            .when_some(self.chart.as_ref(), |this, chart| {
+                this.child(div().size_full().p_3().child(chart.render(cx)))
+            })
             .children(self.reader.clone())
     }
 }
@@ -79,6 +83,7 @@ pub fn run(theme_json: &str, dark: bool, locale: &str) -> Result<(), JsValue> {
             gpui_kit::open_window(WindowOptions::default(), cx, |window, cx| {
                 let view = cx.new(|_| ReaderWindow {
                     reader: None,
+                    chart: None,
                     subscriptions: vec![],
                     locale,
                     palettes,
@@ -141,11 +146,23 @@ pub fn receive_document(value: &str) -> Result<(), JsValue> {
                             }
                         }),
                     ];
+                    ui.chart = None;
                     ui.reader = Some(reader);
                     cx.notify();
                 });
             });
         });
+    });
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn receive_chart(value: &str) -> Result<(), JsValue> {
+    let chart = crate::chart::Chart::parse(value).map_err(|error| JsValue::from_str(&error))?;
+    update(|ui, cx| {
+        ui.reader = None;
+        ui.chart = Some(chart);
+        cx.notify();
     });
     Ok(())
 }

@@ -243,6 +243,12 @@ impl ResolvedAppearance {
             theme.focus_ring = false;
             theme.mono_font_family = "JetBrains Mono".into();
             let c = &mut theme.colors;
+            // The chart palette follows DESIGN.md's categorical data colors.
+            c.chart_1 = rgb(0x3b6fd8).into();
+            c.chart_2 = rgb(0xd9535f).into();
+            c.chart_3 = rgb(0x2f9564).into();
+            c.chart_4 = rgb(0x845ec2).into();
+            c.chart_5 = rgb(0xb86a18).into();
             c.background = p.surface;
             c.foreground = p.text;
             c.border = p.border;

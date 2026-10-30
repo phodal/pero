@@ -1,5 +1,5 @@
 import { installContentAnalysis } from './content-analysis';
-import init, { run, receive_document, set_context, set_icon_theme, snapshot } from './reader-wasm/pero_reader_web';
+import init, { run, receive_document, receive_chart, set_context, set_icon_theme, snapshot } from './reader-wasm/pero_reader_web';
 import { AppDocuments, type AppDocumentInput } from '../../packages/content-source/app-document';
 import { applyAppearance, readAppearance } from '../../packages/app-sdk/src/appearance';
 import type { DocumentHeader } from '../../protocol/generated/host';
@@ -9,7 +9,7 @@ import './chat.css';
 import type { ReaderContext } from '../../packages/app-sdk/src/reader-surface';
 
 type Source = { header: DocumentHeader; text: string };
-type Reading = { source?: Source; document?: AppDocumentInput; context: ReaderContext };
+type Reading = { source?: Source; document?: AppDocumentInput; chart?: unknown; context: ReaderContext };
 const nonce = new URL(location.href).searchParams.get('nonce');
 const parentOrigin = new URL(location.href).searchParams.get('parent');
 if (!nonce || !parentOrigin || window.parent === window) throw new Error('A reader must be mounted by its owning App.');
@@ -29,6 +29,7 @@ const apply = () => {
   if (appearance) applyAppearance(appearance);
   set_context(context.dark, context.locale, appearance ? JSON.stringify(appearance) : '');
   if(context.iconTheme!==undefined)set_icon_theme(JSON.stringify(context.iconTheme));
+  if (reading.chart !== undefined) { receive_chart(JSON.stringify(reading.chart)); return; }
   // Workbench sources are already admitted by the owning AppDocuments. Bare Apps
   // enter that same boundary here; arbitrary origins never reach the reader.
   const source = reading.document ? standalone.admit(reading.document) : reading.source;
@@ -38,7 +39,7 @@ const apply = () => {
 window.addEventListener('message', event => {
   if (event.source !== window.parent || event.origin !== parentOrigin || event.data?.nonce !== nonce) return;
   try {
-  if (event.data.type === 'pero:reader:document') {
+  if (event.data.type === 'pero:reader:document' || event.data.type === 'pero:reader:chart') {
     const value = event.data.reading as Reading;
     if (!value?.context || typeof value.context.locale !== 'string' || typeof value.context.dark !== 'boolean') return;
     if (value.context.appearance !== undefined && !readAppearance(value.context.appearance)) return;
