@@ -2,6 +2,7 @@
 pub fn canonical(name: &str) -> Option<&'static str> {
     match name {
         "settings" => Some("settings"),
+        "pin" => Some("pin"),
         "alert-circle" => Some("alert-circle"),
         "database" => Some("database"),
         "languages" => Some("languages"),
