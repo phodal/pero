@@ -12,6 +12,38 @@ impl WorkspaceNavigation {
             ));
         }
     }
+    pub(crate) fn pane_layout_visible(&self) -> bool {
+        self.route.supports_pane()
+            && self
+                .pane_layout
+                .as_ref()
+                .is_some_and(|layout| layout.is_active(&self.route))
+    }
+    pub(crate) fn open_item_in_pane(
+        &mut self,
+        item: WorkspaceItem,
+        target: PaneId,
+        direction: SplitDirection,
+    ) -> Option<PaneId> {
+        let route = WorkspaceRoute::Content(item.clone());
+        if !route.supports_pane() || !self.items.contains(&item) {
+            return None;
+        }
+        let id = self
+            .pane_layout
+            .as_mut()?
+            .place(target, direction, route, None)?;
+        self.focus_pane(id)?;
+        Some(id)
+    }
+    pub(crate) fn ensure_pane_layout(&mut self) {
+        if self.pane_layout.is_none() && self.route.supports_pane() {
+            self.pane_layout = Some(PaneLayout::new(
+                self.route.clone(),
+                self.history.reading.clone(),
+            ));
+        }
+    }
     pub(crate) fn pane_layout(&self) -> Option<&PaneLayout> {
         self.pane_layout.as_ref()
     }
@@ -38,10 +70,7 @@ impl WorkspaceNavigation {
         });
     }
     pub(super) fn select_pane_route(&mut self, route: &WorkspaceRoute) -> bool {
-        if !matches!(
-            route,
-            WorkspaceRoute::Content(WorkspaceItem::Document { .. })
-        ) {
+        if !route.supports_pane() {
             return false;
         }
         let Some(layout) = &mut self.pane_layout else {
@@ -59,9 +88,12 @@ impl WorkspaceNavigation {
         if let Some(id) = layout
             .leaves()
             .iter()
-            .find(|view| &view.route == route)
+            .find(|view| view.route.shares_pane_instance(route))
             .map(|view| view.id)
         {
+            if let Some(view) = layout.leaf_mut(id) {
+                view.route = route.clone();
+            }
             layout.focus(id);
         } else if let Some(view) = layout.leaf_mut(focused) {
             view.route = route.clone();
@@ -78,10 +110,7 @@ impl WorkspaceNavigation {
         self.focused = PaneSide::Left;
         if leaves.len() == 2
             && leaves[0].route != leaves[1].route
-            && matches!(
-                self.route,
-                WorkspaceRoute::Content(WorkspaceItem::Document { .. })
-            )
+            && leaves.iter().all(|leaf| leaf.route.can_clone_pane())
         {
             let index = usize::from(layout.focused == Some(leaves[1].id));
             self.other = Some(leaves[1 - index].route.clone());
@@ -165,6 +194,9 @@ impl WorkspaceNavigation {
     pub(crate) fn observe_pane_reading(&mut self, id: PaneId, state: ReaderState) {
         if let Some(layout) = &mut self.pane_layout {
             if let Some(view) = layout.leaf_mut(id) {
+                if !view.route.can_clone_pane() {
+                    return;
+                }
                 view.reading = Some(state.clone());
             }
             if layout.focused == Some(id)
@@ -335,17 +367,15 @@ mod tests {
         );
         assert!(navigation.snapshot().history.reading.is_none());
         assert!(navigation.snapshot().valid());
-        assert_eq!(
+        assert!(
             navigation
                 .pane_layout()
                 .unwrap()
                 .leaf(pane)
                 .unwrap()
                 .reading
-                .as_ref()
-                .unwrap()
-                .selection,
-            99..130
+                .is_none()
         );
+        assert!(navigation.pane_layout_visible());
     }
 }

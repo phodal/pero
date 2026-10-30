@@ -196,7 +196,75 @@ pub struct PaneLayout {
     pub focused: Option<PaneId>,
     pub next_id: u64,
 }
+impl WorkspaceRoute {
+    pub fn supports_pane(&self) -> bool {
+        matches!(
+            self,
+            Self::Content(
+                WorkspaceItem::Document { .. }
+                    | WorkspaceItem::App { .. }
+                    | WorkspaceItem::Web(_)
+                    | WorkspaceItem::Conversation(_)
+            )
+        )
+    }
+    pub fn can_clone_pane(&self) -> bool {
+        matches!(self, Self::Content(WorkspaceItem::Document { .. }))
+    }
+    /// Conversation routes share one retained chat entity across thread selection.
+    pub fn shares_pane_instance(&self, other: &Self) -> bool {
+        self == other
+            || matches!(
+                (self, other),
+                (
+                    Self::Content(WorkspaceItem::Conversation(_)),
+                    Self::Content(WorkspaceItem::Conversation(_))
+                )
+            )
+    }
+}
 impl PaneLayout {
+    pub fn conversation(&self) -> Option<&str> {
+        self.leaves()
+            .into_iter()
+            .find_map(|leaf| match &leaf.route {
+                WorkspaceRoute::Content(WorkspaceItem::Conversation(id)) => Some(id.as_str()),
+                _ => None,
+            })
+    }
+    pub fn is_active(&self, route: &WorkspaceRoute) -> bool {
+        self.focused
+            .and_then(|id| self.leaf(id))
+            .is_some_and(|leaf| &leaf.route == route)
+    }
+    /// Opening an existing single-instance surface moves its leaf; documents clone.
+    pub fn place(
+        &mut self,
+        target: PaneId,
+        direction: SplitDirection,
+        route: WorkspaceRoute,
+        reading: Option<ReaderState>,
+    ) -> Option<PaneId> {
+        let existing = (!route.can_clone_pane())
+            .then(|| {
+                self.leaves()
+                    .into_iter()
+                    .find(|view| view.route.shares_pane_instance(&route))
+                    .map(|view| view.id)
+            })
+            .flatten();
+        if let Some(id) = existing {
+            if id == target {
+                return None;
+            }
+            if self.move_to(id, target, direction) {
+                self.leaf_mut(id)?.route = route;
+                return Some(id);
+            }
+            return None;
+        }
+        self.split(target, direction, route, reading)
+    }
     pub fn new(route: WorkspaceRoute, reading: Option<ReaderState>) -> Self {
         Self {
             root: Some(PaneNode::Leaf {
@@ -236,10 +304,11 @@ impl PaneLayout {
         reading: Option<ReaderState>,
     ) -> Option<PaneId> {
         if self.leaf(target).is_none()
-            || (!matches!(
-                route,
-                WorkspaceRoute::Content(WorkspaceItem::Document { .. })
-            ) && self.leaves().iter().any(|view| view.route == route))
+            || (!route.can_clone_pane()
+                && self
+                    .leaves()
+                    .iter()
+                    .any(|view| view.route.shares_pane_instance(&route)))
         {
             return None;
         }
@@ -389,12 +458,10 @@ impl PaneLayout {
             && (self.root.is_some() == self.focused.is_some())
             && ids.iter().all(|id| *id < self.next_id)
             && self.leaves().iter().enumerate().all(|(index, view)| {
-                matches!(
-                    view.route,
-                    WorkspaceRoute::Content(WorkspaceItem::Document { .. })
-                ) || !self.leaves()[..index]
-                    .iter()
-                    .any(|previous| previous.route == view.route)
+                view.route.can_clone_pane()
+                    || !self.leaves()[..index]
+                        .iter()
+                        .any(|previous| previous.route.shares_pane_instance(&view.route))
             })
     }
 }
@@ -417,6 +484,48 @@ pub struct PaneSurface {
 mod tests {
     use super::*;
     use crate::{content_origin::ContentOrigin, workspace_session::WorkbenchPage};
+    #[test]
+    fn shared_surfaces_move_without_cloning_chat_or_app_state() {
+        let app = WorkspaceRoute::Content(WorkspaceItem::App {
+            name: "data".into(),
+            panel: "main".into(),
+        });
+        let web = WorkspaceRoute::Content(WorkspaceItem::Web("https://example.org".into()));
+        let chat = WorkspaceRoute::Content(WorkspaceItem::Conversation("first".into()));
+        let other_chat = WorkspaceRoute::Content(WorkspaceItem::Conversation("second".into()));
+        let mut layout = PaneLayout::new(app.clone(), None);
+        let first = layout.focused.unwrap();
+        let browser = layout
+            .place(first, SplitDirection::Right, web.clone(), None)
+            .unwrap();
+        let conversation = layout
+            .place(browser, SplitDirection::Down, chat, None)
+            .unwrap();
+        assert!(
+            layout
+                .split(browser, SplitDirection::Left, other_chat.clone(), None)
+                .is_none()
+        );
+        assert_eq!(
+            layout.place(first, SplitDirection::Left, other_chat.clone(), None),
+            Some(conversation)
+        );
+        assert_eq!(layout.leaf(conversation).unwrap().route, other_chat);
+        assert_eq!(
+            layout.place(conversation, SplitDirection::Up, web, None),
+            Some(browser)
+        );
+        assert_eq!(layout.leaves().len(), 3);
+        assert!(layout.valid());
+        assert!(layout.is_active(&layout.leaf(browser).unwrap().route));
+        let restored: PaneLayout =
+            serde_json::from_str(&serde_json::to_string(&layout).unwrap()).unwrap();
+        assert_eq!(restored, layout);
+        assert!(layout.close(conversation));
+        assert!(layout.valid());
+        assert!(layout.leaves().iter().any(|view| view.route == app));
+    }
+
     #[test]
     fn pane_tree_keeps_view_identity_through_split_move_resize_close_and_restart() {
         let route = WorkspaceRoute::Content(WorkspaceItem::Document {
