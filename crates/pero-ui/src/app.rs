@@ -46,6 +46,7 @@ pub(crate) struct Workbench {
     pub pane_surfaces:Vec<pero_contracts::workspace_panes::PaneSurface>,
     pub pane_split_bounds:Vec<(u64,pero_contracts::workspace_panes::PaneBounds)>,
     pub pane_resize:Option<crate::workspace_pane_views::PaneResize>,
+    pub pending_close:Option<crate::workspace_close::ClosePlan>,
     pub pending_save_as:Option<crate::document_save_as::PendingSaveAs>,
     pub save_as_feedback:Option<crate::document_save_as::SaveAsFeedback>,
     #[cfg(not(target_family="wasm"))]
@@ -251,7 +252,7 @@ impl Workbench {
             resizing_chat: false,
             chat_resize_focus: cx.focus_handle().tab_stop(true),
             input,
-            documents:vec![],pane_views:vec![],pane_surfaces:vec![],pane_split_bounds:vec![],pane_resize:None,pending_save_as:None,save_as_feedback:None,
+            documents:vec![],pane_views:vec![],pane_surfaces:vec![],pane_split_bounds:vec![],pane_resize:None,pending_close:None,pending_save_as:None,save_as_feedback:None,
             input_locale: String::new(),
             locale,
             palettes,
@@ -495,6 +496,7 @@ impl Workbench {
                     "ready" => self.connected = true,
                     "disconnected" => {
                         self.connected = false;
+                        self.pending_close = None;
                         self.pending = None;
                         self.chat.update(cx, |panel, cx| {
                             for chat in &mut panel.chats {
@@ -734,6 +736,7 @@ pub fn snapshot() -> String {
         value["webEntryOpen"]=json!(ui.web_entry_open);
         value["documents"]=json!(ui.documents.iter().map(|open|json!({"item":open.item,"title":open.view.read(cx).document.title,"reader":open.view.read(cx).snapshot(cx)})).collect::<Vec<_>>());
         value["contentTabs"] = serde_json::json!(ui.navigation.items());
+        value["pendingClose"]=serde_json::json!(&ui.pending_close);
         value["paneSurfaces"]=serde_json::json!(ui.pane_surfaces);
         value["paneViews"]=serde_json::json!(ui.pane_views.iter().map(|view|serde_json::json!({"pane":view.id,"item":view.item,"reader":view.view.read(cx).snapshot(cx)})).collect::<Vec<_>>());
         value["workspaceNavigation"]=serde_json::json!(ui.navigation.snapshot());

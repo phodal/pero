@@ -135,6 +135,7 @@ impl Workbench {
             });
         }
         self.recovery.applying = applying;
+        self.loaded_workspace_close(&item, window, cx);
         if !applying {
             self.ensure_document_panes(window, cx);
         }

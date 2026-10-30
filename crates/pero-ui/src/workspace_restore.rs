@@ -111,6 +111,7 @@ impl Workbench {
                             document.saved.draft = Some(draft.to_owned());
                         }
                     }
+                    self.resume_workspace_close(&WorkspaceItem::Document { origin: key.origin, source: key.source }, false, window, cx);
                 }
                 cx.notify();
                 true
@@ -165,6 +166,7 @@ impl Workbench {
                 true
             }
             "workspace_error" => {
+                self.pending_close = None;
                 #[cfg(not(target_family = "wasm"))]
                 if self.recovery.native_close.as_deref() == event.request_id.as_deref()
                     && self.recovery.native_close.is_some()

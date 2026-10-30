@@ -92,3 +92,6 @@ mod workspace_surface_views;
 
 #[cfg(any(target_family="wasm",feature="native"))]
 mod workspace_draft_upload;
+
+#[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
+mod workspace_close;

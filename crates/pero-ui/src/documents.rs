@@ -155,7 +155,14 @@ impl Workbench {
                                 self.navigation
                                     .bind_document_revision(&item, document.revision);
                                 self.saved_workspace_file(&document.id, &document);
+                            } else if let Some(deferred) = self.recovery.deferred.iter_mut().find(|open| open.saved.header.source.id == document.id) {
+                                deferred.saved.header = document.header();
+                                deferred.saved.draft = None;
+                                deferred.saved.draft_ref = None;
+                                deferred.saved.legacy_draft = false;
                             }
+                            let item = WorkspaceItem::Document { origin: document.origin.clone(), source: document.id.clone() };
+                            self.resume_workspace_close(&item, true, window, cx);
                         } else if event.request_id.as_deref() == Some("reload") {
                             if let Some(open) = self
                                 .documents
@@ -196,6 +203,8 @@ impl Workbench {
             "document_error" => {
                 if let Some(source) = event.data["source"].as_str() {
                     self.failed_workspace_file_save(source);
+                    let item = WorkspaceItem::Document { origin: ContentOrigin::File { path: source.to_owned() }, source: source.to_owned() };
+                    self.resume_workspace_close(&item, false, window, cx);
                 }
                 let key = match event.data["reason"].as_str() {
                     Some("conflict") => "content.conflict",
