@@ -1,4 +1,5 @@
 mod registry;
+mod mcp;
 mod configuration;
 mod session;
 mod prompt;
