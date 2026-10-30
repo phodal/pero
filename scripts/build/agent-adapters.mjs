@@ -1,8 +1,10 @@
 import { cpSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { build } from 'esbuild';
+import { buildHarness } from './harness.mjs';
 const root = resolve(import.meta.dirname, '../..');
 export async function stageAgentAdapters(payload) {
+  await buildHarness(join(payload, 'bin'));
   // Adapters are small JavaScript bundles; neither native Agent CLI is included.
   const adapters = join(payload, 'adapters');
   mkdirSync(adapters, { recursive: true });

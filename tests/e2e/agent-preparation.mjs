@@ -20,7 +20,7 @@ await writeFile(resolve(workspace, 'notes.txt'), 'FROZEN_CONTEXT');
 await writeFile(log, '');
 await writeFile(settings, JSON.stringify({ chat_agent: 'codex', other: 42 }));
 await writeFile(agents, JSON.stringify([
-  ...['claude', 'grok', 'copilot', 'qoder', 'opencode'].map(id => ({ id, name: id, command: '/no-such-agent' })),
+  ...['pero', 'claude', 'grok', 'copilot', 'qoder', 'opencode'].map(id => ({ id, name: id, command: '/no-such-agent' })),
   ...['codex', 'fast', 'auth', 'broken', 'external'].map(id => ({ id, name: id, command: process.execPath,
     args: [resolve(root, 'tests/fixtures/session-preparation.mjs'), id, log, id === 'codex' ? gate : id === 'auth' ? authGate : '', id === 'broken' ? resolve(temp, 'failure') : ''] })),
 ]));

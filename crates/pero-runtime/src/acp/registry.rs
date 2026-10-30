@@ -47,7 +47,27 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
     let grok = home.as_ref().map(|home| home.join(".grok/bin/grok"))
         .filter(|path| path.is_file()).map(|path| path.to_string_lossy().into_owned())
         .unwrap_or_else(|| "grok-build".into());
+    let sessions = std::env::var_os("PERO_SETTINGS_PATH")
+        .map(PathBuf::from).and_then(|path| path.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| agent_root.join("target"))
+        .join("harness/sessions");
+    let binary = if cfg!(windows) { "pero-agent-acp.exe" } else { "pero-agent-acp" };
+    let packaged = agent_root.join("bin").join(binary);
+    let builtin = if packaged.is_file() { packaged } else { agent_root.join("target/debug").join(binary) };
     let mut agents = vec![
+        AgentConfig {
+            id: "pero".into(), name: "Pero (DeepSeek)".into(),
+            command: builtin.to_string_lossy().into_owned(),
+            args: vec![
+                "--endpoint".into(), std::env::var("DEEPSEEK_BASE_URL").unwrap_or_else(|_| "https://api.deepseek.com".into()),
+                "--model".into(), std::env::var("DEEPSEEK_MODEL").unwrap_or_else(|_| "deepseek-chat".into()),
+                "--api-key-env".into(), "DEEPSEEK_API_KEY".into(),
+                "--session-dir".into(), sessions.to_string_lossy().into_owned(),
+                "--workspace".into(), "{workspace}".into(),
+                "--enable-agent-instructions".into(), "--enable-todos".into(),
+            ],
+            env: BTreeMap::new(), model: None, mcp_servers: vec![],
+        },
         AgentConfig {
             id: "codex".into(),
             name: "Codex".into(),
@@ -96,6 +116,9 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
     ];
+    if !cfg!(windows) {
+        agents[0].args.push("--enable-shell".into());
+    }
     // Packaged adapters use Electron's Node runtime directly on every OS.
     // In particular, Windows CreateProcess does not execute npm .cmd shims.
     if let Some(node) = std::env::var_os("PERO_ADAPTER_NODE") {
