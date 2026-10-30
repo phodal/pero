@@ -4,6 +4,7 @@ export const messages = {
   noFile:{en:'JSON / JSONL · up to 16 MiB',zh:'JSON / JSONL · 最大 16 MiB'},dataset:{en:'Dataset',zh:'数据集'},fields:{en:'Fields',zh:'字段'},
   rows:{en:'records',zh:'条记录'},matching:{en:'matching',zh:'匹配'},selected:{en:'selected',zh:'已选'},source:{en:'Source',zh:'源码'},export:{en:'Export records',zh:'导出记录'},
   ask:{en:'Ask Agent',zh:'交给 Agent'},prompt:{en:'Analyze this dataset view. Check missingness and provenance, and support conclusions with record references.',zh:'分析这个数据集视图，核对缺失值和来源，并使用记录引用支持结论。'},
+  openChat:{en:'Open chat',zh:'打开对话'},closeChat:{en:'Close chat',zh:'关闭对话'},chatUnavailable:{en:'Chat is unavailable here. Close and reopen it to retry.',zh:'此区域无法显示对话，请关闭后重新打开重试。'},
   filter:{en:'Filter field',zh:'筛选字段'},operator:{en:'Condition',zh:'条件'},value:{en:'Filter value',zh:'筛选值'},apply:{en:'Apply',zh:'应用'},clear:{en:'Clear filter',zh:'清除筛选'},
   contains:{en:'Contains',zh:'包含'},eq:{en:'Equals',zh:'等于'},gte:{en:'At least',zh:'大于等于'},lte:{en:'At most',zh:'小于等于'},missing:{en:'Missing field',zh:'缺少字段'},null:{en:'Null value',zh:'空值'},
   sort:{en:'Sort field',zh:'排序字段'},none:{en:'None',zh:'无'},ascending:{en:'Ascending',zh:'升序'},descending:{en:'Descending',zh:'降序'},
