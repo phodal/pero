@@ -54,6 +54,26 @@ func (r *SubagentRegistry) waitForChildren(ctx context.Context, parent *Agent, f
 			if state == nil {
 				continue
 			}
+			// A terminal receipt can precede ownership release, which may unblock
+			// a still-progressing ancestor. Join that edge without counting the
+			// completed record itself as progressing work.
+			select {
+			case <-state.done:
+				r.mu.RLock()
+				_, retained := r.parentRecords[record.parent][record]
+				changed := r.ownershipChanged
+				r.mu.RUnlock()
+				if retained {
+					waited = true
+					select {
+					case <-changed:
+					case <-ctx.Done():
+						return observed, ctx.Err()
+					}
+				}
+				continue
+			default:
+			}
 			if record.child != nil && record.child.Status() != AgentIdle {
 				observed = true
 				waited = true
