@@ -215,7 +215,7 @@ try {
     expect(finalTrials.map(item => item.scenarioId).sort()).toEqual(finalScenarios.map(item => item.id).sort());
     expect(finalTrials.every(item => item.candidateId === verified.lockedCandidateId)).toBe(true);
     const verification = frame.locator('section').filter({ has: frame.getByRole('heading', { name: 'Independent verification', exact: true }) });
-    await expect(verification.locator('table').first().locator('tbody > tr')).toHaveCount(finalScenarios.length);
+    await expect(verification.locator('table').first().locator(':scope > tbody > tr')).toHaveCount(finalScenarios.length);
     await expect(verification).toContainText(`/ ${finalScenarios.length} final scenarios passed`);
     const reevaluated = await action('Re-evaluate evidence', `${experimentPath(frozen.id)}/reevaluate`);
     expect(reevaluated.trials).toEqual(verified.trials);
@@ -311,7 +311,7 @@ try {
   expect(failedVerification.trials.filter(item => item.phase === 'verification').map(item => item.scenarioId).sort()).toEqual(full.map(item => item.id).sort());
   const missingSection = frame.locator('section').filter({ has: frame.getByRole('heading', { name: 'Independent verification', exact: true }) });
   await expect(missingSection).toContainText(`0 / ${full.length} final scenarios passed`);
-  await expect(missingSection.locator('table').first().locator('tbody > tr')).toHaveCount(full.length);
+  await expect(missingSection.locator('table').first().locator(':scope > tbody > tr')).toHaveCount(full.length);
   await page.screenshot({ path: resolve(out, 'engine-unavailable.png') });
   expect((await exportEvidence(missing.id)).experiment).toEqual(failedVerification);
   expect(await read(experimentPath(first.id))).toEqual(first);

@@ -62,8 +62,8 @@ async function exercise(prompt, signal) {
   const original = await step({ action: 'read' });
   assert.equal(original.templateId, 'robust-pid'); assert.equal(original.candidateBudget, 2); assert.equal(original.trials.length, 0);
   await step({ action: 'propose', parameters: { kp: 999 } }, '/result', /between|bounds|range/i);
-  await step({ action: 'propose', parameters: { horizon: 60 } }, '/result', /only|frozen|controller|component|additional|schema|unknown|invalid/i);
-  await step({ action: 'propose', parameters: { kp: 3 }, criteria: { steadyErrorMax: .5 } }, '/result', /declared|schema|invalid|frozen|policy/i);
+  await step({ action: 'propose', parameters: { horizon: 60 } }, '/result', /not declared|only|frozen|controller|component|additional|schema|unknown|invalid/i);
+  await step({ action: 'propose', parameters: { kp: 3 }, criteria: { steadyErrorMax: .5 } }, '/result', /not declared|schema|invalid|frozen|policy/i);
   await step({ action: 'search', budget: 3 }, '/result', /frozen|budget/i);
   await step({ action: 'propose', parameters: { kp: 3 } }, '/result/status');
   async function settled() {
