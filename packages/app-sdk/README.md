@@ -35,6 +35,16 @@ Chat. `useAppChat().compose(text)` opens it and inserts text into its draft;
 the user still sends the message. These requests use the managed iframe's App
 identity and do not expose session commands or Agent credentials to the App.
 
+`<AppConversation active={visible} className="chat-slot" fallback={...} />`
+reserves a region for that same App-scoped Host conversation. Give the region
+a definite size of at least 320 × 240 CSS pixels; it must fit completely inside
+the visible App frame and window. The Host confirms when the conversation is
+actually presented; until then the component shows the supplied fallback.
+Hiding or unmounting the slot releases its presentation without cancelling a
+turn. Only one active slot per App panel is supported. A Host without slot
+support leaves the fallback in place. The slot does not expose Session commands
+or grant App Use access.
+
 `useAppObject()` declares the state and actions that an Agent can use through
 `app_use`. Declare the same state and handlers that the UI uses; the SDK keeps
 an object revision and calls the latest handler after validating its parameters.
