@@ -54,6 +54,7 @@ pub(crate) struct Workbench {
     pub preferences_status: crate::settings_menu::PreferenceSaveState,
     pub settings_menu_open: bool,
     pub computer: Option<pero_contracts::computer_runtime::ComputerUseState>,
+    pub settings_mcp_requested: bool,
     pub settings_panel: Option<Entity<crate::settings_view::SettingsPanel>>,
     #[cfg(not(target_family = "wasm"))]
     pub settings_window: Option<AnyWindowHandle>,
@@ -230,6 +231,7 @@ impl Workbench {
             preferences_status: Default::default(),
             settings_menu_open: false,
             computer: None,
+            settings_mcp_requested: false,
             settings_panel: None,
             #[cfg(not(target_family = "wasm"))]
             settings_window: None,
@@ -390,7 +392,7 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) {
         let event_kind = event.kind.clone();
-        let feature_handled = self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
+        let feature_handled = self.receive_mcp(&event, cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
             || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
             || self.receive_local_execution(&event, cx)
             || self.receive_contribution(&event, cx)

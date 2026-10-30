@@ -33,15 +33,17 @@ pub(crate) enum SettingsSection {
     ChatFont,
     CodeFont,
     Computer,
+    Mcp,
 }
 impl SettingsSection {
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 7] = [
         Self::General,
         Self::Theme,
         Self::InterfaceFont,
         Self::ChatFont,
         Self::CodeFont,
         Self::Computer,
+        Self::Mcp,
     ];
     fn key(self) -> &'static str {
         match self {
@@ -51,6 +53,7 @@ impl SettingsSection {
             Self::ChatFont => "settings.chat_font",
             Self::CodeFont => "settings.code_font",
             Self::Computer => "computer.title",
+            Self::Mcp => "mcp.title",
         }
     }
     fn scope(self) -> Option<FontScope> {
@@ -69,6 +72,7 @@ pub(crate) enum SettingsAction {
     Locale(&'static str),
     Navigate(WorkbenchPage),
     Computer(pero_contracts::computer_runtime::ComputerControl),
+    Mcp(serde_json::Value),
     Close,
 }
 
@@ -79,7 +83,8 @@ pub(crate) struct SettingsPanel {
     pub error: Option<String>,
     pub computer: Option<pero_contracts::computer_runtime::ComputerUseState>,
     pub computer_pending: bool,
-    section: SettingsSection,
+    pub(crate) mcp: crate::settings_mcp::McpEditor,
+    pub(crate) section: SettingsSection,
     navigation: Entity<TreeState>,
     navigation_focus: FocusHandle,
     navigation_query: Option<(String, String)>,
@@ -207,7 +212,9 @@ impl SettingsPanel {
                 },
             ));
         }
+        let mcp = crate::settings_mcp::McpEditor::new(window, cx);
         Self {
+            mcp,
             preferences,
             locale: locale.clone(),
             input_locale: locale,
@@ -227,6 +234,12 @@ impl SettingsPanel {
             needs_sync: false,
             _subscriptions: subscriptions,
         }
+    }
+    pub(crate) fn show_mcp(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.section = SettingsSection::Mcp;
+        self.navigation_query = None;
+        self.clear_search(window, cx);
+        cx.notify();
     }
     pub(crate) fn receive(
         &mut self,
@@ -272,7 +285,7 @@ impl SettingsPanel {
             "width":f32::from(value.size.width),"height":f32::from(value.size.height)})
         };
         serde_json::json!({"query":self.search.read(cx).value().as_ref(),"section":self.section.key(),
-            "preferences":self.preferences,"error":self.error,"computer":self.computer,"computerPending":self.computer_pending,"bounds":bounds(self.bounds),
+            "preferences":self.preferences,"error":self.error,"computer":self.computer,"computerPending":self.computer_pending,"mcp":self.mcp.snapshot(cx),"bounds":bounds(self.bounds),
             "scroll":{"bounds":bounds(self.content_scroll.bounds()),"offsetY":f32::from(self.content_scroll.offset().y),
                 "maxY":f32::from(self.content_scroll.max_offset().y),"anchors":(0..self.content_scroll.children_count()).filter_map(|index|self.content_scroll.bounds_for_item(index).map(bounds)).collect::<Vec<_>>()},
             "matches":self.matching_sections(cx).iter().map(|section|section.key()).collect::<Vec<_>>(),
@@ -470,6 +483,7 @@ impl SettingsPanel {
                 let mut text = self.t(section.key()).to_owned();
                 let keys: &[&str] = match section {
                     SettingsSection::General => &["menu.language"],
+                    SettingsSection::Mcp => &["mcp.agent", "mcp.add"],
                     SettingsSection::Computer => &["computer.enable", "computer.permissions", "computer.stop"],
                     SettingsSection::Theme => &["settings.appearance", "settings.accent"],
                     SettingsSection::InterfaceFont => &[
@@ -524,9 +538,9 @@ impl SettingsPanel {
             .copied()
             .filter(|section| {
                 !query.is_empty()
-                    || if matches!(self.section, SettingsSection::General | SettingsSection::Computer) {
+                    || if matches!(self.section, SettingsSection::General | SettingsSection::Computer | SettingsSection::Mcp) {
                         *section == self.section
-                    } else { !matches!(section, SettingsSection::General | SettingsSection::Computer) }
+                    } else { !matches!(section, SettingsSection::General | SettingsSection::Computer | SettingsSection::Mcp) }
             })
             .collect::<Vec<_>>();
         let mut content = div()
@@ -544,6 +558,7 @@ impl SettingsPanel {
                 SettingsSection::Theme => self.theme_settings(cx),
                 SettingsSection::General => self.language_settings(cx),
                 SettingsSection::Computer => self.computer_settings(cx),
+                SettingsSection::Mcp => self.mcp_settings(cx),
                 _ => self.font_settings(section, window, cx),
             };
             content = content.child(
@@ -771,6 +786,8 @@ impl SettingsPanel {
                                     "settings.search_results"
                                 } else if self.section == SettingsSection::General {
                                     "settings.general"
+                                } else if self.section == SettingsSection::Mcp {
+                                    "mcp.title"
                                 } else if self.section == SettingsSection::Computer {
                                     "computer.title"
                                 } else {
@@ -861,7 +878,7 @@ impl Render for SettingsPanel {
             let children = sections
                 .iter()
                 .copied()
-                .filter(|section| !matches!(section, SettingsSection::General | SettingsSection::Computer))
+                .filter(|section| !matches!(section, SettingsSection::General | SettingsSection::Computer | SettingsSection::Mcp))
                 .map(|section| TreeItem::new(section.key(), self.t(section.key())))
                 .collect::<Vec<_>>();
             if !children.is_empty() {
@@ -874,6 +891,7 @@ impl Render for SettingsPanel {
             if sections.contains(&SettingsSection::Computer) {
                 roots.push(TreeItem::new(SettingsSection::Computer.key(), self.t(SettingsSection::Computer.key())));
             }
+            if sections.contains(&SettingsSection::Mcp) { roots.push(TreeItem::new("mcp.title", self.t("mcp.title"))); }
             roots.extend(
                 crate::settings_menu::SettingsDestination::ALL
                     .into_iter()
