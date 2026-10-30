@@ -58,3 +58,5 @@ mod approvals;
 pub mod chart;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod chart_lines;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod chart_view;

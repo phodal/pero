@@ -77,6 +77,10 @@ impl Message {
 
 #[derive(Clone, Serialize)]
 pub struct Tool {
+    pub chart: Option<crate::chart_view::ChartView>,
+    pub chart_error: Option<String>,
+    #[serde(skip)]
+    pub chart_reader: Option<Entity<ContentReader>>,
     pub id: String,
     pub title: String,
     pub kind: String,
@@ -295,6 +299,9 @@ impl Conversation {
                     .position(|tool| tool.id == id)
                     .unwrap_or_else(|| {
                         self.tools.push(Tool {
+                            chart: None,
+                            chart_error: None,
+                            chart_reader: None,
                             id: id.clone(),
                             title: "Tool".into(),
                             kind: "other".into(),
@@ -365,6 +372,7 @@ impl Conversation {
                     .collect::<Vec<_>>()
                     .join("\n");
                 if next != tool.content {
+                    tool.chart_reader = None;
                     tool.source_revision+=1;
                     let revision=tool.source_revision;
                     tool.artifact = ArtifactView::from_content(&next);
@@ -383,6 +391,15 @@ impl Conversation {
                         view.update(cx, |view, cx| view.replace(&next, cx));
                     }
                     tool.content = next;
+                }
+
+                tool.chart = None;
+                tool.chart_error = None;
+                if tool.status == "completed" && !tool.cancelled && tool.title == "chart_render" {
+                    match crate::chart_view::ChartView::from_content(&tool.content) {
+                        Ok(chart) => tool.chart = Some(chart),
+                        Err(error) => tool.chart_error = Some(error),
+                    }
                 }
 
                 true

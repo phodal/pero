@@ -298,6 +298,8 @@ mod rendering {
                             })),
                     )
                 })
+                .children(tools.iter().filter_map(|tool|tool.chart_error.as_ref().map(|error|div().text_color(p.error).child(error.clone()))))
+                .children(tools.iter().filter_map(|tool|tool.chart.as_ref().map(|chart|self.inline_chart(conversation_id, &tool.id, chart, cx))))
                 .children(tools.iter().filter_map(|tool|self.approval(conversation_id, Some(&tool.id), cx)))
                 .when(failed && !open, |el| {
                     el.child(
