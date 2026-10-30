@@ -811,7 +811,7 @@ impl Render for ContentReader {
             .when(workspace, |el| el.flex_1().h_full().min_h_0())
             .w_full()
             .min_w_0()
-            .border_1()
+            .when(!workspace, |el| el.border_1())
             .border_color(cx.theme().border)
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
@@ -907,6 +907,7 @@ impl Render for ContentReader {
                         .when(workspace, |el| el.flex_1().min_h_0())
                         .child(
                             Editor::new(editor)
+                                .bordered(!workspace)
                                 .readonly(!self.editable())
                                 .aria_label(self.t("content.source"))
                                 .h(editor_height),

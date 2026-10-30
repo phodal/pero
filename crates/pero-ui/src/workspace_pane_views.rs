@@ -342,7 +342,7 @@ impl Workbench {
         Button::new(("pane-actions", id.0 as usize))
             .ghost()
             .small()
-            .icon(Icon::default().path("icons/chevron-down.svg"))
+            .icon(Icon::default().path("icons/dots.svg"))
             .tooltip(self.t("workspace.pane_actions"))
             .accessibility_label(self.t("workspace.pane_actions"))
             .dropdown_caret(false)
