@@ -2,8 +2,8 @@
 # Input hashes for repository rule npm_translate_lock(name = "npm", pnpm_lock = "@@//:pnpm-lock.yaml").
 # This file should be checked into version control along with the pnpm-lock.yaml file.
 desktop/package.json=-1368503498
-package-lock.json=-1481221822
-package.json=1264252876
-pnpm-lock.yaml=1817262349
+package-lock.json=1945256152
+package.json=858590434
+pnpm-lock.yaml=-108827582
 pnpm-workspace.yaml=-445983158
 web/package.json=-2020523316
