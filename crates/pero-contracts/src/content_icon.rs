@@ -19,6 +19,21 @@ pub enum ContentIconKind {
     Image,
 }
 impl ContentIconKind {
+    fn parse(value: &str) -> Option<Self> {
+        [
+            Self::File,
+            Self::Text,
+            Self::Code,
+            Self::Markdown,
+            Self::Json,
+            Self::JsonLines,
+            Self::App,
+            Self::Web,
+            Self::Image,
+        ]
+        .into_iter()
+        .find(|kind| kind.key() == value)
+    }
     fn key(self) -> &'static str {
         match self {
             Self::File => "file",
@@ -82,7 +97,20 @@ pub enum ContentIconAssociation {
     App(String),
 }
 impl ContentIconAssociation {
-    fn key(self) -> Result<(String, String), String> {
+    pub fn from_parts(section: &str, value: &str) -> Result<Self, String> {
+        let value = value.trim().to_lowercase();
+        match section {
+            "kinds" => ContentIconKind::parse(&value)
+                .map(Self::Kind)
+                .ok_or_else(|| "Unknown content icon kind".into()),
+            "languages" => Ok(Self::Language(value)),
+            "filenames" => Ok(Self::Filename(value)),
+            "extensions" => Ok(Self::Extension(value)),
+            "apps" => Ok(Self::App(value)),
+            _ => Err("Unknown content icon association section".into()),
+        }
+    }
+    pub(crate) fn key(self) -> Result<(String, String), String> {
         let (section, value) = match self {
             Self::Kind(kind) => ("kinds", kind.key().to_owned()),
             Self::Language(value) => ("languages", value),
@@ -138,23 +166,30 @@ impl ContentIconRegistry {
             .or_else(|| data::lookup(section, &value).map(ContentIcon))
     }
     pub fn resolve(&self, input: ContentIconInput<'_>) -> ContentIcon {
+        Self::resolve_with(input, |section, value, dark| {
+            self.lookup(section, value, dark)
+        })
+        .unwrap_or(ContentIcon("file"))
+    }
+    /// One source precedence rule is shared by built-in and installed glyphs.
+    pub fn resolve_with<T>(
+        input: ContentIconInput<'_>,
+        mut lookup: impl FnMut(&str, &str, bool) -> Option<T>,
+    ) -> Option<T> {
         if input.kind == ContentIconKind::App || input.app.is_some() {
-            return self
-                .lookup("apps", input.app.unwrap_or_default(), input.dark)
-                .unwrap_or_else(|| self.lookup("kinds", "app", input.dark).unwrap());
+            return lookup("apps", input.app.unwrap_or_default(), input.dark)
+                .or_else(|| lookup("kinds", "app", input.dark));
         }
         if let Some(language) = input.language {
-            if let Some(icon) = self.lookup("languages", language, input.dark) {
-                return icon;
+            if let Some(icon) = lookup("languages", language, input.dark) {
+                return Some(icon);
             }
         }
         if !matches!(
             input.kind,
             ContentIconKind::File | ContentIconKind::Text | ContentIconKind::Code
         ) {
-            return self
-                .lookup("kinds", input.kind.key(), input.dark)
-                .unwrap_or(ContentIcon("file"));
+            return lookup("kinds", input.kind.key(), input.dark);
         }
         let filename = input
             .path
@@ -163,16 +198,15 @@ impl ContentIconRegistry {
             .next()
             .unwrap_or_default()
             .to_lowercase();
-        if let Some(icon) = self.lookup("filenames", &filename, input.dark) {
-            return icon;
+        if let Some(icon) = lookup("filenames", &filename, input.dark) {
+            return Some(icon);
         }
         for (dot, _) in filename.match_indices('.') {
-            if let Some(icon) = self.lookup("extensions", &filename[dot + 1..], input.dark) {
-                return icon;
+            if let Some(icon) = lookup("extensions", &filename[dot + 1..], input.dark) {
+                return Some(icon);
             }
         }
-        self.lookup("kinds", input.kind.key(), input.dark)
-            .unwrap_or(ContentIcon("file"))
+        lookup("kinds", input.kind.key(), input.dark)
     }
 }
 

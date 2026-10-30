@@ -6,6 +6,7 @@ pub mod apps;
 pub mod contribution;
 pub mod contribution_git;
 pub mod settings;
+pub mod icon_themes;
 pub mod workspace_lease;
 pub mod local_worker;
 

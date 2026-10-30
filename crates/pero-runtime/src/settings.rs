@@ -103,6 +103,13 @@ pub fn load_chat_agent(path: &Path) -> Option<String> {
     value["chat_agent"].as_str().map(str::to_owned)
 }
 
+pub fn load_icon_theme(path: &Path) -> Option<String> {
+    serde_json::from_slice::<serde_json::Value>(&std::fs::read(path).ok()?).ok()?["icon_theme"].as_str().map(str::to_owned)
+}
+pub fn save_icon_theme(path: &Path, id: Option<&str>) -> io::Result<()> {
+    update(path, |settings| settings["icon_theme"] = serde_json::json!(id))
+}
+
 pub fn save_chat_agent(path: &Path, agent: &str) -> io::Result<()> {
     update(path, |value| value["chat_agent"] = agent.into())
 }
