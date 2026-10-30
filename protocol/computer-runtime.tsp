@@ -16,7 +16,7 @@ model ComputerReceiptRequest { operation: "receipt"; request_id: ComputerRef; ..
 /** Private Desktop-to-worker envelope. The model only sees ComputerRequest. */
 model ComputerWorkerRequest { id: ComputerRef; thread: ComputerRef; request: ComputerRequest; ...ComputerClosed; }
 enum ComputerPermissionState { granted, not_detected, unsupported }
-model ComputerDriverStatus { available: boolean; accessibility: ComputerPermissionState; screen_recording: ComputerPermissionState; message: string; ...ComputerClosed; }
+model ComputerDriverStatus { available: boolean; accessibility: ComputerPermissionState; screen_recording: ComputerPermissionState; message: string; environment?: ComputerEnvironment | null; ...ComputerClosed; }
 model ComputerUseState { enabled: boolean; running: boolean; status: ComputerDriverStatus; error?: string | null; ...ComputerClosed; }
 model ComputerImageContent { media_type: "image/png" | "image/jpeg"; data: string; ...ComputerClosed; }
 model ComputerStatusResponse { kind: "status"; status: ComputerDriverStatus; ...ComputerClosed; }

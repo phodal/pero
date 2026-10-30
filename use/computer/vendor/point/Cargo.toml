@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "crates/point-computer-core",
+    "crates/point-computer-backend",
+    "crates/point-computer-overlay",
+    "crates/point-computer-macos",
+    "crates/point-computer-windows",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+publish = false
+
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+too_many_lines = "allow"
+incompatible_msrv = "allow"

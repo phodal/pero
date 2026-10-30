@@ -1,6 +1,6 @@
 // Run on Linux under an owned X server: xvfb-run -a node tests/e2e/computer-linux.mjs
 import assert from 'node:assert/strict';
-import {spawn} from 'node:child_process';
+import {spawn,execFileSync} from 'node:child_process';
 import {mkdtemp,readFile,writeFile,mkdir,rm} from 'node:fs/promises';
 import {createInterface} from 'node:readline';
 import {resolve} from 'node:path';
@@ -18,20 +18,30 @@ const effects=async()=>JSON.parse(await readFile(effectFile,'utf8'));
 try{
  await waitFor(async()=>{try{return (await effects()).pid;}catch{return false;}},'Tk readiness');
  assert.equal((await call({operation:'status'})).status.available,true);
- const listed=await call({operation:'targets'});assert.deepEqual(listed.capabilities.observations,['screenshot']);assert.ok(listed.capabilities.actions.every(a=>a.delivery==='foreground'));
+ const listed=await call({operation:'targets'});assert.deepEqual(listed.capabilities.observations,['screenshot']);assert.ok(listed.capabilities.actions.every(a=>a.delivery==='foreground'&&JSON.stringify(a.addressing)==='["pixel"]'));assert.equal(listed.capabilities.environment.platform,'linux');assert.ok(['x11','xwayland'].includes(listed.capabilities.environment.display));
  const target=listed.targets.find(t=>t.title==='Pero Computer Fixture')?.reference;assert.ok(target);
  const observe=async()=>{const value=await call({operation:'observe',target});assert.ok(value.image);await writeFile(resolve(out,'linux-window.jpg'),Buffer.from(value.image.data,'base64'));return value.observation;};
  const act=async(inputFor)=>{const observation=await observe();const action={request_id:`input-${sequence}`,target,observation_id:observation.id,delivery:'foreground',input:inputFor(observation.screenshot)};const receipt=(await call({operation:'act',action})).receipt;assert.equal(receipt.outcome.status,'executed',JSON.stringify(receipt));return action;};
  const pixel=(s,x,y)=>({kind:'pixel',screenshot_id:s.id,point:{x,y}});
+ const beforeRefusal=await effects(),basis=await observe();
+ const refused=(await call({operation:'act',action:{request_id:'background-refused',target,observation_id:basis.id,delivery:'background',input:{kind:'click',anchor:pixel(basis.screenshot,80,42),button:'left',count:1}}})).receipt;
+ assert.equal(refused.outcome.status,'rejected');assert.equal(refused.outcome.error.code,'unsupported');
+ const afterRefusal=await effects();assert.equal(afterRefusal.count,0);assert.equal(afterRefusal.clicks,0);assert.deepEqual(afterRefusal.pointer,beforeRefusal.pointer,'A refused background action must not move the pointer');
  await act(s=>({kind:'click',anchor:pixel(s,80,42),button:'left',count:1}));await waitFor(async()=>(await effects()).count===1,'button effect');
  await act(s=>({kind:'type_text',anchor:pixel(s,230,40),text:'Linux verified'}));await waitFor(async()=>(await effects()).text==='Linux verified','text effect');
+ assert.equal((await effects()).entry_focused,true,'Keyboard input must reach the owned focused entry');
  await act(s=>({kind:'press_key',anchor:pixel(s,290,40),keys:['End']}));
  await act(s=>({kind:'press_key',anchor:pixel(s,290,40),keys:['Backspace']}));await waitFor(async()=>(await effects()).text==='Linux verifie','key effect');
  const original=await act(s=>({kind:'click',anchor:pixel(s,100,200),button:'left',count:1}));await waitFor(async()=>(await effects()).clicks>0,'canvas click');
  const old=(await call({operation:'act',action:{...original,request_id:'stale'}})).receipt;assert.equal(old.outcome.error.code,'stale_observation');
  await act(s=>({kind:'scroll',anchor:pixel(s,100,200),delta_x:0,delta_y:120}));await waitFor(async()=>(await effects()).scroll>0,'scroll effect');
- await act(s=>({kind:'drag',screenshot_id:s.id,from:{x:100,y:200},to:{x:180,y:230}}));await waitFor(async()=>(await effects()).drags>0,'drag effect');
+ const rectangle=(await effects()).rectangle;
+ await act(s=>({kind:'drag',screenshot_id:s.id,from:{x:100,y:200},to:{x:180,y:230}}));await waitFor(async()=>{const state=await effects();return state.drags>0&&state.rectangle.every((value,i)=>value===rectangle[i]+(i%2===0?80:30));},'rectangle position after drag');
+ await waitFor(async()=>{const state=await effects();return state.pointer.x===state.bounds.x+180&&state.pointer.y===state.bounds.y+230;},'independent pointer endpoint');
  const before=(await effects()).text;const unsupportedObservation=await observe();const unsupported=(await call({operation:'act',action:{request_id:'unmapped',target,observation_id:unsupportedObservation.id,delivery:'foreground',input:{kind:'type_text',anchor:pixel(unsupportedObservation.screenshot,230,40),text:'你好🌱'}}})).receipt;assert.equal(unsupported.outcome.error.code,'unsupported');assert.equal((await effects()).text,before,'Unmapped text must not type a partial prefix');
- await writeFile(resolve(out,'linux-result.json'),JSON.stringify({passed:true,scope:'actual Linux Xvfb/Tk/XTest, no real model or physical desktop',effects:await effects(),capabilities:listed.capabilities},null,2));
+ const waylandEnv={...process.env,WAYLAND_DISPLAY:'wayland-test',XDG_SESSION_TYPE:'wayland',XDG_CURRENT_DESKTOP:'sway'};delete waylandEnv.DISPLAY;
+ const probe=execFileSync(process.env.PERO_COMPUTER_BINARY||resolve(root,'target/debug/pero-computer'),[],{env:waylandEnv,input:[{id:'no-x-status',thread:'probe',request:{operation:'status'}},{id:'no-x-targets',thread:'probe',request:{operation:'targets'}}].map(r=>JSON.stringify(r)+'\n').join(''),encoding:'utf8'}).trim().split('\n').map(JSON.parse);
+ assert.equal(probe[0].value.status.available,false);assert.equal(probe[0].value.status.environment.display,'wayland');assert.equal(probe[1].error.code,'unsupported');
+ await writeFile(resolve(out,'linux-result.json'),JSON.stringify({passed:true,scope:'actual Linux Xvfb/Tk/XTest; no-DISPLAY refusal with simulated Wayland metadata; no real model, compositor or physical desktop',effects:await effects(),capabilities:listed.capabilities,backgroundRefusal:refused,waylandRefusal:probe},null,2));
  console.log('Linux X11 native effects passed: screenshot, click, text, key, scroll, drag and stale observations.');
 }finally{fixture.kill();native.stdin.end();await rm(run,{recursive:true,force:true});}

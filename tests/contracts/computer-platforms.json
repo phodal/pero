@@ -1,0 +1,155 @@
+{
+  "cases": [
+    {
+      "name": "background element click",
+      "request_id": "request-1",
+      "delivery": "background",
+      "supported": [
+        "macos",
+        "windows"
+      ]
+    },
+    {
+      "name": "foreground element click",
+      "request_id": "request-1",
+      "delivery": "foreground",
+      "supported": [
+        "macos",
+        "windows"
+      ]
+    },
+    {
+      "name": "background element type_text",
+      "request_id": "request-2",
+      "delivery": "background",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "foreground element type_text",
+      "request_id": "request-2",
+      "delivery": "foreground",
+      "supported": [
+        "windows"
+      ]
+    },
+    {
+      "name": "background element press_key",
+      "request_id": "request-3",
+      "delivery": "background",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "foreground element press_key",
+      "request_id": "request-3",
+      "delivery": "foreground",
+      "supported": [
+        "windows"
+      ]
+    },
+    {
+      "name": "background element scroll",
+      "request_id": "request-4",
+      "delivery": "background",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "foreground element scroll",
+      "request_id": "request-4",
+      "delivery": "foreground",
+      "supported": [
+        "windows"
+      ]
+    },
+    {
+      "name": "background pixel drag",
+      "request_id": "request-5",
+      "delivery": "background",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "foreground pixel drag",
+      "request_id": "request-5",
+      "delivery": "foreground",
+      "supported": [
+        "macos",
+        "windows",
+        "linux"
+      ]
+    },
+    {
+      "name": "background pixel click",
+      "request_id": "request-6",
+      "delivery": "background",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "foreground pixel click",
+      "request_id": "request-6",
+      "delivery": "foreground",
+      "supported": [
+        "macos",
+        "windows",
+        "linux"
+      ]
+    },
+    {
+      "name": "background pixel type_text",
+      "request_id": "request-7",
+      "delivery": "background",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "foreground pixel type_text",
+      "request_id": "request-7",
+      "delivery": "foreground",
+      "supported": [
+        "linux"
+      ]
+    },
+    {
+      "name": "background pixel press_key",
+      "request_id": "request-8",
+      "delivery": "background",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "foreground pixel press_key",
+      "request_id": "request-8",
+      "delivery": "foreground",
+      "supported": [
+        "linux"
+      ]
+    },
+    {
+      "name": "background pixel scroll",
+      "request_id": "request-9",
+      "delivery": "background",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "foreground pixel scroll",
+      "request_id": "request-9",
+      "delivery": "foreground",
+      "supported": [
+        "windows",
+        "linux"
+      ]
+    }
+  ]
+}

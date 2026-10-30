@@ -1,0 +1,17 @@
+[package]
+name = "computer-linux"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+pero-contracts = { path = "../../../../crates/pero-contracts" }
+computer-core = { path = "../computer-core" }
+computer-runtime = { path = "../computer-runtime" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = { version = "0.13", features = ["xtest"] }
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+
+[dev-dependencies]
+computer-testkit = { path = "../computer-testkit" }

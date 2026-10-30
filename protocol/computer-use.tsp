@@ -14,7 +14,16 @@ scalar ComputerRef extends string;
 
 enum ComputerActionKind { click, type_text, press_key, scroll, drag }
 enum ComputerDelivery { background, foreground }
+enum ComputerAddressing { element, pixel }
 enum ComputerObservationKind { accessibility, screenshot }
+enum ComputerPlatform { macos, windows, linux, other }
+enum ComputerDisplay { native, x11, xwayland, wayland, unavailable }
+model ComputerEnvironment {
+  platform: ComputerPlatform;
+  display: ComputerDisplay;
+  desktop?: string | null;
+  ...ComputerClosed;
+}
 enum ComputerMouseButton { left, right, middle }
 enum ComputerErrorCode {
   unsupported, permission_required, target_unavailable, stale_observation,
@@ -33,15 +42,17 @@ model ComputerTarget {
   application?: string | null;
   ...ComputerClosed;
 }
-/** One supported action/delivery pair. Adapters may still refuse a particular target. */
+/** Supported addressing for an action/delivery pair; target-specific refusals remain possible. */
 model ComputerActionSupport {
   action: ComputerActionKind;
   delivery: ComputerDelivery;
+  addressing: ComputerAddressing[];
   ...ComputerClosed;
 }
 model ComputerCapabilities {
   protocol: "pero.computer-use.v1";
   runtime_id: ComputerRef;
+  environment: ComputerEnvironment;
   observations: ComputerObservationKind[];
   actions: ComputerActionSupport[];
   ...ComputerClosed;

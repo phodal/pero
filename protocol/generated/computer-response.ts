@@ -18,9 +18,12 @@ export type ComputerResponse =
   | ComputerReceiptResponse
   | ComputerStoppedResponse;
 export type ComputerPermissionState = "granted" | "not_detected" | "unsupported";
+export type ComputerPlatform = "macos" | "windows" | "linux" | "other";
+export type ComputerDisplay = "native" | "x11" | "xwayland" | "wayland" | "unavailable";
 export type ComputerObservationKind = "accessibility" | "screenshot";
 export type ComputerActionKind = "click" | "type_text" | "press_key" | "scroll" | "drag";
 export type ComputerDelivery = "background" | "foreground";
+export type ComputerAddressing = "element" | "pixel";
 export type ComputerDimension = number;
 export type ComputerActionOutcome = ComputerExecuted | ComputerRejected | ComputerUnknown;
 export type ComputerErrorCode =
@@ -46,6 +49,12 @@ export interface ComputerDriverStatus {
   accessibility: ComputerPermissionState;
   screen_recording: ComputerPermissionState;
   message: string;
+  environment?: ComputerEnvironment | null;
+}
+export interface ComputerEnvironment {
+  platform: ComputerPlatform;
+  display: ComputerDisplay;
+  desktop?: string | null;
 }
 export interface ComputerTargetsResponse {
   kind: "targets";
@@ -55,15 +64,17 @@ export interface ComputerTargetsResponse {
 export interface ComputerCapabilities {
   protocol: "pero.computer-use.v1";
   runtime_id: ComputerRef;
+  environment: ComputerEnvironment;
   observations: ComputerObservationKind[];
   actions: ComputerActionSupport[];
 }
 /**
- * One supported action/delivery pair. Adapters may still refuse a particular target.
+ * Supported addressing for an action/delivery pair; target-specific refusals remain possible.
  */
 export interface ComputerActionSupport {
   action: ComputerActionKind;
   delivery: ComputerDelivery;
+  addressing: ComputerAddressing[];
 }
 export interface ComputerTarget {
   reference: ComputerTargetRef;

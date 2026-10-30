@@ -1,5 +1,7 @@
 //! Windows UIA, WGC/PrintWindow and explicit foreground input.
-use crate::runtime::error;
+use crate::{bridge, profile};
+use computer_core::{Window, WindowBounds};
+use computer_runtime::{DesktopDriver, WindowObservation, error};
 use pero_contracts::{computer_runtime::*, computer_use::*};
 use point_computer_backend::backend::{ComputerUseBackend, LaunchPermit};
 use point_computer_core::types as native;
@@ -9,36 +11,27 @@ pub struct Desktop {
     driver: WindowsBackend,
 }
 impl Desktop {
-    pub fn new() -> Self {
+    pub fn connect() -> Self {
         Self {
             driver: WindowsBackend::new(),
         }
     }
-    pub fn observations(&self) -> Vec<ComputerObservationKind> {
-        vec![
-            ComputerObservationKind::Accessibility,
-            ComputerObservationKind::Screenshot,
-        ]
+}
+impl DesktopDriver for Desktop {
+    type Snapshot = native::Snapshot;
+    fn environment(&self) -> ComputerEnvironment {
+        profile::environment()
     }
-    pub fn actions(&self) -> Vec<ComputerActionSupport> {
-        use ComputerActionKind::*;
-        use ComputerDelivery::*;
-        [Click, TypeText, PressKey, Scroll, Drag]
-            .into_iter()
-            .map(|action| ComputerActionSupport {
-                action,
-                delivery: Foreground,
-            })
-            .chain([ComputerActionSupport {
-                action: Click,
-                delivery: Background,
-            }])
-            .collect()
+    fn observations(&self) -> Vec<ComputerObservationKind> {
+        profile::observations()
     }
-    pub fn status(&self) -> ComputerDriverStatus {
-        ComputerDriverStatus{available:true,accessibility:ComputerPermissionState::Unsupported,screen_recording:ComputerPermissionState::Unsupported,message:"Windows UIA and window capture; no macOS permission grants apply. Use foreground for keyboard/pixel input; background supports UIA invocation only. Interactive desktop and integrity checks occur per action.".into()}
+    fn actions(&self) -> Vec<ComputerActionSupport> {
+        profile::actions()
     }
-    pub fn targets(&self) -> Result<Vec<native::AppRef>, ComputerError> {
+    fn status(&self) -> ComputerDriverStatus {
+        ComputerDriverStatus{environment:Some(self.environment()),available:true,accessibility:ComputerPermissionState::Unsupported,screen_recording:ComputerPermissionState::Unsupported,message:"Windows UIA and window capture; no macOS permission grants apply. Use foreground for keyboard/pixel input; background supports UIA invocation only. Interactive desktop and integrity checks occur per action.".into()}
+    }
+    fn targets(&self) -> Result<Vec<Window>, ComputerError> {
         Ok(ffi::window_list()
             .into_iter()
             .filter(|w| w.layer == 0 && w.pid > 0)
@@ -49,20 +42,22 @@ impl Desktop {
                 window_id: w.window_id,
                 window_title: w.title,
             })
+            .map(bridge::window)
             .collect())
     }
-    pub fn open(&self, name: &str) -> Result<(Option<native::AppRef>, String), ComputerError> {
+    fn open(&self, name: &str) -> Result<(Option<Window>, String), ComputerError> {
         let result = self.driver.launch_app(name, LaunchPermit::none());
         if result.ok {
-            Ok((result.app, result.text))
+            Ok((result.app.map(bridge::window), result.text))
         } else {
             Err(error(ComputerErrorCode::Failed, result.text))
         }
     }
-    pub fn bounds(&self, app: &native::AppRef) -> Option<native::Frame> {
-        apps::window_bounds(app.window_id, app.pid)
+    fn bounds(&self, app: &Window) -> Option<WindowBounds> {
+        apps::window_bounds(app.window_id, app.pid).map(bridge::bounds)
     }
-    pub fn observe(&self, app: &native::AppRef) -> Result<native::Snapshot, ComputerError> {
+    fn observe(&self, app: &Window) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
+        let app = &bridge::native_window(app);
         let result = self.driver.snapshot(
             app,
             native::SnapshotRequest {
@@ -74,14 +69,16 @@ impl Desktop {
         result
             .snapshot
             .filter(|_| result.ok)
+            .map(bridge::observation)
             .ok_or_else(|| error(ComputerErrorCode::PermissionRequired, result.text))
     }
-    pub fn input(
+    fn input(
         &self,
-        app: &native::AppRef,
+        app: &Window,
         snap: &native::Snapshot,
         action: ComputerAction,
     ) -> Result<(), ComputerError> {
+        let app = &bridge::native_window(app);
         let bounds = snap.window_bounds.ok_or_else(|| {
             error(
                 ComputerErrorCode::Unsupported,

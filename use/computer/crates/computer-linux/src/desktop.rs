@@ -1,9 +1,11 @@
 //! Linux X11 window capture and explicit foreground XTest input.
 //! Like Cua's native dispatch, Wayland is a separate backend, never an X11 fallback.
-use crate::runtime::error;
+use crate::profile;
+use computer_core::{Window, WindowBounds, WindowImage};
+use computer_runtime::{DesktopDriver, WindowObservation, error};
 use image::{ExtendedColorType, codecs::jpeg::JpegEncoder};
 use pero_contracts::{computer_runtime::*, computer_use::*};
-use point_computer_core::types as native;
+use std::num::NonZeroU32;
 use std::{fs, path::PathBuf, process::Command};
 use x11rb::{
     CURRENT_TIME,
@@ -15,19 +17,36 @@ use x11rb::{
 pub struct Desktop {
     connection: Option<(RustConnection, usize)>,
     reason: String,
+    environment: ComputerEnvironment,
 }
 fn failure(e: impl std::fmt::Display) -> ComputerError {
     error(ComputerErrorCode::Failed, e.to_string())
 }
+pub struct X11Snapshot {
+    window_bounds: WindowBounds,
+    image_width: u32,
+    image_height: u32,
+}
 impl Desktop {
-    pub fn new() -> Self {
-        match x11rb::connect(None) {
+    pub fn connect() -> Self {
+        let connection = x11rb::connect(None);
+        let environment = profile::environment(
+            connection.is_ok(),
+            std::env::var_os("WAYLAND_DISPLAY").is_some()
+                || std::env::var("XDG_SESSION_TYPE").as_deref() == Ok("wayland"),
+            std::env::var("XDG_CURRENT_DESKTOP")
+                .ok()
+                .filter(|value| !value.is_empty()),
+        );
+        match connection {
             Ok(connection) => Self {
                 connection: Some(connection),
                 reason: String::new(),
+                environment,
             },
             Err(e) => Self {
                 connection: None,
+                environment,
                 reason: format!(
                     "X11 connection unavailable: {e}. Pure Wayland requires a compositor/portal backend and is not supported by this driver."
                 ),
@@ -40,31 +59,6 @@ impl Desktop {
             .as_ref()
             .ok_or_else(|| error(ComputerErrorCode::Unsupported, &self.reason))?;
         Ok((c, &c.setup().roots[*s]))
-    }
-    pub fn observations(&self) -> Vec<ComputerObservationKind> {
-        vec![ComputerObservationKind::Screenshot]
-    }
-    pub fn actions(&self) -> Vec<ComputerActionSupport> {
-        use ComputerActionKind::*;
-        [Click, TypeText, PressKey, Scroll, Drag]
-            .into_iter()
-            .map(|action| ComputerActionSupport {
-                action,
-                delivery: ComputerDelivery::Foreground,
-            })
-            .collect()
-    }
-    pub fn status(&self) -> ComputerDriverStatus {
-        ComputerDriverStatus {
-            available: self.connection.is_some(),
-            accessibility: ComputerPermissionState::Unsupported,
-            screen_recording: ComputerPermissionState::Unsupported,
-            message: if self.connection.is_none() {
-                self.reason.clone()
-            } else {
-                "Linux X11 pixel observation and foreground XTest input. No accessibility tree or background input is advertised. Text must be mapped in the current keyboard layout; scrolling uses wheel notches.".into()
-            },
-        }
     }
     fn property(&self, window: u32, name: &str) -> Result<GetPropertyReply, ComputerError> {
         let (c, _) = self.x()?;
@@ -79,7 +73,83 @@ impl Desktop {
             .reply()
             .map_err(failure)
     }
-    pub fn targets(&self) -> Result<Vec<native::AppRef>, ComputerError> {
+    fn geometry(&self, app: &Window) -> Result<WindowBounds, ComputerError> {
+        let (c, screen) = self.x()?;
+        let g = c
+            .get_geometry(app.window_id)
+            .map_err(failure)?
+            .reply()
+            .map_err(failure)?;
+        let p = c
+            .translate_coordinates(app.window_id, screen.root, 0, 0)
+            .map_err(failure)?
+            .reply()
+            .map_err(failure)?;
+        Ok(WindowBounds {
+            x: p.dst_x.into(),
+            y: p.dst_y.into(),
+            w: g.width.into(),
+            h: g.height.into(),
+        })
+    }
+    fn related(&self, mut child: u32, parent: u32) -> Result<bool, ComputerError> {
+        let (c, _) = self.x()?;
+        if parent == 0 {
+            return Ok(false);
+        }
+        for _ in 0..32 {
+            if child == parent {
+                return Ok(true);
+            }
+            if child == 0 {
+                break;
+            }
+            let tree = c
+                .query_tree(child)
+                .map_err(failure)?
+                .reply()
+                .map_err(failure)?;
+            if tree.parent == child {
+                break;
+            }
+            child = tree.parent;
+        }
+        Ok(false)
+    }
+}
+impl DesktopDriver for Desktop {
+    type Snapshot = X11Snapshot;
+    fn environment(&self) -> ComputerEnvironment {
+        self.environment.clone()
+    }
+    fn observations(&self) -> Vec<ComputerObservationKind> {
+        if self.connection.is_some() {
+            profile::observations()
+        } else {
+            Vec::new()
+        }
+    }
+    fn actions(&self) -> Vec<ComputerActionSupport> {
+        if self.connection.is_some() {
+            profile::actions()
+        } else {
+            Vec::new()
+        }
+    }
+    fn status(&self) -> ComputerDriverStatus {
+        ComputerDriverStatus {
+            environment: Some(self.environment()),
+            available: self.connection.is_some(),
+            accessibility: ComputerPermissionState::Unsupported,
+            screen_recording: ComputerPermissionState::Unsupported,
+            message: if self.connection.is_none() {
+                self.reason.clone()
+            } else {
+                "Linux X11 pixel observation and foreground XTest input. No accessibility tree or background input is advertised. Text must be mapped in the current keyboard layout; scrolling uses wheel notches.".into()
+            },
+        }
+    }
+    fn targets(&self) -> Result<Vec<Window>, ComputerError> {
         let (c, screen) = self.x()?;
         let mut windows = self
             .property(screen.root, "_NET_CLIENT_LIST")?
@@ -120,17 +190,17 @@ impl Desktop {
             if title.is_empty() {
                 title = self.property(id, "WM_NAME")?.value;
             }
-            apps.push(native::AppRef {
+            apps.push(Window {
                 name: name.clone(),
-                bundle_id: name,
+                application_id: name,
                 pid: pid as i32,
                 window_id: id,
-                window_title: String::from_utf8_lossy(&title).into_owned(),
+                title: String::from_utf8_lossy(&title).into_owned(),
             });
         }
         Ok(apps)
     }
-    pub fn open(&self, name: &str) -> Result<(Option<native::AppRef>, String), ComputerError> {
+    fn open(&self, name: &str) -> Result<(Option<Window>, String), ComputerError> {
         if let Some(app) = self
             .targets()?
             .into_iter()
@@ -205,29 +275,10 @@ impl Desktop {
             "Launch requested; list targets to find the application's window".into(),
         ))
     }
-    fn geometry(&self, app: &native::AppRef) -> Result<native::Frame, ComputerError> {
-        let (c, screen) = self.x()?;
-        let g = c
-            .get_geometry(app.window_id)
-            .map_err(failure)?
-            .reply()
-            .map_err(failure)?;
-        let p = c
-            .translate_coordinates(app.window_id, screen.root, 0, 0)
-            .map_err(failure)?
-            .reply()
-            .map_err(failure)?;
-        Ok(native::Frame {
-            x: p.dst_x.into(),
-            y: p.dst_y.into(),
-            w: g.width.into(),
-            h: g.height.into(),
-        })
-    }
-    pub fn bounds(&self, app: &native::AppRef) -> Option<native::Frame> {
+    fn bounds(&self, app: &Window) -> Option<WindowBounds> {
         self.geometry(app).ok()
     }
-    pub fn observe(&self, app: &native::AppRef) -> Result<native::Snapshot, ComputerError> {
+    fn observe(&self, app: &Window) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
         let (c, screen) = self.x()?;
         let bounds = self.geometry(app)?;
         let (w, h) = (bounds.w as u16, bounds.h as u16);
@@ -296,53 +347,32 @@ impl Desktop {
         JpegEncoder::new_with_quality(&mut jpeg, 80)
             .encode(&rgb, w.into(), h.into(), ExtendedColorType::Rgb8)
             .map_err(failure)?;
-        Ok(native::Snapshot {
-            app: app.clone(),
-            window_title: app.window_title.clone(),
-            window_bounds: Some(bounds),
-            image_jpeg: jpeg,
-            image_width: w.into(),
-            image_height: h.into(),
-            ..Default::default()
+        Ok(WindowObservation {
+            source: X11Snapshot {
+                window_bounds: bounds,
+                image_width: w.into(),
+                image_height: h.into(),
+            },
+            bounds: Some(bounds),
+            elements: Vec::new(),
+            truncated: false,
+            image: Some(WindowImage {
+                bytes: jpeg,
+                width: NonZeroU32::new(w.into()).unwrap(),
+                height: NonZeroU32::new(h.into()).unwrap(),
+                media_type: ComputerImageType::Jpeg,
+            }),
         })
     }
-    fn related(&self, mut child: u32, parent: u32) -> Result<bool, ComputerError> {
-        let (c, _) = self.x()?;
-        if parent == 0 {
-            return Ok(false);
-        }
-        for _ in 0..32 {
-            if child == parent {
-                return Ok(true);
-            }
-            if child == 0 {
-                break;
-            }
-            let tree = c
-                .query_tree(child)
-                .map_err(failure)?
-                .reply()
-                .map_err(failure)?;
-            if tree.parent == child {
-                break;
-            }
-            child = tree.parent;
-        }
-        Ok(false)
-    }
-    pub fn input(
+
+    fn input(
         &self,
-        app: &native::AppRef,
-        snap: &native::Snapshot,
+        app: &Window,
+        snap: &X11Snapshot,
         action: ComputerAction,
     ) -> Result<(), ComputerError> {
         let (c, screen) = self.x()?;
-        let bounds = snap.window_bounds.ok_or_else(|| {
-            error(
-                ComputerErrorCode::StaleObservation,
-                "Window geometry unavailable",
-            )
-        })?;
+        let bounds = snap.window_bounds;
         let point = |p: ComputerPoint| {
             (
                 (bounds.x + f64::from(p.x) * bounds.w / f64::from(snap.image_width)) as i16,
@@ -534,6 +564,7 @@ impl Desktop {
         c.flush().map_err(failure)
     }
 }
+
 fn keysym(key: &str) -> Result<u32, ComputerError> {
     Ok(match key {
         "Meta" => 0xffeb,

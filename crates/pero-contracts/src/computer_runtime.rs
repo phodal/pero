@@ -23,6 +23,8 @@ pub enum ComputerPermissionState {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ComputerDriverStatus {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub environment: Option<ComputerEnvironment>,
     pub available: bool,
     pub accessibility: ComputerPermissionState,
     pub screen_recording: ComputerPermissionState,

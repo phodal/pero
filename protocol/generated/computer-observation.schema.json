@@ -35,14 +35,29 @@
         },
         "delivery": {
           "$ref": "#/$defs/ComputerDelivery"
+        },
+        "addressing": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerAddressing"
+          }
         }
       },
       "required": [
         "action",
-        "delivery"
+        "delivery",
+        "addressing"
       ],
       "additionalProperties": false,
-      "description": "One supported action/delivery pair. Adapters may still refuse a particular target."
+      "description": "Supported addressing for an action/delivery pair; target-specific refusals remain possible."
+    },
+    "ComputerAddressing": {
+      "title": "ComputerAddressing",
+      "type": "string",
+      "enum": [
+        "element",
+        "pixel"
+      ]
     },
     "ComputerCapabilities": {
       "title": "ComputerCapabilities",
@@ -54,6 +69,9 @@
         },
         "runtime_id": {
           "$ref": "#/$defs/ComputerRef"
+        },
+        "environment": {
+          "$ref": "#/$defs/ComputerEnvironment"
         },
         "observations": {
           "type": "array",
@@ -71,6 +89,7 @@
       "required": [
         "protocol",
         "runtime_id",
+        "environment",
         "observations",
         "actions"
       ],
@@ -89,6 +108,17 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 4294967295
+    },
+    "ComputerDisplay": {
+      "title": "ComputerDisplay",
+      "type": "string",
+      "enum": [
+        "native",
+        "x11",
+        "xwayland",
+        "wayland",
+        "unavailable"
+      ]
     },
     "ComputerElement": {
       "title": "ComputerElement",
@@ -131,6 +161,33 @@
         "label",
         "depth",
         "actions"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerEnvironment": {
+      "title": "ComputerEnvironment",
+      "type": "object",
+      "properties": {
+        "platform": {
+          "$ref": "#/$defs/ComputerPlatform"
+        },
+        "display": {
+          "$ref": "#/$defs/ComputerDisplay"
+        },
+        "desktop": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "platform",
+        "display"
       ],
       "additionalProperties": false
     },
@@ -178,6 +235,16 @@
       "enum": [
         "accessibility",
         "screenshot"
+      ]
+    },
+    "ComputerPlatform": {
+      "title": "ComputerPlatform",
+      "type": "string",
+      "enum": [
+        "macos",
+        "windows",
+        "linux",
+        "other"
       ]
     },
     "ComputerRef": {

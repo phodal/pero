@@ -45,6 +45,72 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
+name = "computer-core"
+version = "0.1.0"
+dependencies = [
+ "pero-contracts",
+]
+
+[[package]]
+name = "computer-linux"
+version = "0.1.0"
+dependencies = [
+ "computer-core",
+ "computer-runtime",
+ "computer-testkit",
+ "image",
+ "pero-contracts",
+ "x11rb",
+]
+
+[[package]]
+name = "computer-macos"
+version = "0.1.0"
+dependencies = [
+ "computer-core",
+ "computer-runtime",
+ "computer-testkit",
+ "pero-contracts",
+ "point-computer-backend",
+ "point-computer-core",
+ "point-computer-macos",
+]
+
+[[package]]
+name = "computer-runtime"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "computer-core",
+ "pero-contracts",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "computer-testkit"
+version = "0.1.0"
+dependencies = [
+ "pero-contracts",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "computer-windows"
+version = "0.1.0"
+dependencies = [
+ "computer-core",
+ "computer-runtime",
+ "computer-testkit",
+ "pero-contracts",
+ "point-computer-backend",
+ "point-computer-core",
+ "point-computer-windows",
+]
+
+[[package]]
 name = "displaydoc"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -332,17 +398,10 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 name = "pero-computer"
 version = "0.1.0"
 dependencies = [
- "base64",
- "image",
- "pero-contracts",
- "point-computer-backend",
- "point-computer-core",
- "point-computer-macos",
- "point-computer-windows",
- "serde",
- "serde_json",
- "uuid",
- "x11rb",
+ "computer-linux",
+ "computer-macos",
+ "computer-runtime",
+ "computer-windows",
 ]
 
 [[package]]

@@ -1,0 +1,15 @@
+[package]
+workspace = "../.."
+name = "point-computer-backend"
+description = "Computer-use driver trait, unsupported backend, shared launch flow, backend registry"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+point-computer-core = { path = "../point-computer-core" }
+
+[lints]
+workspace = true

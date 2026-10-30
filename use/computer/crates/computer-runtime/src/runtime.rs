@@ -1,51 +1,43 @@
-//! One conversion boundary from the pinned Point platform driver to Pero values.
-use crate::platform::Desktop;
+//! Persistent native session; platform snapshots remain opaque to this owner.
+use crate::{DesktopDriver, WindowObservation, error};
 use base64::{Engine, engine::general_purpose::STANDARD};
+use computer_core::{Window, WindowBounds};
 use pero_contracts::{computer_runtime::*, computer_use::*};
-use point_computer_core::types as native;
-use std::{collections::HashMap, num::NonZeroU32};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 fn reference() -> ComputerRef {
     Uuid::new_v4().to_string().try_into().unwrap()
 }
-pub fn error(code: ComputerErrorCode, message: impl Into<String>) -> ComputerError {
-    ComputerError {
-        code,
-        message: message.into(),
-    }
-}
-
-struct Observation {
+struct Observation<S> {
     public: ComputerObservation,
-    native: native::Snapshot,
+    native: S,
+    bounds: Option<WindowBounds>,
 }
-pub struct ComputerRuntime {
-    driver: Desktop,
+pub struct ComputerRuntime<D: DesktopDriver> {
+    driver: D,
     capabilities: ComputerCapabilities,
-    targets: HashMap<ComputerRef, native::AppRef>,
-    observations: HashMap<ComputerRef, Observation>,
+    targets: HashMap<ComputerRef, Window>,
+    observations: HashMap<ComputerRef, Observation<D::Snapshot>>,
     host_pid: i32,
 }
-impl ComputerRuntime {
-    pub fn new() -> Self {
-        let driver = Desktop::new();
+impl<D: DesktopDriver> ComputerRuntime<D> {
+    pub fn new(driver: D, host_pid: i32) -> Self {
         let actions = driver.actions();
         let observations = driver.observations();
+        let environment = driver.environment();
         Self {
             driver,
             capabilities: ComputerCapabilities {
                 protocol: ComputerProtocol::V1,
                 runtime_id: reference(),
+                environment,
                 observations,
                 actions,
             },
             targets: HashMap::new(),
             observations: HashMap::new(),
-            host_pid: std::env::var("PERO_COMPUTER_HOST_PID")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(std::process::id() as i32),
+            host_pid,
         }
     }
     pub fn call(
@@ -91,11 +83,11 @@ impl ComputerRuntime {
             )),
         }
     }
-    fn remember(&mut self, app: native::AppRef) -> ComputerTarget {
+    fn remember(&mut self, app: Window) -> ComputerTarget {
         let id = self
             .targets
             .iter()
-            .find(|(_, previous)| previous.window_key() == app.window_key())
+            .find(|(_, previous)| previous.identity() == app.identity())
             .map(|(id, _)| id.clone())
             .unwrap_or_else(reference);
         let target = ComputerTarget {
@@ -104,13 +96,13 @@ impl ComputerRuntime {
                 target_id: id.clone(),
             },
             kind: ComputerTargetKind::Window,
-            title: app.window_title.clone(),
+            title: app.title.clone(),
             application: Some(app.name.clone()),
         };
         self.targets.insert(id, app);
         target
     }
-    fn target(&self, target: &ComputerTargetRef) -> Result<native::AppRef, ComputerError> {
+    fn target(&self, target: &ComputerTargetRef) -> Result<Window, ComputerError> {
         if target.runtime_id != self.capabilities.runtime_id {
             return Err(error(
                 ComputerErrorCode::TargetUnavailable,
@@ -124,11 +116,11 @@ impl ComputerRuntime {
             )
         })?;
         if app.pid == self.host_pid
-            || !self.driver.targets()?.iter().any(|live| {
-                live.pid == app.pid
-                    && live.window_id == app.window_id
-                    && live.bundle_id == app.bundle_id
-            })
+            || !self
+                .driver
+                .targets()?
+                .iter()
+                .any(|live| live.identity() == app.identity())
         {
             return Err(error(
                 ComputerErrorCode::TargetUnavailable,
@@ -144,69 +136,36 @@ impl ComputerRuntime {
     ) -> Result<ComputerResponse, ComputerError> {
         self.observations.remove(&thread);
         let app = self.target(&target)?;
-        let snap = self.driver.observe(&app)?;
-        let elements = snap
-            .elements
-            .iter()
-            .map(|element| {
-                let mut actions = Vec::new();
-                if element.enabled && !element.secure {
-                    if element.actions.iter().any(|action| action == "AXPress")
-                        || element.role.contains("Button")
-                    {
-                        actions.push(ComputerActionKind::Click);
-                    }
-                    if element.role.contains("TextField")
-                        || element.role == "Edit"
-                        || element.role.contains("TextArea")
-                        || element.role.contains("ComboBox")
-                    {
-                        actions
-                            .extend([ComputerActionKind::TypeText, ComputerActionKind::PressKey]);
-                    }
-                    if element.role.contains("Scroll") {
-                        actions.push(ComputerActionKind::Scroll);
-                    }
-                }
-                ComputerElement {
-                    id: format!("element-{}", element.index).try_into().unwrap(),
-                    role: element.role.clone(),
-                    label: element.title.clone(),
-                    value: (!element.secure && !element.value.is_empty())
-                        .then(|| element.value.clone()),
-                    depth: element.depth,
-                    actions,
-                }
-            })
-            .collect();
-        let screenshot = if snap.image_jpeg.is_empty() {
-            None
-        } else {
-            NonZeroU32::new(snap.image_width)
-                .zip(NonZeroU32::new(snap.image_height))
-                .map(|(width, height)| ComputerScreenshot {
-                    id: reference(),
-                    media_type: ComputerImageType::Jpeg,
-                    width,
-                    height,
-                })
-        };
-        let image = screenshot.as_ref().map(|_| ComputerImageContent {
-            media_type: ComputerImageType::Jpeg,
-            data: STANDARD.encode(&snap.image_jpeg),
+        let WindowObservation {
+            source,
+            bounds,
+            elements,
+            image,
+            truncated,
+        } = self.driver.observe(&app)?;
+        let screenshot = image.as_ref().map(|image| ComputerScreenshot {
+            id: reference(),
+            media_type: image.media_type,
+            width: image.width,
+            height: image.height,
+        });
+        let image = image.map(|image| ComputerImageContent {
+            media_type: image.media_type,
+            data: STANDARD.encode(image.bytes),
         });
         let observation = ComputerObservation {
             id: reference(),
             target,
             elements,
             screenshot,
-            truncated: snap.truncated || snap.depth_truncated,
+            truncated,
         };
         self.observations.insert(
             thread,
             Observation {
                 public: observation.clone(),
-                native: snap,
+                native: source,
+                bounds,
             },
         );
         Ok(ComputerResponse::Observation { observation, image })
@@ -230,7 +189,7 @@ impl ComputerRuntime {
                 .prepare(&observation.public, &self.capabilities)?
                 .into_action();
             let current = self.driver.bounds(&app);
-            if current != observation.native.window_bounds {
+            if current != observation.bounds {
                 return Err(error(
                     ComputerErrorCode::StaleObservation,
                     "The window moved or resized; observe again",

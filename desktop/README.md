@@ -361,9 +361,9 @@ for the exact local fixture acceptance boundary.
 ### Computer Use
 
 `npm run build` includes the source-built native helper (macOS 13+, Windows, Linux X11); rebuild it separately
-with `npm run build:computer`. The pinned source is fetched into ignored
-`target/`; `PERO_POINT_SOURCE=/path/to/point` can supply an offline checkout
-containing the exact commit in `use/computer/SOURCE.json`.
+with `npm run build:computer`. The native dependency source is checked in under
+`use/computer/vendor/point/`, with provenance in `use/computer/SOURCE.json`.
+Building requires no Point checkout or repository credentials.
 
 Open Settings → Computer Use and enable the switch. On macOS, check the two OS grants.
 Use Open permissions for the application that launches Desktop. macOS may

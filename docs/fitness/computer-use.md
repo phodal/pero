@@ -13,6 +13,96 @@ reference. The [platform matrix](../../use/README.md) records supported delivery
 and observation kinds, including the X11/Wayland and keyboard-layout limits.
 Paper Agent and appearance work in this shared checkout are separate concerns.
 
+## Clean source build repair, 2026-10-30
+
+The original build fetched private `phodal/point` into ignored `target/`.
+Local acceptance reused that extracted source and missed the clean-runner
+authentication prerequisite. The native dependency closure is now tracked in
+`use/computer/vendor/point/`; the build uses local Cargo paths and never fetches
+Point. `SOURCE.json` and the vendor README retain the revision, crate selection
+and module adaptations. Each copied code file stays below 1000 lines.
+
+`node tests/build/computer-source.mjs` copies only build sources/manifests and
+contract locale inputs into an empty temporary directory, denies Point access
+through Git configuration, sets the old source override to a nonexistent path,
+then runs the actual locked native test/build entry point. It also checks that
+no legacy Point checkout or extraction cache was created.
+
+The isolated build passes on macOS, including an archive of committed source
+at `04db03c` with concurrent working-tree changes excluded. In a new Linux aarch64 container, starting
+with an empty Cargo registry cache, this also passes:
+
+```sh
+xvfb-run -a node tests/build/computer-source.mjs --x11
+```
+
+That command runs the existing Tk/XTest acceptance against the executable
+built in the temporary source directory: screenshot, click, text, key, scroll,
+drag, unmapped text refusal and stale observation refusal all pass. The Linux
+CI step now uses this command; the three native CI lanes retain tests, Clippy
+and a normal build. The isolated container was removed and its VM stopped.
+
+Native macOS Clippy and cross-target Clippy for Windows GNU and Linux musl pass
+with `--locked --all-targets -- -D warnings`. The copied five-crate workspace's
+tests pass on macOS; platform-only live tests remain ignored as upstream defines.
+Source comparison confirms only the documented manifest/module organization
+changes relative to the pinned upstream source. The native lockfile is unchanged.
+
+An additional macOS GUI rerun stopped before input at guard-window activation;
+the foreground process was `loginwindow`, and both owned fixtures recorded zero
+input effects. Both fixtures were closed. This does not renew the earlier GUI
+acceptance below. The repair at `22cffa3` was subsequently pushed and passed macOS, Windows and
+Linux jobs in [Computer Use run 40986292506](https://github.com/phodal/pero/actions/runs/40986292506). The
+[build incident](../issues/2026-10-30-computer-use-private-build-dependency.md)
+records the cause and resolution.
+
+## Package isolation and precise profiles, 2026-10-30
+
+The executable root now composes independent `computer-core`, `computer-runtime`
+and macOS/Windows/Linux libraries, with a dev-only `computer-testkit`. The
+runtime consumer declares the driver port; each backend retains its own opaque
+snapshot. Core/runtime/Linux contain no Point imports or Cargo dependencies.
+Point-to-Pero conversion is confined to the macOS/Windows bridge files. Public
+TypeSpec and `pero-contracts` remain the vocabulary and action-admission owner.
+
+Capabilities include the display environment and addressing for every supported
+action/delivery pair. The shared 18-case catalogue runs through the actual
+platform profiles and pure admission. In particular, Windows background pixel
+clicks and foreground pixel text/key input are rejected before native dispatch.
+The injected Agent workflow now asks it to read these exact combinations.
+
+A fresh Linux aarch64 container passes:
+
+```sh
+xvfb-run -a node tests/build/computer-source.mjs --linux-only --x11
+```
+
+That lane physically removes Point and the two consuming packages from a source
+copy. It adjusts only executable composition dependencies, prunes the temporary
+lock graph with registry-version retention checks, and runs locked workspace
+and public contract tests plus a build. Core/runtime/Linux files are unchanged.
+The resulting isolated binary passes Tk/XTest effects, entry focus, independent
+pointer endpoint, actual dragged-rectangle position, stale observation, unmapped
+text and background refusal checks.
+A no-DISPLAY child with simulated Wayland session metadata reports unavailable
+and refuses targets; this is refusal evidence, not a real compositor trial.
+
+Native workspace tests and Clippy, Windows GNU and Linux musl cross-target
+Clippy, TypeScript/theme/locale/schema checks and the Desktop/MCP transport
+suite pass. A macOS source-only build passes with Point access denied. Library
+extraction initially changed the executable's minimum OS because dependent
+library link arguments do not propagate; the executable composition build
+restores macOS 13, confirmed by `LC_BUILD_VERSION minos 13.0`.
+
+The refactored macOS helper passes the owned-window suite: AX click, Unicode
+text, selection chord, pixel click/scroll/drag, preserved background focus,
+receipts and stop/restart handle invalidation. The foreground extension also passes an actual element click and foreground
+drag. The captured app reports counter 2, text `Verified` and pixel scroll -120;
+background-phase assertions independently preserve the guard application and
+foreground owner. Hosted CI for this package refactor is pending until pushed. No fresh real-model or signed-package
+run is claimed. AT-SPI/native Wayland and Windows live GUI remain separate
+coverage work; see [Cua adapter assessment](../design-docs/computer-use-cua-adapter.md).
+
 ## Implemented boundary
 
 TypeSpec owns observation/action values and private runtime transport. Generated
@@ -91,8 +181,9 @@ ordinary Settings suite then passed.
 The Linux run used an isolated Colima/Docker environment with a real X server,
 Tk process and XTest extension. It is native Linux process evidence under a
 virtual display, not a physical Linux workstation or real Linux model run.
-Windows has source/type-check evidence only. The new OS-matrix workflow has not
-run on GitHub from these local commits.
+Windows has compile/link and value-test evidence, including hosted CI, but no
+interactive Windows desktop-input acceptance. The initial source-build repair
+passed the three-OS workflow; later package-isolation evidence is listed above.
 
 Evidence lives under ignored `target/computer-verification/` so ordinary
 Playwright cleanup of `test-results/` cannot erase this acceptance run.

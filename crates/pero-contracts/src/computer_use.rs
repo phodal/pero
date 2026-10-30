@@ -127,6 +127,37 @@ pub enum ComputerDelivery {
 }
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
+pub enum ComputerAddressing {
+    Element,
+    Pixel,
+}
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ComputerPlatform {
+    Macos,
+    Windows,
+    Linux,
+    Other,
+}
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ComputerDisplay {
+    Native,
+    X11,
+    Xwayland,
+    Wayland,
+    Unavailable,
+}
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ComputerEnvironment {
+    pub platform: ComputerPlatform,
+    pub display: ComputerDisplay,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desktop: Option<String>,
+}
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ComputerObservationKind {
     Accessibility,
     Screenshot,
@@ -172,12 +203,14 @@ pub struct ComputerTarget {
 pub struct ComputerActionSupport {
     pub action: ComputerActionKind,
     pub delivery: ComputerDelivery,
+    pub addressing: Vec<ComputerAddressing>,
 }
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ComputerCapabilities {
     pub protocol: ComputerProtocol,
     pub runtime_id: ComputerRef,
+    pub environment: ComputerEnvironment,
     pub observations: Vec<ComputerObservationKind>,
     pub actions: Vec<ComputerActionSupport>,
 }
@@ -305,14 +338,14 @@ impl ComputerAction {
             ));
         }
         let kind = self.input.kind();
-        if !capabilities
-            .actions
-            .iter()
-            .any(|support| support.action == kind && support.delivery == self.delivery)
-        {
+        if !capabilities.actions.iter().any(|support| {
+            support.action == kind
+                && support.delivery == self.delivery
+                && support.addressing.contains(&self.input.addressing())
+        }) {
             return Err(ComputerError::new(
                 Unsupported,
-                "The requested action and delivery mode are not supported",
+                "The requested action, delivery and addressing combination is not supported",
             ));
         }
         match &self.input {
@@ -346,6 +379,20 @@ impl ComputerAction {
             ));
         }
         Ok(PreparedComputerAction(self))
+    }
+}
+impl ComputerInput {
+    pub fn addressing(&self) -> ComputerAddressing {
+        match self {
+            Self::Click { anchor, .. }
+            | Self::TypeText { anchor, .. }
+            | Self::PressKey { anchor, .. }
+            | Self::Scroll { anchor, .. } => match anchor {
+                ComputerAnchor::Element { .. } => ComputerAddressing::Element,
+                ComputerAnchor::Pixel { .. } => ComputerAddressing::Pixel,
+            },
+            Self::Drag { .. } => ComputerAddressing::Pixel,
+        }
     }
 }
 impl ComputerObservation {

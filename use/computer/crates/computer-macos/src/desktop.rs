@@ -1,48 +1,35 @@
 //! macOS AX, ScreenCaptureKit and window-scoped input implementation.
-use crate::runtime::error;
+use crate::{bridge, profile};
+use crate::{capture, scroll, window_input};
+use computer_core::{Window, WindowBounds};
+use computer_runtime::{DesktopDriver, WindowObservation, error};
 use pero_contracts::{computer_runtime::*, computer_use::*};
 use point_computer_backend::backend::{ComputerUseBackend, LaunchPermit};
 use point_computer_core::types as native;
 use point_computer_macos::{apps, driver::MacOsBackend, ffi, snapshot};
-mod capture;
-mod scroll;
-mod window_input;
 
 pub struct Desktop {
     driver: MacOsBackend,
 }
 impl Desktop {
-    pub fn new() -> Self {
+    pub fn connect() -> Self {
         Self {
             driver: MacOsBackend::new(),
         }
     }
-    pub fn observations(&self) -> Vec<ComputerObservationKind> {
-        vec![
-            ComputerObservationKind::Accessibility,
-            ComputerObservationKind::Screenshot,
-        ]
+}
+impl DesktopDriver for Desktop {
+    type Snapshot = native::Snapshot;
+    fn environment(&self) -> ComputerEnvironment {
+        profile::environment()
     }
-    pub fn actions(&self) -> Vec<ComputerActionSupport> {
-        use ComputerActionKind::*;
-        use ComputerDelivery::*;
-        [Click, TypeText, PressKey, Scroll, Drag]
-            .into_iter()
-            .map(|action| ComputerActionSupport {
-                action,
-                delivery: Background,
-            })
-            .chain(
-                [Click, Drag]
-                    .into_iter()
-                    .map(|action| ComputerActionSupport {
-                        action,
-                        delivery: Foreground,
-                    }),
-            )
-            .collect()
+    fn observations(&self) -> Vec<ComputerObservationKind> {
+        profile::observations()
     }
-    pub fn status(&self) -> ComputerDriverStatus {
+    fn actions(&self) -> Vec<ComputerActionSupport> {
+        profile::actions()
+    }
+    fn status(&self) -> ComputerDriverStatus {
         let probe = self.driver.probe_permissions();
         let state = |value: &str| {
             if value == "granted" {
@@ -52,6 +39,7 @@ impl Desktop {
             }
         };
         ComputerDriverStatus {
+            environment: Some(self.environment()),
             available: true,
             accessibility: state(probe.accessibility),
             screen_recording: state(probe.screen_recording),
@@ -61,26 +49,27 @@ impl Desktop {
             ),
         }
     }
-    pub fn targets(&self) -> Result<Vec<native::AppRef>, ComputerError> {
+    fn targets(&self) -> Result<Vec<Window>, ComputerError> {
         let result = self.driver.list_apps();
         if result.ok {
-            Ok(result.apps)
+            Ok(result.apps.into_iter().map(bridge::window).collect())
         } else {
             Err(error(ComputerErrorCode::PermissionRequired, result.text))
         }
     }
-    pub fn open(&self, name: &str) -> Result<(Option<native::AppRef>, String), ComputerError> {
+    fn open(&self, name: &str) -> Result<(Option<Window>, String), ComputerError> {
         let result = self.driver.launch_app(name, LaunchPermit::none());
         if result.ok {
-            Ok((result.app, result.text))
+            Ok((result.app.map(bridge::window), result.text))
         } else {
             Err(error(ComputerErrorCode::Failed, result.text))
         }
     }
-    pub fn bounds(&self, app: &native::AppRef) -> Option<native::Frame> {
-        apps::window_bounds(app.window_id, app.pid)
+    fn bounds(&self, app: &Window) -> Option<WindowBounds> {
+        apps::window_bounds(app.window_id, app.pid).map(bridge::bounds)
     }
-    pub fn observe(&self, app: &native::AppRef) -> Result<native::Snapshot, ComputerError> {
+    fn observe(&self, app: &Window) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
+        let app = &bridge::native_window(app);
         // Recent macOS can acknowledge an AX read while returning the application
         // itself for every window. Do not walk that cycle or expose its menus.
         if let Some(root) = ffi::ax_app_element(app.pid) {
@@ -119,14 +108,15 @@ impl Desktop {
             snap.image_width = image.width;
             snap.image_height = image.height;
         }
-        Ok(snap)
+        Ok(bridge::observation(snap))
     }
-    pub fn input(
+    fn input(
         &self,
-        app: &native::AppRef,
+        app: &Window,
         observation: &native::Snapshot,
         action: ComputerAction,
     ) -> Result<(), ComputerError> {
+        let app = &bridge::native_window(app);
         let window = window_input::WindowInput::new(app, observation.window_bounds.as_ref())?;
         let rec = |anchor: &ComputerAnchor| -> Option<&native::ElementRec> {
             let ComputerAnchor::Element { element_id } = anchor else {
@@ -156,16 +146,21 @@ impl Desktop {
                     ComputerMouseButton::Middle => native::MouseButton::Middle,
                 };
                 match &anchor {
-                    ComputerAnchor::Element { .. } if u8::from(count) == 1 => self.driver.click(
-                        app,
-                        rec(&anchor),
-                        native::ClickRequest {
-                            method: native::ClickMethod::Accessibility,
-                            point: None,
-                            button,
-                            count: 1,
-                        },
-                    ),
+                    ComputerAnchor::Element { .. }
+                        if u8::from(count) == 1
+                            && action.delivery == ComputerDelivery::Background =>
+                    {
+                        self.driver.click(
+                            app,
+                            rec(&anchor),
+                            native::ClickRequest {
+                                method: native::ClickMethod::Accessibility,
+                                point: None,
+                                button,
+                                count: 1,
+                            },
+                        )
+                    }
                     ComputerAnchor::Element { .. } => {
                         let frame = rec(&anchor)
                             .and_then(|element| element.frame.as_ref())

@@ -62,7 +62,7 @@ try {
  assert.equal((await state()).activations ?? 0,backgroundActivations,'Background input must not activate the target application');
  assert.equal((await guard.state()).text,'');assert.equal((await guard.state()).clicks,0);
  const foreground=process.env.PERO_COMPUTER_FOREGROUND==='1';
- if(foreground){const backgroundDrags=(await state()).drags;await fixture.activate();observation=await observe();await act(observation,{kind:'drag',screenshot_id:observation.screenshot.id,from:point,to:{x:point.x+80,y:point.y+50}},'foreground');await poll(async()=>(await state()).drags>backgroundDrags,'foreground drag');}
+ if(foreground){const backgroundDrags=(await state()).drags;await fixture.activate();observation=await observe();const increment=observation.elements.find(e=>e.label==='Increment');await act(observation,{kind:'click',anchor:{kind:'element',element_id:increment.id},button:'left',count:1},'foreground');await poll(async()=>(await state()).count===2,'foreground element click');observation=await observe();await act(observation,{kind:'drag',screenshot_id:observation.screenshot.id,from:point,to:{x:point.x+80,y:point.y+50}},'foreground');await poll(async()=>(await state()).drags>backgroundDrags,'foreground drag');}
  await desktop.stop();
  const old=await call({operation:'observe',target}).catch(error=>error);assert.equal(old.detail?.code,'target_unavailable');
  const lookup=await call({operation:'receipt',request_id:action.request_id});assert.deepEqual(lookup.receipt,receipts[0]);

@@ -22,7 +22,8 @@ continues to own managed App semantics.
 ## Domain values
 
 - `ComputerCapabilities` identifies `pero.computer-use.v1`, one runtime instance,
-  available observation channels and explicit action/delivery pairs. This is
+  available observation channels, display environment and explicit
+  action/delivery/addressing triples. This is
   supported vocabulary, not authorization or a promise that every app accepts
   every input.
 - `ComputerTarget` describes a window or desktop. Its reference binds an opaque
@@ -56,7 +57,7 @@ Logical key chords are ordered key names, not OS keycodes or scripts.
 
 `ComputerAction::prepare(observation, capabilities)` consumes a typed action
 and returns `PreparedComputerAction` or `ComputerError`. It checks the current
-runtime, exact target and observation identity, advertised delivery pair,
+runtime, exact target and observation identity, advertised delivery/addressing combination,
 element identity/action, screenshot identity and point bounds. An empty scroll
 is refused. The core reads no time or external state.
 
@@ -84,7 +85,8 @@ Source inspection used Point `a1b915005` and Cua `cbe3991f`:
   of a single interchangeable runtime.
 - Point Rust's core also contains environment/file/clock access, Point policy
   and a small JSON parser. Those do not belong in Pero's contract. The native
-  adapter uses its platform backend without the Point service/CLI/policy.
+  adapter uses its platform backend and native compatibility predicates. Point's
+  service, CLI and policy-gate wiring are not used as Pero's authority.
 - Point CLI element indices live in one process; independent CLI invocations
   cannot preserve them. Cua also retains runtime/session state. The adapter must
   keep the corresponding native instance alive and map references there.
@@ -94,9 +96,40 @@ Source inspection used Point `a1b915005` and Cua `cbe3991f`:
 
 References: Point ADR 0065, `computer/README.md`,
 `browser/contracts/computer-use-xpc-v1.json`; Cua Driver README and embedding
-guide. The build extracts the pinned computer workspace into ignored `target/`;
-`use/computer/SOURCE.json` and its notice record provenance. No upstream
-source file is copied into Pero's tracked source tree.
+guide. The five-crate native dependency closure is copied into tracked
+`use/computer/vendor/point/`; `SOURCE.json`, its notice and the vendor README
+record provenance and module-only adaptations. Cargo uses local paths. Builds
+require no Point credentials, checkout or extraction cache; public registry
+dependencies remain locked in `use/computer/Cargo.lock`.
+
+## Package isolation
+
+The executable root composes `computer-runtime` with one of `computer-macos`,
+`computer-windows` or `computer-linux`. The runtime consumer declares the
+`DesktopDriver` port and keeps its associated snapshot opaque. `computer-core`
+owns Pero window identity, geometry, image values and control projection; it
+has no native SDK or transport dependency. `pero-contracts` remains the single
+public vocabulary and pure action-admission owner.
+
+Only macOS/Windows adapter manifests depend on Point. Their `bridge.rs` files
+convert Point values at that boundary. Linux, core and runtime contain no Point
+types or dependencies. The Linux source-only build proves this by deleting
+Point and its consuming implementations; only the executable composition
+manifest changes. The temporary lock graph is pruned with registry versions
+checked against the original pin set before the normal locked test/build.
+
+`computer-testkit` drives the actual platform profiles through public action
+admission using one shared expected-success/refusal catalogue. These value
+checks are separate from the native callback/focus/pointer acceptance suites.
+A Windows background UIA click advertises element addressing only; foreground
+text/key also requires element addressing. X11 advertises foreground pixel
+addressing. Unsupported routes are rejected before entering a native backend.
+
+The display environment distinguishes native, X11, Xwayland, Wayland and
+unavailable. Linux combines actual X11 connection success with declared session
+metadata; desktop context is not a tested compositor claim. Pure Wayland has
+no action capability here. A future Cua backend implements the same consumer
+port; see [integration assessment](../design-docs/computer-use-cua-adapter.md).
 
 ## Runtime and ownership
 
@@ -105,9 +138,9 @@ flowchart LR
   Agent[ACP Agent] -->|Host-injected conversation identity| MCP[Existing Desktop MCP]
   MCP --> Authority[Selected running conversation]
   Authority --> Desktop[DesktopComputer: receipts and evidence]
-  Desktop -->|Private NDJSON| Native[Native helper: Point macOS backend]
+  Desktop -->|Private NDJSON| Native[Native helper: runtime and platform libraries]
   Native --> Core[Pure action admission]
-  Native --> OS[Accessibility and CoreGraphics]
+  Native --> OS[AX / UIA / X11 native APIs]
   Settings[Settings or Product menu] --> Host[Host runtime settings]
   Host --> Desktop
 ```

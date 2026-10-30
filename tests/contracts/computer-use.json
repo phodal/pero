@@ -9,25 +9,48 @@
     "actions": [
       {
         "action": "click",
-        "delivery": "background"
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
       },
       {
         "action": "type_text",
-        "delivery": "background"
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
       },
       {
         "action": "press_key",
-        "delivery": "background"
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
       },
       {
         "action": "scroll",
-        "delivery": "background"
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
       },
       {
         "action": "drag",
-        "delivery": "background"
+        "delivery": "background",
+        "addressing": [
+          "pixel"
+        ]
       }
-    ]
+    ],
+    "environment": {
+      "platform": "macos",
+      "display": "native"
+    }
   },
   "target": {
     "reference": {
@@ -198,6 +221,72 @@
         "button": "left",
         "count": 2
       }
+    },
+    {
+      "request_id": "request-7",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "type_text",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        },
+        "text": "Pixel draft"
+      }
+    },
+    {
+      "request_id": "request-8",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "press_key",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        },
+        "keys": [
+          "Enter"
+        ]
+      }
+    },
+    {
+      "request_id": "request-9",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "scroll",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        },
+        "delta_x": 0,
+        "delta_y": 120
+      }
     }
   ],
   "receipts": [
@@ -298,25 +387,48 @@
         "actions": [
           {
             "action": "click",
-            "delivery": "background"
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
           },
           {
             "action": "type_text",
-            "delivery": "background"
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
           },
           {
             "action": "press_key",
-            "delivery": "background"
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
           },
           {
             "action": "scroll",
-            "delivery": "background"
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
           },
           {
             "action": "drag",
-            "delivery": "background"
+            "delivery": "background",
+            "addressing": [
+              "pixel"
+            ]
           }
-        ]
+        ],
+        "environment": {
+          "platform": "macos",
+          "display": "native"
+        }
       }
     },
     {
@@ -436,6 +548,225 @@
         },
         "button": "left",
         "count": 4
+      }
+    },
+    {
+      "name": "missing action addressing",
+      "type": "ComputerCapabilities",
+      "value": {
+        "protocol": "pero.computer-use.v1",
+        "runtime_id": "runtime-1",
+        "observations": [
+          "accessibility",
+          "screenshot"
+        ],
+        "actions": [
+          {
+            "action": "click",
+            "delivery": "background"
+          },
+          {
+            "action": "type_text",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "press_key",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "scroll",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "drag",
+            "delivery": "background",
+            "addressing": [
+              "pixel"
+            ]
+          }
+        ],
+        "environment": {
+          "platform": "macos",
+          "display": "native"
+        }
+      }
+    },
+    {
+      "name": "invalid addressing vocabulary",
+      "type": "ComputerCapabilities",
+      "value": {
+        "protocol": "pero.computer-use.v1",
+        "runtime_id": "runtime-1",
+        "observations": [
+          "accessibility",
+          "screenshot"
+        ],
+        "actions": [
+          {
+            "action": "click",
+            "delivery": "background",
+            "addressing": [
+              "dom"
+            ]
+          },
+          {
+            "action": "type_text",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "press_key",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "scroll",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "drag",
+            "delivery": "background",
+            "addressing": [
+              "pixel"
+            ]
+          }
+        ],
+        "environment": {
+          "platform": "macos",
+          "display": "native"
+        }
+      }
+    },
+    {
+      "name": "missing display environment",
+      "type": "ComputerCapabilities",
+      "value": {
+        "protocol": "pero.computer-use.v1",
+        "runtime_id": "runtime-1",
+        "observations": [
+          "accessibility",
+          "screenshot"
+        ],
+        "actions": [
+          {
+            "action": "click",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "type_text",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "press_key",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "scroll",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "drag",
+            "delivery": "background",
+            "addressing": [
+              "pixel"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid display environment",
+      "type": "ComputerCapabilities",
+      "value": {
+        "protocol": "pero.computer-use.v1",
+        "runtime_id": "runtime-1",
+        "observations": [
+          "accessibility",
+          "screenshot"
+        ],
+        "actions": [
+          {
+            "action": "click",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "type_text",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "press_key",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "scroll",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "drag",
+            "delivery": "background",
+            "addressing": [
+              "pixel"
+            ]
+          }
+        ],
+        "environment": {
+          "platform": "macos",
+          "display": "sway"
+        }
       }
     }
   ]

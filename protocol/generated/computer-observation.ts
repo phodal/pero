@@ -8,23 +8,33 @@ export type ComputerObservationContract = ComputerCapabilities | ComputerTarget 
  * Host-issued references, never OS handles, paths, credentials or caller identities.
  */
 export type ComputerRef = string;
+export type ComputerPlatform = "macos" | "windows" | "linux" | "other";
+export type ComputerDisplay = "native" | "x11" | "xwayland" | "wayland" | "unavailable";
 export type ComputerObservationKind = "accessibility" | "screenshot";
 export type ComputerActionKind = "click" | "type_text" | "press_key" | "scroll" | "drag";
 export type ComputerDelivery = "background" | "foreground";
+export type ComputerAddressing = "element" | "pixel";
 export type ComputerDimension = number;
 
 export interface ComputerCapabilities {
   protocol: "pero.computer-use.v1";
   runtime_id: ComputerRef;
+  environment: ComputerEnvironment;
   observations: ComputerObservationKind[];
   actions: ComputerActionSupport[];
 }
+export interface ComputerEnvironment {
+  platform: ComputerPlatform;
+  display: ComputerDisplay;
+  desktop?: string | null;
+}
 /**
- * One supported action/delivery pair. Adapters may still refuse a particular target.
+ * Supported addressing for an action/delivery pair; target-specific refusals remain possible.
  */
 export interface ComputerActionSupport {
   action: ComputerActionKind;
   delivery: ComputerDelivery;
+  addressing: ComputerAddressing[];
 }
 export interface ComputerTarget {
   reference: ComputerTargetRef;

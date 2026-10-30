@@ -1,0 +1,19 @@
+[package]
+workspace = "../.."
+name = "point-computer-overlay"
+description = "Unprivileged cursor overlay: consumes MotionPlan, fail-soft, no AX/CGEvent"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "point-cursor-overlay"
+path = "src/bin/point-cursor-overlay.rs"
+
+[dependencies]
+point-computer-core = { path = "../point-computer-core" }
+
+[lints]
+workspace = true
