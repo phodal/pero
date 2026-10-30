@@ -1,0 +1,12 @@
+{
+  "kind": {"version":"v0.33.0","sha256":"aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d","url":"https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64"},
+  "nodeImage":"kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed",
+  "kubectlVersion":"v1.36.4",
+  "helm":{"version":"v3.22.1","sha256":"896cf63684a42a723d61c980369d6e588330927deb13676ca0d85006dd6da0ea","url":"https://get.helm.sh/helm-v3.22.1-linux-amd64.tar.gz"},
+  "gvisor":{"version":"release-20261026.0","sha256":"096589d2d6078ba4caa26aa0200932f571aa5da9d08a5156b98ab1d93fa54468","url":"https://github.com/google/gvisor/releases/download/release-20261026.0/gvisor-x86_64.tar.bz2"},
+  "cilium":{"version":"1.20.4","sha256":"505abff8385811df1a949776fc42e9f10697989a332acc86d6e8933efcb855ed","url":"https://helm.cilium.io/cilium-1.20.4.tgz"},
+  "cniPlugins":{"version":"v1.9.1","sha256":"b98f74a0f8522f0a83867178729c1aa70f2158f90c45a2ca8fa791db1c76b303","url":"https://github.com/containernetworking/plugins/releases/download/v1.9.1/cni-plugins-linux-amd64-v1.9.1.tgz","checksumUrl":"https://github.com/containernetworking/plugins/releases/download/v1.9.1/cni-plugins-linux-amd64-v1.9.1.tgz.sha256","tuningSha256":"4659e9129d8c669c21c932cd778dc1ac17a717d100768ea23242883401cbb536","sourceUrl":"https://github.com/containernetworking/plugins/blob/v1.9.1/plugins/meta/tuning/tuning.go","license":"Apache-2.0"},
+  "agentSandbox":{"version":"v1.0.2","sha256":"e3dda8359fee2b1bb6f4a9448d7004888286482b17670c581dee976f370fd165","url":"https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v1.0.2/sandbox-with-extensions.yaml","image":"registry.k8s.io/agent-sandbox/agent-sandbox-controller@sha256:dc700a37ecf4e680a146098a30996f420507e76e83a27dbd293f2b8114b14daa"},
+  "registryImage":"registry:3.0.0@sha256:6c5666b861f3505b116bb9aa9b25175e71210414bd010d92035ff64018f9457e",
+  "minio":{"version":"RELEASE.2025-10-15T17-29-55Z","commit":"9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a","license":"AGPL-3.0","licenseSha256":"0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"}
+}

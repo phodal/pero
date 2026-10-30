@@ -48,6 +48,14 @@ fn launch(
     scenario: &str,
     model: Option<&str>,
 ) -> (SessionHandle, mpsc::Receiver<HostEvent>, Workspace) {
+    launch_with_access(scenario, model, false, None)
+}
+fn launch_with_access(
+    scenario: &str,
+    model: Option<&str>,
+    supervised: bool,
+    app_use: Option<crate::acp::AppUseEndpoint>,
+) -> (SessionHandle, mpsc::Receiver<HostEvent>, Workspace) {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let config = AgentConfig {
         id: "fixture".into(),
@@ -64,11 +72,54 @@ fn launch(
     };
     let (tx, rx) = mpsc::channel();
     let workspace = Workspace::new();
-    (
-        start(config, workspace.0.clone(), "fixture-thread".into(), tx),
-        rx,
-        workspace,
-    )
+    let handle = if let Some(endpoint) = app_use {
+        start_app(config, workspace.0.clone(), "fixture-thread".into(), tx, endpoint)
+    } else if supervised {
+        start_supervised(config, workspace.0.clone(), "fixture-thread".into(), tx)
+    } else {
+        start(config, workspace.0.clone(), "fixture-thread".into(), tx)
+    };
+    (handle, rx, workspace)
+}
+
+#[test]
+fn app_use_prefix_is_interpreted_only_by_explicit_app_use_sessions() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/mcp", listener.local_addr().unwrap());
+    for mode in ["app", "supervised", "ordinary"] {
+        let endpoint = (mode == "app").then(|| crate::acp::AppUseEndpoint::fixture(url.clone()));
+        let (handle, rx, _workspace) = launch_with_access("app_use_boundary", None, mode == "supervised", endpoint);
+        until(&rx, "session_ready");
+        for contextual in [false, true] {
+            for (literal, app_text) in [
+                ("/app-use do the task", "do the task"),
+                ("/app-use\t  do the task", "do the task"),
+                ("/app-useful keep literal", "/app-useful keep literal"),
+            ] {
+                let command = if contextual {
+                    SessionCommand::PromptWithContext { text: literal.into(), context: vec![] }
+                } else {
+                    SessionCommand::Prompt(literal.into())
+                };
+                handle.tx.send(command).unwrap();
+                let update = until(&rx, "session_update");
+                let wire: Value = serde_json::from_str(update.data["content"]["text"].as_str().unwrap()).unwrap();
+                let expected = if mode == "app" { app_text } else { literal };
+                assert_eq!(wire["prompt"][0]["text"], expected, "mode={mode}, contextual={contextual}");
+                if mode == "app" {
+                    assert_eq!(wire["mcpServers"].as_array().unwrap().len(), 1);
+                    assert_eq!(wire["mcpServers"][0]["name"], "pero-app-use");
+                    assert_eq!(wire["mcpServers"][0]["url"], url);
+                    assert_eq!(wire["prompt"][1]["text"], format!("Host-provided App Use workflow:\n{}", crate::acp::APP_USE_SKILL));
+                } else {
+                    assert_eq!(wire["mcpServers"], json!([]));
+                    assert_eq!(wire["prompt"].as_array().unwrap().len(), 1);
+                }
+                until(&rx, "turn_finished");
+            }
+        }
+        close(&handle, &rx);
+    }
 }
 
 #[test]

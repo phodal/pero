@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "collector",
+    srcs = ["collector.go", "files_linux.go", "files_unsupported.go"],
+    importpath = "github.com/phodal/pero/server/internal/artifacts/collector",
+    visibility = ["//server:__subpackages__"],
+    deps = ["//server/internal/artifacts"],
+)
+
+go_test(
+    name = "collector_test",
+    srcs = ["collector_linux_test.go"],
+    embed = [":collector"],
+    deps = ["//server/internal/artifacts"],
+)

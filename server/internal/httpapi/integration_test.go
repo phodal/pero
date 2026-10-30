@@ -19,7 +19,7 @@ import (
 	"github.com/phodal/pero/server/internal/store"
 )
 
-func testAPI(t *testing.T) *httptest.Server {
+func testAPI(t *testing.T, setup ...func(*store.Store) http.Handler) *httptest.Server {
 	t.Helper()
 	dsn := os.Getenv("PERO_TEST_DATABASE_URL")
 	if dsn == "" {
@@ -45,7 +45,11 @@ func testAPI(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := httptest.NewServer(httpapi.Handler(db, "test-operator"))
+	handler := httpapi.Handler(db, "test-operator")
+	if len(setup) > 0 {
+		handler = setup[0](db)
+	}
+	server := httptest.NewServer(handler)
 	t.Cleanup(func() {
 		server.Close()
 		db.Close()

@@ -10,6 +10,7 @@ go_library(
         "//server/internal/github",
         "//server/internal/httpapi",
         "//server/internal/store",
+        "//server/internal/sandbox",
     ],
 )
 
