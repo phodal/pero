@@ -112,7 +112,8 @@ try{
  expect((await state()).activeContent).toEqual(draftItem);
  await page.screenshot({path:resolve(out,'history-retained-draft.png')});
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
- await page.mouse.click(100,166);
+ // The compact sidebar places the first restored session at y=130.
+ await page.mouse.click(100,130);
  await expect.poll(async()=>(await state()).navigation).toBe(0);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await expect.poll(async()=>(await state()).activeContent).toEqual({kind:'conversation',value:restoredThread.id});

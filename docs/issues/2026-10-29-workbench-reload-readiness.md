@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: resolved
+status: verifying
 date: 2026-10-29
 ---
 
@@ -114,3 +114,27 @@ The retained screenshots and results are in
 ZIP SHA-256 `0b6e3ec3c12e86d0f442da92dd2d3b6d8daf22f8bedd3081325e6d920c99ac80`.
 Desktop E2E remains Linux-only in this workflow; the macOS and Windows E2E
 steps were skipped by their existing conditions, not accepted as executed.
+
+## Compact sidebar history selection (2026-10-30)
+
+After integrating the compact workbench from master, standard CI
+[40988610503](https://github.com/phodal/pero/actions/runs/40988610503) at head
+`edb2e56a5f5f37ba50d3820007352229b19e069d` passed replay arrival and
+retained-draft identity, then failed selecting the restored history session.
+The unchanged test clicked `(100,166)`. Both the pre-click screenshot and the
+failure screenshot show the original session centered at y=130 and the new
+draft at y=154; y=166 is below the session buttons. This is a stale test target,
+not evidence that replay or history selection failed in the product.
+
+Use the compact sidebar's first-session center `(100,130)`, consistent with
+the existing workspace suite. Keep the real pointer click, original thread ID,
+active-content and active-chat assertions, and their five-second bounds. No
+production code, timeout, retry or selection predicate changes. A finite audit
+of the four executed Desktop suites found no other fixed history-row target;
+their top-row new-chat actions are separate and unchanged.
+
+The screenshot archive is
+[12947804677](https://github.com/phodal/pero/actions/runs/40988610503/artifacts/12947804677),
+SHA-256 `c02ee4fdeaecb06785f9e0d58c7536ce020b94cd0beeffe2b63c60986ddd068b`.
+JavaScript syntax and diff checks pass. Actual Electron verification on the
+corrected head is still required; screenshot inspection is not a new UI pass.
