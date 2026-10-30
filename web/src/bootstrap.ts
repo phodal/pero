@@ -133,6 +133,7 @@ try {
     window.pero.onEvent(onEvent);
     if (connection) onEvent(connection);
     await window.pero.sessionCommand({method:'settings.workbench.get'});
+    await window.pero.sessionCommand({method:'icons',action:'get',request_id:'icon-themes-startup'});
     await window.pero.sessionCommand({action:'list_agents'});
     // The local workbench is ready even while Cloud refresh/enrollment waits.
     void window.pero.remoteCommand({action:'remote_refresh'}).catch(() => {});

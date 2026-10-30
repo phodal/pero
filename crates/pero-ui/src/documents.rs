@@ -349,15 +349,15 @@ impl Workbench {
                 )
             })
             .unwrap_or_else(|| {
-                (
-                    self.recovery
-                        .deferred
-                        .iter()
-                        .find(|document| &document.saved.item() == item)
-                        .map(|document| document.saved.header.source.title.clone())
-                        .unwrap_or_else(|| self.t("content.document").into()),
-                    "file".into(),
-                )
+                self.recovery.deferred.iter()
+                    .find(|document| &document.saved.item() == item)
+                    .map(|document| {
+                        let header = &document.saved.header;
+                        (header.source.title.clone(), pero_chat_ui::icon_theme::source_icon(
+                            &header.format, &header.source.title, pero_theme::UiAppearance::global(cx).dark,
+                        ))
+                    })
+                    .unwrap_or_else(|| (self.t("content.document").into(), "file".into()))
             })
     }
 }

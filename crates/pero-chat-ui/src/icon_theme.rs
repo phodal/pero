@@ -1,8 +1,8 @@
 //! Host-admitted theme assets share the existing GPUI AssetSource and source registry.
 use crate::assets::UiIcon;
 use pero_contracts::{
-    content_document::ContentDocument,
-    content_icon::{ContentIconInput, ContentIconKind},
+    content_document::{ContentDocument, ContentFormat},
+    content_icon::{ContentIconInput, ContentIconKind, ContentIconRegistry},
     icon_theme::IconThemeState,
 };
 use std::sync::{Arc, OnceLock, RwLock};
@@ -26,17 +26,20 @@ pub fn load(path: &str) -> Option<Vec<u8>> {
         .map(|svg| svg.as_bytes().to_vec())
 }
 pub fn document_icon(document: &ContentDocument, dark: bool) -> String {
+    source_icon(&document.format, &document.title, dark)
+}
+/// Source metadata is sufficient for icons, including lazily restored documents.
+pub fn source_icon(format: &ContentFormat, title: &str, dark: bool) -> String {
+    let input = ContentIconInput::document(format, title, dark);
     snapshot()
         .theme
         .as_ref()
-        .and_then(|theme| {
-            theme.resolve(ContentIconInput::document(
-                &document.format,
-                &document.title,
-                dark,
-            ))
+        .and_then(|theme| theme.resolve(input))
+        .unwrap_or_else(|| {
+            UiIcon::from_content(ContentIconRegistry::default().resolve(input))
+                .path()
+                .into()
         })
-        .unwrap_or_else(|| UiIcon::for_document(document, dark).path().into())
 }
 pub fn app_icon(name: &str, dark: bool) -> String {
     snapshot()

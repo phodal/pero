@@ -144,6 +144,7 @@ try {
   await gracefulClose();
   await launch();
   await expect.poll(icons).toEqual(dark);
+  expect((await state()).documents.length).toBe(1);
   await expect.poll(async () => (await icons()).rust?.startsWith('icon-themes/source-shapes/rust/')).toBe(true);
   expect((await state()).dark).toBe(true);
   await settings();
