@@ -243,7 +243,7 @@ try {
   await close(); await launch(); await open(true);
   expect((await mcp()).config.servers).toEqual([]); expect(errors).toEqual([]);
 
-  })(), 'complete acceptance suite', 300000);
+  })(), 'complete acceptance suite', 600000);
   progress('final cleanup');
   await close();
   await bounded(fixture.close(), 'fixture cleanup'); fixtureClosed = true;

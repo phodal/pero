@@ -181,3 +181,13 @@ a fresh run removes its previous receipt first. To exercise the failure path,
 add `PERO_MCP_TEST_FAIL_CLEANUP=1` to the MCP UI command. It runs every assertion,
 then injects a cleanup failure: expect a nonzero exit, `ui-failure.json`, and no
 `ui-result.json`. Archive that deliberate failure separately from acceptance.
+
+The expanded 18-group MCP UI suite uses a **test-only 600-second aggregate
+budget** across three Electron launches (two restarts). CI run `41014507506`
+on head `35211e7` hit the previous 300-second aggregate cap while filling the
+import draft, despite continuous progress, no renderer errors/exits, and no
+individual-operation timeout. The unchanged startup/search/Agent-selection path
+took 76.468 seconds there versus 35.035 seconds in the earlier headed run
+`41010694432`. All assertions and the existing 15-second bounded operations and
+10-second screenshot timeout remain unchanged; this is not a product deadline
+or a claim that the failed run passed.
