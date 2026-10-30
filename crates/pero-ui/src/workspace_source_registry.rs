@@ -81,6 +81,7 @@ mod tests {
                     id: ViewId(20),
                     route: WorkspaceRoute::Content(b.clone()),
                     reading: None,
+                    kind: Default::default(),
                 },
                 OpenIntent::Permanent,
             )
@@ -90,6 +91,7 @@ mod tests {
         navigation.history.back.push(HistoryEntry {
             route: WorkspaceRoute::Content(c.clone()),
             preview: false,
+            view_kind: Default::default(),
             reading: None,
         });
         assert_eq!(navigation.prune_document_registry(), vec![dead]);
@@ -103,6 +105,7 @@ mod tests {
                     id: ViewId(21),
                     route: WorkspaceRoute::Content(a.clone()),
                     reading: None,
+                    kind: Default::default(),
                 },
                 OpenIntent::Permanent,
             )
