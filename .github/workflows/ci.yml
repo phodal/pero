@@ -25,6 +25,24 @@ defaults:
     shell: bash
 
 jobs:
+  virtual-cell:
+    name: Virtual Cell local comparison contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install preparation-test dependencies
+        run: python -m pip install -r apps/virtual-cell/tools/norman/test-requirements.txt
+      - name: Verify preparation tests cannot silently skip dependencies
+        run: python -c 'import numpy, scipy'
+      - name: Test scientific boundaries and local process lifecycle
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python -m unittest discover -s apps/virtual-cell/test -p 'test_*.py' -v
+
   bazel:
     name: Bazel checks and server (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -330,7 +348,10 @@ jobs:
         run: npm run build
 
       - name: Typecheck and generated sources
-        run: npm run check
+        run: |
+          npm run check
+          npm --prefix apps/virtual-cell run typecheck
+          npm --prefix apps/virtual-cell run test:ui
 
       - name: Test
         run: npm test
@@ -359,6 +380,8 @@ jobs:
           run_acceptance() { "$@" || failed=1; }
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/workbench.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/toolcalls.mjs
+          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/virtual-cell-comparison.mjs
+          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/virtual-cell-dataset-download.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use-workbench.mjs
           run_acceptance node tests/contracts/mcp-settings.mjs
