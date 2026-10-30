@@ -3,7 +3,7 @@ use pero_contracts::reader_state::ReaderState;
 #[path = "workspace_panes.rs"]
 mod pane_navigation;
 #[path="workspace_tab_navigation.rs"]
-mod tab_navigation;
+pub(crate) mod tab_navigation;
 #[path="workspace_source_registry.rs"]
 mod source_registry;
 pub(crate) use pero_contracts::workspace_session::{
@@ -101,6 +101,7 @@ impl WorkspaceNavigation {
     fn set_route(&mut self, route: WorkspaceRoute) {
         if self.select_pane_route(&route) {
             self.route = route;
+            if let Some(tabs)=self.focused_tabs() {let mirror=tabs.history().clone();self.history.reading=mirror.reading;self.history.view_kind=mirror.view_kind;self.history.preview=mirror.preview;}
             self.sync_legacy_panes();
             return;
         }
@@ -156,13 +157,22 @@ impl WorkspaceNavigation {
     }
     pub(crate) fn step_history(&mut self, forward: bool) -> Option<HistoryEntry> {
         if self.pane_layout_visible() {
-            let layout=self.pane_layout.as_mut()?;let pane=layout.focused?;let id=layout.allocate_view_id();
-            let item=layout.leaf_mut(pane)?.tabs.step_history(forward,id)?;
+            let layout=self.pane_layout.as_mut()?;let pane=layout.focused?;
+            let item=layout.step_history(pane,forward)?;
             if let WorkspaceRoute::Content(source)=&item.route {if !self.items.contains(source) {self.items.push(source.clone());}}
             self.activate_view(item.id);
             return Some(HistoryEntry{route:item.route,reading:item.reading,view_kind:item.kind,preview:self.focused_tabs().is_some_and(|tabs|tabs.preview_id()==Some(item.id))});
         }
         let entry = self.history.step(&self.route, forward)?;
+        if entry.route.supports_pane() {
+            if self.pane_layout.is_none() {self.pane_layout=Some(pero_contracts::workspace_panes::PaneLayout::empty());}
+            if let Some(layout)=&mut self.pane_layout {
+                let pane=layout.focused?;
+                let item=layout.restore_history_entry(pane,entry.clone())?;
+                self.activate_view(item.id);
+                return Some(entry);
+            }
+        }
         self.set_route(entry.route.clone());
         Some(entry)
     }

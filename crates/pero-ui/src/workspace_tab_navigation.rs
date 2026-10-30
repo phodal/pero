@@ -44,6 +44,10 @@ impl WorkspaceNavigation {
         let route = layout.activate_view(id)?;
         self.route = route.clone();
         self.history.reading = layout.view(id)?.1.reading.clone();
+        self.history.view_kind = layout.view(id)?.1.kind;
+        self.history.preview = layout
+            .view(id)
+            .is_some_and(|(pane, _)| layout.leaf(pane).unwrap().tabs.preview_id() == Some(id));
         self.sync_legacy_panes();
         Some(route)
     }
@@ -96,8 +100,7 @@ impl WorkspaceNavigation {
     pub(crate) fn reopen_closed_view(&mut self) -> Option<PaneItem> {
         let layout = self.pane_layout.as_mut()?;
         let pane = layout.focused?;
-        let id = layout.allocate_view_id();
-        let item = layout.leaf_mut(pane)?.tabs.reopen_closed(id)?;
+        let item = layout.reopen_closed(pane)?;
         if let WorkspaceRoute::Content(source) = &item.route {
             if !self.items.contains(source) {
                 self.items.push(source.clone());
@@ -127,15 +130,133 @@ impl WorkspaceNavigation {
             self.items.push(item.clone());
         }
         let route = WorkspaceRoute::Content(item);
-        self.ensure_pane_layout();
         if self.pane_layout.is_none() {
-            self.set_route(route);
-            return None;
+            self.pane_layout = Some(pero_contracts::workspace_panes::PaneLayout::empty());
         }
         let layout = self.pane_layout.as_mut()?;
         let pane = layout.focused?;
         let (_, opened) = layout.open_tab(pane, route, None, intent)?;
         self.activate_view(opened.active);
         opened.replaced
+    }
+}
+
+/// A quick-open session can restore its original views without undoing source arrivals.
+#[derive(Clone)]
+pub(crate) struct PreviewOrigin {
+    layout: Option<pero_contracts::workspace_panes::PaneLayout>,
+    route: WorkspaceRoute,
+    history: WorkspaceHistory,
+}
+impl WorkspaceNavigation {
+    pub(crate) fn preview_origin(&self) -> PreviewOrigin {
+        PreviewOrigin {
+            layout: self.pane_layout.clone(),
+            route: self.route.clone(),
+            history: self.history.clone(),
+        }
+    }
+    pub(crate) fn cancel_preview(&mut self, origin: PreviewOrigin) -> WorkspaceRoute {
+        self.pane_layout = origin.layout;
+        self.route = origin.route;
+        self.history = origin.history;
+        self.sync_legacy_panes();
+        self.route.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn quick_open_replaces_temporary_views_and_escape_restores_original_pane_and_kind() {
+        let doc = |name: &str| WorkspaceItem::Document {
+            origin: pero_contracts::content_origin::ContentOrigin::File {
+                path: format!("/tmp/{name}"),
+            },
+            source: name.into(),
+        };
+        let mut navigation = WorkspaceNavigation::default();
+        navigation.open(doc("first"));
+        navigation.open(doc("second"));
+        navigation.open(doc("third"));
+        let first = navigation.items[0].clone();
+        navigation.select(&first);
+        let baseline = navigation.pane_layout.clone();
+        let origin = navigation.preview_origin();
+        // Recent sources need not already have a view in the current pane.
+        let focused = navigation.pane_layout.as_ref().unwrap().focused.unwrap();
+        let second = navigation
+            .focused_tabs()
+            .unwrap()
+            .find_route(&WorkspaceRoute::Content(doc("second")))
+            .unwrap()
+            .id;
+        let third = navigation
+            .focused_tabs()
+            .unwrap()
+            .find_route(&WorkspaceRoute::Content(doc("third")))
+            .unwrap()
+            .id;
+        navigation
+            .pane_layout
+            .as_mut()
+            .unwrap()
+            .leaf_mut(focused)
+            .unwrap()
+            .tabs
+            .take(second);
+        navigation
+            .pane_layout
+            .as_mut()
+            .unwrap()
+            .leaf_mut(focused)
+            .unwrap()
+            .tabs
+            .take(third);
+        navigation.open_with_intent(doc("second"), OpenIntent::Preview);
+        let replaced = navigation
+            .open_with_intent(doc("third"), OpenIntent::Preview)
+            .unwrap();
+        assert_eq!(replaced.route, WorkspaceRoute::Content(doc("second")));
+        assert_eq!(navigation.focused_tabs().unwrap().items().len(), 2);
+        navigation.cancel_preview(origin);
+        assert_eq!(navigation.pane_layout, baseline);
+        assert_eq!(navigation.current(), Some(&first));
+        navigation.open_with_intent(doc("new"), OpenIntent::Preview);
+        let view = navigation.active_view_id().unwrap();
+        navigation.promote_view(view);
+        assert_eq!(navigation.focused_tabs().unwrap().preview_id(), None);
+        navigation.open_with_intent(doc("next"), OpenIntent::Preview);
+        assert!(navigation.focused_tabs().unwrap().item(view).is_some());
+        // A utility-page departure preserves the explicit rendered-view identity.
+        let source_route = WorkspaceRoute::Content(first.clone());
+        let layout = navigation.pane_layout.as_mut().unwrap();
+        let pane = layout.focused.unwrap();
+        let rendered = layout
+            .split_kind(
+                pane,
+                pero_contracts::workspace_panes::SplitDirection::Right,
+                source_route.clone(),
+                Some(ReaderState {
+                    source: false,
+                    ..Default::default()
+                }),
+                pero_contracts::pane_tabs::PaneItemKind::RenderedPreview,
+            )
+            .unwrap();
+        navigation.focus_pane(rendered);
+        let rendered_id = navigation.active_view_id().unwrap();
+        navigation.show(WorkbenchPage::Workers);
+        let returned = navigation.step_history(false).unwrap();
+        assert_eq!(
+            returned.view_kind,
+            pero_contracts::pane_tabs::PaneItemKind::RenderedPreview
+        );
+        assert_eq!(navigation.active_view_id(), Some(rendered_id));
+        assert_eq!(
+            navigation.focused_tabs().unwrap().active().unwrap().kind,
+            pero_contracts::pane_tabs::PaneItemKind::RenderedPreview
+        );
     }
 }

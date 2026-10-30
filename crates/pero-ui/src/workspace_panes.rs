@@ -129,6 +129,8 @@ impl WorkspaceNavigation {
         let route = layout.focus(id)?;
         self.route = route.clone();
         self.history.reading = layout.leaf(id)?.reading().cloned();
+        self.history.view_kind = layout.leaf(id)?.active().map_or(Default::default(),|item|item.kind);
+        self.history.preview = layout.leaf(id)?.tabs.preview_id()==layout.leaf(id)?.tabs.active_id() && layout.leaf(id)?.active().is_some();
         self.sync_legacy_panes();
         Some(route)
     }
