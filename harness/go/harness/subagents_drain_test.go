@@ -23,11 +23,16 @@ func awaitDescendantSignal(t *testing.T, ctx context.Context, ch <-chan struct{}
 type descendantWaitContext struct {
 	context.Context
 	entered chan struct{}
+	waits   chan struct{}
 	once    sync.Once
 }
 
 func (c *descendantWaitContext) Done() <-chan struct{} {
 	c.once.Do(func() { close(c.entered) })
+	select {
+	case c.waits <- struct{}{}:
+	default:
+	}
 	return c.Context.Done()
 }
 
@@ -218,40 +223,189 @@ func TestSubagentWaitForChildrenRechecksPublishedDescendants(t *testing.T) {
 	}
 }
 
-func TestSubagentWaitForChildrenLeavesIdleParkedInput(t *testing.T) {
-	h := subagentTestHarness(t)
-	ctx := activationTestContext(t)
-	r := h.Subagents()
-	parent, err := h.Agents().Create(ctx, AgentOptions{ID: "parked-parent", CWD: t.TempDir()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	child, err := h.Agents().Create(ctx, AgentOptions{ID: "parked-child", Parent: parent, CWD: t.TempDir()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = child.Inject(Message{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: "do not wake"}}}); err != nil {
-		t.Fatal(err)
-	}
-	// This unit fixture isolates the idle/parked observation boundary without a
-	// turn completion observer independently settling the synthetic activation.
-	state := newSubagentActivation("caller")
-	record := &subagentRecord{parent: parent, child: child, activation: state, snapshot: SubagentSnapshot{ID: child.ID(), Parent: parent.ID(), Continuable: true}}
-	r.mu.Lock()
-	r.records[child.ID()] = record
-	r.mu.Unlock()
-	defer func() { r.mu.Lock(); delete(r.records, child.ID()); r.mu.Unlock() }()
-	if observed, err := r.WaitForChildren(ctx, parent); observed || err != nil {
-		t.Fatalf("parked input incorrectly joined: %v %v", observed, err)
-	}
-	if child.Status() != AgentIdle {
-		t.Fatal("wait woke an idle child")
-	}
-	child.injectMu.Lock()
-	parked := len(child.injected)
-	child.injectMu.Unlock()
-	if parked != 1 {
-		t.Fatal("wait discarded parked input")
+func TestSubagentWaitForChildrenSkipsNonProgressing(t *testing.T) {
+	t.Run("idle parked input", func(t *testing.T) {
+		h := subagentTestHarness(t)
+		ctx := activationTestContext(t)
+		r := h.Subagents()
+		parent, err := h.Agents().Create(ctx, AgentOptions{ID: "parked-parent", CWD: t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, err := h.Agents().Create(ctx, AgentOptions{ID: "parked-child", Parent: parent, CWD: t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = child.Inject(Message{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: "do not wake"}}}); err != nil {
+			t.Fatal(err)
+		}
+		// This unit fixture isolates the idle/parked observation boundary without a
+		// turn completion observer independently settling the synthetic activation.
+		state := newSubagentActivation("caller")
+		record := &subagentRecord{parent: parent, child: child, activation: state, snapshot: SubagentSnapshot{ID: child.ID(), Parent: parent.ID(), Continuable: true}}
+		r.mu.Lock()
+		r.records[child.ID()] = record
+		r.mu.Unlock()
+		defer func() { r.mu.Lock(); delete(r.records, child.ID()); r.mu.Unlock() }()
+		if observed, err := r.WaitForChildren(ctx, parent); observed || err != nil {
+			t.Fatalf("parked input incorrectly joined: %v %v", observed, err)
+		}
+		if child.Status() != AgentIdle {
+			t.Fatal("wait woke an idle child")
+		}
+		child.injectMu.Lock()
+		parked := len(child.injected)
+		child.injectMu.Unlock()
+		if parked != 1 {
+			t.Fatal("wait discarded parked input")
+		}
+	})
+	for _, tc := range []struct {
+		name     string
+		scoped   bool
+		nested   bool
+		released bool
+	}{
+		{name: "completed retained ownership"},
+		{name: "completed retained facade ownership", scoped: true},
+		{name: "completed child of progressing owner", nested: true},
+		{name: "completed facade child of progressing owner", scoped: true, nested: true},
+		{name: "completed without retained ownership", released: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := subagentTestHarness(t)
+			ctx := activationTestContext(t)
+			r := h.Subagents()
+			parent, err := h.Agents().Create(ctx, AgentOptions{ID: "settled-parent", CWD: t.TempDir()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			state := newSubagentActivation("caller")
+			state.closing.Store(true)
+			close(state.done)
+			record := &subagentRecord{parent: parent, activation: state, snapshot: SubagentSnapshot{ID: "settled-child", Parent: parent.ID(), Depth: 2}}
+			var owner *subagentRecord
+			if tc.nested {
+				child, err := h.Agents().Create(ctx, AgentOptions{ID: "progressing-owner", Parent: parent, Delegated: true, CWD: t.TempDir()})
+				if err != nil {
+					t.Fatal(err)
+				}
+				ownerState := newSubagentActivation("caller")
+				owner = &subagentRecord{parent: parent, child: child, activation: ownerState, snapshot: SubagentSnapshot{ID: child.ID(), Parent: parent.ID(), Depth: 1}}
+				record.parent, record.snapshot.Parent = child, child.ID()
+				record.activationOwner = ownerState
+				ownerState.owned[record] = struct{}{}
+			}
+			wait := r.WaitForChildren
+			var foreign *subagentRecord
+			if tc.scoped {
+				facade, err := r.NewFacade(DefaultSubagentRuntimeConfig())
+				if err != nil {
+					t.Fatal(err)
+				}
+				other, err := r.NewFacade(DefaultSubagentRuntimeConfig())
+				if err != nil {
+					t.Fatal(err)
+				}
+				state.facade = facade
+				if owner != nil {
+					owner.activation.facade = facade
+				}
+				wait = facade.WaitForChildren
+				foreignState := newSubagentActivation("caller")
+				foreignState.facade = other
+				foreign = &subagentRecord{parent: parent, activation: foreignState, snapshot: SubagentSnapshot{ID: "foreign-child", Parent: parent.ID()}}
+			}
+			// Completion closes its receipt before releasing parent ownership.
+			// Hold that legal boundary as values rather than racing a goroutine.
+			r.mu.Lock()
+			r.parentRecords = map[*Agent]map[*subagentRecord]struct{}{record.parent: {record: {}}}
+			if tc.released {
+				delete(r.parentRecords, record.parent)
+				r.records[record.snapshot.ID] = record
+			}
+			if owner != nil {
+				r.records[owner.snapshot.ID] = owner
+				r.parentRecords[parent] = map[*subagentRecord]struct{}{owner: {}}
+			}
+			if foreign != nil {
+				r.records[foreign.snapshot.ID] = foreign
+			}
+			r.mu.Unlock()
+			defer func() {
+				r.mu.Lock()
+				delete(r.records, record.snapshot.ID)
+				delete(r.parentRecords, record.parent)
+				if owner != nil {
+					delete(r.records, owner.snapshot.ID)
+					delete(r.parentRecords, parent)
+				}
+				if foreign != nil {
+					delete(r.records, foreign.snapshot.ID)
+				}
+				r.mu.Unlock()
+			}()
+			if tc.released {
+				if observed, err := wait(ctx, parent); observed || err != nil {
+					t.Fatalf("unowned completion incorrectly joined: %v %v", observed, err)
+				}
+				return
+			}
+			type waitResult struct {
+				observed bool
+				err      error
+			}
+			startWaiting := func() (context.CancelFunc, <-chan struct{}, <-chan waitResult) {
+				waitCtx, cancel := context.WithCancel(ctx)
+				waiting := &descendantWaitContext{Context: waitCtx, entered: make(chan struct{}), waits: make(chan struct{}, 2)}
+				result := make(chan waitResult, 1)
+				go func() {
+					observed, err := wait(waiting, parent)
+					result <- waitResult{observed: observed, err: err}
+				}()
+				return cancel, waiting.waits, result
+			}
+			cancel, entered, result := startWaiting()
+			defer cancel()
+			select {
+			case <-entered:
+			case out := <-result:
+				t.Fatalf("wait returned before ownership release: %v %v", out.observed, out.err)
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			cancel()
+			if out := activationReceive(t, ctx, result); out.observed || !errors.Is(out.err, context.Canceled) {
+				t.Fatalf("completed ownership counted as progress: %v %v", out.observed, out.err)
+			}
+			cancel, entered, result = startWaiting()
+			defer cancel()
+			awaitDescendantSignal(t, ctx, entered)
+			r.releaseSubagentOwnership(record, 0, true)
+			if owner == nil {
+				if out := activationReceive(t, ctx, result); out.observed || out.err != nil {
+					t.Fatalf("released completion incorrectly joined: %v %v", out.observed, out.err)
+				}
+				return
+			}
+			// The same waiter must wake on ownership release, then join the
+			// still-open local owner rather than return with the completed child.
+			awaitDescendantSignal(t, ctx, entered)
+			select {
+			case out := <-result:
+				t.Fatalf("wait missed still-progressing owner: %v %v", out.observed, out.err)
+			default:
+			}
+			owner.activation.closing.Store(true)
+			r.mu.Lock()
+			delete(r.records, owner.snapshot.ID)
+			r.mu.Unlock()
+			close(owner.activation.done)
+			r.releaseSubagentOwnership(owner, 0, true)
+			if out := activationReceive(t, ctx, result); !out.observed || out.err != nil {
+				t.Fatalf("progressing owner wait: %v %v", out.observed, out.err)
+			}
+		})
 	}
 }
 
