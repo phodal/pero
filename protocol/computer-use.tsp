@@ -12,9 +12,21 @@ scalar ComputerRef extends string;
 @minLength(1) @maxLength(10000) scalar ComputerText extends string;
 @minLength(1) @maxLength(64) scalar ComputerKey extends string;
 
-enum ComputerActionKind { click, type_text, press_key, scroll, drag }
+/** Replacement permits an empty value to clear the field. */
+@maxLength(10000) scalar ComputerValue extends string;
+enum ComputerActionKind { click, type_text, press_key, scroll, drag, set_value, perform_action, move, hover, hold, focus_window }
+enum ComputerSemanticAction { press, open, confirm, cancel, show_menu, scroll_to_visible, increment, decrement }
 enum ComputerDelivery { background, foreground }
+enum ComputerAddressing { element, pixel, target }
 enum ComputerObservationKind { accessibility, screenshot }
+enum ComputerPlatform { macos, windows, linux, other }
+enum ComputerDisplay { native, x11, xwayland, wayland, unavailable }
+model ComputerEnvironment {
+  platform: ComputerPlatform;
+  display: ComputerDisplay;
+  desktop?: string | null;
+  ...ComputerClosed;
+}
 enum ComputerMouseButton { left, right, middle }
 enum ComputerErrorCode {
   unsupported, permission_required, target_unavailable, stale_observation,
@@ -31,17 +43,20 @@ model ComputerTarget {
   kind: "window" | "desktop";
   title: string;
   application?: string | null;
+  application_id?: string | null;
   ...ComputerClosed;
 }
-/** One supported action/delivery pair. Adapters may still refuse a particular target. */
+/** Supported addressing for an action/delivery pair; target-specific refusals remain possible. */
 model ComputerActionSupport {
   action: ComputerActionKind;
   delivery: ComputerDelivery;
+  addressing: ComputerAddressing[];
   ...ComputerClosed;
 }
 model ComputerCapabilities {
   protocol: "pero.computer-use.v1";
   runtime_id: ComputerRef;
+  environment: ComputerEnvironment;
   observations: ComputerObservationKind[];
   actions: ComputerActionSupport[];
   ...ComputerClosed;
@@ -53,6 +68,17 @@ model ComputerElement {
   value?: string | null;
   depth: uint16;
   actions: ComputerActionKind[];
+  state?: ComputerElementState | null;
+  semantic_actions?: ComputerSemanticAction[];
+  ...ComputerClosed;
+}
+model ComputerElementState {
+  enabled: boolean;
+  secure: boolean;
+  focused: boolean;
+  value_settable: boolean;
+  selected?: boolean | null;
+  expanded?: boolean | null;
   ...ComputerClosed;
 }
 /** The Host resolves this immutable image reference to bytes; no local path is exposed. */
@@ -111,7 +137,32 @@ model ComputerDrag {
   to: ComputerPoint;
   ...ComputerClosed;
 }
-@oneOf union ComputerInput { ComputerClick, ComputerTypeText, ComputerPressKey, ComputerScroll, ComputerDrag }
+model ComputerSetValue { kind: "set_value"; element_id: ComputerRef; value: ComputerValue; ...ComputerClosed; }
+model ComputerPerformAction { kind: "perform_action"; element_id: ComputerRef; action: ComputerSemanticAction; ...ComputerClosed; }
+/** Foreground moves the real pointer; background posts a window-directed move. */
+model ComputerMove { kind: "move"; anchor: ComputerAnchor; ...ComputerClosed; }
+/** Pointer pause after reaching the anchor, in milliseconds. */
+@minValue(0) @maxValue(5000) scalar ComputerDwellMs extends uint16;
+/** Button press duration before release, in milliseconds. */
+@minValue(1) @maxValue(10000) scalar ComputerHoldMs extends uint16;
+/** Moves the pointer to the anchor, then waits `dwell_ms` without button or key events. */
+model ComputerHover {
+  kind: "hover";
+  anchor: ComputerAnchor;
+  dwell_ms: ComputerDwellMs;
+  ...ComputerClosed;
+}
+/** Presses one button at the anchor, keeps it down for `hold_ms`, then always releases it. */
+model ComputerHold {
+  kind: "hold";
+  anchor: ComputerAnchor;
+  button: ComputerMouseButton;
+  hold_ms: ComputerHoldMs;
+  ...ComputerClosed;
+}
+/** Explicit foreground focus; never implicit in a background input. */
+model ComputerFocusWindow { kind: "focus_window"; ...ComputerClosed; }
+@oneOf union ComputerInput { ComputerClick, ComputerTypeText, ComputerPressKey, ComputerScroll, ComputerDrag, ComputerSetValue, ComputerPerformAction, ComputerMove, ComputerHover, ComputerHold, ComputerFocusWindow }
 model ComputerAction {
   request_id: ComputerRef;
   target: ComputerTargetRef;
@@ -122,7 +173,9 @@ model ComputerAction {
 }
 model ComputerError { code: ComputerErrorCode; message: string; ...ComputerClosed; }
 /** Execution acknowledgement only; it does not assert a verified task outcome. */
-model ComputerExecuted { status: "executed"; ...ComputerClosed; }
+enum ComputerExecutionRoute { semantic, window_event, foreground_event }
+model ComputerExecution { route: ComputerExecutionRoute; semantic_action?: ComputerSemanticAction | null; ...ComputerClosed; }
+model ComputerExecuted { status: "executed"; execution?: ComputerExecution | null; ...ComputerClosed; }
 model ComputerRejected { status: "rejected"; error: ComputerError; ...ComputerClosed; }
 /** Effects may have happened. Observe again; never silently replay the input. */
 model ComputerUnknown { status: "unknown"; error: ComputerError; ...ComputerClosed; }

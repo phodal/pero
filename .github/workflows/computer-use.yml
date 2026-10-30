@@ -19,13 +19,13 @@ jobs:
         with:
           components: clippy
       - run: node scripts/build/computer.mjs --test
-      - run: cargo clippy --manifest-path use/computer/Cargo.toml --locked --all-targets -- -D warnings
+      - run: cargo clippy --manifest-path use/computer/Cargo.toml --locked --workspace --all-targets -- -D warnings
       - run: node scripts/build/computer.mjs
       - if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y xvfb xauth python3-tk x11-utils
-          xvfb-run -a node tests/build/computer-source.mjs --x11
+          xvfb-run -a node tests/build/computer-source.mjs --linux-only --x11
       - if: always() && runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:

@@ -2,8 +2,8 @@
 
 This directory contains source copied from Point's `computer/crates/` at
 `a1b9150059a8858bac68497e6789e2b7cac8b08c`. The five crates are the complete
-local dependency closure of Pero's existing macOS/Windows adapters and shared
-native types. Linux uses those types with Pero's own X11 adapter. The Point
+local dependency closure of Pero's macOS/Windows adapters. Pero's core, runtime
+and Linux libraries have no Point dependency. The Point
 service, CLI, worker, Linux backend and evaluation tools are omitted.
 
 The upstream workspace declares MIT. Attribution and the license text are in

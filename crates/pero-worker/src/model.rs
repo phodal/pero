@@ -9,6 +9,21 @@ pub struct Run {
     pub status: String,
     pub lease_expires_at: String,
     pub spec: Spec,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote_execution: Option<RemoteExecution>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct RemoteExecution {
+    pub session_id: String,
+    pub working_directory: String,
+}
+
+// A scoped one-Run grant, never a Worker credential. Do not derive Debug.
+#[derive(Clone, Deserialize, Serialize)]
+pub struct RemoteGrant {
+    pub session_id: String,
+    pub secret: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

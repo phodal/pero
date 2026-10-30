@@ -4,6 +4,7 @@ const scenario = process.env.PERO_FIXTURE_SCENARIO || '';
 import { isDeepStrictEqual } from 'node:util';
 let authenticated = false;
 let sessionAttempts = 0;
+let sessionMcp = [];
 let active;
 let permission;
 let turn = 0;
@@ -29,9 +30,10 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     if (scenario === 'initialization_hangs') return;
     if (scenario === 'unsupported_protocol') { reply(id, { protocolVersion: 999, agentCapabilities: {}, authMethods: [] }); return; }
     if (scenario === 'dsh_wire') { reply(id, { protocolVersion: 1, agentCapabilities: { loadSession: true }, authMethods: [] }); return; }
-    reply(id, { protocolVersion: 1, agentCapabilities: scenario === 'composer' ? {promptCapabilities:{image:true,embeddedContext:true}} : scenario.startsWith('mcp') && scenario !== 'mcp_unsupported' ? {mcpCapabilities: {http: true, sse: true}} : {}, agentInfo: { name: 'lifecycle-fixture', version: '1' }, authMethods: [{ id: 'login', name: 'Fixture login' }, { type: 'terminal', id: 'terminal-login', name: 'Interactive fixture login' }] });
+    reply(id, { protocolVersion: 1, agentCapabilities: scenario === 'composer' ? {promptCapabilities:{image:true,embeddedContext:true}} : (scenario.startsWith('mcp') && scenario !== 'mcp_unsupported' || scenario === 'app_use_boundary') ? {mcpCapabilities: {http: true, sse: true}} : {}, agentInfo: { name: 'lifecycle-fixture', version: '1' }, authMethods: [{ id: 'login', name: 'Fixture login' }, { type: 'terminal', id: 'terminal-login', name: 'Interactive fixture login' }] });
   } else if (method === 'session/new') {
     sessionAttempts += 1;
+    sessionMcp = params.mcpServers;
     if (scenario === 'mcp_auth' && authenticated && sessionAttempts !== 2) { fail(id, -32602, 'Unexpected authentication retry count'); return; }
     if (scenario.startsWith('mcp') && !isDeepStrictEqual(params.mcpServers, JSON.parse(process.env.PERO_EXPECT_MCP))) { fail(id, -32602, 'MCP forwarding mismatch'); return; }
     if (scenario === 'mcp_unsupported') { fail(id, -32602, 'Unexpected session creation'); return; }
@@ -75,6 +77,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
       return;
     }
     if (scenario === 'composer') { update(JSON.stringify(params.prompt)); finish('end_turn'); return; }
+    if (scenario === 'app_use_boundary') { update(JSON.stringify({prompt:params.prompt,mcpServers:sessionMcp})); finish('end_turn'); return; }
     if (text === 'permission') {
       permission = 900 + turn;
       if (scenario === 'dsh_wire') {

@@ -29,8 +29,10 @@ The vendored workspace's tests pass; the native lockfile needs no changes.
 CI now runs the source-only build and existing X11 acceptance together. The
 original failure is visible in
 [master run 40982004604](https://github.com/phodal/pero/actions/runs/40982004604).
-The repair has been verified locally; hosted CI has not been rerun for these
-unpushed commits. No check was skipped or changed to allow failure.
+The repair at `22cffa3` was pushed to master and passed all three native jobs in
+[Computer Use run 40986292506](https://github.com/phodal/pero/actions/runs/40986292506).
+No check was skipped or changed to allow failure. Later package-isolation work
+is recorded separately in the verification report.
 
 This incident concerns build reproducibility; the
 [native input incident](2026-10-30-computer-use-native-access.md) remains a

@@ -7,6 +7,8 @@ publish = false
 # Native source stays in its own workspace; GPUI and native driver builds do not
 # alter each other's dependency resolution.
 [workspace]
+resolver = "2"
+members = ["crates/*"]
 exclude = [
     "vendor/point/crates/point-computer-core",
     "vendor/point/crates/point-computer-backend",
@@ -16,25 +18,16 @@ exclude = [
 ]
 
 [dependencies]
-pero-contracts = { path = "../../crates/pero-contracts" }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-uuid = { version = "1", features = ["v4"] }
-base64 = "0.22"
-
-point-computer-core = { path = "vendor/point/crates/point-computer-core" }
+computer-runtime = { path = "crates/computer-runtime" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-point-computer-backend = { path = "vendor/point/crates/point-computer-backend" }
-point-computer-macos = { path = "vendor/point/crates/point-computer-macos" }
+computer-macos = { path = "crates/computer-macos" }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-point-computer-backend = { path = "vendor/point/crates/point-computer-backend" }
-point-computer-windows = { path = "vendor/point/crates/point-computer-windows" }
+computer-windows = { path = "crates/computer-windows" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-x11rb = { version = "0.13", features = ["xtest"] }
-image = { version = "0.25", default-features = false, features = ["jpeg"] }
+computer-linux = { path = "crates/computer-linux" }
 
 [profile.dev]
 debug = 0

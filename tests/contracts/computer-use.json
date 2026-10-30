@@ -9,25 +9,93 @@
     "actions": [
       {
         "action": "click",
-        "delivery": "background"
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
       },
       {
         "action": "type_text",
-        "delivery": "background"
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
       },
       {
         "action": "press_key",
-        "delivery": "background"
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
       },
       {
         "action": "scroll",
-        "delivery": "background"
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
       },
       {
         "action": "drag",
-        "delivery": "background"
+        "delivery": "background",
+        "addressing": [
+          "pixel"
+        ]
+      },
+      {
+        "action": "set_value",
+        "delivery": "background",
+        "addressing": [
+          "element"
+        ]
+      },
+      {
+        "action": "perform_action",
+        "delivery": "background",
+        "addressing": [
+          "element"
+        ]
+      },
+      {
+        "action": "move",
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
+      },
+      {
+        "action": "hover",
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
+      },
+      {
+        "action": "hold",
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
+      },
+      {
+        "action": "focus_window",
+        "delivery": "foreground",
+        "addressing": [
+          "target"
+        ]
       }
-    ]
+    ],
+    "environment": {
+      "platform": "macos",
+      "display": "native"
+    }
   },
   "target": {
     "reference": {
@@ -36,7 +104,8 @@
     },
     "kind": "window",
     "title": "Document",
-    "application": "Example Editor"
+    "application": "Example Editor",
+    "application_id": "dev.pero.example"
   },
   "observation": {
     "id": "observation-1",
@@ -51,8 +120,21 @@
         "label": "Increment",
         "depth": 1,
         "actions": [
-          "click"
-        ]
+          "click",
+          "perform_action",
+          "move",
+          "hover",
+          "hold"
+        ],
+        "semantic_actions": [
+          "press"
+        ],
+        "state": {
+          "enabled": true,
+          "secure": false,
+          "focused": false,
+          "value_settable": false
+        }
       },
       {
         "id": "editor",
@@ -61,8 +143,16 @@
         "depth": 1,
         "actions": [
           "type_text",
-          "press_key"
-        ]
+          "press_key",
+          "set_value",
+          "move"
+        ],
+        "state": {
+          "enabled": true,
+          "secure": false,
+          "focused": false,
+          "value_settable": true
+        }
       },
       {
         "id": "scroller",
@@ -115,7 +205,7 @@
           "kind": "element",
           "element_id": "editor"
         },
-        "text": "你好，Pero 🙂\n"
+        "text": "\u4f60\u597d\uff0cPero \ud83d\ude42\n"
       }
     },
     {
@@ -197,6 +287,240 @@
         },
         "button": "left",
         "count": 2
+      }
+    },
+    {
+      "request_id": "request-7",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "type_text",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        },
+        "text": "Pixel draft"
+      }
+    },
+    {
+      "request_id": "request-8",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "press_key",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        },
+        "keys": [
+          "Enter"
+        ]
+      }
+    },
+    {
+      "request_id": "request-9",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "scroll",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        },
+        "delta_x": 0,
+        "delta_y": 120
+      }
+    },
+    {
+      "request_id": "request-replace",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "set_value",
+        "element_id": "editor",
+        "value": "\u4f60\u597d\ud83c\udf31"
+      }
+    },
+    {
+      "request_id": "request-clear",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "set_value",
+        "element_id": "editor",
+        "value": ""
+      }
+    },
+    {
+      "request_id": "request-semantic",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "perform_action",
+        "element_id": "increment",
+        "action": "press"
+      }
+    },
+    {
+      "request_id": "request-move",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "move",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        }
+      }
+    },
+    {
+      "request_id": "request-hold",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "hold",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        },
+        "button": "middle",
+        "hold_ms": 160
+      }
+    },
+    {
+      "request_id": "request-focus",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "foreground",
+      "input": {
+        "kind": "focus_window"
+      }
+    },
+    {
+      "request_id": "request-10",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "move",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        }
+      }
+    },
+    {
+      "request_id": "request-11",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "hover",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        },
+        "dwell_ms": 5000
+      }
+    },
+    {
+      "request_id": "request-12",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "hold",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        },
+        "button": "left",
+        "hold_ms": 800
+      }
+    },
+    {
+      "request_id": "request-13",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "hover",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 10,
+            "y": 20
+          }
+        },
+        "dwell_ms": 0
       }
     }
   ],
@@ -298,25 +622,48 @@
         "actions": [
           {
             "action": "click",
-            "delivery": "background"
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
           },
           {
             "action": "type_text",
-            "delivery": "background"
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
           },
           {
             "action": "press_key",
-            "delivery": "background"
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
           },
           {
             "action": "scroll",
-            "delivery": "background"
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
           },
           {
             "action": "drag",
-            "delivery": "background"
+            "delivery": "background",
+            "addressing": [
+              "pixel"
+            ]
           }
-        ]
+        ],
+        "environment": {
+          "platform": "macos",
+          "display": "native"
+        }
       }
     },
     {
@@ -436,6 +783,400 @@
         },
         "button": "left",
         "count": 4
+      }
+    },
+    {
+      "name": "missing action addressing",
+      "type": "ComputerCapabilities",
+      "value": {
+        "protocol": "pero.computer-use.v1",
+        "runtime_id": "runtime-1",
+        "observations": [
+          "accessibility",
+          "screenshot"
+        ],
+        "actions": [
+          {
+            "action": "click",
+            "delivery": "background"
+          },
+          {
+            "action": "type_text",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "press_key",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "scroll",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "drag",
+            "delivery": "background",
+            "addressing": [
+              "pixel"
+            ]
+          }
+        ],
+        "environment": {
+          "platform": "macos",
+          "display": "native"
+        }
+      }
+    },
+    {
+      "name": "invalid addressing vocabulary",
+      "type": "ComputerCapabilities",
+      "value": {
+        "protocol": "pero.computer-use.v1",
+        "runtime_id": "runtime-1",
+        "observations": [
+          "accessibility",
+          "screenshot"
+        ],
+        "actions": [
+          {
+            "action": "click",
+            "delivery": "background",
+            "addressing": [
+              "dom"
+            ]
+          },
+          {
+            "action": "type_text",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "press_key",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "scroll",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "drag",
+            "delivery": "background",
+            "addressing": [
+              "pixel"
+            ]
+          }
+        ],
+        "environment": {
+          "platform": "macos",
+          "display": "native"
+        }
+      }
+    },
+    {
+      "name": "missing display environment",
+      "type": "ComputerCapabilities",
+      "value": {
+        "protocol": "pero.computer-use.v1",
+        "runtime_id": "runtime-1",
+        "observations": [
+          "accessibility",
+          "screenshot"
+        ],
+        "actions": [
+          {
+            "action": "click",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "type_text",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "press_key",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "scroll",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "drag",
+            "delivery": "background",
+            "addressing": [
+              "pixel"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid display environment",
+      "type": "ComputerCapabilities",
+      "value": {
+        "protocol": "pero.computer-use.v1",
+        "runtime_id": "runtime-1",
+        "observations": [
+          "accessibility",
+          "screenshot"
+        ],
+        "actions": [
+          {
+            "action": "click",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "type_text",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "press_key",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "scroll",
+            "delivery": "background",
+            "addressing": [
+              "element",
+              "pixel"
+            ]
+          },
+          {
+            "action": "drag",
+            "delivery": "background",
+            "addressing": [
+              "pixel"
+            ]
+          }
+        ],
+        "environment": {
+          "platform": "macos",
+          "display": "sway"
+        }
+      }
+    },
+    {
+      "name": "unbounded replacement",
+      "type": "ComputerAction",
+      "value": {
+        "request_id": "request-1",
+        "target": {
+          "runtime_id": "runtime-1",
+          "target_id": "window-1"
+        },
+        "observation_id": "observation-1",
+        "delivery": "background",
+        "input": {
+          "kind": "set_value",
+          "element_id": "editor",
+          "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "arbitrary AX method",
+      "type": "ComputerAction",
+      "value": {
+        "request_id": "request-1",
+        "target": {
+          "runtime_id": "runtime-1",
+          "target_id": "window-1"
+        },
+        "observation_id": "observation-1",
+        "delivery": "background",
+        "input": {
+          "kind": "perform_action",
+          "element_id": "increment",
+          "action": "AXDelete"
+        }
+      }
+    },
+    {
+      "name": "pixel set_value",
+      "type": "ComputerAction",
+      "value": {
+        "request_id": "request-1",
+        "target": {
+          "runtime_id": "runtime-1",
+          "target_id": "window-1"
+        },
+        "observation_id": "observation-1",
+        "delivery": "background",
+        "input": {
+          "kind": "set_value",
+          "anchor": {
+            "kind": "pixel",
+            "screenshot_id": "image-1",
+            "point": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "value": "x"
+        }
+      }
+    },
+    {
+      "name": "invalid hold 0",
+      "type": "ComputerAction",
+      "value": {
+        "request_id": "request-hold",
+        "target": {
+          "runtime_id": "runtime-1",
+          "target_id": "window-1"
+        },
+        "observation_id": "observation-1",
+        "delivery": "background",
+        "input": {
+          "kind": "hold",
+          "anchor": {
+            "kind": "element",
+            "element_id": "increment"
+          },
+          "button": "middle",
+          "hold_ms": 0
+        }
+      }
+    },
+    {
+      "name": "invalid hold 10001",
+      "type": "ComputerAction",
+      "value": {
+        "request_id": "request-hold",
+        "target": {
+          "runtime_id": "runtime-1",
+          "target_id": "window-1"
+        },
+        "observation_id": "observation-1",
+        "delivery": "background",
+        "input": {
+          "kind": "hold",
+          "anchor": {
+            "kind": "element",
+            "element_id": "increment"
+          },
+          "button": "middle",
+          "hold_ms": 10001
+        }
+      }
+    },
+    {
+      "name": "hover dwell is bounded",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "hover",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        },
+        "dwell_ms": 5001
+      }
+    },
+    {
+      "name": "hover requires an explicit dwell",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "hover",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        }
+      }
+    },
+    {
+      "name": "move carries no button",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "move",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 1,
+            "y": 1
+          }
+        },
+        "button": "left"
+      }
+    },
+    {
+      "name": "click does not carry a hold duration",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "click",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 1,
+            "y": 1
+          }
+        },
+        "button": "left",
+        "count": 1,
+        "hold_ms": 500
+      }
+    },
+    {
+      "name": "long_press is not a v1 action name",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "long_press",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        },
+        "button": "left",
+        "hold_ms": 500
       }
     }
   ]

@@ -7,11 +7,21 @@ use serde::{Deserialize, Serialize};
 pub enum ComputerRequest {
     Status {},
     Targets {},
-    Open { application: ComputerApplication },
-    Observe { target: ComputerTargetRef },
-    Act { action: ComputerAction },
+    Open {
+        application: ComputerApplicationSelector,
+    },
+    Observe {
+        target: ComputerTargetRef,
+        #[serde(default)]
+        options: ComputerObserveOptions,
+    },
+    Act {
+        action: ComputerAction,
+    },
     Stop {},
-    Receipt { request_id: ComputerRef },
+    Receipt {
+        request_id: ComputerRef,
+    },
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -23,6 +33,8 @@ pub enum ComputerPermissionState {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ComputerDriverStatus {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub environment: Option<ComputerEnvironment>,
     pub available: bool,
     pub accessibility: ComputerPermissionState,
     pub screen_recording: ComputerPermissionState,

@@ -1,0 +1,778 @@
+//! Linux X11 window capture and explicit foreground XTest input.
+//! Like Cua's native dispatch, Wayland is a separate backend, never an X11 fallback.
+use crate::accessibility::{Accessibility, ElementTarget};
+use crate::profile;
+use computer_core::{Window, WindowBounds, WindowImage};
+use computer_runtime::{DesktopDriver, WindowObservation, error};
+use image::{ExtendedColorType, codecs::jpeg::JpegEncoder};
+use pero_contracts::{computer_runtime::*, computer_use::*};
+use std::num::NonZeroU32;
+use std::{fs, path::PathBuf, process::Command};
+use x11rb::{
+    CURRENT_TIME,
+    connection::Connection,
+    protocol::{xproto::*, xtest::ConnectionExt as _},
+    rust_connection::RustConnection,
+};
+
+pub struct Desktop {
+    connection: Option<(RustConnection, usize)>,
+    accessibility: Option<Accessibility>,
+    accessibility_reason: String,
+    reason: String,
+    environment: ComputerEnvironment,
+}
+fn failure(e: impl std::fmt::Display) -> ComputerError {
+    error(ComputerErrorCode::Failed, e.to_string())
+}
+pub struct X11Snapshot {
+    /// The process the observation was bound to.
+    pid: i32,
+    /// Indexed by the public element number of this observation.
+    elements: Vec<Option<ElementTarget>>,
+    window_bounds: WindowBounds,
+    image_width: u32,
+    image_height: u32,
+}
+impl Desktop {
+    pub fn connect() -> Self {
+        let connection = x11rb::connect(None);
+        let environment = profile::environment(
+            connection.is_ok(),
+            std::env::var_os("WAYLAND_DISPLAY").is_some()
+                || std::env::var("XDG_SESSION_TYPE").as_deref() == Ok("wayland"),
+            std::env::var("XDG_CURRENT_DESKTOP")
+                .ok()
+                .filter(|value| !value.is_empty()),
+        );
+        match connection {
+            Ok(connection) => {
+                // AT-SPI is only paired with a live X11 display; it never stands in
+                // for Wayland capture or input.
+                let (accessibility, accessibility_reason) = match Accessibility::connect() {
+                    Ok(bus) => (Some(bus), String::new()),
+                    Err(reason) => (None, reason),
+                };
+                Self {
+                    connection: Some(connection),
+                    accessibility,
+                    accessibility_reason,
+                    reason: String::new(),
+                    environment,
+                }
+            }
+            Err(e) => Self {
+                connection: None,
+                accessibility: None,
+                accessibility_reason: "No X11 display".into(),
+                environment,
+                reason: format!(
+                    "X11 connection unavailable: {e}. Pure Wayland requires a compositor/portal backend and is not supported by this driver."
+                ),
+            },
+        }
+    }
+    fn x(&self) -> Result<(&RustConnection, &Screen), ComputerError> {
+        let (c, s) = self
+            .connection
+            .as_ref()
+            .ok_or_else(|| error(ComputerErrorCode::Unsupported, &self.reason))?;
+        Ok((c, &c.setup().roots[*s]))
+    }
+    fn property(&self, window: u32, name: &str) -> Result<GetPropertyReply, ComputerError> {
+        let (c, _) = self.x()?;
+        let atom = c
+            .intern_atom(false, name.as_bytes())
+            .map_err(failure)?
+            .reply()
+            .map_err(failure)?
+            .atom;
+        c.get_property(false, window, atom, AtomEnum::ANY, 0, 16_384)
+            .map_err(failure)?
+            .reply()
+            .map_err(failure)
+    }
+    fn geometry(&self, app: &Window) -> Result<WindowBounds, ComputerError> {
+        let (c, screen) = self.x()?;
+        let g = c
+            .get_geometry(app.window_id)
+            .map_err(failure)?
+            .reply()
+            .map_err(failure)?;
+        let p = c
+            .translate_coordinates(app.window_id, screen.root, 0, 0)
+            .map_err(failure)?
+            .reply()
+            .map_err(failure)?;
+        Ok(WindowBounds {
+            x: p.dst_x.into(),
+            y: p.dst_y.into(),
+            w: g.width.into(),
+            h: g.height.into(),
+        })
+    }
+    fn related(&self, mut child: u32, parent: u32) -> Result<bool, ComputerError> {
+        let (c, _) = self.x()?;
+        if parent == 0 {
+            return Ok(false);
+        }
+        for _ in 0..32 {
+            if child == parent {
+                return Ok(true);
+            }
+            if child == 0 {
+                break;
+            }
+            let tree = c
+                .query_tree(child)
+                .map_err(failure)?
+                .reply()
+                .map_err(failure)?;
+            if tree.parent == child {
+                break;
+            }
+            child = tree.parent;
+        }
+        Ok(false)
+    }
+}
+impl Desktop {
+    fn element_target<'a>(
+        &self,
+        snap: &'a X11Snapshot,
+        element_id: &ComputerRef,
+    ) -> Result<(&Accessibility, &'a ElementTarget), ComputerError> {
+        let bus = self
+            .accessibility
+            .as_ref()
+            .ok_or_else(|| error(ComputerErrorCode::Unsupported, &self.accessibility_reason))?;
+        let target = element_id
+            .as_str()
+            .strip_prefix("element-")
+            .and_then(|n| n.parse::<usize>().ok())
+            .and_then(|n| snap.elements.get(n))
+            .and_then(Option::as_ref)
+            .ok_or_else(|| {
+                error(
+                    ComputerErrorCode::Unsupported,
+                    "This element has no invoking action",
+                )
+            })?;
+        Ok((bus, target))
+    }
+}
+impl DesktopDriver for Desktop {
+    type Snapshot = X11Snapshot;
+    fn environment(&self) -> ComputerEnvironment {
+        self.environment.clone()
+    }
+    fn observations(&self) -> Vec<ComputerObservationKind> {
+        if self.connection.is_some() {
+            profile::observations(self.accessibility.is_some())
+        } else {
+            Vec::new()
+        }
+    }
+    fn actions(&self) -> Vec<ComputerActionSupport> {
+        if self.connection.is_some() {
+            profile::actions(self.accessibility.is_some())
+        } else {
+            Vec::new()
+        }
+    }
+    fn status(&self) -> ComputerDriverStatus {
+        ComputerDriverStatus {
+            environment: Some(self.environment()),
+            available: self.connection.is_some(),
+            accessibility: if self.accessibility.is_some() {
+                ComputerPermissionState::Granted
+            } else {
+                ComputerPermissionState::NotDetected
+            },
+            screen_recording: ComputerPermissionState::Unsupported,
+            message: if self.connection.is_none() {
+                self.reason.clone()
+            } else if self.accessibility.is_some() {
+                "Linux X11 pixel observation and foreground XTest input, plus an AT-SPI tree for windows whose process exposes one; elements with an invoking action accept background element clicks. Text must be mapped in the current keyboard layout; scrolling uses wheel notches.".into()
+            } else {
+                format!(
+                    "Linux X11 pixel observation and foreground XTest input. No accessibility tree or background input is advertised ({}). Text must be mapped in the current keyboard layout; scrolling uses wheel notches.",
+                    self.accessibility_reason
+                )
+            },
+        }
+    }
+    fn targets(&self) -> Result<Vec<Window>, ComputerError> {
+        let (c, screen) = self.x()?;
+        let mut windows = self
+            .property(screen.root, "_NET_CLIENT_LIST")?
+            .value32()
+            .map(|v| v.collect::<Vec<_>>())
+            .unwrap_or_default();
+        if windows.is_empty() {
+            windows = c
+                .query_tree(screen.root)
+                .map_err(failure)?
+                .reply()
+                .map_err(failure)?
+                .children;
+        }
+        let mut apps = Vec::new();
+        for id in windows {
+            let Ok(attrs) = c.get_window_attributes(id).map_err(failure)?.reply() else {
+                continue;
+            };
+            if attrs.map_state != MapState::VIEWABLE || attrs.override_redirect {
+                continue;
+            }
+            let pid = self
+                .property(id, "_NET_WM_PID")
+                .ok()
+                .and_then(|p| p.value32().and_then(|mut v| v.next()))
+                .unwrap_or(0);
+            if pid == 0 || pid > i32::MAX as u32 {
+                continue;
+            }
+            let class = self.property(id, "WM_CLASS")?.value;
+            let name = String::from_utf8_lossy(&class)
+                .split('\0')
+                .find(|s| !s.is_empty())
+                .unwrap_or("X11 application")
+                .to_string();
+            let mut title = self.property(id, "_NET_WM_NAME")?.value;
+            if title.is_empty() {
+                title = self.property(id, "WM_NAME")?.value;
+            }
+            apps.push(Window {
+                name: name.clone(),
+                application_id: name,
+                pid: pid as i32,
+                window_id: id,
+                title: String::from_utf8_lossy(&title).into_owned(),
+            });
+        }
+        Ok(apps)
+    }
+    fn open(
+        &self,
+        application: &ComputerApplicationSelector,
+    ) -> Result<(Option<Window>, String), ComputerError> {
+        let ComputerApplicationSelector::Name(name) = application else {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "Bundle ID selection is available on macOS",
+            ));
+        };
+        let name = name.as_str();
+        if let Some(app) = self
+            .targets()?
+            .into_iter()
+            .find(|a| a.name.eq_ignore_ascii_case(name))
+        {
+            return Ok((Some(app), "Application already running".into()));
+        }
+        let mut directories = vec![
+            PathBuf::from("/usr/share/applications"),
+            PathBuf::from("/usr/local/share/applications"),
+        ];
+        if let Some(home) = std::env::var_os("XDG_DATA_HOME") {
+            directories.push(PathBuf::from(home).join("applications"));
+        } else if let Some(home) = std::env::var_os("HOME") {
+            directories.push(PathBuf::from(home).join(".local/share/applications"));
+        }
+        let mut matches = Vec::new();
+        for dir in directories {
+            let Ok(entries) = fs::read_dir(dir) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().is_none_or(|e| e != "desktop") {
+                    continue;
+                }
+                let Ok(text) = fs::read_to_string(&path) else {
+                    continue;
+                };
+                let mut section = false;
+                let mut label = None;
+                let mut hidden = false;
+                for line in text.lines() {
+                    if line.starts_with('[') {
+                        section = line == "[Desktop Entry]";
+                    }
+                    if section {
+                        if let Some(value) = line.strip_prefix("Name=") {
+                            label = Some(value);
+                        }
+                        if line == "Hidden=true" {
+                            hidden = true;
+                        }
+                    }
+                }
+                if !hidden && label.is_some_and(|n| n.eq_ignore_ascii_case(name)) {
+                    matches.push(path);
+                }
+            }
+        }
+        if matches.len() != 1 {
+            return Err(error(
+                ComputerErrorCode::TargetUnavailable,
+                "Name must identify exactly one installed desktop application",
+            ));
+        }
+        let child = Command::new("gio")
+            .arg("launch")
+            .arg(&matches[0])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(failure)?;
+        // Reap the short-lived launcher; its exit cannot establish a window.
+        std::thread::spawn(move || {
+            let mut child = child;
+            let _ = child.wait();
+        });
+        Ok((
+            None,
+            "Launch requested; list targets to find the application's window".into(),
+        ))
+    }
+    fn bounds(&self, app: &Window) -> Option<WindowBounds> {
+        self.geometry(app).ok()
+    }
+    fn observe(
+        &self,
+        app: &Window,
+        options: &ComputerObserveOptions,
+        _: Option<&Self::Snapshot>,
+    ) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
+        if options.root.is_some() {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "This platform does not support accessibility subtree observations",
+            ));
+        }
+        let (c, screen) = self.x()?;
+        let bounds = self.geometry(app)?;
+        // A window without a bound tree is reported as truncated: its controls,
+        // including any secure fields, could not be confirmed.
+        let (elements, targets, truncated) = match &self.accessibility {
+            None => (Vec::new(), Vec::new(), false),
+            Some(bus) => match bus.observe(
+                app.pid,
+                bounds,
+                usize::from(u16::from(options.max_nodes)),
+                u16::from(options.max_depth),
+            ) {
+                Ok(tree) => (tree.elements, tree.targets, tree.truncated),
+                Err(_) => (Vec::new(), Vec::new(), true),
+            },
+        };
+        if !options.want_image {
+            return Ok(WindowObservation {
+                source: X11Snapshot {
+                    pid: app.pid,
+                    elements: targets,
+                    window_bounds: bounds,
+                    image_width: 0,
+                    image_height: 0,
+                },
+                bounds: Some(bounds),
+                elements,
+                image: None,
+                truncated,
+            });
+        }
+        let (w, h) = (bounds.w as u16, bounds.h as u16);
+        if u32::from(w) * u32::from(h) > 8_388_608 || w == 0 || h == 0 {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "Window exceeds the image budget",
+            ));
+        }
+        let image = c
+            .get_image(ImageFormat::Z_PIXMAP, app.window_id, 0, 0, w, h, u32::MAX)
+            .map_err(failure)?
+            .reply()
+            .map_err(failure)?;
+        let format = c
+            .setup()
+            .pixmap_formats
+            .iter()
+            .find(|f| f.depth == image.depth)
+            .ok_or_else(|| error(ComputerErrorCode::Unsupported, "Unknown X11 image format"))?;
+        let visual = screen
+            .allowed_depths
+            .iter()
+            .flat_map(|d| &d.visuals)
+            .find(|v| v.visual_id == image.visual)
+            .ok_or_else(|| error(ComputerErrorCode::Unsupported, "Unknown X11 visual"))?;
+        let bytes = usize::from(format.bits_per_pixel / 8);
+        if !(3..=4).contains(&bytes) {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "X11 capture requires a 24/32-bit true-color visual",
+            ));
+        }
+        let stride = (usize::from(w) * usize::from(format.bits_per_pixel))
+            .div_ceil(usize::from(format.scanline_pad))
+            * usize::from(format.scanline_pad)
+            / 8;
+        if image.data.len() < stride * usize::from(h) {
+            return Err(error(ComputerErrorCode::Failed, "Incomplete X11 image"));
+        }
+        let mut rgb = Vec::with_capacity(usize::from(w) * usize::from(h) * 3);
+        for y in 0..usize::from(h) {
+            for x in 0..usize::from(w) {
+                let start = y * stride + x * bytes;
+                let mut raw = [0u8; 4];
+                let value = if c.setup().image_byte_order == ImageOrder::LSB_FIRST {
+                    raw[..bytes].copy_from_slice(&image.data[start..start + bytes]);
+                    u32::from_le_bytes(raw)
+                } else {
+                    raw[4 - bytes..].copy_from_slice(&image.data[start..start + bytes]);
+                    u32::from_be_bytes(raw)
+                };
+                for mask in [visual.red_mask, visual.green_mask, visual.blue_mask] {
+                    if mask == 0 {
+                        return Err(error(
+                            ComputerErrorCode::Unsupported,
+                            "Indexed-color visuals are unsupported",
+                        ));
+                    }
+                    let shift = mask.trailing_zeros();
+                    rgb.push((((value & mask) >> shift) * 255 / (mask >> shift)) as u8);
+                }
+            }
+        }
+        let mut jpeg = Vec::new();
+        JpegEncoder::new_with_quality(&mut jpeg, 80)
+            .encode(&rgb, w.into(), h.into(), ExtendedColorType::Rgb8)
+            .map_err(failure)?;
+        Ok(WindowObservation {
+            source: X11Snapshot {
+                pid: app.pid,
+                elements: targets,
+                window_bounds: bounds,
+                image_width: w.into(),
+                image_height: h.into(),
+            },
+            bounds: Some(bounds),
+            elements,
+            truncated,
+            image: Some(WindowImage {
+                bytes: jpeg,
+                width: NonZeroU32::new(w.into()).unwrap(),
+                height: NonZeroU32::new(h.into()).unwrap(),
+                media_type: ComputerImageType::Jpeg,
+            }),
+        })
+    }
+
+    fn admit(&self, snap: &X11Snapshot, action: &ComputerAction) -> Result<(), ComputerError> {
+        if let ComputerInput::Click {
+            anchor: ComputerAnchor::Element { element_id },
+            button,
+            count,
+        } = &action.input
+        {
+            if *button != ComputerMouseButton::Left || u8::from(*count) != 1 {
+                return Err(error(
+                    ComputerErrorCode::Unsupported,
+                    "AT-SPI element clicks invoke the control once with the primary action",
+                ));
+            }
+            let (bus, target) = self.element_target(snap, element_id)?;
+            bus.check(target, snap.pid)?;
+        }
+        Ok(())
+    }
+    fn input(
+        &self,
+        app: &Window,
+        snap: &X11Snapshot,
+        action: ComputerAction,
+        cancellation: &computer_runtime::Cancellation,
+    ) -> Result<Option<ComputerExecution>, ComputerError> {
+        if let ComputerInput::Click {
+            anchor: ComputerAnchor::Element { element_id },
+            ..
+        } = &action.input
+        {
+            // Ownership, presence and state were re-checked in `admit`.
+            let (bus, target) = self.element_target(snap, element_id)?;
+            bus.click(target)?;
+            return Ok(Some(ComputerExecution {
+                route: ComputerExecutionRoute::Semantic,
+                semantic_action: None,
+            }));
+        }
+        let (c, screen) = self.x()?;
+        let bounds = snap.window_bounds;
+        let point = |p: ComputerPoint| {
+            (
+                (bounds.x + f64::from(p.x) * bounds.w / f64::from(snap.image_width)) as i16,
+                (bounds.y + f64::from(p.y) * bounds.h / f64::from(snap.image_height)) as i16,
+            )
+        };
+        let anchor = |a: &ComputerAnchor| -> Result<(i16, i16), ComputerError> {
+            match a {
+                ComputerAnchor::Pixel { point: p, .. } => Ok(point(*p)),
+                _ => Err(error(
+                    ComputerErrorCode::Unsupported,
+                    "X11 has pixel anchors only",
+                )),
+            }
+        };
+        let fake = |kind: u8, detail: u8, x: i16, y: i16| -> Result<(), ComputerError> {
+            c.xtest_fake_input(kind, detail, CURRENT_TIME, screen.root, x, y, 0)
+                .map_err(failure)?
+                .check()
+                .map_err(failure)
+        };
+        let focus = || -> Result<(), ComputerError> {
+            let focused = c
+                .get_input_focus()
+                .map_err(failure)?
+                .reply()
+                .map_err(failure)?
+                .focus;
+            if !self.related(focused, app.window_id)? {
+                return Err(error(
+                    ComputerErrorCode::TargetUnavailable,
+                    "Focus the target window before keyboard input",
+                ));
+            }
+            Ok(())
+        };
+        let aim = |(x, y): (i16, i16)| -> Result<(), ComputerError> {
+            fake(MOTION_NOTIFY_EVENT, 0, x, y)?;
+            let hit = c
+                .query_pointer(screen.root)
+                .map_err(failure)?
+                .reply()
+                .map_err(failure)?
+                .child;
+            if !self.related(hit, app.window_id)? && !self.related(app.window_id, hit)? {
+                return Err(error(
+                    ComputerErrorCode::TargetUnavailable,
+                    "Expose the target window before foreground pointer input",
+                ));
+            }
+            Ok(())
+        };
+        let click = |button: u8, count: u8| -> Result<(), ComputerError> {
+            for _ in 0..count {
+                fake(BUTTON_PRESS_EVENT, button, 0, 0)?;
+                fake(BUTTON_RELEASE_EVENT, button, 0, 0)?;
+            }
+            Ok(())
+        };
+        let min = c.setup().min_keycode;
+        let count = c.setup().max_keycode - min + 1;
+        let mapping = c
+            .get_keyboard_mapping(min, count)
+            .map_err(failure)?
+            .reply()
+            .map_err(failure)?;
+        let key = |symbol: u32| -> Result<(u8, bool), ComputerError> {
+            mapping
+                .keysyms
+                .chunks(usize::from(mapping.keysyms_per_keycode))
+                .enumerate()
+                .find_map(|(i, keys)| {
+                    keys.iter()
+                        .take(2)
+                        .position(|s| *s == symbol)
+                        .map(|position| (min + i as u8, position == 1))
+                })
+                .ok_or_else(|| {
+                    error(
+                        ComputerErrorCode::Unsupported,
+                        format!(
+                            "Keysym {symbol:#x} is not mapped in the current X11 keyboard layout"
+                        ),
+                    )
+                })
+        };
+        let emit = |code: u8, down: bool| {
+            fake(
+                if down {
+                    KEY_PRESS_EVENT
+                } else {
+                    KEY_RELEASE_EVENT
+                },
+                code,
+                0,
+                0,
+            )
+        };
+        match action.input {
+            ComputerInput::Click {
+                anchor: a,
+                button,
+                count,
+            } => {
+                aim(anchor(&a)?)?;
+                click(x11_button(button), count.into())?;
+            }
+            ComputerInput::Move { anchor: a } => aim(anchor(&a)?)?,
+            ComputerInput::Hover {
+                anchor: a,
+                dwell_ms,
+            } => {
+                aim(anchor(&a)?)?;
+                c.flush().map_err(failure)?;
+                cancellation.wait(dwell_ms.duration())?;
+            }
+            ComputerInput::Hold {
+                anchor: a,
+                button,
+                hold_ms,
+            } => {
+                let button = x11_button(button);
+                aim(anchor(&a)?)?;
+                let pressed = fake(BUTTON_PRESS_EVENT, button, 0, 0);
+                // From here on always release exactly once: closing the connection
+                // cancels the wait early, and the first failure is reported without
+                // replaying the press.
+                let held = pressed
+                    .and_then(|_| c.flush().map_err(failure))
+                    .and_then(|_| cancellation.wait(hold_ms.duration()));
+                let released = fake(BUTTON_RELEASE_EVENT, button, 0, 0)
+                    .and_then(|_| c.flush().map_err(failure));
+                held.and(released)?;
+            }
+            ComputerInput::FocusWindow {}
+            | ComputerInput::SetValue { .. }
+            | ComputerInput::PerformAction { .. } => {
+                return Err(error(
+                    ComputerErrorCode::Unsupported,
+                    "This input is not implemented on this platform",
+                ));
+            }
+            ComputerInput::Drag { from, to, .. } => {
+                let start = point(from);
+                let end = point(to);
+                aim(start)?;
+                aim(end)?;
+                aim(start)?;
+                fake(BUTTON_PRESS_EVENT, 1, 0, 0)?;
+                // Once pressed, the button is released even if a motion step fails.
+                let moved = (1..=12).try_for_each(|step| {
+                    let x =
+                        i32::from(start.0) + (i32::from(end.0) - i32::from(start.0)) * step / 12;
+                    let y =
+                        i32::from(start.1) + (i32::from(end.1) - i32::from(start.1)) * step / 12;
+                    fake(MOTION_NOTIFY_EVENT, 0, x as i16, y as i16)
+                });
+                let released = fake(BUTTON_RELEASE_EVENT, 1, 0, 0);
+                moved.and(released)?;
+            }
+            ComputerInput::Scroll {
+                anchor: a,
+                delta_x,
+                delta_y,
+            } => {
+                aim(anchor(&a)?)?;
+                for (delta, positive, negative) in [(delta_y, 5, 4), (delta_x, 7, 6)] {
+                    click(
+                        if delta > 0 { positive } else { negative },
+                        delta.unsigned_abs().div_ceil(120).min(255) as u8,
+                    )?;
+                }
+            }
+            ComputerInput::TypeText { anchor: a, text } => {
+                let inputs = text
+                    .as_str()
+                    .chars()
+                    .map(|ch| {
+                        key(match ch {
+                            '\n' => 0xff0d,
+                            '\t' => 0xff09,
+                            c if u32::from(c) <= 0xff => u32::from(c),
+                            c => 0x0100_0000 | u32::from(c),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let shift = key(0xffe1)?.0;
+                aim(anchor(&a)?)?;
+                click(1, 1)?;
+                focus()?;
+                for (code, shifted) in inputs {
+                    if shifted {
+                        emit(shift, true)?;
+                    }
+                    // Every key pressed here is released before reporting a failure.
+                    let typed = emit(code, true).and_then(|_| emit(code, false));
+                    let unshifted = if shifted { emit(shift, false) } else { Ok(()) };
+                    typed.and(unshifted)?;
+                }
+            }
+            ComputerInput::PressKey { anchor: a, keys } => {
+                let inputs = keys
+                    .keys()
+                    .iter()
+                    .map(|k| key(keysym(k.as_str())?))
+                    .collect::<Result<Vec<_>, ComputerError>>()?;
+                aim(anchor(&a)?)?;
+                click(1, 1)?;
+                focus()?;
+                // Release exactly the keys that went down, in reverse order, even
+                // when a later press fails.
+                let mut down = Vec::with_capacity(inputs.len());
+                let pressed = inputs.iter().try_for_each(|(code, _)| {
+                    emit(*code, true)?;
+                    down.push(*code);
+                    Ok::<_, ComputerError>(())
+                });
+                let mut released = Ok(());
+                for code in down.iter().rev() {
+                    // Attempt every release; keep the first failure.
+                    released = released.and(emit(*code, false));
+                }
+                pressed.and(released)?;
+            }
+        }
+        c.flush().map(|()| None).map_err(failure)
+    }
+}
+
+fn x11_button(button: ComputerMouseButton) -> u8 {
+    match button {
+        ComputerMouseButton::Left => 1,
+        ComputerMouseButton::Middle => 2,
+        ComputerMouseButton::Right => 3,
+    }
+}
+
+fn keysym(key: &str) -> Result<u32, ComputerError> {
+    Ok(match key {
+        "Meta" => 0xffeb,
+        "Control" => 0xffe3,
+        "Alt" => 0xffe9,
+        "Shift" => 0xffe1,
+        "Enter" => 0xff0d,
+        "Tab" => 0xff09,
+        "Escape" => 0xff1b,
+        "Backspace" => 0xff08,
+        "Delete" => 0xffff,
+        "ArrowLeft" => 0xff51,
+        "ArrowUp" => 0xff52,
+        "ArrowRight" => 0xff53,
+        "ArrowDown" => 0xff54,
+        "Home" => 0xff50,
+        "End" => 0xff57,
+        "PageUp" => 0xff55,
+        "PageDown" => 0xff56,
+        "Space" => 0x20,
+        s if s.chars().count() == 1 => u32::from(s.to_ascii_lowercase().chars().next().unwrap()),
+        _ => {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "Key is not supported by this X11 backend",
+            ));
+        }
+    })
+}

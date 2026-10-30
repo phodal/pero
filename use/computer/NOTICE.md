@@ -17,6 +17,8 @@ ScreenCaptureKit bridge used on macOS 14+.
 credentials, checkout, Git fetch, or extracted-source cache. Cargo still obtains
 public registry dependencies using `use/computer/Cargo.lock`. Local source
 adaptations are documented in `vendor/point/README.md`.
+Only the macOS and Windows libraries consume the Point snapshot. Pero's core,
+runtime and Linux libraries use Pero-owned types and can build without Point.
 
 The helper supports macOS 13+, Windows and Linux X11, with different observation
 and input capabilities; see `use/README.md`. Pure Wayland is unsupported.

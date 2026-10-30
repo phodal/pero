@@ -385,7 +385,13 @@ func TestToolRegistryValidatesSchemaAndArgumentsBeforeExecution(t *testing.T) {
 	if err := toolInstance.Dispose(ctx); err != nil {
 		t.Fatalf("dispose tool: %v", err)
 	}
-	if err := h.Dispose(ctx); err != nil {
+	// Dispose may report pending while the canceled Agent worker unwinds.
+	// This outer lifecycle must join the final receipt before accepting it.
+	requestErr, finalErr := h.Dispose(ctx), h.Drain(ctx)
+	if finalErr == nil && requestErr == ErrHarnessDisposalInProgress {
+		requestErr = nil
+	}
+	if err := errors.Join(requestErr, finalErr); err != nil {
 		t.Fatalf("dispose harness: %v", err)
 	}
 }

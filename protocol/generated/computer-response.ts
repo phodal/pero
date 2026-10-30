@@ -18,11 +18,31 @@ export type ComputerResponse =
   | ComputerReceiptResponse
   | ComputerStoppedResponse;
 export type ComputerPermissionState = "granted" | "not_detected" | "unsupported";
+export type ComputerPlatform = "macos" | "windows" | "linux" | "other";
+export type ComputerDisplay = "native" | "x11" | "xwayland" | "wayland" | "unavailable";
 export type ComputerObservationKind = "accessibility" | "screenshot";
-export type ComputerActionKind = "click" | "type_text" | "press_key" | "scroll" | "drag";
+export type ComputerActionKind =
+  | "click"
+  | "type_text"
+  | "press_key"
+  | "scroll"
+  | "drag"
+  | "set_value"
+  | "perform_action"
+  | "move"
+  | "hover"
+  | "hold"
+  | "focus_window";
 export type ComputerDelivery = "background" | "foreground";
+export type ComputerAddressing = "element" | "pixel" | "target";
+export type ComputerSemanticAction =
+  "press" | "open" | "confirm" | "cancel" | "show_menu" | "scroll_to_visible" | "increment" | "decrement";
 export type ComputerDimension = number;
 export type ComputerActionOutcome = ComputerExecuted | ComputerRejected | ComputerUnknown;
+/**
+ * Execution acknowledgement only; it does not assert a verified task outcome.
+ */
+export type ComputerExecutionRoute = "semantic" | "window_event" | "foreground_event";
 export type ComputerErrorCode =
   | "unsupported"
   | "permission_required"
@@ -46,6 +66,12 @@ export interface ComputerDriverStatus {
   accessibility: ComputerPermissionState;
   screen_recording: ComputerPermissionState;
   message: string;
+  environment?: ComputerEnvironment | null;
+}
+export interface ComputerEnvironment {
+  platform: ComputerPlatform;
+  display: ComputerDisplay;
+  desktop?: string | null;
 }
 export interface ComputerTargetsResponse {
   kind: "targets";
@@ -55,21 +81,24 @@ export interface ComputerTargetsResponse {
 export interface ComputerCapabilities {
   protocol: "pero.computer-use.v1";
   runtime_id: ComputerRef;
+  environment: ComputerEnvironment;
   observations: ComputerObservationKind[];
   actions: ComputerActionSupport[];
 }
 /**
- * One supported action/delivery pair. Adapters may still refuse a particular target.
+ * Supported addressing for an action/delivery pair; target-specific refusals remain possible.
  */
 export interface ComputerActionSupport {
   action: ComputerActionKind;
   delivery: ComputerDelivery;
+  addressing: ComputerAddressing[];
 }
 export interface ComputerTarget {
   reference: ComputerTargetRef;
   kind: "window" | "desktop";
   title: string;
   application?: string | null;
+  application_id?: string | null;
 }
 export interface ComputerTargetRef {
   runtime_id: ComputerRef;
@@ -99,6 +128,16 @@ export interface ComputerElement {
   value?: string | null;
   depth: number;
   actions: ComputerActionKind[];
+  state?: ComputerElementState | null;
+  semantic_actions?: ComputerSemanticAction[];
+}
+export interface ComputerElementState {
+  enabled: boolean;
+  secure: boolean;
+  focused: boolean;
+  value_settable: boolean;
+  selected?: boolean | null;
+  expanded?: boolean | null;
 }
 /**
  * The Host resolves this immutable image reference to bytes; no local path is exposed.
@@ -123,11 +162,13 @@ export interface ComputerActionReceipt {
   observation_id: ComputerRef;
   outcome: ComputerActionOutcome;
 }
-/**
- * Execution acknowledgement only; it does not assert a verified task outcome.
- */
 export interface ComputerExecuted {
   status: "executed";
+  execution?: ComputerExecution | null;
+}
+export interface ComputerExecution {
+  route: ComputerExecutionRoute;
+  semantic_action?: ComputerSemanticAction | null;
 }
 export interface ComputerRejected {
   status: "rejected";

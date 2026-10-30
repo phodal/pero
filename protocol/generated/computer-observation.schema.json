@@ -23,7 +23,13 @@
         "type_text",
         "press_key",
         "scroll",
-        "drag"
+        "drag",
+        "set_value",
+        "perform_action",
+        "move",
+        "hover",
+        "hold",
+        "focus_window"
       ]
     },
     "ComputerActionSupport": {
@@ -35,14 +41,30 @@
         },
         "delivery": {
           "$ref": "#/$defs/ComputerDelivery"
+        },
+        "addressing": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerAddressing"
+          }
         }
       },
       "required": [
         "action",
-        "delivery"
+        "delivery",
+        "addressing"
       ],
       "additionalProperties": false,
-      "description": "One supported action/delivery pair. Adapters may still refuse a particular target."
+      "description": "Supported addressing for an action/delivery pair; target-specific refusals remain possible."
+    },
+    "ComputerAddressing": {
+      "title": "ComputerAddressing",
+      "type": "string",
+      "enum": [
+        "element",
+        "pixel",
+        "target"
+      ]
     },
     "ComputerCapabilities": {
       "title": "ComputerCapabilities",
@@ -54,6 +76,9 @@
         },
         "runtime_id": {
           "$ref": "#/$defs/ComputerRef"
+        },
+        "environment": {
+          "$ref": "#/$defs/ComputerEnvironment"
         },
         "observations": {
           "type": "array",
@@ -71,6 +96,7 @@
       "required": [
         "protocol",
         "runtime_id",
+        "environment",
         "observations",
         "actions"
       ],
@@ -89,6 +115,17 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 4294967295
+    },
+    "ComputerDisplay": {
+      "title": "ComputerDisplay",
+      "type": "string",
+      "enum": [
+        "native",
+        "x11",
+        "xwayland",
+        "wayland",
+        "unavailable"
+      ]
     },
     "ComputerElement": {
       "title": "ComputerElement",
@@ -123,6 +160,22 @@
           "items": {
             "$ref": "#/$defs/ComputerActionKind"
           }
+        },
+        "state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerElementState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "semantic_actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerSemanticAction"
+          }
         }
       },
       "required": [
@@ -131,6 +184,78 @@
         "label",
         "depth",
         "actions"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerElementState": {
+      "title": "ComputerElementState",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "secure": {
+          "type": "boolean"
+        },
+        "focused": {
+          "type": "boolean"
+        },
+        "value_settable": {
+          "type": "boolean"
+        },
+        "selected": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expanded": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "enabled",
+        "secure",
+        "focused",
+        "value_settable"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerEnvironment": {
+      "title": "ComputerEnvironment",
+      "type": "object",
+      "properties": {
+        "platform": {
+          "$ref": "#/$defs/ComputerPlatform"
+        },
+        "display": {
+          "$ref": "#/$defs/ComputerDisplay"
+        },
+        "desktop": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "platform",
+        "display"
       ],
       "additionalProperties": false
     },
@@ -180,6 +305,16 @@
         "screenshot"
       ]
     },
+    "ComputerPlatform": {
+      "title": "ComputerPlatform",
+      "type": "string",
+      "enum": [
+        "macos",
+        "windows",
+        "linux",
+        "other"
+      ]
+    },
     "ComputerRef": {
       "title": "ComputerRef",
       "type": "string",
@@ -223,6 +358,20 @@
       "additionalProperties": false,
       "description": "The Host resolves this immutable image reference to bytes; no local path is exposed."
     },
+    "ComputerSemanticAction": {
+      "title": "ComputerSemanticAction",
+      "type": "string",
+      "enum": [
+        "press",
+        "open",
+        "confirm",
+        "cancel",
+        "show_menu",
+        "scroll_to_visible",
+        "increment",
+        "decrement"
+      ]
+    },
     "ComputerTarget": {
       "title": "ComputerTarget",
       "type": "object",
@@ -246,6 +395,16 @@
           "type": "string"
         },
         "application": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "application_id": {
           "anyOf": [
             {
               "type": "string"

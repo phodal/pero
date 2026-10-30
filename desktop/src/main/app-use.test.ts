@@ -305,7 +305,7 @@ test('MCP transport works with the official client and preserves App image metad
   const evidenceRoot = await mkdtemp(join(tmpdir(),'pero-mcp-output-'));
   const state: {image:{uri:string};rows?:{id:number;value:string}[]} = { image: { uri: 'app-owned-image-metadata' } };
   const browser = {
-    peroAppUseThread: () => 'thread',
+    peroDiagnostics: { snapshot: () => JSON.stringify({ chats: [{ id: 'thread' }], activeChat: 0 }) },
     peroAppUse: async ({ request }: { request: { action: string } }) => ({
       ok: true,
       value:
@@ -321,6 +321,7 @@ test('MCP transport works with the official client and preserves App image metad
   };
   const window = {
     webContents: {
+      mainFrame: { frames: [] },
       executeJavaScript: (expression: string) => runInNewContext(expression, { window: browser }),
     },
   };
@@ -450,8 +451,9 @@ test('MCP writes use Agent approval and still reject invalid or foreign document
   };
   const window = {
     webContents: {
+      mainFrame: { frames: [] },
       executeJavaScript: (expression: string) =>
-        runInNewContext(expression, { window: { peroAppUseThread: () => 'thread' } }),
+        runInNewContext(expression, { window: { peroDiagnostics: { snapshot: () => JSON.stringify({ chats: [{ id: 'thread' }], activeChat: 0 }) } } }),
     },
   };
   const desktop = new DesktopAppUse(
@@ -507,5 +509,60 @@ test('MCP writes use Agent approval and still reject invalid or foreign document
     );
   } finally {
     desktop.close();
+  }
+});
+
+test('Product context reads the current trusted Chat frame without a timed parent query or replay', async t => {
+  const { DesktopAppUse } = await import('./app-use-mcp.ts');
+  const { runInNewContext } = await import('node:vm');
+  const { tmpdir } = await import('node:os');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  for (const scenario of ['delayed', 'switched', 'missing', 'foreign', 'nested', 'duplicate', 'navigated', 'unready', 'destroyed'] as const) {
+    let selected = 'draft', pageCalls = 0, reads = 0, parentQueries = 0;
+    let release!: () => void;
+    const delayed = new Promise<void>(resolve => { release = resolve; });
+    const chat = {
+      url: 'pero://chat/chat.html',
+      executeJavaScript: async (expression: string) => {
+        reads++;
+        await delayed;
+        if (scenario === 'destroyed') throw new Error('Frame was destroyed');
+        return runInNewContext(expression, {
+          location: { href: scenario === 'navigated' ? 'pero-app://demo/' : chat.url },
+          window: { peroChatDiagnostics: scenario === 'unready' ? undefined : {
+            snapshot: () => JSON.stringify({ chats: [{ id: selected }], activeChat: 0 }),
+          } },
+        });
+      },
+    };
+    const foreign = { url: 'pero-app://demo/', frames: [chat], executeJavaScript: () => { throw new Error('Never read an App'); } };
+    const window = { webContents: {
+      mainFrame: { frames: scenario === 'missing' ? [] : scenario === 'foreign' || scenario === 'nested' ? [foreign] : scenario === 'duplicate' ? [chat, chat] : [chat] },
+      executeJavaScript: (expression: string) => runInNewContext(expression, { window: {
+        // The old Product bridge resolves a missing reply as no selection at 2 s.
+        peroAppUseThread: () => { parentQueries++; return new Promise(resolve => setTimeout(() => resolve(undefined), 2000)); },
+        peroAppUse: () => { pageCalls++; return { ok: true, value: surface }; },
+      } }),
+    } };
+    const desktop = new DesktopAppUse(() => window as never, () => {}, tmpdir());
+    const freezing = desktop.draftContext.freeze({ app: 'demo', panel: 'main' }, 'draft', { message: 'context' });
+    const outcome = freezing.then(value => ({ value }), error => ({ error }));
+    let settled = false;
+    void outcome.then(() => { settled = true; });
+    t.mock.timers.tick(2001);
+    await Promise.resolve();
+    if (scenario === 'delayed') assert.equal(settled, false);
+    if (scenario === 'switched') selected = 'other';
+    release();
+    const result = await outcome;
+    if (scenario === 'delayed') {
+      assert.deepEqual(result, { value: [] });
+      assert.equal(pageCalls, 1);
+    } else {
+      assert.ok('error' in result);
+      assert.equal(pageCalls, 0);
+    }
+    assert.equal(parentQueries, 0);
+    assert.ok(reads <= 1, 'no selection retry or replay');
   }
 });

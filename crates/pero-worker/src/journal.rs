@@ -1,4 +1,4 @@
-use crate::model::{Event, Outcome, Run};
+use crate::model::{Event, Outcome, RemoteGrant, Run};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -17,6 +17,9 @@ pub struct State {
 pub struct Claim {
     pub request_id: String,
     pub instance_id: String,
+    // Trusted-pool identity, frozen with the claim before its first HTTP request.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_pod_uid: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -27,6 +30,8 @@ pub struct Active {
     pub events: Vec<Event>,
     pub acknowledged: u64,
     pub result: Option<Outcome>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote_grant: Option<RemoteGrant>,
 }
 
 pub struct Journal {
@@ -116,6 +121,7 @@ mod tests {
         journal.state.pending_claim = Some(Claim {
             request_id: "request".into(),
             instance_id: "instance".into(),
+            runtime_pod_uid: None,
         });
         journal.save().unwrap();
         assert!(Journal::open(path.clone()).is_err());

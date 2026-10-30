@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { mkdtemp, readFile, rm, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { tmpdir } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
 const root=resolve(import.meta.dirname,'../..');
-const temp=await mkdtemp(resolve(root,'target/computer-transport-'));
+const temp=await mkdtemp(resolve(tmpdir(),'pero-computer-transport-'));
 await build({entryPoints:[resolve(root,'desktop/src/main/computer.ts'),resolve(root,'desktop/src/main/app-use-mcp.ts')],outdir:temp,outExtension:{'.js':'.mjs'},bundle:true,platform:'node',format:'esm'});
-const { DesktopComputer }=await import(resolve(temp,'computer.mjs'));
-const { DesktopAppUse }=await import(resolve(temp,'app-use-mcp.mjs'));
+const { DesktopComputer }=await import(pathToFileURL(resolve(temp,'computer.mjs')).href);
+const { DesktopAppUse }=await import(pathToFileURL(resolve(temp,'app-use-mcp.mjs')).href);
 const corpus=JSON.parse(await readFile(resolve(root,'tests/contracts/computer-use.json'),'utf8'));
 const action=corpus.actions[0],effects=resolve(temp,'effects.jsonl');
 const create=(mode='normal')=>new DesktopComputer(process.execPath,resolve(temp,'journal'),()=>{}, {args:[resolve(root,'tests/fixtures/computer-worker.mjs'),effects,mode]});
@@ -47,7 +49,7 @@ try {
  assert.equal((await readFile(effects,'utf8')).trim().split('\n').length,2);
  // Real loopback MCP and its existing selected/running-conversation authority.
  let selected='thread';
- bridge=new DesktopAppUse(()=>({webContents:{executeJavaScript:async()=>selected}}),()=>{},resolve(temp,'mcp'),undefined,desktop);
+ bridge=new DesktopAppUse(()=>({webContents:{mainFrame:{frames:[]},executeJavaScript:async()=>selected}}),()=>{},resolve(temp,'mcp'),undefined,desktop);
  const env=await bridge.start();
  for(const id of ['thread','foreign'])bridge.accept({version:1,kind:'session_created',thread_id:id,data:{agent:'fixture'},text:'',request_id:null});
  bridge.accept({version:1,kind:'turn_started',thread_id:'thread',text:'',request_id:null});
@@ -57,7 +59,7 @@ try {
  };
  assert.equal((await rpc('tools/list',{},'thread','bad')).status,403);
  const tools=(await rpc('tools/list',{})).value.result.tools;assert.ok(tools.some(tool=>tool.name==='computer_use'));
- const status=await rpc('tools/call',{name:'computer_use',arguments:{operation:'status'}});assert.equal(status.value.result.isError,false);
+ const status=await rpc('tools/call',{name:'computer_use',arguments:{operation:'status'}});assert.equal(status.value.result.isError,false,JSON.stringify(status.value));
  const foreign=await rpc('tools/call',{name:'computer_use',arguments:{operation:'targets'}},'foreign');assert.ok(foreign.value.error||foreign.value.result?.isError);
  selected='foreign';const stale=await rpc('tools/call',{name:'computer_use',arguments:{operation:'targets'}});assert.ok(stale.value.error||stale.value.result?.isError);
  await desktop.forget('thread');

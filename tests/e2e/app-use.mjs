@@ -1,6 +1,8 @@
 // Actual Electron, Virtual Cell and ACP -> MCP -> App Use. No model login.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { requestAppChat } from '../fixtures/app-chat-launch.mjs';
+import { waitForFullAppUse } from '../fixtures/app-use-progress.mjs';
 import { build } from 'esbuild';
 import { cp, mkdir, mkdtemp, readFile, realpath, readdir, rm, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
@@ -54,7 +56,13 @@ try {
   await expect.poll(()=>page.frames().some(frame=>frame.url().startsWith('pero://chat/'))).toBe(true);
   const startingChat=page.frames().find(frame=>frame.url().startsWith('pero://chat/'));
   await startingChat.waitForFunction(()=>window.peroChatDiagnostics&&JSON.parse(window.peroChatDiagnostics.snapshot()).chats.length===1,undefined,{timeout:60000});
-  startingDraft=await startingChat.evaluate(()=>{const state=JSON.parse(window.peroChatDiagnostics.snapshot());return state.chats[state.activeChat].id;});
+  const initialDraft=await startingChat.evaluate(()=>{const state=JSON.parse(window.peroChatDiagnostics.snapshot());return state.chats[state.activeChat];});
+  expect(initialDraft.state).toBe('draft');
+  expect(initialDraft.session_id).toBe('');
+  expect(initialDraft.error).toBeNull();
+  expect(initialDraft.messages).toEqual([]);
+  expect(initialDraft.scope).toEqual({app:'virtual-cell',panel:'main'});
+  startingDraft=initialDraft.id;
   await writeFile(join(temp,'release-host'),'release');
   }
   const frame = page.frameLocator('iframe[title="virtual-cell"]');
@@ -66,11 +74,25 @@ try {
   const state = () => chat.evaluate(() => JSON.parse(window.peroChatDiagnostics.snapshot()));
   const active = async () => { const snapshot = await state(); return snapshot.chats[snapshot.activeChat]; };
   await expect.poll(async () => (await state()).agents?.length || 0).toBeGreaterThan(0);
-  if(startingDraft){expect((await active()).id).toBe(startingDraft);expect((await active()).state).toBe('draft');expect((await active()).error).toBeNull();checks.push('Chat draft initializes before the real Host startup signal and remains usable when the Host is released');}
+  if(startingDraft){
+    await expect.poll(async()=>(await active()).state).toBe('idle');
+    const prepared = await active();
+    expect(prepared.id).toBe(startingDraft);
+    expect(prepared.session_id).toBe('app-use-fixture');
+    expect(prepared.error).toBeNull();
+    expect(prepared.messages).toEqual([]);
+    expect(prepared.scope).toEqual({app:'virtual-cell',panel:'main'});
+    checks.push('Chat draft initializes before the real Host startup signal and keeps its identity through automatic session preparation');
+  }
+  const parentOrigin = await page.evaluate(() => location.origin);
   let expectedScenario;
   const submit = async (prompt, approval = false) => {
     expectedScenario = prompt.replace(/^app-use:/, '');
-    await frame.locator('body').evaluate((_, text) => parent.postMessage({ type: 'pero:app:chat', text }, '*'), prompt);
+    const destination = await active();
+    const launch = await frame.locator('body').evaluate(requestAppChat, { text: prompt, parentOrigin });
+    expect(launch.threadId).toBe(destination.id);
+    expect((await active()).id).toBe(destination.id);
+    expect((await active()).scope).toEqual({ app: 'virtual-cell', panel: 'main' });
     await expect.poll(async () => (await state()).composer).toBe(prompt);
     const bounds = await chat.locator('canvas').boundingBox();
     await page.mouse.click(bounds.x + 150, bounds.y + bounds.height - 70);
@@ -78,15 +100,17 @@ try {
     if (approval) await expect.poll(async () => Boolean((await active())?.permission)).toBe(true);
   };
   const choose = async allow => {
-    const permission = (await active()).permission;
+    const conversation = await active();
+    const permission = conversation.permission;
     const options = permission.options;
     const index = options.findIndex(option => allow ? option.kind === 'allow_once' : option.kind === 'reject_once');
     expect(index).toBeGreaterThanOrEqual(0);
+    // GPUI exposes the painted option bounds in the Chat canvas coordinates.
+    const optionBounds = async () => (await state()).permissionBounds.find(item => item.chat === conversation.id && item.index === index)?.bounds;
+    await expect.poll(async () => { const bounds = await optionBounds(); return Boolean(bounds && bounds.width > 0 && bounds.height > 0); }).toBe(true);
     const bounds = await chat.locator('canvas').boundingBox();
-    // GPUI renders these buttons into its canvas, in the order from the Host.
-    // This fixture has no usage row and the Composer has two empty text lines.
-    const preceding = options.slice(0, index).reduce((width, option) => width + Math.max(64, option.name.length * 7 + 24) + 8, 0);
-    await page.mouse.click(bounds.x + 42 + preceding + 25, bounds.y + bounds.height - 138);
+    const option = await optionBounds();
+    await page.mouse.click(bounds.x + option.x + option.width / 2, bounds.y + option.y + option.height / 2);
     await expect.poll(async () => (await active()).permission).toBeNull();
   };
   const result = async () => {
@@ -106,7 +130,9 @@ try {
   await expect(frame.getByLabel('Find gene', { exact: true })).toHaveValue('');
   checks.push('The Agent policy can ask in the existing Chat permission card; denial prevents an App effect');
 
+  const beforeFull = await active();
   await submit('app-use:full');
+  const fullProgress = await waitForFullAppUse(active, beforeFull);
   const full = await result();
   expect(full.error).toBeUndefined();
   expect(new Set(full.steps.map(step => step.action))).toEqual(new Set(['inventory', 'start', 'describe', 'observe', 'capture', 'act', 'wait', 'verify', 'stop', 'runPlan']));
@@ -127,7 +153,11 @@ try {
   await expect.poll(async()=>(await state()).attachments.length).toBe(3);
   expect((await active()).messages.filter(message=>message.role==='user')).toHaveLength(usersBefore);
   await page.screenshot({path:join(output,'frozen-draft.png')});
-  {const bounds=await chat.locator('canvas').boundingBox();await page.mouse.click(bounds.x+320,bounds.y+bounds.height-129);}
+  expect((await state()).contextPreviewBounds.filter(item=>item.image)).toHaveLength(1);
+  await expect.poll(async()=>{const bounds=(await state()).contextPreviewBounds.find(item=>item.image)?.bounds;return Boolean(bounds&&bounds.width>0&&bounds.height>0);}).toBe(true);
+  const capturePreview=(await state()).contextPreviewBounds.find(item=>item.image);
+  const chatCanvas=await chat.locator('canvas').boundingBox();
+  await page.mouse.click(chatCanvas.x+capturePreview.bounds.x+capturePreview.bounds.width/2,chatCanvas.y+capturePreview.bounds.y+capturePreview.bounds.height/2);
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('textbox',{name:'Annotation note'}).fill('Inspect the selected cells in this frozen frame');
   await page.getByRole('button',{name:'Mark whole image'}).click();await page.getByRole('button',{name:'Undo region'}).click();
@@ -142,6 +172,7 @@ try {
   expectedScenario='context';
   {const bounds=await chat.locator('canvas').boundingBox();await page.mouse.click(bounds.x+150,bounds.y+bounds.height-70);await page.keyboard.press('Enter');}
   const frozen=await result();expect(frozen.error).toBeUndefined();
+  expect((await state()).contextPreviewBounds).toEqual([]);
   expect(frozen.contexts.find(context=>context.schema==='pero.app-object.v1').state.view).toBe('cells');expect(frozen.images).toBe(1);expect(frozen.contexts.find(context=>context.schema==='pero.app-annotations.v1')).toMatchObject({note:'Inspect the selected cells in this frozen frame',regions:[{x:0,y:0}]});
   await frame.getByRole('tab',{name:'Cells & perturbations'}).click();
   checks.push('SDK object refs and parent-cropped screenshot enter the draft without sending, preserve revisions after App changes, and reach ACP as frozen JSON plus pixels');
@@ -205,7 +236,7 @@ try {
   const permissionIds=await page.evaluate(()=>window.approvalEvents);expect(permissionIds).toHaveLength(2);expect(permissionIds.every(id=>id.startsWith('permission-'))).toBe(true);checks.push('All App operations, captures, file transfers and writes finish without an additional Desktop approval; only explicit Agent policy questions appear');
   expect(errors).toEqual([]);
   for(const file of ['failure-state.json','failure.png','runtime.log'])await rm(join(output,file),{force:true});
-  await writeFile(join(output, 'result.json'), JSON.stringify({ checks, errors, denied, full, frozen, imported, written, writeDenied, standing, revoked, hidden, state: await state() }, null, 2));
+  await writeFile(join(output, 'result.json'), JSON.stringify({ checks, errors, denied, fullProgress, full, frozen, imported, written, writeDenied, standing, revoked, hidden, state: await state() }, null, 2));
 } catch (error) {
   await writeFile(join(output,'runtime.log'),runtimeLog.join(''));
   if (app) {
