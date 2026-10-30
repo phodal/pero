@@ -18,13 +18,22 @@ pub trait DesktopDriver {
     fn actions(&self) -> Vec<ComputerActionSupport>;
     fn status(&self) -> ComputerDriverStatus;
     fn targets(&self) -> Result<Vec<Window>, ComputerError>;
-    fn open(&self, name: &str) -> Result<(Option<Window>, String), ComputerError>;
+    fn open(
+        &self,
+        application: &ComputerApplicationSelector,
+    ) -> Result<(Option<Window>, String), ComputerError>;
     fn bounds(&self, window: &Window) -> Option<WindowBounds>;
-    fn observe(&self, window: &Window) -> Result<WindowObservation<Self::Snapshot>, ComputerError>;
+    fn observe(
+        &self,
+        window: &Window,
+        options: &ComputerObserveOptions,
+        basis: Option<&Self::Snapshot>,
+    ) -> Result<WindowObservation<Self::Snapshot>, ComputerError>;
     fn input(
         &self,
         window: &Window,
         snapshot: &Self::Snapshot,
         action: ComputerAction,
-    ) -> Result<(), ComputerError>;
+        cancellation: &crate::Cancellation,
+    ) -> Result<Option<ComputerExecution>, ComputerError>;
 }
