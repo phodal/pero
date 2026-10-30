@@ -1,6 +1,6 @@
 // Keep the caller's Kit checkout immutable. All Kit path dependencies share one patched copy.
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { root } from './paths.mjs';
 import { run } from './run.mjs';
@@ -19,13 +19,15 @@ const excluded = new Set(['.git', 'target', 'node_modules']);
 const hash = createHash('sha256');
 for (const patch of patches) hash.update(readFileSync(patch));
 // File contents, not mtimes or checkout names, determine the baseline cache identity.
-function fingerprint(directory) {
+function fingerprint(directory, base = directory, into = hash) {
   for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a,b)=>a.name.localeCompare(b.name))) {
-    if (excluded.has(entry.name)) continue;
+    if (excluded.has(entry.name) || (directory === base && entry.name === '.pero-patch')) continue;
     const path = resolve(directory,entry.name);
-    if (entry.isDirectory()) fingerprint(path);
-    else if (entry.isFile()) hash.update(relative(kit,path)).update('\0').update(readFileSync(path)).update('\0');
+    if (entry.isDirectory()) fingerprint(path, base, into);
+    else if (entry.isFile()) into.update(relative(base,path)).update('\0').update(readFileSync(path)).update('\0');
+    else if (entry.isSymbolicLink()) into.update(relative(base,path)).update('\0link\0').update(readlinkSync(path)).update('\0');
   }
+  return into;
 }
 fingerprint(kit);
 const digest = hash.digest('hex');
@@ -33,11 +35,28 @@ const target = resolve(root, process.env.CARGO_TARGET_DIR || 'target');
 mkdirSync(target, { recursive:true });
 export const patchedKit = resolve(realpathSync(target), `patched-dependencies/gpui-kit-0.8.1-${digest.slice(0,12)}`);
 
+// The stamp records the patched tree's own contents. A CI target cache may restore a
+// pruned or partial copy beside a valid-looking stamp, so the stamp alone is not trusted.
+const tree = directory => fingerprint(directory, directory, createHash('sha256')).digest('hex');
+const stampFor = () => `${digest}\n${tree(patchedKit)}`;
+
 export async function prepareKit() {
   const stamp = resolve(patchedKit,'.pero-patch');
-  if (existsSync(stamp) && readFileSync(stamp,'utf8') === digest) return;
+  if (existsSync(stamp) && readFileSync(stamp,'utf8') === stampFor()) return;
+  // Copy into a clean directory: re-copying over an earlier copy's symlinks fails
+  // (ERR_FS_CP_EINVAL), and patches must apply to pristine sources exactly once.
+  rmSync(patchedKit,{recursive:true,force:true});
   mkdirSync(patchedKit,{recursive:true});
-  cpSync(kit,patchedKit,{recursive:true,filter:path=>!relative(kit,path).split(/[\\/]/).some(part=>excluded.has(part))});
+  // Keep Kit's relative symlinks (for example crates/*/LICENSE-APACHE) relative to the copy.
+  cpSync(kit,patchedKit,{recursive:true,verbatimSymlinks:true,filter:path=>!relative(kit,path).split(/[\\/]/).some(part=>excluded.has(part))});
+  // Patches are LF (.gitattributes). A Windows Kit checkout may use CRLF, so normalize
+  // only the files the patches touch before applying them.
+  for (const patch of patches) {
+    for (const [, path] of readFileSync(patch,'utf8').matchAll(/^\+\+\+ b\/(.+)$/gm)) {
+      const file = resolve(patchedKit,path);
+      if (existsSync(file)) writeFileSync(file,readFileSync(file,'utf8').replaceAll('\r\n','\n'));
+    }
+  }
   for (const patch of patches) await run('git',['apply','--unsafe-paths',`--directory=${patchedKit}`,patch]);
-  writeFileSync(stamp,digest);
+  writeFileSync(stamp,stampFor());
 }

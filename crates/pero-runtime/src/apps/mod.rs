@@ -138,6 +138,20 @@ impl AppStore {
 
     /// Discover new trusted builtin identities while retaining user choices.
     pub fn seed_builtins(&mut self, catalog: &Path) -> Result<(), String> {
+        self.seed_builtins_only(catalog, None)
+    }
+
+    /// Seeds builtin Apps from `catalog`, optionally limited to `names`.
+    ///
+    /// A single unreadable or incomplete builtin package (for example one
+    /// whose `dist/` was never built) is skipped with a warning and is not
+    /// recorded as discovered, so it is offered once it becomes valid. It
+    /// does not hide the other builtins.
+    pub fn seed_builtins_only(
+        &mut self,
+        catalog: &Path,
+        names: Option<&[String]>,
+    ) -> Result<(), String> {
         if !catalog.is_dir() {
             return Ok(());
         }
@@ -151,17 +165,35 @@ impl AppStore {
             {
                 continue;
             }
-            let definition = AppDefinition::parse(
-                &fs::read(entry.path().join("app.json")).map_err(|error| error.to_string())?,
-            )?;
-            let name = definition.name.clone();
-            if self
-                .builtins
-                .should_install(&name, self.installed.contains_key(&name))
+            if let Some(names) = names
+                && !names.iter().any(|name| entry.file_name() == name.as_str())
             {
-                self.install_package(&entry.path(), definition)?;
-                self.set_enabled(&name, true)?;
+                continue;
             }
+            let seeded = (|| {
+                let definition = AppDefinition::parse(
+                    &fs::read(entry.path().join("app.json")).map_err(|error| error.to_string())?,
+                )?;
+                let name = definition.name.clone();
+                if self
+                    .builtins
+                    .should_install(&name, self.installed.contains_key(&name))
+                {
+                    self.install_package(&entry.path(), definition)?;
+                    self.set_enabled(&name, true)?;
+                }
+                Ok::<_, String>(name)
+            })();
+            let name = match seeded {
+                Ok(name) => name,
+                Err(error) => {
+                    eprintln!(
+                        "warning: skipping builtin App {}: {error}",
+                        entry.path().display()
+                    );
+                    continue;
+                }
+            };
             // Persist each discovery so later package failures do not forget
             // identities already offered to this profile.
             if self.builtins.record(name) {

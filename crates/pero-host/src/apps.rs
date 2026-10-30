@@ -53,6 +53,7 @@ enum Request {
 pub struct Apps {
     store: Result<AppStore, String>,
     builtins: Option<PathBuf>,
+    names: Option<Vec<String>>,
 }
 impl Apps {
     pub fn new(settings: Option<&Path>) -> Self {
@@ -67,6 +68,15 @@ impl Apps {
         let builtins = std::env::var_os("PERO_BUILTIN_APPS_ROOT")
             .filter(|path| !path.is_empty())
             .map(PathBuf::from);
+        // Optional comma-separated allow-list; unset seeds every catalog entry.
+        let names: Option<Vec<String>> = std::env::var("PERO_BUILTIN_APPS").ok().map(|names| {
+            names
+                .split(',')
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .map(str::to_owned)
+                .collect()
+        });
         let store = (|| {
             let python = settings
                 .map(pero_runtime::settings::load_app_python)
@@ -74,11 +84,15 @@ impl Apps {
                 .unwrap_or_default();
             let mut store = AppStore::open(root, python)?;
             if let Some(catalog) = &builtins {
-                store.seed_builtins(catalog)?;
+                store.seed_builtins_only(catalog, names.as_deref())?;
             }
             Ok(store)
         })();
-        Self { store, builtins }
+        Self {
+            store,
+            builtins,
+            names,
+        }
     }
 
     pub fn dispatch(
@@ -103,7 +117,7 @@ impl Apps {
                 Request::List { method, id } => {
                     let _ = (method, id);
                     if let Some(catalog) = &self.builtins {
-                        store.seed_builtins(catalog)?;
+                        store.seed_builtins_only(catalog, self.names.as_deref())?;
                     }
                     serde_json::to_value(store.list())
                 }

@@ -12,6 +12,8 @@ const output=resolve(root,'test-results/app-use-workbench');
 await mkdir(output,{recursive:true});
 const agents=resolve(temp,'agents.json');
 await writeFile(agents,JSON.stringify(['codex','claude','copilot','grok'].map(id=>({id,name:`App Use ${id}`,command:process.execPath,args:[resolve(root,'tests/fixtures/app-use-agent.mjs')],env:{PERO_APP_USE_FIXTURE_OUTPUT:output}}))));
+// Chat through the App Use fixture, not the bundled pero agent that needs a provider key.
+await writeFile(resolve(temp,'settings.json'),JSON.stringify({chat_agent:'codex'}));
 const env={...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'sessions.jsonl'),PERO_AGENTS_FILE:agents,PERO_LOCALE:'en'};
 delete env.ELECTRON_RUN_AS_NODE;delete env.PERO_APPS_ROOT;
 const errors=[];const checks=[];let app;
