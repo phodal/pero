@@ -4,6 +4,7 @@ use gpui_kit::{
     component::{
         button::*,
         menu::{ContextMenuExt, DropdownMenu, PopupMenuItem},
+        tooltip::Tooltip,
         *,
     },
     prelude::*,
