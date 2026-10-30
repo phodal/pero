@@ -39,7 +39,7 @@ Known gaps:
 - `hover`: a separate kind, `move` plus `dwell_ms` (`ComputerDwellMs`,
   0 to 5000). Cancellation ends the dwell early.
 - `hold`: a separate kind with `hold_ms` (`ComputerHoldMs`, 1 to 10000),
-  replacing the earlier `long_press` name; `click` keeps no duration field.
+  `click` keeps no duration field.
   Cancellation (Stop closes the runtime's stdin) ends the wait and releases
   the button once; an interrupted hold reports unknown, never retried blindly.
 - Shipped support: Linux X11 delivers all three through XTest, macOS through
