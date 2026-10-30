@@ -117,6 +117,7 @@ impl ContextSources<'_> {
             }
             ContextKind::Skill => {
                 if "app-use".contains(&query.to_lowercase()) {items.push(ContextCandidate{kind,label:"app-use".into(),source:"pero-skill:app-use".into(),detail:"App objects, operations, evidence and declared data writes".into()});}
+                if "data analytics chart dataset".contains(&query.to_lowercase()) {items.push(ContextCandidate{kind,label:"data".into(),source:"pero-skill:data".into(),detail:"Analyze datasets and make source-aware charts with Data Agent".into()});}
                 for root in self.skill_roots() {
                     for entry in ignore::WalkBuilder::new(&root)
                         .hidden(false)
@@ -210,6 +211,9 @@ impl ContextSources<'_> {
         }
         if kind==ContextKind::Skill && source=="pero-skill:app-use" {
             return Ok(ContextReference{id:"pero-skill:app-use".into(),kind,label:"app-use".into(),source:source.into(),content:ContextContent::Text{text:crate::acp::APP_USE_SKILL.into()}});
+        }
+        if kind==ContextKind::Skill && source=="pero-skill:data" {
+            return Ok(ContextReference{id:"pero-skill:data".into(),kind,label:"data".into(),source:source.into(),content:ContextContent::Text{text:include_str!("data-skill.md").into()}});
         }
         let label;
         let content = match kind {
@@ -701,6 +705,10 @@ mod tests {
         let bundled = bundled.iter().find(|item|item.source=="pero-skill:app-use").unwrap();
         let bundled = sources.resolve(bundled.kind,&bundled.source,None,None).unwrap();
         assert!(matches!(bundled.content,ContextContent::Text{text} if text.contains("app_describe") && text.contains("fileReferences")));
+        let bundled = sources.search(ContextKind::Skill, "data").unwrap();
+        let bundled = bundled.iter().find(|item|item.source=="pero-skill:data").unwrap();
+        let bundled = sources.resolve(bundled.kind,&bundled.source,None,None).unwrap();
+        assert!(matches!(bundled.content,ContextContent::Text{text} if text.contains("dataset-view") && text.contains("source")));
         let directory = sources
             .resolve(ContextKind::Directory, ".agents/skills", None, None)
             .unwrap();
