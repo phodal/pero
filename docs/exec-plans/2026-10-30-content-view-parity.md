@@ -178,6 +178,16 @@ The final `SPnOdn` batch repeats and passes `zed-content-parity.mjs` and
 were not rerun after that failure. Per-suite receipts retain their own build
 boundaries; this document does not claim a fully green final aggregate.
 
+Before publishing the test integration, `origin/master` at `b2970d3b` merges
+without conflicts (`9592bd11`). Merged TypeScript/codegen checks, native compile
+and release-Wasm build pass with 421 fingerprinted runtime inputs. The real
+8k-row ACP content-reader workflow reaches exact copy, readonly protection,
+search, folding, table operations and theme captures, then fails its fourteen-chat
+Ctrl-Shift-Tab assertion at `content-reader.mjs:464`: the active conversation
+does not change. That navigation regression and the File-close fixture readiness
+failure are known remaining gates; ACP end-to-end acceptance is not complete.
+The user requested publishing this state for shared testing before scope cleanup.
+
 Contracts (44 tests), pure UI (14 tests), native compilation, release-Wasm build,
 TypeScript/codegen/locales/icons and the focused File/source tests pass. Host
 protocol conformance exercises 39 of 78 event kinds; this is not all-event coverage.
