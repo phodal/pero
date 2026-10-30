@@ -12,7 +12,7 @@ use gpui_kit::{
 use pero_chat_ui::theme::WorkbenchStyle as W;
 use pero_contracts::{
     pane_tabs::{PaneItem, ViewId},
-    workspace_panes::{PaneId, PaneLeaf},
+    workspace_panes::{PaneId, PaneLayout, PaneLeaf},
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -34,6 +34,29 @@ pub(crate) struct PaneTabsUiState {
 impl PaneTabsUiState {
     pub(crate) fn switching(&self) -> bool {
         self.switcher.borrow().is_some()
+    }
+    /// Read-only geometry from the same scroll handles used by the visible strips.
+    pub(crate) fn snapshot(&self, layout: &PaneLayout) -> serde_json::Value {
+        let strips = self.strips.borrow();
+        serde_json::json!(layout.leaves().iter().filter_map(|leaf| {
+            let strip = strips.get(&leaf.id)?;
+            let tabs = leaf.tabs.items().iter().enumerate().filter_map(|(index, item)| {
+                let pinned = index < leaf.tabs.pinned_count();
+                let scroll = if pinned { &strip.pinned } else { &strip.ordinary };
+                let local = if pinned { index } else { index - leaf.tabs.pinned_count() };
+                let bounds = scroll.bounds_for_item(local)?;
+                let viewport = scroll.bounds();
+                let left = f32::from(bounds.left() + scroll.offset().x);
+                let right = f32::from(bounds.right() + scroll.offset().x);
+                Some(serde_json::json!({"view":item.id,"index":index,"pinned":pinned,
+                    "active":leaf.tabs.active_id()==Some(item.id),"preview":leaf.tabs.preview_id()==Some(item.id),
+                    "left":left,"right":right,"top":f32::from(bounds.top()),"bottom":f32::from(bounds.bottom()),
+                    "stripLeft":f32::from(viewport.left()),"stripRight":f32::from(viewport.right()),
+                    "visible":right>f32::from(viewport.left())&&left<f32::from(viewport.right())}))
+            }).collect::<Vec<_>>();
+            Some(serde_json::json!({"pane":leaf.id,"active":leaf.tabs.active_id(),
+                "preview":leaf.tabs.preview_id(),"pinned_count":leaf.tabs.pinned_count(),"tabs":tabs}))
+        }).collect::<Vec<_>>())
     }
 }
 #[derive(Default)]
