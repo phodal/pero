@@ -125,7 +125,7 @@ pero/
 ├── web/                # Wasm 加载与共享静态资源
 ├── server/             # Go 控制面
 ├── protocol/           # TypeSpec 契约
-├── harness/            # 自研 Agent 方向，目前只有 README
+├── harness/            # 内置 Go Agent Harness 与 ACP stdio 入口
 ├── apps/               # 独立 Web 面板与可选领域后端
 ├── packages/app-sdk/   # Web App SDK 与共享控件
 ├── packages/product/   # 不可变 Product 模型与校验
@@ -179,7 +179,7 @@ Go 承担长期运行的协调与执行管理，Cloud 和执行机器分开部�
 
 Cloud 与 Host 分工：协调服务拥有团队与 Project 权限，执行端拥有本机文件、工具、凭据与进程。界面和科研应用复用这些边界，不另建一套审批、任务状态或重试系统。Cloud 能记录离线 Worker 的状态，但不能因此使用它的本机工具。
 
-Pero 的 `harness/` 目前仍是占位。实现按模块和契约推进。
+Pero 的 `harness/go` 提供基于 DeepSeek Agent 提取的 Agent loop 与 ACP stdio 入口。Desktop 将编译后的 `pero-agent-acp` 注册为首次使用的默认 Agent，通过已有 Rust Host 的会话、审批和取消链路接入；用户保存的 Agent 选择优先。配置与启动说明见 [Desktop](../desktop/README.md)。
 
 ### Python for AI4S and Apps
 
