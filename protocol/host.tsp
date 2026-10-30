@@ -46,9 +46,11 @@ model FollowFileDocument {method:"documents";action:"follow";request_id:string;s
 model SaveFileDocument {method:"documents";action:"save";request_id:string;source:string;revision:safeint;text:string;...Closed}
 model FileCopy {path:string;text:string;protected_sources:string[];...Closed}
 model SaveAsFileDocument {method:"documents";action:"save_as";request_id:string;copy:FileCopy;...Closed}
+model SaveDraftFileDocument {method:"documents";action:"save_draft";request_id:string;draft:DraftRef;...Closed}
+model SaveAsReferenceFileDocument {method:"documents";action:"save_as_reference";request_id:string;path:string;source:SourceKey;draft:DraftRef|null;protected_sources:string[];...Closed}
 model ChooseDocumentSave {action:"choose_document_save";request_id:string;suggested:string;...Closed}
 model ReleaseFileDocument {method:"documents";action:"release";source:string;...Closed}
-@oneOf union FileDocumentRequest {OpenFileDocument,FollowFileDocument,SaveFileDocument,SaveAsFileDocument,ReleaseFileDocument}
+@oneOf union FileDocumentRequest {OpenFileDocument,FollowFileDocument,SaveFileDocument,SaveAsFileDocument,SaveDraftFileDocument,SaveAsReferenceFileDocument,ReleaseFileDocument}
 model DocumentSaveChooseEvent {kind:"document_save_choose";...EventBase}
 model DocumentSavePathEvent {kind:"document_save_path";...EventBase;data:{path:string;...Closed}}
 model DocumentSaveCancelledEvent {kind:"document_save_cancelled";...EventBase}
@@ -80,7 +82,9 @@ model PaneSplitNode {kind:"split";id:safeint;axis:"horizontal"|"vertical";ratio:
 model PaneLayout {root:PaneNode|null;focused:safeint|null;next_id:safeint;...Closed}
 model WorkspaceSnapshot {items:WorkspaceItem[];route:WorkspaceRoute;other:WorkspaceRoute|null;focused:"left"|"right";panes?:PaneLayout|null;reading?:ReaderState|null;back:HistoryEntry[];forward:HistoryEntry[];...Closed}
 model SourceKey {origin:ContentOrigin;source:string;revision:safeint;...Closed}
-model SavedDocument {header:DocumentHeader;reading:ReaderState;draft:string|null;...Closed}
+model DraftRef {source:SourceKey;version:safeint;...Closed}
+model DraftEdit {old:ReaderRange;inserted:string;...Closed}
+model SavedDocument {header:DocumentHeader;reading:ReaderState;draft:string|null;draft_ref?:DraftRef|null;legacy_draft?:boolean;...Closed}
 model InlineHtml {id:string;title:string;html:string;...Closed}
 model SavedWeb {id:string;url:string;html?:InlineHtml;...Closed}
 model WorkspaceSession {version:1;workspace:string;navigation:WorkspaceSnapshot;documents:SavedDocument[];web:SavedWeb[];...Closed}
@@ -90,13 +94,19 @@ model GetWorkspaceSession {method:"workspace";action:"get";...Closed}
 model SaveWorkspaceSession {method:"workspace";action:"save";request_id:string;refresh:SourceKey[];session:WorkspaceSession;sources:WorkspaceSource[];...Closed}
 model ReadWorkspaceSource {method:"workspace";action:"read";request_id:string;key:SourceKey;...Closed}
 model ResetWorkspaceSession {method:"workspace";action:"reset";request_id:string;...Closed}
-@oneOf union WorkspaceSessionRequest {GetWorkspaceSession,SaveWorkspaceSession,ReadWorkspaceSource,ResetWorkspaceSession}
+model SourceChunk {offset:safeint;text:string;done:boolean;...Closed}
+model BeginWorkspaceSource {method:"workspace";action:"source_begin";request_id:string;header:DocumentHeader;total_bytes:safeint;...Closed}
+model AppendWorkspaceSource {method:"workspace";action:"source_chunk";request_id:string;chunk:SourceChunk;...Closed}
+model StoreWorkspaceDraft {method:"workspace";action:"store_draft";request_id:string;base:DraftRef|null;draft:DraftRef;edits:DraftEdit[];...Closed}
+@oneOf union WorkspaceSessionRequest {GetWorkspaceSession,SaveWorkspaceSession,ReadWorkspaceSource,ResetWorkspaceSession,BeginWorkspaceSource,AppendWorkspaceSource,StoreWorkspaceDraft}
 model WorkspaceRestoredEvent {kind:"workspace_restored";...EventBase;data:WorkspaceRestore}
 model WorkspaceSavedEvent {kind:"workspace_saved";...EventBase}
 model WorkspaceErrorEvent {kind:"workspace_error";...EventBase}
-model WorkspaceSourceEvent {kind:"workspace_source";...EventBase;data:{source:WorkspaceSource;conflict:boolean;...Closed}}
-model WorkspaceSourceErrorEvent {kind:"workspace_source_error";...EventBase;data:{key:SourceKey;...Closed}}
+model WorkspaceSourceEvent {kind:"workspace_source";...EventBase;data:{source:WorkspaceSource;conflict:boolean;draft?:string|null;...Closed}}
+model WorkspaceSourceErrorEvent {kind:"workspace_source_error";...EventBase;data:{key:SourceKey;draft?:string|null;...Closed}}
 model WorkspaceResetEvent {kind:"workspace_reset";...EventBase}
+model WorkspaceSourceStoredEvent {kind:"workspace_source_stored";...EventBase}
+model DraftStoredEvent {kind:"draft_stored";...EventBase;data:DraftRef}
 
 // Browser engines supply navigation observations; workspace IDs remain stable.
 model WebLoading {kind:"loading";...Closed}
@@ -117,8 +127,11 @@ model WebNavigateCommand {action:"web_navigate";id:string;url:string;...Closed}
 model WebControlCommand {action:"web_back"|"web_forward"|"web_reload"|"web_close";id:string;...Closed}
 model SurfaceBounds {x:float64;y:float64;width:float64;height:float64;...Closed}
 model WebSurfaceCommand {action:"web_surface";id:string|null;bounds?:SurfaceBounds;...Closed}
+model WebSurfaceSlot {id:string;bounds:SurfaceBounds;focused:boolean;...Closed}
+model WebSurfacesCommand {action:"web_surfaces";surfaces:WebSurfaceSlot[];...Closed}
+model WebFocusedEvent {kind:"web_focused";...EventBase;data:{id:string;...Closed}}
 /** Private Desktop/native browser-engine commands, not Host stdin. */
-@oneOf union WebCommand {WebOpenCommand,WebHtmlCommand,WebRestoreCommand,WebNavigateCommand,WebControlCommand,WebSurfaceCommand}
+@oneOf union WebCommand {WebOpenCommand,WebHtmlCommand,WebRestoreCommand,WebNavigateCommand,WebControlCommand,WebSurfaceCommand,WebSurfacesCommand}
 model McpSourceRequest {method:"mcp";action:"open";request_id:string;thread_id?:string|null;...Closed}
 model McpAppBinding {id:string;server:string;resource_uri:string;tool:string;tool_call:string;thread_id:string;...Closed}
 model McpPermittedEvent {kind:"mcp_permitted";...EventBase;thread_id?:string;data:{locale:string;...Closed}}
@@ -385,8 +398,8 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 @oneOf
 union HostEvent {
   DocumentSaveChooseEvent,DocumentSavePathEvent,DocumentSaveCancelledEvent,
-  WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,WorkspaceSourceEvent,WorkspaceSourceErrorEvent,WorkspaceResetEvent,
-  WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,
+  WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,WorkspaceSourceEvent,WorkspaceSourceErrorEvent,WorkspaceResetEvent,WorkspaceSourceStoredEvent,DraftStoredEvent,
+  WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,WebFocusedEvent,
   DocumentOpenEvent,
   McpPermittedEvent,McpSourcesEvent,McpErrorEvent,McpAppOpenedEvent,
   DocumentChooseEvent,

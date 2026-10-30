@@ -459,6 +459,33 @@
       "additionalProperties": {},
       "description": "Public catalog: no local paths or backend credentials."
     },
+    "AppendWorkspaceSource": {
+      "title": "AppendWorkspaceSource",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace"
+        },
+        "action": {
+          "type": "string",
+          "const": "source_chunk"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "chunk": {
+          "$ref": "#/$defs/SourceChunk"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "chunk"
+      ],
+      "additionalProperties": false
+    },
     "AppFailure": {
       "title": "AppFailure",
       "type": "object",
@@ -958,6 +985,37 @@
       ],
       "additionalProperties": false,
       "description": "Host-to-main-process descriptor. Never forwarded to App or Workbench renderers."
+    },
+    "BeginWorkspaceSource": {
+      "title": "BeginWorkspaceSource",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace"
+        },
+        "action": {
+          "type": "string",
+          "const": "source_begin"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/DocumentHeader"
+        },
+        "total_bytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "header",
+        "total_bytes"
+      ],
+      "additionalProperties": false
     },
     "CancelCommand": {
       "title": "CancelCommand",
@@ -2318,6 +2376,78 @@
       ],
       "additionalProperties": false
     },
+    "DraftEdit": {
+      "title": "DraftEdit",
+      "type": "object",
+      "properties": {
+        "old": {
+          "$ref": "#/$defs/ReaderRange"
+        },
+        "inserted": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "old",
+        "inserted"
+      ],
+      "additionalProperties": false
+    },
+    "DraftRef": {
+      "title": "DraftRef",
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/SourceKey"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "DraftStoredEvent": {
+      "title": "DraftStoredEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "draft_stored"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/DraftRef"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
     "EchoEvent": {
       "title": "EchoEvent",
       "type": "object",
@@ -2613,6 +2743,12 @@
           "$ref": "#/$defs/SaveAsFileDocument"
         },
         {
+          "$ref": "#/$defs/SaveDraftFileDocument"
+        },
+        {
+          "$ref": "#/$defs/SaveAsReferenceFileDocument"
+        },
+        {
           "$ref": "#/$defs/ReleaseFileDocument"
         }
       ]
@@ -2794,6 +2930,12 @@
           "$ref": "#/$defs/WorkspaceResetEvent"
         },
         {
+          "$ref": "#/$defs/WorkspaceSourceStoredEvent"
+        },
+        {
+          "$ref": "#/$defs/DraftStoredEvent"
+        },
+        {
           "$ref": "#/$defs/WebOpenedEvent"
         },
         {
@@ -2807,6 +2949,9 @@
         },
         {
           "$ref": "#/$defs/WebChooseEvent"
+        },
+        {
+          "$ref": "#/$defs/WebFocusedEvent"
         },
         {
           "$ref": "#/$defs/DocumentOpenEvent"
@@ -5037,6 +5182,55 @@
       ],
       "additionalProperties": false
     },
+    "SaveAsReferenceFileDocument": {
+      "title": "SaveAsReferenceFileDocument",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "documents"
+        },
+        "action": {
+          "type": "string",
+          "const": "save_as_reference"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceKey"
+        },
+        "draft": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DraftRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "protected_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "path",
+        "source",
+        "draft",
+        "protected_sources"
+      ],
+      "additionalProperties": false
+    },
     "SavedDocument": {
       "title": "SavedDocument",
       "type": "object",
@@ -5056,11 +5250,51 @@
               "type": "null"
             }
           ]
+        },
+        "draft_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DraftRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "legacy_draft": {
+          "type": "boolean"
         }
       },
       "required": [
         "header",
         "reading",
+        "draft"
+      ],
+      "additionalProperties": false
+    },
+    "SaveDraftFileDocument": {
+      "title": "SaveDraftFileDocument",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "documents"
+        },
+        "action": {
+          "type": "string",
+          "const": "save_draft"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "draft": {
+          "$ref": "#/$defs/DraftRef"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
         "draft"
       ],
       "additionalProperties": false
@@ -5876,6 +6110,27 @@
       ],
       "additionalProperties": false
     },
+    "SourceChunk": {
+      "title": "SourceChunk",
+      "type": "object",
+      "properties": {
+        "offset": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "done": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "offset",
+        "text",
+        "done"
+      ],
+      "additionalProperties": false
+    },
     "SourceKey": {
       "title": "SourceKey",
       "type": "object",
@@ -5894,6 +6149,51 @@
         "origin",
         "source",
         "revision"
+      ],
+      "additionalProperties": false
+    },
+    "StoreWorkspaceDraft": {
+      "title": "StoreWorkspaceDraft",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace"
+        },
+        "action": {
+          "type": "string",
+          "const": "store_draft"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DraftRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "draft": {
+          "$ref": "#/$defs/DraftRef"
+        },
+        "edits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DraftEdit"
+          }
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "base",
+        "draft",
+        "edits"
       ],
       "additionalProperties": false
     },
@@ -6379,6 +6679,9 @@
         },
         {
           "$ref": "#/$defs/WebSurfaceCommand"
+        },
+        {
+          "$ref": "#/$defs/WebSurfacesCommand"
         }
       ],
       "description": "Private Desktop/native browser-engine commands, not Host stdin."
@@ -6486,6 +6789,53 @@
       "required": [
         "kind",
         "message"
+      ],
+      "additionalProperties": false
+    },
+    "WebFocusedEvent": {
+      "title": "WebFocusedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "web_focused"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
       ],
       "additionalProperties": false
     },
@@ -6754,6 +7104,48 @@
       "required": [
         "action",
         "id"
+      ],
+      "additionalProperties": false
+    },
+    "WebSurfacesCommand": {
+      "title": "WebSurfacesCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "web_surfaces"
+        },
+        "surfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WebSurfaceSlot"
+          }
+        }
+      },
+      "required": [
+        "action",
+        "surfaces"
+      ],
+      "additionalProperties": false
+    },
+    "WebSurfaceSlot": {
+      "title": "WebSurfaceSlot",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "bounds": {
+          "$ref": "#/$defs/SurfaceBounds"
+        },
+        "focused": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "bounds",
+        "focused"
       ],
       "additionalProperties": false
     },
@@ -7325,6 +7717,15 @@
         },
         {
           "$ref": "#/$defs/ResetWorkspaceSession"
+        },
+        {
+          "$ref": "#/$defs/BeginWorkspaceSource"
+        },
+        {
+          "$ref": "#/$defs/AppendWorkspaceSource"
+        },
+        {
+          "$ref": "#/$defs/StoreWorkspaceDraft"
         }
       ]
     },
@@ -7487,6 +7888,16 @@
           "properties": {
             "key": {
               "$ref": "#/$defs/SourceKey"
+            },
+            "draft": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -7537,6 +7948,16 @@
             },
             "conflict": {
               "type": "boolean"
+            },
+            "draft": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -7552,6 +7973,40 @@
         "request_id",
         "text",
         "data"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceSourceStoredEvent": {
+      "title": "WorkspaceSourceStoredEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_source_stored"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
       ],
       "additionalProperties": false
     }

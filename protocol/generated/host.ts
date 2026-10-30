@@ -18,7 +18,13 @@ export type HostInput =
   | AppRequest
   | ContributionRequest;
 export type WorkspaceSessionRequest =
-  GetWorkspaceSession | SaveWorkspaceSession | ReadWorkspaceSource | ResetWorkspaceSession;
+  | GetWorkspaceSession
+  | SaveWorkspaceSession
+  | ReadWorkspaceSource
+  | ResetWorkspaceSession
+  | BeginWorkspaceSource
+  | AppendWorkspaceSource
+  | StoreWorkspaceDraft;
 export type ContentOrigin = ConversationOrigin | FileOrigin | AppOrigin | McpOrigin;
 export type WorkspaceItem = WorkspaceSimpleItem | WorkspaceDocumentItem | WorkspaceAppItem;
 export type WorkspaceRoute = WorkspacePageRoute | WorkspaceContentRoute;
@@ -26,7 +32,13 @@ export type PaneNode = PaneLeafNode | PaneSplitNode;
 export type HistoryEntry = LocatedHistoryEntry | WorkspacePageRoute | WorkspaceContentRoute;
 export type ContentFormat = PlainContentFormat | CodeContentFormat;
 export type FileDocumentRequest =
-  OpenFileDocument | FollowFileDocument | SaveFileDocument | SaveAsFileDocument | ReleaseFileDocument;
+  | OpenFileDocument
+  | FollowFileDocument
+  | SaveFileDocument
+  | SaveAsFileDocument
+  | SaveDraftFileDocument
+  | SaveAsReferenceFileDocument
+  | ReleaseFileDocument;
 export type LocalWorkerRequest = LocalWorkerStartCommand | LocalWorkerStopCommand | LocalWorkerGetCommand;
 export type HostCommand =
   | ListAgentsCommand
@@ -63,11 +75,14 @@ export type HostEvent =
   | WorkspaceSourceEvent
   | WorkspaceSourceErrorEvent
   | WorkspaceResetEvent
+  | WorkspaceSourceStoredEvent
+  | DraftStoredEvent
   | WebOpenedEvent
   | WebStateEvent
   | WebClosedEvent
   | WebErrorEvent
   | WebChooseEvent
+  | WebFocusedEvent
   | DocumentOpenEvent
   | McpPermittedEvent
   | McpSourcesEvent
@@ -141,7 +156,13 @@ export type AppAgentStatus = "running" | "text" | "needs_input" | "completed" | 
  * Private Desktop/native browser-engine commands, not Host stdin.
  */
 export type WebCommand =
-  WebOpenCommand | WebHtmlCommand | WebRestoreCommand | WebNavigateCommand | WebControlCommand | WebSurfaceCommand;
+  | WebOpenCommand
+  | WebHtmlCommand
+  | WebRestoreCommand
+  | WebNavigateCommand
+  | WebControlCommand
+  | WebSurfaceCommand
+  | WebSurfacesCommand;
 
 export interface McpSourceRequest {
   method: "mcp";
@@ -297,6 +318,8 @@ export interface SavedDocument {
   header: DocumentHeader;
   reading: ReaderState;
   draft: string | null;
+  draft_ref?: DraftRef | null;
+  legacy_draft?: boolean;
 }
 export interface DocumentHeader {
   source: DocumentSource;
@@ -314,6 +337,10 @@ export interface PlainContentFormat {
 export interface CodeContentFormat {
   kind: "code";
   language: string;
+}
+export interface DraftRef {
+  source: SourceKey;
+  version: number;
 }
 export interface SavedWeb {
   id: string;
@@ -339,6 +366,36 @@ export interface ResetWorkspaceSession {
   method: "workspace";
   action: "reset";
   request_id: string;
+}
+export interface BeginWorkspaceSource {
+  method: "workspace";
+  action: "source_begin";
+  request_id: string;
+  header: DocumentHeader;
+  total_bytes: number;
+}
+export interface AppendWorkspaceSource {
+  method: "workspace";
+  action: "source_chunk";
+  request_id: string;
+  chunk: SourceChunk;
+}
+export interface SourceChunk {
+  offset: number;
+  text: string;
+  done: boolean;
+}
+export interface StoreWorkspaceDraft {
+  method: "workspace";
+  action: "store_draft";
+  request_id: string;
+  base: DraftRef | null;
+  draft: DraftRef;
+  edits: DraftEdit[];
+}
+export interface DraftEdit {
+  old: ReaderRange;
+  inserted: string;
 }
 export interface OpenFileDocument {
   method: "documents";
@@ -370,6 +427,21 @@ export interface SaveAsFileDocument {
 export interface FileCopy {
   path: string;
   text: string;
+  protected_sources: string[];
+}
+export interface SaveDraftFileDocument {
+  method: "documents";
+  action: "save_draft";
+  request_id: string;
+  draft: DraftRef;
+}
+export interface SaveAsReferenceFileDocument {
+  method: "documents";
+  action: "save_as_reference";
+  request_id: string;
+  path: string;
+  source: SourceKey;
+  draft: DraftRef | null;
   protected_sources: string[];
 }
 export interface ReleaseFileDocument {
@@ -691,6 +763,7 @@ export interface WorkspaceSourceEvent {
   data: {
     source: WorkspaceSource;
     conflict: boolean;
+    draft?: string | null;
   };
 }
 export interface WorkspaceSourceErrorEvent {
@@ -700,6 +773,7 @@ export interface WorkspaceSourceErrorEvent {
   text: string;
   data: {
     key: SourceKey;
+    draft?: string | null;
   };
 }
 export interface WorkspaceResetEvent {
@@ -707,6 +781,19 @@ export interface WorkspaceResetEvent {
   version: 1;
   request_id: string | null;
   text: string;
+}
+export interface WorkspaceSourceStoredEvent {
+  kind: "workspace_source_stored";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface DraftStoredEvent {
+  kind: "draft_stored";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: DraftRef;
 }
 export interface WebOpenedEvent {
   kind: "web_opened";
@@ -765,6 +852,15 @@ export interface WebChooseEvent {
   version: 1;
   request_id: string | null;
   text: string;
+}
+export interface WebFocusedEvent {
+  kind: "web_focused";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: {
+    id: string;
+  };
 }
 export interface DocumentOpenEvent {
   kind: "document_open";
@@ -1522,4 +1618,13 @@ export interface SurfaceBounds {
   y: number;
   width: number;
   height: number;
+}
+export interface WebSurfacesCommand {
+  action: "web_surfaces";
+  surfaces: WebSurfaceSlot[];
+}
+export interface WebSurfaceSlot {
+  id: string;
+  bounds: SurfaceBounds;
+  focused: boolean;
 }
