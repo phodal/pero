@@ -17,4 +17,4 @@
 - [0014: Agent App Use](0014-app-use.md)
 - [0015: Global appearance and scoped typography](0015-global-appearance.md)
 - [0016: Computer Use v1 contract](0016-computer-use-contract.md)
-- [0017: Computer Use isolated desktop mode](0017-computer-use-isolated-desktop.md)
+- [0019: Computer Use isolated desktop mode](0019-computer-use-isolated-desktop.md)

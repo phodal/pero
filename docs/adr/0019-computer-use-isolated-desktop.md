@@ -1,4 +1,4 @@
-# Computer Use isolated desktop mode
+# 0019: Computer Use isolated desktop mode
 
 Status: proposed (design only, no implementation), 2026-10-30.
 
@@ -40,7 +40,8 @@ flowchart LR
   Host -->|MCP tools/call computer_use| MCP["Desktop MCP<br/>app-use-mcp.ts / computer.ts"]
   MCP --> Router{"backend"}
   Router -->|local| Local["use/computer on user desktop<br/>macOS AX / Windows UIA / X11"]
-  Router -->|isolated| Client["computer-client.ts<br/>isolated session client"]
+  Router -->|isolated| Session["isolated-session.ts (new)<br/>container, VNC token, handoff state"]
+  Session -->|"spawns binary + args<br/>(container exec)"| Client["computer-client.ts (existing)<br/>one process, NDJSON over stdio"]
 
   subgraph Sandbox["Container or VM (one session)"]
     Xvfb["Xvfb / Xvnc<br/>:99, fixed geometry"]
@@ -54,12 +55,29 @@ flowchart LR
     VNC -->|framebuffer| Xvfb
   end
 
-  Client -->|private worker messages| Runtime
+  Client -->|stdin/stdout NDJSON| Runtime
   VNC --> WS["websockify<br/>localhost, one-time token"]
   WS --> NoVNC["Electron noVNC view<br/>watch (read-only) / take over (write)"]
   User((User)) --> NoVNC
   Profile[("Profile volume")] --- Browser
 ```
+
+Client choice: extend by composition, not a new transport. The existing
+`desktop/src/main/computer-client.ts` already owns exactly one native process
+given `binary` and `args`, serializes its private NDJSON stream, validates
+replies against the generated schema and reports interrupted work as
+`dispatched`. That is the same stream the isolated runtime speaks, so it is
+reused unchanged: the isolated backend passes a container exec command (for
+example `docker exec -i <session> use-computer`) as `binary`/`args`.
+
+What the client must not own is session lifecycle. A new
+`desktop/src/main/isolated-session.ts` owns container/VM start and stop, the
+profile volume, the VNC server and websockify one-time token, view-only versus
+write mode, and handoff state (pause admission, epoch invalidation, human
+interval receipt). `computer.ts` selects the local `ComputerClient` or the one
+held by the isolated session per backend. Folding lifecycle and VNC into
+`ComputerClient` would mix a transport with a stateful session and make the
+local path carry container code it never uses.
 
 Handoff sequence:
 
@@ -167,7 +185,22 @@ Draft only; `protocol/*.tsp` is not changed by this document.
 - macOS/Windows hosts need manual evidence that the container runtime path
   works.
 
-## 8. Phases and open questions
+## 8. Related
+
+- Draft PR #20 adds [0017: Isolated Agent with an external trusted Worker](0017-isolated-agent-runtime.md)
+  and [0018: Trusted Worker runtime on Agent Sandbox](0018-agent-sandbox-runtime.md).
+  Those decide where the **Agent process** runs: Kubernetes Agent Sandbox
+  Pods, the Worker/bridge trust split, PVC workspaces, ACP stream grants and
+  artifact export. 0018 explicitly introduces no Desktop/VNC path.
+- This ADR only covers the **Computer Use desktop backend**: which desktop the
+  `computer_use` tool operates, how the user watches it and takes over. It
+  does not change Agent placement, Worker authority or remote execution.
+- The two compose but stay independent. An Agent running under 0017/0018
+  still reaches Computer Use only through the host MCP tool, which 0017
+  currently fails closed for the hostile profile; enabling an isolated desktop
+  for a remote Agent is the open question below, not part of either decision.
+
+## 9. Phases and open questions
 
 1. Contract: `handoff_required`, handoff events/receipt, epoch invalidation,
    move/hover/hold_ms in tsp and `pero-contracts`.
