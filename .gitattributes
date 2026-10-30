@@ -1,2 +1,8 @@
 # Patch syntax and its cache digest must not depend on checkout line endings.
 patches/*.patch text eol=lf
+
+# Icon generation compares exact bytes; keep outputs and embedded licenses canonical.
+crates/pero-chat-ui/src/assets.rs text eol=lf
+packages/app-sdk/src/icons.generated.tsx text eol=lf
+web/public/icons/LICENSE.txt text eol=lf
+packages/icons/LICENSE-LUCIDE text eol=lf

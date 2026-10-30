@@ -133,3 +133,34 @@ acceptance has not been established. Standard CI success does not certify the
 Pages service configuration, artifact upload or deployed site. Earlier pending
 CI statements describe their historical checkpoints; the remaining acceptance
 item is Pages, not the integrated Windows repair.
+
+## Icon generated-byte portability (2026-10-30)
+
+Standard CI [40992933908](https://github.com/phodal/pero/actions/runs/40992933908)
+Windows job `123859362810` passed Build, TypeScript, locales and contracts but
+failed the strict icon-generated `assets.rs` comparison. It tested merge
+`1a67f59d3e4a570c0d1e90858929068ca606426c` against master `0847ddc`.
+The icon generator, inputs and outputs are identical on the local PR tree and
+that merge. The Linux strict icon check passes with Rust 1.99.1 / rustfmt 1.10.0.
+
+A real Git checkout with `core.autocrlf=true` reproduces the same file-specific
+failure: `assets.rs` acquires 405 CRLF line endings while generation emits LF.
+However, the workflow's later `core.autocrlf=false; git checkout -- .` removes
+those CRLFs in the Linux reproduction. Actual failing Windows file/stdout bytes
+were not recorded, so this reproduces a portability defect, not a proven account
+of why that workflow's conversion failed. Path ordering is not implicated by the
+local reproduction. Native Windows CI acceptance remains required.
+
+The bounded correction defines LF for the two generated icon outputs and the
+two license files embedded verbatim in generated TSX, following the patch-byte
+attribute precedent. The generator explicitly requests Unix newlines from
+rustfmt; the strict comparison is unchanged. A mismatch now reports only numeric
+lengths, CRLF counts and first differing code units, not file contents, so another
+native failure can be diagnosed instead of inferred.
+
+The existing checkout regression now also runs the production icon generator
+against a minimal artwork catalog in a temporary Git index. It proves failure
+without attributes, exact generation/check success with Windows checkout defaults
+and a Windows formatter preference, and rejection of both CRLF drift and stale
+content in each generated output. No CI gate, dependency pin or generated content
+is changed.
