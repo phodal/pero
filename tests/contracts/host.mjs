@@ -20,7 +20,12 @@ const validInput = value => (value.method?.startsWith('settings.computer') ? val
 const variants = (union, tag) => schema.$defs[union].oneOf.flatMap(function flatten({ $ref }) {
   const name = $ref.split('/').pop();
   const def = schema.$defs[name];
-  return def.oneOf ? def.oneOf.flatMap(flatten) : [[def.properties[tag].const, name]];
+  if (def.oneOf) return def.oneOf.flatMap(flatten);
+  const discriminator = def.properties[tag];
+  const values = discriminator.enum ?? (discriminator.anyOf ?? discriminator.oneOf ?? [discriminator]).map(value => value.const);
+  if (values.some(value => typeof value !== 'string'))
+    throw new Error(`Missing ${tag} discriminator in ${name}`);
+  return values.map(value => [value, name]);
 });
 const eventVariants = new Map(variants('HostEvent', 'kind'));
 for (const name of ['ComputerSettingsEvent','ComputerSettingsErrorEvent']) eventVariants.set(computerEvents.$defs[name].properties.kind.const,name);
