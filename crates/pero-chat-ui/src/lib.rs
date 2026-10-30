@@ -22,6 +22,8 @@ pub mod artifact_read;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub mod content_reader;
 #[cfg(any(target_family = "wasm", feature = "native"))]
+mod source_syntax;
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod content_table;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod view_bounds;
