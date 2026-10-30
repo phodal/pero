@@ -69,12 +69,21 @@ async function open(direct = false) {
     await expect.poll(async () => (await state()).settings.matches).toEqual(['mcp.title']);
   }
   await settled();
-  await click('mcp-agent'); await page.keyboard.press('ArrowUp'); await page.keyboard.press('Enter');
+  if ((await mcp()).agent !== 'fixture') {
+    // Session history promotes the preferred Agent on restart; use the live order.
+    const index = (await state()).agents.findIndex(agent => agent.id === 'fixture');
+    expect(index).toBeGreaterThanOrEqual(0);
+    await click('mcp-agent'); await frame();
+    // Leave any hovered row before keyboard navigation starts from no selection.
+    await page.mouse.move(0, 0); await frame();
+    for (let i = 0; i <= index; i++) await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+  }
   await expect.poll(async () => (await mcp()).agent).toBe('fixture'); await settled();
 }
 async function launch() {
   progress('launch Electron');
-  app = await electron.launch({ args: [resolve(root, 'desktop')], cwd: root, env: fixture.env });
+  app = await electron.launch({ args: [resolve(root, 'desktop'), ...(process.env.PERO_MCP_TEST_HEADLESS === '1' ? ['--headless'] : [])], cwd: root, env: fixture.env });
   app.process().stderr.on('data', chunk => { runtimeLog = (runtimeLog + String(chunk).replaceAll(fixture.secret, '[redacted]')).slice(-32768); });
   await bounded(app.evaluate(({ BrowserWindow }) => {
     globalThis.mcpRendererExits = [];
@@ -85,7 +94,10 @@ async function launch() {
     }
   }), 'renderer crash observer');
   page = await bounded(app.firstWindow(), 'first window'); await bounded(focusPage(page), 'page focus');
-  page.on('pageerror', error => { errors.push(error.message); console.error('MCP renderer error:', error.message.replaceAll(fixture.secret, '[redacted]')); });
+  page.on('pageerror', error => {
+    const detail = (error.stack || `${error.name}: ${error.message}`).replaceAll(fixture.secret, '[redacted]');
+    errors.push(detail); console.error('MCP renderer error:', detail);
+  });
   await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected, undefined, { timeout: 60000 });
   await evaluate(() => { window.mcpAcceptanceEvents = []; window.pero.onEvent(event => window.mcpAcceptanceEvents.push(event)); });
 }
@@ -156,7 +168,7 @@ try {
   expect(await session('ui-removed')).toEqual([]);
   expect(fixture.requests()).toBe(0); expect(errors).toEqual([]);
   await capture('removed');
-  await writeFile(resolve(out, 'ui-result.json'), JSON.stringify({ passed: true, checks: [
+  await writeFile(resolve(out, 'ui-result.json'), JSON.stringify({ passed: true, headless: process.env.PERO_MCP_TEST_HEADLESS === '1', checks: [
     'actual GPUI add disabled', 'explicit server-wide enable confirmation', 'real ACP injection',
     'edit revokes grant for new sessions', 'write failure and retry', 'dark/narrow/Chinese',
     'restart persistence and direct MCP menu', 'stale-write conflict and refresh recovery', 'import is disabled', 'confirmed removal', 'no operator credential disclosure',

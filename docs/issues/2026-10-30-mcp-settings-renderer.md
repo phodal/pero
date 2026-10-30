@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: in_progress
+status: resolved
 github_issue: 50
 github_state: open
 github_url: https://github.com/phodal/pero/issues/50
@@ -38,3 +38,32 @@ The original search path and all CRUD, grant, persistence and error assertions
 must continue to run. A successful compile or a direct-menu-only workaround is
 not sufficient to resolve this incident. No real credentials or model calls are
 needed for reproduction.
+
+## Reproduction and correction
+
+The measurement-wrapper candidate still failed in CI run `41008363226`: typing
+just `M` caused a Wasm `memory access out of bounds`, then renderer exit 139.
+`on_prepaint` itself uses a canvas, so relocating measurement was not the root
+fix. No OOM cause was established.
+
+A supported sandboxed headless Electron run reproduced the same trap locally
+without a display server or disabled Chromium sandbox. Its named Wasm stack
+located failure during construction of the first MCP control. The emitted debug
+Wasm allocated **767,856 bytes** for the monolithic `mcp_settings` frame.
+Splitting rendering into agent selection, server row, confirmation, import and
+editor functions reduced that frame to **123,168 bytes**; the largest helper
+frame is 211,184 bytes. Global stack settings and control measurements were not
+relaxed.
+
+The full real Electron/GPUI headless acceptance then passed, with `errors: []`:
+original search, CRUD, explicit grants, real ACP config injection, failed-write
+recovery, light/dark/Chinese/narrow views, restart and direct-menu entry, stale
+revision recovery, disabled import and confirmed removal. A separate fixture
+assumption was corrected: persisted Agent preference reorders the Agent menu,
+so acceptance selects its fixture from the actual current Agent list instead of
+assuming it is always last.
+
+This resolves the reproduced renderer defect. Headed Linux CI and the complete
+three-platform checks for the final source remain required before merge; local
+headless success is not claimed as their result. No native-window visibility,
+real MCP tools/call, paid provider or production acceptance is implied.

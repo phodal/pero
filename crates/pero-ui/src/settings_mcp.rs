@@ -237,13 +237,12 @@ impl SettingsPanel {
         }
         self.mcp_save(servers, cx);
     }
+    // Render each form independently: one monolithic builder reserved 767,856 bytes
+    // of debug-Wasm stack even for the empty state and trapped on first render.
     pub(crate) fn mcp_settings(&self, cx: &mut Context<Self>) -> AnyElement {
         self.mcp.controls.borrow_mut().clear();
         let p = UiAppearance::global(cx).palette.clone();
         let busy = self.mcp.request.is_some();
-        let target = cx.entity().downgrade();
-        let agents = self.mcp.agents.clone();
-        let selected = self.mcp.agent.clone();
         let mut body = div()
             .id("mcp-settings")
             .flex()
@@ -251,65 +250,7 @@ impl SettingsPanel {
             .min_w_0()
             .gap(px(12.))
             .pt(px(12.))
-            .child(
-                div()
-                    .flex()
-                    .flex_wrap()
-                    .gap(px(8.))
-                    .items_center()
-                    .child(self.t("mcp.agent"))
-                    .child(
-                        self.mcp.measured(
-                            "mcp-agent".into(),
-                            Button::new("mcp-agent")
-                                .small()
-                                .outline()
-                                .label(
-                                    self.mcp
-                                        .agents
-                                        .iter()
-                                        .find(|a| Some(&a.id) == self.mcp.agent.as_ref())
-                                        .map(|a| a.name.clone())
-                                        .unwrap_or_else(|| self.t("mcp.no_agents").into()),
-                                )
-                                .disabled(busy || self.mcp.editing || self.mcp.importing)
-                                .dropdown_caret(false)
-                                .dropdown_menu(move |menu, _, _| {
-                                    agents.iter().fold(menu, |menu, agent| {
-                                        let target = target.clone();
-                                        let id = agent.id.clone();
-                                        menu.item(
-                                            PopupMenuItem::new(agent.name.clone())
-                                                .checked(selected.as_ref() == Some(&agent.id))
-                                                .on_click(move |_, _, cx| {
-                                                    let _ = target.update(cx, |this, cx| {
-                                                        this.mcp.agent = Some(id.clone());
-                                                        this.mcp.config = None;
-                                                        this.mcp.confirm = None;
-                                                        this.mcp_load(cx);
-                                                    });
-                                                }),
-                                        )
-                                    })
-                                }),
-                        ),
-                    )
-                    .child(
-                        self.mcp.measured(
-                            "mcp-refresh".into(),
-                            Button::new("mcp-refresh")
-                                .small()
-                                .ghost()
-                                .label(self.t("mcp.refresh"))
-                                .disabled(
-                                    busy || self.mcp.agent.is_none()
-                                        || self.mcp.editing
-                                        || self.mcp.importing,
-                                )
-                                .on_click(cx.listener(|this, _, _, cx| this.mcp_load(cx))),
-                        ),
-                    ),
-            )
+            .child(self.mcp_agent_controls(cx))
             .child(
                 div()
                     .whitespace_normal()
@@ -347,208 +288,13 @@ impl SettingsPanel {
                 body = body.child(self.t("mcp.empty"));
             }
             for (index, server) in config.servers.iter().enumerate() {
-                let label = format!(
-                    "{} — {}",
-                    server.name,
-                    self.t(if server.enabled {
-                        "mcp.enabled"
-                    } else {
-                        "mcp.disabled"
-                    })
-                );
-                body = body.child(
-                    div()
-                        .id(("mcp-server", index))
-                        .flex()
-                        .flex_wrap()
-                        .items_center()
-                        .gap(px(8.))
-                        .border_b(px(0.5))
-                        .border_color(p.border)
-                        .pb(px(8.))
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w(px(120.))
-                                .whitespace_normal()
-                                .child(label)
-                                .child(
-                                    div()
-                                        .text_color(p.text_muted)
-                                        .child(self.t("mcp.not_observed")),
-                                ),
-                        )
-                        .child(
-                            self.mcp.measured(
-                                format!("mcp-edit-{index}"),
-                                Button::new(("mcp-edit", index))
-                                    .small()
-                                    .ghost()
-                                    .label(self.t("mcp.edit"))
-                                    .disabled(busy || self.mcp.editing || self.mcp.importing)
-                                    .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.mcp_edit(Some(index), window, cx)
-                                    })),
-                            ),
-                        )
-                        .child(
-                            self.mcp.measured(
-                                format!("mcp-toggle-{index}"),
-                                Button::new(("mcp-toggle", index))
-                                    .small()
-                                    .outline()
-                                    .label(self.t(if server.enabled {
-                                        "mcp.disable"
-                                    } else {
-                                        "mcp.enable"
-                                    }))
-                                    .disabled(busy || self.mcp.editing || self.mcp.importing)
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        let mut servers =
-                                            this.mcp.config.as_ref().unwrap().servers.clone();
-                                        if servers[index].enabled {
-                                            servers[index].enabled = false;
-                                            this.mcp_save(servers, cx);
-                                        } else {
-                                            this.mcp.confirm = Some((index, true));
-                                            cx.notify();
-                                        }
-                                    })),
-                            ),
-                        )
-                        .child(
-                            self.mcp.measured(
-                                format!("mcp-remove-{index}"),
-                                Button::new(("mcp-remove", index))
-                                    .small()
-                                    .ghost()
-                                    .label(self.t("mcp.remove"))
-                                    .disabled(busy || self.mcp.editing || self.mcp.importing)
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.mcp.confirm = Some((index, false));
-                                        cx.notify();
-                                    })),
-                            ),
-                        ),
-                );
+                body = body.child(self.mcp_server_row(index, server, cx));
             }
             if let Some((index, enable)) = self.mcp.confirm {
-                body = body.child(
-                    div()
-                        .id("mcp-confirmation")
-                        .flex()
-                        .flex_col()
-                        .gap(px(8.))
-                        .child(div().whitespace_normal().child(self.t(if enable {
-                            "mcp.grant"
-                        } else {
-                            "mcp.remove_confirm"
-                        })))
-                        .child(
-                            div()
-                                .flex()
-                                .flex_wrap()
-                                .gap(px(8.))
-                                .child(
-                                    self.mcp.measured(
-                                        "mcp-confirm".into(),
-                                        Button::new("mcp-confirm")
-                                            .small()
-                                            .primary()
-                                            .label(self.t(if enable {
-                                                "mcp.grant_enable"
-                                            } else {
-                                                "mcp.remove"
-                                            }))
-                                            .disabled(busy)
-                                            .on_click(cx.listener(move |this, _, _, cx| {
-                                                let mut servers = this
-                                                    .mcp
-                                                    .config
-                                                    .as_ref()
-                                                    .unwrap()
-                                                    .servers
-                                                    .clone();
-                                                if enable {
-                                                    servers[index].enabled = true;
-                                                } else {
-                                                    servers.remove(index);
-                                                }
-                                                this.mcp_save(servers, cx);
-                                            })),
-                                    ),
-                                )
-                                .child(
-                                    self.mcp.measured(
-                                        "mcp-cancel-confirm".into(),
-                                        Button::new("mcp-cancel-confirm")
-                                            .small()
-                                            .ghost()
-                                            .label(self.t("mcp.cancel"))
-                                            .disabled(busy)
-                                            .on_click(cx.listener(|this, _, _, cx| {
-                                                this.mcp.confirm = None;
-                                                cx.notify();
-                                            })),
-                                    ),
-                                ),
-                        ),
-                );
+                body = body.child(self.mcp_confirmation(index, enable, cx));
             }
             if self.mcp.importing {
-                body = body
-                    .child(div().whitespace_normal().child(self.t("mcp.import_hint")))
-                    .child(
-                        Textarea::new(&self.mcp.import)
-                            .aria_label(self.t("mcp.import"))
-                            .h(px(96.))
-                            .disabled(busy),
-                    )
-                    .child(
-                        self.mcp.measured(
-                            "mcp-import-save".into(),
-                            Button::new("mcp-import-save")
-                                .small()
-                                .primary()
-                                .label(self.t("mcp.import_save"))
-                                .disabled(busy)
-                                .on_click(cx.listener(
-                                    |this, _, _, cx| match serde_json::from_str::<
-                                        Vec<McpServerConfig>,
-                                    >(
-                                        this.mcp.import.read(cx).value().as_ref(),
-                                    ) {
-                                        Ok(mut added) => {
-                                            for server in &mut added {
-                                                server.enabled = false;
-                                            }
-                                            let mut servers =
-                                                this.mcp.config.as_ref().unwrap().servers.clone();
-                                            servers.extend(added);
-                                            this.mcp_save(servers, cx);
-                                        }
-                                        Err(_) => {
-                                            this.mcp.error = Some("mcp.error.import".into());
-                                            cx.notify();
-                                        }
-                                    },
-                                )),
-                        ),
-                    )
-                    .child(
-                        self.mcp.measured(
-                            "mcp-import-cancel".into(),
-                            Button::new("mcp-import-cancel")
-                                .small()
-                                .ghost()
-                                .label(self.t("mcp.cancel"))
-                                .disabled(busy)
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.mcp.importing = false;
-                                    cx.notify();
-                                })),
-                        ),
-                    );
+                body = body.child(self.mcp_import_form(cx));
             } else if !self.mcp.editing {
                 body = body
                     .child(
@@ -583,116 +329,389 @@ impl SettingsPanel {
                         ),
                     );
             } else {
-                let mut editor = div()
-                    .id("mcp-editor")
-                    .flex()
-                    .flex_col()
-                    .min_w_0()
-                    .gap(px(8.))
-                    .child(
-                        div()
-                            .flex()
-                            .gap(px(8.))
-                            .child(
-                                self.mcp.measured(
-                                    "mcp-stdio".into(),
-                                    Button::new("mcp-stdio")
-                                        .small()
-                                        .outline()
-                                        .label("stdio")
-                                        .selected(!self.mcp.http)
-                                        .disabled(busy)
-                                        .on_click(cx.listener(|this, _, _, cx| {
-                                            this.mcp.http = false;
-                                            cx.notify();
-                                        })),
-                                ),
-                            )
-                            .child(
-                                self.mcp.measured(
-                                    "mcp-http".into(),
-                                    Button::new("mcp-http")
-                                        .small()
-                                        .outline()
-                                        .label("HTTP")
-                                        .selected(self.mcp.http)
-                                        .disabled(busy)
-                                        .on_click(cx.listener(|this, _, _, cx| {
-                                            this.mcp.http = true;
-                                            cx.notify();
-                                        })),
-                                ),
-                            ),
-                    );
-                for (index, key) in [
-                    (0, "mcp.name"),
-                    (
-                        1,
-                        if self.mcp.http {
-                            "mcp.url"
-                        } else {
-                            "mcp.command"
-                        },
-                    ),
-                    (2, "mcp.args"),
-                ] {
-                    if index == 2 && self.mcp.http {
-                        continue;
-                    }
-                    editor = editor.child(
-                        div().child(self.t(key)).child(
-                            Input::new(&self.mcp.inputs[index])
-                                .aria_label(self.t(key))
-                                .small()
-                                .disabled(busy)
-                                .w_full(),
-                        ),
-                    );
-                }
-                body = body.child(
-                    editor
-                        .child(
-                            div()
-                                .whitespace_normal()
-                                .text_color(p.text_muted)
-                                .child(self.t("mcp.no_secrets")),
-                        )
-                        .child(
-                            div()
-                                .flex()
-                                .gap(px(8.))
-                                .child(
-                                    self.mcp.measured(
-                                        "mcp-save".into(),
-                                        Button::new("mcp-save")
-                                            .small()
-                                            .primary()
-                                            .label(self.t("mcp.save_disabled"))
-                                            .disabled(busy)
-                                            .on_click(
-                                                cx.listener(|this, _, _, cx| this.mcp_submit(cx)),
-                                            ),
-                                    ),
-                                )
-                                .child(
-                                    self.mcp.measured(
-                                        "mcp-cancel-edit".into(),
-                                        Button::new("mcp-cancel-edit")
-                                            .small()
-                                            .ghost()
-                                            .label(self.t("mcp.cancel"))
-                                            .disabled(busy)
-                                            .on_click(cx.listener(|this, _, _, cx| {
-                                                this.mcp.editing = false;
-                                                this.mcp.error = None;
-                                                cx.notify();
-                                            })),
-                                    ),
-                                ),
-                        ),
-                );
+                body = body.child(self.mcp_editor(cx));
             }
         }
         body.into_any_element()
+    }
+    fn mcp_agent_controls(&self, cx: &mut Context<Self>) -> AnyElement {
+        let busy = self.mcp.request.is_some();
+        let target = cx.entity().downgrade();
+        let agents = self.mcp.agents.clone();
+        let selected = self.mcp.agent.clone();
+        div()
+            .flex()
+            .flex_wrap()
+            .gap(px(8.))
+            .items_center()
+            .child(self.t("mcp.agent"))
+            .child(
+                self.mcp.measured(
+                    "mcp-agent".into(),
+                    Button::new("mcp-agent")
+                        .small()
+                        .outline()
+                        .label(
+                            self.mcp
+                                .agents
+                                .iter()
+                                .find(|a| Some(&a.id) == self.mcp.agent.as_ref())
+                                .map(|a| a.name.clone())
+                                .unwrap_or_else(|| self.t("mcp.no_agents").into()),
+                        )
+                        .disabled(busy || self.mcp.editing || self.mcp.importing)
+                        .dropdown_caret(false)
+                        .dropdown_menu(move |menu, _, _| {
+                            agents.iter().fold(menu, |menu, agent| {
+                                let target = target.clone();
+                                let id = agent.id.clone();
+                                menu.item(
+                                    PopupMenuItem::new(agent.name.clone())
+                                        .checked(selected.as_ref() == Some(&agent.id))
+                                        .on_click(move |_, _, cx| {
+                                            let _ = target.update(cx, |this, cx| {
+                                                this.mcp.agent = Some(id.clone());
+                                                this.mcp.config = None;
+                                                this.mcp.confirm = None;
+                                                this.mcp_load(cx);
+                                            });
+                                        }),
+                                )
+                            })
+                        }),
+                ),
+            )
+            .child(
+                self.mcp.measured(
+                    "mcp-refresh".into(),
+                    Button::new("mcp-refresh")
+                        .small()
+                        .ghost()
+                        .label(self.t("mcp.refresh"))
+                        .disabled(
+                            busy || self.mcp.agent.is_none()
+                                || self.mcp.editing
+                                || self.mcp.importing,
+                        )
+                        .on_click(cx.listener(|this, _, _, cx| this.mcp_load(cx))),
+                ),
+            )
+            .into_any_element()
+    }
+    fn mcp_server_row(
+        &self,
+        index: usize,
+        server: &McpServerConfig,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let p = UiAppearance::global(cx).palette.clone();
+        let busy = self.mcp.request.is_some();
+        let label = format!(
+            "{} — {}",
+            server.name,
+            self.t(if server.enabled {
+                "mcp.enabled"
+            } else {
+                "mcp.disabled"
+            })
+        );
+        div()
+            .id(("mcp-server", index))
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap(px(8.))
+            .border_b(px(0.5))
+            .border_color(p.border)
+            .pb(px(8.))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w(px(120.))
+                    .whitespace_normal()
+                    .child(label)
+                    .child(
+                        div()
+                            .text_color(p.text_muted)
+                            .child(self.t("mcp.not_observed")),
+                    ),
+            )
+            .child(
+                self.mcp.measured(
+                    format!("mcp-edit-{index}"),
+                    Button::new(("mcp-edit", index))
+                        .small()
+                        .ghost()
+                        .label(self.t("mcp.edit"))
+                        .disabled(busy || self.mcp.editing || self.mcp.importing)
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.mcp_edit(Some(index), window, cx)
+                        })),
+                ),
+            )
+            .child(
+                self.mcp.measured(
+                    format!("mcp-toggle-{index}"),
+                    Button::new(("mcp-toggle", index))
+                        .small()
+                        .outline()
+                        .label(self.t(if server.enabled {
+                            "mcp.disable"
+                        } else {
+                            "mcp.enable"
+                        }))
+                        .disabled(busy || self.mcp.editing || self.mcp.importing)
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            let mut servers = this.mcp.config.as_ref().unwrap().servers.clone();
+                            if servers[index].enabled {
+                                servers[index].enabled = false;
+                                this.mcp_save(servers, cx);
+                            } else {
+                                this.mcp.confirm = Some((index, true));
+                                cx.notify();
+                            }
+                        })),
+                ),
+            )
+            .child(
+                self.mcp.measured(
+                    format!("mcp-remove-{index}"),
+                    Button::new(("mcp-remove", index))
+                        .small()
+                        .ghost()
+                        .label(self.t("mcp.remove"))
+                        .disabled(busy || self.mcp.editing || self.mcp.importing)
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.mcp.confirm = Some((index, false));
+                            cx.notify();
+                        })),
+                ),
+            )
+            .into_any_element()
+    }
+    fn mcp_confirmation(&self, index: usize, enable: bool, cx: &mut Context<Self>) -> AnyElement {
+        let busy = self.mcp.request.is_some();
+        div()
+            .id("mcp-confirmation")
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .child(div().whitespace_normal().child(self.t(if enable {
+                "mcp.grant"
+            } else {
+                "mcp.remove_confirm"
+            })))
+            .child(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(8.))
+                    .child(
+                        self.mcp.measured(
+                            "mcp-confirm".into(),
+                            Button::new("mcp-confirm")
+                                .small()
+                                .primary()
+                                .label(self.t(if enable {
+                                    "mcp.grant_enable"
+                                } else {
+                                    "mcp.remove"
+                                }))
+                                .disabled(busy)
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    let mut servers =
+                                        this.mcp.config.as_ref().unwrap().servers.clone();
+                                    if enable {
+                                        servers[index].enabled = true;
+                                    } else {
+                                        servers.remove(index);
+                                    }
+                                    this.mcp_save(servers, cx);
+                                })),
+                        ),
+                    )
+                    .child(
+                        self.mcp.measured(
+                            "mcp-cancel-confirm".into(),
+                            Button::new("mcp-cancel-confirm")
+                                .small()
+                                .ghost()
+                                .label(self.t("mcp.cancel"))
+                                .disabled(busy)
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.mcp.confirm = None;
+                                    cx.notify();
+                                })),
+                        ),
+                    ),
+            )
+            .into_any_element()
+    }
+    fn mcp_import_form(&self, cx: &mut Context<Self>) -> AnyElement {
+        let busy = self.mcp.request.is_some();
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(12.))
+            .child(div().whitespace_normal().child(self.t("mcp.import_hint")))
+            .child(
+                Textarea::new(&self.mcp.import)
+                    .aria_label(self.t("mcp.import"))
+                    .h(px(96.))
+                    .disabled(busy),
+            )
+            .child(
+                self.mcp.measured(
+                    "mcp-import-save".into(),
+                    Button::new("mcp-import-save")
+                        .small()
+                        .primary()
+                        .label(self.t("mcp.import_save"))
+                        .disabled(busy)
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            match serde_json::from_str::<Vec<McpServerConfig>>(
+                                this.mcp.import.read(cx).value().as_ref(),
+                            ) {
+                                Ok(mut added) => {
+                                    for server in &mut added {
+                                        server.enabled = false;
+                                    }
+                                    let mut servers =
+                                        this.mcp.config.as_ref().unwrap().servers.clone();
+                                    servers.extend(added);
+                                    this.mcp_save(servers, cx);
+                                }
+                                Err(_) => {
+                                    this.mcp.error = Some("mcp.error.import".into());
+                                    cx.notify();
+                                }
+                            }
+                        })),
+                ),
+            )
+            .child(
+                self.mcp.measured(
+                    "mcp-import-cancel".into(),
+                    Button::new("mcp-import-cancel")
+                        .small()
+                        .ghost()
+                        .label(self.t("mcp.cancel"))
+                        .disabled(busy)
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.mcp.importing = false;
+                            cx.notify();
+                        })),
+                ),
+            )
+            .into_any_element()
+    }
+    fn mcp_editor(&self, cx: &mut Context<Self>) -> AnyElement {
+        let p = UiAppearance::global(cx).palette.clone();
+        let busy = self.mcp.request.is_some();
+        let mut editor = div()
+            .id("mcp-editor")
+            .flex()
+            .flex_col()
+            .min_w_0()
+            .gap(px(8.))
+            .child(
+                div()
+                    .flex()
+                    .gap(px(8.))
+                    .child(
+                        self.mcp.measured(
+                            "mcp-stdio".into(),
+                            Button::new("mcp-stdio")
+                                .small()
+                                .outline()
+                                .label("stdio")
+                                .selected(!self.mcp.http)
+                                .disabled(busy)
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.mcp.http = false;
+                                    cx.notify();
+                                })),
+                        ),
+                    )
+                    .child(
+                        self.mcp.measured(
+                            "mcp-http".into(),
+                            Button::new("mcp-http")
+                                .small()
+                                .outline()
+                                .label("HTTP")
+                                .selected(self.mcp.http)
+                                .disabled(busy)
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.mcp.http = true;
+                                    cx.notify();
+                                })),
+                        ),
+                    ),
+            );
+        for (index, key) in [
+            (0, "mcp.name"),
+            (
+                1,
+                if self.mcp.http {
+                    "mcp.url"
+                } else {
+                    "mcp.command"
+                },
+            ),
+            (2, "mcp.args"),
+        ] {
+            if index == 2 && self.mcp.http {
+                continue;
+            }
+            editor = editor.child(
+                div().child(self.t(key)).child(
+                    Input::new(&self.mcp.inputs[index])
+                        .aria_label(self.t(key))
+                        .small()
+                        .disabled(busy)
+                        .w_full(),
+                ),
+            );
+        }
+        editor
+            .child(
+                div()
+                    .whitespace_normal()
+                    .text_color(p.text_muted)
+                    .child(self.t("mcp.no_secrets")),
+            )
+            .child(
+                div()
+                    .flex()
+                    .gap(px(8.))
+                    .child(
+                        self.mcp.measured(
+                            "mcp-save".into(),
+                            Button::new("mcp-save")
+                                .small()
+                                .primary()
+                                .label(self.t("mcp.save_disabled"))
+                                .disabled(busy)
+                                .on_click(cx.listener(|this, _, _, cx| this.mcp_submit(cx))),
+                        ),
+                    )
+                    .child(
+                        self.mcp.measured(
+                            "mcp-cancel-edit".into(),
+                            Button::new("mcp-cancel-edit")
+                                .small()
+                                .ghost()
+                                .label(self.t("mcp.cancel"))
+                                .disabled(busy)
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.mcp.editing = false;
+                                    this.mcp.error = None;
+                                    cx.notify();
+                                })),
+                        ),
+                    ),
+            )
+            .into_any_element()
     }
 }

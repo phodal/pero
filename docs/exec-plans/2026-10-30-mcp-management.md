@@ -52,11 +52,11 @@ is not a prerequisite for correctness. Issue #9 remains separate memory work.
 
 ## First-slice acceptance
 
-- [ ] Domain validation, revisions, disabled defaults, duplicate names and
+- [x] Domain validation, revisions, disabled defaults, duplicate names and
       operator/internal-name collisions.
-- [ ] Host persistence and new-session ACP injection; existing sessions unchanged.
-- [ ] Import rejects unsupported fields rather than silently dropping authority.
-- [ ] No operator credentials in settings snapshots, errors or history.
+- [x] Host persistence and new-session ACP injection; existing sessions unchanged.
+- [x] Import rejects unsupported fields rather than silently dropping authority.
+- [x] No operator credentials in settings snapshots, errors or history.
 - [ ] Actual Electron add/edit/enable/disable/remove and recovery flow, keyboard,
       light/dark and narrow window, with screenshots and fixture evidence.
 - [ ] Final contract/type/locale checks and Rust tests, plus exact-head CI.
@@ -65,3 +65,12 @@ All acceptance uses synthetic fixtures. No paid model requests, real credentials
 production server setup, OAuth grant, automatic package install or deployment is
 required. Protocol versions supported by the existing SDK and App Use endpoint
 are distinct; this work does not certify MCP 2026-07-28 conformance.
+
+## Verification checkpoint
+
+The actual sandboxed headless Electron suite passed all twelve recorded groups
+with no renderer errors. It exercises both Settings search and direct-menu entry.
+Headed CI remains pending; screenshots/results must be associated with the exact
+final source. See the resolved [renderer incident](../issues/2026-10-30-mcp-settings-renderer.md)
+for the reproduced debug-Wasm stack failure and its correction. This is only the
+first local configuration slice, not completion of all issue #50 stages.

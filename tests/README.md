@@ -162,3 +162,9 @@ and captures light/dark, narrow and Chinese UI. It uses the same fixture and wri
 `test-results/mcp-settings/ui-result.json` plus screenshots. Linux requires the
 X11/Xvfb setup described above. A Host-only pass is **not** graphical acceptance;
 this suite must run on a desktop runner before claiming the UI was verified.
+
+For a Linux environment without X11, the MCP suite alone also supports
+`PERO_MCP_TEST_HEADLESS=1 PERO_TEST_SOFTWARE_GL=1 node tests/e2e/mcp-settings.mjs`.
+This runs actual sandboxed Electron/GPUI with Chromium's headless display backend,
+not a browser mock. `ui-result.json` records `headless`; keep this evidence
+separate from the default headed Xvfb CI run. No `--no-sandbox` flag is used.
