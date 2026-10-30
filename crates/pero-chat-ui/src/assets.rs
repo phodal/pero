@@ -168,6 +168,104 @@ impl UiIcon {
         }
     }
 
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Settings => "settings",
+            Self::AlertCircle => "alert-circle",
+            Self::Database => "database",
+            Self::Languages => "languages",
+            Self::Sun => "sun",
+            Self::Moon => "moon",
+            Self::CircleFilled => "circle-filled",
+            Self::CircleCheckFilled => "circle-check-filled",
+            Self::ArrowLeft => "arrow-left",
+            Self::Server => "server",
+            Self::Clock => "clock",
+            Self::Copy => "copy",
+            Self::LayoutList => "layout-list",
+            Self::Folder => "folder",
+            Self::Devices => "devices",
+            Self::BrandGithub => "brand-github",
+            Self::Search => "search",
+            Self::ChevronDown => "chevron-down",
+            Self::Plus => "plus",
+            Self::Check => "check",
+            Self::FileCode => "file-code",
+            Self::Terminal => "terminal",
+            Self::ArrowRight => "arrow-right",
+            Self::PlayerPause => "player-pause",
+            Self::ExternalLink => "external-link",
+            Self::File => "file",
+            Self::Square => "square",
+            Self::ChevronRight => "chevron-right",
+            Self::Lightbulb => "lightbulb",
+            Self::Shield => "shield",
+            Self::Image => "image",
+            Self::Sparkles => "sparkles",
+            Self::Code => "code",
+            Self::MessageCircle => "message-circle",
+            Self::TextCursor => "text-cursor",
+            Self::Globe => "globe",
+            Self::GitBranch => "git-branch",
+            Self::X => "x",
+            Self::Refresh => "refresh",
+            Self::PlayerPlay => "player-play",
+            Self::LayoutGrid => "layout-grid",
+            Self::ChevronLeft => "chevron-left",
+            Self::PanelRightOpen => "panel-right-open",
+            Self::PanelRightClose => "panel-right-close",
+            Self::Minus => "minus",
+            Self::Maximize => "maximize",
+            Self::Network => "network",
+            Self::Box => "box",
+            Self::SortAscending => "sort-ascending",
+            Self::SortDescending => "sort-descending",
+            Self::ChevronsUpDown => "chevrons-up-down",
+            Self::BookOpenText => "book-open-text",
+            Self::FileBraces => "file-braces",
+            Self::FileSpreadsheet => "file-spreadsheet",
+            Self::FileCog => "file-cog",
+            Self::FileTerminal => "file-terminal",
+            Self::Braces => "braces",
+            Self::FileType => "file-type",
+            Self::CodeXml => "code-xml",
+            Self::Hash => "hash",
+            Self::Notebook => "notebook",
+        }
+    }
+
+    pub fn from_content(icon: pero_contracts::content_icon::ContentIcon) -> Self {
+        // The source registry admits only catalog glyphs; this converts to the renderer asset.
+        Self::lookup(icon.name()).expect("content icon is bundled")
+    }
+
+    pub fn for_document(
+        document: &pero_contracts::content_document::ContentDocument,
+        dark: bool,
+    ) -> Self {
+        let input = pero_contracts::content_icon::ContentIconInput::document(
+            &document.format,
+            &document.title,
+            dark,
+        );
+        Self::from_content(
+            pero_contracts::content_icon::ContentIconRegistry::default().resolve(input),
+        )
+    }
+
+    pub fn for_app(name: &str, dark: bool) -> Self {
+        Self::from_content(
+            pero_contracts::content_icon::ContentIconRegistry::default().resolve(
+                pero_contracts::content_icon::ContentIconInput {
+                    kind: pero_contracts::content_icon::ContentIconKind::App,
+                    app: Some(name),
+                    dark,
+                    ..Default::default()
+                },
+            ),
+        )
+    }
+
     pub fn path(self) -> &'static str {
         match self {
             Self::Settings => "icons/settings.svg",

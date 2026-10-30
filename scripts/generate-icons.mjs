@@ -36,6 +36,28 @@ ${entries.map(([name, icon]) => `            ${names(name, icon).map(value => JS
         }
     }
 
+    pub fn name(self) -> &'static str {
+        match self {
+${entries.map(([name]) => `            Self::${variant(name)} => "${name}",`).join('\n')}
+        }
+    }
+
+    pub fn from_content(icon: pero_contracts::content_icon::ContentIcon) -> Self {
+        // The source registry admits only catalog glyphs; this converts to the renderer asset.
+        Self::lookup(icon.name()).expect("content icon is bundled")
+    }
+
+    pub fn for_document(document: &pero_contracts::content_document::ContentDocument, dark: bool) -> Self {
+        let input = pero_contracts::content_icon::ContentIconInput::document(&document.format, &document.title, dark);
+        Self::from_content(pero_contracts::content_icon::ContentIconRegistry::default().resolve(input))
+    }
+
+    pub fn for_app(name: &str, dark: bool) -> Self {
+        Self::from_content(pero_contracts::content_icon::ContentIconRegistry::default().resolve(
+            pero_contracts::content_icon::ContentIconInput {kind:pero_contracts::content_icon::ContentIconKind::App,app:Some(name),dark,..Default::default()}
+        ))
+    }
+
     pub fn path(self) -> &'static str {
         match self {
 ${entries.map(([name]) => `            Self::${variant(name)} => "icons/${name}.svg",`).join('\n')}

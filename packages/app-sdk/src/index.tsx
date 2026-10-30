@@ -11,6 +11,8 @@ export { appObjectProps } from './app-use';
 export { useAppAgent } from './agent';
 export { openDocument } from './document';
 export type { AppDocumentInput } from './document';
+export {ContentIconRegistry,contentIcons,contentIcon} from '../../icons/content';
+export type {ContentIconInput,ContentIconKind,ContentIconAssociation,BundledIconName} from '../../icons/content';
 
 export type AppContext = { locale: 'en' | 'zh-CN'; dark: boolean; active: boolean; appearance?: AppearanceSnapshot };
 const Context = createContext<AppContext>({ locale: 'en', dark: false, active: true });

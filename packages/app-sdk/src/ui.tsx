@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useId, useState } from 'react';
 import {openDocument,type AppDocumentInput} from './document';
 import { iconArtwork } from './icons.generated';
+import { useTheme } from './index';
+import {contentIcons, type ContentIconInput, type ContentIconRegistry} from '../../icons/content';
 export type { IconName } from './icons.generated';
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'ghost' };
@@ -13,6 +15,11 @@ export function IconButton({ label, ...props }: ButtonProps & { label: string })
 export function Icon({ name }: { name: string }) {
   const icon = iconArtwork(name);
   return <svg {...icon.props} aria-hidden="true" width="15" height="15">{icon.children}</svg>;
+}
+/** Decorative content glyph; the surrounding title/action supplies the accessible name. */
+export function ContentIcon({source,registry=contentIcons}:{source:ContentIconInput;registry?:ContentIconRegistry}) {
+  const theme=useTheme();
+  return <Icon name={registry.resolve({...source,dark:source.dark??theme.mode==='dark'})}/>;
 }
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`pero-ui-input ${props.className ?? ''}`}/>;
@@ -81,7 +88,7 @@ export function ContentView({document,labels}:{document:AppDocumentInput;labels:
   const [opening,setOpening]=useState(false),[error,setError]=useState('');
   const hosted=window.parent!==window;
   return <div className="pero-content-view">
-    {hosted ? <Button disabled={opening} onClick={()=>{setOpening(true);setError('');void openDocument(document).catch(error=>setError(error instanceof Error?error.message:String(error))).finally(()=>setOpening(false));}}>{opening?labels.opening:labels.open}</Button>
+    {hosted ? <Button disabled={opening} onClick={()=>{setOpening(true);setError('');void openDocument(document).catch(error=>setError(error instanceof Error?error.message:String(error))).finally(()=>setOpening(false));}}><ContentIcon source={{kind:document.format.kind,language:document.format.kind==='code'?document.format.language:undefined,path:document.title}}/>{opening?labels.opening:labels.open}</Button>
       : <textarea aria-label={labels.source} readOnly value={document.text} spellCheck={false} className="pero-content-source"/>}
     {error && <p role="alert">{error}</p>}
   </div>;
