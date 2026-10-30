@@ -43,8 +43,8 @@ try{
  assert.equal((await effects()).clicks,clicksBeforeMove,'Move must not press a button');
  await act(s=>({kind:'hover',anchor:pixel(s,85,420),dwell_ms:0}));await waitFor(async()=>(await effects()).hover_enters===1,'hover enter');
  await new Promise(r=>setTimeout(r,500));assert.equal((await effects()).tooltip,true,'Zero dwell still leaves the pointer resting on the target');
- await act(s=>({kind:'move',anchor:pixel(s,300,300)}));
- await act(s=>({kind:'hover',anchor:pixel(s,85,420),dwell_ms:400}));assert.equal((await effects()).hover_enters,2,'Hover dwell returns after the hover callback ran');
+ await act(s=>({kind:'move',anchor:pixel(s,300,300)}));await waitFor(async()=>(await effects()).tooltip===false,'tooltip hidden after leaving');
+ await act(s=>({kind:'hover',anchor:pixel(s,85,420),dwell_ms:400}));await waitFor(async()=>{const state=await effects();return state.hover_enters===2&&state.tooltip===true;},'tooltip after a 400 ms hover dwell');
  await act(s=>({kind:'hold',anchor:pixel(s,230,420),button:'left',hold_ms:700}));await waitFor(async()=>(await effects()).holds.length===1,'hold release');
  const [held]=(await effects()).holds;assert.equal(held.button,1);assert.ok(held.ms>=650&&held.ms<3000,`hold lasted ${held.ms} ms`);
  await act(s=>({kind:'hold',anchor:pixel(s,230,420),button:'right',hold_ms:50}));await waitFor(async()=>(await effects()).holds.length===2,'right hold release');assert.equal((await effects()).holds[1].button,3);
@@ -53,6 +53,14 @@ try{
  const waylandEnv={...process.env,WAYLAND_DISPLAY:'wayland-test',XDG_SESSION_TYPE:'wayland',XDG_CURRENT_DESKTOP:'sway'};delete waylandEnv.DISPLAY;
  const probe=execFileSync(process.env.PERO_COMPUTER_BINARY||resolve(root,'target/debug/pero-computer'),[],{env:waylandEnv,input:[{id:'no-x-status',thread:'probe',request:{operation:'status'}},{id:'no-x-targets',thread:'probe',request:{operation:'targets'}}].map(r=>JSON.stringify(r)+'\n').join(''),encoding:'utf8'}).trim().split('\n').map(JSON.parse);
  assert.equal(probe[0].value.status.available,false);assert.equal(probe[0].value.status.environment.display,'wayland');assert.equal(probe[1].error.code,'unsupported');
+ // Stop during a long hold: the native process must release the button before it exits.
+ const stopBasis=await observe();const holdsBeforeStop=(await effects()).holds.length;
+ native.stdin.write(JSON.stringify({id:'stop-hold',thread:'linux-acceptance',request:{operation:'act',action:{request_id:'stop-hold',target,observation_id:stopBasis.id,delivery:'foreground',input:{kind:'hold',anchor:pixel(stopBasis.screenshot,230,420),button:'left',hold_ms:8000}}}})+'\n');
+ await waitFor(async()=>(await effects()).held.includes(1),'button down during hold');
+ const stoppedAt=Date.now();const exited=new Promise(r=>native.once('exit',(code,signal)=>r({code,signal})));native.kill('SIGTERM');
+ const exit=await exited;assert.ok(Date.now()-stoppedAt<1500,'Stop finished before the forced kill window');assert.equal(exit.code,143,JSON.stringify(exit));
+ await waitFor(async()=>{const state=await effects();return state.held.length===0&&state.holds.length===holdsBeforeStop+1;},'button released after stop');
+ assert.ok((await effects()).holds.at(-1).ms<3000,'The stopped hold ended early');
  await writeFile(resolve(out,'linux-result.json'),JSON.stringify({passed:true,scope:'actual Linux Xvfb/Tk/XTest; no-DISPLAY refusal with simulated Wayland metadata; no real model, compositor or physical desktop',effects:await effects(),capabilities:listed.capabilities,backgroundRefusal:refused,waylandRefusal:probe},null,2));
- console.log('Linux X11 native effects passed: screenshot, click, text, key, scroll, drag, move, hover, hold and stale observations.');
+ console.log('Linux X11 native effects passed: screenshot, click, text, key, scroll, drag, move, hover, hold, stop during hold and stale observations.');
 }finally{fixture.kill();native.stdin.end();await rm(run,{recursive:true,force:true});}

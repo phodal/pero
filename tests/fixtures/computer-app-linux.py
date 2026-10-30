@@ -12,7 +12,7 @@ root = tk.Tk()
 root.title('Pero Computer Fixture')
 root.geometry('600x440+100+100')
 effects = dict(count=0, clicks=0, scroll=0, drags=0, text='', pid=os.getpid(),
-               hover_enters=0, tooltip=False, holds=[])
+               hover_enters=0, tooltip=False, holds=[], held=[])
 text = tk.StringVar()
 
 def save(*_):
@@ -71,6 +71,8 @@ def leave(_):
     if tooltip_timer is not None:
         root.after_cancel(tooltip_timer)
         tooltip_timer = None
+    effects['tooltip'] = False
+    save()
 
 hover.bind('<Enter>', enter)
 hover.bind('<Leave>', leave)
@@ -80,9 +82,12 @@ hold_started = {}
 
 def hold_press(event):
     hold_started[event.num] = event.time
+    effects['held'] = sorted(hold_started)
+    save()
 
 def hold_release(event):
     started = hold_started.pop(event.num, None)
+    effects['held'] = sorted(hold_started)
     if started is not None:
         effects['holds'].append(dict(button=event.num, ms=event.time - started))
         save()
