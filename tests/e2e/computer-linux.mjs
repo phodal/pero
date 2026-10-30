@@ -38,10 +38,21 @@ try{
  const rectangle=(await effects()).rectangle;
  await act(s=>({kind:'drag',screenshot_id:s.id,from:{x:100,y:200},to:{x:180,y:230}}));await waitFor(async()=>{const state=await effects();return state.drags>0&&state.rectangle.every((value,i)=>value===rectangle[i]+(i%2===0?80:30));},'rectangle position after drag');
  await waitFor(async()=>{const state=await effects();return state.pointer.x===state.bounds.x+180&&state.pointer.y===state.bounds.y+230;},'independent pointer endpoint');
+ const clicksBeforeMove=(await effects()).clicks;
+ await act(s=>({kind:'move',anchor:pixel(s,300,300)}));await waitFor(async()=>{const state=await effects();return state.pointer.x===state.bounds.x+300&&state.pointer.y===state.bounds.y+300;},'pointer after move');
+ assert.equal((await effects()).clicks,clicksBeforeMove,'Move must not press a button');
+ await act(s=>({kind:'hover',anchor:pixel(s,85,420),dwell_ms:0}));await waitFor(async()=>(await effects()).hover_enters===1,'hover enter');
+ await new Promise(r=>setTimeout(r,500));assert.equal((await effects()).tooltip,true,'Zero dwell still leaves the pointer resting on the target');
+ await act(s=>({kind:'move',anchor:pixel(s,300,300)}));
+ await act(s=>({kind:'hover',anchor:pixel(s,85,420),dwell_ms:400}));assert.equal((await effects()).hover_enters,2,'Hover dwell returns after the hover callback ran');
+ await act(s=>({kind:'hold',anchor:pixel(s,230,420),button:'left',hold_ms:700}));await waitFor(async()=>(await effects()).holds.length===1,'hold release');
+ const [held]=(await effects()).holds;assert.equal(held.button,1);assert.ok(held.ms>=650&&held.ms<3000,`hold lasted ${held.ms} ms`);
+ await act(s=>({kind:'hold',anchor:pixel(s,230,420),button:'right',hold_ms:50}));await waitFor(async()=>(await effects()).holds.length===2,'right hold release');assert.equal((await effects()).holds[1].button,3);
+ const holdBasis=await observe();const backgroundHold=(await call({operation:'act',action:{request_id:'background-hold',target,observation_id:holdBasis.id,delivery:'background',input:{kind:'hold',anchor:pixel(holdBasis.screenshot,230,420),button:'left',hold_ms:100}}})).receipt;assert.equal(backgroundHold.outcome.error.code,'unsupported');assert.equal((await effects()).holds.length,2,'A refused hold must not press');
  const before=(await effects()).text;const unsupportedObservation=await observe();const unsupported=(await call({operation:'act',action:{request_id:'unmapped',target,observation_id:unsupportedObservation.id,delivery:'foreground',input:{kind:'type_text',anchor:pixel(unsupportedObservation.screenshot,230,40),text:'你好🌱'}}})).receipt;assert.equal(unsupported.outcome.error.code,'unsupported');assert.equal((await effects()).text,before,'Unmapped text must not type a partial prefix');
  const waylandEnv={...process.env,WAYLAND_DISPLAY:'wayland-test',XDG_SESSION_TYPE:'wayland',XDG_CURRENT_DESKTOP:'sway'};delete waylandEnv.DISPLAY;
  const probe=execFileSync(process.env.PERO_COMPUTER_BINARY||resolve(root,'target/debug/pero-computer'),[],{env:waylandEnv,input:[{id:'no-x-status',thread:'probe',request:{operation:'status'}},{id:'no-x-targets',thread:'probe',request:{operation:'targets'}}].map(r=>JSON.stringify(r)+'\n').join(''),encoding:'utf8'}).trim().split('\n').map(JSON.parse);
  assert.equal(probe[0].value.status.available,false);assert.equal(probe[0].value.status.environment.display,'wayland');assert.equal(probe[1].error.code,'unsupported');
  await writeFile(resolve(out,'linux-result.json'),JSON.stringify({passed:true,scope:'actual Linux Xvfb/Tk/XTest; no-DISPLAY refusal with simulated Wayland metadata; no real model, compositor or physical desktop',effects:await effects(),capabilities:listed.capabilities,backgroundRefusal:refused,waylandRefusal:probe},null,2));
- console.log('Linux X11 native effects passed: screenshot, click, text, key, scroll, drag and stale observations.');
+ console.log('Linux X11 native effects passed: screenshot, click, text, key, scroll, drag, move, hover, hold and stale observations.');
 }finally{fixture.kill();native.stdin.end();await rm(run,{recursive:true,force:true});}

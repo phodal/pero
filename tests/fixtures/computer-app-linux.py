@@ -11,7 +11,8 @@ output = Path(sys.argv[1])
 root = tk.Tk()
 root.title('Pero Computer Fixture')
 root.geometry('600x440+100+100')
-effects = dict(count=0, clicks=0, scroll=0, drags=0, text='', pid=os.getpid())
+effects = dict(count=0, clicks=0, scroll=0, drags=0, text='', pid=os.getpid(),
+               hover_enters=0, tooltip=False, holds=[])
 text = tk.StringVar()
 
 def save(*_):
@@ -54,9 +55,45 @@ def release(_):
     drag_origin = None
     save()
 
+hover = tk.Label(root, text='Hover me', relief='ridge')
+hover.place(x=25, y=405, width=120, height=30)
+tooltip_timer = None
+
+def enter(_):
+    global tooltip_timer
+    effects['hover_enters'] += 1
+    # A tooltip appears only after the pointer rests here, like a real hover menu.
+    tooltip_timer = root.after(300, lambda: (effects.update(tooltip=True), save()))
+    save()
+
+def leave(_):
+    global tooltip_timer
+    if tooltip_timer is not None:
+        root.after_cancel(tooltip_timer)
+        tooltip_timer = None
+
+hover.bind('<Enter>', enter)
+hover.bind('<Leave>', leave)
+hold = tk.Label(root, text='Hold me', relief='ridge')
+hold.place(x=170, y=405, width=120, height=30)
+hold_started = {}
+
+def hold_press(event):
+    hold_started[event.num] = event.time
+
+def hold_release(event):
+    started = hold_started.pop(event.num, None)
+    if started is not None:
+        effects['holds'].append(dict(button=event.num, ms=event.time - started))
+        save()
+
+hold.bind('<ButtonPress>', hold_press)
+hold.bind('<ButtonRelease>', hold_release)
+
 canvas.bind('<Button-1>', press)
 canvas.bind('<B1-Motion>', drag)
 canvas.bind('<ButtonRelease-1>', release)
+canvas.bind('<Motion>', save)
 canvas.bind('<Button-4>', lambda event: change('scroll', -1))
 canvas.bind('<Button-5>', lambda event: change('scroll', 1))
 text.trace_add('write', save)
