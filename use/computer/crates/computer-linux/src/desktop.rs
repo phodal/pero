@@ -200,7 +200,17 @@ impl DesktopDriver for Desktop {
         }
         Ok(apps)
     }
-    fn open(&self, name: &str) -> Result<(Option<Window>, String), ComputerError> {
+    fn open(
+        &self,
+        application: &ComputerApplicationSelector,
+    ) -> Result<(Option<Window>, String), ComputerError> {
+        let ComputerApplicationSelector::Name(name) = application else {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "Bundle ID selection is available on macOS",
+            ));
+        };
+        let name = name.as_str();
         if let Some(app) = self
             .targets()?
             .into_iter()
@@ -278,9 +288,38 @@ impl DesktopDriver for Desktop {
     fn bounds(&self, app: &Window) -> Option<WindowBounds> {
         self.geometry(app).ok()
     }
-    fn observe(&self, app: &Window) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
+    fn observe(
+        &self,
+        app: &Window,
+        options: &ComputerObserveOptions,
+        _: Option<&Self::Snapshot>,
+    ) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
+        let defaults = ComputerObserveOptions::default();
+        if options.root.is_some()
+            || options.max_nodes != defaults.max_nodes
+            || options.max_depth != defaults.max_depth
+        {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "This platform does not support bounded accessibility subtree observations",
+            ));
+        }
+
         let (c, screen) = self.x()?;
         let bounds = self.geometry(app)?;
+        if !options.want_image {
+            return Ok(WindowObservation {
+                source: X11Snapshot {
+                    window_bounds: bounds,
+                    image_width: 0,
+                    image_height: 0,
+                },
+                bounds: Some(bounds),
+                elements: Vec::new(),
+                image: None,
+                truncated: false,
+            });
+        }
         let (w, h) = (bounds.w as u16, bounds.h as u16);
         if u32::from(w) * u32::from(h) > 8_388_608 || w == 0 || h == 0 {
             return Err(error(
@@ -370,7 +409,8 @@ impl DesktopDriver for Desktop {
         app: &Window,
         snap: &X11Snapshot,
         action: ComputerAction,
-    ) -> Result<(), ComputerError> {
+        _: &computer_runtime::Cancellation,
+    ) -> Result<Option<ComputerExecution>, ComputerError> {
         let (c, screen) = self.x()?;
         let bounds = snap.window_bounds;
         let point = |p: ComputerPoint| {
@@ -487,6 +527,16 @@ impl DesktopDriver for Desktop {
                     count.into(),
                 )?;
             }
+            ComputerInput::LongPress { .. }
+            | ComputerInput::FocusWindow {}
+            | ComputerInput::SetValue { .. }
+            | ComputerInput::PerformAction { .. }
+            | ComputerInput::Move { .. } => {
+                return Err(error(
+                    ComputerErrorCode::Unsupported,
+                    "This input is not implemented on this platform",
+                ));
+            }
             ComputerInput::Drag { from, to, .. } => {
                 let start = point(from);
                 let end = point(to);
@@ -561,7 +611,7 @@ impl DesktopDriver for Desktop {
                 }
             }
         }
-        c.flush().map_err(failure)
+        c.flush().map(|()| None).map_err(failure)
     }
 }
 

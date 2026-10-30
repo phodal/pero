@@ -9,13 +9,34 @@ export type ComputerActionContract = ComputerAction | ComputerActionReceipt | Co
  */
 export type ComputerRef = string;
 export type ComputerDelivery = "background" | "foreground";
-export type ComputerInput = ComputerClick | ComputerTypeText | ComputerPressKey | ComputerScroll | ComputerDrag;
+export type ComputerInput =
+  | ComputerClick
+  | ComputerTypeText
+  | ComputerPressKey
+  | ComputerScroll
+  | ComputerDrag
+  | ComputerSetValue
+  | ComputerPerformAction
+  | ComputerMove
+  | ComputerLongPress
+  | ComputerFocusWindow;
 export type ComputerAnchor = ComputerElementAnchor | ComputerPixelAnchor;
 export type ComputerMouseButton = "left" | "right" | "middle";
 export type ComputerClickCount = number;
 export type ComputerText = string;
 export type ComputerKey = string;
+/**
+ * Replacement permits an empty value to clear the field.
+ */
+export type ComputerValue = string;
+export type ComputerSemanticAction =
+  "press" | "open" | "confirm" | "cancel" | "show_menu" | "scroll_to_visible" | "increment" | "decrement";
+export type ComputerHoldMillis = number;
 export type ComputerActionOutcome = ComputerExecuted | ComputerRejected | ComputerUnknown;
+/**
+ * Execution acknowledgement only; it does not assert a verified task outcome.
+ */
+export type ComputerExecutionRoute = "semantic" | "window_event" | "foreground_event";
 export type ComputerErrorCode =
   | "unsupported"
   | "permission_required"
@@ -99,17 +120,48 @@ export interface ComputerDrag {
   from: ComputerPoint;
   to: ComputerPoint;
 }
+export interface ComputerSetValue {
+  kind: "set_value";
+  element_id: ComputerRef;
+  value: ComputerValue;
+}
+export interface ComputerPerformAction {
+  kind: "perform_action";
+  element_id: ComputerRef;
+  action: ComputerSemanticAction;
+}
+/**
+ * Foreground moves the real pointer; background posts a window-directed move.
+ */
+export interface ComputerMove {
+  kind: "move";
+  anchor: ComputerAnchor;
+}
+export interface ComputerLongPress {
+  kind: "long_press";
+  anchor: ComputerAnchor;
+  button: ComputerMouseButton;
+  hold_ms: ComputerHoldMillis;
+}
+/**
+ * Explicit foreground focus; never implicit in a background input.
+ */
+export interface ComputerFocusWindow {
+  kind: "focus_window";
+}
 export interface ComputerActionReceipt {
   request_id: ComputerRef;
   target: ComputerTargetRef;
   observation_id: ComputerRef;
   outcome: ComputerActionOutcome;
 }
-/**
- * Execution acknowledgement only; it does not assert a verified task outcome.
- */
 export interface ComputerExecuted {
   status: "executed";
+  execution?: ComputerExecution | null;
+}
+export interface ComputerExecution {
+  route: ComputerExecutionRoute;
+  semantic_action?: ComputerSemanticAction | null;
 }
 export interface ComputerRejected {
   status: "rejected";

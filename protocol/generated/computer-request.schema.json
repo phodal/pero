@@ -76,6 +76,43 @@
         }
       ]
     },
+    "ComputerApplicationName": {
+      "title": "ComputerApplicationName",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "ComputerApplicationSelector": {
+      "title": "ComputerApplicationSelector",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ComputerApplicationName"
+        },
+        {
+          "$ref": "#/$defs/ComputerBundleSelector"
+        }
+      ]
+    },
+    "ComputerBundleSelector": {
+      "title": "ComputerBundleSelector",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "bundle_id"
+        },
+        "bundle_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "kind",
+        "bundle_id"
+      ],
+      "additionalProperties": false
+    },
     "ComputerClick": {
       "title": "ComputerClick",
       "type": "object",
@@ -177,6 +214,21 @@
       ],
       "additionalProperties": false
     },
+    "ComputerFocusWindow": {
+      "title": "ComputerFocusWindow",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "focus_window"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false,
+      "description": "Explicit foreground focus; never implicit in a background input."
+    },
     "ComputerGetControl": {
       "title": "ComputerGetControl",
       "type": "object",
@@ -190,6 +242,12 @@
         "action"
       ],
       "additionalProperties": false
+    },
+    "ComputerHoldMillis": {
+      "title": "ComputerHoldMillis",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000
     },
     "ComputerInput": {
       "title": "ComputerInput",
@@ -208,6 +266,21 @@
         },
         {
           "$ref": "#/$defs/ComputerDrag"
+        },
+        {
+          "$ref": "#/$defs/ComputerSetValue"
+        },
+        {
+          "$ref": "#/$defs/ComputerPerformAction"
+        },
+        {
+          "$ref": "#/$defs/ComputerMove"
+        },
+        {
+          "$ref": "#/$defs/ComputerLongPress"
+        },
+        {
+          "$ref": "#/$defs/ComputerFocusWindow"
         }
       ]
     },
@@ -217,6 +290,32 @@
       "minLength": 1,
       "maxLength": 64
     },
+    "ComputerLongPress": {
+      "title": "ComputerLongPress",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "long_press"
+        },
+        "anchor": {
+          "$ref": "#/$defs/ComputerAnchor"
+        },
+        "button": {
+          "$ref": "#/$defs/ComputerMouseButton"
+        },
+        "hold_ms": {
+          "$ref": "#/$defs/ComputerHoldMillis"
+        }
+      },
+      "required": [
+        "kind",
+        "anchor",
+        "button",
+        "hold_ms"
+      ],
+      "additionalProperties": false
+    },
     "ComputerMouseButton": {
       "title": "ComputerMouseButton",
       "type": "string",
@@ -225,6 +324,55 @@
         "right",
         "middle"
       ]
+    },
+    "ComputerMove": {
+      "title": "ComputerMove",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "move"
+        },
+        "anchor": {
+          "$ref": "#/$defs/ComputerAnchor"
+        }
+      },
+      "required": [
+        "kind",
+        "anchor"
+      ],
+      "additionalProperties": false,
+      "description": "Foreground moves the real pointer; background posts a window-directed move."
+    },
+    "ComputerObserveOptions": {
+      "title": "ComputerObserveOptions",
+      "type": "object",
+      "properties": {
+        "want_image": {
+          "type": "boolean"
+        },
+        "max_nodes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "max_depth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "root": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerSubtree"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
     },
     "ComputerObserveRequest": {
       "title": "ComputerObserveRequest",
@@ -236,6 +384,9 @@
         },
         "target": {
           "$ref": "#/$defs/ComputerTargetRef"
+        },
+        "options": {
+          "$ref": "#/$defs/ComputerObserveOptions"
         }
       },
       "required": [
@@ -253,14 +404,34 @@
           "const": "open"
         },
         "application": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128
+          "$ref": "#/$defs/ComputerApplicationSelector"
         }
       },
       "required": [
         "operation",
         "application"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerPerformAction": {
+      "title": "ComputerPerformAction",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "perform_action"
+        },
+        "element_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "action": {
+          "$ref": "#/$defs/ComputerSemanticAction"
+        }
+      },
+      "required": [
+        "kind",
+        "element_id",
+        "action"
       ],
       "additionalProperties": false
     },
@@ -433,6 +604,20 @@
       "additionalProperties": false,
       "description": "Logical content pixels: positive right/down. An adapter must refuse unsupported units."
     },
+    "ComputerSemanticAction": {
+      "title": "ComputerSemanticAction",
+      "type": "string",
+      "enum": [
+        "press",
+        "open",
+        "confirm",
+        "cancel",
+        "show_menu",
+        "scroll_to_visible",
+        "increment",
+        "decrement"
+      ]
+    },
     "ComputerSetControl": {
       "title": "ComputerSetControl",
       "type": "object",
@@ -461,6 +646,28 @@
           "$ref": "#/$defs/SetComputerSettings"
         }
       ]
+    },
+    "ComputerSetValue": {
+      "title": "ComputerSetValue",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "set_value"
+        },
+        "element_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "value": {
+          "$ref": "#/$defs/ComputerValue"
+        }
+      },
+      "required": [
+        "kind",
+        "element_id",
+        "value"
+      ],
+      "additionalProperties": false
     },
     "ComputerStatusRequest": {
       "title": "ComputerStatusRequest",
@@ -501,6 +708,23 @@
       },
       "required": [
         "operation"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerSubtree": {
+      "title": "ComputerSubtree",
+      "type": "object",
+      "properties": {
+        "observation_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "element_id": {
+          "$ref": "#/$defs/ComputerRef"
+        }
+      },
+      "required": [
+        "observation_id",
+        "element_id"
       ],
       "additionalProperties": false
     },
@@ -562,6 +786,12 @@
         "text"
       ],
       "additionalProperties": false
+    },
+    "ComputerValue": {
+      "title": "ComputerValue",
+      "type": "string",
+      "maxLength": 10000,
+      "description": "Replacement permits an empty value to clear the field."
     },
     "ComputerWorkerRequest": {
       "title": "ComputerWorkerRequest",

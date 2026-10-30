@@ -13,17 +13,36 @@ export type ComputerRequest =
   | ComputerActRequest
   | ComputerStopRequest
   | ComputerReceiptRequest;
+export type ComputerApplicationSelector = ComputerApplicationName | ComputerBundleSelector;
+export type ComputerApplicationName = string;
 /**
  * Host-issued references, never OS handles, paths, credentials or caller identities.
  */
 export type ComputerRef = string;
 export type ComputerDelivery = "background" | "foreground";
-export type ComputerInput = ComputerClick | ComputerTypeText | ComputerPressKey | ComputerScroll | ComputerDrag;
+export type ComputerInput =
+  | ComputerClick
+  | ComputerTypeText
+  | ComputerPressKey
+  | ComputerScroll
+  | ComputerDrag
+  | ComputerSetValue
+  | ComputerPerformAction
+  | ComputerMove
+  | ComputerLongPress
+  | ComputerFocusWindow;
 export type ComputerAnchor = ComputerElementAnchor | ComputerPixelAnchor;
 export type ComputerMouseButton = "left" | "right" | "middle";
 export type ComputerClickCount = number;
 export type ComputerText = string;
 export type ComputerKey = string;
+/**
+ * Replacement permits an empty value to clear the field.
+ */
+export type ComputerValue = string;
+export type ComputerSemanticAction =
+  "press" | "open" | "confirm" | "cancel" | "show_menu" | "scroll_to_visible" | "increment" | "decrement";
+export type ComputerHoldMillis = number;
 export type ComputerControl =
   ComputerGetControl | ComputerSetControl | ComputerPermissionsControl | ComputerStopControl;
 export type ComputerSettingsRequest = GetComputerSettings | SetComputerSettings;
@@ -36,15 +55,30 @@ export interface ComputerTargetsRequest {
 }
 export interface ComputerOpenRequest {
   operation: "open";
-  application: string;
+  application: ComputerApplicationSelector;
+}
+export interface ComputerBundleSelector {
+  kind: "bundle_id";
+  bundle_id: string;
 }
 export interface ComputerObserveRequest {
   operation: "observe";
   target: ComputerTargetRef;
+  options?: ComputerObserveOptions;
 }
 export interface ComputerTargetRef {
   runtime_id: ComputerRef;
   target_id: ComputerRef;
+}
+export interface ComputerObserveOptions {
+  want_image?: boolean;
+  max_nodes?: number;
+  max_depth?: number;
+  root?: ComputerSubtree | null;
+}
+export interface ComputerSubtree {
+  observation_id: ComputerRef;
+  element_id: ComputerRef;
 }
 export interface ComputerActRequest {
   operation: "act";
@@ -118,6 +152,35 @@ export interface ComputerDrag {
   screenshot_id: ComputerRef;
   from: ComputerPoint;
   to: ComputerPoint;
+}
+export interface ComputerSetValue {
+  kind: "set_value";
+  element_id: ComputerRef;
+  value: ComputerValue;
+}
+export interface ComputerPerformAction {
+  kind: "perform_action";
+  element_id: ComputerRef;
+  action: ComputerSemanticAction;
+}
+/**
+ * Foreground moves the real pointer; background posts a window-directed move.
+ */
+export interface ComputerMove {
+  kind: "move";
+  anchor: ComputerAnchor;
+}
+export interface ComputerLongPress {
+  kind: "long_press";
+  anchor: ComputerAnchor;
+  button: ComputerMouseButton;
+  hold_ms: ComputerHoldMillis;
+}
+/**
+ * Explicit foreground focus; never implicit in a background input.
+ */
+export interface ComputerFocusWindow {
+  kind: "focus_window";
 }
 export interface ComputerStopRequest {
   operation: "stop";

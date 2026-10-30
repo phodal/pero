@@ -202,3 +202,6 @@ application compatibility matrix is implied. Standard AppKit control glyphs in
 this fixture are absent from both its system screenshot and ScreenCaptureKit
 image; the fixture's custom canvas status is visible and its native AX values
 and independent callback effects are used for verification.
+
+The macOS capability expansion, new native action matrix and framework-specific
+effects are recorded in [computer-use-macos.md](computer-use-macos.md).
