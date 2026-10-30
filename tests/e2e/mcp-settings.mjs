@@ -9,7 +9,7 @@ const root = resolve(import.meta.dirname, '../..');
 const fixture = await mcpSettingsFixture(root);
 const out = resolve(root, 'test-results/mcp-settings');
 await mkdir(out, { recursive: true });
-let app, page, lastSnapshot;
+let app, page, lastSnapshot, runtimeLog = '';
 const errors = [];
 const progress = label => console.log(`MCP UI: ${label}`);
 async function bounded(promise, label, timeout = 15000) {
@@ -48,13 +48,26 @@ async function settled() {
   await expect.poll(async () => (await mcp()).pending).toBe(false);
   expect((await mcp()).error).toBeNull();
 }
-async function open() {
-  progress('open settings');
-  await bounded(openSettings(page), 'settings menu'); await page.keyboard.press('ArrowUp'); await page.keyboard.press('Enter');
+async function open(direct = false) {
+  progress(direct ? 'open direct MCP menu' : 'open settings');
+  await bounded(openSettings(page), 'settings menu');
+  // Footer order from the bottom: all settings, language, appearance, MCP.
+  for (let i = 0; i < (direct ? 4 : 1); i++) await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('Enter');
   await expect.poll(async () => (await state()).settingsOpen).toBe(true);
-  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+f' : 'Control+f');
-  await frame(); await page.keyboard.type('MCP');
-  await expect.poll(async () => (await state()).settings.matches).toEqual(['mcp.title']);
+  if (direct) {
+    await expect.poll(async () => (await state()).settings.section).toBe('mcp.title');
+  } else {
+    await capture('settings-before-search');
+    progress('focus Settings search');
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+f' : 'Control+f');
+    await frame();
+    for (const character of 'MCP') {
+      progress(`type Settings search character ${character}`);
+      await page.keyboard.type(character); await frame(); await state();
+    }
+    await expect.poll(async () => (await state()).settings.matches).toEqual(['mcp.title']);
+  }
   await settled();
   await click('mcp-agent'); await page.keyboard.press('ArrowUp'); await page.keyboard.press('Enter');
   await expect.poll(async () => (await mcp()).agent).toBe('fixture'); await settled();
@@ -62,6 +75,15 @@ async function open() {
 async function launch() {
   progress('launch Electron');
   app = await electron.launch({ args: [resolve(root, 'desktop')], cwd: root, env: fixture.env });
+  app.process().stderr.on('data', chunk => { runtimeLog = (runtimeLog + String(chunk).replaceAll(fixture.secret, '[redacted]')).slice(-32768); });
+  await bounded(app.evaluate(({ BrowserWindow }) => {
+    globalThis.mcpRendererExits = [];
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.on('render-process-gone', (_event, details) => {
+        globalThis.mcpRendererExits.push({ reason: details.reason, exitCode: details.exitCode });
+      });
+    }
+  }), 'renderer crash observer');
   page = await bounded(app.firstWindow(), 'first window'); await bounded(focusPage(page), 'page focus');
   page.on('pageerror', error => { errors.push(error.message); console.error('MCP renderer error:', error.message.replaceAll(fixture.secret, '[redacted]')); });
   await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected, undefined, { timeout: 60000 });
@@ -113,7 +135,7 @@ try {
   expect(publicText.includes(fixture.secret)).toBe(false);
   expect(publicText.includes('operator-only')).toBe(false);
   progress('restart Electron'); await close();
-  await launch(); await open();
+  await launch(); await open(true);
   expect((await mcp()).config.servers[0]).toMatchObject({ name: 'Renamed docs', enabled: true });
   // A second writer removes the selected row while this editor holds a stale revision.
   await click('mcp-edit-0');
@@ -137,15 +159,21 @@ try {
   await writeFile(resolve(out, 'ui-result.json'), JSON.stringify({ passed: true, checks: [
     'actual GPUI add disabled', 'explicit server-wide enable confirmation', 'real ACP injection',
     'edit revokes grant for new sessions', 'write failure and retry', 'dark/narrow/Chinese',
-    'restart persistence', 'stale-write conflict and refresh recovery', 'import is disabled', 'confirmed removal', 'no operator credential disclosure',
+    'restart persistence and direct MCP menu', 'stale-write conflict and refresh recovery', 'import is disabled', 'confirmed removal', 'no operator credential disclosure',
     'configured state does not imply connected or discovered tools',
   ], errors }, null, 2));
   console.log('MCP settings Electron/GPUI acceptance passed. No MCP connectivity or model calls.');
   })(), 'complete acceptance suite', 300000);
 } catch (error) {
   console.error('MCP UI acceptance failed:', String(error).replaceAll(fixture.secret, '[redacted]'));
-  // Preserve the last observed public state even when the renderer has stopped responding.
-  await writeFile(resolve(out, 'ui-failure.json'), JSON.stringify({ error: String(error), lastSnapshot, errors }, null, 2).replaceAll(fixture.secret, '[redacted]'));
+  // Preserve public state and bounded native diagnostics even after a renderer crash.
+  let rendererExits;
+  if (app) {
+    try { rendererExits = await bounded(app.evaluate(() => globalThis.mcpRendererExits), 'renderer crash details'); }
+    catch (diagnosticError) { console.error(String(diagnosticError)); }
+  }
+  console.error('MCP renderer exits:', JSON.stringify(rendererExits));
+  await writeFile(resolve(out, 'ui-failure.json'), JSON.stringify({ error: String(error), lastSnapshot, errors, rendererExits, runtimeLog }, null, 2).replaceAll(fixture.secret, '[redacted]'));
   if (page) {
     try { await bounded(page.screenshot({ path: resolve(out, 'ui-failure.png'), timeout: 10000 }), 'failure screenshot'); }
     catch (captureError) { console.error(String(captureError)); }
