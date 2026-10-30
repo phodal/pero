@@ -32,6 +32,22 @@ impl WorkspaceDrafts {
             loaded: false,
         }
     }
+    /// Checkpoint admission needs a durable journal version, not draft text.
+    pub fn contains(&mut self, reference: &DraftRef) -> io::Result<bool> {
+        self.load()?;
+        let Some(journal) = self
+            .journals
+            .iter()
+            .find(|journal| journal.source == reference.source)
+        else {
+            return Ok(false);
+        };
+        self.directory
+            .join(journal.id.to_string())
+            .join(format!("{}.json", reference.version))
+            .try_exists()
+    }
+
     pub fn needs_source(&self, source: &SourceKey) -> bool {
         !self.live.iter().any(|draft| &draft.source == source)
     }
@@ -215,7 +231,9 @@ mod tests {
                 inserted: "标题".into(),
             }],
         };
+        assert!(!store.contains(&first.draft).unwrap());
         store.apply(&first, Some(&baseline)).unwrap();
+        assert!(store.contains(&first.draft).unwrap());
         let second = DraftUpdate {
             base: Some(first.draft.clone()),
             draft: DraftRef {
@@ -271,7 +289,9 @@ mod tests {
             bytes < 2000,
             "journal contains edits, not repeated full drafts: {bytes}"
         );
+        assert!(restored.contains(&second.draft).unwrap());
         restored.retain(&[]).unwrap();
+        assert!(!restored.contains(&second.draft).unwrap());
         assert!(restored.read(&first.draft, Some(&baseline)).is_err());
         std::fs::remove_dir_all(directory).unwrap();
     }

@@ -162,6 +162,10 @@ pub struct SavedDocument {
     pub reading: ReaderState,
     #[serde(default)]
     pub draft: Option<String>,
+    #[serde(default)]
+    pub draft_ref: Option<crate::workspace_draft::DraftRef>,
+    #[serde(default)]
+    pub legacy_draft: bool,
 }
 impl SavedDocument {
     pub fn item(&self) -> WorkspaceItem {
@@ -201,13 +205,15 @@ impl WorkspaceSession {
                 _ => true,
             })
             && self.documents.iter().enumerate().all(|(i, doc)| {
-                self.navigation.items.contains(&doc.item())
+                doc.draft_ref.as_ref().is_none_or(|draft| {
+                    draft.version > 0 && draft.source == SourceKey::of(&doc.header)
+                }) && self.navigation.items.contains(&doc.item())
                     && !self.documents[..i]
                         .iter()
                         .any(|other| other.item() == doc.item())
                     && match &doc.header.source.origin {
                         ContentOrigin::File { path } => path == &doc.header.source.id,
-                        _ => doc.draft.is_none(),
+                        _ => doc.draft.is_none() && doc.draft_ref.is_none() && !doc.legacy_draft,
                     }
             })
             && self.web.iter().enumerate().all(|(i, page)| {
@@ -254,6 +260,8 @@ pub struct WorkspaceRestore {
 pub struct RecoveredSource {
     pub source: WorkspaceSource,
     pub conflict: bool,
+    #[serde(default)]
+    pub draft: Option<String>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -265,6 +273,24 @@ pub enum WorkspaceMethod {
 pub enum WorkspaceCommand {
     Get {
         method: WorkspaceMethod,
+    },
+    SourceBegin {
+        method: WorkspaceMethod,
+        request_id: String,
+        header: DocumentHeader,
+        total_bytes: u64,
+    },
+    SourceChunk {
+        method: WorkspaceMethod,
+        request_id: String,
+        chunk: crate::workspace_source::SourceChunk,
+    },
+    StoreDraft {
+        method: WorkspaceMethod,
+        request_id: String,
+        base: Option<crate::workspace_draft::DraftRef>,
+        draft: crate::workspace_draft::DraftRef,
+        edits: Vec<crate::workspace_draft::DraftEdit>,
     },
     Read {
         method: WorkspaceMethod,

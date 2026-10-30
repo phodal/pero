@@ -24,6 +24,9 @@ pub struct WorkspaceStore {
     directory: PathBuf,
     sources: Vec<StoredSource>,
     session: Option<WorkspaceSession>,
+    uploads: Vec<super::workspace_source_upload::SourceUpload>,
+    retired: Vec<uuid::Uuid>,
+    pub drafts: super::workspace_drafts::WorkspaceDrafts,
 }
 impl WorkspaceStore {
     pub fn new(settings: &Path) -> Self {
@@ -31,6 +34,11 @@ impl WorkspaceStore {
             directory: settings.with_extension("workspace"),
             sources: vec![],
             session: None,
+            uploads: vec![],
+            retired: vec![],
+            drafts: super::workspace_drafts::WorkspaceDrafts::new(
+                settings.with_extension("workspace").join("drafts"),
+            ),
         }
     }
     pub fn load(&mut self) -> io::Result<WorkspaceRestore> {
@@ -62,24 +70,7 @@ impl WorkspaceStore {
                     == Some(&pero_contracts::workspace_session::WorkspaceRoute::Content(
                         item.clone(),
                     ))
-                || matches!(
-                    saved.session.navigation.route,
-                    pero_contracts::workspace_session::WorkspaceRoute::Content(
-                        pero_contracts::workspace_session::WorkspaceItem::Document { .. }
-                    )
-                ) && saved
-                    .session
-                    .navigation
-                    .panes
-                    .as_ref()
-                    .is_some_and(|panes| {
-                        panes.leaves().iter().any(|view| {
-                            view.route
-                                == pero_contracts::workspace_session::WorkspaceRoute::Content(
-                                    item.clone(),
-                                )
-                        })
-                    });
+                || saved.session.navigation.route.supports_pane() && saved.session.navigation.panes.as_ref().is_some_and(|panes|panes.is_active(&saved.session.navigation.route) && panes.leaves().iter().any(|view|view.route==pero_contracts::workspace_session::WorkspaceRoute::Content(item.clone())));
             if visible {
                 let key = SourceKey::of(&document.header);
                 match self.read_source(&key) {
@@ -107,6 +98,34 @@ impl WorkspaceStore {
                     "Saved source descriptor is unavailable",
                 )
             })?;
+        let text = self.read_source_text(key)?;
+        Ok(WorkspaceSource { header, text })
+    }
+    pub fn materialize_file_source(
+        &mut self,
+        document: &pero_contracts::content_document::ContentDocument,
+    ) -> io::Result<()> {
+        let key = SourceKey::of(&document.header());
+        if !self.needs_source(&key) {
+            return Ok(());
+        }
+        std::fs::create_dir_all(&self.directory)?;
+        let blob = uuid::Uuid::new_v4();
+        write(
+            &self.directory.join(format!("{blob}.txt")),
+            document.source().as_bytes(),
+        )?;
+        self.sources.push(StoredSource { key, blob });
+        Ok(())
+    }
+    pub fn read_source_text(&self, key: &SourceKey) -> io::Result<String> {
+        if self
+            .uploads
+            .iter()
+            .any(|upload| SourceKey::of(&upload.header) == *key)
+        {
+            return Err(io::Error::other("A workspace source upload is unfinished"));
+        }
         let stored = self
             .sources
             .iter()
@@ -114,17 +133,103 @@ impl WorkspaceStore {
             .ok_or_else(|| {
                 io::Error::new(io::ErrorKind::NotFound, "Saved source is unavailable")
             })?;
-        let text = std::fs::read_to_string(self.directory.join(format!("{}.txt", stored.blob)))?;
-        Ok(WorkspaceSource { header, text })
+        std::fs::read_to_string(self.directory.join(format!("{}.txt", stored.blob)))
     }
     pub fn reset(&mut self) -> io::Result<()> {
+        self.uploads.clear();
         match std::fs::remove_dir_all(&self.directory) {
             Ok(()) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => return Err(error),
         }
+        self.retired.clear();
         self.sources.clear();
         self.session = None;
+        self.drafts.clear();
+        Ok(())
+    }
+    pub fn read_draft(
+        &mut self,
+        reference: &pero_contracts::workspace_draft::DraftRef,
+    ) -> io::Result<String> {
+        let source = if self.drafts.needs_source(&reference.source) {
+            Some(self.read_source(&reference.source)?.text)
+        } else {
+            None
+        };
+        self.drafts.read(reference, source.as_deref())
+    }
+    pub fn legacy_draft(&self, key: &SourceKey) -> Option<&str> {
+        self.session
+            .as_ref()?
+            .documents
+            .iter()
+            .find(|document| SourceKey::of(&document.header) == *key)?
+            .draft
+            .as_deref()
+    }
+    pub fn saved_draft(
+        &self,
+        key: &SourceKey,
+    ) -> Option<pero_contracts::workspace_draft::DraftRef> {
+        self.session
+            .as_ref()?
+            .documents
+            .iter()
+            .find(|document| SourceKey::of(&document.header) == *key)?
+            .draft_ref
+            .clone()
+    }
+    pub fn begin_source(
+        &mut self,
+        request: String,
+        header: pero_contracts::content_document::DocumentHeader,
+        total: u64,
+    ) -> io::Result<()> {
+        let key = SourceKey::of(&header);
+        let mut index = 0;
+        while index < self.uploads.len() {
+            if self.uploads[index].request == request
+                || SourceKey::of(&self.uploads[index].header) == key
+            {
+                self.uploads.remove(index).discard();
+            } else {
+                index += 1;
+            }
+        }
+        self.uploads
+            .push(super::workspace_source_upload::SourceUpload::new(
+                &self.directory,
+                request,
+                header,
+                total,
+            )?);
+        Ok(())
+    }
+    pub fn append_source(
+        &mut self,
+        request: &str,
+        chunk: pero_contracts::workspace_source::SourceChunk,
+    ) -> io::Result<()> {
+        let index = self
+            .uploads
+            .iter()
+            .position(|upload| upload.request == request)
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::NotFound, "Source upload is unavailable")
+            })?;
+        self.uploads[index].append(&chunk)?;
+        if self.uploads[index].progress.complete {
+            let (header, blob) = self.uploads[index].publish(&self.directory)?;
+            self.uploads.remove(index);
+            let key = SourceKey::of(&header);
+            if let Some(source) = self.sources.iter_mut().find(|source| source.key == key) {
+                self.retired.push(source.blob);
+                source.blob = blob;
+            } else {
+                self.sources.push(StoredSource { key, blob });
+            }
+        }
         Ok(())
     }
     pub fn needs_source(&self, key: &SourceKey) -> bool {
@@ -133,9 +238,23 @@ impl WorkspaceStore {
     /// Source text is supplied only for new revisions. Reading-state and draft changes update metadata.
     pub fn save(
         &mut self,
-        session: WorkspaceSession,
+        mut session: WorkspaceSession,
         sources: Vec<WorkspaceSource>,
     ) -> io::Result<()> {
+        for document in &mut session.documents {
+            if document.legacy_draft && document.draft.is_none() {
+                document.draft = Some(
+                    self.legacy_draft(&SourceKey::of(&document.header))
+                        .ok_or_else(|| {
+                            io::Error::new(
+                                io::ErrorKind::NotFound,
+                                "Legacy saved draft is unavailable",
+                            )
+                        })?
+                        .to_owned(),
+                );
+            }
+        }
         std::fs::create_dir_all(&self.directory)?;
         let mut stored = self.sources.clone();
         for source in sources {
@@ -150,6 +269,14 @@ impl WorkspaceStore {
             } else {
                 stored.push(StoredSource { key, blob });
             }
+        }
+        if self.uploads.iter().any(|upload| {
+            session
+                .documents
+                .iter()
+                .any(|document| SourceKey::of(&document.header) == SourceKey::of(&upload.header))
+        }) {
+            return Err(io::Error::other("A workspace source upload is unfinished"));
         }
         // A metadata-only write must not quietly turn a missing source into a different document.
         if session.documents.iter().any(|document| {
@@ -183,15 +310,21 @@ impl WorkspaceStore {
             .map(|source| source.blob)
             .collect();
         self.sources = stored;
+        let references = session
+            .documents
+            .iter()
+            .filter_map(|document| document.draft_ref.clone())
+            .collect::<Vec<_>>();
+        let _ = self.drafts.retain(&references);
         self.session = Some(session);
         // Publish the checkpoint first. Cleanup only removes superseded recovery copies, never producer files.
-        for blob in unused {
+        for blob in unused.into_iter().chain(self.retired.drain(..)) {
             let _ = std::fs::remove_file(self.directory.join(format!("{blob}.txt")));
         }
         Ok(())
     }
 }
-fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+pub(crate) fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
     use std::io::Write;
     let pending = path.with_extension("pending");
     let mut options = std::fs::OpenOptions::new();
@@ -230,6 +363,8 @@ mod tests {
                 ..Default::default()
             },
             draft: Some("draft 中文".into()),
+            draft_ref: None,
+            legacy_draft: false,
         };
         let item = document.item();
         let session = WorkspaceSession {
