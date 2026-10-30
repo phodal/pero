@@ -17,8 +17,8 @@ function DatasetPanel({ download: d, t }: { download: Download; t: Translate }) 
   const verifying = dataset?.status === 'verifying';
   return <section className="vc-dataset" aria-label={t('datasetTitle')} aria-busy={active}>
     <Toolbar actions={dataset && <>
-      {action && <Button variant="primary" disabled={d.disabled} onClick={() => void d.request('download')}>
-        {d.pending === 'download' ? t('datasetRequesting') : t(action === 'verify' ? 'datasetVerify' : action === 'retry' ? 'datasetRetry' : 'datasetDownload')}
+      {action && <Button variant="primary" disabled={d.disabled} onClick={() => void d.request(action === 'verify' ? 'verify' : 'download')}>
+        {d.pending === 'download' || d.pending === 'verify' ? t('datasetRequesting') : t(action === 'verify' ? 'datasetVerify' : action === 'retry' ? 'datasetRetry' : 'datasetDownload')}
       </Button>}
       {active && <Button disabled={d.disabled || dataset.status === 'cancelling'} onClick={() => void d.request('cancel')}>
         {d.pending === 'cancel' || dataset.status === 'cancelling' ? t('dataset_cancelling') : t('datasetCancel')}

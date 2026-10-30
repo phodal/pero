@@ -134,7 +134,7 @@ export function useComparison(visible: boolean, t: Translate) {
 export function useDatasetDownload(visible: boolean, t: Translate) {
   const api = useAppApi(), { active } = useAppInfo();
   const [dataset, setDataset] = useState<DatasetDownload | null>(null);
-  const [pending, setPending] = useState<'download' | 'cancel' | null>(null), [reconciling, setReconciling] = useState(false);
+  const [pending, setPending] = useState<'download' | 'verify' | 'cancel' | null>(null), [reconciling, setReconciling] = useState(false);
   const [readError, setReadError] = useState(''), [actionError, setActionError] = useState(''), [refreshKey, setRefreshKey] = useState(0);
   const generation = useRef(0), gate = useRef(false);
   function refresh() { generation.current++; setRefreshKey(key => key + 1); setActionError(''); }
@@ -159,9 +159,11 @@ export function useDatasetDownload(visible: boolean, t: Translate) {
     void observe();
     return () => { disposed = true; clearTimeout(timer); };
   }, [active, visible, refreshKey, api]);
-  async function request(action: 'download' | 'cancel') {
+  async function request(action: 'download' | 'verify' | 'cancel') {
     if (gate.current || reconciling || !dataset || readError) return;
-    if (action === 'download' ? !datasetAction(dataset.status) : !datasetActive(dataset.status) || dataset.status === 'cancelling') return;
+    const available = datasetAction(dataset.status);
+    if (action === 'cancel' ? !datasetActive(dataset.status) || dataset.status === 'cancelling'
+      : action === 'verify' ? available !== 'verify' : available !== 'download' && available !== 'retry') return;
     gate.current = true; generation.current++; setPending(action); setActionError('');
     // Observe backend cancellation while its POST waits for the transfer to stop.
     setRefreshKey(key => key + 1);
