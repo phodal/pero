@@ -73,14 +73,17 @@ scalar WorkbenchPage extends string;
 model WorkspacePageRoute {kind:"page";value:"conversation"|"document"|"web"|"projects"|"agents"|"tasks"|"workers"|"apps"|"insights"|"connections";...Closed}
 model WorkspaceContentRoute {kind:"content";value:WorkspaceItem;...Closed}
 @oneOf union WorkspaceRoute {WorkspacePageRoute,WorkspaceContentRoute}
-model LocatedHistoryEntry {route:WorkspaceRoute;reading?:ReaderState|null;...Closed}
-@oneOf union HistoryEntry {LocatedHistoryEntry,WorkspacePageRoute,WorkspaceContentRoute}
-model PaneLeaf {id:safeint;route:WorkspaceRoute;reading:ReaderState|null;...Closed}
+// Legacy route-only history and one-item leaves migrate only while reading local checkpoints.
+model HistoryEntry {route:WorkspaceRoute;reading?:ReaderState|null;preview?:boolean;...Closed}
+model WorkspaceHistory {reading:ReaderState|null;preview?:boolean;back:HistoryEntry[];forward:HistoryEntry[];...Closed}
+model PaneItem {id:safeint;route:WorkspaceRoute;reading?:ReaderState|null;...Closed}
+model PaneTabSet {items:PaneItem[];active:safeint|null;preview:safeint|null;pinned_count:safeint;activation_history:safeint[];history:WorkspaceHistory;closed:HistoryEntry[];...Closed}
+model PaneLeaf {id:safeint;tabs:PaneTabSet;...Closed}
 model PaneLeafNode {kind:"leaf";view:PaneLeaf;...Closed}
 model PaneSplitNode {kind:"split";id:safeint;axis:"horizontal"|"vertical";ratio:float64;first:PaneNode;second:PaneNode;...Closed}
 @oneOf union PaneNode {PaneLeafNode,PaneSplitNode}
-model PaneLayout {root:PaneNode|null;focused:safeint|null;next_id:safeint;...Closed}
-model WorkspaceSnapshot {items:WorkspaceItem[];route:WorkspaceRoute;other:WorkspaceRoute|null;focused:"left"|"right";panes?:PaneLayout|null;reading?:ReaderState|null;back:HistoryEntry[];forward:HistoryEntry[];...Closed}
+model PaneLayout {root:PaneNode|null;focused:safeint|null;next_id:safeint;next_view_id:safeint;...Closed}
+model WorkspaceSnapshot {items:WorkspaceItem[];route:WorkspaceRoute;other:WorkspaceRoute|null;focused:"left"|"right";panes:PaneLayout;...WorkspaceHistory}
 model SourceKey {origin:ContentOrigin;source:string;revision:safeint;...Closed}
 model DraftRef {source:SourceKey;version:safeint;...Closed}
 model DraftEdit {old:ReaderRange;inserted:string;...Closed}

@@ -45,7 +45,7 @@ const failures = [];
 const seen = new Set();
 
 function startHost() {
-  const child = spawn(resolve(root, 'target/debug/pero-host'), ['--stdio'], { cwd: temp, env, stdio: ['pipe', 'pipe', 'inherit'] });
+  const child = spawn(process.env.PERO_HOST_PATH || resolve(root, 'target/debug/pero-host'), ['--stdio'], { cwd: temp, env, stdio: ['pipe', 'pipe', 'inherit'] });
   const events = [];
   let waiters = [];
   createInterface({ input: child.stdout }).on('line', (line) => {
@@ -166,6 +166,36 @@ try {
   const created = await host.next('session_created', inThread);
   if (!isDeepStrictEqual(created.data.scope, { app: 'fixture', panel: 'main' })) failures.push('App scope did not survive session creation');
   await host.next('session_ready', inThread, 10000);
+
+  // Current Host wire contains pane-owned tabs; old local checkpoint shapes are
+  // deliberately excluded from new save commands, even though Rust migrates them on load.
+  const conversation = {kind:'conversation',value:thread};
+  const route = {kind:'content',value:conversation};
+  const tabSet = {
+    items:[{id:1,route}],active:1,preview:1,pinned_count:0,activation_history:[1],
+    history:{reading:null,preview:true,back:[{route,preview:true}],forward:[]},
+    closed:[{route}],
+  };
+  const checkpoint = {
+    version:1,workspace:temp,documents:[],web:[],
+    navigation:{items:[conversation],route,other:null,focused:'left',reading:null,back:[],forward:[],
+      panes:{root:{kind:'leaf',view:{id:1,tabs:tabSet}},focused:1,next_id:2,next_view_id:2}},
+  };
+  const saveCheckpoint = {method:'workspace',action:'save',request_id:'pane-tabs-wire',session:checkpoint,sources:[],refresh:[]};
+  for (const [label, mutate] of [
+    ['old leaf', value => {value.session.navigation.panes.root.view={id:1,route,reading:null};}],
+    ['missing view allocator', value => {delete value.session.navigation.panes.next_view_id;}],
+    ['route-only history', value => {value.session.navigation.panes.root.view.tabs.history.back=[route];}],
+    ['unknown nested history field', value => {value.session.navigation.panes.root.view.tabs.history.extra=true;}],
+  ]) {
+    const invalid=structuredClone(saveCheckpoint);mutate(invalid);
+    if (validator('SaveWorkspaceSession')(invalid)) failures.push(`New workspace save schema accepted ${label}`);
+  }
+  host.send(saveCheckpoint);
+  await host.next('workspace_saved', event => event.request_id==='pane-tabs-wire');
+  host.send({method:'workspace',action:'get'});
+  const restoredCheckpoint=await host.next('workspace_restored', event=>event.data.session?.navigation?.panes?.root?.view?.tabs?.preview===1);
+  if (!isDeepStrictEqual(restoredCheckpoint.data.session,checkpoint)) failures.push('Pane tab state, preview history, or closed items changed across Host save/get');
 
   host.send({ action: 'prompt', thread_id: thread, text: 'hello', contexts:[context.data] });
   await host.next('user_message', inThread);

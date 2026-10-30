@@ -2860,17 +2860,29 @@
     },
     "HistoryEntry": {
       "title": "HistoryEntry",
-      "oneOf": [
-        {
-          "$ref": "#/$defs/LocatedHistoryEntry"
+      "type": "object",
+      "properties": {
+        "route": {
+          "$ref": "#/$defs/WorkspaceRoute"
         },
-        {
-          "$ref": "#/$defs/WorkspacePageRoute"
+        "reading": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderState"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
-        {
-          "$ref": "#/$defs/WorkspaceContentRoute"
+        "preview": {
+          "type": "boolean"
         }
-      ]
+      },
+      "required": [
+        "route"
+      ],
+      "additionalProperties": false
     },
     "HostCommand": {
       "title": "HostCommand",
@@ -3938,29 +3950,6 @@
       ],
       "additionalProperties": false
     },
-    "LocatedHistoryEntry": {
-      "title": "LocatedHistoryEntry",
-      "type": "object",
-      "properties": {
-        "route": {
-          "$ref": "#/$defs/WorkspaceRoute"
-        },
-        "reading": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ReaderState"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "required": [
-        "route"
-      ],
-      "additionalProperties": false
-    },
     "McpAppBinding": {
       "title": "McpAppBinding",
       "type": "object",
@@ -4385,6 +4374,33 @@
       ],
       "additionalProperties": false
     },
+    "PaneItem": {
+      "title": "PaneItem",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "route": {
+          "$ref": "#/$defs/WorkspaceRoute"
+        },
+        "reading": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "route"
+      ],
+      "additionalProperties": false
+    },
     "PaneLayout": {
       "title": "PaneLayout",
       "type": "object",
@@ -4411,12 +4427,16 @@
         },
         "next_id": {
           "type": "integer"
+        },
+        "next_view_id": {
+          "type": "integer"
         }
       },
       "required": [
         "root",
         "focused",
-        "next_id"
+        "next_id",
+        "next_view_id"
       ],
       "additionalProperties": false
     },
@@ -4427,24 +4447,13 @@
         "id": {
           "type": "integer"
         },
-        "route": {
-          "$ref": "#/$defs/WorkspaceRoute"
-        },
-        "reading": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ReaderState"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "tabs": {
+          "$ref": "#/$defs/PaneTabSet"
         }
       },
       "required": [
         "id",
-        "route",
-        "reading"
+        "tabs"
       ],
       "additionalProperties": false
     },
@@ -4517,6 +4526,66 @@
         "ratio",
         "first",
         "second"
+      ],
+      "additionalProperties": false
+    },
+    "PaneTabSet": {
+      "title": "PaneTabSet",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PaneItem"
+          }
+        },
+        "active": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "preview": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pinned_count": {
+          "type": "integer"
+        },
+        "activation_history": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "history": {
+          "$ref": "#/$defs/WorkspaceHistory"
+        },
+        "closed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HistoryEntry"
+          }
+        }
+      },
+      "required": [
+        "items",
+        "active",
+        "preview",
+        "pinned_count",
+        "activation_history",
+        "history",
+        "closed"
       ],
       "additionalProperties": false
     },
@@ -7735,6 +7804,43 @@
       ],
       "additionalProperties": false
     },
+    "WorkspaceHistory": {
+      "title": "WorkspaceHistory",
+      "type": "object",
+      "properties": {
+        "reading": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "preview": {
+          "type": "boolean"
+        },
+        "back": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HistoryEntry"
+          }
+        },
+        "forward": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HistoryEntry"
+          }
+        }
+      },
+      "required": [
+        "reading",
+        "back",
+        "forward"
+      ],
+      "additionalProperties": false
+    },
     "WorkspaceIdentity": {
       "title": "WorkspaceIdentity",
       "type": "object",
@@ -8118,14 +8224,7 @@
           ]
         },
         "panes": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/PaneLayout"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/PaneLayout"
         },
         "reading": {
           "anyOf": [
@@ -8136,6 +8235,9 @@
               "type": "null"
             }
           ]
+        },
+        "preview": {
+          "type": "boolean"
         },
         "back": {
           "type": "array",
@@ -8155,6 +8257,8 @@
         "route",
         "other",
         "focused",
+        "panes",
+        "reading",
         "back",
         "forward"
       ],

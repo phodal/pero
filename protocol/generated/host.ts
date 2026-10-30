@@ -31,7 +31,6 @@ export type ContentOrigin = ConversationOrigin | FileOrigin | AppOrigin | McpOri
 export type WorkspaceItem = WorkspaceSimpleItem | WorkspaceDocumentItem | WorkspaceAppItem;
 export type WorkspaceRoute = WorkspacePageRoute | WorkspaceContentRoute;
 export type PaneNode = PaneLeafNode | PaneSplitNode;
-export type HistoryEntry = LocatedHistoryEntry | WorkspacePageRoute | WorkspaceContentRoute;
 export type ContentFormat = PlainContentFormat | CodeContentFormat;
 export type FileDocumentRequest =
   | OpenFileDocument
@@ -243,8 +242,9 @@ export interface WorkspaceSnapshot {
   route: WorkspaceRoute;
   other: WorkspaceRoute | null;
   focused: "left" | "right";
-  panes?: PaneLayout | null;
-  reading?: ReaderState | null;
+  panes: PaneLayout;
+  reading: ReaderState | null;
+  preview?: boolean;
   back: HistoryEntry[];
   forward: HistoryEntry[];
 }
@@ -288,6 +288,7 @@ export interface PaneLayout {
   root: PaneNode | null;
   focused: number | null;
   next_id: number;
+  next_view_id: number;
 }
 export interface PaneLeafNode {
   kind: "leaf";
@@ -295,8 +296,21 @@ export interface PaneLeafNode {
 }
 export interface PaneLeaf {
   id: number;
+  tabs: PaneTabSet;
+}
+export interface PaneTabSet {
+  items: PaneItem[];
+  active: number | null;
+  preview: number | null;
+  pinned_count: number;
+  activation_history: number[];
+  history: WorkspaceHistory;
+  closed: HistoryEntry[];
+}
+export interface PaneItem {
+  id: number;
   route: WorkspaceRoute;
-  reading: ReaderState | null;
+  reading?: ReaderState | null;
 }
 export interface ReaderState {
   source_revision?: number | null;
@@ -328,6 +342,17 @@ export interface ReaderSearch {
   regex: boolean;
   whole_word: boolean;
 }
+export interface WorkspaceHistory {
+  reading: ReaderState | null;
+  preview?: boolean;
+  back: HistoryEntry[];
+  forward: HistoryEntry[];
+}
+export interface HistoryEntry {
+  route: WorkspaceRoute;
+  reading?: ReaderState | null;
+  preview?: boolean;
+}
 export interface PaneSplitNode {
   kind: "split";
   id: number;
@@ -335,10 +360,6 @@ export interface PaneSplitNode {
   ratio: number;
   first: PaneNode;
   second: PaneNode;
-}
-export interface LocatedHistoryEntry {
-  route: WorkspaceRoute;
-  reading?: ReaderState | null;
 }
 export interface SavedDocument {
   header: DocumentHeader;
