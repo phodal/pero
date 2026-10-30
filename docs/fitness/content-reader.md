@@ -136,16 +136,17 @@ error screenshots are in `test-results/reader-navigation/`; page errors are empt
 
 ## Current boundaries
 
-- Large nested projections and table sorting/filtering still run synchronously.
-  A Worker for root parsing does not establish a bounded cost for every operation.
+- Large nested projections still run synchronously. Large-source sorting and
+  filtering now use a retained Worker source; native/small-source work stays local.
 - Selection is one cell. Fixed Zed also uses single-cell selection; cell ranges,
   transformed export and Data Agent context are Pero extensions.
 - Synchronous preview retains its 2 MiB guard and all previews have 128 columns.
   Missing/null/value identity and original numeric spelling remain distinct.
 - Full native Select All still has a long task. No logical selection substitute
   or disabled highlighter is used to claim a performance pass.
-- Source-position back/forward, Save As, generic pane trees, physical IME,
-  assistive technology and installed cross-platform packages remain separate gates.
+- Source positions are revision-bound bytes rather than live-edit anchors.
+  Generic pane trees, physical IME, assistive technology and installed packages
+  remain separate gates.
 - Output files, SHA-256 references and UTF-8 range reads remain unchanged. JSON
   Pointer reads scan the stored source; external ACP Agents own their model context.
 - MCP Apps transport/resource/official bridge and Data Agent dataset lifecycle
@@ -160,6 +161,44 @@ save/conflict, Web restart, retained workspace documents and real Virtual Cell
 computation/source handoff. The App bundle was rebuilt from the merged SDK source;
 its complete result is about 20 kB and retains App provenance. No actual model,
 scientific conclusion or installed package is accepted by those local workflows.
-Native shipping-feature compilation, 106 core tests, TypeScript/codegen/locales/
+Native shipping-feature compilation, 109 core tests, TypeScript/codegen/locales/
 icons checks and Virtual Cell typechecking pass separately. The tested narrow
 Workbench is 1000 px, its configured minimum; 800 px is not claimed.
+
+## Save As, location history and retained transformations
+
+Save As is a real Host file operation selected through Desktop/native save panels.
+Actual hidden Desktop acceptance covers cancellation, File identity migration,
+reading state, original-disk preservation, subsequent Save, dirty/open-target and
+external-disk conflicts, write failure, existing clean target replacement and
+readonly ACP source copies. Picker returns are fixtures; physical OS-panel visuals
+remain unaccepted. Readonly copies retain their original producer authority.
+
+Navigation history now stores typed route/location entries. Actual Markdown
+anchor Back/Forward restores selection, highlight and scroll before and after a
+Host checkpoint/renderer reload, without appending restoration history. Ordinary
+mode toggles do not push a location. Kit's pending reveal is explicitly canceled
+when restoring an older position; otherwise the old anchor can overwrite the
+restored viewport. Reader bounds are also checked against the actual window edge.
+Locations bind to source revision; incompatible geometry is cleared while route
+and reading preferences remain. This does not implement edit-tracking anchors.
+
+Large tables seed one Worker source with original text and preview spans, then
+send only typed filter/sort specifications and receive original row indices.
+Source lifetime ends when its table is dropped. A 200 ms filter debounce coalesces
+work; stale results cannot replace the current projection. Loading/error states
+preserve the old rows until success, when stale cell selection is cleared. The
+actual 8k/100k probes each assert six successful transformations and no failures,
+in addition to syntax/preview completion. Exact big-number sorting, Unicode cell
+copy, transformed-row source navigation and column widths still pass.
+
+A real 100,000-row, 13,688,892-byte Desktop workflow passes all those operations,
+full/partial source copy, folding, read-only protection and search. Thirty warm
+switches have median 29.9 ms, p95 32.1 ms and maximum 32.4 ms. Source opening is
+110 ms, including a 59 ms task. The complete trace has eight long tasks, including
+an 845 ms native Select All layout task and 51–103 ms typing/copy/find work. This
+is a functionality receipt, not a 100k-row frame-budget pass. The baseline 8k
+probe remains separate; receipts are `performance-completed-8k.json` and
+`performance-completed-100k.json`. `PERO_CONTENT_ROWS=100000` reproduces the large
+workflow; `PERO_CONTENT_TRACE=1` additionally writes a CDP selection trace and
+marks its instrumentation in the receipt.

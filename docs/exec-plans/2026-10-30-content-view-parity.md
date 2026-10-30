@@ -72,18 +72,19 @@ simulated result alone.
   The 1 MiB probe still records a roughly 300 ms main-thread task. Performance
   remains open, and this is release Wasm functional proof, not release-Oz or a
   downloaded package receipt.
-- File close/reopen is covered within one session. Restart recovery, split
-  panes, Markdown anchors/range mapping, Save As and native runtime UI proof
-  remain incomplete; therefore the broader lifecycle/Markdown rows stay open.
+- The early file receipt covered close/reopen within one session. The final
+  receipts below add restart, distinct-document panes, Markdown anchors/source
+  mapping and Save As. Physical native UI acceptance remains separate.
 - Generic HTTP(S) Web sources now have separate retained workspace identities,
   Electron WebContentsView and native GPUI Kit/Wry engines. Actual Electron
   and hidden macOS WebKit receipts are in [Web view acceptance](../fitness/web-documents.md).
   Two-page visibility, overlays and teardown are covered. This does not supply
-  MCP Apps, inline HTML admission, restart recovery or full browser parity.
+  MCP Apps, inline HTML admission or full browser parity. Last-URL restart
+  recovery is recorded in the later acceptance receipt.
 - Table sorting/filtering, column resizing, keyboard cell copy and source mapping
   are implemented with Kit DataTable; details are in [reader acceptance](../fitness/content-reader.md).
-  Cell ranges, advanced editor operations, MCP Apps, unified extensible content
-  icons and the Data Agent workflow remain incomplete. Cross-platform package,
+  Cell ranges, advanced editor operations, MCP Apps and the Data Agent workflow
+  remain separate work; the shared icon registry is covered by this closure. Cross-platform package,
   physical native UI and assistive-technology proof is pending.
 
 ## Current delivery status
@@ -93,26 +94,28 @@ simulated result alone.
 | Source admission | Typed metadata and conversation/file/App revision ownership | Real MCP resource authority and metadata |
 | Markdown | Actual Desktop anchors, exact rendered/source ranges, regex and whole-word navigation pass | Arbitrary HTML/plugin anchors and assistive-technology receipts |
 | Files | Host open/edit/save, conflict preservation, persisted draft and unload checkpoints | Save As and physical native dialogs |
-| Workspace lifecycle | Host snapshots, reading state, tab back/forward and two distinct document panes | Source-position history, general pane tree and lazy inactive-source restore |
+| Workspace lifecycle | Host snapshots, revision-bound source-location back/forward, restart recovery and two distinct document panes | General pane tree, lazy inactive-source restore and edit-anchor migration |
 | Web | Electron and macOS Wry engines; stable ID and last URL restoration | Inline HTML, restored engine history/form/scroll and other OS receipts |
 | MCP Apps | Origin namespace only; a Pero compatibility extension | Real server/resource connection, metadata, AppBridge and acceptance |
 | App SDK | Actual Virtual Cell source handoff plus themed ContentIcon | Standalone Web reader still uses textarea |
 | Icons | 61 bundled glyphs, shared Rust/TS associations and themed registry overrides | Arbitrary SVG/theme-package installation is outside this registry seam |
-| Editor | Regex/whole-word search, JSON structural folds, exact source selection and serializable ReaderState | Source-position navigation history and wider Editor operations |
-| Data projections | Kit virtualized table, exact sort/filter, resize, cell copy, source ranges and compact nested JSON | Background sort/filter; ranges/export are Pero/Data extensions, not missing fixed-Zed behavior |
-| Performance | Shared source parse/index lifetime, real preview/syntax Worker and native IME selection without hidden wrapping | Full-selection budget, large nested projections and cold/100k UI distributions |
+| Editor | Regex/whole-word, JSON folds, exact selection and persistent source-position navigation | Wider Editor operations and anchors that migrate through edits |
+| Data projections | Kit virtualized table, Worker sort/filter, resize, cell copy, exact source ranges and compact nested JSON | Ranges/export and dataset context are Pero/Data extensions |
+| Performance | Shared source indexes, real preview/syntax/transform Workers, actual 8k and 100k UI operations | Full-selection budget, large nested projections and cold distributions |
 | Data Agent | Future Pero workflow, separate from Zed parity | Schema/grain/provenance, selection context and actual Agent consumption |
 | Platform/accessibility | macOS hidden Electron and native compilation lanes | Physical focus/IME, screen reader and installed OS-package evidence |
 
 ## Next implementation boundary
 
-The actual reader-navigation and crash/normal-quit recovery regressions now
-pass. Continue with Save As, source-position navigation history and background
-table transformations. Two different documents side by side are not Zed's arbitrary
-pane tree or same-buffer clones. Workspace restore currently reads all saved
-sources at startup; editors are lazy, source I/O is not yet lazy.
+The explicit content-flow gaps now have source implementation and real Desktop
+gates: Save As, source-position history through reload and Worker transformations.
+Old history geometry is discarded when its source revision/identity changes;
+this is not Zed's live-edit anchor migration. File copies rebind compatible active
+reading state to the destination revision. The tests preserve original source
+text and authority rather than constructing a new Agent result.
 
-MCP Apps and Data Agent are separate Pero extensions. The fixed Zed source has
-no official AppBridge lifecycle, and its table uses a single-cell selection;
-cell ranges/export must not be mislabeled as a missing Zed feature. A real
-Host MCP resource transport remains a prerequisite for that extension.
+Remaining infrastructure work is lazy inactive-source restore, large nested
+projection and the browser's native full-selection layout cost. Two different
+documents side by side are not the arbitrary pane tree or same-buffer clones.
+MCP Apps and Data Agent remain separate Pero extensions, with real resource/
+AppBridge and schema/grain/provenance/selection acceptance still required.

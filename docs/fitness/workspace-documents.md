@@ -118,8 +118,9 @@ exit path; physical native window acceptance is still separate.
 
 ## Remaining scope
 
-Save As and source-position navigation history are not implemented. The current
-history selects workspace routes; it does not record every same-document jump.
+Save As and source-position history now pass their actual Desktop suites.
+Locations are source-revision-bound snapshots; they do not migrate through live
+edits as Zed anchors do. See the reader acceptance record for those receipts.
 Panes are two distinct documents side by side, without same-buffer cloning,
 four-direction splitting or a general dock tree. Restart reads every saved source
 at once; inactive editors are lazy, Host source reads are not yet lazy.

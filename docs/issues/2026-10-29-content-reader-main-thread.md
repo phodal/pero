@@ -98,3 +98,19 @@ The incident stays open: this improves the main-thread path without disabling
 features, but whole native selection has not met the frame budget. Large nested
 projection, sorting/filtering, cold distributions, 100k-row actual UI, physical IME
 and installed packages are not certified by the 8k functional benchmark.
+
+## 100k-row actual UI and selection profile
+
+The same real Desktop functional script now also passes 100,000 rows / 13,688,892
+bytes, with syntax, preview and six retained Worker transformations completing
+without errors. Thirty warm switches have p95 32.1 ms / maximum 32.4 ms, but
+Source opening is 110 ms (59 ms task). All-operation traces contain eight long
+tasks, peaking at 845 ms at native Select All; typing/copy/find include 51–103 ms
+tasks. Receipt: `performance-completed-100k.json`. No budget pass is claimed.
+
+A CDP trace on the 8k fixture attributes about 57.8 ms to browser Layout with
+24,008 dirty objects when the textarea mirrors the full native selection.
+Changing hidden font kerning/ligature rendering did not improve it and was not
+shipped. The original text/selection and normal 16px IME font remain intact.
+Root parsing and table transformations now run in an actual Worker; browser
+selection layout, large editor creation and large nested projections remain open.
