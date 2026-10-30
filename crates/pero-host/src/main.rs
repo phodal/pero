@@ -52,7 +52,11 @@ fn main() -> io::Result<()> {
     for line in io::stdin().lock().lines() {
         let line = line?;
         let value: serde_json::Value = serde_json::from_str(&line).unwrap_or_default();
-        if value.get("method").and_then(|value| value.as_str()).is_some_and(|method| method.starts_with("settings.mcp")) {
+        if value
+            .get("method")
+            .and_then(|value| value.as_str())
+            .is_some_and(|method| method.starts_with("settings.mcp"))
+        {
             agents.dispatch_mcp(value);
             continue;
         }

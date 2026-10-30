@@ -238,20 +238,23 @@ impl Workbench {
             )
             .when(!string(&self.remote.data, "tag").is_empty(), |el| {
                 el.child(
-                    div().px(px(pero_theme::WorkbenchStyle::PAGE)).pb(px(8.)).child(
-                        Button::new("remote-clear-tag")
-                            .outline()
-                            .xsmall()
-                            .label(format!("#{} ×", string(&self.remote.data, "tag")))
-                            .accessibility_label(self.t("remote.clear_tag"))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                let kind = string(&this.remote.data, "source_kind").to_string();
-                                this.command(
+                    div()
+                        .px(px(pero_theme::WorkbenchStyle::PAGE))
+                        .pb(px(8.))
+                        .child(
+                            Button::new("remote-clear-tag")
+                                .outline()
+                                .xsmall()
+                                .label(format!("#{} ×", string(&self.remote.data, "tag")))
+                                .accessibility_label(self.t("remote.clear_tag"))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    let kind = string(&this.remote.data, "source_kind").to_string();
+                                    this.command(
                                     json!({"action":"remote_filter","source_kind":kind,"tag":""}),
                                     cx,
                                 );
-                            })),
-                    ),
+                                })),
+                        ),
                 )
             })
             .child(scroll)
@@ -307,7 +310,10 @@ impl Workbench {
                                     div()
                                         .mt(px(4.))
                                         .truncate()
-                                        .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                        .text_size(
+                                            pero_theme::UiAppearance::global(cx)
+                                                .text(pero_theme::TextRole::Caption),
+                                        )
                                         .text_color(p.text_muted)
                                         .child(source),
                                 )
@@ -316,7 +322,10 @@ impl Workbench {
                     .child(
                         div()
                             .w(px(105.))
-                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                            .text_size(
+                                pero_theme::UiAppearance::global(cx)
+                                    .text(pero_theme::TextRole::Caption),
+                            )
                             .text_color(p.color(tone_colors(state.tone()).1))
                             .child(self.t(state.label_key())),
                     )
@@ -325,14 +334,20 @@ impl Workbench {
                             div()
                                 .w(px(100.))
                                 .truncate()
-                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                .text_size(
+                                    pero_theme::UiAppearance::global(cx)
+                                        .text(pero_theme::TextRole::Caption),
+                                )
                                 .child(string(task, "agent_id").to_string()),
                         )
                         .child(
                             div()
                                 .w(px(150.))
                                 .truncate()
-                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                .text_size(
+                                    pero_theme::UiAppearance::global(cx)
+                                        .text(pero_theme::TextRole::Caption),
+                                )
                                 .text_color(p.text_muted)
                                 .child(target),
                         )

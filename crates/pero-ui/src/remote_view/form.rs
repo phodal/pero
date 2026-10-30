@@ -30,7 +30,10 @@ impl Workbench {
                     .gap(px(pero_theme::WorkbenchStyle::SECTION))
                     .child(
                         div()
-                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading))
+                            .text_size(
+                                pero_theme::UiAppearance::global(cx)
+                                    .text(pero_theme::TextRole::Heading),
+                            )
                             .font_weight(FontWeight::BOLD)
                             .child(self.t("remote.new")),
                     )
@@ -66,19 +69,25 @@ impl Workbench {
                             .child(
                                 div().flex_1().min_w_0().child(field(
                                     self.t("remote.project"),
-                                    pero_theme::WorkbenchStyle::input(Input::new(&self.remote.project), cx)
-                                        .aria_label(self.t("remote.project"))
-                                        .disabled(busy)
-                                        .into_any_element(),
+                                    pero_theme::WorkbenchStyle::input(
+                                        Input::new(&self.remote.project),
+                                        cx,
+                                    )
+                                    .aria_label(self.t("remote.project"))
+                                    .disabled(busy)
+                                    .into_any_element(),
                                 )),
                             )
                             .child(
                                 div().flex_1().min_w_0().child(field(
                                     self.t("remote.workspace"),
-                                    pero_theme::WorkbenchStyle::input(Input::new(&self.remote.workspace), cx)
-                                        .aria_label(self.t("remote.workspace"))
-                                        .disabled(busy)
-                                        .into_any_element(),
+                                    pero_theme::WorkbenchStyle::input(
+                                        Input::new(&self.remote.workspace),
+                                        cx,
+                                    )
+                                    .aria_label(self.t("remote.workspace"))
+                                    .disabled(busy)
+                                    .into_any_element(),
                                 )),
                             ),
                     )
@@ -145,7 +154,10 @@ impl Workbench {
                     )
                     .child(
                         div()
-                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                            .text_size(
+                                pero_theme::UiAppearance::global(cx)
+                                    .text(pero_theme::TextRole::Caption),
+                            )
                             .text_color(p.text_muted)
                             .child(self.t("remote.draft_hint")),
                     ),
