@@ -81,7 +81,7 @@ pub struct SourceRange {
     pub bytes: Range<usize>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PreviewRow {
     pub line: usize,
     pub source: SourceRange,
@@ -95,7 +95,7 @@ pub enum PreviewShape {
     Values,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StructuredPreview {
     pub shape: PreviewShape,
     pub columns: Vec<String>,
@@ -221,6 +221,29 @@ impl ContentDocument {
     }
 
     /// Views of this immutable snapshot share parsing and source indexes.
+    pub fn cached_preview(&self) -> Option<Result<Arc<StructuredPreview>, String>> {
+        self.source
+            .projections
+            .lock()
+            .expect("source projection cache")
+            .get(&ProjectionKey::Document(self.format.clone(), self.revision))
+            .cloned()
+    }
+
+    /// Admit a result computed outside the view, including a Worker result.
+    pub fn share_preview(
+        &self,
+        preview: Result<StructuredPreview, String>,
+    ) -> Result<Arc<StructuredPreview>, String> {
+        self.source
+            .projections
+            .lock()
+            .expect("source projection cache")
+            .entry(ProjectionKey::Document(self.format.clone(), self.revision))
+            .or_insert_with(|| preview.map(Arc::new))
+            .clone()
+    }
+
     pub fn shared_preview(&self) -> Result<Arc<StructuredPreview>, String> {
         let key = ProjectionKey::Document(self.format.clone(), self.revision);
         self.source
@@ -254,6 +277,11 @@ impl ContentDocument {
                 self.bytes
             ));
         }
+        self.parse_preview()
+    }
+
+    /// Background parsers are not subject to the synchronous UI preview budget.
+    pub fn parse_preview(&self) -> Result<StructuredPreview, String> {
         let range = 0..self.source.text.len();
         match self.format {
             ContentFormat::Json => self.project(range),

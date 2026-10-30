@@ -297,3 +297,4 @@ pub mod markdown_source;
 pub mod content_icon;
 
 pub mod content_syntax;
+pub mod content_preview_tape;
