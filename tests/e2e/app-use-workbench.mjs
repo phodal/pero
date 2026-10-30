@@ -37,13 +37,23 @@ try{
  const parentOrigin=await page.evaluate(()=>location.origin);
  const launch=await frame.locator('body').evaluate(requestAppChat,{text:'app-use:full',parentOrigin});
  await expect.poll(async()=>(await state()).composer).toBe('app-use:full');
+ // App Chat now opens as a compact float. Use its normal Dock chat control so
+ // the App is unobscured and its right edge is again the Chat's left edge.
+ await expect.poll(async()=>(await state()).floatingChat).toBe(true);
+ await expect.poll(async()=>(await state()).floatingChatExpanded).toBe(false);
+ const viewport=await page.evaluate(()=>({width:innerWidth,height:innerHeight}));
+ await page.mouse.click(viewport.width-51,viewport.height-101);
+ await expect.poll(async()=>(await state()).floatingChat).toBe(false);
+ await expect.poll(()=>page.evaluate(async()=>(await window.peroAppUse({scope:{app:'virtual-cell',panel:'main'},request:{action:'status'}})).value)).toMatchObject({visible:true,active:true,capturable:true,operable:true});
  const left=await page.locator('#pero-app-surface').evaluate(element=>element.getBoundingClientRect().right);
+ expect(left+150).toBeLessThan(viewport.width);
  const active=async()=>{const s=await state();return s.chats[s.activeChat];};
  const beforeFull=await active();
  expect(beforeFull.agent).toBe('codex');
  expect(beforeFull.id).toBe(launch.threadId);
  expect(beforeFull.scope).toEqual({app:'virtual-cell',panel:'main'});
  await page.mouse.click(left+150,await page.evaluate(()=>innerHeight-70));await page.keyboard.press('Enter');
+ await expect.poll(async()=>(await active()).messages.slice(beforeFull.messages.length).filter(message=>message.role==='user').map(message=>message.text)).toEqual(['app-use:full']);
  const fullProgress=await waitForFullAppUse(active,beforeFull);
  await expect.poll(async()=>(await active()).messages.filter(m=>m.role==='assistant').at(-1)?.text||'',{timeout:30000}).toContain('APP_USE_RESULT:');
  await expect.poll(async()=>(await active()).state).toBe('idle');

@@ -247,6 +247,10 @@ try {
   const inputFile=join(temp,'inputs.json'),content=await frame.locator('body').evaluate(async()=>{const response=await fetch('/api/example');return (await response.json()).content;});
   await writeFile(inputFile,content);
   const fileContext={id:'selected-input',kind:'file',label:'selected-输入.json',source:inputFile,content:{type:'text',text:content}};
+  // Composer references are applied while painting the visible conversation.
+  await page.locator('#product-chat-toggle').click();
+  await expect(chatPanel).toBeVisible();
+  await expandChat();
   await page.evaluate(({thread_id,fileContext})=>{const child=document.querySelector('iframe[data-pero-chat]');child.contentWindow.postMessage({type:'pero:chat:event',event:{version:1,kind:'compose_context',request_id:null,text:'',data:{thread_id,contexts:[fileContext]}}},'pero://chat');},{thread_id:(await active()).id,fileContext});
   await expect.poll(async()=>(await state()).attachments.length).toBe(1);
   await frame.locator('body').evaluate(()=>parent.postMessage({type:'pero:app:chat',text:'app-use:input'},'*'));

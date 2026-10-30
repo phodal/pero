@@ -146,3 +146,15 @@ All 13 build fixtures and both real Host MCP suites passed. A separate safe
 headless Product readiness smoke proved the pre-Host draft, stable session
 identity, expanded composer/preview geometry and close/reopen retention with
 zero prompts/provider requests; it did not run native capture or App effects.
+
+The next run (`41039332326`, head `b574c43`) passed native MCP settings again,
+including cleanup before its success receipt, but exposed two further old-layout
+assumptions. Product passed startup and actual full App Use effects, then waited
+for a file attachment while Chat was closed: `compose_context` was queued, while
+its insertion occurs during rendering. The test now opens Chat normally before
+that handoff. Workbench's compact floating default also invalidated the old
+`App.right + 150` composer coordinate. Its failure snapshot contained an unsent
+`app-use:full` draft and zero messages/tools, not a stalled tool. The acceptance
+now docks Chat through the existing UI and observes actual submission before
+waiting on the unchanged tool-progress guard. Native effects still require a
+fresh passing CI run; no timeout or tool-effect assertion is relaxed.
