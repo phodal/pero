@@ -57,7 +57,28 @@ impl SourceRows {
         } else {
             return pero_contracts::i18n::text(&self.locale, "content.missing").into();
         };
-        let mut chars = raw.chars();
+        // Nested JSON is a compact display projection. Copy/open still use
+        // the original source range, including whitespace and numeric spelling.
+        let nested = matches!(raw.as_bytes().first(), Some(b'{' | b'['));
+        let mut quoted = false;
+        let mut escaped = false;
+        let mut chars = raw.chars().filter(|&ch| {
+            if !nested {
+                return true;
+            }
+            if escaped {
+                escaped = false;
+                return true;
+            }
+            if quoted && ch == '\\' {
+                escaped = true;
+                return true;
+            }
+            if ch == '"' {
+                quoted = !quoted;
+            }
+            quoted || !ch.is_ascii_whitespace()
+        });
         let mut text: String = chars.by_ref().take(160).collect();
         if chars.next().is_some() {
             text.push('…');
