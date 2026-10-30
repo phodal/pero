@@ -1,0 +1,32 @@
+/* Materials, aliases, and the type-size floor. Contract numbers are generated. */
+:root {
+  --pero-font-scale: 1;
+  --pero-font-ui: var(--pero-font-body);
+  --pero-radius-xs: var(--pero-radius-kbd);
+  --pero-radius-2xs: var(--pero-radius-cell);
+  --pero-sidebar-edge: 10px;
+  --pero-control-height: max(var(--pero-action-button-height), calc(var(--pero-font-ui) + 18px));
+  --pero-icon-button: max(var(--pero-ghost-icon-button), calc(var(--pero-font-ui) + 14px));
+  --pero-page-width: 1000px;
+  --pero-page-gutter: var(--pero-space-3);
+  --pero-space-section: var(--pero-space-3);
+  --pero-material-sidebar: var(--pero-role-sidebar);
+  --pero-material-list: var(--pero-role-list);
+  --pero-material-chrome: var(--pero-role-page);
+  --pero-material-reading: var(--pero-role-reading);
+  --pero-fill-selected: var(--pero-role-accent-soft);
+  --pero-fill-hover: color-mix(in oklab, var(--pero-text) 8%, transparent);
+  --pero-hairline: 1px solid var(--pero-role-border);
+}
+
+@media (forced-colors: active) {
+  :root {
+    --pero-material-sidebar: Canvas;
+    --pero-material-list: Canvas;
+    --pero-material-chrome: Canvas;
+    --pero-material-reading: Canvas;
+    --pero-fill-selected: Highlight;
+    --pero-fill-hover: Canvas;
+    --pero-hairline: 1px solid CanvasText;
+  }
+}

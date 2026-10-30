@@ -1,0 +1,7 @@
+emit:
+  - "@typespec/json-schema"
+options:
+  "@typespec/json-schema":
+    file-type: json
+    bundleId: design.schema.json
+output-dir: "{project-root}/tsp-output"

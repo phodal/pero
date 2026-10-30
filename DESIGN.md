@@ -175,6 +175,8 @@ colors:
 - 成功、警告、错误、信息使用各主题中的语义色，配明确文字或图标。实色状态背景使用对应 `on-*` 前景。
 - 装饰分隔使用 `border`；输入边界使用 `input-border`；键盘焦点使用 `focus`。
 
+间距、字阶、圆角和材质的数字以 `spec/pero-design/design.tsp` 为准，`packages/pero-design` 与 GPUI 主题都从那里生成。颜色仍只用这里的 `--pero-*`。100% 字阶是 Title 22、Heading 16、Body 14、Caption 12、Label 11；间距是 4/8/12/16/20/24，图标与文字 6。侧栏用 `surface-muted`，列表在其上提亮一阶，页面底是 canvas，阅读面浅色为白、深色为 `surface`。主操作、链接和焦点保持光谱青；图表继续用探索光谱。
+
 ## PPTX 主题色
 
 `accent1` 至 `accent6` 依次为轨道蓝、脉冲红、光合绿、星云紫、耀斑橙、光子黄。`dk1` / `dk2` 为深色文字，`lt1` / `lt2` 为浅色背景，链接使用品牌青，已访问链接使用星云紫。

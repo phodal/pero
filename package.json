@@ -29,6 +29,7 @@
     "gen:icons": "node scripts/generate-icons.mjs",
     "test:workspace": "node tests/e2e/workspace.mjs",
     "gen:theme": "node scripts/codegen/theme.mjs",
+    "gen:design": "node scripts/codegen/design.mjs",
     "gen:contracts": "node scripts/codegen/contracts.mjs",
     "gen:architecture": "node scripts/codegen/architecture.mjs",
     "gen:overview": "node scripts/codegen/overview.mjs",
