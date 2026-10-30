@@ -209,3 +209,13 @@ Host `documents/open` boundary. General `Ctrl+O` file editing was intentionally
 removed from the product; keyboard file-open is not an icon-theme assertion.
 Theme import/select/remove, actual tab artwork, dark variants, fallback and
 restart persistence remain exercised through the real UI.
+
+Core Workbench retained-history acceptance waits for two actual renderer frames
+(with an external 15-second readiness bound) after selecting the long restored
+conversation, then retains its existing 5-second navigation and exact conversation
+identity assertions. CI run `41029602952` on `ccee886` exceeded the original bare
+5-second observation poll; its catch snapshot and screenshot already showed the
+correct restored conversation selected, with no renderer errors. Original paint
+latency was not instrumented, so this is not a proven product root cause. The
+readiness wait logs elapsed time and success/failure, uses no fixed sleep or
+retry, and changes no production deadline.

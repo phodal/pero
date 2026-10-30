@@ -114,6 +114,20 @@ try{
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  // The compact sidebar places the first restored session at y=130.
  await page.mouse.click(100,130);
+ // Selecting retained long history schedules real GPUI layout/paint before observations.
+ const historyPaintStarted=performance.now();
+ let historyPaintTimer;
+ let historyPaintReady=false;
+ try {
+  await Promise.race([
+   page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))),
+   new Promise((_,reject)=>{historyPaintTimer=setTimeout(()=>reject(new Error('Retained-history renderer did not produce two frames within 15000ms')),15000);}),
+  ]);
+  historyPaintReady=true;
+ } finally {
+  clearTimeout(historyPaintTimer);
+  console.log(JSON.stringify({historyPaint:{thread:restoredThread.id,ready:historyPaintReady,elapsedMs:performance.now()-historyPaintStarted,budgetMs:15000}}));
+ }
  await expect.poll(async()=>(await state()).navigation).toBe(0);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await expect.poll(async()=>(await state()).activeContent).toEqual({kind:'conversation',value:restoredThread.id});
