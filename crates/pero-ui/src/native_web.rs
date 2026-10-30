@@ -1,16 +1,18 @@
 //! Native browser engine. Wry/Kit own the child view; pages receive no Host bridge.
 use gpui_kit::{prelude::*, *};
 use gpui_webview::WebView;
-use pero_contracts::web_document::{WebAddress, WebDocument, WebLoad};
+use pero_contracts::web_document::{WebAddress, WebDocument, WebLoad, WebLocation};
 use std::time::Duration;
 
 enum Update {
     Load(wry::PageLoadEvent, String),
     Title(String),
     Navigate(String),
+    Popup(String),
     Failed(String),
 }
 pub struct NativeWebChanged(pub WebDocument);
+pub struct NativeWebPopup(pub String);
 pub struct NativeWebPage {
     pub document: WebDocument,
     view: Option<Entity<WebView>>,
@@ -18,6 +20,7 @@ pub struct NativeWebPage {
     generation: u64,
 }
 impl EventEmitter<NativeWebChanged> for NativeWebPage {}
+impl EventEmitter<NativeWebPopup> for NativeWebPage {}
 impl NativeWebPage {
     pub fn new(document: WebDocument, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let (sender, receiver) = async_channel::unbounded();
@@ -49,9 +52,18 @@ impl NativeWebPage {
         let loads = self.sender.clone();
         let titles = self.sender.clone();
         let popups = self.sender.clone();
-        let builder = wry::WebViewBuilder::new()
-            .with_url(self.document.observation.url.as_str())
+        let inline = self.document.html.is_some();
+        let builder = wry::WebViewBuilder::new();
+        let builder = if let Some(html) = &self.document.html {
+            builder.with_html(&html.html)
+        } else {
+            builder.with_url(self.document.observation.url.as_str())
+        };
+        let builder = builder
             .with_navigation_handler(move |uri| {
+                if inline && uri == "about:blank" {
+                    return true;
+                }
                 if let Err(error) = WebAddress::try_from(uri) {
                     let _ = navigation.try_send(Update::Failed(error));
                     false
@@ -66,7 +78,7 @@ impl NativeWebPage {
                 let _ = titles.try_send(Update::Title(title));
             })
             .with_new_window_req_handler(move |uri, _| {
-                let _ = popups.try_send(Update::Navigate(uri));
+                let _ = popups.try_send(Update::Popup(uri));
                 wry::NewWindowResponse::Deny
             });
         match WebView::build(builder, window, cx) {
@@ -140,7 +152,7 @@ impl NativeWebPage {
     fn receive(&mut self, update: Update, cx: &mut Context<Self>) {
         match update {
             Update::Load(event, uri) => {
-                let Ok(address) = WebAddress::try_from(uri) else {
+                let Ok(address) = WebLocation::try_from(uri) else {
                     return;
                 };
                 self.document.observation.url = address;
@@ -155,12 +167,16 @@ impl NativeWebPage {
                 Ok(address) => self.navigate(address, cx),
                 Err(error) => self.document.observation.load = WebLoad::Failed(error),
             },
+            Update::Popup(uri) => match WebAddress::try_from(uri) {
+                Ok(address) => cx.emit(NativeWebPopup(address.as_str().into())),
+                Err(error) => self.document.observation.notice = Some(error),
+            },
             Update::Failed(error) => self.document.observation.load = WebLoad::Failed(error),
         }
         self.changed(cx);
     }
     pub fn navigate(&mut self, address: WebAddress, cx: &mut Context<Self>) {
-        self.document.observation.url = address;
+        self.document.observation.url = address.into();
         if self.view.is_some() {
             self.start_load(cx);
         }

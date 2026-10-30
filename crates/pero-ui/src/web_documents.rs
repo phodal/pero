@@ -15,20 +15,26 @@ gpui_kit::actions!(web_document, [OpenWeb]);
 #[cfg(not(target_family = "wasm"))]
 pub(crate) struct WorkspaceNativeWeb {
     pub view: Entity<crate::native_web::NativeWebPage>,
-    _subscription: Subscription,
+    _subscriptions: Vec<Subscription>,
 }
 #[cfg(not(target_family = "wasm"))]
 #[derive(serde::Deserialize)]
 #[serde(tag = "action", deny_unknown_fields)]
 enum NativeWebIntent {
+    #[serde(rename = "web_html")]
+    Html {
+        source: pero_contracts::web_document::InlineHtml,
+    },
     #[serde(rename = "web_open")]
     Open {
         url: pero_contracts::web_document::WebAddress,
     },
     #[serde(rename = "web_restore")]
     Restore {
-        id: pero_contracts::web_document::WebAddress,
-        url: pero_contracts::web_document::WebAddress,
+        id: String,
+        url: pero_contracts::web_document::WebLocation,
+        #[serde(default)]
+        html: Option<pero_contracts::web_document::InlineHtml>,
     },
     #[serde(rename = "web_navigate")]
     Navigate {
@@ -151,12 +157,31 @@ impl Workbench {
                 }
             };
             match intent {
-                open @ (Open { .. } | Restore { .. }) => {
+                open @ (Open { .. } | Html { .. } | Restore { .. }) => {
                     let (document, select) = match open {
                         Open { url } => (WebDocument::open(url), true),
-                        Restore { id, url } => {
-                            let mut document = WebDocument::open(id);
+                        Html { source } => (WebDocument::inline(source), true),
+                        Restore { id, url, html } => {
+                            let mut document = if let Some(source) = html {
+                                WebDocument::inline(source)
+                            } else {
+                                match pero_contracts::web_document::WebAddress::try_from(id.clone())
+                                {
+                                    Ok(address) => WebDocument::open(address),
+                                    Err(error) => {
+                                        self.error = Some(error);
+                                        cx.notify();
+                                        return;
+                                    }
+                                }
+                            };
+                            if document.id != id {
+                                self.error = Some("HTML source identity changed".into());
+                                cx.notify();
+                                return;
+                            }
                             document.observation.url = url;
+                            document.observation.notice = Some("Native restored this source. Browser history and form recovery are unavailable in this engine.".into());
                             (document, false)
                         }
                         _ => unreachable!(),
@@ -175,11 +200,22 @@ impl Workbench {
                                 this.observe_web(event.0.clone(), false, window, cx)
                             },
                         );
+                        let popup = cx.subscribe_in(
+                            &view,
+                            window,
+                            |this, _, event: &crate::native_web::NativeWebPopup, window, cx| {
+                                this.web_command(
+                                    json!({"action":"web_open","url":event.0}),
+                                    window,
+                                    cx,
+                                )
+                            },
+                        );
                         self.native_web_pages.insert(
                             id,
                             WorkspaceNativeWeb {
                                 view,
-                                _subscription: subscription,
+                                _subscriptions: vec![subscription, popup],
                             },
                         );
                         document
@@ -334,7 +370,16 @@ impl Workbench {
                             .child(message.clone()),
                     )
                 }
-                WebLoad::Ready => {}
+                WebLoad::Ready => {
+                    if let Some(notice) = &page.observation.notice {
+                        toolbar = toolbar.child(
+                            div()
+                                .max_w(px(280.))
+                                .text_size(px(12.))
+                                .child(notice.clone()),
+                        );
+                    }
+                }
             }
         } else {
             toolbar = toolbar.child(

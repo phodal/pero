@@ -32,7 +32,7 @@ app.on('second-instance', (_event, argv) => {
   const url = argv.find(deepLink);
   if (url && acceptDeepLink) acceptDeepLink(url);
 });
-protocol.registerSchemesAsPrivileged(['pero', 'pero-app'].map(scheme => ({ scheme, privileges: { standard: true, secure: true, supportFetchAPI: true } })));
+protocol.registerSchemesAsPrivileged(['pero', 'pero-app', 'pero-html'].map(scheme => ({ scheme, privileges: { standard: true, secure: true, supportFetchAPI: true } })));
 if (process.env.PERO_DESKTOP_DATA_DIR) {
   mkdirSync(process.env.PERO_DESKTOP_DATA_DIR, { recursive: true });
   app.setPath('userData', process.env.PERO_DESKTOP_DATA_DIR);
@@ -245,9 +245,9 @@ app.whenReady().then(async () => {
     if (!r || typeof r.id !== 'string' || r.id.length > 128 || typeof r.text !== 'string' || Array.from(r.text).length > 4096 || !ready) throw new Error('Invalid probe');
     host.stdin.write(JSON.stringify({ id: r.id, text: r.text }) + '\n');
   });
-  ipcMain.handle('pero:web',(sender,command:unknown)=>{
+  ipcMain.handle('pero:web',async(sender,command:unknown)=>{
     trusted(sender);
-    try {if(!webPages)throw new Error('Web views are unavailable');webPages.command(command);}
+    try {if(!webPages)throw new Error('Web views are unavailable');await webPages.command(command);}
     catch(error){send({version:1,kind:'web_error',request_id:null,text:error instanceof Error?error.message:String(error)});}
   });
   ipcMain.handle('pero:session', async (sender, command: unknown) => {
@@ -279,7 +279,7 @@ app.whenReady().then(async () => {
       return;
     }
     if(method==='workspace') {
-      if(action==='get'){host.stdin.write(JSON.stringify(command)+'\n');return;}
+      if(action==='get'||action==='read'||action==='reset'){host.stdin.write(JSON.stringify(command)+'\n');return;}
       const request=command as {request_id?:unknown};
       if(action!=='save'||typeof request.request_id!=='string'||!request.request_id||request.request_id.length>128||JSON.stringify(command).length>16_000_000)throw new Error('Invalid workspace checkpoint');
       const id=request.request_id;
@@ -316,7 +316,7 @@ app.whenReady().then(async () => {
   window = new BrowserWindow({ ...testWindowOptions, width: 1488, height: 1086, minWidth: 1000, minHeight: 680,
     title: t('window.title'), backgroundColor: '#F7F9FC',
     webPreferences: { ...testWindowOptions.webPreferences, preload: resolve(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
-  webPages=new WebPages(window,send);
+  webPages=new WebPages(window,send,resolve(app.getPath('userData'),'web-sessions.json'));
   window.on('closed',()=>webPages?.dispose());
   window.webContents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main) appUse?.reset(); });
   window.webContents.on('render-process-gone', () => appUse?.reset());
@@ -327,6 +327,7 @@ app.whenReady().then(async () => {
     try {
       const dirty=await window.webContents.executeJavaScript('Boolean(window.peroHasUnsavedDocuments?.())');
       if(dirty){const answer=dialog.showMessageBoxSync(window,{type:'warning',message:t('content.unsaved'),detail:t('content.unsaved_window'),buttons:[t('content.keep_editing'),t('content.discard_window')],defaultId:0,cancelId:0});if(answer!==1)return;}
+      await webPages?.checkpoint();
       await window.webContents.executeJavaScript(`window.peroWorkspaceCheckpoint?.(${dirty?'true':'false'})`);
       await finish();
     } catch(error) {
