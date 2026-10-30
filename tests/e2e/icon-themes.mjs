@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 const root = resolve(process.env.PERO_CONTENT_TEST_ROOT || resolve(import.meta.dirname, '../..'));
 const out = resolve(root, 'test-results/icon-themes');
 const profile = await realpath(await mkdtemp(resolve(tmpdir(), 'pero-icon-themes-')));
-const fixture = await realpath(resolve(root, 'tests/fixtures/icon-themes/source-shapes.json'));
+const fixture = await realpath(resolve(import.meta.dirname, '../fixtures/icon-themes/source-shapes.json'));
 const installed = resolve(profile, 'icon-themes/source-shapes.json');
 await mkdir(out, { recursive: true });
 await writeFile(resolve(profile, 'agents.json'), '[]');
@@ -67,7 +67,8 @@ async function settings() {
 }
 async function closeSettings() {
   const bounds = (await state()).settings.bounds;
-  await page.mouse.click(bounds.x + bounds.width - 38, bounds.y + 20);
+  // The header has 16px horizontal padding and a 24px icon button.
+  await page.mouse.click(bounds.x + bounds.width - 28, bounds.y + 16);
   await expect.poll(async () => (await state()).settingsOpen).toBe(false);
 }
 async function themeRow() {
