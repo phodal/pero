@@ -167,7 +167,13 @@ impl WorkspaceNavigation {
             if let Some(view) = layout.leaf_mut(id) {
                 view.reading = Some(state.clone());
             }
-            if layout.focused == Some(id) {
+            if layout.focused == Some(id)
+                && layout.leaf(id).is_some_and(|view| view.route == self.route)
+                && matches!(
+                    self.route,
+                    WorkspaceRoute::Content(WorkspaceItem::Document { .. })
+                )
+            {
                 self.history.reading = Some(state);
             }
         }
@@ -217,5 +223,129 @@ impl WorkspaceNavigation {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn document_views_share_source_identity_but_keep_live_locations_and_close_independently() {
+        let item = WorkspaceItem::Document {
+            origin: ContentOrigin::File { path: "/a".into() },
+            source: "/a".into(),
+        };
+        let mut navigation = WorkspaceNavigation::default();
+        navigation.open(item.clone());
+        navigation.ensure_document_layout();
+        let first = navigation.pane_layout().unwrap().focused.unwrap();
+        let second = navigation.split_pane(SplitDirection::Right).unwrap();
+        let third = navigation.split_pane(SplitDirection::Down).unwrap();
+        navigation.observe_pane_reading(
+            first,
+            ReaderState {
+                selection: 3..9,
+                ..Default::default()
+            },
+        );
+        navigation.observe_pane_reading(
+            second,
+            ReaderState {
+                selection: 20..30,
+                ..Default::default()
+            },
+        );
+        navigation.rebase_document_edit(
+            &item,
+            &pero_contracts::text_edit_anchor::TextEdit {
+                old: 0..0,
+                new_len: 7,
+                old_lines: 0..0,
+                new_line_count: 1,
+            },
+        );
+        assert_eq!(
+            navigation
+                .pane_layout()
+                .unwrap()
+                .leaf(first)
+                .unwrap()
+                .reading
+                .as_ref()
+                .unwrap()
+                .selection,
+            10..16
+        );
+        assert_eq!(
+            navigation
+                .pane_layout()
+                .unwrap()
+                .leaf(second)
+                .unwrap()
+                .reading
+                .as_ref()
+                .unwrap()
+                .selection,
+            27..37
+        );
+        assert_eq!(navigation.items(), &[item.clone()]);
+        assert!(navigation.snapshot().valid());
+        let snapshot = navigation.snapshot();
+        let mut reopened = WorkspaceNavigation::default();
+        reopened.restore(snapshot.clone());
+        assert_eq!(reopened.snapshot(), snapshot);
+        reopened.close_pane(third);
+        assert_eq!(reopened.pane_layout().unwrap().leaves().len(), 2);
+        assert!(reopened.items().contains(&item));
+        reopened.close(&item);
+        assert!(reopened.pane_layout().is_none());
+        assert!(reopened.items().is_empty());
+        assert!(reopened.snapshot().valid());
+    }
+    #[test]
+    fn retained_document_observation_cannot_attach_reading_state_to_an_app_route() {
+        let document = WorkspaceItem::Document {
+            origin: ContentOrigin::App {
+                app: "data-agent".into(),
+                panel: "main".into(),
+            },
+            source: "observations.json".into(),
+        };
+        let mut navigation = WorkspaceNavigation::default();
+        navigation.open(document);
+        navigation.ensure_document_layout();
+        let pane = navigation.pane_layout().unwrap().focused.unwrap();
+        navigation.observe_pane_reading(
+            pane,
+            ReaderState {
+                selection: 99..130,
+                ..Default::default()
+            },
+        );
+        navigation.open(WorkspaceItem::App {
+            name: "data-agent".into(),
+            panel: "main".into(),
+        });
+        navigation.observe_pane_reading(
+            pane,
+            ReaderState {
+                selection: 99..130,
+                ..Default::default()
+            },
+        );
+        assert!(navigation.snapshot().history.reading.is_none());
+        assert!(navigation.snapshot().valid());
+        assert_eq!(
+            navigation
+                .pane_layout()
+                .unwrap()
+                .leaf(pane)
+                .unwrap()
+                .reading
+                .as_ref()
+                .unwrap()
+                .selection,
+            99..130
+        );
     }
 }
