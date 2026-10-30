@@ -88,6 +88,12 @@ impl Workbench {
                     Err(_) => self.error = Some(self.t("web.unavailable").into()),
                 }
             }
+            "pane_focus" => {
+                if let Some(id)=event.data["id"].as_u64() { self.focus_surface_pane(pero_contracts::workspace_panes::PaneId(id),window,cx); }
+            }
+            "web_focused" => {
+                if let Some(id)=event.data["id"].as_str() {self.focus_surface_item(&WorkspaceItem::Web(id.into()),window,cx);}
+            }
             "web_closed" => {
                 if let Some(id) = event.data["id"].as_str() {
                     self.close_web(id, window, cx);
@@ -218,11 +224,13 @@ impl Workbench {
                                 )
                             },
                         );
+                        let focused_id=id.clone();
+                        let focus=cx.subscribe_in(&view,window,move|this,_,_:&crate::native_web::NativeWebFocused,window,cx|this.focus_surface_item(&WorkspaceItem::Web(focused_id.clone()),window,cx));
                         self.native_web_pages.insert(
                             id,
                             WorkspaceNativeWeb {
                                 view,
-                                _subscriptions: vec![subscription, popup],
+                                _subscriptions: vec![subscription, popup, focus],
                             },
                         );
                         document
@@ -276,6 +284,11 @@ impl Workbench {
             }
         }
     }
+    #[cfg(target_family="wasm")]
+    pub(crate) fn publish_web_surfaces(&mut self,payload:serde_json::Value,cx:&mut Context<Self>) {
+        let encoded=payload.to_string();
+        if self.web_surface!=encoded {self.web_surface=encoded;self.command(payload,cx);}
+    }
     pub(crate) fn sync_web_surface(
         &mut self,
         bounds: Option<Bounds<Pixels>>,
@@ -283,6 +296,7 @@ impl Workbench {
     ) {
         #[cfg(target_family = "wasm")]
         {
+            if self.navigation.pane_layout_visible() {self.sync_pane_surfaces(cx);return;}
             let bounds = bounds.filter(|_| self.layout.embedded_surface_visible);
             let payload = match (self.navigation.current(), bounds) {
                 (Some(WorkspaceItem::Web(id)), Some(bounds)) => {
@@ -290,23 +304,20 @@ impl Workbench {
                 }
                 _ => json!({"action":"web_surface","id":null}),
             };
-            let encoded = payload.to_string();
-            if self.web_surface != encoded {
-                self.web_surface = encoded;
-                self.command(payload, cx);
-            }
+            self.publish_web_surfaces(payload,cx);
         }
         #[cfg(not(target_family = "wasm"))]
         {
             let _ = bounds; // Kit measures the selected native view during prepaint.
-            let selected = self
-                .navigation
-                .current()
-                .filter(|_| self.layout.embedded_surface_visible);
+            let visible = if self.layout.embedded_surface_visible {
+                if self.navigation.pane_layout_visible() {self.navigation.pane_layout().map(|layout|layout.leaves().iter().filter_map(|leaf|if let crate::workspace::WorkspaceRoute::Content(WorkspaceItem::Web(id))=&leaf.route {Some(id.clone())}else{None}).collect::<Vec<_>>()).unwrap_or_default()}
+                else {self.navigation.current().and_then(|item|if let WorkspaceItem::Web(id)=item {Some(id.clone())}else{None}).into_iter().collect()}
+            } else {vec![]};
             for (id, open) in &self.native_web_pages {
-                if selected != Some(&WorkspaceItem::Web(id.clone())) {
-                    open.view.update(cx, |view, cx| view.hide(cx));
-                }
+                open.view.update(cx,|view,cx| {
+                    view.set_active(self.navigation.current()==Some(&WorkspaceItem::Web(id.clone())));
+                    if !visible.contains(id) {view.hide(cx);}
+                });
             }
         }
     }

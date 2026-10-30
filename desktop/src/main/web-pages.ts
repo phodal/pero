@@ -1,6 +1,6 @@
 import {WebContentsView,dialog,session,type BrowserWindow,type Session,type Event as ElectronEvent} from 'electron';
 import {createHash} from 'node:crypto';
-import type {WebCommand,WebDocument,SurfaceBounds} from '../../../protocol/generated/host';
+import type {WebCommand,WebDocument,SurfaceBounds,WebSurfaceSlot} from '../../../protocol/generated/host';
 import {WebAddress} from '../../../packages/content-source/web-address.ts';
 import {WebLocation,inlineHtml} from '../../../packages/content-source/web-location.ts';
 import {WebSessions,restorePage,type WebPageState} from './web-sessions.ts';
@@ -15,6 +15,7 @@ export class WebPages {
   private sessions:WebSessions;
   private loaded:Promise<void>;
   private permissions=new Set<string>();
+  private focusedSurface:string|undefined;
   constructor(private window:BrowserWindow,private send:(event:Event)=>void,sessionPath:string,private ownsMcp:(url:string)=>boolean=()=>false) {
     this.sessions=new WebSessions(sessionPath);
     this.loaded=this.sessions.load().catch(error=>this.error(String(error)));
@@ -77,6 +78,7 @@ export class WebPages {
       try {page.document.observation.url=WebLocation.parse(contents.getURL()||page.document.observation.url).text;}catch {return;}
       page.document.observation.title=contents.getTitle()||document.observation.title;this.emit('web_state',page);
     };
+    contents.on('focus',()=>this.send({version:1,kind:'web_focused',request_id:null,text:'',data:{id:page.document.id}}));
     contents.on('did-start-loading',()=>{page.document.observation.load={kind:'loading'};this.emit('web_state',page);});
     contents.on('did-finish-load',()=>{
       if(page.document.observation.load.kind!=='failed')page.document.observation.load={kind:'ready'};
@@ -115,25 +117,44 @@ export class WebPages {
   private urlDocument(address:WebAddress):WebDocument {
     return {id:address.text,observation:{url:address.text,title:address.title,load:{kind:'loading'},can_back:false,can_forward:false}};
   }
-  private surface(id:string|null,bounds?:SurfaceBounds) {
-    for(const [source,page] of this.pages) {
-      const visible=source===id&&!!bounds&&bounds.width>0&&bounds.height>0;
-      if(visible)page.view.setBounds({x:Math.round(bounds!.x),y:Math.round(bounds!.y),width:Math.round(bounds!.width),height:Math.round(bounds!.height)});
+  private surfaces(slots:WebSurfaceSlot[]) {
+    const focused=slots.find(slot=>slot.focused)?.id;
+    for(const [id,page] of this.pages) {
+      const slot=slots.find(slot=>slot.id===id);
+      const visible=!!slot&&slot.bounds.width>0&&slot.bounds.height>0;
+      if(visible){const bounds=slot.bounds;page.view.setBounds({x:Math.round(bounds.x),y:Math.round(bounds.y),width:Math.round(bounds.width),height:Math.round(bounds.height)});}
       const wasVisible=page.view.getVisible();page.view.setVisible(visible);
-      if(visible&&!wasVisible&&this.window.isVisible()&&this.window.isFocused())page.view.webContents.focus();
+      if(visible&&slot.focused&&(this.focusedSurface!==id||!wasVisible)&&this.window.isVisible()&&this.window.isFocused())page.view.webContents.focus();
     }
+    this.focusedSurface=focused;
   }
+
   async checkpoint(){await this.sessions.save(new Map([...this.pages].map(([id,page])=>[id,page.view.webContents])));}
   async prepareClose(owns:(url:string)=>boolean){for(const page of this.pages.values())if(owns(page.view.webContents.getURL()))await page.view.webContents.executeJavaScript('window.peroMcpTeardown?.()');}
   async command(input:unknown) {
     // Only trusted renderer transport reaches this entry. Pages have no preload/IPC.
     if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Invalid Web command');
     const value=input as Record<string,unknown>,action=value.action;
-    if(typeof action!=='string'||!['web_open','web_html','web_restore','web_navigate','web_back','web_forward','web_reload','web_close','web_surface'].includes(action))throw new Error('Invalid Web action');
+    if(typeof action!=='string'||!['web_open','web_html','web_restore','web_navigate','web_back','web_forward','web_reload','web_close','web_surface','web_surfaces'].includes(action))throw new Error('Invalid Web action');
+    const bounds=(input:unknown):SurfaceBounds=>{
+      const value=input as Record<string,unknown>;
+      if(!value||typeof value!=='object'||Object.keys(value).length!==4||!['x','y','width','height'].every(key=>typeof value[key]==='number'&&Number.isFinite(value[key]))||Number(value.width)<0||Number(value.height)<0)throw new Error('Invalid Web geometry');
+      return value as unknown as SurfaceBounds;
+    };
+    if(action==='web_surfaces') {
+      if(Object.keys(value).some(key=>!['action','surfaces'].includes(key))||!Array.isArray(value.surfaces))throw new Error('Invalid Web surfaces');
+      const slots=value.surfaces.map((input:unknown):WebSurfaceSlot=>{
+        if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Invalid Web surface');
+        const slot=input as Record<string,unknown>;
+        if(Object.keys(slot).some(key=>!['id','bounds','focused'].includes(key))||typeof slot.id!=='string'||typeof slot.focused!=='boolean')throw new Error('Invalid Web surface');
+        return {id:slot.id,bounds:bounds(slot.bounds),focused:slot.focused};
+      });
+      this.surfaces(slots);return;
+    }
     const keys=action==='web_html'?['action','source']:action==='web_open'?['action','url']:action==='web_restore'?['action','id','url','html']:action==='web_navigate'?['action','id','url']:action==='web_surface'?['action','id','bounds']:['action','id'];
     if(Object.keys(value).some(key=>!keys.includes(key))||(action==='web_open'||action==='web_restore'||action==='web_navigate')&&typeof value.url!=='string'||action!=='web_open'&&action!=='web_html'&&!(typeof value.id==='string'||action==='web_surface'&&value.id===null))throw new Error('Invalid Web command');
-    if(action==='web_surface'&&value.bounds!==undefined){const bounds=value.bounds as Record<string,unknown>;if(!bounds||typeof bounds!=='object'||Object.keys(bounds).length!==4||!['x','y','width','height'].every(key=>typeof bounds[key]==='number'&&Number.isFinite(bounds[key]))||Number(bounds.width)<0||Number(bounds.height)<0)throw new Error('Invalid Web geometry');}
-    const command=value as unknown as WebCommand;
+    if(action==='web_surface'&&value.bounds!==undefined)bounds(value.bounds);
+    const command=value as unknown as Exclude<WebCommand,{action:"web_surfaces"}>;
     if(command.action==='web_open'){await this.open(this.urlDocument(WebAddress.parse(command.url)));return;}
     if(command.action==='web_html'){
       const html=inlineHtml(command.source);await this.open({id:`html:${html.id}`,html,observation:{url:'about:blank',title:html.title,load:{kind:'loading'},can_back:false,can_forward:false}});return;
@@ -145,7 +166,7 @@ export class WebPages {
       if(!html)document.observation.url=WebAddress.parse(command.url).text;
       await this.open(document,true);return;
     }
-    if(command.action==='web_surface'){this.surface(command.id,command.bounds);return;}
+    if(command.action==='web_surface'){this.surfaces(command.id&&command.bounds?[{id:command.id,bounds:command.bounds,focused:true}]:[]);return;}
     const page=this.pages.get(command.id);if(!page)throw new Error('The Web page is closed');
     if(command.action==='web_navigate'){this.navigate(page,WebAddress.parse(command.url));return;}
     const history=page.view.webContents.navigationHistory;
