@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { appObjectProps, downloadFile, useAppI18n, useAppObject, useAppChat, useAppDataChanged, useTheme } from '@pero/app-sdk';
+import { AppConversation, appObjectProps, downloadFile, useAppI18n, useAppObject, useAppChat, useAppDataChanged, useTheme } from '@pero/app-sdk';
 import { Button, Disclosure, EmptyState, Feedback, Icon, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import { Results } from './components';
 import { messages } from './messages';
@@ -18,6 +18,7 @@ export default function VirtualCell() {
   const theme = useTheme();
   const { t } = useAppI18n(messages), lab = useWorkbench(t), file = useRef<HTMLInputElement>(null);
   const [view, setView] = useState('cells'), [mode, setMode] = useState('atlas'), [displayError, setDisplayError] = useState('');
+  const [showChat, setShowChat] = useState(false);
   const [epochs, setEpochs] = useState({ cells: 0, mechanism: 0, volume: 0 });
   const [volumeIsExample, setVolumeIsExample] = useState(true);
   const [atlas, setAtlas] = useState<Atlas>(() => parseDisplay(pbmc) as Atlas), [mechanism, setMechanism] = useState<Mechanism>(mechanismExample), [volume, setVolume] = useState<Volume>(() => volumeExample());
@@ -58,7 +59,7 @@ export default function VirtualCell() {
     run:async({file})=>{const response=await fetch(file as string);if(!response.ok)throw new Error('The App input grant expired');const content=await response.text();const revision=await lab.importDocuments([content]);setView('cells');setMode('perturbation');return {inputId:revision.id};},
   } } });
   const identity = (document: { source: { id: string; revision: string } }, slot: keyof typeof epochs) => `${document.source.id}:${document.source.revision}:${epochs[slot]}`;
-  return <section className="virtual-cell" style={legacyThemeStyle(theme.mode === 'dark')} {...appObjectProps('virtual-cell')} aria-label="Virtual Cell" aria-busy={lab.busy}><style>{css}</style>
+  return <div className="virtual-cell-layout" data-chat={showChat} style={legacyThemeStyle(theme.mode === 'dark')}><style>{css}</style><section className="virtual-cell" {...appObjectProps('virtual-cell')} aria-label="Virtual Cell" aria-busy={lab.busy}>
     <input className="vc-file" ref={file} type="file" multiple accept=".json,application/json" aria-label={t('import')} onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; if (files.length) void importFiles(files); }}/>
     {(lab.error || displayError) && <Feedback kind="error">{lab.error || displayError} <Button disabled={lab.busy} onClick={() => { setDisplayError(''); void lab.refresh(); }}>{t('retry')}</Button></Feedback>}
     {lab.busy && <Feedback>{t('busy')}</Feedback>}
@@ -67,7 +68,9 @@ export default function VirtualCell() {
         <Button disabled={lab.busy} onClick={() => file.current?.click()}><Icon name="plus"/>{t('import')}</Button>
         <Button disabled={lab.busy} onClick={() => { void lab.example(); setView('cells'); setMode('perturbation'); }}>{t('example')}</Button>
         <Button disabled={lab.busy} onClick={lab.refresh}><Icon name="refresh"/>{t('refresh')}</Button>
-<Button onClick={()=>{void chat.open({attachments:[chat.objectReference('virtual-cell')]}).catch(error=>setDisplayError(String(error)));}}>{t('discussContext')}</Button><Button onClick={()=>{void chat.open({capture:true}).catch(error=>setDisplayError(String(error)));}}>{t('captureContext')}</Button>
+        <Button onClick={()=>{void chat.open({attachments:[chat.objectReference('virtual-cell')]}).catch(error=>setDisplayError(String(error)));}}>{t('discussContext')}</Button>
+        <Button onClick={()=>{void chat.open({capture:true}).catch(error=>setDisplayError(String(error)));}}>{t('captureContext')}</Button>
+        {!showChat && <Button onClick={()=>setShowChat(true)} aria-expanded={false}>{t('openChat')}</Button>}
       </>}>
         <TabsList aria-label={t('scienceViews')}>
           <TabsTrigger value="cells"><Icon name="app"/>{t('cellsView')}</TabsTrigger>
@@ -92,5 +95,8 @@ export default function VirtualCell() {
       <Toolbar><Button disabled={lab.busy} onClick={() => lab.evidence()}>{t('evidence')}</Button><Button disabled={lab.busy} onClick={() => lab.evidence(true)}>{t('qc')}</Button></Toolbar>
     </Disclosure></div>
     {lab.output && <><div className="vc-results-heading"><h2>{t('result')}</h2><Button disabled={lab.busy} onClick={lab.exportOutput}>{t('export')}</Button></div>{lab.output.operation === 'evidence' && <Feedback>{t('reference')}</Feedback>}<Results output={lab.output} t={t}/><p className="vc-muted">{t('gaps')}</p></>}
-  </section>;
+  </section>{showChat && <aside className="vc-chat-panel" aria-label={t('chat')}>
+    <header className="vc-chat-header"><strong>{t('chat')}</strong><Button onClick={()=>setShowChat(false)}>{t('closeChat')}</Button></header>
+    <AppConversation className="vc-chat-slot" fallback={<p role="status">{t('chatUnavailable')}</p>}/>
+  </aside>}</div>;
 }

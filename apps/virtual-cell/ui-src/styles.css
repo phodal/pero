@@ -1,4 +1,8 @@
-.virtual-cell{container-type:inline-size;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0;color:var(--pero-text);background:var(--pero-surface);font:inherit;font-size:13px;line-height:1.5;box-sizing:border-box}
+.virtual-cell-layout{display:flex;align-items:flex-start;min-height:100vh;min-width:0;background:var(--pero-surface);color:var(--pero-text)}
+.virtual-cell{container-type:inline-size;padding:16px;display:flex;flex:1;flex-direction:column;gap:12px;min-width:0;color:var(--pero-text);background:var(--pero-surface);font:inherit;font-size:13px;line-height:1.5;box-sizing:border-box}
+.vc-chat-panel{position:sticky;top:0;display:flex;flex-direction:column;flex:0 0 min(400px,40%);height:100vh;min-width:320px;box-sizing:border-box;border-left:1px solid var(--pero-border-subtle);background:var(--pero-surface)}
+.vc-chat-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--pero-border-subtle)}
+.vc-chat-header strong{font-weight:600}.vc-chat-slot{flex:1;min-height:0}.vc-chat-slot>p{padding:12px;color:var(--pero-text-secondary)}
 .virtual-cell *{box-sizing:border-box}
 .virtual-cell [hidden]{display:none!important}
 .virtual-cell h2,.virtual-cell h3,.virtual-cell p{margin:0}
@@ -42,4 +46,5 @@
 .virtual-cell pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:400px;overflow:auto;font-size:12px;line-height:1.6}.vc-results-heading{justify-content:space-between}.vc-models table{min-width:720px}
 @container(max-width:1050px){.vc-workspace{grid-template-columns:170px minmax(0,1fr)}.vc-inspector{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:start}.vc-pane-body{padding:8px}}
 @container(max-width:650px){.vc-workspace{display:flex;flex-direction:column}.vc-sidebar{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.vc-sidebar>.vc-pane>.vc-pane-body{max-height:220px;overflow:auto}.vc-science-main,.vc-inspector{width:100%}.vc-inspector{grid-template-columns:1fr}.vc-navigation>.pero-ui-toolbar-actions{margin-inline-start:0}.vc-data-toolbar{gap:6px}.vc-data-toolbar>.pero-ui-select{max-width:100%}.vc-slices{grid-template-columns:1fr}.vc-slices canvas{max-height:200px}.vc-volume-canvas{height:320px}}
+@media(max-width:900px){.virtual-cell-layout[data-chat=true]>.virtual-cell{display:none}.vc-chat-panel{width:100%;min-width:0;flex-basis:100%;border-left:0}}
 @media(prefers-reduced-motion:reduce){.virtual-cell *{scroll-behavior:auto!important;transition:none!important}}
