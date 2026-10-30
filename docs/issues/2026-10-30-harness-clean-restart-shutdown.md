@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: open
+status: resolved
 date: 2026-10-30
 ---
 
@@ -42,5 +42,7 @@ requires successful `Drain`. Its approval event order, tool effect count,
 scope and fail-closed assertions are unchanged. This is a test lifecycle
 correction, not a change to production disposal semantics.
 
-New exact-head CI is pending. The current cloud command executor is unavailable;
-no new local test execution is claimed for this follow-up.
+The follow-up passed [CI 41142498082](https://github.com/phodal/pero/actions/runs/41142498082)
+on exact head `076bbdba196beb9ab14ff0c298148ecfc4b8dffd`: all 18 checks were
+green, including the Windows Harness Go job. This records CI execution, not an
+additional local test run.

@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: open
+status: resolved
 date: 2026-10-30
 ---
 
@@ -18,5 +18,7 @@ the measured center and retains its Idle assertion. No internal cancel method
 is substituted for pointer input; no cancellation behavior or timeout changes.
 
 A Stop-button screenshot is retained alongside the existing workbench evidence.
-Actual headed CI and three-platform builds must verify this change. The current
-cloud command executor is unavailable, so no new local test pass is claimed.
+[CI 41142498082](https://github.com/phodal/pero/actions/runs/41142498082)
+passed on exact head `076bbdba196beb9ab14ff0c298148ecfc4b8dffd`: all 18 checks
+were green, including Desktop acceptance and platform builds. This records CI
+execution, not an additional local test run.

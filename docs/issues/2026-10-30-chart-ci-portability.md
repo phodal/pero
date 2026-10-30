@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: open
+status: resolved
 date: 2026-10-30
 ---
 
@@ -24,6 +24,7 @@ assertions. Catalog assertions must include the named chart capability while
 continuing to reject extra tools and preserve write/shell boundary checks.
 Bazel declarations must match the actual Gazelle-generated diff.
 
-Verification is pending new exact-head CI. The current cloud command executor
-is unavailable, so no new local test pass is claimed. Existing native Windows,
-Go race and standalone Bazel jobs will supply the execution evidence.
+The fixes passed [CI 41142498082](https://github.com/phodal/pero/actions/runs/41142498082)
+on exact head `076bbdba196beb9ab14ff0c298148ecfc4b8dffd`: all 18 checks were
+green, including Windows and standalone Bazel. This records CI execution, not
+an additional local test run.
