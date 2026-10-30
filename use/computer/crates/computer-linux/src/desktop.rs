@@ -1,5 +1,6 @@
 //! Linux X11 window capture and explicit foreground XTest input.
 //! Like Cua's native dispatch, Wayland is a separate backend, never an X11 fallback.
+use crate::accessibility::{Accessibility, ElementTarget};
 use crate::profile;
 use computer_core::{Window, WindowBounds, WindowImage};
 use computer_runtime::{DesktopDriver, WindowObservation, error};
@@ -16,6 +17,8 @@ use x11rb::{
 
 pub struct Desktop {
     connection: Option<(RustConnection, usize)>,
+    accessibility: Option<Accessibility>,
+    accessibility_reason: String,
     reason: String,
     environment: ComputerEnvironment,
 }
@@ -23,6 +26,10 @@ fn failure(e: impl std::fmt::Display) -> ComputerError {
     error(ComputerErrorCode::Failed, e.to_string())
 }
 pub struct X11Snapshot {
+    /// The process the observation was bound to.
+    pid: i32,
+    /// Indexed by the public element number of this observation.
+    elements: Vec<Option<ElementTarget>>,
     window_bounds: WindowBounds,
     image_width: u32,
     image_height: u32,
@@ -39,13 +46,25 @@ impl Desktop {
                 .filter(|value| !value.is_empty()),
         );
         match connection {
-            Ok(connection) => Self {
-                connection: Some(connection),
-                reason: String::new(),
-                environment,
-            },
+            Ok(connection) => {
+                // AT-SPI is only paired with a live X11 display; it never stands in
+                // for Wayland capture or input.
+                let (accessibility, accessibility_reason) = match Accessibility::connect() {
+                    Ok(bus) => (Some(bus), String::new()),
+                    Err(reason) => (None, reason),
+                };
+                Self {
+                    connection: Some(connection),
+                    accessibility,
+                    accessibility_reason,
+                    reason: String::new(),
+                    environment,
+                }
+            }
             Err(e) => Self {
                 connection: None,
+                accessibility: None,
+                accessibility_reason: "No X11 display".into(),
                 environment,
                 reason: format!(
                     "X11 connection unavailable: {e}. Pure Wayland requires a compositor/portal backend and is not supported by this driver."
@@ -117,6 +136,31 @@ impl Desktop {
         Ok(false)
     }
 }
+impl Desktop {
+    fn element_target<'a>(
+        &self,
+        snap: &'a X11Snapshot,
+        element_id: &ComputerRef,
+    ) -> Result<(&Accessibility, &'a ElementTarget), ComputerError> {
+        let bus = self
+            .accessibility
+            .as_ref()
+            .ok_or_else(|| error(ComputerErrorCode::Unsupported, &self.accessibility_reason))?;
+        let target = element_id
+            .as_str()
+            .strip_prefix("element-")
+            .and_then(|n| n.parse::<usize>().ok())
+            .and_then(|n| snap.elements.get(n))
+            .and_then(Option::as_ref)
+            .ok_or_else(|| {
+                error(
+                    ComputerErrorCode::Unsupported,
+                    "This element has no invoking action",
+                )
+            })?;
+        Ok((bus, target))
+    }
+}
 impl DesktopDriver for Desktop {
     type Snapshot = X11Snapshot;
     fn environment(&self) -> ComputerEnvironment {
@@ -124,14 +168,14 @@ impl DesktopDriver for Desktop {
     }
     fn observations(&self) -> Vec<ComputerObservationKind> {
         if self.connection.is_some() {
-            profile::observations()
+            profile::observations(self.accessibility.is_some())
         } else {
             Vec::new()
         }
     }
     fn actions(&self) -> Vec<ComputerActionSupport> {
         if self.connection.is_some() {
-            profile::actions()
+            profile::actions(self.accessibility.is_some())
         } else {
             Vec::new()
         }
@@ -140,12 +184,21 @@ impl DesktopDriver for Desktop {
         ComputerDriverStatus {
             environment: Some(self.environment()),
             available: self.connection.is_some(),
-            accessibility: ComputerPermissionState::Unsupported,
+            accessibility: if self.accessibility.is_some() {
+                ComputerPermissionState::Granted
+            } else {
+                ComputerPermissionState::NotDetected
+            },
             screen_recording: ComputerPermissionState::Unsupported,
             message: if self.connection.is_none() {
                 self.reason.clone()
+            } else if self.accessibility.is_some() {
+                "Linux X11 pixel observation and foreground XTest input, plus an AT-SPI tree for windows whose process exposes one; elements with an invoking action accept background element clicks. Text must be mapped in the current keyboard layout; scrolling uses wheel notches.".into()
             } else {
-                "Linux X11 pixel observation and foreground XTest input. No accessibility tree or background input is advertised. Text must be mapped in the current keyboard layout; scrolling uses wheel notches.".into()
+                format!(
+                    "Linux X11 pixel observation and foreground XTest input. No accessibility tree or background input is advertised ({}). Text must be mapped in the current keyboard layout; scrolling uses wheel notches.",
+                    self.accessibility_reason
+                )
             },
         }
     }
@@ -294,30 +347,41 @@ impl DesktopDriver for Desktop {
         options: &ComputerObserveOptions,
         _: Option<&Self::Snapshot>,
     ) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
-        let defaults = ComputerObserveOptions::default();
-        if options.root.is_some()
-            || options.max_nodes != defaults.max_nodes
-            || options.max_depth != defaults.max_depth
-        {
+        if options.root.is_some() {
             return Err(error(
                 ComputerErrorCode::Unsupported,
-                "This platform does not support bounded accessibility subtree observations",
+                "This platform does not support accessibility subtree observations",
             ));
         }
-
         let (c, screen) = self.x()?;
         let bounds = self.geometry(app)?;
+        // A window without a bound tree is reported as truncated: its controls,
+        // including any secure fields, could not be confirmed.
+        let (elements, targets, truncated) = match &self.accessibility {
+            None => (Vec::new(), Vec::new(), false),
+            Some(bus) => match bus.observe(
+                app.pid,
+                bounds,
+                usize::from(u16::from(options.max_nodes)),
+                u16::from(options.max_depth),
+            ) {
+                Ok(tree) => (tree.elements, tree.targets, tree.truncated),
+                Err(_) => (Vec::new(), Vec::new(), true),
+            },
+        };
         if !options.want_image {
             return Ok(WindowObservation {
                 source: X11Snapshot {
+                    pid: app.pid,
+                    elements: targets,
                     window_bounds: bounds,
                     image_width: 0,
                     image_height: 0,
                 },
                 bounds: Some(bounds),
-                elements: Vec::new(),
+                elements,
                 image: None,
-                truncated: false,
+                truncated,
             });
         }
         let (w, h) = (bounds.w as u16, bounds.h as u16);
@@ -388,13 +452,15 @@ impl DesktopDriver for Desktop {
             .map_err(failure)?;
         Ok(WindowObservation {
             source: X11Snapshot {
+                pid: app.pid,
+                elements: targets,
                 window_bounds: bounds,
                 image_width: w.into(),
                 image_height: h.into(),
             },
             bounds: Some(bounds),
-            elements: Vec::new(),
-            truncated: false,
+            elements,
+            truncated,
             image: Some(WindowImage {
                 bytes: jpeg,
                 width: NonZeroU32::new(w.into()).unwrap(),
@@ -404,6 +470,24 @@ impl DesktopDriver for Desktop {
         })
     }
 
+    fn admit(&self, snap: &X11Snapshot, action: &ComputerAction) -> Result<(), ComputerError> {
+        if let ComputerInput::Click {
+            anchor: ComputerAnchor::Element { element_id },
+            button,
+            count,
+        } = &action.input
+        {
+            if *button != ComputerMouseButton::Left || u8::from(*count) != 1 {
+                return Err(error(
+                    ComputerErrorCode::Unsupported,
+                    "AT-SPI element clicks invoke the control once with the primary action",
+                ));
+            }
+            let (bus, target) = self.element_target(snap, element_id)?;
+            bus.check(target, snap.pid)?;
+        }
+        Ok(())
+    }
     fn input(
         &self,
         app: &Window,
@@ -411,6 +495,19 @@ impl DesktopDriver for Desktop {
         action: ComputerAction,
         cancellation: &computer_runtime::Cancellation,
     ) -> Result<Option<ComputerExecution>, ComputerError> {
+        if let ComputerInput::Click {
+            anchor: ComputerAnchor::Element { element_id },
+            ..
+        } = &action.input
+        {
+            // Ownership, presence and state were re-checked in `admit`.
+            let (bus, target) = self.element_target(snap, element_id)?;
+            bus.click(target)?;
+            return Ok(Some(ComputerExecution {
+                route: ComputerExecutionRoute::Semantic,
+                semantic_action: None,
+            }));
+        }
         let (c, screen) = self.x()?;
         let bounds = snap.window_bounds;
         let point = |p: ComputerPoint| {

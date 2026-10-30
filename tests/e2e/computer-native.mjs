@@ -16,8 +16,7 @@ const states=[];
 const desktop=new DesktopComputer(resolve(root,'target/debug/pero-computer'),resolve(run,'evidence'),event=>states.push(structuredClone(event.data)));
 const fixture=await computerFixture(root,run);
 const guard=await computerFixture(root,run,true);
-await guard.activate();
-const backgroundActivations=(await fixture.state()).activations ?? 0;
+let backgroundActivations=0;
 const signal=new AbortController().signal;
 const call=request=>desktop.call('native-acceptance',request,signal);
 const state=fixture.state;
@@ -34,6 +33,8 @@ const act=async(observation,input,delivery='background')=>{
  const result=await call({operation:'act',action});receipts.push(result.receipt);assert.equal(result.kind,'receipt');assert.equal(result.receipt.outcome.status,'executed',JSON.stringify(result));return action;
 };
 try {
+ await guard.activate();
+ backgroundActivations=(await fixture.state()).activations ?? 0;
  const status=await desktop.status();assert.equal(status.status.accessibility,'granted',JSON.stringify(status));assert.equal(status.status.screen_recording,'granted',JSON.stringify(status));
  await desktop.restore(true);
  target=await poll(async()=>{const value=await call({operation:'targets'});return value.targets.find(t=>t.title==='Pero Computer Fixture')?.reference;});

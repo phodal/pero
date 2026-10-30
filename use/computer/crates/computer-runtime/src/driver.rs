@@ -29,6 +29,15 @@ pub trait DesktopDriver {
         options: &ComputerObserveOptions,
         basis: Option<&Self::Snapshot>,
     ) -> Result<WindowObservation<Self::Snapshot>, ComputerError>;
+    /// Platform-specific refusals that are certain before any native input,
+    /// such as parameters the adapter cannot express. Rejected, never unknown.
+    fn admit(
+        &self,
+        _snapshot: &Self::Snapshot,
+        _action: &ComputerAction,
+    ) -> Result<(), ComputerError> {
+        Ok(())
+    }
     fn input(
         &self,
         window: &Window,

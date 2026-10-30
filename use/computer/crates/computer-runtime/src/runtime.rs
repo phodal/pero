@@ -224,6 +224,7 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
                     ),
                 ));
             }
+            self.driver.admit(&observation.native, &action)?;
             Ok((action, observation, app))
         })();
         match prepared {
