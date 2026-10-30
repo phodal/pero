@@ -77,6 +77,8 @@ pub(crate) struct Workbench {
     pub project_binding: Entity<InputState>,
     pub collapsed_projects: std::collections::HashSet<String>,
     pub revealed_sessions: std::collections::HashMap<String, usize>,
+    /// Hides the sidebar column. Project expansion and revealed session counts stay.
+    pub sidebar_collapsed: bool,
     pub project_tab: crate::projects::ProjectTab,
     pub(crate) local_roadmap: crate::local_roadmap::RoadmapState,
     pub task_status: crate::projects::TaskStatusFilter,
@@ -87,6 +89,7 @@ pub(crate) struct Workbench {
     pub local_execution: crate::local_execution::LocalExecution,
     pub contribution: crate::contributions::ContributionState,
     pub apps: crate::apps::AppCatalog,
+    pub(crate) pending_app: Option<(String, String)>,
     pub app_surface: String,
     pub app_chat_slot: Option<crate::apps::AppChatSlot>,
     pub floating_chat: bool,
@@ -102,9 +105,6 @@ pub(crate) struct Workbench {
     pub last_echo: String,
     pub error: Option<String>,
     pub events: Vec<HostEvent>,
-    pub insights: std::collections::HashMap<String, crate::insights::Summary>,
-    pub insights_error: std::collections::HashMap<String, String>,
-    pub(crate) insights_requested: std::collections::HashSet<String>,
     pub chat: Entity<ChatPanel>,
     pub search: Entity<InputState>,
     pub workspace: String,
@@ -305,6 +305,7 @@ impl Workbench {
             local_execution,
             contribution: Default::default(),
             apps: crate::apps::AppCatalog::default(),
+            pending_app: None,
             app_surface: String::new(),
             app_chat_slot: None,
             floating_chat: true,
@@ -333,6 +334,7 @@ impl Workbench {
             project_binding,
             collapsed_projects: Default::default(),
             revealed_sessions: Default::default(),
+            sidebar_collapsed: false,
             project_tab: Default::default(),
             local_roadmap: Default::default(),
             task_status: Default::default(),
@@ -347,9 +349,6 @@ impl Workbench {
             last_echo: String::new(),
             error: None,
             events: Vec::new(),
-            insights: std::collections::HashMap::new(),
-            insights_error: std::collections::HashMap::new(),
-            insights_requested: std::collections::HashSet::new(),
             chat,
             search,
             workspace: String::new(),
@@ -397,30 +396,9 @@ impl Workbench {
 
     pub(crate) fn navigate(&mut self, page: WorkbenchPage, cx: &mut Context<Self>) {
         self.navigation.show(page);
-        if page == WorkbenchPage::Insights {
-            self.request_insights(cx);
-        }
         self.queue_workspace_checkpoint(cx);
         self.sync_follow(cx);
         cx.notify();
-    }
-
-    fn request_insights(&mut self, cx: &mut Context<Self>) {
-        let ids: Vec<String> = self.chat.read(cx).chats.iter().map(|chat| chat.id.clone()).collect();
-        for id in ids {
-            if self.insights.contains_key(&id) || self.insights_error.contains_key(&id) || !self.insights_requested.insert(id.clone()) {
-                continue;
-            }
-            self.command(json!({"action": "insights", "thread_id": id}), cx);
-        }
-    }
-
-    pub(crate) fn retry_insights(&mut self, id: String, cx: &mut Context<Self>) {
-        self.insights.remove(&id);
-        self.insights_error.remove(&id);
-        self.insights_requested.remove(&id);
-        self.insights_requested.insert(id.clone());
-        self.command(json!({"action": "insights", "thread_id": id}), cx);
     }
 
     pub fn focus_chat(
@@ -516,22 +494,6 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) {
         let event_kind = event.kind.clone();
-        if event.kind == "insights" {
-            if let Some(id) = event.thread_id.clone() {
-                self.insights_error.remove(&id);
-                self.insights.insert(id, crate::insights::Summary::from_event(&event.data));
-            }
-            cx.notify();
-            return;
-        }
-        if event.kind == "error" && event.message_key.as_deref() == Some("insights.failed") {
-            if let Some(id) = event.thread_id.clone() {
-                self.insights_requested.remove(&id);
-                self.insights_error.insert(id, event.text.clone());
-            }
-            cx.notify();
-            return;
-        }
         let feature_handled = self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
             || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
             || self.receive_local_execution(&event, window, cx)

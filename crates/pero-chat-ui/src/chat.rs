@@ -636,7 +636,7 @@ impl ChatPanel {
             .map(|c| c.agent.clone())
             .or_else(|| self.agents.get(self.agent_index).map(|a| a.id.clone()))
             .unwrap_or_else(|| "codex".into());
-        div().flex_1().min_h_0().flex().flex_col()
+        div().flex_1().min_h_0().min_w_0().flex().flex_col()
             .when(self.show_return_to_review,|el|el.child(
                 div().px(px(12.)).py(px(8.)).border_b_1().border_color(p.border).child(
                     Button::new("contribution-return").outline().small().label(self.t("contribution.return_review")).on_click(cx.listener(|_,_,_,cx|{

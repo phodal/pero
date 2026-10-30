@@ -131,6 +131,7 @@ function cssOf(contract) {
     decl('pero-ghost-icon-button', px(metrics.ghostIconButton)),
     decl('pero-search-height', px(metrics.searchFieldHeight)),
     decl('pero-reading-width', px(metrics.readerMaxWidth)),
+    decl('pero-composer-max', px(metrics.composerMax)),
     decl('pero-sidebar-width', px(metrics.sidebarWidth)),
     decl('pero-list-column', px(metrics.listColumn)),
     decl('pero-role-page', 'var(--pero-bg)'),
@@ -193,6 +194,7 @@ function rustOf(contract) {
     num('GHOST_ICON_BUTTON', metrics.ghostIconButton),
     num('SEARCH_FIELD_HEIGHT', metrics.searchFieldHeight),
     num('READER_MAX_WIDTH', metrics.readerMaxWidth),
+    num('COMPOSER_MAX', metrics.composerMax),
     num('SIDEBAR_WIDTH', metrics.sidebarWidth),
     num('LIST_COLUMN', metrics.listColumn),
   ];

@@ -44,6 +44,8 @@
   "chevron-left": { "kit": "ChevronLeft" },
   "panel-right-open": { "kit": "PanelRightOpen" },
   "panel-right-close": { "kit": "PanelRightClose" },
+  "panel-left-open": { "kit": "PanelLeftOpen" },
+  "panel-left-close": { "kit": "PanelLeftClose" },
   "minus": { "kit": "Minus" },
   "maximize": { "kit": "Maximize", "aliases": ["fit"] },
   "network": { "kit": "Network", "aliases": ["nodes"] },
@@ -60,5 +62,6 @@
   "file-type": { "kit": "FileType" },
   "code-xml": { "kit": "CodeXml" },
   "hash": { "kit": "Hash" },
-  "notebook": { "kit": "Notebook" }
+  "notebook": { "kit": "Notebook" },
+  "dots": {}
 }

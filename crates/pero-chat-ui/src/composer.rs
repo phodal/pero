@@ -177,13 +177,19 @@ impl ChatPanel {
         } else {
             (None, Some(context_button))
         };
-        div()
+        let composer = div()
             .id("chat-composer")
             .relative()
-            .flex_shrink_0()
-            .when(!self.compact, |el| el.border_t_1().border_color(p.border))
+            .when(self.compact, |el| el.flex_shrink_0().px(px(W::INSET)))
+            .when(!self.compact, |el| {
+                el.w_full()
+                    .max_w(px(pero_theme::COMPOSER_MAX))
+                    .min_w_0()
+                    .mx_auto()
+                    .border_t_1()
+                    .border_color(p.border)
+            })
             .bg(p.surface)
-            .px(px(W::INSET))
             .pt(px(W::INSET))
             .pb(px(W::INSET))
             .capture_action(cx.listener(|this, action: &Enter, window, cx| {
@@ -394,6 +400,21 @@ impl ChatPanel {
                                 ),
                         )
                     }),
-            ))
+            ));
+        if self.compact {
+            return composer;
+        }
+        // min(composer max, pane width minus the horizontal inset), centered.
+        // A narrower pane shrinks the bar. The frame stays visible so the
+        // completion popup is not clipped.
+        div()
+            .id("chat-composer-frame")
+            .w_full()
+            .min_w_0()
+            .flex_shrink_0()
+            .flex()
+            .justify_center()
+            .px(px(W::INSET))
+            .child(composer)
     }
 }

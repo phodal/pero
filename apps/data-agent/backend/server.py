@@ -5,8 +5,12 @@ import json
 import os
 from pathlib import Path
 import signal
+import sys
 import threading
 from hashlib import sha256
+# Source checkout uses the shared core; built Apps carry these same files beside this shell.
+_shared = Path(__file__).resolve().parents[3] / "harness/go/charts/python"
+sys.path.insert(0, str(_shared if _shared.is_dir() else Path(__file__).parent / "_core"))
 from chart_document import ChartDocument, document_for_view
 from dataset import Dataset, Invalid
 from store import DatasetId, DatasetStore

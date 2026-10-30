@@ -18,7 +18,7 @@ use pero_contracts::{
     HostEvent,
     mcp::{McpConfiguration, McpServerConfig, McpSettingsProjection, McpTransport},
 };
-use pero_theme::UiAppearance;
+use pero_theme::SettingMessage;
 use serde_json::json;
 
 pub(crate) struct McpEditor {
@@ -266,51 +266,61 @@ impl SettingsPanel {
     // of debug-Wasm stack even for the empty state and trapped on first render.
     pub(crate) fn mcp_settings(&self, cx: &mut Context<Self>) -> AnyElement {
         self.mcp.controls.borrow_mut().clear();
-        let p = UiAppearance::global(cx).palette.clone();
         let busy = self.mcp.request.is_some();
         let mut body = div()
             .id("mcp-settings")
             .flex()
             .flex_col()
             .min_w_0()
-            .gap(px(12.))
-            .pt(px(12.))
-            .child(self.mcp_agent_controls(cx))
-            .child(
-                div()
-                    .whitespace_normal()
-                    .text_color(p.text_muted)
-                    .child(self.t("mcp.new_sessions")),
-            )
-            .child(
-                div()
-                    .whitespace_normal()
-                    .text_color(p.text_muted)
-                    .child(self.t("mcp.internal")),
-            );
+            .child(pero_theme::settings_row(
+                self.t("mcp.agent"),
+                None,
+                None,
+                self.mcp_agent_controls(cx),
+                pero_theme::Chrome::from_app(cx),
+            ))
+            .child(pero_theme::settings_message(
+                self.t("mcp.new_sessions"),
+                SettingMessage::Help,
+                pero_theme::Chrome::from_app(cx),
+            ))
+            .child(pero_theme::settings_message(
+                self.t("mcp.internal"),
+                SettingMessage::Help,
+                pero_theme::Chrome::from_app(cx),
+            ));
         if let Some(error) = &self.mcp.error {
             body = body.child(
-                div()
+                pero_theme::settings_message(self.t(error), SettingMessage::Error, pero_theme::Chrome::from_app(cx))
                     .id("mcp-error")
-                    .role(Role::Alert)
-                    .text_color(p.error)
-                    .whitespace_normal()
-                    .child(self.t(error)),
+                    .role(Role::Alert),
             );
         }
         if busy {
-            body = body.child(self.t(if self.mcp.saving {
-                "settings.saving"
-            } else {
-                "mcp.loading"
-            }));
+            body = body.child(pero_theme::settings_message(
+                self.t(if self.mcp.saving {
+                    "settings.saving"
+                } else {
+                    "mcp.loading"
+                }),
+                SettingMessage::Status,
+                pero_theme::Chrome::from_app(cx),
+            ));
         }
         if self.mcp.saved {
-            body = body.child(self.t("mcp.saved"));
+            body = body.child(pero_theme::settings_message(
+                self.t("mcp.saved"),
+                SettingMessage::Success,
+                pero_theme::Chrome::from_app(cx),
+            ));
         }
         if let Some(config) = &self.mcp.config {
             if config.servers.is_empty() {
-                body = body.child(self.t("mcp.empty"));
+                body = body.child(pero_theme::settings_message(
+                    self.t("mcp.empty"),
+                    SettingMessage::Help,
+                    pero_theme::Chrome::from_app(cx),
+                ));
             }
             for (index, server) in config.servers.iter().enumerate() {
                 body = body.child(self.mcp_server_row(index, server, cx));
@@ -321,8 +331,8 @@ impl SettingsPanel {
             if self.mcp.importing {
                 body = body.child(self.mcp_import_form(cx));
             } else if !self.mcp.editing {
-                body = body
-                    .child(
+                body = body.child(pero_theme::settings_actions(
+                    [
                         self.mcp.measured(
                             "mcp-add".into(),
                             Button::new("mcp-add")
@@ -333,9 +343,8 @@ impl SettingsPanel {
                                 .on_click(cx.listener(|this, _, window, cx| {
                                     this.mcp_edit(None, window, cx)
                                 })),
-                        ),
-                    )
-                    .child(
+                        )
+                        .into_any_element(),
                         self.mcp.measured(
                             "mcp-import".into(),
                             Button::new("mcp-import")
@@ -351,8 +360,11 @@ impl SettingsPanel {
                                         .update(cx, |input, cx| input.focus(window, cx));
                                     cx.notify();
                                 })),
-                        ),
-                    );
+                        )
+                        .into_any_element(),
+                    ],
+                    pero_theme::Chrome::from_app(cx),
+                ));
             } else {
                 body = body.child(self.mcp_editor(cx));
             }
@@ -369,7 +381,6 @@ impl SettingsPanel {
             .flex_wrap()
             .gap(px(8.))
             .items_center()
-            .child(self.t("mcp.agent"))
             .child(
                 self.mcp.measured(
                     "mcp-agent".into(),
@@ -429,7 +440,6 @@ impl SettingsPanel {
         server: &McpServerConfig,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let p = UiAppearance::global(cx).palette.clone();
         let busy = self.mcp.request.is_some();
         let label = format!(
             "{} — {}",
@@ -440,28 +450,11 @@ impl SettingsPanel {
                 "mcp.disabled"
             })
         );
-        div()
-            .id(("mcp-server", index))
-            .flex()
-            .flex_wrap()
-            .items_center()
-            .gap(px(8.))
-            .border_b(px(0.5))
-            .border_color(p.border)
-            .pb(px(8.))
-            .child(
-                div()
-                    .flex_1()
-                    .min_w(px(120.))
-                    .whitespace_normal()
-                    .child(label)
-                    .child(
-                        div()
-                            .text_color(p.text_muted)
-                            .child(self.t("mcp.not_observed")),
-                    ),
-            )
-            .child(
+        pero_theme::settings_row(
+            label,
+            Some(self.t("mcp.not_observed").into()),
+            None,
+            div().flex().flex_wrap().gap(px(8.)).child(
                 self.mcp.measured(
                     format!("mcp-edit-{index}"),
                     Button::new(("mcp-edit", index))
@@ -512,7 +505,11 @@ impl SettingsPanel {
                         })),
                 ),
             )
-            .into_any_element()
+            .into_any_element(),
+            pero_theme::Chrome::from_app(cx),
+        )
+        .id(("mcp-server", index))
+        .into_any_element()
     }
     fn mcp_confirmation(&self, index: usize, enable: bool, cx: &mut Context<Self>) -> AnyElement {
         let busy = self.mcp.request.is_some();
@@ -520,19 +517,19 @@ impl SettingsPanel {
             .id("mcp-confirmation")
             .flex()
             .flex_col()
-            .gap(px(8.))
-            .child(div().whitespace_normal().child(self.t(if enable {
-                "mcp.grant"
-            } else {
-                "mcp.remove_confirm"
-            })))
-            .child(
-                div()
-                    .flex()
-                    .flex_wrap()
-                    .gap(px(8.))
-                    .child(
-                        self.mcp.measured(
+            .child(pero_theme::settings_message(
+                self.t(if enable {
+                    "mcp.grant"
+                } else {
+                    "mcp.remove_confirm"
+                }),
+                SettingMessage::Help,
+                pero_theme::Chrome::from_app(cx),
+            ))
+            .child(pero_theme::settings_actions(
+                [
+                    self.mcp
+                        .measured(
                             "mcp-confirm".into(),
                             Button::new("mcp-confirm")
                                 .small()
@@ -553,10 +550,10 @@ impl SettingsPanel {
                                     }
                                     this.mcp_save(servers, cx);
                                 })),
-                        ),
-                    )
-                    .child(
-                        self.mcp.measured(
+                        )
+                        .into_any_element(),
+                    self.mcp
+                        .measured(
                             "mcp-cancel-confirm".into(),
                             Button::new("mcp-cancel-confirm")
                                 .small()
@@ -567,9 +564,11 @@ impl SettingsPanel {
                                     this.mcp.confirm = None;
                                     cx.notify();
                                 })),
-                        ),
-                    ),
-            )
+                        )
+                        .into_any_element(),
+                ],
+                pero_theme::Chrome::from_app(cx),
+            ))
             .into_any_element()
     }
     fn mcp_import_form(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -577,74 +576,77 @@ impl SettingsPanel {
         div()
             .flex()
             .flex_col()
-            .gap(px(12.))
-            .child(div().whitespace_normal().child(self.t("mcp.import_hint")))
-            .child(
+            .child(pero_theme::settings_field(
+                self.t("mcp.import"),
+                Some(self.t("mcp.import_hint").into()),
                 Textarea::new(&self.mcp.import)
                     .aria_label(self.t("mcp.import"))
                     .h(px(96.))
-                    .disabled(busy),
-            )
-            .child(
-                self.mcp.measured(
-                    "mcp-import-save".into(),
-                    Button::new("mcp-import-save")
-                        .small()
-                        .primary()
-                        .label(self.t("mcp.import_save"))
-                        .disabled(busy || self.mcp.needs_reload)
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            match serde_json::from_str::<Vec<McpServerConfig>>(
-                                this.mcp.import.read(cx).value().as_ref(),
-                            ) {
-                                Ok(mut added) => {
-                                    for server in &mut added {
-                                        server.enabled = false;
+                    .disabled(busy)
+                    .into_any_element(),
+                pero_theme::Chrome::from_app(cx),
+            ))
+            .child(pero_theme::settings_actions(
+                [
+                    self.mcp
+                        .measured(
+                            "mcp-import-save".into(),
+                            Button::new("mcp-import-save")
+                                .small()
+                                .primary()
+                                .label(self.t("mcp.import_save"))
+                                .disabled(busy || self.mcp.needs_reload)
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    match serde_json::from_str::<Vec<McpServerConfig>>(
+                                        this.mcp.import.read(cx).value().as_ref(),
+                                    ) {
+                                        Ok(mut added) => {
+                                            for server in &mut added {
+                                                server.enabled = false;
+                                            }
+                                            let mut servers =
+                                                this.mcp.config.as_ref().unwrap().servers.clone();
+                                            servers.extend(added);
+                                            this.mcp_save(servers, cx);
+                                        }
+                                        Err(_) => {
+                                            this.mcp.error = Some("mcp.error.import".into());
+                                            cx.notify();
+                                        }
                                     }
-                                    let mut servers =
-                                        this.mcp.config.as_ref().unwrap().servers.clone();
-                                    servers.extend(added);
-                                    this.mcp_save(servers, cx);
-                                }
-                                Err(_) => {
-                                    this.mcp.error = Some("mcp.error.import".into());
+                                })),
+                        )
+                        .into_any_element(),
+                    self.mcp
+                        .measured(
+                            "mcp-import-cancel".into(),
+                            Button::new("mcp-import-cancel")
+                                .small()
+                                .ghost()
+                                .label(self.t("mcp.cancel"))
+                                .disabled(busy)
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.mcp.importing = false;
                                     cx.notify();
-                                }
-                            }
-                        })),
-                ),
-            )
-            .child(
-                self.mcp.measured(
-                    "mcp-import-cancel".into(),
-                    Button::new("mcp-import-cancel")
-                        .small()
-                        .ghost()
-                        .label(self.t("mcp.cancel"))
-                        .disabled(busy)
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.mcp.importing = false;
-                            cx.notify();
-                        })),
-                ),
-            )
+                                })),
+                        )
+                        .into_any_element(),
+                ],
+                pero_theme::Chrome::from_app(cx),
+            ))
             .into_any_element()
     }
     fn mcp_editor(&self, cx: &mut Context<Self>) -> AnyElement {
-        let p = UiAppearance::global(cx).palette.clone();
         let busy = self.mcp.request.is_some();
         let mut editor = div()
             .id("mcp-editor")
             .flex()
             .flex_col()
             .min_w_0()
-            .gap(px(8.))
-            .child(
-                div()
-                    .flex()
-                    .gap(px(8.))
-                    .child(
-                        self.mcp.measured(
+            .child(pero_theme::settings_actions(
+                [
+                    self.mcp
+                        .measured(
                             "mcp-stdio".into(),
                             Button::new("mcp-stdio")
                                 .small()
@@ -656,10 +658,10 @@ impl SettingsPanel {
                                     this.mcp.http = false;
                                     cx.notify();
                                 })),
-                        ),
-                    )
-                    .child(
-                        self.mcp.measured(
+                        )
+                        .into_any_element(),
+                    self.mcp
+                        .measured(
                             "mcp-http".into(),
                             Button::new("mcp-http")
                                 .small()
@@ -671,9 +673,11 @@ impl SettingsPanel {
                                     this.mcp.http = true;
                                     cx.notify();
                                 })),
-                        ),
-                    ),
-            );
+                        )
+                        .into_any_element(),
+                ],
+                pero_theme::Chrome::from_app(cx),
+            ));
         for (index, key) in [
             (0, "mcp.name"),
             (
@@ -689,29 +693,28 @@ impl SettingsPanel {
             if index == 2 && self.mcp.http {
                 continue;
             }
-            editor = editor.child(
-                div().child(self.t(key)).child(
-                    Input::new(&self.mcp.inputs[index])
-                        .aria_label(self.t(key))
-                        .small()
-                        .disabled(busy)
-                        .w_full(),
-                ),
-            );
+            editor = editor.child(pero_theme::settings_field(
+                self.t(key),
+                None,
+                Input::new(&self.mcp.inputs[index])
+                    .aria_label(self.t(key))
+                    .small()
+                    .disabled(busy)
+                    .w_full()
+                    .into_any_element(),
+                pero_theme::Chrome::from_app(cx),
+            ));
         }
         editor
-            .child(
-                div()
-                    .whitespace_normal()
-                    .text_color(p.text_muted)
-                    .child(self.t("mcp.no_secrets")),
-            )
-            .child(
-                div()
-                    .flex()
-                    .gap(px(8.))
-                    .child(
-                        self.mcp.measured(
+            .child(pero_theme::settings_message(
+                self.t("mcp.no_secrets"),
+                SettingMessage::Help,
+                pero_theme::Chrome::from_app(cx),
+            ))
+            .child(pero_theme::settings_actions(
+                [
+                    self.mcp
+                        .measured(
                             "mcp-save".into(),
                             Button::new("mcp-save")
                                 .small()
@@ -719,10 +722,10 @@ impl SettingsPanel {
                                 .label(self.t("mcp.save_disabled"))
                                 .disabled(busy || self.mcp.needs_reload)
                                 .on_click(cx.listener(|this, _, _, cx| this.mcp_submit(cx))),
-                        ),
-                    )
-                    .child(
-                        self.mcp.measured(
+                        )
+                        .into_any_element(),
+                    self.mcp
+                        .measured(
                             "mcp-cancel-edit".into(),
                             Button::new("mcp-cancel-edit")
                                 .small()
@@ -736,9 +739,11 @@ impl SettingsPanel {
                                     }
                                     cx.notify();
                                 })),
-                        ),
-                    ),
-            )
+                        )
+                        .into_any_element(),
+                ],
+                pero_theme::Chrome::from_app(cx),
+            ))
             .into_any_element()
     }
 }

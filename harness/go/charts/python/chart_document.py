@@ -1,4 +1,5 @@
 """Declarative chart documents, independent of any rendering surface."""
+from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 import math

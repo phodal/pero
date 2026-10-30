@@ -13,6 +13,7 @@ pero-theme.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 base64 = "0.22"
+sha2 = "0.10"
 anyhow = "1"
 
 [target.'cfg(target_family = "wasm")'.dependencies]

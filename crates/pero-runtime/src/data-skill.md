@@ -11,6 +11,21 @@ time range, filters and source before drawing a conclusion. If a necessary sourc
 or definition is unavailable, state the gap. Never invent rows, query results,
 source links or statistical certainty.
 
+## Charts in this conversation
+
+When the harness advertises `chart_render`, prefer it for a chart in the answer.
+It publishes reviewed JSON to the conversation without opening Data Agent.
+Supply `{"document": <version 1 chart document>}` for supplied chart rows.
+For traceable source records, supply `dataset:{name,content,format}` (format is
+`json` or `json_lines`), `chartDocument:{title,chart}`, optional `view` with
+filter/sort/selection, and optional `aggregation:{category,measure,aggregation}`.
+Aggregation uses x=`label`, y=`value` and sum or count. It keeps exact decimal
+values and original record pointers. The chart tool result is the publication;
+do not invent a marker, repeat the receipt JSON in prose, or open an App to show it.
+Verify the displayed chart and keep relevant source qualifications in the answer.
+A source label is still a declaration, not an independently verified source.
+If `chart_render` is not advertised, use the available App workflow below.
+
 ## Work with Data Agent
 
 Use the existing `app_use` workflow. Discover the installed and mounted Data

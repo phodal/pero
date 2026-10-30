@@ -105,6 +105,7 @@ app.whenReady().then(async () => {
     ...appUseEnvironment,
     PERO_SETTINGS_PATH: resolve(profile, 'runtime-settings.json'), PERO_HISTORY_PATH: resolve(profile, 'sessions.jsonl'),
     PERO_APPS_ROOT: resolve(profile, 'apps'), PERO_BUILTIN_APPS_ROOT: resolve(root, 'apps'),
+    PERO_REQUIRED_APPS: product.required.join(','),
     PERO_APP_NODE: product.node === 'bundled' ? resolve(root, 'runtime/node/bin/node') : product.node === 'system' ? 'node' : resolve(root, 'runtime/unavailable-node'),
     PERO_LOCALE: locale, PERO_APP_PYTHON: product.python === 'bundled' ? resolve(root, 'runtime/python/bin/python3') : 'python3',
     ...(product.chat ? {

@@ -2,6 +2,7 @@
 export type ProductFields = {
   schemaVersion: 1; id: string; name: string; version: string;
   shell: 'workbench' | 'app'; apps: readonly string[];
+  required?: readonly string[];
   entry?: Readonly<{ app: string; panel: string }>;
   python: 'system' | 'bundled';
   node?: 'system' | 'bundled';
@@ -15,6 +16,7 @@ export class Product {
   readonly version: string;
   readonly shell: 'workbench' | 'app';
   readonly apps: readonly string[];
+  readonly required: readonly string[];
   readonly entry?: Readonly<{ app: string; panel: string }>;
   readonly python: 'system' | 'bundled';
   readonly node?: 'system' | 'bundled';
@@ -24,6 +26,7 @@ export class Product {
   private constructor(fields: ProductFields) {
     this.id = fields.id; this.name = fields.name; this.version = fields.version;
     this.shell = fields.shell; this.apps = Object.freeze([...fields.apps]);
+    this.required = Object.freeze([...(fields.required ?? [])]);
     this.entry = fields.entry ? Object.freeze({ ...fields.entry }) : undefined;
     this.python = fields.python; this.node = fields.node; this.icon = fields.icon;
     this.chat = fields.chat ?? false;
@@ -47,7 +50,7 @@ export class Product {
     const v = value as ProductFields;
     const slug = (s: unknown): s is string => typeof s === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s);
     if (!v || typeof v !== 'object' || Array.isArray(v) ||
-      Object.keys(v).some(key => !['schemaVersion', 'id', 'name', 'version', 'shell', 'apps', 'entry', 'python', 'node', 'icon', 'chat'].includes(key)) ||
+      Object.keys(v).some(key => !['schemaVersion', 'id', 'name', 'version', 'shell', 'apps', 'required', 'entry', 'python', 'node', 'icon', 'chat'].includes(key)) ||
       v.schemaVersion !== 1 || typeof v.id !== 'string' || !/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*){2,}$/.test(v.id) ||
       typeof v.name !== 'string' || !/^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,63}$/u.test(v.name) ||
       typeof v.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(v.version) ||
@@ -55,7 +58,8 @@ export class Product {
       (v.node !== undefined && !['system', 'bundled'].includes(v.node)) ||
       (v.chat !== undefined && typeof v.chat !== 'boolean') ||
       (v.icon !== undefined && (typeof v.icon !== 'string' || !/^(?:[a-zA-Z0-9_-]+\/)*[a-zA-Z0-9_-]+\.svg$/.test(v.icon))) ||
-      !Array.isArray(v.apps) || !v.apps.every(slug) || new Set(v.apps).size !== v.apps.length) {
+      !Array.isArray(v.apps) || !v.apps.every(slug) || new Set(v.apps).size !== v.apps.length ||
+      (v.required !== undefined && (!Array.isArray(v.required) || !v.required.every(slug) || new Set(v.required).size !== v.required.length || v.required.some(name => !v.apps.includes(name))))) {
       throw new Error('Invalid Product definition');
     }
     if (v.shell === 'app') {

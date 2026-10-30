@@ -7,7 +7,11 @@
   "apps": [
     "virtual-cell",
     "paper-agent",
+    "insights",
     "control-lab"
+  ],
+  "required": [
+    "insights"
   ],
   "python": "system"
 }

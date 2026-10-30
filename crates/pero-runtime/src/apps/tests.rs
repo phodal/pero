@@ -138,15 +138,31 @@ fn builtin_catalog_discovers_additions_without_overwriting_choices() {
         )
         .unwrap();
         fs::rename(source, catalog.join("paper-agent")).unwrap();
-        // Updating a known builtin's files does not overwrite its installed copy.
+        // A changed builtin replaces package bytes and keeps the enable choice.
         fs::write(
             catalog.join("virtual-cell/dist/index.html"),
             "changed upstream",
         )
         .unwrap();
+        let data = root.parent().unwrap().join("app-data/virtual-cell");
+        fs::create_dir_all(&data).unwrap();
+        fs::write(data.join("draft.txt"), "user draft").unwrap();
         let mut store = AppStore::open(root.clone(), PythonEnvironments::default()).unwrap();
         store.seed_builtins(&catalog).unwrap();
         assert_eq!(store.list().len(), 2);
+        assert!(
+            !store
+                .list()
+                .iter()
+                .find(|app| app.name == name)
+                .unwrap()
+                .enabled
+        );
+        assert_eq!(
+            fs::read_to_string(data.join("draft.txt")).unwrap(),
+            "user draft"
+        );
+        store.seed_builtins(&catalog).unwrap();
         assert!(
             !store
                 .list()
@@ -165,7 +181,7 @@ fn builtin_catalog_discovers_additions_without_overwriting_choices() {
         );
         assert_eq!(
             fs::read_to_string(root.join("virtual-cell/dist/index.html")).unwrap(),
-            "<h1>Cell atlas</h1>"
+            "changed upstream"
         );
         store.uninstall(&paper).unwrap();
         // Refresh and a new Host process both retain the removal.
@@ -288,4 +304,57 @@ fn builtin_catalog_skips_an_unbuilt_app_and_honours_the_product_list() {
             .iter()
             .any(|app| app.name == data && app.enabled)
     );
+}
+
+#[test]
+fn required_tenure_rejects_disable_and_reinstalls_a_tampered_record() {
+    for (required, action, enabled, installed, code) in [
+        (false, "disable", Some(false), true, None),
+        (false, "remove", None, false, None),
+        (true, "disable", Some(true), true, Some(super::tenure::TenureFault::CODE)),
+        (true, "remove", Some(true), true, Some(super::tenure::TenureFault::CODE)),
+        (true, "reopen", Some(true), true, None),
+    ] {
+        let workspace = Workspace::new();
+        let source = workspace.package(None);
+        let root = workspace.0.join("managed/apps");
+        let name = AppName::try_from("virtual-cell".to_string()).unwrap();
+        let names = if required {
+            std::collections::BTreeSet::from([name.clone()])
+        } else {
+            std::collections::BTreeSet::new()
+        };
+        let mut store = AppStore::open_required(root.clone(), PythonEnvironments::default(), names.clone()).unwrap();
+        store.install(&source).unwrap();
+        store.set_enabled(&name, true).unwrap();
+        let result = match action {
+            "disable" => store.set_enabled(&name, false).map(|_| ()),
+            "remove" => store.uninstall(&name).map(|_| ()),
+            "reopen" => {
+                drop(store);
+                fs::write(
+                    root.join("virtual-cell/.installation.json"),
+                    br#"{"enabled":false}"#,
+                )
+                .unwrap();
+                store = AppStore::open_required(root.clone(), PythonEnvironments::default(), names).unwrap();
+                Ok(())
+            }
+            _ => unreachable!(),
+        };
+        assert_eq!(result.as_ref().err().map(|error| error.to_string()).as_deref(), code, "{action}/{required}");
+        let listed = store.list();
+        assert_eq!(listed.iter().any(|app| app.name == name), installed, "{action}");
+        if let Some(enabled) = enabled {
+            assert_eq!(listed[0].enabled, enabled, "{action}");
+            assert_eq!(listed[0].tenure == super::Tenure::Required, required, "{action}");
+        }
+        if action == "reopen" {
+            let record: serde_json::Value = serde_json::from_slice(
+                &fs::read(root.join("virtual-cell/.installation.json")).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(record["enabled"], true);
+        }
+    }
 }

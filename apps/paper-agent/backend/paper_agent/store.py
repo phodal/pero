@@ -42,9 +42,10 @@ class SavedReport:
 
 
 class ResearchStore:
-    def __init__(self, root):
+    def __init__(self, root, embedder=None):
         self.root = Path(root) / "research-v1"
         self.lock = threading.RLock()
+        self.embedder = embedder
 
     def _read(self, kind, identity):
         if not isinstance(identity, str) or not ID.fullmatch(identity):
@@ -246,7 +247,7 @@ class ResearchStore:
             return paper
 
     def search(self, query: SearchQuery):
-        with self.lock, SearchIndex(self.root / 'search-v1.sqlite3') as index:
+        with self.lock, SearchIndex(self.root / 'search-v1.sqlite3', self.embedder) as index:
             paper_ids, pdf_ids = self._list('papers'), self._list('pdfs')
             # JSON is authoritative. Index only new immutable versions; removing
             # a source also removes its derived search rows on the next query.
@@ -350,7 +351,7 @@ class ResearchStore:
             if command.action == 'read':
                 step = ResearchStep.read(study, command, self.pdf(command.source.document_id), now)
             elif command.action == 'search':
-                with SearchIndex(self.root / 'study-search' / (study.id + '.sqlite3')) as index:
+                with SearchIndex(self.root / 'study-search' / (study.id + '.sqlite3'), self.embedder) as index:
                     indexed = {s.id for s in index.sources()}
                     for paper, source in zip(study.papers, study.sources):
                         if source.document_id not in indexed:

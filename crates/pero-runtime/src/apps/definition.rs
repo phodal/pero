@@ -108,6 +108,7 @@ pub struct AppSummary {
     pub display_name: String,
     pub description: String,
     pub enabled: bool,
+    pub tenure: super::Tenure,
     pub panels: Vec<AppPanel>,
     #[serde(skip_serializing_if="Vec::is_empty")]
     pub writes: Vec<AppWriteRoute>,
@@ -138,10 +139,13 @@ impl AppDefinition {
         {
             return Err("Invalid App version, displayName or description".into());
         }
-        if value.permissions.host.iter().any(|grant| grant != "agent")
-            || value.permissions.host.len() > 1
-        {
-            return Err("This Host supports only the App agent permission".into());
+        let mut seen = std::collections::BTreeSet::new();
+        for grant in &value.permissions.host {
+            if (grant != "agent" && grant != "insights") || !seen.insert(grant.as_str()) {
+                return Err(
+                    "This Host supports only the App agent and insights permissions".into(),
+                );
+            }
         }
         if value.contributes.panels.len() != 1 {
             return Err("This Host requires exactly one App panel".into());
@@ -185,6 +189,7 @@ impl AppDefinition {
             display_name: self.display_name.clone(),
             description: self.description.clone(),
             enabled,
+            tenure: super::Tenure::Optional,
             panels: self.contributes.panels.clone(),
             writes: self.contributes.writes.clone(),
         }
@@ -206,6 +211,9 @@ mod tests {
             ("displayName", serde_json::json!(" "), false),
             ("permissions", serde_json::json!({"host":["shell"]}), false),
             ("permissions", serde_json::json!({"host":["agent"]}), true),
+            ("permissions", serde_json::json!({"host":["insights"]}), true),
+            ("permissions", serde_json::json!({"host":["agent","insights"]}), true),
+            ("permissions", serde_json::json!({"host":["agent","agent"]}), false),
             (
                 "backend",
                 serde_json::json!({"type":"python","entry":"../server.py"}),

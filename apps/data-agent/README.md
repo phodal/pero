@@ -58,3 +58,9 @@ Codex plugins or enter every conversation automatically.
 
 Run `npm test` and `npm run typecheck` in this directory. Build with
 `node scripts/build/apps.mjs --app data-agent` from the repository root.
+
+The data value core now lives in `harness/go/charts/python`; the App build
+packages those same modules under `backend/_core`. The built-in Go harness
+also embeds them for `chart_render`, so conversation charts do not require this
+App to be installed, mounted, or running. GPUI chart rendering is shared from
+`pero-chat-ui`. Both paths retain the version 1 JSON semantics and source data.

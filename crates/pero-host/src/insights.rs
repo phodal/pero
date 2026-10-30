@@ -11,9 +11,9 @@ use std::{
 use pero_contracts::HostEvent;
 use serde_json::Value;
 use session_analysis::{
-    AgentId, Analysis, AnalysisId, Budget, Checkpoint, Finish, Input, MessageClass, ModelId,
-    Record, RecordKind, Session, SessionId, Step, TimeMs, TokenUsage, ToolCallId, ToolName,
-    Transcript, analyze_concurrent, resume,
+    AgentId, Analysis, AnalysisId, Boundary, Budget, Checkpoint, Finish, Input, MessageClass,
+    ModelId, Record, RecordKind, ResponseKind, Session, SessionId, Step, TimeMs, TokenUsage,
+    ToolCallId, ToolName, Transcript, TurnStatus, analyze_concurrent, resume,
 };
 
 #[derive(Debug)]
@@ -46,8 +46,25 @@ impl Report {
     pub fn to_json(&self) -> Value {
         let metrics = &self.analysis.metrics;
         let latest = self.analysis.turns.last();
+        let turns = self
+            .analysis
+            .turns
+            .iter()
+            .map(|turn| {
+                serde_json::json!({
+                    "status": status_name(turn.status),
+                    "request": turn.request,
+                    "response": turn.response,
+                    "response_kind": response_kind_name(turn.response_kind),
+                    "boundary": boundary_name(turn.boundary),
+                    "seq_start": turn.seq_start,
+                    "seq_end": turn.seq_end,
+                    "truncated": turn.truncated,
+                })
+            })
+            .collect::<Vec<_>>();
         serde_json::json!({
-            "turns": metrics.turns,
+            "turn_count": metrics.turns,
             "completed": metrics.completed,
             "failed": metrics.failed,
             "stopped": metrics.stopped,
@@ -58,11 +75,46 @@ impl Report {
             "user_messages": metrics.user_messages,
             "request": latest.map(|turn| turn.request.as_str()).unwrap_or(""),
             "response": latest.map(|turn| turn.response.as_str()).unwrap_or(""),
+            "response_kind": latest.map(|turn| response_kind_name(turn.response_kind)).unwrap_or("unknown"),
+            "status": latest.map(|turn| status_name(turn.status)).unwrap_or("unknown"),
             "model": self.analysis.session.model.as_str(),
             "git_branch": self.analysis.session.git_branch,
             "repository": self.analysis.session.repository,
             "resumed": self.resumed,
+            "source": {
+                "start_seq": self.analysis.source.start_seq,
+                "end_seq": self.analysis.source.end_seq,
+                "as_of_seq": self.analysis.source.as_of_seq,
+                "digest": self.analysis.source.digest,
+            },
+            "turns": turns,
         })
+    }
+}
+
+fn status_name(status: TurnStatus) -> &'static str {
+    match status {
+        TurnStatus::Completed => "completed",
+        TurnStatus::Failed => "failed",
+        TurnStatus::Stopped => "stopped",
+        TurnStatus::Unfinished => "unfinished",
+        TurnStatus::Unknown => "unknown",
+    }
+}
+
+fn response_kind_name(kind: ResponseKind) -> &'static str {
+    match kind {
+        ResponseKind::Final => "final",
+        ResponseKind::Intermediate => "intermediate",
+        ResponseKind::Unknown => "unknown",
+    }
+}
+
+fn boundary_name(boundary: Boundary) -> &'static str {
+    match boundary {
+        Boundary::Explicit => "explicit",
+        Boundary::Inferred => "inferred",
+        Boundary::Aside => "aside",
     }
 }
 
@@ -640,6 +692,12 @@ mod tests {
             assert_eq!(report.analysis.metrics.stopped, 1, "stopped turns");
             assert_eq!(report.analysis.metrics.tool_calls, 5, "tools");
             assert_eq!(report.analysis.metrics.tool_errors, 0, "failed tools");
+            let requests: Vec<_> = report.analysis.turns.iter().map(|turn| turn.request.as_str()).collect();
+            assert_eq!(requests, vec!["hi", "今天 天气怎么样呢？", "杭州"]);
+            assert_eq!(report.analysis.turns[0].response, "Hi! I'm ready to help with the Pero codebase. What would you like to work on?");
+            assert!(report.analysis.turns[1].response.contains("我没法获取你的位置"));
+            assert_eq!(report.analysis.turns[2].response, "我来搜一下杭州今天的天气。");
+            assert!(!report.analysis.turns.iter().any(|turn| turn.response.contains("°") || turn.request.contains("SECRET")));
         }
         let _ = fs::remove_dir_all(&dir);
     }

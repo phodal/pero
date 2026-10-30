@@ -33,6 +33,7 @@ pub const ACTION_BUTTON_PADDING: f32 = 12.;
 pub const GHOST_ICON_BUTTON: f32 = 28.;
 pub const SEARCH_FIELD_HEIGHT: f32 = 32.;
 pub const READER_MAX_WIDTH: f32 = 720.;
+pub const COMPOSER_MAX: f32 = 800.;
 pub const SIDEBAR_WIDTH: f32 = 224.;
 pub const LIST_COLUMN: f32 = 336.;
 pub const PAGE_LIGHT: &str = "#F7F9FC";

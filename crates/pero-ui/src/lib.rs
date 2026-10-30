@@ -29,6 +29,7 @@ mod local_roadmap;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod project_view;
 #[cfg(any(target_family = "wasm", feature = "native"))]
+#[cfg(test)]
 mod insights;
 #[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
 mod projects;

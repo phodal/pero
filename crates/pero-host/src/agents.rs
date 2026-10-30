@@ -158,26 +158,47 @@ impl Manager {
     fn visible_history(&self) -> Vec<HostEvent> {
         HostEvent::without_deleted_threads(&self.history.lock().unwrap())
     }
-    fn publish_insights(&self, thread_id: String) {
-        if !super::insights::session_id_ok(&thread_id) {
-            self.send("error", "Invalid session request", serde_json::Value::Null);
-            return;
+    pub fn insights_value(&self, thread_id: &str) -> Result<serde_json::Value, String> {
+        if !super::insights::session_id_ok(thread_id) {
+            return Err("Invalid session request".into());
         }
-        match super::insights::analyze_history(
+        let report = super::insights::analyze_history(
             &self.visible_history(),
-            &thread_id,
+            thread_id,
             &self.history_path,
             super::insights::now_ms(),
             32,
-        ) {
-            Ok(report) => {
+        )
+        .map_err(|error| error.to_string())?;
+        let mut value = report.to_json();
+        value["threadId"] = serde_json::json!(thread_id);
+        Ok(value)
+    }
+
+    pub fn insights_catalog(&self) -> Vec<serde_json::Value> {
+        let mut ids = Vec::new();
+        for event in self.visible_history() {
+            let Some(id) = event.thread_id else { continue };
+            if super::insights::session_id_ok(&id) && !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+        ids.into_iter()
+            .filter_map(|id| self.insights_value(&id).ok())
+            .filter(|value| value.get("turn_count").and_then(|count| count.as_u64()).unwrap_or(0) > 0)
+            .collect()
+    }
+
+    fn publish_insights(&self, thread_id: String) {
+        match self.insights_value(&thread_id) {
+            Ok(value) => {
                 let mut event = HostEvent::new("insights", None, String::new());
                 event.thread_id = Some(thread_id);
-                event.data = report.to_json();
+                event.data = value;
                 let _ = self.tx.send(event);
             }
             Err(error) => {
-                let mut event = HostEvent::new("error", None, error.to_string());
+                let mut event = HostEvent::new("error", None, error);
                 event.thread_id = Some(thread_id);
                 event.message_key = Some("insights.failed".into());
                 let _ = self.tx.send(event);

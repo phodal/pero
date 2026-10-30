@@ -37,6 +37,7 @@ pub(crate) struct ProjectGroup {
 }
 pub(crate) struct SidebarProps<'a> {
     pub navigation: WorkbenchPage,
+    pub insights_open: bool,
     pub local_connected: bool,
     pub groups: Vec<ProjectGroup>,
     pub ungrouped: Vec<RecentRow>,
@@ -46,6 +47,9 @@ pub(crate) struct SidebarProps<'a> {
 pub(crate) enum SidebarAction {
     NewChat,
     Navigate(WorkbenchPage),
+    OpenApp { name: String, panel: String },
+    ToggleSidebar,
+    OpenProject(String),
     ToggleProject(String),
     RevealSessions(String),
     SelectSession(usize),
@@ -118,7 +122,6 @@ fn session_menu(
     cx: &App,
 ) -> impl IntoElement {
     let label = ui.t("chat.delete_confirm");
-    let danger = ui.palette.error;
     let request = delete.request;
     let confirm = delete.confirm;
     let cancel = delete.cancel;
@@ -139,15 +142,12 @@ fn session_menu(
                     let on_delete = on_delete.clone();
                     let request = request.clone();
                     let confirm = confirm.clone();
-                    menu.min_w(px(148.)).item(
-                        PopupMenuItem::element(move |_, _| {
-                            div().text_color(danger).child(label)
-                        })
-                        .on_click(move |_, window, cx| {
+                    menu.min_w(px(148.)).item(PopupMenuItem::new(label).on_click(
+                        move |_, window, cx| {
                             on_delete(&request, window, cx);
                             on_delete(&confirm, window, cx);
-                        }),
-                    )
+                        },
+                    ))
                 })
                 .on_open_change(move |open, window, cx| {
                     if !*open {
@@ -169,6 +169,7 @@ fn project_header(
     let path = group.path.clone();
     let name = group.name.clone();
     let collapsed = group.collapsed;
+    let key = group.key.clone();
     div()
         .id(("project-header", group_index))
         .w_full()
@@ -179,42 +180,58 @@ fn project_header(
         .items_center()
         .gap(chrome.geo(pero_theme::ICON_GAP))
         .rounded(chrome.geo(pero_theme::RADIUS_SELECTION))
-        .cursor_pointer()
         .text_size(chrome.text(pero_theme::TYPE_BODY))
         .text_color(if group.active { p.text } else { p.text_muted })
         .hover(move |row| row.bg(hover))
-        .aria_label(format!(
-            "{} {}",
-            ui.t(if collapsed {
-                "project.expand"
-            } else {
-                "project.collapse"
-            }),
-            name
-        ))
-        .when(!path.is_empty(), |row| {
-            let path = path.clone();
-            row.tooltip(move |window, cx| Tooltip::new(path.clone()).build(window, cx))
-        })
-        .on_click(click(
-            on_action,
-            SidebarAction::ToggleProject(group.key.clone()),
-        ))
         .child(
             div()
+                .id(("project-disclosure", group_index))
                 .w(chrome.geo(pero_theme::LEAD_BOX))
-                .h(chrome.geo(pero_theme::LEAD_BOX))
+                .h_full()
                 .flex_shrink_0()
                 .flex()
                 .items_center()
                 .justify_center()
+                .cursor_pointer()
+                .aria_label(format!(
+                    "{} {}",
+                    ui.t(if collapsed {
+                        "project.expand"
+                    } else {
+                        "project.collapse"
+                    }),
+                    &name
+                ))
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .on_click(click(
+                    on_action,
+                    SidebarAction::ToggleProject(key.clone()),
+                ))
                 .child(Icon::default().path(if collapsed {
                     "icons/chevron-right.svg"
                 } else {
                     "icons/chevron-down.svg"
                 })),
         )
-        .child(div().min_w_0().flex_1().text_ellipsis().child(name))
+        .child({
+            let open = format!("{} {}", ui.t("project.open"), name);
+            div()
+                .id(("sidebar-project", group_index))
+                .min_w_0()
+                .flex_1()
+                .h_full()
+                .flex()
+                .items_center()
+                .cursor_pointer()
+                .aria_label(open)
+                .when(!path.is_empty(), |row| {
+                    let path = path.clone();
+                    row.tooltip(move |window, cx| Tooltip::new(path.clone()).build(window, cx))
+                })
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .on_click(click(on_action, SidebarAction::OpenProject(key)))
+                .child(div().min_w_0().flex_1().text_ellipsis().child(name))
+        })
 }
 
 fn show_more(
@@ -281,17 +298,34 @@ pub(crate) fn sidebar(
         .border_color(p.border)
         .p(px(pero_theme::SPACE_8))
         .gap(px(pero_theme::SPACE_4))
-        .child(pero_theme::sidebar_row(
-            "sidebar-new-chat",
-            ui.t("chat.new"),
-            None,
-            None,
-            false,
-            pero_theme::RowLevel::Nav,
-            Some(Icon::new(IconName::Plus).into_any_element()),
-            chrome,
-            click(&on_action, SidebarAction::NewChat),
-        ))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(pero_theme::ICON_GAP))
+                .child(
+                    div().min_w_0().flex_1().child(pero_theme::sidebar_row(
+                        "sidebar-new-chat",
+                        ui.t("chat.new"),
+                        None,
+                        None,
+                        false,
+                        pero_theme::RowLevel::Nav,
+                        Some(Icon::new(IconName::Plus).into_any_element()),
+                        chrome,
+                        click(&on_action, SidebarAction::NewChat),
+                    )),
+                )
+                .child(
+                    div().flex_shrink_0().child(
+                        pero_theme::ghost_icon_button("sidebar-collapse", chrome, cx)
+                            .icon(Icon::default().path("icons/panel-left-close.svg"))
+                            .tooltip(ui.t("sidebar.hide"))
+                            .accessibility_label(ui.t("sidebar.hide"))
+                            .on_click(click(&on_action, SidebarAction::ToggleSidebar)),
+                    ),
+                ),
+        )
         .child(pero_theme::sidebar_row(
             "sidebar-projects",
             ui.t("nav.projects"),
@@ -420,18 +454,18 @@ pub(crate) fn sidebar(
                     ui.t("nav.insights"),
                     None,
                     None,
-                    props.navigation == WorkbenchPage::Insights,
+                    props.insights_open,
                     pero_theme::RowLevel::Nav,
                     Some(Icon::default().path("icons/layout-list.svg").into_any_element()),
                     chrome,
-                    click(&on_action, SidebarAction::Navigate(WorkbenchPage::Insights)),
+                    click(&on_action, SidebarAction::OpenApp { name: "insights".into(), panel: "main".into() }),
                 ))
                 .child(pero_theme::sidebar_row(
                     "sidebar-apps",
                     ui.t("nav.apps"),
                     None,
                     None,
-                    props.navigation == WorkbenchPage::Apps,
+                    props.navigation == WorkbenchPage::Apps && !props.insights_open,
                     pero_theme::RowLevel::Nav,
                     Some(Icon::default().path("icons/file-code.svg").into_any_element()),
                     chrome,

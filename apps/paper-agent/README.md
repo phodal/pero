@@ -23,17 +23,18 @@ Open a paper to enter reading mode. The top bar contains Back, title, PDF
 navigation, zoom and **Ask**. Opening the App never starts research.
 
 Existing profiles discover new bundled Apps at startup and when entering or
-refreshing Apps. External packages can be added through **Apps → Install from
-folder**, then enabled. Domain data lives in Host-managed `app-data/paper-agent` and survives
-disable, uninstall and reinstall. Rebuilding a bundled App does not replace an
-already-installed package; uninstall and reinstall the rebuilt folder through
-Apps to load its new version. The App defaults to the shared Python
-environment; see [Python environment settings](../README.md#python-environments)
-for a dedicated override when needed. Install this App's pinned PDF dependencies
-in that shared environment before using PDF reading:
+refreshing Apps. A bundled App already in the managed directory is replaced
+when its package changes; its enable state and domain data stay, and an
+explicit uninstall stays uninstalled. External packages can be added through
+**Apps → Install from folder**, then enabled. Domain data lives in
+Host-managed `app-data/paper-agent` and survives disable, uninstall and
+reinstall. The App uses the shared Python environment; see
+[Python environment settings](../README.md#python-environments). The workbench
+prepares `~/.pero/environment/pero-default` and installs the pinned PDF
+packages there. To install them yourself:
 
 ```sh
-/path/to/shared/bin/python -m pip install ./apps/paper-agent
+"$HOME/.pero/environment/pero-default/bin/python" -m pip install ./apps/paper-agent
 ```
 
 The PDF backend uses `pypdfium2==5.0.0` and `Pillow==12.0.0`. Reading text,
@@ -79,9 +80,13 @@ passages observed in the study; returning JSON in chat alone does not save a
 report. Unfinished studies can be reopened; **Continue research** explicitly
 starts a new Host request with the saved evidence and gaps, using the selected
 Agent. A running Host request is reattached without replay. Unresolved gaps stay
-visible in saved reports and exports. Search uses local SQLite FTS5/BM25 and adds
-no embedding runtime. Missing hits do not prove absence from the paper. This
-mode studies selected saved PDFs; external literature discovery remains a
+visible in saved reports and exports. Library search and frozen-PDF study search
+fuse SQLite FTS5/BM25 with vectors from a local Qwen3-Embedding-0.6B model when
+that model is available (`PERO_EMBED_MODEL`, `~/.pero/models/qwen3-embedding-0.6b.gguf`,
+or `~/.kiro/crew/models/qwen3-embedding-0.6b.gguf`, plus `llama-cpp-python`).
+The vector leg uses the same original slices and page locators. Set
+`PERO_APP_INFRA_EMBED=0` to keep keyword ranking. Missing hits do not prove
+absence from the paper. This mode studies selected saved PDFs; external literature discovery remains a
 separate library workflow. OCR and automatic figure recognition are not included.
 Existing abstract/text snapshots remain unchanged. Ordinary research still uses
 those snapshots unless full-text retrieval is selected.
@@ -100,8 +105,10 @@ The first query backfills `research-v1/search-v1.sqlite3` from immutable JSON;
 subsequent queries index only newly saved versions and remove withdrawn sources.
 This SQLite file is a derived cache: stop the App and remove it to rebuild on
 the next search. Original snapshots, PDFs, frozen inputs and reports remain the
-source of truth. No model, embedding runtime or additional Python package is
-needed for search; Python's SQLite must provide FTS5.
+source of truth. Keyword search needs no extra package. Semantic ranking needs
+the isolated `packages/app-infra` runtime image under `backend/app_infra` and
+`llama-cpp-python`; without the model file, search stays on FTS5. Python's
+SQLite must provide FTS5.
 
 Markdown chunks respect headings; PDF chunks stay within a page. Both preserve
 exact original slices with overlap, up to 1,600 characters per chunk. English,
@@ -120,12 +127,15 @@ passages; Markdown includes the method, coverage limitations and PDF digests.
 Abstract/report snapshots retain their original kinds when PDF passages are used.
 No-evidence questions ask for a more specific question instead of filling
 the context with unrelated text. With multiple planned queries, `totalMatches`
-is the sum of lexical matches per query and may include overlapping chunks.
+is the sum of matches per query and may include overlapping chunks. When the
+embedding model is loaded, ranking is reciprocal rank fusion of the keyword
+leg and the vector leg; returned items are still exact original slices.
 
 Authenticated API: `POST /api/library/search` with `query`, optional stored
 `paperIds`, `limit`, and `pdfOnly`. Responses include exact chunks, versioned
-source locators, scores, total/returned counts and truncation. Scores rank lexical
-matches only. This does not add OCR, semantic retrieval, a knowledge graph or an
+source locators, scores, total/returned counts and truncation. Scores rank the
+fused keyword and vector legs when an embedding model is loaded, and keyword
+matches alone otherwise. This does not add OCR, a knowledge graph, or an
 independent acceptance decision.
 
 ## Workflow and boundaries

@@ -20,15 +20,12 @@ pub(crate) fn environments(
     cx: &App,
 ) -> Div {
     let chrome = ui.chrome();
-    let last = agents.len().saturating_sub(1);
     div().flex().flex_col()
-        .child(div().px(chrome.geo(pero_theme::SPACE_16)).pt(chrome.geo(pero_theme::SPACE_12))
-            .text_size(chrome.text(pero_theme::TYPE_CAPTION)).text_color(chrome.palette.text_muted)
-            .whitespace_normal().child(ui.t("agents.description")))
+        .child(pero_theme::settings_message(ui.t("agents.description"), pero_theme::SettingMessage::Help, chrome))
         .children(agents.iter().enumerate().map(|(i, agent)| {
             setting_row(&agent.name, "", Some(ui.badge(ui.t(if agent.available { "agents.installed" } else { "agents.missing" }), if agent.available { "success" } else { "warning" }).into_any_element()),
                 Button::new(("connect-agent", i)).outline().small().h(px(pero_theme::ACTION_BUTTON_HEIGHT)).label(ui.t("chat.new")).disabled(!agent.available)
                     .on_click(click(&on_action, WorkspaceAction::NewSession(i))).into_any_element(),
-                i != last, cx)
+                cx)
         }))
 }

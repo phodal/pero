@@ -1,0 +1,9 @@
+[project]
+name = "app-infra"
+version = "0.1.0"
+description = "Local hybrid retrieval for Pero apps"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+
+[tool.setuptools.packages.find]
+where = ["."]

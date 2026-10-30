@@ -1,4 +1,5 @@
 """Typed dataset views. JSON is admitted/projected at this App boundary only."""
+from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 import json

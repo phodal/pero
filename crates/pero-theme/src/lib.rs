@@ -8,7 +8,9 @@ mod design;
 pub use design::{
     action_button, badge, empty_state, ghost_icon_button, hairline, interaction_row,
     library_header, list_row, menu_button, outline_badge, reader_frame, search_field,
-    settings_group, settings_panel, settings_row, sidebar_row, ActionKind, Chrome, RowLevel,
+    settings_actions, settings_check, settings_field, settings_group, settings_message,
+    settings_panel, settings_row, settings_status, sidebar_row, ActionKind, Chrome, RowLevel,
+    SettingMessage,
 };
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod appearance;
