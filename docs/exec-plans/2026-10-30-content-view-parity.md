@@ -6,6 +6,25 @@ date: 2026-10-30
 
 # ACP content flow: integration evidence and scope cleanup
 
+## ACP cleanup receipt (2026-10-30)
+
+General Open File and Save As actions and shortcuts have been removed. Result
+readers, including restored File views, are read-only. Existing dirty drafts can
+still be recovered and saved or discarded on close; Host file and draft support
+remains for that compatibility path. Pane and Web infrastructure remains in place;
+it is not a commitment to general IDE parity. The earlier matrix below is a
+historical account of the expanded implementation, not the active ACP goal.
+
+An isolated macOS Electron fixture build passed the 8,000-row ACP reader flow,
+including exact copy, read-only protection, search, folding, table interaction and
+14-conversation keyboard switching. Streaming presentation passed reasoning,
+tool input and content, approval, theme, narrow layout and restart. ACP content
+is retained even if equal to input. A cross-version Electron test generated a real
+old draft, recovered it read-only and verified Cancel and Save on close. These
+are fixture/development receipts, not real-provider, installed-package, physical
+IME or cross-platform acceptance. The large-source performance incident remains
+open; one passing sample is not a distribution or a universal frame-budget claim.
+
 ## Corrected scope and integration order
 
 The user clarified that the target is Zed's ACP flow: conversations, streaming
