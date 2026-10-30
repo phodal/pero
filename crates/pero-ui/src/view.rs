@@ -308,6 +308,9 @@ impl Render for Workbench {
             .capture_action(cx.listener(|this,_:&crate::workspace_view::OpenDocument,_,cx| {this.choose_document(cx);cx.stop_propagation();}))
             .capture_action(cx.listener(|this, _: &crate::workspace_view::NextContent, window, cx| this.cycle_content(false, window, cx)))
             .capture_action(cx.listener(|this, _: &crate::workspace_view::PreviousContent, window, cx| this.cycle_content(true, window, cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_view::WorkspaceBack,window,cx|this.navigate_history(false,window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_view::WorkspaceForward,window,cx|this.navigate_history(true,window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_view::SplitDocument,window,cx|this.toggle_document_split(window,cx)))
             .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, window, cx| {
                 if this.resizing_chat {
                     let width: f32 = window.viewport_size().width.into();

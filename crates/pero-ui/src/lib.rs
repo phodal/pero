@@ -70,3 +70,6 @@ mod workspace_view;
 
 #[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
 mod layout;
+
+#[cfg(any(target_family="wasm",feature="native"))]
+mod workspace_restore;

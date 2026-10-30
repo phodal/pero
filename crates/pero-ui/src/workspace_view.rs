@@ -11,7 +11,7 @@ use gpui_kit::{
 };
 use serde_json::json;
 use pero_chat_ui::theme::WorkbenchStyle as W;
-gpui_kit::actions!(workspace, [NextContent, PreviousContent, OpenDocument]);
+gpui_kit::actions!(workspace, [NextContent, PreviousContent, OpenDocument,WorkspaceBack,WorkspaceForward,SplitDocument]);
 
 impl Workbench {
     pub(crate) fn record_task_selection(&mut self, task: Option<String>) {
@@ -119,6 +119,7 @@ impl Workbench {
             }
         }
         self.sync_follow(cx);
+        self.queue_workspace_checkpoint(cx);
         cx.notify();
     }
 
@@ -134,6 +135,7 @@ impl Workbench {
     }
 
     fn close_content(&mut self, item: &WorkspaceItem, window: &mut Window, cx: &mut Context<Self>) {
+        self.queue_workspace_checkpoint(cx);
         if let WorkspaceItem::Web(id)=item {self.web_command(json!({"action":"web_close","id":id}),window,cx);return;}
         if let Some(open)=self.documents.iter().find(|open|&open.item==item) {
             if open.view.read(cx).dirty() {
@@ -203,7 +205,7 @@ impl Workbench {
                     .find(|app| &app.name == name)
                     .map(|app| app.display_name.clone())
                     .unwrap_or_else(|| name.clone()),
-                "layout-grid",
+                pero_chat_ui::assets::UiIcon::for_app(name,pero_theme::UiAppearance::global(cx).dark).name(),
             ),
         }
     }
@@ -298,6 +300,13 @@ impl Workbench {
                             )
                     })),
             )
+            .child(Button::new("workspace-back").ghost().small().icon(IconName::ChevronLeft).disabled(!self.navigation.can_back()).tooltip(self.t("workspace.back")).accessibility_label(self.t("workspace.back"))
+                .on_click(cx.listener(|this,_,window,cx|this.navigate_history(false,window,cx))))
+            .child(Button::new("workspace-forward").ghost().small().icon(IconName::ChevronRight).disabled(!self.navigation.can_forward()).tooltip(self.t("workspace.forward")).accessibility_label(self.t("workspace.forward"))
+                .on_click(cx.listener(|this,_,window,cx|this.navigate_history(true,window,cx))))
+            .when(self.navigation.page()==WorkbenchPage::Document,|strip|strip.child(Button::new("workspace-split").ghost().small().icon(Icon::default().path("icons/panel-right-open.svg"))
+                .disabled(self.navigation.panes().is_none() && self.documents.len()<2).tooltip(self.t("workspace.split")).accessibility_label(self.t("workspace.split"))
+                .on_click(cx.listener(|this,_,window,cx|this.toggle_document_split(window,cx)))))
             .child(Button::new("web-open").ghost().small().icon(Icon::default().path("icons/globe.svg")).tooltip(self.t("web.open_url")).accessibility_label(self.t("web.open_url")).on_click(cx.listener(|this,_,window,cx|this.choose_web(window,cx))))
             .child(Button::new("document-open").ghost().small().icon(IconName::File).tooltip(self.t("content.open_file"))
                 .accessibility_label(self.t("content.open_file")).on_click(cx.listener(|this,_,_,cx|this.choose_document(cx))))

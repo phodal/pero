@@ -1,13 +1,19 @@
 //! Retained document items. Navigation owns selection; each item owns its view.
 use crate::{app::Workbench, workspace::WorkspaceItem};
-use gpui_kit::{prelude::*, *};
+use gpui_kit::{
+    component::{ActiveTheme, Sizable, button::ButtonVariants as _},
+    prelude::*,
+    *,
+};
 use pero_chat_ui::content_reader::{ContentReader, ReaderAction};
-use pero_contracts::content_document::{ContentDocument, ContentFormat};
+use pero_contracts::content_document::ContentDocument;
 use pero_contracts::content_origin::ContentOrigin;
 
 pub(crate) struct WorkspaceDocument {
     pub item: WorkspaceItem,
     pub view: Entity<ContentReader>,
+    pub cached: bool,
+    pub owner_seen: bool,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -22,6 +28,14 @@ impl Workbench {
             origin: document.origin.clone(),
             source: document.id.clone(),
         };
+        let recovered = self
+            .documents
+            .iter()
+            .position(|open| open.item == item && open.cached)
+            .map(|index| {
+                let open = self.documents.remove(index);
+                open.view.read(cx).reading_state(cx)
+            });
         let view = if let Some(open) = self.documents.iter_mut().find(|open| open.item == item) {
             open.view.update(cx, |view, cx| {
                 if view.dirty() && document.revision != view.document.revision {
@@ -33,7 +47,8 @@ impl Workbench {
             open.view.clone()
         } else {
             let locale = self.locale.clone();
-            let view = cx.new(|cx| ContentReader::new(document, locale, window, cx).workspace(cx));
+            let view =
+                cx.new(|cx| ContentReader::new(document, locale, window, cx).workspace(window, cx));
             let close_item = item.clone();
             let subscription=cx.subscribe_in(&view,window,move |this,_,action,window,cx| {
                 match action {
@@ -53,21 +68,32 @@ impl Workbench {
                     }
                 }
             });
-            let observer = cx.observe(&view, |_, _, cx| cx.notify());
+            let observer = cx.observe(&view, |this, _, cx| {
+                this.queue_workspace_checkpoint(cx);
+                cx.notify();
+            });
             self.documents.push(WorkspaceDocument {
                 item: item.clone(),
                 view: view.clone(),
+                cached: false,
+                owner_seen: true,
                 _subscriptions: vec![subscription, observer],
             });
             view
         };
+        if let Some(state) = recovered {
+            view.update(cx, |view, cx| view.restore_reading_state(state, window, cx));
+        }
         self.navigation.open(item);
         self.sync_follow(cx);
+        self.queue_workspace_checkpoint(cx);
         view.update(cx, |view, cx| view.focus(window, cx));
         cx.notify();
     }
 
-    pub(crate) fn has_unsaved_documents(&self,cx:&App)->bool {self.documents.iter().any(|open|open.view.read(cx).dirty())}
+    pub(crate) fn has_unsaved_documents(&self, cx: &App) -> bool {
+        self.documents.iter().any(|open| open.view.read(cx).dirty())
+    }
     pub(crate) fn choose_document(&mut self, cx: &mut Context<Self>) {
         self.command(serde_json::json!({"action":"choose_document"}), cx);
     }
@@ -155,6 +181,7 @@ impl Workbench {
             );
         }
         self.documents.retain(|open| &open.item != item);
+        self.queue_workspace_checkpoint(cx);
         if let Some(route) = self.navigation.close(item) {
             self.activate_route(route, window, cx);
         }
@@ -162,15 +189,21 @@ impl Workbench {
     }
     pub(crate) fn reconcile_documents(&mut self, cx: &mut Context<Self>) {
         let chats = &self.chat.read(cx).chats;
-        self.documents.retain(|open| match &open.item {
-            WorkspaceItem::Document {
-                origin: ContentOrigin::App { app, panel },
-                ..
-            } => self.apps.contains_panel(app, panel),
-            WorkspaceItem::Document { origin, .. } => origin
-                .thread_id()
-                .is_none_or(|owner| chats.iter().any(|chat| chat.id == owner)),
-            _ => false,
+        self.documents.retain_mut(|open| {
+            let available = match &open.item {
+                WorkspaceItem::Document {
+                    origin: ContentOrigin::App { app, panel },
+                    ..
+                } => self.apps.contains_panel(app, panel),
+                WorkspaceItem::Document { origin, .. } => origin
+                    .thread_id()
+                    .is_none_or(|owner| chats.iter().any(|chat| chat.id == owner)),
+                _ => false,
+            };
+            if available {
+                open.owner_seen = true;
+            }
+            available || open.cached && !open.owner_seen
         });
         let updates = self
             .documents
@@ -194,17 +227,91 @@ impl Workbench {
         }
     }
 
-    pub(crate) fn document_content(&self, _cx: &App) -> AnyElement {
-        let view = self
-            .documents
-            .iter()
-            .find(|open| Some(&open.item) == self.navigation.current())
-            .map(|open| open.view.clone());
+    pub(crate) fn document_content(&self, cx: &mut Context<Self>) -> AnyElement {
+        let panes = self.navigation.panes();
+        let items = panes
+            .map(|(left, right, focused)| (vec![left.clone(), right.clone()], focused))
+            .unwrap_or_else(|| {
+                (
+                    self.navigation.current().cloned().into_iter().collect(),
+                    crate::workspace::PaneSide::Left,
+                )
+            });
+        let split = items.0.len() == 2;
         div()
+            .flex()
             .flex_1()
             .min_h_0()
-            .children(view.clone())
-            .when(view.is_none(), |el| el.child(self.t("content.unavailable")))
+            .min_w_0()
+            .children(items.0.into_iter().enumerate().map(|(index, item)| {
+                let open = self.documents.iter().find(|open| open.item == item);
+                let cached = open.is_some_and(|open| open.cached);
+                let selected = item.clone();
+                div()
+                    .id(("document-pane", index))
+                    .flex()
+                    .flex_col()
+                    .flex_1()
+                    .min_w_0()
+                    .min_h_0()
+                    .when(split, |pane| {
+                        pane.border_l_1().border_color(cx.theme().border)
+                    })
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _, window, cx| {
+                            if let Some(route) = this.navigation.select(&selected) {
+                                this.activate_route(route, window, cx);
+                            }
+                            this.queue_workspace_checkpoint(cx);
+                        }),
+                    )
+                    .when(split, |pane| {
+                        pane.child(
+                            div()
+                                .h(px(28.))
+                                .flex()
+                                .items_center()
+                                .px(px(8.))
+                                .text_size(px(12.))
+                                .child(
+                                    div().flex_1().truncate().child(
+                                        open.map(|open| open.view.read(cx).document.title.clone())
+                                            .unwrap_or_default(),
+                                    ),
+                                )
+                                .when(index == 1, |header| {
+                                    header.child(
+                                        gpui_kit::component::button::Button::new(
+                                            "close-document-split",
+                                        )
+                                        .ghost()
+                                        .small()
+                                        .icon(gpui_kit::component::IconName::Close)
+                                        .tooltip(self.t("workspace.close_split"))
+                                        .on_click(
+                                            cx.listener(|this, _, window, cx| {
+                                                this.toggle_document_split(window, cx)
+                                            }),
+                                        ),
+                                    )
+                                }),
+                        )
+                    })
+                    .when(cached, |pane| {
+                        pane.child(
+                            div()
+                                .p(px(8.))
+                                .text_size(px(12.))
+                                .text_color(cx.theme().muted_foreground)
+                                .child(self.t("workspace.cached_source")),
+                        )
+                    })
+                    .children(open.map(|open| open.view.clone()))
+                    .when(open.is_none(), |pane| {
+                        pane.child(self.t("content.unavailable"))
+                    })
+            }))
             .into_any_element()
     }
 
@@ -213,10 +320,11 @@ impl Workbench {
             .iter()
             .find(|open| &open.item == item)
             .map(|open| {
-                let icon = match open.view.read(cx).document.format {
-                    ContentFormat::Text | ContentFormat::Markdown => "file",
-                    _ => "file-code",
-                };
+                let icon = pero_chat_ui::assets::UiIcon::for_document(
+                    &open.view.read(cx).document,
+                    pero_theme::UiAppearance::global(cx).dark,
+                )
+                .name();
                 (
                     format!(
                         "{}{}",

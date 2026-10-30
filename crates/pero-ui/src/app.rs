@@ -1,3 +1,5 @@
+#[cfg(target_family="wasm")]
+use crate::workspace::LegacyPage;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
 pub(crate) use crate::native::{request_locale, send_probe, session_command};
 use crate::theme::Palettes;
@@ -66,6 +68,7 @@ pub(crate) struct Workbench {
     pub task_status: crate::projects::TaskStatusFilter,
     pub pending_project_workspace: bool,
     pub navigation: WorkspaceNavigation,
+    pub recovery:crate::workspace_restore::WorkspaceRecovery,
     pub remote: crate::remote::RemoteState,
     pub local_execution: crate::local_execution::LocalExecution,
     pub contribution: crate::contributions::ContributionState,
@@ -103,6 +106,10 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> Self {
         cx.bind_keys([
+            KeyBinding::new("alt-left",crate::workspace_view::WorkspaceBack,None),
+            KeyBinding::new("alt-right",crate::workspace_view::WorkspaceForward,None),
+            KeyBinding::new("cmd-alt-right",crate::workspace_view::SplitDocument,None),
+            KeyBinding::new("ctrl-alt-right",crate::workspace_view::SplitDocument,None),
             KeyBinding::new("cmd-l",crate::web_documents::OpenWeb,None),
             KeyBinding::new("ctrl-l",crate::web_documents::OpenWeb,None),
             KeyBinding::new("cmd-o",crate::workspace_view::OpenDocument,None),
@@ -241,6 +248,7 @@ impl Workbench {
             task_status: Default::default(),
             pending_project_workspace: false,
             navigation,
+            recovery:Default::default(),
             tab: ConversationTab::Chat,
             connected: false,
             pending: None,
@@ -291,6 +299,7 @@ impl Workbench {
 
     pub(crate) fn navigate(&mut self, page: WorkbenchPage, cx: &mut Context<Self>) {
         self.navigation.show(page);
+        self.queue_workspace_checkpoint(cx);
         self.sync_follow(cx);
         cx.notify();
     }
@@ -388,7 +397,7 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) {
         let event_kind = event.kind.clone();
-        let feature_handled = self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx) || self.receive_roadmap(&event, cx)
+        let feature_handled = self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx) || self.receive_roadmap(&event, cx)
             || self.receive_local_execution(&event, cx)
             || self.receive_contribution(&event, cx)
             || self.receive_apps(&event, cx)
@@ -531,8 +540,10 @@ impl Workbench {
             self.sync_settings_panel(cx);
         }
         self.apply_local_execution(window, cx);
+        self.apply_workspace_recovery(window,cx);
         self.reconcile_content(window, cx);
         self.sync_follow(cx);
+        self.queue_workspace_checkpoint(cx);
         cx.notify();
     }
     pub(crate) fn install_appearance(&mut self, cx: &mut Context<Self>) {
@@ -638,6 +649,14 @@ pub fn receive_host_event(json: &str) -> Result<(), JsValue> {
     Ok(())
 }
 
+#[cfg(target_family="wasm")]
+#[wasm_bindgen]
+pub fn checkpoint_workspace(discard:bool)->String {
+    let mut command=String::new();
+    update(|ui,_,cx| {if let Some(value)=ui.workspace_checkpoint(discard,true,cx) {command=value.to_string();}});
+    command
+}
+
 #[cfg(target_family = "wasm")]
 fn update(f: impl FnOnce(&mut Workbench, &mut Window, &mut Context<Workbench>)) {
     APPLICATION.with(|app| {
@@ -686,6 +705,7 @@ pub fn snapshot() -> String {
         value["webEntryOpen"]=json!(ui.web_entry_open);
         value["documents"]=json!(ui.documents.iter().map(|open|json!({"item":open.item,"title":open.view.read(cx).document.title,"reader":open.view.read(cx).snapshot(cx)})).collect::<Vec<_>>());
         value["contentTabs"] = serde_json::json!(ui.navigation.items());
+        value["workspaceNavigation"]=serde_json::json!(ui.navigation.snapshot());
         value["activeContent"] = serde_json::json!(ui.navigation.current());
         if let Some(index)=ui.navigation.current().and_then(|item|ui.navigation.items().iter().position(|candidate|candidate==item)) {
             if let Some(bounds)=ui.tab_scroll.bounds_for_item(index) {
