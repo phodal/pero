@@ -6,9 +6,9 @@ pub use design_tokens::*;
 mod design;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub use design::{
-    action_button, badge, empty_state, ghost_icon_button, library_header, list_row,
-    outline_badge, reader_frame, search_field, settings_group, settings_panel, settings_row,
-    sidebar_row, ActionKind, Chrome, RowLevel,
+    action_button, badge, empty_state, ghost_icon_button, hairline, interaction_row,
+    library_header, list_row, menu_button, outline_badge, reader_frame, search_field,
+    settings_group, settings_panel, settings_row, sidebar_row, ActionKind, Chrome, RowLevel,
 };
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod appearance;

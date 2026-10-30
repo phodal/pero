@@ -69,6 +69,7 @@ pub(crate) struct Workbench {
     pub computer: Option<pero_contracts::computer_runtime::ComputerUseState>,
     pub settings_mcp_requested: bool,
     pub settings_panel: Option<Entity<crate::settings_view::SettingsPanel>>,
+    pub settings_section: Option<crate::settings_view::SettingsSection>,
     #[cfg(not(target_family = "wasm"))]
     pub settings_window: Option<AnyWindowHandle>,
     pub settings_subscriptions: Vec<Subscription>,
@@ -323,6 +324,7 @@ impl Workbench {
             computer: None,
             settings_mcp_requested: false,
             settings_panel: None,
+            settings_section: None,
             #[cfg(not(target_family = "wasm"))]
             settings_window: None,
             settings_subscriptions: Vec::new(),
@@ -513,7 +515,7 @@ impl Workbench {
         }
         let feature_handled = self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
             || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
-            || self.receive_local_execution(&event, cx)
+            || self.receive_local_execution(&event, window, cx)
             || self.receive_contribution(&event, cx)
             || self.receive_apps(&event, cx)
             || self.receive_remote(&event, cx);

@@ -491,6 +491,7 @@
   "settings.connections": "连接与账号…",
   "settings.resources": "执行资源…",
   "settings.agents": "模型与 Agent…",
+  "settings.page.agents": "模型与 Agent",
   "settings.appearance": "外观",
   "settings.all": "全部设置…",
   "error.preferences": "无法保存偏好，请检查本机运行时后重试。",

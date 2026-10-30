@@ -239,6 +239,8 @@ impl ResolvedAppearance {
             theme.mono_font_size = px(self.typography.code);
             theme.radius = px(crate::RADIUS_BUTTON);
             theme.radius_lg = px(crate::RADIUS_PANEL);
+            // Focus tints the control border. An outside ring is clipped by rows and fields.
+            theme.focus_ring = false;
             theme.mono_font_family = "JetBrains Mono".into();
             let c = &mut theme.colors;
             c.background = p.surface;
@@ -258,6 +260,10 @@ impl ResolvedAppearance {
             c.button_primary_foreground = p.on_action;
             c.button_primary_hover = p.action_hover;
             c.button_primary_active = p.action_hover;
+            c.button_danger = p.error;
+            c.button_danger_foreground = p.on_error;
+            c.button_danger_hover = p.error;
+            c.button_danger_active = p.error;
             c.ring = p.focus;
             c.selection = p.accent_soft;
             c.list_active = p.accent_soft;
@@ -285,7 +291,8 @@ impl ResolvedAppearance {
             c.secondary_hover = p.surface_muted;
             c.secondary_active = p.accent_soft;
             c.accent = p.accent_soft;
-            c.accent_foreground = p.accent_text;
+            // Selected rows keep primary text on the soft fill.
+            c.accent_foreground = p.text;
             (c.success, c.success_foreground) = (p.success, p.on_success);
             (c.success_hover, c.success_active) = (c.success, c.success);
             (c.warning, c.warning_foreground) = (p.warning, p.on_warning);

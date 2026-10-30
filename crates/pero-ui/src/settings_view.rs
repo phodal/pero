@@ -1,10 +1,10 @@
 //! Reusable Settings content. The shell owns windows, commands and persistence.
 use crate::{
+    app::Workbench,
     settings_controls::{FontSizeField, selection_button, setting_row},
     settings_menu::PreferenceSaveState,
-    settings_section::SettingsSection,
-    workspace::WorkbenchPage,
 };
+pub(crate) use crate::settings_section::SettingsSection;
 use gpui_kit::{
     component::{
         button::*,
@@ -30,7 +30,6 @@ pub(crate) enum SettingsAction {
     Icons(crate::icon_themes::IconThemeAction),
     Save(WorkbenchPreferences),
     Locale(&'static str),
-    Navigate(WorkbenchPage),
     Harness(pero_contracts::harness_settings::HarnessControl),
     Computer(pero_contracts::computer_runtime::ComputerControl),
     Mcp(serde_json::Value),
@@ -50,6 +49,7 @@ pub(crate) struct SettingsPanel {
     pub(crate) harness_inputs: [Entity<InputState>; 3],
     pub(crate) harness_sync: bool,
     pub(crate) harness_remove_confirm: bool,
+    pub(crate) workbench: Option<WeakEntity<Workbench>>,
     navigation: Entity<TreeState>,
     navigation_focus: FocusHandle,
     navigation_query: Option<(String, String)>,
@@ -125,13 +125,7 @@ impl SettingsPanel {
                     this.section = section;
                     let sections = this.matching_sections(cx);
                     let query = this.search.read(cx).value();
-                    let index = if query.is_empty() {
-                        if section == SettingsSection::General {
-                            0
-                        } else {
-                            section as usize - 1
-                        }
-                    } else {
+                let index = if query.is_empty() { if section.exclusive() { 0 } else { section as usize - 1 } } else {
                         sections
                             .iter()
                             .position(|candidate| *candidate == section)
@@ -194,6 +188,7 @@ impl SettingsPanel {
             computer: None,
             computer_pending: false,
             section: Default::default(),
+            workbench: None,
             navigation,
             navigation_focus,
             navigation_query: None,
@@ -227,6 +222,16 @@ impl SettingsPanel {
     }
     pub(crate) fn t(&self, key: &str) -> &'static str {
         pero_contracts::i18n::text(&self.locale, key)
+    }
+    pub(crate) fn bind_host(&mut self, host: WeakEntity<Workbench>, cx: &mut Context<Self>) {
+        let Some(host) = host.upgrade() else { return };
+        self._subscriptions.push(cx.observe(&host, |_, _, cx| cx.notify()));
+        self.workbench = Some(host.downgrade());
+    }
+    pub(crate) fn select(&mut self, section: SettingsSection, cx: &mut Context<Self>) {
+        self.section = section;
+        self.navigation_query = None;
+        cx.notify();
     }
     pub(crate) fn clear_search(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         if self.search.read(cx).value().is_empty() {
@@ -449,7 +454,7 @@ impl SettingsPanel {
         .into_any_element()
     }
 
-    fn matching_sections(&self, cx: &App) -> Vec<SettingsSection> {
+    pub(crate) fn matching_sections(&self, cx: &App) -> Vec<SettingsSection> {
         let query = self.search.read(cx).value().trim().to_lowercase();
         SettingsSection::ALL
             .into_iter()
@@ -479,6 +484,9 @@ impl SettingsPanel {
                         "settings.inherit_ui",
                         "settings.appearance",
                     ],
+                    SettingsSection::Agents => &["agents.description", "agents.installed", "agents.missing", "chat.new", "settings.agents"],
+                    SettingsSection::Workers => &["settings.resources", "worker.local.title", "worker.local.enable", "cloud.workers_hint", "cloud.no_workers", "remote.refresh"],
+                    SettingsSection::Connections => &["settings.connections", "connector.description", "connector.url", "connector.token", "connector.login", "connector.connect"],
                 };
                 for key in keys {
                     text.push(' ');
@@ -512,12 +520,7 @@ impl SettingsPanel {
         let visible = sections
             .iter()
             .copied()
-            .filter(|section| {
-                !query.is_empty()
-                    || if !self.section.is_appearance() {
-                        *section == self.section
-                    } else { section.is_appearance() }
-            })
+            .filter(|section| !query.is_empty() || if self.section.exclusive() { *section == self.section } else { !section.exclusive() })
             .collect::<Vec<_>>();
         let mut content = div()
             .id("settings-content")
@@ -536,6 +539,7 @@ impl SettingsPanel {
                 SettingsSection::Computer => self.computer_settings(cx),
                 SettingsSection::Mcp => self.mcp_settings(cx),
                 SettingsSection::Harness => self.harness_settings(cx),
+                SettingsSection::Agents | SettingsSection::Workers | SettingsSection::Connections => self.category_page(section, cx),
                 _ => self.font_settings(section, window, cx),
             };
             content = content.child(
@@ -558,17 +562,7 @@ impl SettingsPanel {
                     .child(pero_theme::settings_panel(body, pero_theme::Chrome::from_app(cx))),
             );
         }
-        let destinations = crate::settings_menu::SettingsDestination::ALL
-            .into_iter()
-            .filter(|destination| {
-                !query.is_empty()
-                    && self
-                        .t(destination.label_key)
-                        .to_lowercase()
-                        .contains(&query)
-            })
-            .collect::<Vec<_>>();
-        if visible.is_empty() && destinations.is_empty() {
+        if visible.is_empty() {
             content = content.child(
                 div().id("settings-empty").child(pero_theme::empty_state(
                     self.t("settings.no_results"),
@@ -577,28 +571,7 @@ impl SettingsPanel {
                 )),
             );
         }
-        for destination in destinations {
-            content = content.child(
-                div().id(destination.label_key).child(setting_row(
-                    self.t(destination.label_key).trim_end_matches('…'),
-                    "",
-                    None,
-                    Button::new("open-settings-category")
-                        .ghost()
-                        .small()
-                        .icon(IconName::ExternalLink)
-                        .accessibility_label(self.t(destination.label_key))
-                        .on_click(cx.listener(move |_, _, _, cx| {
-                            cx.emit(SettingsAction::Navigate(destination.page))
-                        }))
-                        .into_any_element(),
-                    false,
-                    cx,
-                )),
-            );
-        }
         let navigation = self.navigation.clone();
-        let owner = cx.entity().downgrade();
         let row_height = pero_theme::ROW_NAV;
         let navigation_focused =
             self.navigation_focus.contains_focused(window, cx) && window.last_input_was_keyboard();
@@ -630,27 +603,6 @@ impl SettingsPanel {
                             .flex_1()
                             .min_h_0()
                             .px(px(8.))
-                            .capture_action(cx.listener(
-                                |this, _: &gpui_kit::base::actions::Confirm, _, cx| {
-                                    let destination = this
-                                        .navigation
-                                        .read(cx)
-                                        .selected_item()
-                                        .and_then(|selected| {
-                                            crate::settings_menu::SettingsDestination::ALL
-                                                .into_iter()
-                                                .find(|destination| {
-                                                    destination.label_key == selected.id.as_ref()
-                                                })
-                                        });
-                                    if let Some(destination) = destination {
-                                        cx.emit(SettingsAction::Navigate(destination.page));
-                                        cx.stop_propagation();
-                                    } else {
-                                        cx.propagate();
-                                    }
-                                },
-                            ))
                             .on_mouse_down(MouseButton::Left, move |_, window, cx| {
                                 navigation.update(cx, |tree, cx| tree.focus(window, cx));
                             })
@@ -659,25 +611,8 @@ impl SettingsPanel {
                                     .size_full()
                                     .list_style(StyleRefinement::default().size_full())
                                     .item(move |_, entry, state, _, _| {
-                                        let destination =
-                                            crate::settings_menu::SettingsDestination::ALL
-                                                .into_iter()
-                                                .find(|destination| {
-                                                    destination.label_key
-                                                        == entry.item().id.as_ref()
-                                                });
-                                        let owner = owner.clone();
                                         div()
                                             .id("settings-nav-row")
-                                            .when_some(destination, |el, destination| {
-                                                el.on_click(move |_, _, cx| {
-                                                    let _ = owner.update(cx, |_, cx| {
-                                                        cx.emit(SettingsAction::Navigate(
-                                                            destination.page,
-                                                        ))
-                                                    });
-                                                })
-                                            })
                                             .h(px(row_height))
                                             .px(px(pero_theme::SPACE_8))
                                             .flex()
@@ -750,21 +685,11 @@ impl SettingsPanel {
                             .flex()
                             .items_center()
                             .gap(px(12.))
-                            .child(div().font_weight(FontWeight::MEDIUM).child(self.t(
-                                if !query.is_empty() {
-                                    "settings.search_results"
-                                } else if self.section == SettingsSection::General {
-                                    "settings.general"
-                                } else if self.section == SettingsSection::Mcp {
-                                    "mcp.title"
-                                } else if self.section == SettingsSection::Harness {
-                                    "harness.title"
-                                } else if self.section == SettingsSection::Computer {
-                                    "computer.title"
-                                } else {
-                                    "settings.appearance"
-                                },
-                            )))
+                            .child(div().font_weight(FontWeight::MEDIUM).child(self.t(if !query.is_empty() {
+                                "settings.search_results"
+                            } else if self.section.is_appearance() {
+                                "settings.appearance"
+                            } else { self.section.key() })))
                             .child(div().flex_1())
                             .when(self.preferences_status != PreferenceSaveState::Idle, |el| {
                                 el.child(
@@ -839,51 +764,7 @@ impl Render for SettingsPanel {
         let navigation_query = (query.clone(), self.locale.clone());
         if self.navigation_query.as_ref() != Some(&navigation_query) {
             self.navigation_query = Some(navigation_query);
-            let sections = self.matching_sections(cx);
-            let mut roots = Vec::new();
-            if sections.contains(&SettingsSection::General) {
-                roots.push(TreeItem::new(
-                    SettingsSection::General.key(),
-                    self.t(SettingsSection::General.key()),
-                ));
-            }
-            let children = sections
-                .iter()
-                .copied()
-                .filter(|section| section.is_appearance())
-                .map(|section| TreeItem::new(section.key(), self.t(section.key())))
-                .collect::<Vec<_>>();
-            if !children.is_empty() {
-                roots.push(
-                    TreeItem::new("settings.appearance", self.t("settings.appearance"))
-                        .children(children)
-                        .expanded(true),
-                );
-            }
-            if sections.contains(&SettingsSection::Harness) {
-                roots.push(TreeItem::new(SettingsSection::Harness.key(), self.t(SettingsSection::Harness.key())));
-            }
-            if sections.contains(&SettingsSection::Computer) {
-                roots.push(TreeItem::new(SettingsSection::Computer.key(), self.t(SettingsSection::Computer.key())));
-            }
-            if sections.contains(&SettingsSection::Mcp) { roots.push(TreeItem::new("mcp.title", self.t("mcp.title"))); }
-            roots.extend(
-                crate::settings_menu::SettingsDestination::ALL
-                    .into_iter()
-                    .filter(|destination| {
-                        query.is_empty()
-                            || self
-                                .t(destination.label_key)
-                                .to_lowercase()
-                                .contains(&query)
-                    })
-                    .map(|destination| {
-                        TreeItem::new(
-                            destination.label_key,
-                            self.t(destination.label_key).trim_end_matches('…'),
-                        )
-                    }),
-            );
+            let roots = crate::settings_pages::navigation_roots(self, cx);
             let selected = TreeItem::new(self.section.key(), "");
             self.navigation.update(cx, |tree, cx| {
                 tree.set_items(roots, cx);

@@ -23,6 +23,7 @@ pub const RADIUS_KBD: f32 = 5.;
 pub const RADIUS_BADGE: f32 = 4.;
 pub const RADIUS_CELL: f32 = 2.;
 pub const ROW_NAV: f32 = 32.;
+pub const MENU_ROW: f32 = 32.;
 pub const ROW_SUB: f32 = 26.;
 pub const LEAD_BOX: f32 = 18.;
 pub const SUB_INDENT: f32 = 12.;

@@ -431,8 +431,7 @@ impl Workbench {
                         .small()
                         .label(self.t("settings.connections"))
                         .on_click(cx.listener(|this, _, window, cx| {
-                            this.navigate(WorkbenchPage::Connections, cx);
-                            this.open_remote_connection(window, cx);
+                            this.show_settings_page(WorkbenchPage::Connections, window, cx);
                         })),
                 ),
             )
@@ -508,9 +507,8 @@ impl Workbench {
                         .outline()
                         .small()
                         .label(self.t("settings.resources"))
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.navigate(WorkbenchPage::Workers, cx);
-                            this.command(json!({"action":"remote_refresh"}), cx);
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.show_settings_page(WorkbenchPage::Workers, window, cx);
                         })),
                 ),
             )

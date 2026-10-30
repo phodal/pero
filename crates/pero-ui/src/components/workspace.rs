@@ -1,4 +1,5 @@
 use super::{ActionHandler, Ui, click};
+use crate::settings_controls::setting_row;
 use gpui_kit::{
     component::{Disableable, Sizable, button::*},
     prelude::*,
@@ -16,58 +17,18 @@ pub(crate) fn environments(
     ui: Ui<'_>,
     agents: &[AgentRow],
     on_action: ActionHandler<WorkspaceAction>,
+    cx: &App,
 ) -> Div {
     let chrome = ui.chrome();
-    div()
-        .flex_1()
-        .bg(chrome.list())
-        .child(pero_theme::library_header(
-            "agents-header",
-            ui.t("settings.agents"),
-            Some(ui.t("agents.description").into()),
-            None,
-            chrome,
-        ))
-        .child(
-            div()
-                .w(px(pero_theme::LIST_COLUMN))
-                .max_w_full()
-                .px(px(pero_theme::SPACE_8))
-                .flex()
-                .flex_col()
-                .children(agents.iter().enumerate().map(|(i, a)| {
-                    pero_theme::list_row(
-                        ("agent", i),
-                        a.name.clone(),
-                        None,
-                        None,
-                        false,
-                        Some(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(px(pero_theme::SPACE_8))
-                                .child(ui.badge(
-                                    ui.t(if a.available {
-                                        "agents.installed"
-                                    } else {
-                                        "agents.missing"
-                                    }),
-                                    if a.available { "success" } else { "warning" },
-                                ))
-                                .child(
-                                    Button::new(("connect-agent", i))
-                                        .outline()
-                                        .small()
-                                        .h(px(pero_theme::ACTION_BUTTON_HEIGHT))
-                                        .label(ui.t("chat.new"))
-                                        .disabled(!a.available)
-                                        .on_click(click(&on_action, WorkspaceAction::NewSession(i))),
-                                )
-                                .into_any_element(),
-                        ),
-                        chrome,
-                    )
-                })),
-        )
+    let last = agents.len().saturating_sub(1);
+    div().flex().flex_col()
+        .child(div().px(chrome.geo(pero_theme::SPACE_16)).pt(chrome.geo(pero_theme::SPACE_12))
+            .text_size(chrome.text(pero_theme::TYPE_CAPTION)).text_color(chrome.palette.text_muted)
+            .whitespace_normal().child(ui.t("agents.description")))
+        .children(agents.iter().enumerate().map(|(i, agent)| {
+            setting_row(&agent.name, "", Some(ui.badge(ui.t(if agent.available { "agents.installed" } else { "agents.missing" }), if agent.available { "success" } else { "warning" }).into_any_element()),
+                Button::new(("connect-agent", i)).outline().small().h(px(pero_theme::ACTION_BUTTON_HEIGHT)).label(ui.t("chat.new")).disabled(!agent.available)
+                    .on_click(click(&on_action, WorkspaceAction::NewSession(i))).into_any_element(),
+                i != last, cx)
+        }))
 }

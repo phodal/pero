@@ -491,6 +491,7 @@
   "settings.connections": "Connections & accounts…",
   "settings.resources": "Execution resources…",
   "settings.agents": "Models & Agents…",
+  "settings.page.agents": "Models & Agents",
   "settings.appearance": "Appearance",
   "settings.all": "All settings…",
   "error.preferences": "Could not save preferences. Check the local runtime and retry.",

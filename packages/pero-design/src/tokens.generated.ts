@@ -32,6 +32,7 @@ export const designContract = {
   },
   "metrics": {
     "sidebarNavRow": 32,
+    "menuRow": 32,
     "subRow": 26,
     "leadBox": 18,
     "subIndent": 12,

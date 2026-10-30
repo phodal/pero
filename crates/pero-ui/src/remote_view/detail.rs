@@ -279,7 +279,6 @@ impl Workbench {
                                         },
                                     ))
                                     .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.navigate(WorkbenchPage::Workers, cx);
                                         if this.local_execution.setup.configuration.is_none() {
                                             this.local_execution.project_id = project_id.clone();
                                             this.local_execution.agent_id = agent_id.clone();
@@ -296,7 +295,7 @@ impl Workbench {
                                             );
                                             this.local_execution.editing = true;
                                         }
-                                        cx.notify();
+                                        this.show_settings_page(WorkbenchPage::Workers, window, cx);
                                     })),
                             )
                         },

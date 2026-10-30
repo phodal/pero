@@ -2,7 +2,6 @@ use super::{ActionHandler, Ui, click};
 use crate::workspace::WorkbenchPage;
 use gpui_kit::{
     component::{
-        button::*,
         input::{Input, InputState},
         *,
     },
@@ -59,57 +58,40 @@ fn recent_row(
     row: RecentRow,
     index: usize,
     on_action: &ActionHandler<SidebarAction>,
+    cx: &App,
 ) -> impl IntoElement {
+    let chrome = ui.chrome();
     let title = row.label.clone();
-    let label = if row.attention {
+    let accessible = if row.attention {
         format!("{} · {}", title, ui.t("insights.attention"))
     } else {
         title.clone()
     };
-    let deletable = row.delete.is_some();
-    let confirming = row.delete.as_ref().is_some_and(|delete| delete.confirming);
-    let button = Button::new(("recent-work", index))
-        .ghost()
-        .small()
-        .h(px(pero_theme::ROW_SUB))
-        .justify_start()
-        .child(div().flex_1())
-        .selected(row.active)
-        .toggled(row.active)
-        .icon(Icon::default().path(format!(
-            "icons/{}.svg",
-            if row.attention {
-                "alert-circle"
-            } else if row.busy {
-                "clock"
-            } else {
-                row.icon
-            }
-        )))
-        .label(row.label)
-        .accessibility_label(label)
-        .tooltip(title.clone())
-        .on_click(click(on_action, row.action))
-        .when(!deletable, |button| button.w_full())
-        .when(deletable, |button| {
-            button
-                .flex_1()
-                .min_w_0()
-                .when(confirming, |button| button.max_w(px(96.)))
-        });
-    let delete = row.delete.map(|delete| {
+    let lead = if row.attention {
+        Some("alert-circle")
+    } else if row.busy {
+        Some("clock")
+    } else if row.icon != "terminal" {
+        Some(row.icon)
+    } else {
+        None
+    };
+    let trailing = row.delete.map(|delete| {
         let request = delete.request.clone();
         let confirm = delete.confirm.clone();
         let cancel = delete.cancel.clone();
         let confirm_title = title.clone();
         div()
+            .id(("recent-actions", index))
             .flex_shrink_0()
             .flex()
             .items_center()
-            .gap(px(2.))
+            .gap(chrome.geo(pero_theme::ICON_GAP))
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .on_click(|_, _, cx| cx.stop_propagation())
             .when(!delete.confirming, |el| {
                 el.child(
-                    pero_theme::ghost_icon_button(("recent-delete", index), ui.chrome())
+                    pero_theme::ghost_icon_button(("recent-delete", index), chrome, cx)
                         .icon(Icon::default().path("icons/x.svg"))
                         .tooltip(ui.t("chat.delete"))
                         .accessibility_label(format!("{}, {}", ui.t("chat.delete"), title))
@@ -118,36 +100,52 @@ fn recent_row(
             })
             .when(delete.confirming, |el| {
                 el.child(
-                    Button::new(("recent-delete-cancel", index))
-                        .ghost()
-                        .small()
-                        .h(px(pero_theme::ACTION_BUTTON_HEIGHT))
-                        .label(ui.t("chat.delete_cancel"))
-                        .on_click(click(on_action, cancel)),
+                    pero_theme::action_button(
+                        ("recent-delete-cancel", index),
+                        ui.t("chat.delete_cancel"),
+                        pero_theme::ActionKind::Ghost,
+                        chrome,
+                        cx,
+                    )
+                    .on_click(click(on_action, cancel)),
                 )
                 .child(
-                    Button::new(("recent-delete-confirm", index))
-                        .outline()
-                        .small()
-                        .h(px(pero_theme::ACTION_BUTTON_HEIGHT))
-                        .label(ui.t("chat.delete_confirm"))
-                        .accessibility_label(format!(
-                            "{}, {}",
-                            ui.t("chat.delete_confirm"),
-                            confirm_title
-                        ))
-                        .on_click(click(on_action, confirm)),
+                    pero_theme::action_button(
+                        ("recent-delete-confirm", index),
+                        ui.t("chat.delete_confirm"),
+                        pero_theme::ActionKind::Danger,
+                        chrome,
+                        cx,
+                    )
+                    .accessibility_label(format!("{}, {}", ui.t("chat.delete_confirm"), confirm_title))
+                    .on_click(click(on_action, confirm)),
                 )
             })
     });
-    div()
-        .w_full()
-        .h(px(pero_theme::ROW_SUB))
-        .flex()
-        .items_center()
-        .overflow_hidden()
-        .child(button)
-        .children(delete)
+    pero_theme::interaction_row(("recent-work", index), row.active, pero_theme::ROW_NAV, chrome)
+        .cursor_pointer()
+        .px(chrome.geo(pero_theme::SPACE_8))
+        .gap(chrome.geo(pero_theme::ICON_GAP))
+        .aria_label(accessible)
+        .on_click(click(on_action, row.action))
+        .child(
+            div()
+                .w(chrome.geo(pero_theme::LEAD_BOX))
+                .h(chrome.geo(pero_theme::LEAD_BOX))
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .children(lead.map(|name| ui.icon(name))),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .text_ellipsis()
+                .child(row.label),
+        )
+        .children(trailing)
 }
 
 pub(crate) fn sidebar(
@@ -156,6 +154,7 @@ pub(crate) fn sidebar(
     props: SidebarProps<'_>,
     settings: AnyElement,
     on_action: ActionHandler<SidebarAction>,
+    cx: &App,
 ) -> Stateful<Div> {
     let p = ui.palette;
     let chrome = ui.chrome();
@@ -223,58 +222,61 @@ pub(crate) fn sidebar(
                                 .into_iter()
                                 .map(|row| {
                                     index += 1;
-                                    recent_row(ui, row, index, &on_action)
+                                    recent_row(ui, row, index, &on_action, cx)
                                 })
                                 .collect::<Vec<_>>();
                             div()
                                 .mb(px(4.))
                                 .child(
                                     div()
+                                        .w_full()
+                                        .h(chrome.geo(pero_theme::ROW_NAV))
                                         .flex()
                                         .items_center()
-                                        .gap(px(2.))
+                                        .gap(chrome.geo(pero_theme::ICON_GAP))
+                                        .text_color(p.text_muted)
                                         .child(
-                                            Button::new(("project-disclosure", group_index))
-                                                .ghost()
-                                                .small()
-                                                .w(px(26.))
-                                                .h(px(pero_theme::ROW_NAV))
-                                                .icon(Icon::default().path(if group.collapsed {
-                                                    "icons/chevron-right.svg"
+                                            pero_theme::ghost_icon_button(
+                                                ("project-disclosure", group_index),
+                                                chrome,
+                                                cx,
+                                            )
+                                            .icon(Icon::default().path(if group.collapsed {
+                                                "icons/chevron-right.svg"
+                                            } else {
+                                                "icons/chevron-down.svg"
+                                            }))
+                                            .accessibility_label(format!(
+                                                "{} {}",
+                                                ui.t(if group.collapsed {
+                                                    "project.expand"
                                                 } else {
-                                                    "icons/chevron-down.svg"
-                                                }))
-                                                .accessibility_label(format!(
-                                                    "{} {}",
-                                                    ui.t(if group.collapsed {
-                                                        "project.expand"
-                                                    } else {
-                                                        "project.collapse"
-                                                    }),
-                                                    group.name
-                                                ))
-                                                .on_click(click(
-                                                    &on_action,
-                                                    SidebarAction::ToggleProject(group.key.clone()),
-                                                )),
+                                                    "project.collapse"
+                                                }),
+                                                group.name
+                                            ))
+                                            .on_click(click(
+                                                &on_action,
+                                                SidebarAction::ToggleProject(group.key.clone()),
+                                            )),
                                         )
                                         .child(
-                                            Button::new(("sidebar-project", group_index))
-                                                .ghost()
-                                                .small()
-                                                .flex_1()
-                                                .min_w_0()
-                                                .h(px(pero_theme::ROW_NAV))
-                                                .justify_start()
-                                                .child(div().flex_1())
-                                                .label(group.name)
-                                                .tooltip(group.path)
-                                                .selected(group.active)
-                                                .toggled(group.active)
-                                                .on_click(click(
-                                                    &on_action,
-                                                    SidebarAction::OpenProject(group.key),
-                                                )),
+                                            pero_theme::action_button(
+                                                ("sidebar-project", group_index),
+                                                group.name.clone(),
+                                                pero_theme::ActionKind::Ghost,
+                                                chrome,
+                                                cx,
+                                            )
+                                            .flex_1()
+                                            .min_w_0()
+                                            .justify_start()
+                                            .text_color(if group.active { p.text } else { p.text_muted })
+                                            .tooltip(group.path)
+                                            .on_click(click(
+                                                &on_action,
+                                                SidebarAction::OpenProject(group.key),
+                                            )),
                                         ),
                                 )
                                 .when(!group.collapsed, |el| {
@@ -318,7 +320,7 @@ pub(crate) fn sidebar(
                                     .ungrouped
                                     .into_iter()
                                     .enumerate()
-                                    .map(|(i, row)| recent_row(ui, row, 100000 + i, &on_action)),
+                                    .map(|(i, row)| recent_row(ui, row, 100000 + i, &on_action, cx)),
                             ),
                     )
                 }),

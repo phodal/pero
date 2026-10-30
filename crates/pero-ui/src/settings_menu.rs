@@ -134,13 +134,7 @@ impl Workbench {
                             .icon(Icon::default().path(format!("icons/{}.svg", destination.icon)))
                             .on_click(move |_, window, cx| {
                                 let _ = target.update(cx, |this, cx| {
-                                    this.navigate(page, cx);
-                                    if page == WorkbenchPage::Connections {
-                                        this.open_remote_connection(window, cx);
-                                    }
-                                    if page == WorkbenchPage::Workers {
-                                        this.command(json!({"action":"remote_refresh"}), cx);
-                                    }
+                                    this.show_settings_page(page, window, cx);
                                     this.sync_follow(cx);
                                     cx.notify();
                                 });

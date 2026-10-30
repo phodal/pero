@@ -45,6 +45,8 @@ model Radii {
 
 model Metrics {
   sidebarNavRow: 32;
+  /** Account and choice menus use the same row box as sidebar navigation. */
+  menuRow: 32;
   subRow: 26;
   leadBox: 18;
   subIndent: 12;

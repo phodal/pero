@@ -2,14 +2,14 @@
 //! come from `design_tokens`; accent overrides still flow through the resolved palette.
 use crate::design_tokens::{
     ACTION_BUTTON_HEIGHT, ACTION_BUTTON_PADDING, GHOST_ICON_BUTTON, ICON_GAP, LEAD_BOX,
-    LIBRARY_HEADER, LIST_DARK, LIST_LIGHT, RADIUS_BADGE, RADIUS_BUTTON, RADIUS_PANEL,
+    LIBRARY_HEADER, LIST_DARK, LIST_LIGHT, MENU_ROW, RADIUS_BADGE, RADIUS_BUTTON, RADIUS_PANEL,
     RADIUS_SELECTION, READER_MAX_WIDTH, ROW_NAV, ROW_SUB, SEARCH_FIELD_HEIGHT, SPACE_12, SPACE_16,
     SPACE_24, SPACE_4, SPACE_8, SUB_INDENT, TYPE_BODY, TYPE_CAPTION, TYPE_HEADING, TYPE_LABEL,
     TYPE_TITLE, WEIGHT_BODY, WEIGHT_HEADING, WEIGHT_LIST_TITLE, WEIGHT_TITLE,
 };
 use crate::Palette;
 use gpui_kit::{
-    component::{Sizable, button::*, input::Input},
+    component::{Selectable, Sizable, button::*, input::Input},
     prelude::*,
     *,
 };
@@ -70,6 +70,39 @@ pub enum RowLevel {
 pub enum ActionKind {
     Primary,
     Ghost,
+    Danger,
+}
+
+fn wash(chrome: Chrome) -> Hsla {
+    chrome.palette.text.opacity(0.08)
+}
+
+fn clear(chrome: Chrome) -> Hsla {
+    chrome.palette.text.opacity(0.)
+}
+
+/// Full-width row. Selection is the row fill, not a pill around the label.
+pub fn interaction_row(
+    id: impl Into<ElementId>,
+    active: bool,
+    height: f32,
+    chrome: Chrome,
+) -> Stateful<Div> {
+    let text = chrome.palette.text;
+    let selected = chrome.palette.accent_soft;
+    let hover = wash(chrome);
+    div()
+        .id(id)
+        .w_full()
+        .h(chrome.geo(height))
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .rounded(chrome.geo(RADIUS_SELECTION))
+        .text_size(chrome.text(TYPE_BODY))
+        .text_color(text)
+        .when(active, |row| row.bg(selected))
+        .when(!active, move |row| row.hover(move |row| row.bg(hover)))
 }
 
 pub fn sidebar_row(
@@ -84,29 +117,20 @@ pub fn sidebar_row(
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> Stateful<Div> {
     let sub = level == RowLevel::Sub;
-    let text = chrome.palette.text;
     let muted = chrome.palette.text_muted;
-    let selected = chrome.palette.accent_soft;
-    let hover = text.opacity(0.08);
-    div()
-        .id(id)
-        .h(chrome.geo(if sub { ROW_SUB } else { ROW_NAV }))
-        .w_full()
-        .flex_shrink_0()
-        .pl(chrome.geo(if sub { SPACE_8 + SUB_INDENT } else { SPACE_8 }))
-        .pr(chrome.geo(SPACE_8))
-        .rounded(chrome.geo(RADIUS_SELECTION))
-        .cursor_pointer()
-        .flex()
-        .items_center()
-        .gap(chrome.geo(ICON_GAP))
-        .text_size(chrome.text(if sub { TYPE_CAPTION } else { TYPE_BODY }))
-        .font_weight(weight(WEIGHT_BODY))
-        .when(active, |row| row.bg(selected).text_color(text))
-        .when(!active, |row| {
-            row.text_color(text).hover(move |row| row.bg(hover))
-        })
-        .on_click(on_click)
+    interaction_row(
+        id,
+        active,
+        if sub { ROW_SUB } else { ROW_NAV },
+        chrome,
+    )
+    .cursor_pointer()
+    .pl(chrome.geo(if sub { SPACE_8 + SUB_INDENT } else { SPACE_8 }))
+    .pr(chrome.geo(SPACE_8))
+    .gap(chrome.geo(ICON_GAP))
+    .text_size(chrome.text(if sub { TYPE_CAPTION } else { TYPE_BODY }))
+    .font_weight(weight(WEIGHT_BODY))
+    .on_click(on_click)
         .child(
             div()
                 .w(chrome.geo(LEAD_BOX))
@@ -198,7 +222,7 @@ pub fn list_row(
     let text = chrome.palette.text;
     let muted = chrome.palette.text_muted;
     let selected = chrome.palette.accent_soft;
-    let hover = text.opacity(0.08);
+    let hover = wash(chrome);
     div()
         .id(id)
         .w_full()
@@ -209,6 +233,7 @@ pub fn list_row(
         .flex()
         .items_center()
         .gap(chrome.geo(SPACE_8))
+        .text_color(text)
         .when(active, |row| row.bg(selected))
         .when(!active, move |row| row.hover(move |row| row.bg(hover)))
         .child(
@@ -431,34 +456,94 @@ fn hairline_panel(rows: impl IntoIterator<Item = AnyElement>, chrome: Chrome) ->
         .children(rows)
 }
 
+fn ghost_colors(chrome: Chrome, cx: &App, active: Hsla) -> ButtonCustomVariant {
+    ButtonCustomVariant::new(cx)
+        .foreground(chrome.palette.text)
+        .hover(wash(chrome))
+        .active(active)
+}
+
+/// Primary, ghost, and danger share one height, padding, and radius.
+/// Focus tints the border; the theme draws no ring outside the control.
 pub fn action_button(
     id: impl Into<ElementId>,
     label: impl Into<SharedString>,
     kind: ActionKind,
     chrome: Chrome,
+    cx: &App,
 ) -> Button {
     let button = match kind {
-        ActionKind::Primary => Button::new(id).primary(),
-        ActionKind::Ghost => Button::new(id).ghost(),
+        ActionKind::Primary => Button::new(id).primary().border_color(chrome.palette.action),
+        ActionKind::Ghost => Button::new(id)
+            .custom(ghost_colors(chrome, cx, wash(chrome)))
+            .border_color(clear(chrome)),
+        ActionKind::Danger => Button::new(id).danger().border_color(chrome.palette.error),
     };
     button
         .small()
         .h(chrome.geo(ACTION_BUTTON_HEIGHT))
         .px(chrome.geo(ACTION_BUTTON_PADDING))
         .rounded(chrome.geo(RADIUS_BUTTON))
+        .border_1()
+        .text_size(chrome.text(TYPE_BODY))
         .label(label)
 }
 
-pub fn ghost_icon_button(id: impl Into<ElementId>, chrome: Chrome) -> Button {
+pub fn ghost_icon_button(id: impl Into<ElementId>, chrome: Chrome, cx: &App) -> Button {
     Button::new(id)
-        .ghost()
+        .custom(ghost_colors(chrome, cx, wash(chrome)))
         .small()
         .w(chrome.geo(GHOST_ICON_BUTTON))
         .h(chrome.geo(GHOST_ICON_BUTTON))
+        .rounded(chrome.geo(RADIUS_BUTTON))
+        .border_1()
+        .border_color(clear(chrome))
+        .p_0()
+}
+
+/// Menu row. Open and current items use the same fill as a selected sidebar row.
+pub fn menu_button(
+    id: impl Into<ElementId>,
+    label: impl Into<SharedString>,
+    selected: bool,
+    chrome: Chrome,
+    cx: &App,
+) -> Button {
+    Button::new(id)
+        .custom(ghost_colors(chrome, cx, chrome.palette.accent_soft))
+        .selected(selected)
+        .small()
+        .w_full()
+        .h(chrome.geo(MENU_ROW))
+        .px(chrome.geo(SPACE_8))
+        .rounded(chrome.geo(RADIUS_SELECTION))
+        .justify_start()
+        .border_1()
+        .border_color(clear(chrome))
+        .text_size(chrome.text(TYPE_BODY))
+        .label(label)
+}
+
+pub fn hairline(chrome: Chrome) -> Div {
+    div()
+        .w_full()
+        .h(px(1.))
+        .flex_shrink_0()
+        .bg(chrome.palette.border)
 }
 
 pub fn search_field(input: Input, chrome: Chrome) -> Input {
-    Styled::h(input.small(), chrome.geo(SEARCH_FIELD_HEIGHT))
-        .text_size(chrome.text(TYPE_BODY))
-        .line_height(relative(1.3))
+    let fill = chrome.palette.surface_muted;
+    Styled::h(
+        input
+            .small()
+            .appearance(true)
+            .bordered(true)
+            .bg(fill)
+            .border_color(fill)
+            .rounded(chrome.geo(RADIUS_SELECTION)),
+        chrome.geo(SEARCH_FIELD_HEIGHT),
+    )
+    .text_size(chrome.text(TYPE_BODY))
+    .line_height(relative(1.3))
 }

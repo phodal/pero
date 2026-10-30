@@ -1,7 +1,7 @@
 //! Settings presentation belongs to the shell; the panel emits typed intents.
 use crate::{
     app::{Workbench, request_locale},
-    settings_view::{SettingsAction, SettingsPanel},
+    settings_view::{SettingsAction, SettingsPanel, SettingsSection},
     workspace::WorkbenchPage,
 };
 #[cfg(target_family = "wasm")]
@@ -46,14 +46,6 @@ impl Workbench {
                                 this.sync_settings_panel(cx);
                             }
                         }
-                        SettingsAction::Navigate(page) => {
-                            this.close_settings(window, cx);
-                            this.navigate(*page, cx);
-                            if *page == WorkbenchPage::Connections {
-                                this.open_remote_connection(window, cx);
-                            }
-                            this.sync_follow(cx);
-                        }
                         SettingsAction::Close => this.close_settings(window, cx),
                         SettingsAction::Mcp(command) => this.command(command.clone(), cx),
                         SettingsAction::Harness(control) => {
@@ -72,11 +64,81 @@ impl Workbench {
         }
         let agents = self.chat.read(cx).agents.clone();
         panel.update(cx, |panel, cx| { panel.mcp.agents = agents; panel.mcp_select_first(cx); });
+        let host = cx.entity().downgrade();
+        panel.update(cx, |panel, cx| panel.bind_host(host, cx));
         self.settings_panel = Some(panel);
+        self.apply_settings_section(cx);
         #[cfg(target_family = "wasm")]
         self.command(serde_json::json!({"action":"harness_get"}), cx);
         self.sync_settings_panel(cx);
         cx.notify();
+    }
+
+    fn apply_settings_section(&mut self, cx: &mut Context<Self>) {
+        let Some(section) = self.settings_section.take() else { return };
+        if let Some(panel) = self.settings_panel.clone() {
+            panel.update(cx, |panel, cx| panel.select(section, cx));
+        }
+    }
+
+    pub(crate) fn show_settings(&mut self, section: SettingsSection, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(panel) = self.settings_panel.clone() {
+            self.settings_section = None;
+            panel.update(cx, |panel, cx| {
+                panel.clear_search(window, cx);
+                panel.select(section, cx);
+            });
+            #[cfg(not(target_family = "wasm"))]
+            if let Some(settings) = self.settings_window {
+                let _ = settings.update(cx, |_, window, _| window.activate_window());
+            }
+            return;
+        }
+        self.settings_section = Some(section);
+        self.open_settings(window, cx);
+    }
+
+    pub(crate) fn show_settings_page(&mut self, page: WorkbenchPage, window: &mut Window, cx: &mut Context<Self>) {
+        let section = match page {
+            WorkbenchPage::Connections => {
+                self.prepare_remote_connection(window, cx);
+                SettingsSection::Connections
+            }
+            WorkbenchPage::Workers => {
+                self.command(serde_json::json!({"action":"remote_refresh"}), cx);
+                SettingsSection::Workers
+            }
+            WorkbenchPage::Agents => SettingsSection::Agents,
+            _ => return,
+        };
+        self.show_settings(section, window, cx);
+    }
+
+    pub(crate) fn leave_settings_route(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let page = self.navigation.page();
+        if !matches!(page, WorkbenchPage::Agents | WorkbenchPage::Workers | WorkbenchPage::Connections) {
+            return;
+        }
+        for _ in 0..8 {
+            if !matches!(self.navigation.page(), WorkbenchPage::Agents | WorkbenchPage::Workers | WorkbenchPage::Connections) {
+                break;
+            }
+            if self.navigation.can_back() {
+                self.navigation.step_history(false);
+            } else {
+                self.navigation.show(WorkbenchPage::Projects);
+            }
+        }
+        if matches!(self.navigation.page(), WorkbenchPage::Agents | WorkbenchPage::Workers | WorkbenchPage::Connections) {
+            self.navigation.show(WorkbenchPage::Projects);
+        }
+        if matches!(self.navigation.page(), WorkbenchPage::Agents | WorkbenchPage::Workers | WorkbenchPage::Connections) {
+            return;
+        }
+        let owner = cx.entity().downgrade();
+        window.defer(cx, move |window, cx| {
+            let _ = owner.update(cx, |this, cx| this.show_settings_page(page, window, cx));
+        });
     }
 
     pub(crate) fn close_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {

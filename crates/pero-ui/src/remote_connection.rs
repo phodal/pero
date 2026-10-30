@@ -42,7 +42,7 @@ impl ConnectionForm {
 }
 
 impl Workbench {
-    pub(crate) fn open_remote_connection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn prepare_remote_connection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let url = self.remote.data["connection"]["url"]
             .as_str()
             .unwrap_or("")
@@ -58,9 +58,6 @@ impl Workbench {
         self.remote.connection.mode =
             usize::from(self.remote.data["connection"]["mode"] == "operator");
         self.remote.connection.error = false;
-        self.remote.connection.editing = true;
-        let focus = self.remote.connection.url.focus_handle(cx);
-        window.focus(&focus, cx);
         cx.notify();
     }
 
@@ -116,30 +113,22 @@ impl Workbench {
         let storage = self.remote.data["connection"]["persistence_available"]
             .as_bool()
             .unwrap_or(true);
+        let caption = pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption);
         div()
-            .id("connector-scroll")
-            .flex_1()
-            .min_h_0()
-            .overflow_y_scroll()
-            .p(px(pero_theme::WorkbenchStyle::PAGE))
+            .id("connector-form")
+            .flex()
+            .flex_col()
+            .gap(px(12.))
+            .px(px(16.))
+            .pt(px(12.))
+            .pb(px(12.))
             .child(
                 div()
-                    .max_w(px(700.))
-                    .flex()
-                    .flex_col()
-                    .gap(px(pero_theme::WorkbenchStyle::SECTION))
-                    .child(
-                        div()
-                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading))
-                            .font_weight(FontWeight::MEDIUM)
-                            .child(self.t("connector.title")),
-                    )
-                    .child(
-                        div()
-                            .whitespace_normal()
-                            .text_color(p.text_muted)
-                            .child(self.t("connector.description")),
-                    )
+                    .whitespace_normal()
+                    .text_size(caption)
+                    .text_color(p.text_muted)
+                    .child(self.t("connector.description")),
+            )
                     .child(
                         div()
                             .flex()
@@ -163,6 +152,7 @@ impl Workbench {
                                 Button::new("connector-github-login")
                                     .primary()
                                     .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+                                    .self_start()
                                     .label(self.t(if authenticating {
                                         "connector.login_waiting"
                                     } else {
@@ -268,6 +258,7 @@ impl Workbench {
                             .flex()
                             .flex_wrap()
                             .gap(px(8.))
+                            .self_start()
                             .child(
                                 Button::new("connector-save")
                                     .primary()
@@ -282,7 +273,7 @@ impl Workbench {
                                         this.save_remote_connection(window, cx)
                                     })),
                             )
-                            .when(configured, |el| {
+                            .when(configured && self.remote.connection.editing, |el| {
                                 el.child(
                                     Button::new("connector-cancel")
                                         .outline()
@@ -305,8 +296,7 @@ impl Workbench {
                                             this.command(json!({"action":"remote_disconnect"}), cx);
                                         })),
                                 )
-                            }),
-                    ),
-            )
+                            })
+                    )
     }
 }

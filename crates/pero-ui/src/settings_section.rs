@@ -9,17 +9,23 @@ pub(crate) enum SettingsSection {
     InterfaceFont,
     ChatFont,
     CodeFont,
+    Agents,
+    Workers,
+    Connections,
     Computer,
     Mcp,
     Harness,
 }
 impl SettingsSection {
-    pub(crate) const ALL: [Self; 8] = [
+    pub(crate) const ALL: [Self; 11] = [
         Self::General,
         Self::Theme,
         Self::InterfaceFont,
         Self::ChatFont,
         Self::CodeFont,
+        Self::Agents,
+        Self::Workers,
+        Self::Connections,
         Self::Computer,
         Self::Mcp,
         Self::Harness,
@@ -31,6 +37,9 @@ impl SettingsSection {
             Self::InterfaceFont => "settings.interface_font",
             Self::ChatFont => "settings.chat_font",
             Self::CodeFont => "settings.code_font",
+            Self::Agents => "settings.page.agents",
+            Self::Workers => "nav.workers",
+            Self::Connections => "connector.title",
             Self::Computer => "computer.title",
             Self::Mcp => "mcp.title",
             Self::Harness => "harness.title",
@@ -45,6 +54,12 @@ impl SettingsSection {
         }
     }
     pub(crate) fn is_appearance(self) -> bool {
-        matches!(self, Self::Theme | Self::InterfaceFont | Self::ChatFont | Self::CodeFont)
+        matches!(
+            self,
+            Self::Theme | Self::InterfaceFont | Self::ChatFont | Self::CodeFont
+        )
+    }
+    pub(crate) fn exclusive(self) -> bool {
+        !self.is_appearance()
     }
 }

@@ -120,6 +120,7 @@ impl Workbench {
     pub(crate) fn receive_local_execution(
         &mut self,
         event: &HostEvent,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
         match event.kind.as_str() {
@@ -148,7 +149,7 @@ impl Workbench {
                             self.local_execution.editing = false;
                         }
                         if finishing_welcome {
-                            self.navigate(WorkbenchPage::Workers, cx);
+                            self.show_settings_page(WorkbenchPage::Workers, window, cx);
                         }
                         if newly_configured && self.remote.configured() {
                             self.command(json!({"action":"remote_refresh"}), cx);
@@ -287,7 +288,7 @@ impl Workbench {
             .when(first_run,|el|el.p(px(pero_theme::WorkbenchStyle::PAGE)).w_full())
             .child(div().flex().items_center().gap(px(8.))
                 .child(Icon::default().path("icons/devices.svg"))
-                .child(div().flex_1().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading)).font_weight(FontWeight::SEMIBOLD)
+                .child(div().flex_1().text_size(pero_theme::UiAppearance::global(cx).text(if first_run {pero_theme::TextRole::Heading} else {pero_theme::TextRole::Body})).font_weight(if first_run {FontWeight::SEMIBOLD} else {FontWeight::MEDIUM})
                     .child(self.t(if first_run {"worker.local.first_title"}else{"worker.local.title"})))
                 .when(!first_run,|el|el.child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted).child(self.t(status_key)))))
             .when(first_run,|el|el.child(div().whitespace_normal().text_color(p.text_muted).child(self.t("worker.local.first_hint"))))

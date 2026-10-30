@@ -201,6 +201,7 @@ impl Workbench {
             },
             settings,
             on_action,
+            cx,
         )
     }
 
@@ -227,32 +228,26 @@ impl Workbench {
 
     fn workspace_actions(&self, cx: &mut Context<Self>) -> ActionHandler<WorkspaceAction> {
         Rc::new(
-            cx.listener(|this, action: &WorkspaceAction, _, cx| match action {
+            cx.listener(|this, action: &WorkspaceAction, window, cx| match action {
                 WorkspaceAction::NewSession(index) => {
                     this.chat.update(cx, |chat, _| chat.agent_index = *index);
                     this.new_chat(cx);
+                    this.close_settings(window, cx);
                 }
             }),
         )
     }
 
-    fn environments(&self, cx: &mut Context<Self>) -> Div {
-        let agents: Vec<_> = self
-            .chat
-            .read(cx)
-            .agents
-            .iter()
-            .map(|agent| AgentRow {
-                name: agent.name.clone(),
-                available: agent.available,
-            })
-            .collect();
-        { let actions = self.workspace_actions(cx); workspace::environments(self.ui(cx), &agents, actions) }
+    pub(crate) fn agent_settings(&self, cx: &mut Context<Self>) -> AnyElement {
+        let agents: Vec<_> = self.chat.read(cx).agents.iter().map(|agent| AgentRow { name: agent.name.clone(), available: agent.available }).collect();
+        let actions = self.workspace_actions(cx);
+        workspace::environments(self.ui(cx), &agents, actions, cx).into_any_element()
     }
 }
 
 impl Render for Workbench {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.leave_settings_route(window, cx);
         if self.input_locale != self.locale {
             self.input_locale = self.locale.clone();
             let placeholder = self.t("sessions.search");
@@ -453,10 +448,6 @@ impl Render for Workbench {
                                             !pane_tree&&self.navigation.page() == WorkbenchPage::Conversation,
                                             |el| el.child(self.detail(window, cx)),
                                         )
-                                        .when(
-                                            self.navigation.page() == WorkbenchPage::Workers,
-                                            |el| el.child(self.workers_view(cx)),
-                                        )
                                         .when(self.show_local_execution_onboarding(), |el| {
                                             el.child(
                                                 div()
@@ -474,10 +465,6 @@ impl Render for Workbench {
                                                 && !self.show_local_execution_onboarding(),
                                             |el| el.child(self.projects_view(cx)),
                                         )
-                                        .when(
-                                            self.navigation.page() == WorkbenchPage::Agents,
-                                            |el| el.child(self.environments(cx)),
-                                        )
                                         .when(!pane_tree&&self.navigation.page() == WorkbenchPage::Apps, |el| {
                                             el.child(self.apps_view(cx))
                                         })
@@ -485,10 +472,6 @@ impl Render for Workbench {
                                             self.navigation.page() == WorkbenchPage::Insights,
                                             |el| el.child(self.insights_view(cx)),
                                         )
-                                        .when(
-                                            self.navigation.page() == WorkbenchPage::Connections,
-                                            |el| el.child(self.remote_connection_view(cx)),
-                                        ),
                                 )
                             })
                             .when(dock, |el| {

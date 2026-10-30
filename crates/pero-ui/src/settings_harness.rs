@@ -4,7 +4,7 @@ use crate::{
     settings_view::{SettingsAction, SettingsPanel},
 };
 use gpui_kit::{
-    component::{button::*, input::Input, *},
+    component::{input::Input, *},
     prelude::*,
     *,
 };
@@ -115,14 +115,17 @@ impl SettingsPanel {
                     .items_center()
                     .gap(px(8.))
                     .child(
-                        Button::new("harness-save")
-                            .primary()
-                            .small()
-                            .label(self.t(if saving {
+                        pero_theme::action_button(
+                            "harness-save",
+                            self.t(if saving {
                                 "harness.saving"
                             } else {
                                 "harness.save"
-                            }))
+                            }),
+                            pero_theme::ActionKind::Primary,
+                            pero_theme::Chrome::from_app(cx),
+                            cx,
+                        )
                             .disabled(disabled || !state.persistence_available)
                             .on_click(cx.listener(|this, _, _, cx| {
                                 let values = this
@@ -143,14 +146,17 @@ impl SettingsPanel {
                             })),
                     )
                     .child(
-                        Button::new("harness-clear-key")
-                            .outline()
-                            .small()
-                            .label(self.t(if self.harness_remove_confirm {
+                        pero_theme::action_button(
+                            "harness-clear-key",
+                            self.t(if self.harness_remove_confirm {
                                 "harness.confirm_remove"
                             } else {
                                 "harness.clear_key"
-                            }))
+                            }),
+                            pero_theme::ActionKind::Ghost,
+                            pero_theme::Chrome::from_app(cx),
+                            cx,
+                        )
                             .disabled(
                                 disabled
                                     || !state.credential_configured

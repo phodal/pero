@@ -6,7 +6,6 @@ use crate::{
 };
 use gpui_kit::{
     component::{
-        button::*,
         menu::{DropdownMenu, PopupMenuItem},
         *,
     },
@@ -109,39 +108,45 @@ pub(crate) fn controls(locale: &str, cx: &mut Context<SettingsPanel>) -> AnyElem
             }
             menu
         });
-    let mut control = div().flex().items_center().gap(px(6.)).child(picker).child(
-        Button::new("icon-theme-install")
-            .small()
-            .ghost()
-            .disabled(pending)
-            .label(if pending {
-                t("icons.loading")
-            } else {
-                t("icons.install")
-            })
-            .on_click(
-                cx.listener(|_, _, _, cx| cx.emit(SettingsAction::Icons(IconThemeAction::Install))),
-            ),
+    let chrome = pero_theme::Chrome::from_app(cx);
+    let install_label = if pending {
+        t("icons.loading")
+    } else {
+        t("icons.install")
+    };
+    let mut control = div().flex().items_center().gap(chrome.geo(pero_theme::ICON_GAP)).child(picker).child(
+        pero_theme::action_button(
+            "icon-theme-install",
+            install_label,
+            pero_theme::ActionKind::Ghost,
+            chrome,
+            cx,
+        )
+        .disabled(pending)
+        .on_click(
+            cx.listener(|_, _, _, cx| cx.emit(SettingsAction::Icons(IconThemeAction::Install))),
+        ),
     );
     if let Some(id) = &state.selected {
         let target = cx.entity().downgrade();
         let id = id.clone();
         let confirm = t("icons.confirm_remove");
         control = control.child(
-            Button::new("icon-theme-remove")
-                .small()
-                .ghost()
+            pero_theme::action_button(
+                "icon-theme-remove",
+                t("icons.remove").replace(
+                    "{name}",
+                    &state
+                        .theme
+                        .as_ref()
+                        .map(|theme| theme.name.as_str())
+                        .unwrap_or(id.as_str()),
+                ),
+                pero_theme::ActionKind::Ghost,
+                chrome,
+                cx,
+            )
                 .disabled(pending)
-                .label(
-                    t("icons.remove").replace(
-                        "{name}",
-                        &state
-                            .theme
-                            .as_ref()
-                            .map(|theme| theme.name.as_str())
-                            .unwrap_or(id.as_str()),
-                    ),
-                )
                 .dropdown_menu(move |menu, _, _| {
                     let target = target.clone();
                     let id = id.clone();

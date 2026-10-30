@@ -16,6 +16,8 @@ test('generated geometry matches the TypeSpec contract', () => {
   }
   assert.match(generated, /--pero-icon-gap:\s*6px/);
   assert.match(generated, /--pero-row-nav:\s*32px/);
+  assert.match(generated, /--pero-row-menu:\s*32px/);
+  assert.equal(metrics.menuRow, 32);
   assert.match(generated, /--pero-reading-width:\s*720px/);
   assert.match(generated, /--pero-role-page:\s*var\(--pero-bg\)/);
   assert.match(generated, /--pero-role-sidebar:\s*var\(--pero-surface-muted\)/);

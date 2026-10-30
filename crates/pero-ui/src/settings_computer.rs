@@ -4,7 +4,7 @@ use crate::{
     settings_view::{SettingsAction, SettingsPanel},
 };
 use gpui_kit::{
-    component::{button::*, checkbox::Checkbox, *},
+    component::{checkbox::Checkbox, *},
     prelude::*,
     *,
 };
@@ -110,30 +110,39 @@ impl SettingsPanel {
                 .flex_wrap()
                 .gap(px(8.))
                 .child(
-                    Button::new("computer-permissions")
-                        .small()
-                        .outline()
-                        .label(self.t("computer.permissions"))
+                    pero_theme::action_button(
+                        "computer-permissions",
+                        self.t("computer.permissions"),
+                        pero_theme::ActionKind::Ghost,
+                        pero_theme::Chrome::from_app(cx),
+                        cx,
+                    )
                         .disabled(unavailable || self.computer_pending || state.is_some_and(|s| s.status.accessibility == ComputerPermissionState::Unsupported && s.status.screen_recording == ComputerPermissionState::Unsupported))
                         .on_click(cx.listener(|this, _, _, cx| {
                             this.computer_control(ComputerControl::Permissions {}, cx)
                         })),
                 )
                 .child(
-                    Button::new("computer-refresh")
-                        .small()
-                        .outline()
-                        .label(self.t("computer.refresh"))
+                    pero_theme::action_button(
+                        "computer-refresh",
+                        self.t("computer.refresh"),
+                        pero_theme::ActionKind::Ghost,
+                        pero_theme::Chrome::from_app(cx),
+                        cx,
+                    )
                         .disabled(self.computer_pending)
                         .on_click(cx.listener(|this, _, _, cx| {
                             this.computer_control(ComputerControl::Get {}, cx)
                         })),
                 )
                 .child(
-                    Button::new("computer-stop")
-                        .small()
-                        .outline()
-                        .label(self.t("computer.stop"))
+                    pero_theme::action_button(
+                        "computer-stop",
+                        self.t("computer.stop"),
+                        pero_theme::ActionKind::Ghost,
+                        pero_theme::Chrome::from_app(cx),
+                        cx,
+                    )
                         .disabled(!enabled && !running)
                         .on_click(cx.listener(|this, _, _, cx| {
                             this.computer_control(ComputerControl::Stop {}, cx)

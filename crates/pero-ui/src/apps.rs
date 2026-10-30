@@ -228,10 +228,10 @@ mod surface {
                     self.t("nav.apps"),
                     None,
                     Some(div().flex().items_center().gap(px(pero_theme::ICON_GAP))
-                        .child(pero_theme::action_button("apps-refresh", self.t("apps.refresh"), pero_theme::ActionKind::Ghost, chrome)
+                        .child(pero_theme::action_button("apps-refresh", self.t("apps.refresh"), pero_theme::ActionKind::Ghost, chrome, cx)
                             .disabled(busy || !cfg!(target_family = "wasm"))
                             .on_click(cx.listener(|this, _, _, cx| this.refresh_apps(cx))))
-                        .child(pero_theme::action_button("apps-install", self.t("apps.install"), pero_theme::ActionKind::Primary, chrome)
+                        .child(pero_theme::action_button("apps-install", self.t("apps.install"), pero_theme::ActionKind::Primary, chrome, cx)
                             .disabled(busy || !cfg!(target_family = "wasm"))
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.apps.error = None;

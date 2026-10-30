@@ -9,7 +9,6 @@ use gpui_kit::{
     *,
 };
 use pero_contracts::appearance::FontSize;
-use pero_theme::UiAppearance;
 use std::rc::Rc;
 
 pub(crate) fn selection_button(
@@ -18,15 +17,8 @@ pub(crate) fn selection_button(
     name: &'static str,
     cx: &App,
 ) -> Button {
-    let appearance = UiAppearance::global(cx);
-    Button::new(id)
-        .outline()
-        .small()
-        .min_w(px(92.))
-        .h(px(appearance.typography.control_height()))
-        .bg(appearance.palette.surface_muted)
-        .border_color(appearance.palette.border)
-        .label(label)
+    let chrome = pero_theme::Chrome::from_app(cx);
+    pero_theme::action_button(id, label, pero_theme::ActionKind::Ghost, chrome, cx)
         .accessibility_label(name)
 }
 
@@ -112,8 +104,8 @@ impl FontSizeField {
 }
 impl RenderOnce for FontSizeField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let appearance = UiAppearance::global(cx).clone();
-        let p = appearance.palette;
+        let chrome = pero_theme::Chrome::from_app(cx);
+        let p = chrome.palette;
         let focused = self.input.read(cx).focus_handle(cx).is_focused(window);
         let size = self
             .input
@@ -121,22 +113,23 @@ impl RenderOnce for FontSizeField {
             .value()
             .parse::<FontSize>()
             .unwrap_or(self.size);
-        let height = px(appearance.typography.control_height());
+        let height = chrome.geo(pero_theme::ACTION_BUTTON_HEIGHT);
         let decrement = self.on_step.clone();
         let increment = self.on_step.clone();
         let on_key = self.on_step;
+        let field = SharedString::from(self.label.to_string());
         div()
-            .id("font-size-field")
+            .id(SharedString::from(format!("font-size-field-{field}")))
             .flex()
             .items_center()
-            .w(px(124.))
             .h(height)
-            .rounded(px(3.))
+            .rounded(chrome.geo(pero_theme::RADIUS_SELECTION))
             .bg(p.surface_muted)
             .border_1()
-            .border_color(p.border)
-            .when(focused && !self.disabled, |el| {
-                el.focus_ring_style(window, cx)
+            .border_color(if focused && !self.disabled {
+                p.focus
+            } else {
+                p.surface_muted
             })
             .capture_key_down(move |event, window, cx| {
                 if self.disabled
@@ -164,46 +157,42 @@ impl RenderOnce for FontSizeField {
                 cx.stop_propagation();
             })
             .child(
-                Button::new("decrease-font")
-                    .ghost()
-                    .small()
-                    .w(px(26.))
-                    .h_full()
-                    .tab_stop(false)
-                    .border_r(px(0.5))
-                    .border_color(p.border)
-                    .icon(IconName::Minus)
-                    .disabled(self.disabled || size.adjusted(-1) == size)
-                    .accessibility_label(pero_contracts::i18n::text(
-                        &self.locale,
-                        "settings.decrease_font",
-                    ))
-                    .on_click(move |_, window, cx| decrement(-1, window, cx)),
+                pero_theme::ghost_icon_button(
+                    SharedString::from(format!("decrease-font-{field}")),
+                    chrome,
+                    cx,
+                )
+                .tab_stop(false)
+                .icon(IconName::Minus)
+                .disabled(self.disabled || size.adjusted(-1) == size)
+                .accessibility_label(pero_contracts::i18n::text(
+                    &self.locale,
+                    "settings.decrease_font",
+                ))
+                .on_click(move |_, window, cx| decrement(-1, window, cx)),
             )
             .child(
                 pero_theme::WorkbenchStyle::input(Input::new(&self.input), cx)
                     .appearance(false)
-                    .w(px(70.))
+                    .w(chrome.geo(pero_theme::ACTION_BUTTON_HEIGHT + pero_theme::SPACE_16))
                     .text_align(TextAlign::Center)
                     .disabled(self.disabled)
                     .aria_label(self.label),
             )
             .child(
-                Button::new("increase-font")
-                    .ghost()
-                    .small()
-                    .w(px(26.))
-                    .h_full()
-                    .tab_stop(false)
-                    .border_l(px(0.5))
-                    .border_color(p.border)
-                    .icon(IconName::Plus)
-                    .disabled(self.disabled || size.adjusted(1) == size)
-                    .accessibility_label(pero_contracts::i18n::text(
-                        &self.locale,
-                        "settings.increase_font",
-                    ))
-                    .on_click(move |_, window, cx| increment(1, window, cx)),
+                pero_theme::ghost_icon_button(
+                    SharedString::from(format!("increase-font-{field}")),
+                    chrome,
+                    cx,
+                )
+                .tab_stop(false)
+                .icon(IconName::Plus)
+                .disabled(self.disabled || size.adjusted(1) == size)
+                .accessibility_label(pero_contracts::i18n::text(
+                    &self.locale,
+                    "settings.increase_font",
+                ))
+                .on_click(move |_, window, cx| increment(1, window, cx)),
             )
     }
 }

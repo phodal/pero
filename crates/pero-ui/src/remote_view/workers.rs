@@ -105,69 +105,13 @@ impl Workbench {
                         ),
                 )
         });
-        div()
-            .id("workers")
-            .flex_1()
-            .min_w_0()
-            .h_full()
-            .overflow_y_scroll()
-            .px(px(pero_theme::WorkbenchStyle::PAGE))
-            .py(px(12.))
-            .child(
-                div()
-                    .max_w(px(1000.))
-                    .flex()
-                    .flex_col()
-                    .gap(px(14.))
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(px(8.))
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading))
-                                    .font_weight(FontWeight::BOLD)
-                                    .child(self.t("nav.workers")),
-                            )
-                            .child(
-                                Button::new("workers-refresh")
-                                    .ghost()
-                                    .small()
-                                    .label(self.t("remote.refresh"))
-                                    .disabled(self.remote.loading())
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.command(json!({"action":"remote_refresh"}), cx)
-                                    })),
-                            ),
-                    )
-                    .child(self.local_execution_setup_view(false, cx))
-                    .child(
-                        div()
-                            .whitespace_normal()
-                            .text_color(p.text_muted)
-                            .child(self.t("cloud.workers_hint")),
-                    )
-                    .when(workers.is_empty(), |el| {
-                        el.child(
-                            div()
-                                .py(px(12.))
-                                .text_color(p.text_muted)
-                                .child(self.t("cloud.no_workers")),
-                        )
-                    })
-                    .when(!workers.is_empty(), |el| {
-                        el.child(
-                            div()
-                                .rounded(px(8.))
-                                .border_1()
-                                .border_color(p.border)
-                                .overflow_hidden()
-                                .child(header)
-                                .children(rows),
-                        )
-                    }),
-            )
+        div().id("workers").flex().flex_col()
+            .child(div().px(px(16.)).pt(px(12.)).flex().items_start().gap(px(12.))
+                .child(div().flex_1().min_w_0().whitespace_normal().text_size(caption).text_color(p.text_muted).child(self.t("cloud.workers_hint")))
+                .child(Button::new("workers-refresh").ghost().small().self_start().label(self.t("remote.refresh")).disabled(self.remote.loading())
+                    .on_click(cx.listener(|this, _, _, cx| this.command(json!({"action":"remote_refresh"}), cx)))))
+            .child(div().px(px(16.)).pt(px(12.)).pb(px(8.)).child(self.local_execution_setup_view(false, cx)))
+            .when(workers.is_empty(), |el| el.child(div().px(px(16.)).py(px(8.)).text_size(caption).text_color(p.text_muted).child(self.t("cloud.no_workers"))))
+            .when(!workers.is_empty(), |el| el.child(div().child(header).children(rows)))
     }
 }
