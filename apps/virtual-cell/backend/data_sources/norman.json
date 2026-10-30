@@ -1,0 +1,33 @@
+{
+  "schema": "pero.virtual-cell.source.v1",
+  "id": "scperturb-norman-weissman-2019",
+  "revision": "scPerturb-v1.0-zenodo-7041849",
+  "record": "https://zenodo.org/records/7041849",
+  "filename": "NormanWeissman2019_filtered.h5ad",
+  "download_url": "https://zenodo.org/records/7041849/files/NormanWeissman2019_filtered.h5ad?download=1",
+  "bytes": 698680199,
+  "md5": "c870e6967d91c017d9da827bab183cd6",
+  "license": {
+    "id": "CC-BY-4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/",
+    "evidence": "Zenodo record embedded metadata.rights"
+  },
+  "original_accession": "GSE133344",
+  "paper_doi": "10.1126/science.aax4438",
+  "upstream_processing_commit": "b69f72a070a92bcbaf41e7f9897b11598109ab48",
+  "upstream_processing_path": "dataset_processing/notebooks/data_processing_JS.ipynb",
+  "warning": "Upstream maps no_reads_found to control. Perturbation=control alone is not negative-control evidence.",
+  "scope": "New scPerturb-derived local demonstration; not a reproduction of all original paper preprocessing or figures.",
+  "acceptance": "Official metadata and local file size/MD5/SHA256 matched; initial H5AD metadata inspected. Full count/QC inspection, negative-control guide review, recipe and real-data preparation remain unverified.",
+  "sha256": "efde6f5301fe256725dce1d980f37bd96a13481a9a16135515897368e631affc",
+  "sha256_evidence": "Observed on 2026-10-30 from a local cached file matching the official Zenodo byte size and MD5; this is not a Zenodo-published SHA256.",
+  "local_file_observation": {
+    "date": "2026-10-30",
+    "shape": [
+      111445,
+      33694
+    ],
+    "X_encoding": "csc_matrix",
+    "scope": "Read-only initial metadata inspection, not complete count/QC or negative-control validation."
+  }
+}
