@@ -11,7 +11,7 @@ use gpui_kit::{
 };
 use pero_contracts::{
     content_document::{ContentDocument, PreviewShape, StructuredPreview},
-    table_projection::{SortDirection, TableProjection},
+    table_projection::{ProjectionSpec, SortDirection, TableProjection},
 };
 use std::{ops::Range, sync::Arc};
 
@@ -32,8 +32,137 @@ struct SourceRows {
     preview: Arc<StructuredPreview>,
     projection: TableProjection,
     locale: String,
+    requested: ProjectionSpec,
+    generation: u64,
+    loading: bool,
+    error: Option<String>,
+    task: Option<Task<()>>,
+    #[cfg(target_family = "wasm")]
+    worker: Option<ProjectionWorker>,
+}
+#[cfg(target_family = "wasm")]
+struct ProjectionWorker(u32);
+#[cfg(target_family = "wasm")]
+impl Drop for ProjectionWorker {
+    fn drop(&mut self) {
+        #[wasm_bindgen::prelude::wasm_bindgen]
+        extern "C" {
+            #[wasm_bindgen::prelude::wasm_bindgen(js_namespace=window,js_name=peroReleaseTableProjection)]
+            fn release(source: u32);
+        }
+        release(self.0);
+    }
 }
 impl SourceRows {
+    fn new(document: ContentDocument, preview: Arc<StructuredPreview>, locale: String) -> Self {
+        Self {
+            projection: TableProjection::new(&preview),
+            document,
+            preview,
+            locale,
+            requested: ProjectionSpec::default(),
+            generation: 0,
+            loading: false,
+            error: None,
+            task: None,
+            #[cfg(target_family = "wasm")]
+            worker: None,
+        }
+    }
+    fn transform(
+        &mut self,
+        spec: ProjectionSpec,
+        debounce: bool,
+        cx: &mut Context<TableState<Self>>,
+    ) {
+        if spec == self.requested && self.error.is_none() {
+            return;
+        }
+        self.requested = spec.clone();
+        self.generation += 1;
+        let generation = self.generation;
+        self.loading = true;
+        self.error = None;
+        let document = self.document.clone();
+        let preview = self.preview.clone();
+        #[cfg(target_family = "wasm")]
+        let worker = if document.bytes <= 64 * 1024 {
+            Ok(None)
+        } else {
+            if self.worker.is_none() {
+                #[wasm_bindgen::prelude::wasm_bindgen]
+                extern "C" {
+                    #[wasm_bindgen::prelude::wasm_bindgen(js_namespace=window,js_name=peroCreateTableProjection,catch)]
+                    fn create(
+                        source: &str,
+                        tape: js_sys::Uint32Array,
+                    ) -> Result<u32, wasm_bindgen::JsValue>;
+                }
+                match create(
+                    document.source(),
+                    js_sys::Uint32Array::from(preview.to_tape().as_slice()),
+                ) {
+                    Ok(source) => self.worker = Some(ProjectionWorker(source)),
+                    Err(error) => self.error = Some(format!("Table analysis: {error:?}")),
+                }
+            }
+            self.worker
+                .as_ref()
+                .map(|worker| Some(worker.0))
+                .ok_or_else(|| self.error.clone().unwrap())
+        };
+        self.task = Some(cx.spawn(async move |table, cx| {
+            if debounce {
+                cx.background_executor().timer(std::time::Duration::from_millis(200)).await;
+            }
+            #[cfg(not(target_family = "wasm"))]
+            let result: Result<TableProjection, String> = Ok(TableProjection::from_spec(spec, &document, &preview));
+            #[cfg(target_family = "wasm")]
+            let result = match worker {
+                Err(error) => Err(error),
+                Ok(None) => Ok(TableProjection::from_spec(spec, &document, &preview)),
+                Ok(Some(source)) => {
+                    #[wasm_bindgen::prelude::wasm_bindgen]
+                    extern "C" {
+                        #[wasm_bindgen::prelude::wasm_bindgen(js_namespace=window,js_name=peroProjectTable,catch)]
+                        fn project(source: u32, filter: &str, column: i32, descending: bool) -> Result<js_sys::Promise, wasm_bindgen::JsValue>;
+                    }
+                    let column = spec.sort.map_or(-1, |(column, _)| column as i32);
+                    let descending = spec.sort.is_some_and(|(_, direction)| direction == SortDirection::Descending);
+                    let result = match project(source, &spec.filter, column, descending) {
+                        Ok(promise) => wasm_bindgen_futures::JsFuture::from(promise).await,
+                        Err(error) => Err(error),
+                    };
+                    result.map_err(|error| format!("Table analysis: {error:?}")).and_then(|value| {
+                        let rows: Vec<_> = js_sys::Uint32Array::new(&value).to_vec().into_iter().map(|row| row as usize).collect();
+                        if rows.iter().any(|&row| row >= preview.rows.len()) {
+                            return Err("Invalid table source row".into());
+                        }
+                        Ok(TableProjection { rows, filter: spec.filter, sort: spec.sort })
+                    })
+                }
+            };
+            let _ = table.update(cx, |table, cx| {
+                let rows = table.delegate_mut();
+                if rows.generation != generation || !rows.document.shares_source(&document) { return; }
+                rows.loading = false;
+                match result {
+                    Ok(projection) => {
+                        rows.projection = projection;
+                        table.clear_selection(cx);
+                        table.scroll_to_row(0, cx);
+                    }
+                    Err(error) => {
+                        rows.error = Some(error);
+                        #[cfg(target_family = "wasm")]
+                        { rows.worker = None; }
+                    }
+                }
+                cx.notify();
+            });
+        }));
+        cx.notify();
+    }
     fn cell(&self, row: usize, column: usize) -> Option<Range<usize>> {
         let column = if self.preview.shape == PreviewShape::Properties {
             (column == 2).then_some(0)?
@@ -140,15 +269,14 @@ impl TableDelegate for SourceRows {
             ColumnSort::Descending => Some((column - 1, SortDirection::Descending)),
             ColumnSort::Default => None,
         };
-        self.projection.sort(sort, &self.document, &self.preview);
-        // A visual row index no longer denotes the previous selected source cell.
-        let table = cx.entity().downgrade();
-        cx.defer(move |cx| {
-            let _ = table.update(cx, |table, cx| {
-                table.clear_selection(cx);
-                table.scroll_to_row(0, cx);
-            });
-        });
+        self.transform(
+            ProjectionSpec {
+                filter: self.requested.filter.clone(),
+                sort,
+            },
+            false,
+            cx,
+        );
     }
     fn render_td(
         &mut self,
@@ -192,15 +320,9 @@ impl ContentTable {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let projection = TableProjection::new(&preview);
         let table = cx.new(|cx| {
             TableState::new(
-                SourceRows {
-                    document,
-                    preview,
-                    projection,
-                    locale: locale.clone(),
-                },
+                SourceRows::new(document, preview, locale.clone()),
                 window,
                 cx,
             )
@@ -215,6 +337,7 @@ impl ContentTable {
                 .placeholder(pero_contracts::i18n::text(&locale, "content.filter"))
         });
         let subscriptions = vec![
+            cx.observe(&table, |_, _, cx| cx.notify()),
             cx.subscribe(&table, |this, _, _: &TableEvent, cx| {
                 this.copied = false;
                 cx.notify();
@@ -224,10 +347,14 @@ impl ContentTable {
                     let query = input.read(cx).value().to_string();
                     this.table.update(cx, |table, cx| {
                         let rows = table.delegate_mut();
-                        rows.projection.filter(query, &rows.document, &rows.preview);
-                        table.clear_selection(cx);
-                        table.scroll_to_row(0, cx);
-                        cx.notify();
+                        rows.transform(
+                            ProjectionSpec {
+                                filter: query,
+                                sort: rows.requested.sort,
+                            },
+                            true,
+                            cx,
+                        );
                     });
                     this.copied = false;
                     cx.notify();
@@ -257,13 +384,7 @@ impl ContentTable {
         cx: &mut Context<Self>,
     ) {
         self.table.update(cx, |table, cx| {
-            let projection = TableProjection::new(&preview);
-            *table.delegate_mut() = SourceRows {
-                document,
-                preview,
-                projection,
-                locale: self.locale.clone(),
-            };
+            *table.delegate_mut() = SourceRows::new(document, preview, self.locale.clone());
             table.clear_selection(cx);
             table.refresh(cx);
             table.scroll_to_row(0, cx);
@@ -306,12 +427,15 @@ impl ContentTable {
         let rows = table.delegate();
         serde_json::json!({"bounds":self.bounds.snapshot(),"gridBounds":self.grid_bounds.snapshot(),"filter":rows.projection.filter,"sort":rows.projection.sort,"visibleRows":rows.projection.rows.len(),
             "firstRows":rows.projection.rows.iter().take(8).map(|&i|rows.preview.rows[i].line).collect::<Vec<_>>(),"selectedCell":table.selected_cell(),"sourceRange":self.selected(cx),
-            "widths":(0..rows.columns_count(cx)).map(|i|table.col_width(i).map(f32::from)).collect::<Vec<_>>()})
+            "widths":(0..rows.columns_count(cx)).map(|i|table.col_width(i).map(f32::from)).collect::<Vec<_>>(),
+            "loading":rows.loading,"error":rows.error,"requested":rows.requested})
     }
 }
 impl Render for ContentTable {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let selected = self.selected(cx).is_some();
+        let loading = self.table.read(cx).delegate().loading;
+        let error = self.table.read(cx).delegate().error.clone();
         let nested = self.selected(cx).is_some_and(|range| {
             self.table
                 .read(cx)
@@ -341,6 +465,27 @@ impl Render for ContentTable {
                     cx.stop_propagation();
                 }
             }))
+            .when(loading, |view| {
+                view.child(
+                    div()
+                        .text_size(px(12.))
+                        .px(px(8.))
+                        .text_color(cx.theme().muted_foreground)
+                        .child(pero_contracts::i18n::text(
+                            &self.locale,
+                            "content.transforming",
+                        )),
+                )
+            })
+            .when_some(error, |view, error| {
+                view.child(
+                    div()
+                        .text_size(px(12.))
+                        .px(px(8.))
+                        .text_color(cx.theme().danger)
+                        .child(error),
+                )
+            })
             .child(
                 div()
                     .flex()

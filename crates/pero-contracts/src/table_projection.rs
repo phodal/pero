@@ -10,6 +10,13 @@ pub enum SortDirection {
     Descending,
 }
 
+/// Requested transformation; applied row identities remain separate until ready.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
+pub struct ProjectionSpec {
+    pub filter: String,
+    pub sort: Option<(usize, SortDirection)>,
+}
+
 #[derive(Clone, Debug)]
 pub struct TableProjection {
     pub rows: Vec<usize>,
@@ -17,30 +24,25 @@ pub struct TableProjection {
     pub sort: Option<(usize, SortDirection)>,
 }
 impl TableProjection {
+    pub fn from_spec(
+        spec: ProjectionSpec,
+        document: &ContentDocument,
+        preview: &StructuredPreview,
+    ) -> Self {
+        let mut projection = Self {
+            rows: vec![],
+            filter: spec.filter,
+            sort: spec.sort,
+        };
+        projection.rebuild(document, preview);
+        projection
+    }
     pub fn new(preview: &StructuredPreview) -> Self {
         Self {
             rows: (0..preview.rows.len()).collect(),
             filter: String::new(),
             sort: None,
         }
-    }
-    pub fn filter(
-        &mut self,
-        query: String,
-        document: &ContentDocument,
-        preview: &StructuredPreview,
-    ) {
-        self.filter = query;
-        self.rebuild(document, preview);
-    }
-    pub fn sort(
-        &mut self,
-        sort: Option<(usize, SortDirection)>,
-        document: &ContentDocument,
-        preview: &StructuredPreview,
-    ) {
-        self.sort = sort;
-        self.rebuild(document, preview);
     }
     pub fn cell(
         &self,
@@ -252,17 +254,18 @@ mod tests {
                 ContentFormat::Json,
             );
             let preview = document.preview().unwrap();
-            let mut projection = TableProjection::new(&preview);
-            projection.filter(query.into(), &document, &preview);
-            projection.sort(
-                Some((
-                    0,
-                    if descending {
-                        SortDirection::Descending
-                    } else {
-                        SortDirection::Ascending
-                    },
-                )),
+            let mut projection = TableProjection::from_spec(
+                ProjectionSpec {
+                    filter: query.into(),
+                    sort: Some((
+                        0,
+                        if descending {
+                            SortDirection::Descending
+                        } else {
+                            SortDirection::Ascending
+                        },
+                    )),
+                },
                 &document,
                 &preview,
             );
@@ -274,7 +277,14 @@ mod tests {
                 );
                 assert_eq!(preview.rows[original].source.revision, 7);
             }
-            projection.sort(None, &document, &preview);
+            projection = TableProjection::from_spec(
+                ProjectionSpec {
+                    filter: query.into(),
+                    sort: None,
+                },
+                &document,
+                &preview,
+            );
             let mut original_order = expected;
             original_order.sort();
             assert_eq!(projection.rows, original_order);

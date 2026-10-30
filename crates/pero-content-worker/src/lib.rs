@@ -1,4 +1,9 @@
 //! Pure content analysis entry point, loaded inside a browser Worker.
+use pero_contracts::{
+    content_document::{ContentDocument, ContentFormat, DocumentSource, StructuredPreview},
+    content_origin::ContentOrigin,
+    table_projection::{ProjectionSpec, SortDirection, TableProjection},
+};
 #[cfg(target_family = "wasm")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn analyze_json(source: &str) -> Vec<u32> {
@@ -12,10 +17,66 @@ pub fn analyze_preview(
     json_lines: bool,
     revision: u64,
 ) -> Result<Vec<u32>, String> {
-    use pero_contracts::{
-        content_document::{ContentDocument, ContentFormat, DocumentSource},
-        content_origin::ContentOrigin,
-    };
+    analysis_document(source, json_lines, revision)
+        .parse_preview()
+        .map(|preview| preview.into_tape())
+}
+
+/// One table owns one background source; releasing the table drops this object.
+#[cfg_attr(target_family = "wasm", wasm_bindgen::prelude::wasm_bindgen)]
+pub struct ProjectionSource {
+    document: ContentDocument,
+    preview: StructuredPreview,
+}
+#[cfg_attr(target_family = "wasm", wasm_bindgen::prelude::wasm_bindgen)]
+impl ProjectionSource {
+    #[cfg_attr(
+        target_family = "wasm",
+        wasm_bindgen::prelude::wasm_bindgen(constructor)
+    )]
+    pub fn new(source: String, tape: &[u32]) -> Result<Self, String> {
+        let preview = StructuredPreview::from_tape(tape)?;
+        let revision = preview.rows.first().map_or(0, |row| row.source.revision);
+        Ok(Self {
+            document: analysis_document(source, false, revision),
+            preview,
+        })
+    }
+    pub fn project(
+        &self,
+        filter: String,
+        column: i32,
+        descending: bool,
+    ) -> Result<Vec<u32>, String> {
+        let sort = if column == -1 {
+            None
+        } else {
+            let column = usize::try_from(column).map_err(|_| "Invalid sort column")?;
+            if column >= self.preview.columns.len().max(1) {
+                return Err("Invalid sort column".into());
+            }
+            Some((
+                column,
+                if descending {
+                    SortDirection::Descending
+                } else {
+                    SortDirection::Ascending
+                },
+            ))
+        };
+        Ok(TableProjection::from_spec(
+            ProjectionSpec { filter, sort },
+            &self.document,
+            &self.preview,
+        )
+        .rows
+        .into_iter()
+        .map(|row| row as u32)
+        .collect())
+    }
+}
+
+fn analysis_document(source: String, json_lines: bool, revision: u64) -> ContentDocument {
     ContentDocument::new(
         DocumentSource {
             id: "analysis".into(),
@@ -32,8 +93,6 @@ pub fn analyze_preview(
             ContentFormat::Json
         },
     )
-    .parse_preview()
-    .map(|preview| preview.into_tape())
 }
 
 #[cfg(test)]
@@ -64,5 +123,31 @@ mod tests {
         ] {
             assert!(analyze_preview(source.into(), json_lines, 1).is_err());
         }
+    }
+
+    #[test]
+    fn table_source_reuses_preview_for_exact_transforms_and_original_row_identity() {
+        let source: String = (0..100_000)
+            .map(|row| {
+                format!(
+                    "{{\"n\":900719925474099{row:06},\"group\":\"{}\"}}\n",
+                    if row % 2 == 0 { "keep" } else { "skip" }
+                )
+            })
+            .collect();
+        let tape = analyze_preview(source.clone(), true, 9).unwrap();
+        let started = std::time::Instant::now();
+        let background = ProjectionSource::new(source, &tape).unwrap();
+        let first = background.project("keep".into(), 0, true).unwrap();
+        assert_eq!(first, (0..100_000).step_by(2).rev().collect::<Vec<_>>());
+        let second = background.project("skip".into(), 0, false).unwrap();
+        assert_eq!(second, (1..100_000).step_by(2).collect::<Vec<_>>());
+        let reset = background.project(String::new(), -1, false).unwrap();
+        assert_eq!(reset, (0..100_000).collect::<Vec<_>>());
+        assert!(background.project(String::new(), 99, false).is_err());
+        eprintln!(
+            "100k rows: preview admission + 3 transforms {:?}",
+            started.elapsed()
+        );
     }
 }

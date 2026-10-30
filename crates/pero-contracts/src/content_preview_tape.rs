@@ -7,6 +7,10 @@ const MAGIC: u32 = 0x50525631; // PRV1
 impl StructuredPreview {
     /// Column names are packed UTF-8; rows and cells contain source offsets only.
     pub fn into_tape(self) -> Vec<u32> {
+        self.to_tape()
+    }
+
+    pub fn to_tape(&self) -> Vec<u32> {
         let count = |n| u32::try_from(n).expect("preview metadata fits a transferable array");
         let mut tape = vec![
             MAGIC,
@@ -18,7 +22,7 @@ impl StructuredPreview {
             count(self.columns.len()),
             count(self.rows.len()),
         ];
-        for column in self.columns {
+        for column in &self.columns {
             tape.push(count(column.len()));
             for bytes in column.as_bytes().chunks(4) {
                 let mut word = [0; 4];
@@ -26,14 +30,14 @@ impl StructuredPreview {
                 tape.push(u32::from_le_bytes(word));
             }
         }
-        for row in self.rows {
+        for row in &self.rows {
             push_u64(&mut tape, row.line as u64);
             push_u64(&mut tape, row.source.revision);
-            push_range(&mut tape, row.source.bytes);
+            push_range(&mut tape, row.source.bytes.clone());
             tape.push(count(row.cells.len()));
-            for cell in row.cells {
+            for cell in &row.cells {
                 if let Some(cell) = cell {
-                    push_range(&mut tape, cell);
+                    push_range(&mut tape, cell.clone());
                 } else {
                     tape.extend([u32::MAX; 4]);
                 }
