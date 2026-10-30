@@ -135,7 +135,7 @@ for (const [path, contents] of [
   ['packages/app-sdk/src/icons.generated.tsx', tsx],
   ['packages/icons/content-data.generated.js', content.javascript],
   ['packages/icons/content-data.generated.d.ts', content.declarations],
-  ['crates/pero-contracts/src/content_icon_data.rs', execFileSync('rustfmt',['--edition','2024','--emit','stdout'],{input:content.rust,encoding:'utf8'})],
+  ['crates/pero-contracts/src/content_icon_data.rs', execFileSync('rustfmt',['--edition','2024','--emit','stdout','--config','newline_style=Unix'],{input:content.rust,encoding:'utf8'})],
 ]) {
   const file = resolve(root, path);
   if (process.argv.includes('--check')) {
