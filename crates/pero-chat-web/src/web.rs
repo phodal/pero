@@ -49,6 +49,7 @@ impl ChatWindow {
                     }
                     ChatAction::PreviewContext{reference,thread_id}=>json!({"action":"app_context_preview","reference":reference,"thread_id":thread_id}),
                     ChatAction::Selected{thread_id}=>json!({"action":"app_use_selection","thread_id":thread_id}),
+                    ChatAction::CompactNeedsSpace => json!({"action":"chat_expand"}),
                     ChatAction::Content(intent) => serde_json::to_value(intent).expect("content intent"),
                     ChatAction::ChooseWorkspace => json!({"action":"choose_workspace"}),
                     ChatAction::ChooseContext { kind, request_id } => {
@@ -103,7 +104,7 @@ impl Render for ChatWindow {
             .bg(palette.surface)
             .text_color(palette.text)
             .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
-            .child(
+            .when(!panel.compact, |el| el.child(
                 div()
                     .flex()
                     .items_center()
@@ -147,7 +148,7 @@ impl Render for ChatWindow {
                                 new.update(cx, |panel, cx| panel.new_chat(cx))
                             }),
                     ),
-            )
+            ))
             .child(self.panel.clone())
     }
 }

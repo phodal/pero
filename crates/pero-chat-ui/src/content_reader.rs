@@ -799,7 +799,7 @@ impl Render for ContentReader {
                 }
             }))
             .relative()
-            .on_scroll_wheel(cx.listener(|this, _, _, cx| {
+            .on_scroll(cx.listener(|this, _, _, cx| {
                 if !this.source {
                     if let Some(markdown) = &this.markdown {
                         markdown.update(cx, |view, cx| view.forget_source_reveal(cx));

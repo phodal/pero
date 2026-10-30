@@ -26,6 +26,21 @@ pub(crate) struct AppSelection {
     pub panel: String,
 }
 
+/// Host-measured placement of the shared conversation in one managed App.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub(crate) struct AppChatSlot {
+    pub scope: pero_contracts::AppChatScope,
+    pub rect: AppChatSlotRect,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub(crate) struct AppChatSlotRect {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
 #[derive(Default)]
 pub(crate) struct AppCatalog {
     pub entries: Vec<InstalledApp>,
@@ -86,6 +101,17 @@ mod surface {
 
         pub(crate) fn receive_apps(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
             match event.kind.as_str() {
+                "app_chat_slot" => {
+                    let slot = serde_json::from_value::<Option<AppChatSlot>>(event.data.clone()).ok().flatten();
+                    let slot = slot.filter(|slot| {
+                        self.navigation.current() == Some(&WorkspaceItem::App { name: slot.scope.app.clone(), panel: slot.scope.panel.clone() })
+                            && self.navigation.pane_layout().is_none_or(|layout| layout.leaves().len() <= 1)
+                    });
+                    if self.app_chat_slot != slot {
+                        self.app_chat_slot = slot;
+                        self.sync_follow(cx);
+                    }
+                }
                 "app_scope" => {
                     if let Ok(scope) =
                         serde_json::from_value::<pero_contracts::AppChatScope>(event.data.clone())
@@ -95,7 +121,9 @@ mod surface {
                                 name: scope.app.clone(),
                                 panel: scope.panel.clone(),
                             });
-                            self.set_chat_dock(true, cx);
+                            if !self.active_app_chat_slot().is_some_and(|slot| slot.scope == scope) {
+                                self.set_chat_dock(true, cx);
+                            }
                             self.chat
                                 .update(cx, |chat, cx| chat.set_scope(Some(scope), cx));
                             self.sync_follow(cx);

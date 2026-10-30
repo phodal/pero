@@ -87,6 +87,9 @@ pub(crate) struct Workbench {
     pub contribution: crate::contributions::ContributionState,
     pub apps: crate::apps::AppCatalog,
     pub app_surface: String,
+    pub app_chat_slot: Option<crate::apps::AppChatSlot>,
+    pub floating_chat: bool,
+    pub floating_chat_expanded: bool,
     pub layout: WorkspaceLayout,
     pub resizing_chat: bool,
     pub chat_resize_focus: FocusHandle,
@@ -195,15 +198,26 @@ impl Workbench {
         let mut subscriptions = subscriptions;
         subscriptions.push(cx.observe_in(&chat, window, |this, _, window, cx| {
             this.reconcile_content(window, cx);
+            let panel = this.chat.read(cx);
+            let needs_attention = panel.error.is_some() || panel.chats.get(panel.active_chat.unwrap_or(usize::MAX)).is_some_and(|chat| {
+                chat.permission.is_some() || chat.error.is_some() || chat.state == pero_chat_ui::session_state::SessionState::AuthRequired
+            });
+            if needs_attention && this.floating_chat && this.preferences.layout.chat_open && matches!(this.navigation.current(), Some(WorkspaceItem::App { .. })) {
+                this.floating_chat_expanded = true;
+            }
             this.sync_follow(cx);
             cx.notify();
         }));
         subscriptions.push(cx.subscribe_in(&chat, window, |this, _, event, window, cx| {
             match event {
-                ChatAction::Command(command) => this.command(
-                    serde_json::to_value(command).expect("serializable command"),
-                    cx,
-                ),
+                ChatAction::Command(command) => {
+                    let command = serde_json::to_value(command).expect("serializable command");
+                    if command["action"] == "prompt" && this.floating_chat && matches!(this.navigation.current(), Some(WorkspaceItem::App { .. })) {
+                        this.floating_chat_expanded = true;
+                        this.sync_follow(cx);
+                    }
+                    this.command(command, cx)
+                },
                 ChatAction::OpenDocument(document)=>this.open_document(document.clone(),window,cx),
                 ChatAction::Content(intent) => this.command(serde_json::to_value(intent).expect("content intent"), cx),
                 ChatAction::ChooseWorkspace => {
@@ -231,6 +245,12 @@ impl Workbench {
                     this.tab = ConversationTab::Chat;
                     this.error = None;
                     this.sync_follow(cx);
+                }
+                ChatAction::CompactNeedsSpace => {
+                    if this.floating_chat && this.chat_dock_visible() && !this.floating_chat_expanded {
+                        this.floating_chat_expanded = true;
+                        this.sync_follow(cx);
+                    }
                 }
                 ChatAction::ReturnToReview => {
                     this.remote.public_contributions = true;
@@ -282,6 +302,9 @@ impl Workbench {
             contribution: Default::default(),
             apps: crate::apps::AppCatalog::default(),
             app_surface: String::new(),
+            app_chat_slot: None,
+            floating_chat: true,
+            floating_chat_expanded: false,
             layout,
             resizing_chat: false,
             chat_resize_focus: cx.focus_handle().tab_stop(true),
@@ -353,12 +376,14 @@ impl Workbench {
             .is_some_and(|chat| {
                 self.contribution.data["local"]["thread_id"].as_str() == Some(chat.id.as_str())
             });
+        let compact = self.active_app_chat_slot().is_none() && self.floating_chat && !self.floating_chat_expanded && self.navigation.pane_layout().is_none_or(|layout| layout.leaves().len() <= 1) && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }));
         self.chat.update(cx, |chat, cx| {
             if !visible { chat.set_visible(false, cx); }
             chat.set_scope(scope, cx);
             if let Some(index)=pinned {if chat.active_chat!=Some(index) {chat.focus_chat(Some(index),cx);}}
             chat.set_visible(visible, cx);
             chat.show_return_to_review = show_return;
+            if chat.compact != compact { chat.compact = compact; cx.notify(); }
         });
     }
 
@@ -726,7 +751,7 @@ pub fn snapshot() -> String {
             "error": ui.error, "dark": pero_theme::UiAppearance::global(cx).dark, "navigation": ui.navigation.page().legacy_index(),
             "appearance": appearance_snapshot(cx), "preferences":ui.preferences,"selectedProject":ui.selected_project,"projectTab":ui.project_tab,"taskStatus":ui.task_status,
             "projects":ui.project_catalog(cx),"workspaceRepositories":ui.workspace_repositories,
-            "apps": ui.apps.entries, "activeApp": ui.navigation.current().and_then(|item| match item { WorkspaceItem::App { name, panel } => Some(json!({"name":name,"panel":panel})), _ => None }), "appError": ui.apps.error, "appsLoading": ui.apps.loading, "appChatOpen": ui.preferences.layout.chat_open,
+            "apps": ui.apps.entries, "activeApp": ui.navigation.current().and_then(|item| match item { WorkspaceItem::App { name, panel } => Some(json!({"name":name,"panel":panel})), _ => None }), "appError": ui.apps.error, "appsLoading": ui.apps.loading, "appChatOpen": ui.preferences.layout.chat_open, "floatingChat": ui.layout.chat == crate::layout::ChatPlacement::Float, "floatingChatExpanded": ui.floating_chat_expanded, "appChatSlot": if ui.layout.chat == crate::layout::ChatPlacement::Slot { ui.active_app_chat_slot() } else { None },
             "locale": ui.locale, "labels": { "tasks": ui.t("nav.tasks"), "send": ui.t("probe.send") },
             "tab": ui.tab.legacy_index(), "events": ui.events, "workspace": ui.workspace,
         });

@@ -5,6 +5,7 @@ import { applyAppearance, readAppearance, type AppearanceSnapshot } from './appe
 import type { AppChatAttachment,AppChatLaunch } from './app-chat';
 export type { AppChatAttachment,AppChatLaunch } from './app-chat';
 import { AppSurface, appSurface, installAppUseBridge, type AppObject } from './app-use';
+import { AppConversation as ConversationSlot } from './chat-slot';
 export { AppSurface, appSurface } from './app-use';
 export type { AppObject, AppObjectAction, AppObjectSnapshot } from './app-use';
 export { appObjectProps } from './app-use';
@@ -56,6 +57,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
 export const useAppInfo = () => ({ active: useContext(Context).active });
 export const useAppContext = () => useContext(Context);
+
+/** The Host renders its conversation in this region when the active App is visible. */
+export function AppConversation(props: { active?: boolean; className?: string; fallback?: React.ReactNode }) {
+  const context = useContext(Context);
+  return <ConversationSlot {...props} active={context.active && props.active !== false}/>;
+}
 
 /** Opens the host-owned chat or fills its draft. Neither action submits a prompt. */
 export function useAppChat() {

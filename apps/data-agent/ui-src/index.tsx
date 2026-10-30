@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {downloadFile, openDocument, useAppApi, useAppChat, useAppI18n, useAppObject, useAppDataChanged} from '@pero/app-sdk';
+import {AppConversation, downloadFile, openDocument, useAppApi, useAppChat, useAppI18n, useAppObject, useAppDataChanged} from '@pero/app-sdk';
 import {Button, Checkbox, Feedback, FilePicker, Input, Select, Toolbar} from '@pero/app-sdk/ui';
 import {emptyView, fieldRule, querySchema, summary, type Dataset, type Export, type Result, type ViewSpec} from './model';
 import {messages} from './i18n';
@@ -9,6 +9,7 @@ export default function DataAgent() {
   const api=useAppApi(),chat=useAppChat(),{t}=useAppI18n(messages);
   const [catalog,setCatalog]=useState<Dataset[]>([]),[data,setData]=useState<Result|null>(null);
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[fieldSearch,setFieldSearch]=useState('');
+  const [showChat,setShowChat]=useState(false);
   const [filterField,setFilterField]=useState(''),[operator,setOperator]=useState('contains'),[filterValue,setFilterValue]=useState('');
   const request=useRef(0);
   const view=data?.view||emptyView;
@@ -91,6 +92,7 @@ export default function DataAgent() {
         await importSource(file.name,await file.text(),/\.(jsonl|ndjson)$/i.test(file.name)?'json_lines':'json');
       })}/>
       <Button disabled={busy} onClick={()=>act(async()=>{const value=await api.get<{content:string}>('/api/example');await importSource('observations.json',value.content,'json');})}>{t('example')}</Button>
+      {data&&window.parent!==window&&<Button onClick={()=>setShowChat(value=>!value)} aria-expanded={showChat}>{t(showChat?'closeChat':'openChat')}</Button>}
     </header>
     {error&&<Feedback kind="error"><span>{error}</span><Button onClick={()=>{void reload();}}>{t('retry')}</Button></Feedback>}
     {busy&&<p className="data-status" role="status">{t('loading')}</p>}
@@ -107,7 +109,7 @@ export default function DataAgent() {
         <Select label={t('sort')} value={view.sort?.field||''} options={[{value:'',label:t('sort')},...fieldOptions]} disabled={busy} onChange={field=>update({...view,sort:field?{field,descending:view.sort?.descending||false}:null})}/>
         <Button disabled={busy||!view.sort} onClick={()=>update({...view,sort:{field:view.sort!.field,descending:!view.sort!.descending}})}>{t(view.sort?.descending?'descending':'ascending')}</Button>
       </div>
-      <div className="data-body"><aside className="data-fields"><h2>{t('fields')} ({fields.length})</h2><Input type="search" aria-label={t('fields')} value={fieldSearch} onChange={event=>setFieldSearch(event.target.value)}/>
+      <div className="data-content" data-chat={showChat}><div className="data-body"><aside className="data-fields"><h2>{t('fields')} ({fields.length})</h2><Input type="search" aria-label={t('fields')} value={fieldSearch} onChange={event=>setFieldSearch(event.target.value)}/>
         <p>{t('displayLimit')}</p><ul>{fields.filter(field=>field.name.toLowerCase().includes(fieldSearch.toLowerCase())).map(field=><li key={field.name}><label><Checkbox checked={view.columns.includes(field.name)} disabled={busy||!view.columns.includes(field.name)&&view.columns.length===32} onCheckedChange={checked=>update({...view,columns:checked?[...view.columns,field.name]:view.columns.filter(name=>name!==field.name)},data.offset)}/><span>{field.name}</span></label><small>{field.kinds.join(' / ')}{field.nulls?` · ${field.nulls} ${t('nulls')}`:''}{field.missing?` · ${field.missing} ${t('missingCount')}`:''}</small></li>)}</ul>
       </aside><section className="data-records"><div className="data-grid" tabIndex={0} role="region" aria-label={t('rows')}><table><thead><tr><th scope="col">#</th>{view.columns.map(name=><th key={name} scope="col" aria-sort={view.sort?.field===name?(view.sort.descending?'descending':'ascending'):'none'}><button disabled={busy} onClick={()=>update({...view,sort:{field:name,descending:view.sort?.field===name?!view.sort.descending:false}})}>{name}</button></th>)}<th scope="col">{t('source')}</th></tr></thead>
         <tbody>{data.rows.map(row=><tr key={row.ordinal} aria-selected={selected.has(row.ordinal)}><th scope="row"><label><Checkbox aria-label={`${t('select')} ${row.ordinal+1}`} checked={selected.has(row.ordinal)} disabled={busy||!selected.has(row.ordinal)&&selected.size===1000} onCheckedChange={checked=>update({...view,selection:checked?[...view.selection,row.ordinal]:view.selection.filter(index=>index!==row.ordinal)},data.offset)}/>{row.ordinal+1}</label></th>{view.columns.map(name=><td key={name} data-kind={row.cells[name]?.kind||'missing'} title={row.cells[name]?.truncated?t('showRecord'):undefined}>{row.cells[name]?.display??'—'}{row.cells[name]?.truncated?'…':''}</td>)}<td><Button variant="ghost" disabled={busy} aria-label={`${t('showRecord')} ${row.ordinal+1}`} onClick={()=>act(()=>source(row.ordinal))}>↗</Button></td></tr>)}</tbody></table>
@@ -117,7 +119,7 @@ export default function DataAgent() {
         <Select label={t('category')} value={view.chart?.category||''} options={[{value:'',label:t('category')},...fieldOptions]} disabled={busy} onChange={category=>update({...view,chart:category?{category,measure:view.chart?.measure||fields[0].name,aggregation:view.chart?.aggregation||'count'}:null})}/>
         {view.chart&&<><Select label={t('measure')} value={view.chart.measure} options={fieldOptions} disabled={busy} onChange={measure=>update({...view,chart:{...view.chart!,measure}})}/><Select label={t('aggregation')} value={view.chart.aggregation} options={[{value:'sum',label:t('sum')},{value:'count',label:t('count')}]} disabled={busy} onChange={aggregation=>update({...view,chart:{...view.chart!,aggregation}})}/></>}
         {data.chart?<figure><figcaption>{t(view.chart?.aggregation==='count'?'count':'sum')} · {view.chart?.measure} · {data.selected.toLocaleString()} {t('rows')}</figcaption><table aria-label={t('chart')}><tbody>{data.chart.points.map((point,index)=><tr key={index}><th scope="row">{point.label??'—'}</th><td><span className="data-bar" style={{width:`${Math.abs(point.ratio)*100}%`}} aria-hidden="true"/><span title={point.exact}>{point.exact}</span></td></tr>)}</tbody></table>{data.chart.excludedValues>0&&<p>{t('excluded')}: {data.chart.excludedValues}</p>}{data.chart.omittedGroups>0&&<p>{t('omitted')}: {data.chart.omittedGroups}</p>}</figure>:<p>{t('noChart')}</p>}
-      </section></div><footer className="data-provenance"><span>{t('provenance')}: <code title={data.dataset.id}>{data.dataset.id}</code></span><span>{data.dataset.bytes.toLocaleString()} bytes</span></footer>
+      </section></div>{showChat&&<AppConversation className="data-chat" fallback={<p role="status">{t('chatUnavailable')}</p>}/>}</div><footer className="data-provenance"><span>{t('provenance')}: <code title={data.dataset.id}>{data.dataset.id}</code></span><span>{data.dataset.bytes.toLocaleString()} bytes</span></footer>
     </>}
   </main>;
 }

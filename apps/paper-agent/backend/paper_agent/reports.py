@@ -292,8 +292,11 @@ class ResearchReport:
             lines.append(f"- PDF {doc_id}; SHA-256 {passage.file_digest}")
         if intent.retrieval:
             lines.extend(['', '## Retrieval scope', '', f'Method: {intent.retrieval.method}',
-                          f'Returned passages: {len(intent.passages)} / {intent.retrieval.total_matches} lexical matches.',
+                          f'Observed passages: {len(intent.passages)}.',
+                          f'Lexical matches across searches: {intent.retrieval.total_matches}.',
                           'Excerpts only; keyword relevance does not establish scientific support.'])
+            if intent.retrieval.gaps:
+                lines.extend(['', '## Unresolved research gaps', '', *('- ' + prose(gap) for gap in intent.retrieval.gaps)])
             if intent.retrieval.unmatched_paper_ids:
                 lines.append('No returned passages from: ' + sources(intent.retrieval.unmatched_paper_ids))
         return "\n".join(lines)

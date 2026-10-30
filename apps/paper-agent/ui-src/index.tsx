@@ -52,6 +52,10 @@ export default function PaperAgent() {
   const locked = task.working || task.busy || task.pending;
   const updateDraft = (value: Partial<QuestionDraft>) => setDraft(prior => ({ ...prior, ...value }));
   useEffect(() => {
+    const study = task.study;
+    if (study) setDraft(prior => ({ ...prior, selected: study.paperIds, fullText: true, verifyCode: false }));
+  }, [task.study?.id]);
+  useEffect(() => {
     if (!task.intent) return;
     const intent = task.intent;
     setDraft(prior => ({ ...prior, selected: intent.papers.map(p => p.id), fullText: !!intent.fullText, verifyCode: intent.verifyCode, verificationPlan: intent.verificationPlan }));

@@ -1,4 +1,5 @@
 export const messages = {
+  openChat: { zh: '打开对话', en: 'Open chat' },
   openDocument:{zh:'在工作区查看完整结果',en:'Open complete result in workspace'},
   discussContext: { zh: '讨论上下文', en: 'Discuss context' },
   captureContext: { zh: '截图到对话', en: 'Capture to chat' },

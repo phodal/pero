@@ -23,6 +23,7 @@ declare global {
     peroSetLocale(locale: string): void;
     peroSessionCommand(json: string): void;
     peroAppSurface(json: string): void;
+    peroAppChatOverlay(json: string): void;
     peroDiagnostics: { snapshot: typeof snapshot };
   }
 }
@@ -61,12 +62,36 @@ try {
   const launchAppChat=appChatLauncher({
     open:scope=>receive_host_event(JSON.stringify({version:1,kind:'app_scope',request_id:null,text:'',data:scope})),
     draft:async()=>{const state=JSON.parse(snapshot());return {threadId:state.chats?.[state.activeChat]?.id,scope:state.scope};},
-    command:value=>{if(!window.pero)throw new Error(t('error.browser'));return window.pero.appUseCommand(value);},
+    command:async value=>{
+      if(!window.pero)throw new Error(t('error.browser'));
+      const request=value as {action?:string;options?:{capture?:boolean}};
+      if(request.action!=='context'||request.options?.capture!==true)return window.pero.appUseCommand(value);
+      apps.suspendChatOverlay(true);
+      try {
+        await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));
+        return await window.pero.appUseCommand(value);
+      } finally { apps.suspendChatOverlay(false); }
+    },
     deliver:(thread_id,contexts,text,replace)=>receive_host_event(JSON.stringify({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}})),
   });
-  const apps = mountAppSurfaces(value=>window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser'))),launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})),pane=>receive_host_event(JSON.stringify({version:1,kind:'pane_focus',request_id:null,text:'',data:{id:pane}})));
+  const apps = mountAppSurfaces(value=>window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser'))),launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})),pane=>receive_host_event(JSON.stringify({version:1,kind:'pane_focus',request_id:null,text:'',data:{id:pane}})),async slot=>{
+    receive_host_event(JSON.stringify({version:1,kind:'app_chat_slot',request_id:null,text:'',data:slot}));
+    if(!slot)return false;
+    const deadline=performance.now()+5000;
+    while(performance.now()<deadline) {
+      await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
+      const rendered=JSON.parse(snapshot()).appChatSlot;
+      if(rendered?.scope?.app===slot.scope.app && rendered.scope.panel===slot.scope.panel &&
+        (['x','y','width','height'] as const).every(key=>Math.abs(rendered.rect?.[key]-slot.rect[key])<0.01) && apps.overlayMatches(slot.rect)) {
+        await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));
+        return apps.overlayMatches(slot.rect);
+      }
+    }
+    return false;
+  });
   window.peroAppUseRevoke = async(thread,scope) => {await window.pero!.appUseCommand({action:'revoke',thread_id:thread,scope});};
   window.peroAppSurface = json => apps.surface(JSON.parse(json) as AppSurface|AppSurfaceBatch);
+  window.peroAppChatOverlay = json => apps.overlay(JSON.parse(json));
   window.peroSendProbe = (json) => {
     const request = JSON.parse(json);
     if (!window.pero) {

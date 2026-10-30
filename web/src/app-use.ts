@@ -32,7 +32,13 @@ export function mountAppUseFrames() {
     const style = getComputedStyle(surface.element);
     const visible = surface.element.isConnected && !surface.element.hidden && rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility === 'visible';
     const active = surface.active();
-    const uncovered = visible && document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) === surface.element;
+    const coveredByChat = surface.element.dataset.peroChatCovered === 'true' || [...document.querySelectorAll<HTMLElement>('[data-pero-app-chat-overlay]')].some(overlay => {
+      const style = getComputedStyle(overlay);
+      if (overlay.hidden || style.display === 'none' || style.visibility === 'hidden') return false;
+      const bounds = overlay.getBoundingClientRect();
+      return bounds.width > 0 && bounds.height > 0 && bounds.left < box.right && bounds.right > box.left && bounds.top < box.bottom && bounds.bottom > box.top;
+    });
+    const uncovered = visible && !coveredByChat && document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) === surface.element;
     return { surfaceId: `${surface.scope.app}:${surface.scope.panel}`, ...surface.scope, instance: surface.instance,
       visible, active, capturable: active && visible && uncovered, operable: active && visible && uncovered && performance.now() - surface.humanInput >= 1000, rect };
   };
@@ -72,7 +78,7 @@ export function mountAppUseFrames() {
     if (request.action === 'invoke' || request.action === 'dom.click' || request.action === 'dom.fill') {
       if (!status.active || !status.visible) return fail('APP_SURFACE_HIDDEN', 'Show this App panel before operating it.');
       if (performance.now() - surface.humanInput < 1000) return fail('APP_USER_ACTIVE', 'The user is operating this App. Wait for them to finish before continuing.');
-      if (!status.operable) return fail('APP_SURFACE_COVERED', 'This App panel is covered. Show it before operating it.');
+      if (!status.operable) return fail('APP_SURFACE_COVERED', 'This App panel is covered. Dock or close floating Chat before operating it.');
     }
     const instance = surface.instance;
     const reply = await new Promise<AppUseReply>(resolve => {

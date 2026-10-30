@@ -81,6 +81,8 @@ impl ChatPanel {
             })
             .collect();
         self.attachments.dedup_by(|a, b| a.id == b.id);
+        let rows = editor.value().split('\n').count();
+        let wrapped_rows = editor.display_map().wrap_row_count();
         self.context_preview_bounds.retain(|id, _| self.attachments.iter().any(|reference| &reference.id == id));
         for reference in &self.attachments {
             self.context_preview_bounds.entry(reference.id.clone()).or_default();
@@ -91,6 +93,9 @@ impl ChatPanel {
                 .iter()
                 .any(|span| span.range().contains(&q.range.start))
         });
+        if self.compact && (wrapped_rows > rows || self.attachments.len() >= 2 || rows >= 3 || rows >= 2 && !self.attachments.is_empty()) {
+            cx.emit(crate::ChatAction::CompactNeedsSpace);
+        }
         if completion == self.composer_state.completion {
             return;
         }
@@ -107,6 +112,9 @@ impl ChatPanel {
             return;
         };
         self.composer_state.open = true;
+        if self.compact {
+            cx.emit(crate::ChatAction::CompactNeedsSpace);
+        }
         self.composer_state.query = completion.query.clone();
         match completion.kind {
             CompletionKind::Mention(None) => {

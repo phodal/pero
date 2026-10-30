@@ -67,7 +67,9 @@ export default function VirtualCell() {
         <Button disabled={lab.busy} onClick={() => file.current?.click()}><Icon name="plus"/>{t('import')}</Button>
         <Button disabled={lab.busy} onClick={() => { void lab.example(); setView('cells'); setMode('perturbation'); }}>{t('example')}</Button>
         <Button disabled={lab.busy} onClick={lab.refresh}><Icon name="refresh"/>{t('refresh')}</Button>
-<Button onClick={()=>{void chat.open({attachments:[chat.objectReference('virtual-cell')]}).catch(error=>setDisplayError(String(error)));}}>{t('discussContext')}</Button><Button onClick={()=>{void chat.open({capture:true}).catch(error=>setDisplayError(String(error)));}}>{t('captureContext')}</Button>
+        <Button onClick={()=>{void chat.open({attachments:[chat.objectReference('virtual-cell')]}).catch(error=>setDisplayError(String(error)));}}>{t('discussContext')}</Button>
+        <Button onClick={()=>{void chat.open({capture:true}).catch(error=>setDisplayError(String(error)));}}>{t('captureContext')}</Button>
+        <Button onClick={()=>{void chat.open().catch(error=>setDisplayError(String(error)));}}>{t('openChat')}</Button>
       </>}>
         <TabsList aria-label={t('scienceViews')}>
           <TabsTrigger value="cells"><Icon name="app"/>{t('cellsView')}</TabsTrigger>

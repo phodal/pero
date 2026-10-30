@@ -27,6 +27,8 @@ pub enum ChatAction {
     },
     PreviewContext { reference: ContextReference, thread_id: String },
     Selected { thread_id: Option<String> },
+    /// A compact surface needs room for a picker or a larger draft.
+    CompactNeedsSpace,
     Activated,
     ReturnToReview,
 }
@@ -65,6 +67,8 @@ pub struct ChatPanel {
     pub expanded_tools: HashSet<String>,
     pub show_return_to_review: bool,
     pub can_open_documents: bool,
+    /// Render only the composer and required attention controls in compact shells.
+    pub compact: bool,
     pub(crate) pending_prompts: Vec<ComposerInsertion>,
     pub scope: Option<pero_contracts::AppChatScope>,
     pub(crate) scope_selection: HashMap<Option<pero_contracts::AppChatScope>, String>,
@@ -132,6 +136,7 @@ impl ChatPanel {
             expanded_tools: HashSet::new(),
             show_return_to_review: false,
             can_open_documents: false,
+            compact: false,
             pending_prompts: vec![],
             scope: None,
             scope_selection: HashMap::new(),
@@ -314,6 +319,10 @@ impl ChatPanel {
             }
             "chat_visibility" => {
                 self.set_visible(event.data.as_bool().unwrap_or(true), cx);
+            }
+            "chat_compact" => {
+                self.compact = event.data.as_bool().unwrap_or(false);
+                cx.notify();
             }
             _ => return self.receive_chat(event, cx),
         }

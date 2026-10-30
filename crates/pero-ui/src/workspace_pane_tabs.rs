@@ -450,7 +450,7 @@ impl Workbench {
                     .w(px(22.))
                     .h(px(22.))
                     .icon(Icon::default().path("icons/x.svg"))
-                    .tooltip(close_label.clone())
+                    .tooltip(close_label)
                     .accessibility_label(format!("{close_label}: {title}"))
                     .on_click(cx.listener(move |this, _, window, cx| {
                         cx.stop_propagation();
@@ -491,7 +491,7 @@ impl Workbench {
             .context_menu(move |mut menu, _, _| {
                 if preview {
                     let owner = owner.clone();
-                    menu = menu.item(PopupMenuItem::new(keep_label.clone()).on_click(
+                    menu = menu.item(PopupMenuItem::new(keep_label).on_click(
                         move |_, _, cx| {
                             let _ = owner.update(cx, |this, cx| this.promote_pane_tab(view, cx));
                         },
@@ -499,13 +499,13 @@ impl Workbench {
                 }
                 let pin_owner = owner.clone();
                 menu.item(
-                    PopupMenuItem::new(pin_label.clone()).on_click(move |_, _, cx| {
+                    PopupMenuItem::new(pin_label).on_click(move |_, _, cx| {
                         let _ =
                             pin_owner.update(cx, |this, cx| this.pin_pane_tab(view, !pinned, cx));
                     }),
                 )
                 .separator()
-                .item(PopupMenuItem::new(close_label.clone()).on_click({
+                .item(PopupMenuItem::new(close_label).on_click({
                     let owner = owner.clone();
                     move |_, window, cx| {
                         let _ = owner.update(cx, |this, cx| this.close_pane_tab(view, window, cx));

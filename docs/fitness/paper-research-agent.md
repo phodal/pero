@@ -1,0 +1,147 @@
+---
+kind: verification_report
+date: 2026-10-30
+---
+
+# Paper research Agent verification
+
+Scope: a macOS arm64 development build, with concurrent unrelated workspace
+changes. The original diagnosis used `1350cf7f`; research persistence and Host
+integration are `487a8a08` and `f451bcd8` after the concurrent master rebase, and
+the Paper UI is `f6c2c22` with continuation visibility fixed in `e48beff`.
+The [design](../design-docs/paper-research-agent.md)
+defines the new domain and the existing Host/ACP ownership.
+
+Acceptance: L2 for selected-PDF research on the macOS arm64 development build;
+the supporting deterministic checks are L0/L1. Signed-package L3 acceptance is
+outside this record.
+
+## Deterministic checks
+
+- Paper Python: 26 tests pass, including actual authenticated loopback HTTP,
+  frozen PDF replacement, paginated reading, exact observed evidence, unresolved
+  gap updates/export, independent saved prompts, and continuation at the budget
+  boundary using recall before finalization.
+- Root `npm run check`, Paper TypeScript and App/Desktop builds pass.
+- App Use: seven tests pass through the same source test bundled with the
+  existing esbuild tool. Real loopback MCP covers App-bound background access,
+  ordinary-chat and cross-scope refusal, actual turn readiness and interruption.
+  Direct Node source execution has an existing parameter-property/import issue;
+  no unrelated Computer Use imports were changed for this work.
+- The actual Electron journey with a scripted ACP fixture passes seven groups:
+  real PDF import, single-session MCP reading of pages 4 and 5, exact PDF citation
+  highlighting, parent-question follow-up, matrix revision and narrow dark
+  editing, completed-study restart, and cancelled-study restart/explicit
+  continuation using recall without replaying original reads. The complete
+  Continue button must be in the viewport after cancellation, including when
+  the final observed steps arrive after the cancelled status.
+- The existing Paper Electron regression passes all 15 groups: import/discovery,
+  local search, abstract answering and repair, cancellation, PDF annotations and
+  matrices, exact citations, restart and Host grant boundaries. Its expected
+  invalid-input/dependency responses are recorded separately from renderer
+  errors; unexpected renderer errors are zero.
+- The rebuilt Rust Host's three tests and the App Agent contract journey pass,
+  including ownership, cancellation, frozen request recovery and journal restart.
+
+The final deterministic profile overrides all builtin provider commands as
+unavailable; only its synthetic Agent can run. An earlier development attempt
+exposed that the default provider was selected again after restart. That mixed
+attempt is not used as deterministic acceptance evidence.
+
+## Evidence
+
+The public PDF is Meta-Harness, arXiv `2603.28052v1`, 26 pages, SHA-256
+`7d9b90f53a9f4801a090f1a4acb843340cde81e4f865f97d53fff2a6a570eb73`.
+
+- `test-results/paper-study/fixture/result.json` records the seven journey checks,
+  Host starts, selected pages, final reports, cancellation/continuation ledger and
+  actual fixture MCP calls. Its short timings are synthetic wiring timings.
+- `02-answer-and-original.png`, `05-editor-dark-narrow.png`,
+  `06-paused-study.png`, `07-continued-study.png` and `continuation.json` retain
+  the actual Desktop evidence in the same directory; `paused-layout.json`
+  records the scroll region and continuation-control geometry.
+- `test-results/research-agent/app-use.test.mjs` is the ignored bundled test
+  runner used for the seven App Use checks.
+- `test-results/paper-agent/result.json` contains the 15-group legacy regression,
+  loaded App asset digests and expected console responses. It uses a synthetic
+  PDF and scripted Agent; the new study journey and live runs use the actual
+  Meta-Harness PDF.
+
+The App Use test source is bundled without replacing its MCP behavior:
+
+```sh
+node --input-type=module - <<'JS'
+import { build } from 'esbuild';
+await build({entryPoints:['desktop/src/main/app-use.test.ts'],outfile:'test-results/research-agent/app-use.test.mjs',bundle:true,platform:'node',format:'esm',packages:'external',target:'node26',sourcemap:'inline'});
+JS
+node --test test-results/research-agent/app-use.test.mjs
+```
+
+## Real provider
+
+The opt-in Codex journey in `test-results/paper-study/real-agent/` passes all six
+groups, including three actual questions, exact citation highlighting, manual
+matrix revisions and restart recovery. Its recorded model is
+`gpt-6.1-terra[ultra]`; the earlier baseline used `gpt-6.1-sol[high]`, so their
+quality and timings cannot isolate a workflow effect. The first two answers
+took 186,916 and 302,213 ms in this run.
+
+A separate disposable profile pins `gpt-6.1-sol[high]` through the installed
+Codex adapter's per-process `CODEX_CONFIG`, without changing global settings.
+Its first saved answer in `test-results/paper-study/real-agent-sol-high/`
+actually reads and cites formal-method pages 4 and 5, which the old answer
+missed. It uses one Host start, 22 study steps and 60 observed passages. Manual
+review against the original text found no material method or numerical errors;
+the answer also identifies the paper's unresolved 250/88 math-search-size
+description and distinguishes the four search-unseen models from the five
+evaluated models. Its follow-up also passes: the saved parent question is
+retained, the Agent takes one Host session and 15 study steps, and the source
+review confirms the ablation conditions, file-access statistics and limits of
+the qualitative logs. The full six-group run passes all three questions,
+matrix correction, exact PDF highlighting and restart with no Agent replay.
+The final receipt records exactly `gpt-6.1-sol[high]`, three Host starts and zero
+renderer errors. The H100 answer states its actual read/search scope, invents no
+GPU hours or cost, and does not treat missing evidence as zero cost or a proof
+of full-paper absence. Its recorded read pages and search matches were also
+checked against that scope.
+
+The old first/follow-up answers took approximately 177/193 seconds in one run;
+the new same-model first/follow-up answers took 331,644/242,580 ms and are longer.
+The old flow used four Host sessions per question; the new first answer uses
+one. This demonstrates repair of the observed source-coverage gap, not a speed
+improvement or a general benchmark result. Provider token/cost measurements were
+not established. The original baseline remains in
+`test-results/paper-harness/real-agent/`; synthetic fixture timing is separate.
+
+The completed Terra answers correctly retain the ablation conditions (all three
+variants have code and scores), the same-89-task TerminalBench search/evaluation
+boundary and the distinction between qualitative log examples and controlled
+experiments. The H100 question invents no GPU hours or training costs and
+distinguishes search wall time/API credits from training compute. Exact quote
+validation alone did not establish these semantic checks; the original text was
+reviewed separately.
+
+An initial live attempt saved the report but then kept emitting duplicate JSON
+because the Host's generic prompt contradicted the App delivery contract. That
+attempt is retained under `attempt-before-delivery-fix` and excluded from
+acceptance. The Host now honors tool-based delivery and a brief closing message.
+
+## Reproduce
+
+Use current Host/Web build outputs and a prepared Python containing the pinned
+PDF dependencies. Build only changed App/Desktop outputs, then run Electron
+suites sequentially:
+
+```sh
+node scripts/build/apps.mjs --app paper-agent --reader-dist web/dist-reader
+npm run build:desktop
+PERO_APP_PYTHON=/path/to/prepared/bin/python PERO_HARNESS_PDF=/path/to/meta-harness.pdf node tests/e2e/paper-harness.mjs
+PERO_APP_PYTHON=/path/to/prepared/bin/python node tests/e2e/paper-agent.mjs
+PERO_APP_PYTHON=/path/to/prepared/bin/python PERO_HARNESS_PDF=/path/to/meta-harness.pdf PERO_PAPER_JOURNEY_AGENT=codex node tests/e2e/paper-harness.mjs
+PERO_APP_PYTHON=/path/to/prepared/bin/python PERO_HARNESS_PDF=/path/to/meta-harness.pdf PERO_PAPER_JOURNEY_AGENT=codex PERO_PAPER_JOURNEY_MODEL=gpt-6.1-sol PERO_PAPER_JOURNEY_EFFORT=high PERO_PAPER_JOURNEY_OUTPUT=test-results/paper-study/real-agent-sol-high node tests/e2e/paper-harness.mjs
+```
+
+The default live run uses the configured model and login. The explicit model
+override is isolated to the disposable test Agent and is checked against the
+actual session-ready model receipt. Neither development acceptance nor exact
+source matching establishes scientific correctness or signed-package acceptance.

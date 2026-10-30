@@ -20,6 +20,7 @@ export class DesktopApps {
     private send: (event: Event) => void,
     private choose: () => Promise<string | undefined>,
     private input?: (app:string,token:string)=>Promise<{data:Buffer;name:string;mediaType:string}>,
+    private onAgentCancel?: (sessionId: string) => void,
   ) {}
 
   accept(event: Event): boolean {
@@ -121,7 +122,10 @@ export class DesktopApps {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
         const body = await request.text();
         if (Buffer.byteLength(body) > 256_000) return new Response('Research request too large', { status: 413 });
-        const result = await this.request('agent', { name: url.hostname, request: JSON.parse(body) });
+        const operation = JSON.parse(body);
+        const result = await this.request<{ cancelled?: boolean }>('agent', { name: url.hostname, request: operation });
+        if (operation.operation === 'cancel' && result.cancelled === true)
+          this.onAgentCancel?.(operation.sessionId);
         return Response.json(result, { headers: { 'Cache-Control': 'no-store' } });
       }
       const access = await this.request<AppAccess>('resolve', { name: url.hostname });

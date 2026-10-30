@@ -1,3 +1,4 @@
+#[cfg_attr(not(test), allow(unused_imports))]
 use pero_contracts::content_origin::ContentOrigin;
 use pero_contracts::reader_state::ReaderState;
 #[path = "workspace_panes.rs"]
@@ -38,6 +39,7 @@ impl LegacyPage for WorkbenchPage {
 pub(crate) enum ConversationTab {
     #[default]
     Chat,
+    #[cfg_attr(not(test), allow(dead_code))]
     Logs,
 }
 
@@ -198,18 +200,21 @@ impl WorkspaceNavigation {
             self.focused = PaneSide::Left;
         }
     }
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn split_document(&mut self,item:&WorkspaceItem)->bool {
         if !matches!(self.current(),Some(WorkspaceItem::Document{..}))||!matches!(item,WorkspaceItem::Document{..})||self.current()==Some(item)||!self.items.contains(item) {return false;}
         self.ensure_pane_layout();let layout=self.pane_layout.as_mut().unwrap();let pane=layout.focused.unwrap();
         if layout.split(pane,pero_contracts::workspace_panes::SplitDirection::Right,WorkspaceRoute::Content(item.clone()),None).is_none(){return false;}
         self.focus_pane(pane);true
     }
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn collapse_panes(&mut self)->Option<WorkspaceRoute> {
         let layout=self.pane_layout.as_mut()?;let focused=layout.focused?;
         let others=layout.leaves().into_iter().filter(|leaf|leaf.id!=focused).map(|leaf|leaf.id).collect::<Vec<_>>();
         for pane in others {layout.close(pane);}
         self.focus_pane(focused)
     }
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn panes(&self) -> Option<(&WorkspaceItem, &WorkspaceItem, PaneSide)> {
         let WorkspaceRoute::Content(active) = &self.route else {
             return None;

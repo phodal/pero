@@ -118,3 +118,31 @@ assertion, measured retained-history paint readiness and independent fail-at-end
 acceptance commands. The four overlapping test conflicts are resolved without
 restoring removed workflows or dropping tool/effect assertions. Fresh integrated
 CI remains required against this parent.
+
+## Floating Product Chat acceptance
+
+Run `41035224614` (head `7633b75`, tested merge `e8899e3` with master
+`78117bb`) passed 15 of 16 jobs. Actual headed MCP settings passed all 18 groups,
+Host configuration and ownership checks passed, and Workbench App Use passed its
+three scope/effect groups. Product App Use alone stopped before its first tool:
+the newer Product shell now starts with floating Chat closed, while the old test
+waited for its hidden iframe to initialize. The failure snapshot was empty and
+the screenshot showed `Open chat`; the held Host timed out downstream.
+
+The updated acceptance follows normal Open/Show messages/Close controls. A
+single observable inventory request is held at the existing renderer boundary
+while the test closes Chat, then the original request resumes only after the
+real App reports operable and capturable. No tool response is fabricated. The
+narrow negative case now checks the visible-but-covered App; Workbench's separate
+hidden-surface case remains. Capture receipts are checked against the App crop,
+not the removed sidebar. New master `5f42ced` is retained, including compact and
+embedded Chat, paper work and CJK rendering. Fresh native-window CI is required.
+
+Local type/generated checks and the Rust aggregate passed on this integration.
+A full local App rebuild could not finish because registry access was blocked
+and the offline cache lacked `three@0.185.1`; it is not reported as a pass.
+Core Wasm/Host/Web/Desktop builds subsequently passed without external installs.
+All 13 build fixtures and both real Host MCP suites passed. A separate safe
+headless Product readiness smoke proved the pre-Host draft, stable session
+identity, expanded composer/preview geometry and close/reopen retention with
+zero prompts/provider requests; it did not run native capture or App effects.

@@ -34,7 +34,9 @@ with closing(pdfium.PdfDocument(data)) as pdf, closing(pdf[0]) as page, closing(
 `, resolve(root, 'apps/paper-agent/test/test_pdf.py'), pdfPath, process.env.PERO_PAPER_PDF_FILE || ''], { encoding: 'utf8' }));
 const capture = resolve(profile, 'fixture-turns.jsonl');
 const agents = resolve(profile, 'agents.json');
-await writeFile(agents, JSON.stringify([{ id: 'paper-fixture', name: 'Synthetic Paper fixture', command: process.execPath,
+await writeFile(agents, JSON.stringify([
+  ...['pero', 'codex', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({ id, name: id, command: resolve(profile, `unavailable-${id}`) })),
+  { id: 'paper-fixture', name: 'Synthetic Paper fixture', command: process.execPath,
   args: [resolve(root, 'tests/fixtures/paper-agent.mjs'), `--capture=${capture}`] }]));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop'), PERO_LOCALE: 'en',
   PERO_SETTINGS_PATH: resolve(profile, 'settings.json'), PERO_HISTORY_PATH: resolve(profile, 'sessions.jsonl'), PERO_AGENTS_FILE: agents };
@@ -53,7 +55,8 @@ const observe = page => {
   page.on('console', message => {
     if (message.type() !== 'error') return;
     const url = message.location().url;
-    if (/\b(?:400|403|503)\b/.test(message.text()) && /\/(?:api\/(?:reports|discover|pdf|library\/search)|host\/agent)$/.test(url)) expectedConsole.push({ url, text: message.text() });
+    if ((/\b(?:400|403|503)\b/.test(message.text()) && /\/(?:api\/(?:reports|discover|pdf|library\/search)|host\/agent)$/.test(url)) ||
+        (/\b502\b/.test(message.text()) && /\/api\/paper-thumbnails\/2603\.28053\.png$/.test(url))) expectedConsole.push({ url, text: message.text() });
     else errors.push({ url, text: message.text() });
   });
   page.on('response', response => {
@@ -63,19 +66,27 @@ const observe = page => {
   });
 };
 
-async function openPaper(page) {
+async function openPaper(page, name = 'paper-agent') {
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await page.evaluate(path => window.pero.sessionCommand({ action: 'workspace', path }), profile);
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).workspace)).toBe(profile);
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(item => item.name === 'paper-agent') ?? false)).toBe(true);
-  await page.mouse.click(80, await page.evaluate(() => innerHeight - 52));
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector('canvas');
+    return canvas?.width === Math.round(innerWidth * devicePixelRatio) && canvas.height === Math.round(innerHeight * devicePixelRatio);
+  });
+  await page.mouse.click(80, await page.evaluate(() => innerHeight - 60));
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).navigation)).toBe(7);
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).appsLoading)).toBe(false);
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
-  await page.mouse.click(await page.evaluate(() => innerWidth - 172), 76);
-  await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).activeApp?.name)).toBe('paper-agent');
-  const frame = page.frameLocator('iframe[title="paper-agent"]');
-  await expect(frame.getByRole('button', { name: 'Add papers', exact: true }).first()).toBeVisible({ timeout: 20000 });
+  const catalog = await page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
+  const row = catalog.apps.findIndex(app => app.name === name);
+  expect(row).toBeGreaterThanOrEqual(0);
+  await page.mouse.click(await page.evaluate(() => innerWidth - 172), 76 + (catalog.contentTabs.length ? 30 : 0) + row * 58);
+  await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).activeApp?.name)).toBe(name);
+  const frame = page.frameLocator(`iframe[title="${name}"]`);
+  await expect(frame.locator('body')).toBeAttached({ timeout: 20000 });
+  if (name === 'paper-agent') await expect(frame.getByRole('button', { name: 'Add papers', exact: true }).first()).toBeVisible({ timeout: 20000 });
   return frame;
 }
 const library = frame => frame.locator('body').evaluate(async () => (await (await fetch('/api/library')).json()));
@@ -91,7 +102,7 @@ try {
   const installedBackend = resolve(profile, 'desktop/apps/paper-agent/backend');
   await writeFile(resolve(installedBackend, 'discovery_fixture.py'), await readFile(resolve(root, 'tests/fixtures/paper-discovery.py')));
   const serverPath = resolve(installedBackend, 'server.py');
-  await writeFile(serverPath, (await readFile(serverPath, 'utf8')).replace('from paper_agent.http import handler', 'from paper_agent.http import handler\nfrom paper_agent.literature import LiteratureClient\nfrom discovery_fixture import fetch').replace('os.environ["PERO_APP_TOKEN"]))', 'os.environ["PERO_APP_TOKEN"], LiteratureClient(fetch), pdf_files=PdfFiles(lambda *_args, **_kwargs: BytesIO(Path(' + JSON.stringify(pdfPath) + ').read_bytes()))))').replace('from paper_agent.http import handler\n', 'from paper_agent.http import handler\nfrom paper_agent.pdf_files import PdfFiles\nfrom io import BytesIO\nfrom pathlib import Path\n'));
+  await writeFile(serverPath, (await readFile(serverPath, 'utf8')).replace('from paper_agent.http import handler', 'from paper_agent.http import handler\nfrom paper_agent.literature import LiteratureClient\nfrom paper_agent.thumbnails import PaperThumbnails\nfrom discovery_fixture import fetch, thumbnail_fetch').replace('os.environ["PERO_APP_TOKEN"]))', 'os.environ["PERO_APP_TOKEN"], LiteratureClient(fetch), pdf_files=PdfFiles(lambda *_args, **_kwargs: BytesIO(Path(' + JSON.stringify(pdfPath) + ').read_bytes())), thumbnails=PaperThumbnails(thumbnail_fetch)))').replace('from paper_agent.http import handler\n', 'from paper_agent.http import handler\nfrom paper_agent.pdf_files import PdfFiles\nfrom io import BytesIO\nfrom pathlib import Path\n'));
   let frame = await openPaper(page);
   if (process.env.PERO_PAPER_PDF_ONLY !== '1') {
     await expect(frame.getByText('Add a paper to start reading', { exact: true })).toBeVisible();
@@ -105,6 +116,39 @@ try {
     await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).fill('attention');
     await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).press('Enter');
     await expect(frame.locator('.pa-search-results>li').first()).toBeVisible();
+    const searchResult = frame.locator('.pa-search-results>li').first();
+    await expect(searchResult).toContainText('2026-01-01');
+    await expect(searchResult).toContainText('2 citations (OpenAlex)');
+    await expect(searchResult.getByRole('link', { name: 'Original', exact: true })).toHaveAttribute('href', 'https://doi.org/10.1234/W1');
+    await frame.getByLabel('Sort', { exact: true }).selectOption('popular');
+    const searchReply = page.waitForResponse(response => response.url().endsWith('/api/search') && response.request().method() === 'POST');
+    await frame.getByRole('button', { name: 'Search papers', exact: true }).click();
+    expect((await searchReply).request().postDataJSON().priority).toBe('popular');
+    await expect(frame.getByText('Sort returned results by OpenAlex citations; results without citation data follow.', { exact: true })).toBeVisible();
+    await page.screenshot({ path: resolve(out, 'search-results-light.png') });
+    await frame.getByRole('combobox', { name: 'Literature source', exact: true }).selectOption('huggingface');
+    await frame.getByRole('button', { name: 'Search papers', exact: true }).click();
+    const hfResult = frame.locator('.pa-search-results>li').filter({ hasText: 'Synthetic AI paper' });
+    await expect(hfResult).toBeVisible();
+    await expect(hfResult).toContainText('2026-03-30');
+    await expect(hfResult).toContainText('17 likes (Hugging Face)');
+    await expect(hfResult).toContainText('42 stars (GitHub)');
+    await expect(hfResult.getByRole('link', { name: 'Hugging Face', exact: true })).toHaveAttribute('href', 'https://huggingface.co/papers/2603.28052');
+    await expect(hfResult.getByRole('link', { name: 'GitHub', exact: true })).toHaveAttribute('href', 'https://github.com/example/research');
+    await expect(hfResult.getByRole('link', { name: 'Project', exact: true })).toHaveAttribute('href', 'https://example.org/research');
+    await expect.poll(() => hfResult.locator('img').evaluate(image => image.naturalWidth)).toBe(160);
+    const missingThumbnail = frame.locator('.pa-search-results>li').filter({ hasText: 'Synthetic missing thumbnail' });
+    await expect(missingThumbnail.locator('img')).toBeHidden();
+    await expect(missingThumbnail.getByRole('link', { name: 'View image', exact: true })).toBeVisible();
+    await page.screenshot({ path: resolve(out, 'search-huggingface-light.png') });
+    const searchWindowSize = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getSize());
+    await setAppearance(page, 'dark');
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 800));
+    await expect.poll(async () => frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    await page.screenshot({ path: resolve(out, 'search-huggingface-dark-narrow.png') });
+    await setAppearance(page, 'light');
+    await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setSize(...size), searchWindowSize);
+    checks.push('search renders source-backed publication, citations, HF likes, project links and same-origin thumbnail; sorting and narrow dark layout work');
     await frame.getByRole('tab', { name: 'Search', exact: true }).focus();
     await frame.getByRole('tab', { name: 'Search', exact: true }).press('ArrowRight');
     await expect(frame.getByRole('tab', { name: 'PDF', exact: true })).toHaveAttribute('aria-selected', 'true');
@@ -275,9 +319,7 @@ try {
   expect((await fixtureTurns()).length).toBe(beforeRestart);
   checks.push('conversation history, reports, PDF bytes, annotations, matrices and exact citations survive Desktop restart without Agent replay');
   await page.screenshot({path:resolve(out,'conversation-reopened.png')});
-  await page.evaluate(()=>window.pero.appsCommand({action:'apps_open',name:'virtual-cell',panel:'main'}));
-  const other=page.frameLocator('iframe[title="virtual-cell"]');
-  await expect(other.locator('body')).toBeAttached();
+  const other=await openPaper(page, 'virtual-cell');
   const denied=await other.locator('body').evaluate(async()=>{const response=await fetch('/host/agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'info'})});return{status:response.status,text:await response.text()};});
   expect(denied.status).toBeGreaterThanOrEqual(400);expect(denied.text).toMatch(/permission|grant|Agent|agent/i);
   checks.push('real Host Agent grant boundary remains enforced');

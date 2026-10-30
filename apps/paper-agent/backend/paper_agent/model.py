@@ -221,7 +221,7 @@ class RetrievalSnapshot:
         return dict(method=self.method, sourceIds=list(self.source_ids), passageIds=list(self.passage_ids),
                     totalMatches=self.total_matches, unmatchedPaperIds=list(self.unmatched_paper_ids),
                     queryTerms=list(self.query_terms), queryTruncated=self.query_truncated,
-                    **(dict(queries=list(self.queries), gaps=list(self.gaps)) if self.queries else {}))
+                    **(dict(queries=list(self.queries), gaps=list(self.gaps)) if self.queries or self.gaps else {}))
 
     @classmethod
     def from_record(cls, value):

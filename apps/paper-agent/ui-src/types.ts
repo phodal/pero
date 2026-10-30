@@ -5,7 +5,7 @@ export type Paper = {
 };
 export type Intent = {
   id: string; createdAt?: string; question: string; requestId: string; paperIds?: string[]; papers: Paper[];
-  retrieval?: { method: string; totalMatches: number; unmatchedPaperIds: string[] };
+  retrieval?: { method: string; totalMatches: number; unmatchedPaperIds: string[]; gaps?: string[] };
   parentIntentId?: string; conversation?: { intentId: string; question: string; answer: string }[];
   verifyCode: boolean; verificationPlan: string; prompt: string; fullText?: boolean; passages?: { id: string; paperId: string; page: number; content: string }[];
 };
@@ -21,8 +21,23 @@ export type Report = {
   experiments?: Experiment[]; limitations?: string; acceptance: 'unverified';
   matrix?: { columns: { id: string; label: string }[]; cells: { paperId: string; columnId: string; value: string; status: 'supported' | 'missing' | 'conflict'; evidence: Evidence[] }[] };
 };
-export type Library = { papers: Paper[]; intents: Intent[]; reports: Report[]; matrixCount?: number; favorites?: SavedDiscovery[]; discoveries?: Pick<DiscoveryBatch, 'id' | 'seedId' | 'seedTitle' | 'relation' | 'page' | 'fetchedAt'>[] };
-export type SearchItem = { id: string; source: string; title: string; url: string; authors?: string[]; abstract?: string };
+export type StudyFinding = { text: string; evidence?: Evidence[] };
+export type StudySummary = {
+  id: string; requestId: string; question: string; createdAt: string; paperIds: string[];
+  intentId: string | null; reportId: string | null;
+  budget: { limit: number; used: number; remaining: number };
+};
+export type ResearchStudy = StudySummary & {
+  prompt: string; sessionId?: string;
+  findings: StudyFinding[]; gaps: string[];
+  steps: { action: 'search' | 'read' | 'note' | 'finalize'; paperId?: string; page?: number; query?: string }[];
+  passages: { id: string; paperId: string; page: number; content: string }[];
+};
+export type Library = { papers: Paper[]; intents: Intent[]; reports: Report[]; studies?: StudySummary[]; matrixCount?: number; favorites?: SavedDiscovery[]; discoveries?: Pick<DiscoveryBatch, 'id' | 'seedId' | 'seedTitle' | 'relation' | 'page' | 'fetchedAt'>[] };
+export type SearchItem = { id: string; source: string; title: string; url?: string | null; authors?: string[]; abstract?: string;
+  publicationDate?: string | null; citations?: number | null; citationSource?: string; doi?: string; pdfUrl?: string;
+  paperUrl?: string; hfVotes?: number; thumbnailUrl?: string; thumbnailId?: string; githubUrl?: string; githubStars?: number; projectUrl?: string;
+  alternatives?: { source: string; id: string; url: string | null }[] };
 export type EvidenceLocation = { start: number; end: number; heading?: string; before?: string; quote: string; after?: string; pdf?: { documentId: string; pages: number[]; rects?: PdfRect[] } };
 export type PdfRect = { x: number; y: number; width: number; height: number };
 export type PdfDocument = { id: string; paperId: string; fileDigest: string; sourceUrl: string; pages: { number: number; width: number; height: number; text: string }[]; createdAt: string };
@@ -39,7 +54,7 @@ export type Agent = {
   cancel(input: { sessionId: string }): Promise<void>;
 };
 export type DiscoveryRelation = 'related' | 'references' | 'citing';
-export type DiscoveryPaper = SearchItem & { authors: string[]; abstract: string; publicationDate: string; citations: number; doi: string };
+export type DiscoveryPaper = SearchItem & { url: string; authors: string[]; abstract: string; publicationDate: string | null; citations: number | null; doi: string };
 export type DiscoveryBatch = { id: string; seedId: string; seedTitle: string; relation: DiscoveryRelation; work: DiscoveryPaper; items: DiscoveryPaper[]; page: number; hasMore: boolean; fetchedAt: string; matching: string };
 export type SavedDiscovery = { id: string; batchId: string; seedId: string; seedTitle: string; relation: DiscoveryRelation; paper: DiscoveryPaper; fetchedAt: string };
 

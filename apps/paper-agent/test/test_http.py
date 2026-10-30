@@ -27,6 +27,51 @@ class LiteratureFixture:
 
 
 class ResearchHTTP(unittest.TestCase):
+    def test_paper_thumbnail_route(self):
+        from paper_agent.http import handler
+        from paper_agent.thumbnails import MAX_THUMBNAIL_BYTES, PaperThumbnails
+        from urllib.error import HTTPError
+
+        png = b'\x89PNG\r\n\x1a\nsynthetic'
+        requested = []
+
+        def fetch(request, timeout):
+            requested.append(request.full_url)
+            name = request.full_url.rsplit('/', 1)[-1]
+            if name == '1234.00004.png':
+                raise HTTPError(request.full_url, 302, 'Redirect refused', {}, None)
+            data = png if name != '1234.00003.png' else png + b'x' * MAX_THUMBNAIL_BYTES
+            response = io.BytesIO(data if name != '1234.00002.png' else b'not a PNG')
+            response.headers = {'Content-Type': 'image/png' if name != '1234.00005.png' else 'text/html'}
+            return response
+
+        with tempfile.TemporaryDirectory() as root:
+            server = ThreadingHTTPServer(('127.0.0.1', 0), handler(ResearchStore(root), 'test-token', thumbnails=PaperThumbnails(fetch)))
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+
+            def get(path, token='test-token'):
+                connection = HTTPConnection('127.0.0.1', server.server_port, timeout=3)
+                connection.request('GET', path, headers={'X-Pero-App-Token': token})
+                response = connection.getresponse()
+                result = response.status, response.getheader('Content-Type'), response.read()
+                connection.close()
+                return result
+
+            try:
+                self.assertEqual(get('/api/paper-thumbnails/1234.00001.png', 'wrong')[0], 401)
+                self.assertEqual(requested, [])
+                self.assertEqual(get('/api/paper-thumbnails/invalid.png')[0], 400)
+                self.assertEqual(requested, [])
+                self.assertEqual(get('/api/paper-thumbnails/1234.00001.png'), (200, 'image/png', png))
+                self.assertEqual(requested[-1], 'https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/1234.00001.png')
+                for identity in ('1234.00002', '1234.00003', '1234.00004', '1234.00005'):
+                    self.assertEqual(get('/api/paper-thumbnails/' + identity + '.png')[0], 502)
+            finally:
+                server.shutdown()
+                thread.join(timeout=3)
+                server.server_close()
+
     def test_authenticated_local_workflow(self):
         from paper_agent.http import handler
         with tempfile.TemporaryDirectory() as root:
@@ -119,9 +164,35 @@ class ResearchHTTP(unittest.TestCase):
                 result = call('POST', '/api/research/select', dict(id=batch['id'], text=json.dumps(dict(passageIds=[saved_batch.passages[0].id], followupQuery=None, gaps=[]))))[1]
                 self.assertEqual(result['stage'], 'answer')
                 self.assertEqual(result['intent']['retrieval']['queries'], ['Local'])
-
-
-
+                status, study = call('POST', '/api/studies', dict(question='Read the method', paperIds=[pdf_paper['id']],
+                                     fullText=True, requestId='http-study'))
+                self.assertEqual(status, 201)
+                self.assertEqual(study['sourceCatalog'][0]['pageCount'], 2)
+                status, observed = call('POST', '/api/studies/step', dict(studyId=study['id'], action='read',
+                                        paperId=pdf_paper['id'], page=2))
+                self.assertEqual(status, 201)
+                passage = observed['observation']['passages'][0]
+                self.assertIsNone(observed['observation']['nextStart'])
+                evidence = dict(paperId=pdf_paper['id'], passageId=passage['id'], quote='Second page. Exact original evidence.')
+                status, noted = call('POST', '/api/studies/step', dict(studyId=study['id'], action='note',
+                                     text='The method is on page two.', gaps=['Independent replication is still missing.'], evidence=[evidence]))
+                self.assertEqual(status, 201)
+                self.assertEqual(noted['findings'][0]['evidence'], [evidence])
+                continued = call('POST', '/api/studies/continue', dict(id=study['id'], requestId='http-study-resumed'))[1]
+                self.assertEqual(continued['requestId'], 'http-study-resumed')
+                self.assertEqual(continued['budget']['used'], 2)
+                report = dict(schema='pero.paper-agent-report.v1', intentId=study['id'], title='Original method',
+                              sections=[dict(heading='Method',content='Original evidence.',paperIds=[pdf_paper['id']],evidence=[evidence])],
+                              experiments=[],limitations='Reading only')
+                status, finalized = call('POST', '/api/studies/step', dict(studyId=study['id'], action='finalize', report=report))
+                self.assertEqual(status, 201)
+                self.assertEqual(call('GET', '/api/studies/' + study['id'])[1]['report']['id'], finalized['reportId'])
+                exported = call('GET', '/api/reports/' + finalized['reportId'] + '/export?format=markdown')[1]
+                self.assertIn('Independent replication is still missing.', exported['content'])
+                self.assertEqual(call('GET', '/api/studies?paperId=' + pdf_paper['id'])[1]['studies'][0]['id'], study['id'])
+                located = call('POST', '/api/evidence', dict(intentId=study['id'], **evidence))[1]
+                self.assertEqual(located['pdf']['pages'], [2])
+                self.assertTrue(located['pdf']['rects'])
             finally:
                 server.shutdown()
                 server.server_close()

@@ -281,7 +281,7 @@ impl Render for Workbench {
         }
         let width: f32 = viewport_width.into();
         let pane_tree=self.navigation.pane_layout_visible()&&!(self.navigation.page()==WorkbenchPage::Conversation&&self.tab!=ConversationTab::Chat);
-        let layout = WorkspaceLayout::resolve(
+        let mut layout = WorkspaceLayout::resolve(
             width,
             self.navigation.route(),
             self.tab,
@@ -289,6 +289,23 @@ impl Render for Workbench {
             self.settings_menu_open || self.resizing_chat || self.settings_panel.is_some() || self.pane_tabs.switching() || window.has_active_dialog(cx) || gpui_kit::component::GlobalState::is_in_deferred_context(cx),
             self.navigation.pane_layout().filter(|_|pane_tree),
         );
+        let single_pane = self.navigation.pane_layout().is_none_or(|layout| layout.leaves().len() <= 1);
+        let covered = self.settings_menu_open || self.resizing_chat || self.settings_panel.is_some() || self.pane_tabs.switching() || window.has_active_dialog(cx) || gpui_kit::component::GlobalState::is_in_deferred_context(cx);
+        let slot = self.active_app_chat_slot().cloned().filter(|_| !covered);
+        let floating = slot.is_none() && self.floating_chat && single_pane && layout.chat == ChatPlacement::Dock && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }));
+        if slot.is_some() {
+            layout.chat = ChatPlacement::Slot;
+            layout.chat_width = 0.;
+            layout.content_visible = true;
+            layout.embedded_surface_visible = true;
+        }
+        if floating {
+            layout.chat = ChatPlacement::Float;
+            layout.chat_width = 0.;
+            layout.content_visible = true;
+            layout.embedded_surface_visible = !(self.settings_menu_open || self.resizing_chat || self.settings_panel.is_some() || self.pane_tabs.switching() || window.has_active_dialog(cx) || gpui_kit::component::GlobalState::is_in_deferred_context(cx));
+        }
+        if !floating && slot.is_none() { Self::publish_app_chat_overlay(None); }
         self.layout = layout;
         let sidebar_width = layout.sidebar_width;
         let chat_width = layout.chat_width;
@@ -305,6 +322,7 @@ impl Render for Workbench {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         div()
             .id("workbench")
+            .relative()
             .track_focus(&self.workspace_focus)
             .when(self.pane_tabs.switching(),|el|el.key_context("PaneTabSwitcher"))
             .on_modifiers_changed(cx.listener(|this,event,window,cx|this.pane_tab_modifiers(event,window,cx)))
@@ -361,6 +379,7 @@ impl Render for Workbench {
                     }
                 }),
             )
+            .when_some(slot, |el, slot| el.child(self.embedded_app_chat(&slot, cx)))
             .size_full()
             .flex()
             .bg(p.surface)
@@ -409,6 +428,7 @@ impl Render for Workbench {
                             .flex_1()
                             .min_h_0()
                             .flex()
+                            .relative()
                             .when(layout.content_visible, |el| {
                                 el.child(
                                     div()
@@ -471,7 +491,8 @@ impl Render for Workbench {
                             })
                             .when(dock, |el| {
                                 el.child(self.chat_dock(chat_width, narrow, window, cx))
-                            }),
+                            })
+                            .when(floating, |el| el.child(self.floating_app_chat(width, window, cx))),
                     ),
             )
     }

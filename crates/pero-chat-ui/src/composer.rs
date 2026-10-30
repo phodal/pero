@@ -25,7 +25,10 @@ impl ChatPanel {
             .map(|c| c.agent.clone())
             .or_else(|| self.agents.get(self.agent_index).map(|a| a.id.clone()))
             .unwrap_or_else(|| "codex".into());
-        let rows = self.composer.read(cx).value().lines().count().clamp(2, 7);
+        let editor = self.composer.read(cx);
+        let rows = editor.value().split('\n').count()
+            .max(editor.display_map().wrap_row_count())
+            .clamp(if self.compact { 1 } else { 2 }, if self.compact { 3 } else { 7 });
         let workspace = self
             .workspace
             .rsplit('/')
@@ -39,6 +42,7 @@ impl ChatPanel {
         let agent_choices = self.agents.clone();
         let agent_workbench = cx.entity().downgrade();
         let context_workbench = cx.entity().downgrade();
+        let context_open_workbench = context_workbench.clone();
         let paste_workbench = cx.entity().downgrade();
         let context_sources = [
             ContextKind::File,
@@ -76,7 +80,7 @@ impl ChatPanel {
             let workbench = cx.entity().downgrade();
             let open_workbench = workbench.clone();
             Button::new("model-picker").ghost().small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
-                .label(label).max_w(px(220.)).dropdown_caret(false)
+                .label(label).max_w(px(if self.compact { 100. } else { 220. })).dropdown_caret(false)
                 .loading(model_pending).loading_icon(Icon::default().path("icons/clock.svg"))
                 .disabled(busy || model_pending || chat.state != SessionState::Idle)
                 .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, _, _| {
@@ -107,12 +111,77 @@ impl ChatPanel {
                     });
                 })
         });
+        let context_button = Button::new("attach-context")
+            .ghost()
+            .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+            .icon(IconName::Plus)
+            .accessibility_label(self.t("composer.context"))
+            .tooltip(self.t("composer.context"))
+            .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, _, _| {
+                let menu = context_sources.iter().fold(
+                    menu.min_w(px(W::MENU_WIDTH)),
+                    |menu, (kind, label)| {
+                        let kind = *kind;
+                        let workbench = context_workbench.clone();
+                        menu.item(
+                            PopupMenuItem::new(label.clone())
+                                .icon(
+                                    Icon::default()
+                                        .path(Self::context_kind_icon(kind)),
+                                )
+                                .disabled(
+                                    kind == ContextKind::Selection
+                                        || kind == ContextKind::Image
+                                            && !supports_images,
+                                )
+                                .on_click(move |_, window, cx| {
+                                    let _ = workbench.update(cx, |this, cx| {
+                                        this.open_context_source(kind, window, cx)
+                                    });
+                                }),
+                        )
+                    },
+                );
+                browse_sources.iter().fold(
+                    menu.separator(),
+                    |menu, (kind, label)| {
+                        let kind = *kind;
+                        let workbench = context_workbench.clone();
+                        menu.item(
+                            PopupMenuItem::new(label.clone())
+                                .icon(
+                                    Icon::default()
+                                        .path(Self::context_kind_icon(kind)),
+                                )
+                                .disabled(
+                                    kind == ContextKind::Image && !supports_images,
+                                )
+                                .on_click(move |_, _, cx| {
+                                    let _ = workbench.update(cx, |this, cx| {
+                                        this.browse_composer_context(kind, cx)
+                                    });
+                                }),
+                        )
+                    },
+                )
+            })
+            .on_open_change(move |open, _, cx| {
+                if *open {
+                    let _ = context_open_workbench.update(cx, |this, cx| {
+                        if this.compact { cx.emit(crate::ChatAction::CompactNeedsSpace); }
+                    });
+                }
+            });
+        let (compact_context, normal_context) = if self.compact {
+            (Some(context_button), None)
+        } else {
+            (None, Some(context_button))
+        };
         div()
             .id("chat-composer")
             .relative()
             .flex_shrink_0()
-            .border_t_1()
-            .border_color(p.border)
+            .when(!self.compact, |el| el.border_t_1().border_color(p.border))
             .bg(p.surface)
             .px(px(W::INSET))
             .pt(px(W::INSET))
@@ -202,10 +271,12 @@ impl ChatPanel {
                     .border_color(if focused { p.focus } else { p.input_border })
                     .rounded(px(W::RADIUS))
                     .bg(p.surface)
+                    .when(self.compact, |el| el.flex().items_center().gap(px(4.)))
                     .px(px(W::INSET))
                     .pt(px(W::GAP))
                     .pb(px(W::GAP))
-                    .child(
+                    .children(compact_context)
+                    .child(div().min_w_0().when(self.compact, |el| el.flex_1()).child(
                 Textarea::new(&self.composer)
                     .bordered(false)
                     .appearance(false)
@@ -219,75 +290,19 @@ impl ChatPanel {
                             .unwrap_or(false)
                     })
                     .h(px(rows as f32 * pero_theme::UiAppearance::global(cx).typography.ui * 1.4 + 4.)),
-            )
+            ))
             .child(
                 div()
-                    .mt(px(6.))
+                    .when(!self.compact, |el| el.mt(px(6.)).flex_wrap())
                     .flex()
-                    .flex_wrap()
                     .items_center()
                     .gap(px(W::GAP))
-                    .child(
-                        Button::new("attach-context")
-                            .ghost()
-                            .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
-                            .icon(IconName::Plus)
-                            .accessibility_label(self.t("composer.context"))
-                            .tooltip(self.t("composer.context"))
-                            .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, _, _| {
-                                let menu = context_sources.iter().fold(
-                                    menu.min_w(px(W::MENU_WIDTH)),
-                                    |menu, (kind, label)| {
-                                        let kind = *kind;
-                                        let workbench = context_workbench.clone();
-                                        menu.item(
-                                            PopupMenuItem::new(label.clone())
-                                                .icon(
-                                                    Icon::default()
-                                                        .path(Self::context_kind_icon(kind)),
-                                                )
-                                                .disabled(
-                                                    kind == ContextKind::Selection
-                                                        || kind == ContextKind::Image
-                                                            && !supports_images,
-                                                )
-                                                .on_click(move |_, window, cx| {
-                                                    let _ = workbench.update(cx, |this, cx| {
-                                                        this.open_context_source(kind, window, cx)
-                                                    });
-                                                }),
-                                        )
-                                    },
-                                );
-                                browse_sources.iter().fold(
-                                    menu.separator(),
-                                    |menu, (kind, label)| {
-                                        let kind = *kind;
-                                        let workbench = context_workbench.clone();
-                                        menu.item(
-                                            PopupMenuItem::new(label.clone())
-                                                .icon(
-                                                    Icon::default()
-                                                        .path(Self::context_kind_icon(kind)),
-                                                )
-                                                .disabled(
-                                                    kind == ContextKind::Image && !supports_images,
-                                                )
-                                                .on_click(move |_, _, cx| {
-                                                    let _ = workbench.update(cx, |this, cx| {
-                                                        this.browse_composer_context(kind, cx)
-                                                    });
-                                                }),
-                                        )
-                                    },
-                                )
-                            }),
-                    )
-                    .children(self.session_extra_controls(cx))
-                    .children(chat.and_then(|chat| chat.usage.as_ref()).map(|usage| {
-                        crate::usage::render_usage(usage, &self.locale, p, cx)
-                    }))
-                    .child(div().flex_1())
+                    .children(normal_context)
+                    .when(!self.compact, |el| el.children(self.session_extra_controls(cx))
+                        .children(chat.and_then(|chat| chat.usage.as_ref()).map(|usage| {
+                            crate::usage::render_usage(usage, &self.locale, p, cx)
+                        }))
+                        .child(div().flex_1())
                     .child(
                         Button::new("agent-picker")
                             .ghost()
@@ -313,10 +328,10 @@ impl ChatPanel {
                                     },
                                 )
                             }),
-                    )
+                    ))
                     .children(model_picker)
-                    .children(self.session_setting_controls("thought_level", cx))
-                    .when(chat.is_none_or(|chat| chat.can_retarget()), |el| {
+                    .when(!self.compact, |el| el.children(self.session_setting_controls("thought_level", cx)))
+                    .when(!self.compact && chat.is_none_or(|chat| chat.can_retarget()), |el| {
                         el.child(
                             Button::new("workspace-picker")
                                 .ghost()
@@ -344,7 +359,8 @@ impl ChatPanel {
                                 .outline()
                                 .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
                                 .icon(IconName::Square)
-                                .label(self.t("chat.stop"))
+                                .accessibility_label(self.t("chat.stop"))
+                                .when(!self.compact, |button| button.label(self.t("chat.stop")))
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     if let Some(i) = this.active_chat {
                                         let id = this.chats[i].id.clone();
@@ -360,7 +376,8 @@ impl ChatPanel {
                                 .primary()
                                 .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
                                 .icon(IconName::ArrowRight)
-                                .label(self.t("probe.send"))
+                                .accessibility_label(self.t("probe.send"))
+                                .when(!self.compact, |button| button.label(self.t("probe.send")))
                                 .disabled(
                                     !self.connected
                                         || !agent_available

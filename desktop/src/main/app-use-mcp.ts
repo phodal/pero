@@ -283,7 +283,7 @@ export class DesktopAppUse {
             undefined,
             async (scope) => ({
               apps: (await this.writes!.describe())
-                .filter((d) => !scope || d.app === scope.app)
+                .filter((d) => !scope || (d.app === scope.app && d.panel === scope.panel))
                 .map(({ app, name, description, schema }) => ({
                   app,
                   tool: name,
@@ -292,6 +292,7 @@ export class DesktopAppUse {
                 })),
             }),
             controller.signal,
+            'app-data',
           );
           result = { content: [{ type: 'text', text: await this.results.select(thread, value) }], isError: false };
         } else if (message.method === 'tools/call' && message.params?.name === 'app_write' && this.writes) {
@@ -311,6 +312,7 @@ export class DesktopAppUse {
               result: await this.writes!.apply(prepared, signal),
             }),
             controller.signal,
+            'app-data',
           );
           result = { content: [{ type: 'text', text: await this.results.select(thread, value) }], isError: false };
         } else if (message.method === 'tools/call' && message.params?.name === 'content_read') {

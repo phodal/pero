@@ -642,7 +642,7 @@ impl ChatPanel {
                     Button::new("contribution-return").outline().small().label(self.t("contribution.return_review")).on_click(cx.listener(|_,_,_,cx|{
                         cx.emit(crate::ChatAction::ReturnToReview);
                     })))))
-            .child(div().id("messages").flex_1().min_h_0().overflow_y_scroll().track_scroll(&self.chat_scroll).px(px(12.)).py(px(8.))
+            .when(!self.compact, |el| el.child(div().id("messages").flex_1().min_h_0().overflow_y_scroll().track_scroll(&self.chat_scroll).px(px(12.)).py(px(8.))
                 .when(chat.is_none_or(|c|c.messages.is_empty()),|el|el.child(div().py(px(12.)).flex().flex_col().gap(px(6.))
                     .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading)).font_weight(FontWeight::MEDIUM).child(self.t("chat.welcome")))
                     .child(div().text_color(p.text_muted).child(self.t(if self.connected && !self.agents.iter().any(|agent|agent.available){"chat.install_agent"}else{"chat.description"})))))
@@ -683,7 +683,7 @@ impl ChatPanel {
                     }
                 }))
                 .when(busy,|el|el.child(div().text_color(p.text_muted).child(self.t(if chat.is_some_and(|c|c.state==SessionState::Connecting){"chat.preparing"}else{"chat.thinking"}))))
-                .when(chat.is_some_and(|c|c.error.is_some() && c.state!=SessionState::AuthRequired),|el|el.child(div().p(px(14.)).bg(p.error_bg).text_color(p.error).rounded(px(6.)).child(chat.and_then(|c|c.error.clone()).unwrap_or_default()))))
+                .when(chat.is_some_and(|c|c.error.is_some() && c.state!=SessionState::AuthRequired),|el|el.child(div().p(px(14.)).bg(p.error_bg).text_color(p.error).rounded(px(6.)).child(chat.and_then(|c|c.error.clone()).unwrap_or_default())))))
             .children(chat.filter(|c|c.state==SessionState::AuthRequired).into_iter().map(|chat|{
                 div().mx(px(16.)).mb(px(10.)).p(px(12.)).bg(p.warning_bg).rounded(px(4.))
                     .child(div().font_weight(FontWeight::MEDIUM).child(self.t("chat.signin")))
@@ -703,6 +703,9 @@ impl ChatPanel {
                     })))
             }))
             .children(self.approval(&id, None, cx))
+            .when(self.compact && chat.is_some_and(|c| c.error.is_some() && c.state != SessionState::AuthRequired), |el| {
+                el.child(div().px(px(12.)).py(px(6.)).bg(p.error_bg).text_color(p.error).child(chat.and_then(|c|c.error.clone()).unwrap_or_default()))
+            })
             .child(self.composer_view(window, cx))
     }
 }

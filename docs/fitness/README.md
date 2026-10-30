@@ -95,3 +95,8 @@ PostgreSQL, process and cluster evidence are tracked in
 
 Retained generic HTTP(S) Web sources, isolated Electron and native Wry engine
 acceptance: [web-documents.md](web-documents.md).
+
+Single-session Paper research, source recall, evidence gaps and explicit
+continuation: [Paper research Agent](paper-research-agent.md).
+
+Public literature search, source metadata and thumbnails: [Paper search](paper-search.md).

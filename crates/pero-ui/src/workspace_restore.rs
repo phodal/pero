@@ -1,8 +1,10 @@
 //! Workbench recovery orchestration. Host owns durable bytes; views own reading state.
 use crate::{
     app::Workbench,
-    workspace::{WorkbenchPage, WorkspaceItem, WorkspaceRoute, WorkspaceSnapshot},
+    workspace::{WorkspaceItem, WorkspaceRoute, WorkspaceSnapshot},
 };
+#[cfg(not(target_family = "wasm"))]
+use crate::workspace::WorkbenchPage;
 use gpui_kit::{prelude::*, *};
 use pero_contracts::{
     HostEvent,

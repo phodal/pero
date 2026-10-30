@@ -97,6 +97,8 @@ class DiscoveryTest(unittest.TestCase):
         candidate = DiscoveryPaper.parse(unavailable)
         with self.assertRaisesRegex(Invalid, 'no abstract'):
             candidate.reading(NOW)
+        unavailable['citations'] = None
+        self.assertIsNone(DiscoveryPaper.parse(unavailable).to_dict()['citations'])
 
 
 if __name__ == '__main__':
