@@ -19,3 +19,8 @@ declare module '*chat-wasm/pero_chat_web' {
   export function set_appearance(json: string): void;
   export function compose(text: string): void;
 }
+
+declare module '*content-wasm/pero_content_worker' {
+  export default function init(): Promise<unknown>;
+  export function analyze_json(text:string):Uint32Array;
+}

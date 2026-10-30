@@ -1,3 +1,4 @@
+import {installContentAnalysis} from './content-analysis';
 import { loadContentResult, cancelContentResult } from './content-results';
 import type { ContentChunk, ConversationReadParameters } from '../../packages/content-source/index';
 import init, { run, receive_host_event, snapshot, has_unsaved_documents, paste_image, set_system_theme } from './wasm/pero_ui';
@@ -34,6 +35,7 @@ try {
     document.documentElement.style.setProperty(`--pero-${key}`, value);
   }
   await init();
+  installContentAnalysis();
   window.addEventListener('beforeunload',event=>{if(has_unsaved_documents()){event.preventDefault();event.returnValue='';}});
   const launchAppChat=appChatLauncher({
     open:scope=>receive_host_event(JSON.stringify({version:1,kind:'app_scope',request_id:null,text:'',data:scope})),

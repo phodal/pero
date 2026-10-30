@@ -54,7 +54,7 @@ app.whenReady().then(async () => {
       if (!file.startsWith(directory + sep)) return new Response('Not found', { status: 404 });
       const response = await net.fetch(pathToFileURL(file).href);
       const headers = new Headers(response.headers);
-      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'");
+      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; object-src 'none'");
       return new Response(response.body, { status: response.status, headers });
     }
     if (url.host !== 'workbench' || url.pathname !== '/') return new Response('Not found', { status: 404 });
