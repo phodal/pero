@@ -36,6 +36,13 @@ impl Manager {
             .iter()
             .find(|agent| agent.id == agent_id && agent.available())
             .ok_or("Agent is not installed")?;
+        let configuration = self.load_mcp_configuration(agent)
+            .and_then(|configuration| {
+                configuration.validate(&agent.mcp_server_names())?;
+                Ok(configuration)
+            })
+            .map_err(|_| "MCP settings are unavailable or invalid; review local connector settings")?;
+        let agent = agent.with_managed_mcp(&configuration);
         if binding.is_none() {
             if let Some(path) = &self.settings_path {
                 pero_runtime::settings::save_chat_agent(path, agent_id).map_err(|error| error.to_string())?;

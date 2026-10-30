@@ -146,3 +146,81 @@ permission requests appear; Desktop adds no second approval.
 actual App. It uses the installed provider login, writes evidence under
 `test-results/app-use-real`, and stays outside the default deterministic suite.
 See `docs/fitness/app-use.md` for acceptance boundaries.
+
+## Local Agent MCP configuration
+
+`npm run build:host && node tests/contracts/mcp-settings.mjs` exercises actual
+Host settings persistence and ACP `session/new` injection with the shared ACP
+fixture. It covers add-disabled, explicit enable, edit, remove, restart, unchanged
+running sessions and preservation of operator-managed configuration. Operator
+credentials must not appear in public Host events or stderr. The loopback HTTP
+endpoint binds an ephemeral port and must receive **no** connection: this slice
+manages configuration, not MCP health or tool discovery. No paid provider runs.
+The capture containing operator fixture credentials stays in a private temporary
+file and is deleted; only nonsecret pass evidence is written to
+`test-results/mcp-settings/host-result.json`.
+
+After `npm run build`, `node tests/e2e/mcp-settings.mjs` drives actual GPUI settings
+controls through Electron (including server-wide enable and remove confirmation),
+checks ACP injection, save failure/retry, restart and operator-secret exclusion,
+and captures light/dark, narrow and Chinese UI. It uses the same fixture and writes
+`test-results/mcp-settings/ui-result.json` plus screenshots. Linux requires the
+X11/Xvfb setup described above. A Host-only pass is **not** graphical acceptance;
+this suite must run on a desktop runner before claiming the UI was verified.
+
+For a Linux environment without X11, the MCP suite alone also supports
+`PERO_MCP_TEST_HEADLESS=1 PERO_TEST_SOFTWARE_GL=1 node tests/e2e/mcp-settings.mjs`.
+This runs actual sandboxed Electron/GPUI with Chromium's headless display backend,
+not a browser mock. `ui-result.json` records `headless`; keep this evidence
+separate from the default headed Xvfb CI run. No `--no-sandbox` flag is used.
+
+The MCP regressions also cover an operator name introduced after a managed entry
+was saved: management can still read/remove the entry, while session startup
+fails closed until repair. UI transport tests temporarily intercept only the
+existing Electron session IPC handler, reject or disconnect an in-flight request,
+and restore the original handler for real Host reload. They check correlation,
+draft preservation, busy-state recovery, and no replay before reconciliation.
+
+A success receipt is written only after Electron and fixture cleanup succeeds;
+a fresh run removes its previous receipt first. To exercise the failure path,
+add `PERO_MCP_TEST_FAIL_CLEANUP=1` to the MCP UI command. It runs every assertion,
+then injects a cleanup failure: expect a nonzero exit, `ui-failure.json`, and no
+`ui-result.json`. Archive that deliberate failure separately from acceptance.
+
+The expanded 18-group MCP UI suite uses a **test-only 600-second aggregate
+budget** across three Electron launches (two restarts). CI run `41014507506`
+on head `35211e7` hit the previous 300-second aggregate cap while filling the
+import draft, despite continuous progress, no renderer errors/exits, and no
+individual-operation timeout. The unchanged startup/search/Agent-selection path
+took 76.468 seconds there versus 35.035 seconds in the earlier headed run
+`41010694432`. All assertions and the existing 15-second bounded operations and
+10-second screenshot timeout remain unchanged; this is not a product deadline
+or a claim that the failed run passed.
+
+`node tests/contracts/mcp-ownership.mjs` is the integrated Host composition
+regression. Build Host and Desktop first (`npm run build:host && npm run
+build:desktop`) and install the locked npm dependencies, including the MCP SDK
+and Apps extension. It drives both `settings.mcp.*` and master `mcp` routes,
+checks unknown-thread rejection, serves the real Node provider panel over
+loopback, and proves identical names remain independent in Agent settings and
+`mcp-servers.json`. It never sends a `connect` command: the shared inert MCP
+endpoint must receive zero requests. The Host/provider must exit gracefully and
+close the panel listener before `test-results/mcp-ownership/result.json` is
+written. Actual MCP Apps SDK/tool behavior remains covered separately by
+`node --test desktop/src/main/mcp-sources.test.ts`.
+
+Icon-theme acceptance admits its document fixtures through the real Desktop →
+Host `documents/open` boundary. General `Ctrl+O` file editing was intentionally
+removed from the product; keyboard file-open is not an icon-theme assertion.
+Theme import/select/remove, actual tab artwork, dark variants, fallback and
+restart persistence remain exercised through the real UI.
+
+Core Workbench retained-history acceptance waits for two actual renderer frames
+(with an external 15-second readiness bound) after selecting the long restored
+conversation, then retains its existing 5-second navigation and exact conversation
+identity assertions. CI run `41029602952` on `ccee886` exceeded the original bare
+5-second observation poll; its catch snapshot and screenshot already showed the
+correct restored conversation selected, with no renderer errors. Original paint
+latency was not instrumented, so this is not a proven product root cause. The
+readiness wait logs elapsed time and success/failure, uses no fixed sleep or
+retry, and changes no production deadline.

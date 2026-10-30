@@ -15,6 +15,7 @@ pub mod content_link;
 pub mod file_document;
 pub mod i18n;
 pub mod local_worker;
+pub mod mcp;
 pub mod roadmap;
 pub mod session_settings;
 pub mod usage;

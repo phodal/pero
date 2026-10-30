@@ -334,7 +334,7 @@ app.whenReady().then(async () => {
         host.stdin.write(JSON.stringify(command)+'\n',error=>{if(error){clearTimeout(timer);preferenceWrites.delete(id);rejectWrite(error);}});
       });return;
     }
-    if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'documents','icons'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
+    if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'settings.mcp.get', 'settings.mcp.set', 'documents','icons'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
     appUse?.authority.command(command as {action?:string;thread_id?:string});
     host.stdin.write(JSON.stringify(command) + '\n');
   });

@@ -156,6 +156,17 @@ model McpSourcesEvent {kind:"mcp_sources";...EventBase;thread_id?:string;data:{u
 model McpErrorEvent {kind:"mcp_error";...EventBase}
 model McpAppOpenedEvent {kind:"mcp_app_opened";...ThreadEventBase;data:McpAppBinding}
 
+// User-managed non-secret MCP configuration, scoped to one local ACP Agent.
+model McpStdioTransport { type:"stdio";command:string;args?:string[];...Closed }
+model McpHttpTransport { type:"http";url:string;...Closed }
+@oneOf union McpTransport { McpStdioTransport,McpHttpTransport }
+model McpServerConfig {name:string;enabled?:boolean=false;transport:McpTransport;...Closed}
+model GetMcpSettingsRequest {method:"settings.mcp.get";request_id:string;agent_id:string;...Closed}
+model SetMcpSettingsRequest {method:"settings.mcp.set";request_id:string;agent_id:string;revision:safeint;servers:McpServerConfig[];...Closed}
+@oneOf union McpSettingsRequest {GetMcpSettingsRequest,SetMcpSettingsRequest}
+model McpSettingsEvent {kind:"mcp_settings";...EventBase;data:{agent_id:string;revision:safeint;servers:McpServerConfig[];...Closed}}
+model McpSettingsErrorEvent {kind:"mcp_settings_error";...EventBase;data:{agent_id:string;reason:"conflict"|"invalid"|"unavailable"|"read_write";...Closed}}
+
 // ---------- Host input: one JSON object per stdin line ----------
 
 /** Bootstrap transport probe. */
@@ -251,6 +262,7 @@ union HostCommand {
 
 @oneOf
 union HostInput {
+  McpSettingsRequest,
   IconThemeRequest,
   McpSourceRequest,
   WorkspaceSessionRequest,
@@ -415,6 +427,7 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 
 @oneOf
 union HostEvent {
+  McpSettingsEvent, McpSettingsErrorEvent,
   DocumentSaveChooseEvent,DocumentSavePathEvent,DocumentSaveCancelledEvent,
   WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,WorkspaceSourceEvent,WorkspaceSourceErrorEvent,WorkspaceResetEvent,WorkspaceSourceStoredEvent,DraftStoredEvent,
   WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,WebFocusedEvent,IconThemesEvent,

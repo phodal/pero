@@ -7,6 +7,8 @@ use pero_runtime::apps::agent::AppSessionBinding;
 use pero_runtime::context::ContextSources;
 #[path = "app_agent.rs"]
 mod app_agent;
+#[path = "mcp_settings.rs"]
+mod mcp_settings;
 use std::{
     collections::HashMap,
     io::Write,

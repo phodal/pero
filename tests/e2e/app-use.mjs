@@ -39,6 +39,9 @@ await cp(resolve(root, 'apps/virtual-cell'), join(distribution, 'apps/virtual-ce
   filter: path => !path.includes('/node_modules') && !path.includes('/__pycache__') });
 const agents = join(temp, 'agents.json');
 await writeFile(agents, JSON.stringify(['codex', 'claude', 'copilot', 'grok'].map(id => ({ id, name: `App Use fixture (${id})`, command: process.execPath, args: [resolve(root, 'tests/fixtures/app-use-agent.mjs')], env: { PERO_APP_USE_FIXTURE_OUTPUT: output,PERO_APP_USE_FIXTURE_INPUT:join(temp,'inputs.json') } }))));
+// Product owns this settings path; select the overridden local ACP fixture explicitly.
+await mkdir(join(temp,'profile'), {recursive:true});
+await writeFile(join(temp,'profile/runtime-settings.json'),JSON.stringify({chat_agent:'codex'}));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: join(temp, 'profile'), PERO_AGENTS_FILE: agents, PERO_LOCALE: 'en' };
 delete env.ELECTRON_RUN_AS_NODE;
 let app;
@@ -51,6 +54,20 @@ try {
   await page.evaluate(()=>{window.approvalEvents=[];window.product.onEvent(event=>{if(event.kind==='permission')window.approvalEvents.push(event.data.permission_id);});});
   page.on('pageerror', error => errors.push(error.message));
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1488, 1086));
+  const chatPanel = page.locator('#product-chat');
+  await expect(chatPanel).toBeHidden();
+  await page.locator('#product-chat-toggle').click();
+  await expect(chatPanel).toBeVisible();
+  const expandChat = async () => {
+    const expand = chatPanel.locator('header button').first();
+    if (await expand.getAttribute('aria-expanded') !== 'true') await expand.click();
+    await expect(expand).toHaveAttribute('aria-expanded', 'true');
+  };
+  const closeChat = async () => {
+    await chatPanel.getByRole('button', { name: 'Close chat', exact: true }).click();
+    await expect(chatPanel).toBeHidden();
+  };
+  await expandChat();
   let startingDraft;
   if(process.platform!=='win32'){
   await expect.poll(async()=>{try{return await readFile(join(temp,'host-held'),'utf8');}catch{return '';}}).toBe('ready');
@@ -72,8 +89,13 @@ try {
   await expect.poll(() => page.frames().some(frame => frame.url().startsWith('pero://chat/'))).toBe(true);
   const chat = page.frames().find(frame => frame.url().startsWith('pero://chat/'));
   await chat.waitForFunction(() => window.peroChatDiagnostics && JSON.parse(window.peroChatDiagnostics.snapshot()).connected, undefined, { timeout: 60000 });
+  // GPUI also owns a 1px EditContext input canvas; clicks target only the render surface.
+  const renderCanvas = chat.locator('canvas:not([role="textbox"])');
+  await expect(renderCanvas).toHaveCount(1);
   const state = () => chat.evaluate(() => JSON.parse(window.peroChatDiagnostics.snapshot()));
   const active = async () => { const snapshot = await state(); return snapshot.chats[snapshot.activeChat]; };
+  const appStatus = () => page.evaluate(async () => (await window.peroAppUse({ scope: { app: 'virtual-cell', panel: 'main' }, request: { action: 'status' } })).value);
+  const captureBounds = await page.locator('#pero-app-surface').boundingBox();
   await expect.poll(async () => (await state()).agents?.length || 0).toBeGreaterThan(0);
   if(startingDraft){
     await expect.poll(async()=>(await active()).state).toBe('idle');
@@ -87,17 +109,59 @@ try {
   }
   const parentOrigin = await page.evaluate(() => location.origin);
   let expectedScenario;
+  const sendDraft = async (uncover = false) => {
+    await expandChat();
+    if (uncover) {
+      // Pause one real boundary request, not the Agent's result. The person must
+      // close floating Chat before App Use is allowed to operate/capture the App.
+      await page.evaluate(() => {
+        const original = window.peroAppUse;
+        let rejectPending;
+        window.cancelAppUseInventory = () => {
+          window.peroAppUse = original;
+          rejectPending?.(new Error('App Use fixture inventory gate cancelled'));
+          delete window.releaseAppUseInventory;
+          delete window.appUseInventoryPending;
+          delete window.cancelAppUseInventory;
+        };
+        window.appUseInventoryPending = false;
+        window.peroAppUse = input => {
+          if (input.request.action !== 'inventory') return original(input);
+          window.peroAppUse = original;
+          window.appUseInventoryPending = true;
+          return new Promise((resolve, reject) => {
+            rejectPending = reject;
+            window.releaseAppUseInventory = () => {
+              rejectPending = undefined;
+              resolve(original(input));
+            };
+          });
+        };
+      });
+    }
+    try {
+      const bounds = await renderCanvas.boundingBox();
+      await page.mouse.click(bounds.x + 150, bounds.y + bounds.height - 70);
+      await expect.poll(async () => (await state()).composerFocused).toBe(true);
+      await page.keyboard.press('Enter');
+      if (uncover) {
+        await page.waitForFunction(() => window.appUseInventoryPending, undefined, { timeout: 10000 });
+        await closeChat();
+        await expect.poll(appStatus).toMatchObject({ visible: true, active: true, capturable: true, operable: true });
+        await page.evaluate(() => window.releaseAppUseInventory());
+      }
+    } finally { if (uncover) await page.evaluate(() => window.cancelAppUseInventory()); }
+  };
   const submit = async (prompt, approval = false) => {
     expectedScenario = prompt.replace(/^app-use:/, '');
     const destination = await active();
+    expect(destination.agent).toBe('codex');
     const launch = await frame.locator('body').evaluate(requestAppChat, { text: prompt, parentOrigin });
     expect(launch.threadId).toBe(destination.id);
     expect((await active()).id).toBe(destination.id);
     expect((await active()).scope).toEqual({ app: 'virtual-cell', panel: 'main' });
     await expect.poll(async () => (await state()).composer).toBe(prompt);
-    const bounds = await chat.locator('canvas:not([role="textbox"])').boundingBox();
-    await page.mouse.click(bounds.x + 150, bounds.y + bounds.height - 70);
-    await page.keyboard.press('Enter');
+    await sendDraft(expectedScenario === 'full');
     if (approval) await expect.poll(async () => Boolean((await active())?.permission)).toBe(true);
   };
   const choose = async allow => {
@@ -109,7 +173,7 @@ try {
     // GPUI exposes the painted option bounds in the Chat canvas coordinates.
     const optionBounds = async () => (await state()).permissionBounds.find(item => item.chat === conversation.id && item.index === index)?.bounds;
     await expect.poll(async () => { const bounds = await optionBounds(); return Boolean(bounds && bounds.width > 0 && bounds.height > 0); }).toBe(true);
-    const bounds = await chat.locator('canvas:not([role="textbox"])').boundingBox();
+    const bounds = await renderCanvas.boundingBox();
     const option = await optionBounds();
     await page.mouse.click(bounds.x + option.x + option.width / 2, bounds.y + option.y + option.height / 2);
     await expect.poll(async () => (await active()).permission).toBeNull();
@@ -148,6 +212,8 @@ try {
   checks.push('actual Virtual Cell retains the Agent-filled gene filter and its visible gene result');
   // Real SDK object handoff, trusted parent capture, removable chips, frozen draft context.
   await frame.getByRole('button',{name:'Discuss context',exact:true}).click();
+  await expect(chatPanel).toBeVisible();
+  await expandChat();
   await expect.poll(async()=>(await state()).attachments.length).toBe(1);
   const usersBefore=(await active()).messages.filter(message=>message.role==='user').length;
   await page.getByRole('button',{name:'Capture to chat',exact:true}).click();
@@ -157,7 +223,7 @@ try {
   expect((await state()).contextPreviewBounds.filter(item=>item.image)).toHaveLength(1);
   await expect.poll(async()=>{const bounds=(await state()).contextPreviewBounds.find(item=>item.image)?.bounds;return Boolean(bounds&&bounds.width>0&&bounds.height>0);}).toBe(true);
   const capturePreview=(await state()).contextPreviewBounds.find(item=>item.image);
-  const chatCanvas=await chat.locator('canvas:not([role="textbox"])').boundingBox();
+  const chatCanvas=await renderCanvas.boundingBox();
   await page.mouse.click(chatCanvas.x+capturePreview.bounds.x+capturePreview.bounds.width/2,chatCanvas.y+capturePreview.bounds.y+capturePreview.bounds.height/2);
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('textbox',{name:'Annotation note'}).fill('Inspect the selected cells in this frozen frame');
@@ -171,21 +237,26 @@ try {
   await frame.locator('body').evaluate(()=>parent.postMessage({type:'pero:app:chat',text:'app-use:context'},'*'));
   await expect.poll(async()=>(await state()).composer).toContain('app-use:context');
   expectedScenario='context';
-  {const bounds=await chat.locator('canvas:not([role="textbox"])').boundingBox();await page.mouse.click(bounds.x+150,bounds.y+bounds.height-70);await page.keyboard.press('Enter');}
+  await sendDraft();
   const frozen=await result();expect(frozen.error).toBeUndefined();
   expect((await state()).contextPreviewBounds).toEqual([]);
   expect(frozen.contexts.find(context=>context.schema==='pero.app-object.v1').state.view).toBe('cells');expect(frozen.images).toBe(1);expect(frozen.contexts.find(context=>context.schema==='pero.app-annotations.v1')).toMatchObject({note:'Inspect the selected cells in this frozen frame',regions:[{x:0,y:0}]});
   await frame.getByRole('tab',{name:'Cells & perturbations'}).click();
   checks.push('SDK object refs and parent-cropped screenshot enter the draft without sending, preserve revisions after App changes, and reach ACP as frozen JSON plus pixels');
-  await expect.poll(()=>page.evaluate(async()=>(await window.peroAppUse({scope:{app:'virtual-cell',panel:'main'},request:{action:'status'}})).value.operable)).toBe(true);
+  await closeChat();
+  await expect.poll(appStatus).toMatchObject({ visible: true, active: true, capturable: true, operable: true });
   const inputFile=join(temp,'inputs.json'),content=await frame.locator('body').evaluate(async()=>{const response=await fetch('/api/example');return (await response.json()).content;});
   await writeFile(inputFile,content);
   const fileContext={id:'selected-input',kind:'file',label:'selected-输入.json',source:inputFile,content:{type:'text',text:content}};
+  // Composer references are applied while painting the visible conversation.
+  await page.locator('#product-chat-toggle').click();
+  await expect(chatPanel).toBeVisible();
+  await expandChat();
   await page.evaluate(({thread_id,fileContext})=>{const child=document.querySelector('iframe[data-pero-chat]');child.contentWindow.postMessage({type:'pero:chat:event',event:{version:1,kind:'compose_context',request_id:null,text:'',data:{thread_id,contexts:[fileContext]}}},'pero://chat');},{thread_id:(await active()).id,fileContext});
   await expect.poll(async()=>(await state()).attachments.length).toBe(1);
   await frame.locator('body').evaluate(()=>parent.postMessage({type:'pero:app:chat',text:'app-use:input'},'*'));
   await expect.poll(async()=>(await state()).composer).toContain('app-use:input');expectedScenario='input';
-  {const bounds=await chat.locator('canvas:not([role="textbox"])').boundingBox();await page.mouse.click(bounds.x+150,bounds.y+bounds.height-70);await page.keyboard.press('Enter');}
+  await sendDraft(true);
   const imported=await result();expect(imported.error).toBeUndefined();
   expect(await frame.locator('body').evaluate(async(_,id)=>(await (await fetch('/api/artifacts/'+id)).json()).kind,imported.inputId)).toBe('inputs');
   checks.push('An explicitly attached conversation file is fetched through its temporary App/task grant, imported by the actual App action and read back from the real backend');
@@ -210,40 +281,59 @@ try {
   expect(revoked.error).toBeUndefined(); expect(revoked.restarted).toBe(true);
   checks.push('Standing read grants and new tasks follow automatic Agent approval; Revoke ends the current grant before a new user turn creates another bounded task');
   await app.evaluate(({ nativeTheme, BrowserWindow }) => { nativeTheme.themeSource = 'light'; BrowserWindow.getAllWindows()[0].setSize(800, 700); });
-  await expect(page.locator('#pero-app-surface')).toBeHidden();
+  await expect(page.locator('#pero-app-surface')).toBeVisible();
   await expect.poll(async () => (await state()).dark).toBe(false);
-  await submit('app-use:hidden', false);
-  const hidden = await result();
-  expect(hidden.error).toBeUndefined();
-  expect(hidden.steps.filter(step => step.error === 'APP_SURFACE_HIDDEN')).toHaveLength(2);
-  await page.screenshot({ path: join(output, 'hidden-narrow.png') });
+  await expect.poll(appStatus).toMatchObject({ visible: true, active: true, capturable: false, operable: false });
+  const selectedInput = async () => ({
+    mode: await frame.getByRole('combobox', { name: 'Data view', exact: true }).inputValue(),
+    revision: await frame.getByRole('combobox', { name: 'Input revision', exact: true }).inputValue(),
+  });
+  const beforeCovered = await selectedInput();
+  expect(beforeCovered).toEqual({ mode: 'perturbation', revision: imported.inputId });
+  await submit('app-use:covered', false);
+  const covered = await result();
+  expect(covered.error).toBeUndefined();
+  expect(covered.steps.filter(step => step.error === 'APP_SURFACE_HIDDEN')).toHaveLength(2);
+  await expect.poll(selectedInput).toEqual(beforeCovered);
+  await page.screenshot({ path: join(output, 'covered-narrow.png') });
+  await closeChat();
+  await expect.poll(appStatus).toMatchObject({ visible: true, active: true, capturable: true, operable: true });
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1488, 1086));
   await expect(page.locator('#pero-app-surface')).toBeVisible();
+  await page.locator('#product-chat-toggle').click();
+  await expect(chatPanel).toBeVisible();
   await page.screenshot({ path: join(output, 'light.png') });
   await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'dark'; });
   await expect.poll(async () => (await state()).dark).toBe(true);
   await page.screenshot({ path: join(output, 'dark.png') });
-  checks.push('retained hidden panel remains readable while capture and operation are refused; light, dark and narrow layouts');
+  checks.push('The narrow App remains visible and semantically readable, but floating Chat prevents capture and operation; closing Chat restores the same operable App');
   const evidenceRoot=join(temp,'profile/app-use-evidence'),receipts=[];
   for(const file of await readdir(evidenceRoot))if(file.endsWith('.json')){
     const receipt=JSON.parse(await readFile(join(evidenceRoot,file),'utf8')),png=await readFile(join(evidenceRoot,receipt.id+'.png'));
     expect(receipt.sha256).toBe(createHash('sha256').update(png).digest('hex'));
     expect(receipt).toMatchObject({schema:'pero.app-capture.v1',threadId:expect.any(String),agentId:expect.any(String),taskId:expect.any(String),instance:expect.any(String),capturedAt:expect.any(String),scope:{app:'virtual-cell',panel:'main'}});
-    expect(receipt.rect.x+receipt.rect.width).toBeLessThanOrEqual((await page.locator('#product-chat').boundingBox()).x);
+    expect(receipt.rect.x).toBeGreaterThanOrEqual(captureBounds.x);
+    expect(receipt.rect.y).toBeGreaterThanOrEqual(captureBounds.y);
+    expect(receipt.rect.x+receipt.rect.width).toBeLessThanOrEqual(captureBounds.x+captureBounds.width);
+    expect(receipt.rect.y+receipt.rect.height).toBeLessThanOrEqual(captureBounds.y+captureBounds.height);
     receipts.push(receipt);
   }
   expect(receipts.length).toBeGreaterThanOrEqual(3);await writeFile(join(output,'capture-receipts.json'),JSON.stringify(receipts,null,2));
   checks.push('Durable receipt JSONs match the actual PNG SHA-256 and preserve conversation, agent, task, App, instance, crop and time');
   const permissionIds=await page.evaluate(()=>window.approvalEvents);expect(permissionIds).toHaveLength(2);expect(permissionIds.every(id=>id.startsWith('permission-'))).toBe(true);checks.push('All App operations, captures, file transfers and writes finish without an additional Desktop approval; only explicit Agent policy questions appear');
   expect(errors).toEqual([]);
-  for(const file of ['failure-state.json','failure.png','runtime.log'])await rm(join(output,file),{force:true});
-  await writeFile(join(output, 'result.json'), JSON.stringify({ checks, errors, denied, fullProgress, full, frozen, imported, written, writeDenied, standing, revoked, hidden, state: await state() }, null, 2));
+  for(const file of ['failure-state.json','failure-bootstrap.json','failure.png','runtime.log'])await rm(join(output,file),{force:true});
+  await writeFile(join(output, 'result.json'), JSON.stringify({ checks, errors, denied, fullProgress, full, frozen, imported, written, writeDenied, standing, revoked, beforeCovered, covered, state: await state() }, null, 2));
 } catch (error) {
   await writeFile(join(output,'runtime.log'),runtimeLog.join(''));
   if (app) {
     const page = await app.firstWindow();
     const chat = page.frames().find(frame => frame.url().startsWith('pero://chat/'));
     if (chat) await writeFile(join(output, 'failure-state.json'), await chat.evaluate(() => window.peroChatDiagnostics?.snapshot() || '{}'));
+    await writeFile(join(output, 'failure-bootstrap.json'), JSON.stringify({ errors,
+      shell: await page.evaluate(() => ({ chatHidden: document.getElementById('product-chat')?.hidden, toggle: document.getElementById('product-chat-toggle')?.textContent })),
+      chat: chat && await chat.evaluate(() => ({ url: location.href, loading: document.getElementById('loading')?.textContent, diagnostics: Boolean(window.peroChatDiagnostics) })),
+    }, null, 2));
     await page.screenshot({ path: join(output, 'failure.png') });
   }
   throw error;

@@ -1,6 +1,8 @@
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod settings_harness;
 #[cfg(any(target_family = "wasm", feature = "native"))]
+mod settings_section;
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod app;
 #[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
 mod apps;
@@ -36,6 +38,8 @@ mod settings_view;
 mod settings_controls;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod settings_computer;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod settings_mcp;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod settings_window;
 

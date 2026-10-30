@@ -1,4 +1,5 @@
-// Real Settings import/select/remove/restart. Only OS file selection is stubbed.
+// Real Settings import/select/remove/restart. Only theme OS selection is stubbed.
+// Documents are admitted by the real Host; general Ctrl+O was removed from the product.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { openSettings, setAppearance } from './sidebar-controls.mjs';
@@ -23,7 +24,6 @@ const env = {
   PERO_HISTORY_PATH: resolve(profile, 'history.jsonl'), PERO_AGENTS_FILE: resolve(profile, 'agents.json'),
 };
 delete env.ELECTRON_RUN_AS_NODE;
-const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 const checks = [];
 const errors = [];
 let app;
@@ -79,8 +79,8 @@ async function themeRow() {
   return { right: section.x + section.width, y: section.y + section.height + settings.scroll.offsetY - 18 };
 }
 async function open(path) {
-  await picker(path);
-  await page.keyboard.press(`${modifier}+o`);
+  // Fixture setup through the real Desktop → Host document admission boundary.
+  await page.evaluate(path => window.pero.sessionCommand({ method: 'documents', action: 'open', request_id: 'icon-fixture-open', path }), path);
   await expect.poll(async () => (await state()).activeContent?.value?.source).toBe(path);
 }
 async function icons() {

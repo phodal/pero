@@ -224,6 +224,52 @@ mod tests {
     }
 }
 
+/// User-managed MCP settings are local Host preferences, never worker credentials.
+pub fn load_mcp(
+    path: &Path,
+    agent_id: &str,
+) -> Result<pero_contracts::mcp::McpConfiguration, pero_contracts::mcp::McpSettingsError> {
+    use pero_contracts::mcp::{McpConfiguration, McpSettingsError};
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(McpConfiguration::default());
+        }
+        Err(_) => return Err(McpSettingsError::ReadWrite),
+    };
+    let value: serde_json::Value =
+        serde_json::from_slice(&bytes).map_err(|_| McpSettingsError::ReadWrite)?;
+    if !value.is_object() {
+        return Err(McpSettingsError::ReadWrite);
+    }
+    let Some(configurations) = value.get("local_mcp") else {
+        return Ok(McpConfiguration::default());
+    };
+    let configurations = configurations
+        .as_object()
+        .ok_or(McpSettingsError::ReadWrite)?;
+    let Some(configuration) = configurations.get(agent_id) else {
+        return Ok(McpConfiguration::default());
+    };
+    let configuration: McpConfiguration =
+        serde_json::from_value(configuration.clone()).map_err(|_| McpSettingsError::Invalid)?;
+    Ok(configuration)
+}
+
+pub fn save_mcp(
+    path: &Path,
+    agent_id: &str,
+    configuration: &pero_contracts::mcp::McpConfiguration,
+) -> io::Result<()> {
+    let configuration = serde_json::to_value(configuration)?;
+    update(path, |value| {
+        if value.get("local_mcp").is_none() {
+            value["local_mcp"] = serde_json::json!({});
+        }
+        value["local_mcp"][agent_id] = configuration;
+    })
+}
+
 pub fn save_harness(path: &Path, settings: &pero_contracts::harness_settings::HarnessSettings) -> io::Result<()> {
     update(path, |value| value["harness"] = serde_json::to_value(settings).expect("harness settings"))
 }

@@ -55,6 +55,7 @@ impl Workbench {
                             this.sync_follow(cx);
                         }
                         SettingsAction::Close => this.close_settings(window, cx),
+                        SettingsAction::Mcp(command) => this.command(command.clone(), cx),
                         SettingsAction::Harness(control) => {
                             this.command(serde_json::to_value(control).expect("harness control"), cx);
                         }
@@ -65,6 +66,12 @@ impl Workbench {
                     cx.notify();
                 }),
             ];
+        if self.settings_mcp_requested {
+            panel.update(cx, |panel, cx| { panel.show_mcp(window, cx); });
+            self.settings_mcp_requested = false;
+        }
+        let agents = self.chat.read(cx).agents.clone();
+        panel.update(cx, |panel, cx| { panel.mcp.agents = agents; panel.mcp_select_first(cx); });
         self.settings_panel = Some(panel);
         #[cfg(target_family = "wasm")]
         self.command(serde_json::json!({"action":"harness_get"}), cx);

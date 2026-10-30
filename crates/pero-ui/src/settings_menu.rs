@@ -83,6 +83,7 @@ impl Workbench {
         let destinations =
             SettingsDestination::ALL.map(|destination| (destination, t(destination.label_key)));
         let all = t("settings.all");
+        let mcp = t("mcp.title");
         let appearance = format!(
             "{} · {}",
             t("settings.appearance"),
@@ -146,6 +147,10 @@ impl Workbench {
                             }),
                     );
                 }
+                let target = workbench.clone();
+                menu = menu.item(PopupMenuItem::new(mcp.clone()).on_click(move |_,window,cx| {
+                    let _ = target.update(cx, |this,cx| this.open_mcp_settings(window,cx));
+                }));
                 let target = workbench.clone();
                 let saved = preferences.clone();
                 let appearance_choices = appearance_choices.clone();

@@ -20,8 +20,13 @@ conversation. Closing the app closes those processes.
 
 ## Run
 
-Requirements: Node.js 22.12+, Rust stable and nightly-2026-10-28, and the local
-gpui-kit checkout at snapshot `ec89cfc` (0.8.1).
+Requirements: Node.js 22.12+, Go 1.27.3 for the bundled harness, Rust stable and
+nightly-2026-10-28, and the local
+gpui-kit checkout at snapshot `ec89cfc` (0.8.1). Keep this checkout outside Pero
+and use LF source files, including on Windows (clone with
+`git -c core.autocrlf=false clone ...`). The pinned source patches require exact
+source context; an existing CRLF checkout should be replaced by a fresh LF clone,
+not modified underneath an active build.
 
 ```sh
 npm ci
@@ -38,7 +43,10 @@ missing sources download from checksum-pinned URLs. See
 optional cached Python/fontTools toolchain.
 
 The maintainer checkout detects `../../test/gpui-kit` automatically. The Cargo
-wrapper patches Kit packages and prepares `gpui-pre-web =0.3.10` with the
+wrapper copies Kit into the content-addressed `target/patched-dependencies`
+cache before applying the tracked source patches. The root Cargo workspace
+excludes `target`, preserving Kit's inherited workspace dependencies. The original
+Kit checkout remains unchanged. The wrapper also prepares `gpui-pre-web =0.3.10` with the
 tracked [IME patch](../patches/gpui-pre-web-0.3.10-ime.patch) under
 `target/patched-dependencies`. It verifies the original crate's crates.io
 checksum before applying the patch; the Cargo registry cache stays unchanged.

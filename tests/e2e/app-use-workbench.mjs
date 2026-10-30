@@ -12,7 +12,7 @@ const output=resolve(root,'test-results/app-use-workbench');
 await mkdir(output,{recursive:true});
 const agents=resolve(temp,'agents.json');
 await writeFile(agents,JSON.stringify(['codex','claude','copilot','grok'].map(id=>({id,name:`App Use ${id}`,command:process.execPath,args:[resolve(root,'tests/fixtures/app-use-agent.mjs')],env:{PERO_APP_USE_FIXTURE_OUTPUT:output}}))));
-// Chat through the App Use fixture, not the bundled pero agent that needs a provider key.
+// Scope every App launch to the overridden local ACP fixture, not the default provider.
 await writeFile(resolve(temp,'settings.json'),JSON.stringify({chat_agent:'codex'}));
 const env={...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'sessions.jsonl'),PERO_AGENTS_FILE:agents,PERO_LOCALE:'en'};
 delete env.ELECTRON_RUN_AS_NODE;delete env.PERO_APPS_ROOT;
@@ -29,20 +29,31 @@ try{
  await expect.poll(async()=>(await state()).appsLoading).toBe(false);
  const catalog=await state();
  const row=catalog.apps.findIndex(a=>a.name==='virtual-cell');
- // Match the compact catalog geometry used by workspace.mjs.
- await page.mouse.click(1305,76+(catalog.contentTabs.length?30:0)+58*row);
+ // The 88px library header precedes the unchanged 58px App rows.
+ await page.mouse.click(1305,130+(catalog.contentTabs.length?30:0)+58*row);
  await expect.poll(async()=>(await state()).activeContent).toEqual({kind:'app',value:{name:'virtual-cell',panel:'main'}});
  const frame=page.frameLocator('iframe[title="virtual-cell"]');
  await expect(frame.getByLabel('Find gene',{exact:true})).toBeVisible({timeout:20000});
  const parentOrigin=await page.evaluate(()=>location.origin);
  const launch=await frame.locator('body').evaluate(requestAppChat,{text:'app-use:full',parentOrigin});
  await expect.poll(async()=>(await state()).composer).toBe('app-use:full');
+ // App Chat now opens as a compact float. Use its normal Dock chat control so
+ // the App is unobscured and its right edge is again the Chat's left edge.
+ await expect.poll(async()=>(await state()).floatingChat).toBe(true);
+ await expect.poll(async()=>(await state()).floatingChatExpanded).toBe(false);
+ const viewport=await page.evaluate(()=>({width:innerWidth,height:innerHeight}));
+ await page.mouse.click(viewport.width-51,viewport.height-101);
+ await expect.poll(async()=>(await state()).floatingChat).toBe(false);
+ await expect.poll(()=>page.evaluate(async()=>(await window.peroAppUse({scope:{app:'virtual-cell',panel:'main'},request:{action:'status'}})).value)).toMatchObject({visible:true,active:true,capturable:true,operable:true});
  const left=await page.locator('#pero-app-surface').evaluate(element=>element.getBoundingClientRect().right);
+ expect(left+150).toBeLessThan(viewport.width);
  const active=async()=>{const s=await state();return s.chats[s.activeChat];};
  const beforeFull=await active();
+ expect(beforeFull.agent).toBe('codex');
  expect(beforeFull.id).toBe(launch.threadId);
  expect(beforeFull.scope).toEqual({app:'virtual-cell',panel:'main'});
  await page.mouse.click(left+150,await page.evaluate(()=>innerHeight-70));await page.keyboard.press('Enter');
+ await expect.poll(async()=>(await active()).messages.slice(beforeFull.messages.length).filter(message=>message.role==='user').map(message=>message.text)).toEqual(['app-use:full']);
  const fullProgress=await waitForFullAppUse(active,beforeFull);
  await expect.poll(async()=>(await active()).messages.filter(m=>m.role==='assistant').at(-1)?.text||'',{timeout:30000}).toContain('APP_USE_RESULT:');
  await expect.poll(async()=>(await active()).state).toBe('idle');

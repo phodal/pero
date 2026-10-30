@@ -107,7 +107,12 @@ async function run(scenario, signal, prompt) {
     await tool({action:'observe',taskId:task.taskId,target:'virtual-cell'});await tool({action:'stop',taskId:task.taskId});
     return {scenario,steps,restarted:true};
   }
-  if (scenario === 'hidden') {
+  if (scenario === 'hidden' || scenario === 'covered') {
+    if (scenario === 'covered') {
+      assert.equal(inventory.surfaces[0].visible, true);
+      assert.equal(inventory.surfaces[0].active, true);
+      assert.equal(inventory.surfaces[0].capturable, false);
+    }
     assert.equal(inventory.surfaces[0].operable, false);
     const reading = await tool({ action: 'start', surfaceId, actions: ['observe', 'capture', 'verify'] });
     const seen = await tool({ action: 'observe', taskId: reading.taskId, target: 'virtual-cell' });

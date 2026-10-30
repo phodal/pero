@@ -5,6 +5,7 @@
  */
 export type HostProtocol = HostInput | HostEvent | WebCommand;
 export type HostInput =
+  | McpSettingsRequest
   | IconThemeRequest
   | McpSourceRequest
   | WorkspaceSessionRequest
@@ -18,6 +19,8 @@ export type HostInput =
   | HostCommand
   | AppRequest
   | ContributionRequest;
+export type McpSettingsRequest = GetMcpSettingsRequest | SetMcpSettingsRequest;
+export type McpTransport = McpStdioTransport | McpHttpTransport;
 export type IconThemeRequest = GetIconThemes | InstallIconTheme | SelectIconTheme | RemoveIconTheme;
 export type WorkspaceSessionRequest =
   | GetWorkspaceSession
@@ -68,6 +71,8 @@ export type AppName = string;
 export type AgentRequest = AgentInfoRequest | AgentStartRequest | AgentEventsRequest | AgentCancelRequest;
 export type ContributionRequest = ContributionPrepare | ContributionReview | ContributionPublish;
 export type HostEvent =
+  | McpSettingsEvent
+  | McpSettingsErrorEvent
   | DocumentSaveChooseEvent
   | DocumentSavePathEvent
   | DocumentSaveCancelledEvent
@@ -167,6 +172,32 @@ export type WebCommand =
   | WebSurfaceCommand
   | WebSurfacesCommand;
 
+export interface GetMcpSettingsRequest {
+  method: "settings.mcp.get";
+  request_id: string;
+  agent_id: string;
+}
+export interface SetMcpSettingsRequest {
+  method: "settings.mcp.set";
+  request_id: string;
+  agent_id: string;
+  revision: number;
+  servers: McpServerConfig[];
+}
+export interface McpServerConfig {
+  name: string;
+  enabled?: boolean;
+  transport: McpTransport;
+}
+export interface McpStdioTransport {
+  type: "stdio";
+  command: string;
+  args?: string[];
+}
+export interface McpHttpTransport {
+  type: "http";
+  url: string;
+}
 export interface GetIconThemes {
   method: "icons";
   action: "get";
@@ -760,6 +791,27 @@ export interface ContributionPublish {
   operation: "publish";
   workspace: string;
   review_token: string;
+}
+export interface McpSettingsEvent {
+  kind: "mcp_settings";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: {
+    agent_id: string;
+    revision: number;
+    servers: McpServerConfig[];
+  };
+}
+export interface McpSettingsErrorEvent {
+  kind: "mcp_settings_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: {
+    agent_id: string;
+    reason: "conflict" | "invalid" | "unavailable" | "read_write";
+  };
 }
 export interface DocumentSaveChooseEvent {
   kind: "document_save_choose";

@@ -2825,6 +2825,28 @@
       ],
       "additionalProperties": false
     },
+    "GetMcpSettingsRequest": {
+      "title": "GetMcpSettingsRequest",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "settings.mcp.get"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "agent_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "request_id",
+        "agent_id"
+      ],
+      "additionalProperties": false
+    },
     "GetWorkbenchSettingsRequest": {
       "title": "GetWorkbenchSettingsRequest",
       "type": "object",
@@ -2940,6 +2962,12 @@
     "HostEvent": {
       "title": "HostEvent",
       "oneOf": [
+        {
+          "$ref": "#/$defs/McpSettingsEvent"
+        },
+        {
+          "$ref": "#/$defs/McpSettingsErrorEvent"
+        },
         {
           "$ref": "#/$defs/DocumentSaveChooseEvent"
         },
@@ -3137,6 +3165,9 @@
     "HostInput": {
       "title": "HostInput",
       "oneOf": [
+        {
+          "$ref": "#/$defs/McpSettingsRequest"
+        },
         {
           "$ref": "#/$defs/IconThemeRequest"
         },
@@ -4062,6 +4093,24 @@
       ],
       "additionalProperties": false
     },
+    "McpHttpTransport": {
+      "title": "McpHttpTransport",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "http"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "url"
+      ],
+      "additionalProperties": false
+    },
     "McpOrigin": {
       "title": "McpOrigin",
       "type": "object",
@@ -4133,6 +4182,164 @@
         "data"
       ],
       "additionalProperties": false
+    },
+    "McpServerConfig": {
+      "title": "McpServerConfig",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "transport": {
+          "$ref": "#/$defs/McpTransport"
+        }
+      },
+      "required": [
+        "name",
+        "transport"
+      ],
+      "additionalProperties": false
+    },
+    "McpSettingsErrorEvent": {
+      "title": "McpSettingsErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_settings_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "agent_id": {
+              "type": "string"
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "conflict"
+                },
+                {
+                  "type": "string",
+                  "const": "invalid"
+                },
+                {
+                  "type": "string",
+                  "const": "unavailable"
+                },
+                {
+                  "type": "string",
+                  "const": "read_write"
+                }
+              ]
+            }
+          },
+          "required": [
+            "agent_id",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "McpSettingsEvent": {
+      "title": "McpSettingsEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_settings"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "agent_id": {
+              "type": "string"
+            },
+            "revision": {
+              "type": "integer"
+            },
+            "servers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/McpServerConfig"
+              }
+            }
+          },
+          "required": [
+            "agent_id",
+            "revision",
+            "servers"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "McpSettingsRequest": {
+      "title": "McpSettingsRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GetMcpSettingsRequest"
+        },
+        {
+          "$ref": "#/$defs/SetMcpSettingsRequest"
+        }
+      ]
     },
     "McpSourceRequest": {
       "title": "McpSourceRequest",
@@ -4216,6 +4423,41 @@
         "data"
       ],
       "additionalProperties": false
+    },
+    "McpStdioTransport": {
+      "title": "McpStdioTransport",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "stdio"
+        },
+        "command": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "type",
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    "McpTransport": {
+      "title": "McpTransport",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/McpStdioTransport"
+        },
+        {
+          "$ref": "#/$defs/McpHttpTransport"
+        }
+      ]
     },
     "MessageKey": {
       "title": "MessageKey",
@@ -6409,6 +6651,39 @@
       "required": [
         "method",
         "locale"
+      ],
+      "additionalProperties": false
+    },
+    "SetMcpSettingsRequest": {
+      "title": "SetMcpSettingsRequest",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "settings.mcp.set"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "agent_id": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "servers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/McpServerConfig"
+          }
+        }
+      },
+      "required": [
+        "method",
+        "request_id",
+        "agent_id",
+        "revision",
+        "servers"
       ],
       "additionalProperties": false
     },
