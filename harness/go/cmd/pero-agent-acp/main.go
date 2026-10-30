@@ -14,6 +14,7 @@ import (
 
 	"github.com/phodal/pero/harness/go/acp"
 	"github.com/phodal/pero/harness/go/agentinstructions"
+	"github.com/phodal/pero/harness/go/charts"
 	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/nativetools"
 	"github.com/phodal/pero/harness/go/providers/openai"
@@ -30,6 +31,7 @@ func main() {
 func run() (resultErr error) {
 	endpoint := flag.String("endpoint", "", "explicit OpenAI-compatible HTTPS endpoint (loopback HTTP allowed)")
 	model := flag.String("model", "", "explicit provider model ID")
+	chartPython := flag.String("chart-python", "python3", "Python 3.9+ executable for shared chart/data core")
 	recoverTail := flag.Bool("recover-complete-session-tail", false, "opt in to lossless final JSONL delimiter recovery with a private backup")
 	sessions := flag.String("session-dir", "", "private directory for durable JSONL sessions (required)")
 	keyEnv := flag.String("api-key-env", "AGENT_PROVIDER_API_KEY", "environment variable containing the provider credential")
@@ -106,6 +108,9 @@ func run() (resultErr error) {
 		if err != nil {
 			return err
 		}
+	}
+	if err := charts.Mount(ctx, h, *chartPython); err != nil {
+		return err
 	}
 	instructions, err = mountCoding(ctx, h, *workspace, *coding)
 	if err != nil {
