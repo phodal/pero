@@ -4,6 +4,7 @@ use super::*;
 impl ContentReader {
     pub fn reading_state(&self, cx: &App) -> ReaderState {
         let mut state = self.deferred_editor_state.clone().unwrap_or_default();
+        state.source_revision = Some(self.document.revision);
         state.source = self.source;
         state.query = self.search_input.read(cx).value().to_string();
         state.search = self.search_options;
@@ -49,7 +50,9 @@ impl ContentReader {
         cx: &mut Context<Self>,
     ) {
         let draft = self.draft(cx);
-        let state = state.for_source(draft.as_deref().unwrap_or_else(|| self.document.source()));
+        let state = state
+            .for_revision(self.document.revision)
+            .for_source(draft.as_deref().unwrap_or_else(|| self.document.source()));
         self.pending_anchor = None;
         self.source_pointer_selection = None;
         if self.dirty {

@@ -22,6 +22,7 @@ impl Default for SearchOptions {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct ReaderState {
+    pub source_revision: Option<u64>,
     pub source: bool,
     pub selection: Range<usize>,
     pub scroll: [f32; 2],
@@ -34,6 +35,26 @@ pub struct ReaderState {
     pub path: Vec<Range<usize>>,
 }
 impl ReaderState {
+    /// Range geometry belongs to the immutable source revision it came from.
+    /// Legacy saved reading state is already bound by its document header.
+    pub fn for_revision(self, revision: u64) -> Self {
+        let mut state = if self.source_revision.is_some_and(|saved| saved != revision) {
+            self.without_location()
+        } else {
+            self
+        };
+        state.source_revision = Some(revision);
+        state
+    }
+    pub fn without_location(mut self) -> Self {
+        self.selection = 0..0;
+        self.scroll = [0.; 2];
+        self.preview_scroll = [0.; 2];
+        self.preview_reveal = None;
+        self.folded_lines.clear();
+        self.path.clear();
+        self
+    }
     pub fn same_location(&self, other: &Self) -> bool {
         self.selection == other.selection
             && self.scroll == other.scroll
@@ -95,5 +116,37 @@ mod tests {
         assert_eq!(state.path, vec![0..3]);
         assert_eq!(state.folded_lines, vec![0]);
         assert_eq!(state.scroll, [0., -30.]);
+        for (saved, current, compatible) in
+            [(None, 3, true), (Some(3), 3, true), (Some(3), 4, false)]
+        {
+            let original = ReaderState {
+                source_revision: saved,
+                source: true,
+                selection: 4..9,
+                scroll: [0., -80.],
+                preview_scroll: [0., -120.],
+                preview_reveal: Some(4..9),
+                path: vec![0..9],
+                folded_lines: vec![1],
+                query: "retain search".into(),
+                search_open: true,
+                ..Default::default()
+            };
+            let restored = original.clone().for_revision(current);
+            assert_eq!(restored.source_revision, Some(current));
+            assert_eq!(restored.query, original.query);
+            assert_eq!(restored.search_open, original.search_open);
+            assert_eq!(restored.source, original.source);
+            if compatible {
+                assert!(restored.same_location(&original));
+            } else {
+                assert_eq!(restored.selection, 0..0);
+                assert_eq!(restored.scroll, [0.; 2]);
+                assert_eq!(restored.preview_scroll, [0.; 2]);
+                assert!(restored.preview_reveal.is_none());
+                assert!(restored.path.is_empty());
+                assert!(restored.folded_lines.is_empty());
+            }
+        }
     }
 }

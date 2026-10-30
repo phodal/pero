@@ -135,6 +135,11 @@ impl WorkspaceHistory {
         for entry in self.back.iter_mut().chain(&mut self.forward) {
             if entry.route == WorkspaceRoute::Content(old.clone()) {
                 entry.route = WorkspaceRoute::Content(new.clone());
+                if matches!(old, WorkspaceItem::Document { .. }) {
+                    // A copied file can also start at revision 1. Source
+                    // identity replacement does not prove range compatibility.
+                    entry.reading = None;
+                }
             }
         }
     }
@@ -211,5 +216,19 @@ mod tests {
             serde_json::from_value(serde_json::to_value(&document).unwrap()).unwrap();
         assert_eq!(old.route, document);
         assert!(old.reading.is_none());
+        let WorkspaceRoute::Content(item) = &document else {
+            unreachable!()
+        };
+        let renamed = WorkspaceItem::Document {
+            origin: ContentOrigin::File {
+                path: "/copy".into(),
+            },
+            source: "/copy".into(),
+        };
+        let mut history = WorkspaceHistory::default();
+        history.jump(&document, position(0), position(50));
+        history.replace_identity(item, &renamed);
+        assert_eq!(history.back[0].route, WorkspaceRoute::Content(renamed));
+        assert!(history.back[0].reading.is_none());
     }
 }
