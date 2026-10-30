@@ -14,8 +14,7 @@ import threading
 
 from candidates import propose
 from contract import Invalid, canonical, digest
-from evaluation import evaluate, test_queries
-from split import check_split, freeze_split
+from evaluation import ComparisonInputs, compare, test_queries
 
 MAX_BODY = 16 * 1024 * 1024
 MAX_VALUES = 2_000_000
@@ -73,9 +72,9 @@ class Workbench:
         predictions = bundle.get("predictions", [])
         if not isinstance(predictions, list) or len(predictions) > 8:
             raise Invalid("web_prediction_limit")
-        split = freeze_split(data, bundle["spec"])
-        if "split" in bundle:
-            check_split(data, bundle["spec"], bundle["split"])
+        inputs = (ComparisonInputs.parse(data, bundle["spec"], bundle["split"]) if "split" in bundle
+                  else ComparisonInputs.parse(data, bundle["spec"]))
+        split = inputs.split
         normalized = {**bundle, "split": split, "predictions": predictions}
         identity = self.put({"kind": "inputs", "bundle": normalized})
         return self.describe(identity, normalized)
@@ -127,6 +126,12 @@ class Workbench:
                 break
         return {"items": items, "limit": 100}
 
+    def comparison_inputs(self, identity):
+        doc = self.read(identity)
+        if doc.get("kind") != "inputs":
+            raise Invalid("input_artifact_required")
+        return ComparisonInputs.parse_bundle(doc["bundle"])
+
     def execute(self, identity, operation):
         if operation not in OPERATIONS:
             raise Invalid("operation_invalid")
@@ -134,8 +139,8 @@ class Workbench:
         if doc.get("kind") != "inputs":
             raise Invalid("input_artifact_required")
         b = doc["bundle"]
-        data, spec, split = b["dataset"], b["spec"], b["split"]
-        check_split(data, spec, split)
+        inputs = ComparisonInputs.parse_bundle(b)
+        data, spec, split = inputs.dataset, inputs.spec, inputs.split
         # Serialized bounded, deterministic computation; no background retry loop.
         with self.lock:
             if operation == "split":
@@ -145,7 +150,7 @@ class Workbench:
                           "aggregation": "equal_batch", "isolation": "unverified",
                           "queries": {cid: list(t) for cid, t in test_queries(data, split).items()}}
             elif operation == "evaluate":
-                result = evaluate(data, spec, split, b["predictions"])
+                result = compare(inputs).evaluation
             else:
                 if "plan" not in b:
                     raise Invalid("candidate_plan_required")
