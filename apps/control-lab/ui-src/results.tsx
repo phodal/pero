@@ -4,6 +4,7 @@ import {
   curvePath,
   numeric,
   pairedSeries,
+  plotArea,
   verificationRows,
 } from "./presentation";
 export function Checks({ report }: { report: Report }) {
@@ -82,8 +83,18 @@ function Curve({
         role="img"
         aria-label={`${name}: dashed baseline and solid candidate`}
       >
-        <line x1="48" y1="200" x2="528" y2="200" />
-        <line x1="48" y1="32" x2="48" y2="200" />
+        <line
+          x1={plotArea.left}
+          y1={plotArea.bottom}
+          x2={plotArea.right}
+          y2={plotArea.bottom}
+        />
+        <line
+          x1={plotArea.left}
+          y1={plotArea.top}
+          x2={plotArea.left}
+          y2={plotArea.bottom}
+        />
         {baseline && (
           <path
             d={curvePath(baseline, bounds)}
@@ -101,23 +112,27 @@ function Curve({
             strokeWidth="2"
           />
         )}
-        <text x="48" y="222">
+        <text x={plotArea.left} y="222">
           {numeric(logarithmic ? 10 ** bounds[0] : bounds[0])}
         </text>
-        <text x="288" y="236" textAnchor="middle">
+        <text
+          x={(plotArea.left + plotArea.right) / 2}
+          y="236"
+          textAnchor="middle"
+        >
           {logarithmic
             ? "Frequency (Hz, log scale)"
             : candidate?.xUnit === "s" || baseline?.xUnit === "s"
               ? "Time (s)"
               : (candidate?.xUnit ?? baseline?.xUnit ?? "x")}
         </text>
-        <text x="528" y="222" textAnchor="end">
+        <text x={plotArea.right} y="222" textAnchor="end">
           {numeric(logarithmic ? 10 ** bounds[1] : bounds[1])}
         </text>
-        <text x="44" y="32" textAnchor="end">
+        <text x={plotArea.left - 4} y={plotArea.top} textAnchor="end">
           {numeric(bounds[3])}
         </text>
-        <text x="44" y="200" textAnchor="end">
+        <text x={plotArea.left - 4} y={plotArea.bottom} textAnchor="end">
           {numeric(bounds[2])}
         </text>
       </svg>

@@ -236,3 +236,19 @@ summary {
     grid-template-columns: minmax(0, 1fr) 120px;
   }
 }
+
+.candidate-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  margin: 0;
+}
+.candidate-option input[type="radio"] {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  min-height: 14px;
+  margin: 0;
+  padding: 0;
+}

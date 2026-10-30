@@ -26,6 +26,7 @@ export function numeric(value: number | null | undefined) {
     ? "Not available"
     : Number(value.toPrecision(5)).toString();
 }
+export const plotArea = { left: 80, right: 528, top: 32, bottom: 200 };
 /** Gaps stay gaps. Never draw a line through missing/nonfinite evidence. */
 export function curvePath(
   series: Series,
@@ -40,7 +41,7 @@ export function curvePath(
         previous = false;
         return "";
       }
-      const point = `${(48 + ((x - xmin) / (xmax - xmin || 1)) * 480).toFixed(2)},${(200 - ((y - ymin) / (ymax - ymin || 1)) * 168).toFixed(2)}`;
+      const point = `${(plotArea.left + ((x - xmin) / (xmax - xmin || 1)) * (plotArea.right - plotArea.left)).toFixed(2)},${(plotArea.bottom - ((y - ymin) / (ymax - ymin || 1)) * (plotArea.bottom - plotArea.top)).toFixed(2)}`;
       const command = previous ? "L" : "M";
       previous = true;
       return command + point;

@@ -607,7 +607,7 @@ export default function ControlLab() {
                         {experiment.candidates.map((item) => (
                           <tr key={item.id}>
                             <td>
-                              <label>
+                              <label className="candidate-option">
                                 <input
                                   type="radio"
                                   name="candidate"

@@ -78,7 +78,7 @@ test("plot preserves missing observation gaps and does not fabricate zeros", () 
       { name: "response", unit: "V", x: [0, 1, 2, 3], y: [0, NaN, 2, 3] },
       [0, 3, 0, 3],
     ),
-    "M48.00,200.00  M368.00,88.00 L528.00,32.00",
+    "M80.00,200.00  M378.67,88.00 L528.00,32.00",
   );
   assert.equal(numeric(null), "Not available");
   assert.equal(numeric(Infinity), "Not available");
