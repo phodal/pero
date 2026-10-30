@@ -35,6 +35,9 @@ button.primary {
   color: var(--pero-on-action);
   border-color: var(--pero-action);
 }
+button.primary:hover:not(:disabled) {
+  background: var(--pero-action-hover);
+}
 button:disabled {
   cursor: default;
   color: var(--pero-disabled-text);
