@@ -1,11 +1,12 @@
 /** One real Worker per renderer. Content and execution authority stay in their owners. */
 export function installContentAnalysis() {
   let worker:Worker|undefined,nextId=0;
-  type AnalysisKind='syntax'|'preview'|'projection';
+  type AnalysisKind='syntax'|'preview'|'node'|'projection';
   const pending=new Map<number,{kind:AnalysisKind;resolve(tape:Uint32Array):void;reject(error:Error):void}>();
   const stats={requests:0,completed:0,failures:0,previewRequests:0,previewCompleted:0,previewFailures:0,
-    projectionRequests:0,projectionCompleted:0,projectionFailures:0};
+    projectionRequests:0,projectionCompleted:0,projectionFailures:0,nodeRequests:0,nodeCompleted:0,nodeFailures:0};
   const counters={syntax:['requests','completed','failures'],preview:['previewRequests','previewCompleted','previewFailures'],
+    node:['nodeRequests','nodeCompleted','nodeFailures'],
     projection:['projectionRequests','projectionCompleted','projectionFailures']} as const;
   const stop=(error:Error)=>{
     worker?.terminate();worker=undefined;
@@ -37,6 +38,7 @@ export function installContentAnalysis() {
   window.peroContentAnalysisStats=stats;
   window.peroAnalyzeJson=(text:string)=>analyze('syntax',{text});
   window.peroAnalyzePreview=(text:string,jsonLines:boolean,revision:bigint)=>analyze('preview',{text,jsonLines,revision});
+  window.peroAnalyzeNode=(text:string,start:number,end:number,revision:bigint)=>analyze('node',{text,start,end,revision});
   // The table seeds its immutable source once. Only specs and row identities cross thereafter.
   window.peroCreateTableProjection=(text:string,tape:Uint32Array)=>{
     const source=++nextId;
@@ -52,10 +54,11 @@ declare global {
   interface Window {
     peroAnalyzeJson(text:string):Promise<Uint32Array>;
     peroAnalyzePreview(text:string,jsonLines:boolean,revision:bigint):Promise<Uint32Array>;
+    peroAnalyzeNode(text:string,start:number,end:number,revision:bigint):Promise<Uint32Array>;
     peroCreateTableProjection(text:string,tape:Uint32Array):number;
     peroProjectTable(source:number,filter:string,column:number,descending:boolean):Promise<Uint32Array>;
     peroReleaseTableProjection(source:number):void;
     peroContentAnalysisStats:{requests:number;completed:number;failures:number;previewRequests:number;previewCompleted:number;previewFailures:number;
-      projectionRequests:number;projectionCompleted:number;projectionFailures:number};
+      projectionRequests:number;projectionCompleted:number;projectionFailures:number;nodeRequests:number;nodeCompleted:number;nodeFailures:number};
   }
 }

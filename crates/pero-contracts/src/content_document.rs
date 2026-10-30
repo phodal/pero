@@ -255,16 +255,49 @@ impl ContentDocument {
             .clone()
     }
 
-    pub fn shared_project(&self, range: Range<usize>) -> Result<Arc<StructuredPreview>, String> {
-        if self.format == ContentFormat::Json && range == (0..self.bytes) {
-            return self.shared_preview();
+    fn projection_key(&self, range: &Range<usize>) -> ProjectionKey {
+        if self.format == ContentFormat::Json && *range == (0..self.bytes) {
+            ProjectionKey::Document(self.format.clone(), self.revision)
+        } else {
+            ProjectionKey::Node(range.start, range.end, self.revision)
         }
-        let key = ProjectionKey::Node(range.start, range.end, self.revision);
+    }
+
+    pub fn cached_project(
+        &self,
+        range: Range<usize>,
+    ) -> Option<Result<Arc<StructuredPreview>, String>> {
         self.source
             .projections
             .lock()
             .expect("source projection cache")
-            .entry(key)
+            .get(&self.projection_key(&range))
+            .cloned()
+    }
+
+    pub fn share_project(
+        &self,
+        range: Range<usize>,
+        preview: Result<StructuredPreview, String>,
+    ) -> Result<Arc<StructuredPreview>, String> {
+        self.source
+            .projections
+            .lock()
+            .expect("source projection cache")
+            .entry(self.projection_key(&range))
+            .or_insert_with(|| preview.map(Arc::new))
+            .clone()
+    }
+
+    pub fn shared_project(&self, range: Range<usize>) -> Result<Arc<StructuredPreview>, String> {
+        if self.format == ContentFormat::Json && range == (0..self.bytes) {
+            return self.shared_preview();
+        }
+        self.source
+            .projections
+            .lock()
+            .expect("source projection cache")
+            .entry(self.projection_key(&range))
             .or_insert_with(|| self.project(range).map(Arc::new))
             .clone()
     }
@@ -438,6 +471,38 @@ mod tests {
             },
         }
     }
+    #[test]
+    fn background_node_cache_is_shared_by_range_and_revision() {
+        let document = ContentDocument::new(
+            reference("nested"),
+            7,
+            "{\"a\":[1,2],\"b\":[3]}".into(),
+            ContentFormat::Json,
+        );
+        let range = 5..10;
+        assert!(document.cached_project(range.clone()).is_none());
+        let preview = document
+            .share_project(range.clone(), document.project(range.clone()))
+            .unwrap();
+        let other = document.clone();
+        assert!(Arc::ptr_eq(
+            &preview,
+            &other.shared_project(range.clone()).unwrap()
+        ));
+        assert!(other.cached_preview().is_none());
+        assert!(other.cached_project(15..18).is_none());
+        let mut changed = other.clone();
+        changed.revision += 1;
+        assert!(changed.cached_project(range).is_none());
+        let root = document
+            .share_project(0..document.bytes, document.parse_preview())
+            .unwrap();
+        assert!(Arc::ptr_eq(
+            &root,
+            &document.cached_preview().unwrap().unwrap()
+        ));
+    }
+
     #[test]
     fn shared_projection_lifetime_follows_source_and_revision() {
         let document = ContentDocument::new(

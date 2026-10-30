@@ -12,24 +12,26 @@ impl ContentReader {
     ) {
         self.preview_task = None;
         self.preview_loading = false;
-        if let Some(range) = self
+        let range = self
             .path
             .last()
             .filter(|range| **range != (0..self.preview_document.bytes))
-            .cloned()
-        {
-            self.preview = self.preview_document.shared_project(range);
-            self.sync_table(window, cx);
-            return;
-        }
+            .cloned();
         #[cfg(target_family = "wasm")]
-        if self.preview_document.bytes > 64 * 1024
+        if range
+            .as_ref()
+            .map_or(self.preview_document.bytes, Range::len)
+            > 64 * 1024
             && matches!(
                 self.preview_document.format,
                 ContentFormat::Json | ContentFormat::JsonLines
             )
         {
-            if let Some(preview) = self.preview_document.cached_preview() {
+            let cached = match &range {
+                Some(range) => self.preview_document.cached_project(range.clone()),
+                None => self.preview_document.cached_preview(),
+            };
+            if let Some(preview) = cached {
                 self.preview = preview;
                 self.sync_table(window, cx);
                 return;
@@ -45,12 +47,14 @@ impl ContentReader {
                 extern "C" {
                     #[wasm_bindgen::prelude::wasm_bindgen(js_namespace=window,js_name=peroAnalyzePreview,catch)]
                     fn analyze_preview(text: &str, json_lines: bool, revision: u64) -> Result<js_sys::Promise, wasm_bindgen::JsValue>;
+                    #[wasm_bindgen::prelude::wasm_bindgen(js_namespace=window,js_name=peroAnalyzeNode,catch)]
+                    fn analyze_node(text: &str, start: usize, end: usize, revision: u64) -> Result<js_sys::Promise, wasm_bindgen::JsValue>;
                 }
-                let result = match analyze_preview(
-                    document.source(),
-                    document.format == ContentFormat::JsonLines,
-                    document.revision,
-                ) {
+                let request = match &range {
+                    Some(range) => analyze_node(document.source(), range.start, range.end, document.revision),
+                    None => analyze_preview(document.source(), document.format == ContentFormat::JsonLines, document.revision),
+                };
+                let result = match request {
                     Ok(promise) => wasm_bindgen_futures::JsFuture::from(promise).await,
                     Err(error) => Err(error),
                 };
@@ -62,12 +66,17 @@ impl ContentReader {
                     if !reader.preview_document.shares_source(&document)
                         || reader.preview_document.revision != document.revision
                         || reader.preview_document.format != document.format
+                        || reader.path.last().filter(|range| **range != (0..document.bytes)).cloned() != range
                     {
                         return;
                     }
-                    reader.preview = document.share_preview(preview);
+                    reader.preview = match range {
+                        Some(range) => document.share_project(range, preview),
+                        None => document.share_preview(preview),
+                    };
                     reader.preview_loading = false;
                     reader.sync_table(window, cx);
+                    reader.resolve_pending_record_location(window, cx);
                     cx.notify();
                 });
             }));
@@ -75,7 +84,10 @@ impl ContentReader {
         }
         #[cfg(not(target_family = "wasm"))]
         let _ = debounce;
-        self.preview = self.preview_document.shared_preview();
+        self.preview = match range {
+            Some(range) => self.preview_document.shared_project(range),
+            None => self.preview_document.shared_preview(),
+        };
         self.sync_table(window, cx);
     }
 }

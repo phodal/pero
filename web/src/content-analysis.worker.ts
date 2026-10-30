@@ -1,8 +1,9 @@
-import init, {analyze_json,analyze_preview,ProjectionSource} from './content-wasm/pero_content_worker';
+import init, {analyze_json,analyze_preview,analyze_node,ProjectionSource} from './content-wasm/pero_content_worker';
 const ready=init();
 type AnalysisMessage={id:number}&(
   {kind:'syntax';text:string}|
   {kind:'preview';text:string;jsonLines:boolean;revision:bigint}|
+  {kind:'node';text:string;start:number;end:number;revision:bigint}|
   {kind:'seed';source:number;text:string;tape:Uint32Array}|
   {kind:'projection';source:number;filter:string;column:number;descending:boolean}|
   {kind:'release';source:number}
@@ -28,6 +29,7 @@ worker.onmessage=async({data})=>{
     }
     let tape:Uint32Array;
     if(data.kind==='syntax')tape=analyze_json(data.text);
+    else if(data.kind==='node')tape=analyze_node(data.text,data.start,data.end,data.revision);
     else if(data.kind==='preview')tape=analyze_preview(data.text,data.jsonLines,data.revision);
     else {
       const source=sources.get(data.source);

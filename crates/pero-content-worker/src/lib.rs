@@ -22,6 +22,20 @@ pub fn analyze_preview(
         .map(|preview| preview.into_tape())
 }
 
+/// A nested projection keeps offsets relative to the complete original source.
+#[cfg_attr(target_family = "wasm", wasm_bindgen::prelude::wasm_bindgen)]
+pub fn analyze_node(
+    source: String,
+    start: usize,
+    end: usize,
+    revision: u64,
+) -> Result<Vec<u32>, String> {
+    source.get(start..end).ok_or("Invalid JSON source range")?;
+    analysis_document(source, false, revision)
+        .project(start..end)
+        .map(|preview| preview.into_tape())
+}
+
 /// One table owns one background source; releasing the table drops this object.
 #[cfg_attr(target_family = "wasm", wasm_bindgen::prelude::wasm_bindgen)]
 pub struct ProjectionSource {
@@ -122,6 +136,35 @@ mod tests {
             ("{}\n[1]", true),
         ] {
             assert!(analyze_preview(source.into(), json_lines, 1).is_err());
+        }
+    }
+
+    #[test]
+    fn nested_projection_retains_absolute_ranges_and_exact_values() {
+        let nested = format!(
+            "[{}]",
+            "{\"number\":9007199254740993,\"label\":\"中\"},"
+                .repeat(4000)
+                .trim_end_matches(',')
+        );
+        let source = format!("{{\"前缀\":true,\"nested\":{nested},\"tail\":null}}");
+        let start = source.find(&nested).unwrap();
+        let end = start + nested.len();
+        let tape = analyze_node(source.clone(), start, end, u64::MAX).unwrap();
+        let preview = StructuredPreview::from_tape(&tape).unwrap();
+        assert_eq!(preview.rows.len(), 4000);
+        for row in &preview.rows {
+            assert_eq!(row.source.revision, u64::MAX);
+            assert!(row.source.bytes.start >= start && row.source.bytes.end <= end);
+            assert_eq!(&source[row.cells[0].clone().unwrap()], "9007199254740993");
+            assert_eq!(&source[row.cells[1].clone().unwrap()], "\"中\"");
+        }
+        for (start, end) in [
+            (5, 3),
+            (0, source.len() + 1),
+            (source.find('前').unwrap() + 1, end),
+        ] {
+            assert!(analyze_node(source.clone(), start, end, 1).is_err());
         }
     }
 
