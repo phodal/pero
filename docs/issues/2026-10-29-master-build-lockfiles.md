@@ -181,3 +181,18 @@ The pinned Bazel 9.2.0 `bazel run @npm//:sync` regenerated only the package.json
 input hash. `pnpm-lock.yaml`, `package-lock.json` and `MODULE.bazel.lock` remain
 byte-identical. `bazel test --config=ci //:checks` then passed all seven frozen
 checks locally. Publication must rerun the remote frozen jobs; no gate was removed.
+
+## Shared contracts and Computer Use lock (2026-10-30)
+
+Reviewing the built-in Agent integration on master `034f36d2` reproduced a
+`build:computer` failure under `--locked`. The standalone workspace's
+`pero-contracts` entry lacked the reader dependencies already declared by the
+shared crate. Resolve those existing manifest pins into `use/computer/Cargo.lock`,
+retaining every previously locked package version. `npm run build:computer`
+then passes with its original `--locked` flag on macOS arm64.
+
+The pinned npm sync also fills the already-declared MCP Apps and zod importer
+entries missing from the integrated pnpm lock, and refreshes the input cache
+for the Harness build scripts. No existing package versions are upgraded.
+`bazel run @npm//:sync` and all seven `bazel test --config=ci //:checks`
+targets pass locally.
