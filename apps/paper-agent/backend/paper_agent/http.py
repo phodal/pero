@@ -86,6 +86,13 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None):
                     if self.command == 'GET': return self.reply(200, store.report_matrix(matrix_match[1]))
                     if self.command == 'POST': return self.reply(201, store.edit_matrix(matrix_match[1], data, now()))
                 if self.command == "GET":
+                    if path == '/api/studies':
+                        paper_id = parse_qs(parsed.query).get('paperId', [None])[0]
+                        studies = store.library()['studies']
+                        return self.reply(200, dict(studies=[s for s in studies if paper_id is None or paper_id in s['paperIds']]))
+                    study_match = re.fullmatch(r'/api/studies/([a-f0-9]{64})', path)
+                    if study_match:
+                        return self.reply(200, store.study_view(study_match[1]))
                     if path == '/api/matrix':
                         return self.reply(200, dict(cells=store.reading_matrix()))
                     if path == '/api/pdf':
@@ -126,6 +133,12 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None):
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, record.to_dict())
                 if self.command == "POST":
+                    if path == '/api/studies':
+                        return self.reply(201, store.create_study(ResearchRequest.parse(data), now()).to_dict())
+                    if path == '/api/studies/step':
+                        return self.reply(201, store.study_step(data, now()))
+                    if path == '/api/studies/continue':
+                        return self.reply(201, store.continue_study(data.get('id'), data.get('requestId'), now()))
                     if path == '/api/research/plan':
                         return self.reply(201, research_stage(store.research_plan(ResearchRequest.parse(data), now())))
                     if path == '/api/research/search':

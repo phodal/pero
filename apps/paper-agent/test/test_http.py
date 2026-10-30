@@ -119,9 +119,35 @@ class ResearchHTTP(unittest.TestCase):
                 result = call('POST', '/api/research/select', dict(id=batch['id'], text=json.dumps(dict(passageIds=[saved_batch.passages[0].id], followupQuery=None, gaps=[]))))[1]
                 self.assertEqual(result['stage'], 'answer')
                 self.assertEqual(result['intent']['retrieval']['queries'], ['Local'])
-
-
-
+                status, study = call('POST', '/api/studies', dict(question='Read the method', paperIds=[pdf_paper['id']],
+                                     fullText=True, requestId='http-study'))
+                self.assertEqual(status, 201)
+                self.assertEqual(study['sourceCatalog'][0]['pageCount'], 2)
+                status, observed = call('POST', '/api/studies/step', dict(studyId=study['id'], action='read',
+                                        paperId=pdf_paper['id'], page=2))
+                self.assertEqual(status, 201)
+                passage = observed['observation']['passages'][0]
+                self.assertIsNone(observed['observation']['nextStart'])
+                evidence = dict(paperId=pdf_paper['id'], passageId=passage['id'], quote='Second page. Exact original evidence.')
+                status, noted = call('POST', '/api/studies/step', dict(studyId=study['id'], action='note',
+                                     text='The method is on page two.', gaps=['Independent replication is still missing.'], evidence=[evidence]))
+                self.assertEqual(status, 201)
+                self.assertEqual(noted['findings'][0]['evidence'], [evidence])
+                continued = call('POST', '/api/studies/continue', dict(id=study['id'], requestId='http-study-resumed'))[1]
+                self.assertEqual(continued['requestId'], 'http-study-resumed')
+                self.assertEqual(continued['budget']['used'], 2)
+                report = dict(schema='pero.paper-agent-report.v1', intentId=study['id'], title='Original method',
+                              sections=[dict(heading='Method',content='Original evidence.',paperIds=[pdf_paper['id']],evidence=[evidence])],
+                              experiments=[],limitations='Reading only')
+                status, finalized = call('POST', '/api/studies/step', dict(studyId=study['id'], action='finalize', report=report))
+                self.assertEqual(status, 201)
+                self.assertEqual(call('GET', '/api/studies/' + study['id'])[1]['report']['id'], finalized['reportId'])
+                exported = call('GET', '/api/reports/' + finalized['reportId'] + '/export?format=markdown')[1]
+                self.assertIn('Independent replication is still missing.', exported['content'])
+                self.assertEqual(call('GET', '/api/studies?paperId=' + pdf_paper['id'])[1]['studies'][0]['id'], study['id'])
+                located = call('POST', '/api/evidence', dict(intentId=study['id'], **evidence))[1]
+                self.assertEqual(located['pdf']['pages'], [2])
+                self.assertTrue(located['pdf']['rects'])
             finally:
                 server.shutdown()
                 server.server_close()

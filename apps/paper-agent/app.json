@@ -71,6 +71,98 @@
           ],
           "additionalProperties": false
         }
+      },
+      {
+        "name": "research-step",
+        "description": "Record a reading action in a frozen ResearchStudy: search, read PDF pages, note evidence or finalize a cited report. Recall retrieves previously observed evidence without consuming the step budget. It does not execute experiments or grant scientific acceptance.",
+        "path": "/api/studies/step",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "studyId": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "search",
+                "read",
+                "recall",
+                "note",
+                "finalize"
+              ]
+            },
+            "paperId": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            "query": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "start": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "text": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "gaps": {
+              "type": "array",
+              "maxItems": 8,
+              "items": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "evidence": {
+              "type": "array",
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "paperId": {
+                    "type": "string"
+                  },
+                  "passageId": {
+                    "type": "string"
+                  },
+                  "quote": {
+                    "type": "string",
+                    "maxLength": 4000
+                  }
+                },
+                "required": [
+                  "paperId",
+                  "passageId",
+                  "quote"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "report": {
+              "type": "object"
+            },
+            "passageId": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "studyId",
+            "action"
+          ],
+          "additionalProperties": false
+        }
       }
     ]
   },

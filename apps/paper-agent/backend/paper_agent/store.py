@@ -18,6 +18,7 @@ from .reading_matrix import ReadingCell
 from .retrieval import METHOD, SearchQuery, SourceVersion, chunks, terms
 from .research import ResearchPlan, RetrievalBatch, QueryProposal, EvidenceSelection
 from .search_index import SearchIndex
+from .studies import ResearchStudy, ResearchStep, StudyCommand, StudyContinuation
 
 
 @dataclass(frozen=True)
@@ -191,7 +192,8 @@ class ResearchStore:
         discoveries = [self.discovery(i) for i in self._list('discoveries')]
         discoveries.sort(key=lambda batch: batch.fetched_at, reverse=True)
         favorites = [self.favorite(i).to_dict() for i in self._list('favorites')]
-        return dict(papers=papers, intents=intents, reports=reports, favorites=favorites, matrixCount=len(self._list('reading-cells')),
+        return dict(papers=papers, intents=intents, reports=reports, favorites=favorites,
+                    studies=[self.study(i).summary() for i in self._list('studies')], matrixCount=len(self._list('reading-cells')),
                     discoveries=[dict(id=b.id, seedId=b.seed_id, seedTitle=b.seed_title, relation=b.relation,
                                       page=b.page, fetchedAt=b.fetched_at) for b in discoveries])
 
@@ -293,6 +295,85 @@ class ResearchStore:
                                 tuple(SourceVersion.of(p, d) for p, d in zip(papers, documents)), now)
             self._write('research-plans', plan.id, plan.to_dict())
             return plan
+
+    def create_study(self, request, now):
+        with self.lock:
+            identity = digest(request.request_id.encode('utf-8'))
+            if identity in self._list('studies'):
+                existing = self.study(identity)
+                if existing.request != request:
+                    raise Invalid('The Host request ID is already bound to different research input', 409)
+                return existing
+            papers = tuple(self.paper(i) for i in request.paper_ids)
+            documents = tuple(self.paper_pdf(p.id) for p in papers)
+            study = ResearchStudy.create(request, papers, documents, self.conversation(request), now)
+            self._write('studies', study.id, study.to_record())
+            return study
+
+    def study(self, identity):
+        study = ResearchStudy.from_record(self._read('studies', identity))
+        step_kind = 'study-steps/' + identity
+        steps = [self._read(step_kind, i) for i in self._list(step_kind)]
+        for value in sorted((s for s in steps if s['studyId'] == identity), key=lambda s: s['number']):
+            study = study.append(ResearchStep.from_record(value, study))
+        continuation_kind = 'study-continuations/' + identity
+        continuations = [StudyContinuation.from_record(self._read(continuation_kind, i))
+                         for i in self._list(continuation_kind)]
+        return replace(study, continuations=tuple(sorted((c for c in continuations if c.study_id == identity),
+                                                        key=lambda c: c.number)))
+
+    def study_view(self, identity):
+        study = self.study(identity)
+        result = study.to_dict()
+        if study.report_id:
+            result.update(intent=self.intent(study.id).to_dict(), report=self.report(study.report_id).to_dict())
+        return result
+
+    def continue_study(self, identity, request_id, now):
+        with self.lock:
+            study = self.study(identity)
+            continuation = study.continue_with(request_id, now)
+            self._write('study-continuations/' + identity, continuation.id, continuation.to_dict())
+            return self.study_view(identity)
+
+    def study_step(self, value, now):
+        with self.lock:
+            study = self.study(value.get('studyId'))
+            command = StudyCommand.parse(value, study)
+            if command.action == 'recall':
+                passage = command.passage
+                return dict(**study.compact(), observation=dict(passages=[passage.to_dict()],
+                    locator=dict(paperId=passage.paper_id, documentId=passage.document_id,
+                                 fileDigest=passage.file_digest, page=passage.page,
+                                 start=passage.start, end=passage.start + len(passage.content))))
+            common = dict(study_id=study.id, number=len(study.steps) + 1, action=command.action, created_at=now)
+            if command.action == 'read':
+                step = ResearchStep.read(study, command, self.pdf(command.source.document_id), now)
+            elif command.action == 'search':
+                with SearchIndex(self.root / 'study-search' / (study.id + '.sqlite3')) as index:
+                    indexed = {s.id for s in index.sources()}
+                    for paper, source in zip(study.papers, study.sources):
+                        if source.document_id not in indexed:
+                            document = self.pdf(source.document_id)
+                            index.replace(SourceVersion.of(paper, document), chunks(paper, document))
+                    found = index.search(SearchQuery(command.query,
+                        (command.source.paper_id,) if command.source else study.request.paper_ids, pdf_only=True))
+                step = ResearchStep(**common, paper_id=command.source.paper_id if command.source else None,
+                    query=command.query, passages=tuple(hit.chunk.pdf_passage() for hit in found.hits),
+                    total_matches=found.total_matches)
+            elif command.action == 'note':
+                step = ResearchStep(**common, finding=command.finding, gaps=command.gaps, evidence=command.evidence)
+            else:
+                saved = SavedReport.create(command.report, command.intent, now, 'app:paper-agent:' + study.request_id)
+                step = ResearchStep(**common, report_id=saved.id)
+                self._write('intents', command.intent.id, command.intent.to_dict(False))
+                self._write('reports', saved.id, saved.to_dict())
+            self._write('study-steps/' + study.id, step.id, step.to_dict())
+            result = study.append(step).compact()
+            observation = step.observation()
+            if command.action == 'finalize':
+                observation.update(report=saved.to_dict(), intent=command.intent.to_dict())
+            return dict(**result, observation=observation)
 
     def retrieval_batch(self, identity):
         value = self._read('retrieval-batches', identity)
