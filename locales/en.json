@@ -653,5 +653,10 @@
   "computer.refresh": "Refresh",
   "computer.stop": "Stop",
   "computer.stop_hint": "Emergency stop: Command/Ctrl+Shift+Esc.",
-  "content.preparing_preview": "Preparing preview…"
+  "content.preparing_preview": "Preparing preview…",
+  "content.save_as": "Save As…",
+  "content.saving_as": "Saving copy…",
+  "content.save_as_cancelled": "Save As cancelled.",
+  "content.save_as_conflict": "The destination has unsaved changes or changed on disk. Save or reload it before replacing.",
+  "content.transforming": "Updating rows…"
 }

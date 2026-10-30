@@ -653,5 +653,10 @@
   "computer.refresh": "刷新",
   "computer.stop": "停止",
   "computer.stop_hint": "紧急停止：Command/Ctrl+Shift+Esc。",
-  "content.preparing_preview": "正在准备预览…"
+  "content.preparing_preview": "正在准备预览…",
+  "content.save_as": "另存为…",
+  "content.saving_as": "正在另存…",
+  "content.save_as_cancelled": "已取消另存为。",
+  "content.save_as_conflict": "目标文件有未保存修改或已被外部改动，请先保存或重新加载再替换。",
+  "content.transforming": "正在更新行…"
 }
