@@ -106,13 +106,19 @@ async function dragTab(view, targetView) {
 }
 async function ensureSource(view) {
   await clickTab(view);
+  // Reopened tabs retain lightweight descriptors. Activation starts the Host
+  // read; pointer input must wait for the Reader and its actual layout bounds.
+  await expect.poll(async () => {
+    const reader = readerFor(await state(), view);
+    return Boolean(reader && reader.bounds?.width > 0 && reader.bounds?.height > 0);
+  }, { message: `ViewId ${view} did not materialize a laid-out Reader after activation` }).toBe(true);
   let reader = readerFor(await state(), view);
-  expect(reader, `Missing retained reader for ViewId ${view}; rebuild the pane diagnostics`).toBeTruthy();
   if (!reader.source) {
     await page.mouse.click(reader.bounds.x + 110, reader.bounds.y + 16);
     await expect.poll(async () => readerFor(await state(), view)?.source).toBe(true);
     reader = readerFor(await state(), view);
   }
+  await expect.poll(async () => readerFor(await state(), view)?.editor).toBe(true);
   await page.mouse.click(reader.bounds.x + 100, reader.bounds.y + 75);
 }
 async function finish() {
