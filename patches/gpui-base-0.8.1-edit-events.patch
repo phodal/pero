@@ -1,0 +1,85 @@
+diff --git a/crates/base/src/input/base/state.rs b/crates/base/src/input/base/state.rs
+--- a/crates/base/src/input/base/state.rs
++++ b/crates/base/src/input/base/state.rs
+@@ -131,6 +131,8 @@
+ #[derive(Clone)]
+ pub enum InputEvent {
+     Change,
++    /// Accepted multiline mutations in application order, including IME preedit and undo.
++    Edit {old:Range<usize>,inserted:String,old_lines:Range<usize>,new_line_count:usize},
+     PressEnter { secondary: bool, shift: bool },
+     Focus,
+     Blur,
+@@ -4167,6 +4169,36 @@
+     /// Replace text in range in silent.
+     ///
+     /// This will not trigger any UI interaction, such as auto-completion.
++    /// Apply a canonical document edit to another view. No user history or input events are generated.
++    /// The caller restores this view's transformed reading state after the mutation.
++    pub fn apply_external_edit(&mut self,range:Range<usize>,inserted:&str,window:&mut Window,cx:&mut Context<Self>) {
++        let ignoring=self.undo_manager.is_ignoring();let events=self.emit_events;
++        self.undo_manager.set_ignoring(true);self.emit_events=false;
++        self.with_edits_allowed(|this|this.replace_text_in_ranges(&[(range,inserted.to_owned())],window,cx));
++        self.undo_manager.set_ignoring(ignoring);self.emit_events=events;
++    }
++
++    /// Record an edit from another view in the canonical document's undo history.
++    pub fn record_external_edit(&mut self,range:Range<usize>,inserted:&str,window:&mut Window,cx:&mut Context<Self>) {
++        let events=self.emit_events;self.emit_events=false;
++        self.with_edits_allowed(|this|this.replace_text_in_ranges(&[(range,inserted.to_owned())],window,cx));
++        self.emit_events=events;
++    }
++
++    /// Route all views' undo/redo through the canonical document owner.
++    pub fn replay_document_history(&mut self,undo:bool,window:&mut Window,cx:&mut Context<Self>) {
++        self.replay_history(undo,window,cx);
++    }
++
++    fn emit_source_edit(&self,old_text:&Rope,range:&Range<usize>,new_text:&str,cx:&mut Context<Self>) {
++        if !self.emit_events || !self.is_multi_line() || old_text.slice(range.clone()).bytes().eq(new_text.bytes()) {return;}
++        cx.emit(InputEvent::Edit {
++            old:range.clone(),inserted:new_text.to_owned(),
++            old_lines:old_text.offset_to_position(range.start).row..old_text.offset_to_position(range.end).row,
++            new_line_count:new_text.bytes().filter(|byte|*byte==b'\n').count(),
++        });
++    }
++
+     pub(crate) fn replace_text_in_range_silent(
+         &mut self,
+         range_utf16: Option<Range<usize>>,
+@@ -4263,6 +4295,7 @@
+             let old_text = self.text.clone();
+             self.mode.adjust_auto_closed_pair(range, new_text.len());
+             self.text.replace(range.clone(), new_text);
++            self.emit_source_edit(&old_text,range,new_text,cx);
+ 
+             M::adjust_annotations(self, range, new_text.len());
+             recorded |= self.push_history(
+@@ -4785,6 +4818,7 @@
+             }
+         }
+ 
++        self.emit_source_edit(&old_text,&range,new_text,cx);
+         M::adjust_annotations(self, &range, new_text.len());
+         if let Some(diagnostics) = self.mode.diagnostics_mut() {
+             diagnostics.reset(&self.text)
+diff --git a/crates/base/src/input/editor/search.rs b/crates/base/src/input/editor/search.rs
+--- a/crates/base/src/input/editor/search.rs
++++ b/crates/base/src/input/editor/search.rs
+@@ -271,13 +271,10 @@
+         if ranges.is_empty() {
+             return 0;
+         }
+-        let mut text = self.text.clone();
+-        for range in ranges.iter().rev() {
+-            text.replace(range.clone(), replacement);
+-        }
++        let count = ranges.len();
++        let edits = ranges.iter().map(|range|(range.clone(),replacement.to_owned())).collect::<Vec<_>>();
+         self.search_session.matcher.begin_replacement();
+-        let count = ranges.len();
+-        self.replace_text_in_range_silent(Some(0..self.text.len()), &text.to_string(), window, cx);
++        self.replace_text_in_ranges(&edits,window,cx);
+         self.scroll_to(0, Some(MoveDirection::Down), cx);
+         count
+     }
