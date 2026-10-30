@@ -1,7 +1,7 @@
 import {installContentAnalysis} from './content-analysis';
 import { loadContentResult, cancelContentResult } from './content-results';
 import type { ContentChunk, ConversationReadParameters } from '../../packages/content-source/index';
-import init, { run, receive_host_event, snapshot, has_unsaved_documents, paste_image, set_system_theme } from './wasm/pero_ui';
+import init, { run, receive_host_event, snapshot, has_unsaved_documents, checkpoint_workspace, paste_image, set_system_theme } from './wasm/pero_ui';
 import { appChatLauncher } from './app-chat';
 import { previewContext } from './context-preview';
 import themes from './theme.generated.json';
@@ -13,6 +13,9 @@ import { mountAppSurfaces, type AppSurface } from './apps';
 export interface HostEvent { version: number; kind: string; request_id: string | null; text: string; message_key?: string; thread_id?: string; data?: unknown }
 declare global {
   interface Window {
+    peroHasUnsavedDocuments():boolean;
+    peroWorkspaceCheckpoint(discard?:boolean):Promise<void>;
+    peroAllowUnloadOnce?:boolean;
     pero?: { webCommand(command:object):Promise<void>; readContent(request:ConversationReadParameters):Promise<ContentChunk>; connect(): Promise<HostEvent>; getLocale(): Promise<string>; setLocale(locale: string): Promise<void>; sendProbe(request: { id: string; text: string }): Promise<void>; onEvent(callback: (event: HostEvent) => void): () => void; sessionCommand(command: object): Promise<void>; remoteCommand(command: object): Promise<void>; appsCommand(command: object): Promise<void>; appUseCommand(command: object): Promise<unknown>; chooseWorkspace(): Promise<void>; chooseContext(command?: object): Promise<void> };
     peroSendProbe(json: string): void;
     peroSetLocale(locale: string): void;
@@ -36,7 +39,12 @@ try {
   }
   await init();
   installContentAnalysis();
-  window.addEventListener('beforeunload',event=>{if(has_unsaved_documents()){event.preventDefault();event.returnValue='';}});
+  window.peroHasUnsavedDocuments=has_unsaved_documents;
+  window.peroWorkspaceCheckpoint=async(discard=false)=>{const json=checkpoint_workspace(discard);if(json&&window.pero)await window.pero.sessionCommand(JSON.parse(json));};
+  window.addEventListener('beforeunload',event=>{
+    if(window.peroAllowUnloadOnce){window.peroAllowUnloadOnce=false;return;}
+    if(window.pero||has_unsaved_documents()){event.preventDefault();event.returnValue='';}
+  });
   const launchAppChat=appChatLauncher({
     open:scope=>receive_host_event(JSON.stringify({version:1,kind:'app_scope',request_id:null,text:'',data:scope})),
     draft:async()=>{const state=JSON.parse(snapshot());return {threadId:state.chats?.[state.activeChat]?.id,scope:state.scope};},

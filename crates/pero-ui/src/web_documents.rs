@@ -25,6 +25,11 @@ enum NativeWebIntent {
     Open {
         url: pero_contracts::web_document::WebAddress,
     },
+    #[serde(rename = "web_restore")]
+    Restore {
+        id: pero_contracts::web_document::WebAddress,
+        url: pero_contracts::web_document::WebAddress,
+    },
     #[serde(rename = "web_navigate")]
     Navigate {
         id: String,
@@ -110,12 +115,14 @@ impl Workbench {
             self.sync_follow(cx);
         }
         self.sync_web_address(open, window, cx);
+        self.queue_workspace_checkpoint(cx);
         cx.notify();
     }
     fn close_web(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
         #[cfg(not(target_family = "wasm"))]
         self.native_web_pages.remove(id);
         self.web_documents.retain(|page| page.id != id);
+        self.queue_workspace_checkpoint(cx);
         if let Some(route) = self.navigation.close(&WorkspaceItem::Web(id.into())) {
             self.activate_route(route, window, cx);
         }
@@ -144,8 +151,16 @@ impl Workbench {
                 }
             };
             match intent {
-                Open { url } => {
-                    let document = WebDocument::open(url);
+                open @ (Open { .. } | Restore { .. }) => {
+                    let (document, select) = match open {
+                        Open { url } => (WebDocument::open(url), true),
+                        Restore { id, url } => {
+                            let mut document = WebDocument::open(id);
+                            document.observation.url = url;
+                            (document, false)
+                        }
+                        _ => unreachable!(),
+                    };
                     let id = document.id.clone();
                     let document = if let Some(open) = self.native_web_pages.get(&id) {
                         open.view.read(cx).document.clone()
@@ -169,7 +184,7 @@ impl Workbench {
                         );
                         document
                     };
-                    self.observe_web(document, true, window, cx);
+                    self.observe_web(document, select, window, cx);
                 }
                 Navigate { id, url } => {
                     if let Some(open) = self.native_web_pages.get(&id) {

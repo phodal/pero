@@ -38,6 +38,7 @@ if (process.env.PERO_DESKTOP_DATA_DIR) {
 if (app.isPackaged && !app.requestSingleInstanceLock()) app.quit();
 const root = resolve(__dirname, '../..');
 let window: BrowserWindow;
+let closeWorkspaceForQuit: (() => Promise<void>) | undefined;
 let host: ChildProcessWithoutNullStreams;
 let ready = false;
 let appUse: DesktopAppUse | undefined;
@@ -135,7 +136,7 @@ app.whenReady().then(async () => {
     if (!['workbench', 'chat'].includes(url.host) || !file.startsWith(directory + sep)) return new Response('Not found', { status: 404 });
     return net.fetch(pathToFileURL(file).href).then((response) => {
       const headers = new Headers(response.headers);
-      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src pero-app: pero://chat; object-src 'none'");
+      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; frame-src pero-app: pero://chat; object-src 'none'");
       return new Response(response.body, { status: response.status, headers });
     });
   });
@@ -176,6 +177,10 @@ app.whenReady().then(async () => {
           else pending.reject(new Error('The runtime could not save the connection. Check the settings location and retry.'));
         }
         return; // Internal acknowledgement; never publish stored credential envelopes.
+      }
+      if(message.kind==='workspace_saved'||message.kind==='workspace_error') {
+        const pending=preferenceWrites.get(message.request_id);
+        if(pending){clearTimeout(pending.timer);preferenceWrites.delete(message.request_id);if(message.kind==='workspace_saved')pending.resolve();else pending.reject(new Error(message.text||t('workspace.save_failed')));}
       }
       if (message.kind === 'settings') { locale = normalizeLocale(message.text); updateMenus(); }
       if (message.kind === 'ready') ready = true;
@@ -248,6 +253,17 @@ app.whenReady().then(async () => {
       if(!selected.canceled && selected.filePaths[0]) host.stdin!.write(JSON.stringify({method:'documents',action:'open',request_id:'open-file',path:selected.filePaths[0]})+'\n');
       return;
     }
+    if(method==='workspace') {
+      if(action==='get'){host.stdin.write(JSON.stringify(command)+'\n');return;}
+      const request=command as {request_id?:unknown};
+      if(action!=='save'||typeof request.request_id!=='string'||!request.request_id||request.request_id.length>128||JSON.stringify(command).length>16_000_000)throw new Error('Invalid workspace checkpoint');
+      const id=request.request_id;
+      await new Promise<void>((resolveWrite,rejectWrite)=>{
+        const timer=setTimeout(()=>{preferenceWrites.delete(id);rejectWrite(new Error(t('workspace.save_failed')));},10000);
+        preferenceWrites.set(id,{resolve:resolveWrite,reject:rejectWrite,timer});
+        host.stdin.write(JSON.stringify(command)+'\n',error=>{if(error){clearTimeout(timer);preferenceWrites.delete(id);rejectWrite(error);}});
+      });return;
+    }
     if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'documents'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
     appUse?.authority.command(command as {action?:string;thread_id?:string});
     host.stdin.write(JSON.stringify(command) + '\n');
@@ -279,10 +295,25 @@ app.whenReady().then(async () => {
   window.on('closed',()=>webPages?.dispose());
   window.webContents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main) appUse?.reset(); });
   window.webContents.on('render-process-gone', () => appUse?.reset());
-  window.webContents.on('will-prevent-unload',event=>{
-    const answer=dialog.showMessageBoxSync(window,{type:'warning',message:t('content.unsaved'),detail:t('content.unsaved_window'),buttons:[t('content.keep_editing'),t('content.discard_window')],defaultId:0,cancelId:0});
-    if(answer===1)event.preventDefault();
-  });
+  let workspaceWindowPending=false;
+  const finishWorkspaceWindow=async(reload:boolean)=>{
+    if(workspaceWindowPending)return;workspaceWindowPending=true;
+    const finish=async()=>{if(reload){await window.webContents.executeJavaScript('window.peroAllowUnloadOnce=true');window.webContents.reload();}else window.destroy();};
+    try {
+      const dirty=await window.webContents.executeJavaScript('Boolean(window.peroHasUnsavedDocuments?.())');
+      if(dirty){const answer=dialog.showMessageBoxSync(window,{type:'warning',message:t('content.unsaved'),detail:t('content.unsaved_window'),buttons:[t('content.keep_editing'),t('content.discard_window')],defaultId:0,cancelId:0});if(answer!==1)return;}
+      await window.webContents.executeJavaScript(`window.peroWorkspaceCheckpoint?.(${dirty?'true':'false'})`);
+      await finish();
+    } catch(error) {
+      if(window.isDestroyed())return;
+      const answer=dialog.showMessageBoxSync(window,{type:'error',message:t('workspace.save_failed'),detail:error instanceof Error?error.message:String(error),buttons:[t('content.keep_editing'),t('workspace.recovery_close')],defaultId:0,cancelId:0});
+      if(answer===1)await finish();
+    } finally {workspaceWindowPending=false;}
+  };
+  closeWorkspaceForQuit=()=>finishWorkspaceWindow(false);
+  window.on('close',event=>{event.preventDefault();void finishWorkspaceWindow(false);});
+  // The renderer blocks a reload until the latest reading state/draft decision is durable.
+  window.webContents.on('will-prevent-unload',()=>{void finishWorkspaceWindow(true);});
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
@@ -312,6 +343,11 @@ app.on('before-quit', quit => {
   quit.preventDefault();
   if (shuttingDown) return;
   shuttingDown = true;
+  void (async()=>{
+    if(window&&!window.isDestroyed()) {
+      await closeWorkspaceForQuit?.();
+      if(!window.isDestroyed()){shuttingDown=false;return;}
+    }
   appUse?.close(); localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();
   if (!host?.pid || host.exitCode !== null || host.signalCode !== null) {
     shutdownComplete = true; app.quit(); return;
@@ -331,4 +367,5 @@ app.on('before-quit', quit => {
     timer = setTimeout(() => { host.kill('SIGKILL'); finish(); },2000);
   },10000);
   host.stdin.end();
+  })();
 });

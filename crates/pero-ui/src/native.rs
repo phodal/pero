@@ -286,7 +286,6 @@ pub fn run() -> anyhow::Result<()> {
             window.set_window_title("Pero Native Preview — local sessions");
             cx.new(|cx| {
                 let mut view = Workbench::new(palettes, system_dark, locale, window, cx);
-                view.navigation.show(WorkbenchPage::Conversation);
                 view._subscriptions.push(cx.observe_window_appearance(window, |view, window, cx| {
                     view.system_dark = matches!(window.appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
                     view.install_appearance(cx);
@@ -299,9 +298,9 @@ pub fn run() -> anyhow::Result<()> {
         let _=window.update(cx,|_,window,cx| {
             window.on_window_should_close(cx,move|window,cx| {
                 close_view.update(cx,|view,cx| {
-                    if !view.has_unsaved_documents(cx) {return true;}
+                    if !view.has_unsaved_documents(cx) {return view.checkpoint_native_close(false,cx);}
                     let answer=window.prompt(PromptLevel::Warning,view.t("content.unsaved"),Some(view.t("content.unsaved_window")),&[view.t("content.keep_editing"),view.t("content.discard_window")],cx);
-                    cx.spawn_in(window,async move|_,cx| {if answer.await==Ok(1) {let _=cx.update(|window,_|window.remove_window());}}).detach();
+                    cx.spawn_in(window,async move|view,cx| {if answer.await==Ok(1) {let _=view.update_in(cx,|view,window,cx| {if view.checkpoint_native_close(true,cx) {window.remove_window();}});}}).detach();
                     false
                 }).unwrap_or(true)
             });
