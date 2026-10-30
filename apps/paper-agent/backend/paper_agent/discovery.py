@@ -49,7 +49,7 @@ class DiscoveryPaper:
     authors: tuple[str, ...]
     abstract: str
     date: str
-    citations: int
+    citations: int | None
     doi: str = ''
 
     @classmethod
@@ -59,8 +59,8 @@ class DiscoveryPaper:
         if not isinstance(identity, str) or not WORK.fullmatch(identity):
             raise Invalid('Invalid OpenAlex response identity')
         abstract = value.get('abstract', '')
-        citations = value.get('citations', 0)
-        if not isinstance(abstract, str) or len(abstract) > 120000 or type(citations) is not int or citations < 0:
+        citations = value.get('citations')
+        if not isinstance(abstract, str) or len(abstract) > 120000 or (citations is not None and (type(citations) is not int or citations < 0)):
             raise Invalid('Invalid OpenAlex abstract or citation count')
         return cls(identity, text(value.get('title'), 1000, 'paper title'), https(value.get('url')),
                    tuple(text(a, 300, 'author') for a in sequence(value.get('authors', []), 100, 'authors')),

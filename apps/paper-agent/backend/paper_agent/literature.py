@@ -19,11 +19,13 @@ import xml.etree.ElementTree as ET
 from .discovery import DiscoveryBatch, DiscoveryPaper, SeedMatches, WORK
 from .model import Invalid
 
-SOURCES = ("alphaxiv", "openalex", "biorxiv", "pubmed")
+SOURCES = ("alphaxiv", "openalex", "biorxiv", "pubmed", "huggingface")
 ORIGINS = frozenset(("api.alphaxiv.org", "www.alphaxiv.org", "api.openalex.org",
-                     "api.biorxiv.org", "eutils.ncbi.nlm.nih.gov", "arxiv.org"))
+                     "api.biorxiv.org", "eutils.ncbi.nlm.nih.gov", "arxiv.org", "huggingface.co"))
 LIMIT_BYTES = 1024 * 1024
 ARXIV = re.compile(r"(?:\d{4}\.\d{4,5}|[a-z][a-z.-]*/\d{7})(?:v\d+)?", re.I)
+MERGED_METADATA = ('publicationDate', 'citations', 'citationSource', 'authors', 'pdfUrl', 'doi',
+                   'paperUrl', 'hfVotes', 'thumbnailUrl', 'thumbnailId', 'githubUrl', 'githubStars', 'projectUrl')
 
 
 def _keys(value, allowed):
@@ -48,7 +50,7 @@ class SearchQuery:
         if not isinstance(query, str) or not query.strip() or len(query) > 500 or re.search(r"[\x00-\x1f]", query):
             raise Invalid("Query must contain 1–500 characters")
         sources = value.get("sources", ["alphaxiv"])
-        if (not isinstance(sources, list) or not 1 <= len(sources) <= 4
+        if (not isinstance(sources, list) or not 1 <= len(sources) <= len(SOURCES)
                 or any(not isinstance(source, str) or source not in SOURCES for source in sources)
                 or len(set(sources)) != len(sources)):
             raise Invalid("Invalid literature sources")
@@ -105,6 +107,12 @@ class PaperIdentity:
             if url.hostname in ("arxiv.org", "www.arxiv.org", "alphaxiv.org", "www.alphaxiv.org"):
                 paper_id = re.sub(r"^/(?:abs|pdf|overview)/", "", url.path)
                 paper_id = re.sub(r"\.pdf$", "", paper_id)
+            elif url.hostname in ('huggingface.co', 'www.huggingface.co'):
+                if not url.path.startswith('/papers/'):
+                    raise Invalid('Unsupported Hugging Face paper URL')
+                paper_id = url.path.removeprefix('/papers/').rstrip('/')
+                if source is None:
+                    source = 'huggingface'
             elif url.hostname in ("doi.org", "www.biorxiv.org", "biorxiv.org"):
                 paper_id = re.sub(r"^/(?:content/)?", "", url.path)
                 paper_id = re.sub(r"v\d+(?:\.full(?:\.pdf)?)?$", "", paper_id)
@@ -113,6 +121,8 @@ class PaperIdentity:
             else:
                 raise Invalid("Unsupported paper URL")
         paper_id = re.sub(r"^(?:arxiv:|doi:|pmid:)\s*", "", paper_id, flags=re.I)
+        if source == 'huggingface':
+            source = 'alphaxiv'
         if source is None:
             source = ("pubmed" if re.fullmatch(r"\d{1,9}", paper_id) else
                       "biorxiv" if paper_id.startswith("10.1101/") else
@@ -160,28 +170,52 @@ def _link(value):
     return None
 
 
+def _doi_key(value):
+    return re.sub(r"^https?://(?:dx\.)?doi\.org/", "", value.lower())
+
+
 def deduplicate(hits):
     result, aliases = [], {}
     for hit in hits:
         keys = [f"{hit['source']}:{hit['id']}"]
+        if hit['source'] in ('alphaxiv', 'huggingface') and ARXIV.fullmatch(hit['id']):
+            keys.append('arxiv:' + re.sub(r'v\d+$', '', hit['id'], flags=re.I).lower())
         if hit.get("doi"):
-            keys.append("doi:" + hit["doi"].lower())
+            keys.append("doi:" + _doi_key(hit["doi"]))
         if hit.get("title"):
             keys.append("title:" + "".join(char for char in hit["title"].lower() if char.isalnum()))
-        existing = next((aliases[key] for key in keys if key in aliases), None)
+        existing = None
+        for key in keys:
+            candidate = aliases.get(key)
+            if candidate is None:
+                continue
+            if key.startswith('title:') and hit.get('doi') and candidate.get('doi'):
+                if _doi_key(hit['doi']) != _doi_key(candidate['doi']):
+                    continue
+            existing = candidate
+            break
         record = existing if existing is not None else {**hit, "alternatives": []}
         if existing is None:
             result.append(record)
         elif hit["source"] == "alphaxiv" and record["source"] != "alphaxiv":
             prior = {key: record.get(key) for key in ("source", "id", "url")}
+            metadata = {key: record[key] for key in MERGED_METADATA if record.get(key) is not None}
             record.update(hit)
+            for key, value in metadata.items():
+                if record.get(key) is None or record.get(key) == [] or record.get(key) == '':
+                    record[key] = value
             record["alternatives"] = [item for item in record["alternatives"] if (item["source"], item["id"]) != (hit["source"], hit["id"])]
             record["alternatives"].append(prior)
         elif (record["source"], record["id"]) != (hit["source"], hit["id"]) and not any(
                 (item["source"], item["id"]) == (hit["source"], hit["id"]) for item in record["alternatives"]):
             record["alternatives"].append({key: hit.get(key) for key in ("source", "id", "url")})
+        if existing is not None:
+            for key in MERGED_METADATA:
+                if (record.get(key) is None or record.get(key) == [] or record.get(key) == '') and hit.get(key) is not None:
+                    record[key] = hit[key]
         for key in keys:
-            aliases[key] = record
+            if not key.startswith('title:') or key not in aliases:
+                aliases[key] = record
     return result
 
 
@@ -209,11 +243,14 @@ def _openalex(work, source):
             authors.append(name)
     hit = {"source": source, "id": doi if source == "biorxiv" and doi else _text(work.get("id")).split("/")[-1],
            "title": _text(work.get("display_name", work.get("title"))), "abstract": _abstract(work),
-           "publicationDate": work.get("publication_date"), "citations": work.get("cited_by_count", 0),
+           "publicationDate": work.get("publication_date"),
            "url": _link(work.get("doi")) or _link(work.get("id")),
            "authors": authors}
     if doi:
         hit["doi"] = doi
+    citations = work.get("cited_by_count")
+    if type(citations) is int and citations >= 0:
+        hit.update(citations=citations, citationSource="openalex")
     pdf = _link(location.get("pdf_url"))
     if pdf:
         hit["pdfUrl"] = pdf
@@ -222,11 +259,11 @@ def _openalex(work, source):
 
 def _rerank(hits, priority):
     if priority in ("recency", "historical"):
-        dated = [hit for hit in hits if hit.get("publicationDate")]
+        dated = [hit for hit in hits if isinstance(hit.get("publicationDate"), str) and hit["publicationDate"]]
         dated.sort(key=lambda hit: hit["publicationDate"], reverse=priority == "recency")
-        return dated + [hit for hit in hits if not hit.get("publicationDate")]
+        return dated + [hit for hit in hits if not isinstance(hit.get("publicationDate"), str) or not hit["publicationDate"]]
     if priority == "popular":
-        return sorted(hits, key=lambda hit: hit.get("citations", 0), reverse=True)
+        return sorted(hits, key=lambda hit: (isinstance(hit.get("citations"), int), hit.get("citations") or 0), reverse=True)
     return hits
 
 
@@ -335,6 +372,44 @@ class LiteratureClient:
         return result
 
     def _search_source(self, source, query):
+        if source == 'huggingface':
+            if len(query.query) > 250:
+                raise Invalid('Hugging Face paper search accepts at most 250 characters')
+            hits = self._request(self._endpoint('https://huggingface.co/api/papers/search', q=query.query,
+                                                limit=query.limit if query.priority == 'default' else min(query.limit * 4, 50)))
+            if not isinstance(hits, list):
+                raise Invalid('Invalid Hugging Face papers response')
+            result = []
+            for item in hits:
+                paper = item.get('paper', {})
+                identity = PaperIdentity.parse({'id': paper.get('id'), 'source': 'huggingface'})
+                page = 'https://huggingface.co/papers/' + quote(identity.id, safe='/')
+                hit = {'source': source, 'id': identity.id, 'title': _text(paper.get('title')),
+                       'abstract': _text(paper.get('summary')), 'publicationDate': _text(paper.get('publishedAt'))[:10] or None,
+                       'authors': [_text(author.get('name')) for author in paper.get('authors') or [] if isinstance(author, dict) and _text(author.get('name'))],
+                       'url': page, 'paperUrl': page}
+                published = hit['publicationDate']
+                if ((query.published_after and (not published or published < query.published_after))
+                        or (query.published_before and (not published or published > query.published_before))):
+                    continue
+                votes, stars = paper.get('upvotes'), paper.get('githubStars')
+                if type(votes) is int and votes >= 0:
+                    hit['hfVotes'] = votes
+                if type(stars) is int and stars >= 0:
+                    hit['githubStars'] = stars
+                github, project, thumbnail = _link(paper.get('githubRepo')), _link(paper.get('projectPage')), _link(item.get('thumbnail'))
+                if github and urlsplit(github).hostname == 'github.com':
+                    hit['githubUrl'] = github
+                if project:
+                    hit['projectUrl'] = project
+                if thumbnail and urlsplit(thumbnail).hostname == 'cdn-thumbnails.huggingface.co':
+                    hit['thumbnailUrl'] = thumbnail
+                    base_id = re.sub(r'v\d+$', '', identity.id, flags=re.I)
+                    if (re.fullmatch(r'\d{4}\.\d{4,5}', base_id)
+                            and thumbnail == f'https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/{base_id}.png'):
+                        hit['thumbnailId'] = base_id
+                result.append(hit)
+            return _rerank(result, query.priority)[:query.limit]
         if source == "alphaxiv":
             hits = self._request(self._endpoint(
                 f"https://api.alphaxiv.org/search/v2/paper/discover/{query.strategy}", q=query.query,
@@ -387,7 +462,7 @@ class LiteratureClient:
                 except (Invalid, ValueError, TypeError, KeyError, AttributeError) as error:
                     errors.append({"source": source, "error": str(error)})
         return {"schema": "pero.literature-search.v1", "query": query.document(), "fetchedAt": self._now(),
-                "items": deduplicate(hits), "errors": errors,
+                "items": _rerank(deduplicate(hits), query.priority), "errors": errors,
                 "warnings": [{"source": error["source"], "message": error["error"]} for error in errors],
                 "status": "failed" if len(errors) == len(query.sources) else "partial" if errors else "complete",
                 "notice": "Public-source retrieval; content and candidates remain unverified."}

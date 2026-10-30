@@ -46,11 +46,14 @@ class LiteratureTest(unittest.TestCase):
             with self.subTest(paper_id=paper_id), self.assertRaises(Invalid):
                 PaperIdentity.parse({"id": paper_id})
         for paper_id, source, identity in (("https://arxiv.org/pdf/1706.03762v2.pdf", "alphaxiv", "1706.03762v2"),
+                                           ("https://huggingface.co/papers/2601.12345", "alphaxiv", "2601.12345"),
                                            ("pmid:123", "pubmed", "123"), ("https://openalex.org/W123", "openalex", "W123"),
                                            ("https://www.biorxiv.org/content/10.1101/2026.01.01.1v2.full", "biorxiv", "10.1101/2026.01.01.1")):
             with self.subTest(paper_id=paper_id):
                 parsed = PaperIdentity.parse({"id": paper_id})
                 self.assertEqual((parsed.source, parsed.id), (source, identity))
+        selected = PaperIdentity.parse({'id': 'https://huggingface.co/papers/2601.12345', 'source': 'huggingface'})
+        self.assertEqual((selected.source, selected.id), ('alphaxiv', '2601.12345'))
 
     def test_sources_combine_deduplicate_and_preserve_partial_failure(self):
         def fetch(url, **_options):
@@ -67,12 +70,73 @@ class LiteratureTest(unittest.TestCase):
         self.assertEqual(len(result["items"]), 1)
         self.assertEqual(result["items"][0]["id"], "2601.12345")
         self.assertEqual(result["items"][0]["alternatives"][0]["source"], "openalex")
+        self.assertEqual(result["items"][0]["citations"], 3)
+        self.assertEqual(result["items"][0]["citationSource"], "openalex")
+        self.assertEqual(result["items"][0]["publicationDate"], "2026-01-01")
+        self.assertEqual(result["items"][0]["authors"], ["Researcher"])
+        reversed_result = LiteratureClient(fetch, lambda: NOW).search({"query": "Graph RAG", "sources": ["openalex", "alphaxiv"], "publishedAfter": "2026-01-01"})
+        self.assertEqual(reversed_result['items'][0]['source'], 'alphaxiv')
+        self.assertEqual(reversed_result['items'][0]['citations'], 3)
+        self.assertEqual(reversed_result['items'][0]['citationSource'], 'openalex')
         self.assertEqual(result["errors"][0]["source"], "pubmed")
         self.assertEqual(result["warnings"][0]["source"], "pubmed")
         failed = LiteratureClient(lambda *_args, **_options: Response(status=429)).search({"query": "x"})
         self.assertEqual(failed["status"], "failed")
         self.assertEqual(len(deduplicate([{"source": "openalex", "id": "W1", "title": "A", "doi": "10.1101/x"},
                                           {"source": "biorxiv", "id": "10.1101/x", "title": "B", "doi": "10.1101/x"}])), 1)
+        self.assertEqual(len(deduplicate([{"source": "openalex", "id": "W1", "title": "Same title", "doi": "10.1/a"},
+                                          {"source": "pubmed", "id": "1", "title": "Same title", "doi": "10.1/b"}])), 2)
+        self.assertEqual(len(deduplicate([{"source": "alphaxiv", "id": "2601.12345v1", "title": "Original title"},
+                                          {"source": "alphaxiv", "id": "2601.12345v2", "title": "Updated title"}])), 1)
+
+    def test_multisource_priority_orders_merged_candidates_and_unknown_citations_last(self):
+        def fetch(url, **_options):
+            if urlsplit(url).hostname == 'api.alphaxiv.org':
+                return Response([{'paperId': '2601.11111', 'title': 'Recent', 'publicationDate': '2026-09-01'}])
+            return Response({'results': [WORK, {**WORK, 'id': 'https://openalex.org/W456', 'doi': None,
+                              'display_name': 'Unknown', 'publication_date': '2026-10-01', 'cited_by_count': None}]})
+        client = LiteratureClient(fetch, lambda: NOW)
+        recent = client.search({'query': 'x', 'sources': ['alphaxiv', 'openalex'], 'priority': 'recency'})['items']
+        self.assertEqual([x['title'] for x in recent], ['Unknown', 'Recent', 'A research paper'])
+        popular = client.search({'query': 'x', 'sources': ['alphaxiv', 'openalex'], 'priority': 'popular'})['items']
+        self.assertEqual(popular[0]['citations'], 3)
+        self.assertNotIn('citations', popular[1])
+        self.assertNotIn('citations', popular[2])
+
+    def test_huggingface_search_merges_paper_versions_and_keeps_observed_links(self):
+        def fetch(url, **_options):
+            if urlsplit(url).hostname == 'huggingface.co':
+                self.assertEqual(parse_qs(urlsplit(url).query)['q'], ['research'])
+                return Response([{'paper': {'id': '2601.12345', 'title': 'A paper', 'summary': 'Abstract',
+                    'authors': [{'name': 'Researcher'}], 'publishedAt': '2026-01-01T12:00:00Z', 'upvotes': 8,
+                    'githubRepo': 'https://github.com/team/code', 'githubStars': 12, 'projectPage': 'https://example.org/project'},
+                    'thumbnail': 'https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2601.12345.png'}])
+            return Response([{'paperId': '2601.12345v2', 'title': 'Renamed paper'}])
+        client = LiteratureClient(fetch, lambda: NOW)
+        item = client.search({'query': 'research', 'sources': ['alphaxiv', 'huggingface']})['items'][0]
+        self.assertEqual((item['source'], item['id']), ('alphaxiv', '2601.12345v2'))
+        self.assertEqual((item['hfVotes'], item['githubStars']), (8, 12))
+        self.assertEqual(item['githubUrl'], 'https://github.com/team/code')
+        self.assertEqual(item['projectUrl'], 'https://example.org/project')
+        self.assertEqual(item['paperUrl'], 'https://huggingface.co/papers/2601.12345')
+        self.assertIn('cdn-thumbnails.huggingface.co', item['thumbnailUrl'])
+        self.assertEqual(item['thumbnailId'], '2601.12345')
+        self.assertEqual(item['alternatives'][0]['source'], 'huggingface')
+        self.assertEqual(PaperIdentity.parse({'source': 'huggingface', 'id': item['alternatives'][0]['id']}).source, 'alphaxiv')
+        filtered = client.search({'query': 'research', 'sources': ['huggingface'], 'publishedAfter': '2026-02-01'})
+        self.assertEqual(filtered['items'], [])
+
+        def unsafe(_url, **_options):
+            return Response([{'paper': {'id': '2601.11111', 'title': 'Other', 'githubRepo': 'https://example.org/code'},
+                              'thumbnail': 'https://example.org/image.png'}])
+        item = LiteratureClient(unsafe).search({'query': 'x', 'sources': ['huggingface']})['items'][0]
+        self.assertNotIn('thumbnailUrl', item)
+        self.assertNotIn('thumbnailId', item)
+        self.assertNotIn('githubUrl', item)
+        self.assertNotIn('hfVotes', item)
+        long_query = client.search({'query': 'x' * 251, 'sources': ['huggingface']})
+        self.assertEqual(long_query['status'], 'failed')
+        self.assertIn('250 characters', long_query['errors'][0]['error'])
 
     def test_alphaxiv_fallback_and_publisher_metadata_preserve_original_text(self):
         source = "# Original paper\n\nUnchanged source & evidence."
