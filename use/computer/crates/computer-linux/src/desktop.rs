@@ -26,6 +26,8 @@ fn failure(e: impl std::fmt::Display) -> ComputerError {
     error(ComputerErrorCode::Failed, e.to_string())
 }
 pub struct X11Snapshot {
+    /// The process the observation was bound to.
+    pid: i32,
     /// Indexed by the public element number of this observation.
     elements: Vec<Option<ElementTarget>>,
     window_bounds: WindowBounds,
@@ -135,20 +137,11 @@ impl Desktop {
     }
 }
 impl Desktop {
-    fn element_click(
+    fn element_target<'a>(
         &self,
-        app: &Window,
-        snap: &X11Snapshot,
+        snap: &'a X11Snapshot,
         element_id: &ComputerRef,
-        button: ComputerMouseButton,
-        count: u8,
-    ) -> Result<(), ComputerError> {
-        if button != ComputerMouseButton::Left || count != 1 {
-            return Err(error(
-                ComputerErrorCode::Unsupported,
-                "AT-SPI element clicks invoke the control once with the primary action",
-            ));
-        }
+    ) -> Result<(&Accessibility, &'a ElementTarget), ComputerError> {
         let bus = self
             .accessibility
             .as_ref()
@@ -165,7 +158,7 @@ impl Desktop {
                     "This element has no invoking action",
                 )
             })?;
-        bus.click(target, app.pid)
+        Ok((bus, target))
     }
 }
 impl DesktopDriver for Desktop {
@@ -418,6 +411,7 @@ impl DesktopDriver for Desktop {
         };
         Ok(WindowObservation {
             source: X11Snapshot {
+                pid: app.pid,
                 elements: targets,
                 window_bounds: bounds,
                 image_width: w.into(),
@@ -435,18 +429,21 @@ impl DesktopDriver for Desktop {
         })
     }
 
-    fn admit(&self, _snap: &X11Snapshot, action: &ComputerAction) -> Result<(), ComputerError> {
+    fn admit(&self, snap: &X11Snapshot, action: &ComputerAction) -> Result<(), ComputerError> {
         if let ComputerInput::Click {
-            anchor: ComputerAnchor::Element { .. },
+            anchor: ComputerAnchor::Element { element_id },
             button,
             count,
         } = &action.input
-            && (*button != ComputerMouseButton::Left || u8::from(*count) != 1)
         {
-            return Err(error(
-                ComputerErrorCode::Unsupported,
-                "AT-SPI element clicks invoke the control once with the primary action",
-            ));
+            if *button != ComputerMouseButton::Left || u8::from(*count) != 1 {
+                return Err(error(
+                    ComputerErrorCode::Unsupported,
+                    "AT-SPI element clicks invoke the control once with the primary action",
+                ));
+            }
+            let (bus, target) = self.element_target(snap, element_id)?;
+            bus.check(target, snap.pid)?;
         }
         Ok(())
     }
@@ -458,11 +455,12 @@ impl DesktopDriver for Desktop {
     ) -> Result<(), ComputerError> {
         if let ComputerInput::Click {
             anchor: ComputerAnchor::Element { element_id },
-            button,
-            count,
+            ..
         } = &action.input
         {
-            return self.element_click(app, snap, element_id, *button, (*count).into());
+            // Ownership, presence and state were re-checked in `admit`.
+            let (bus, target) = self.element_target(snap, element_id)?;
+            return bus.click(target);
         }
         let (c, screen) = self.x()?;
         let bounds = snap.window_bounds;

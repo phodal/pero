@@ -16,6 +16,8 @@ const REGISTRY: &str = "org.a11y.atspi.Registry";
 const ROOT: &str = "/org/a11y/atspi/accessible/root";
 const COORDS_SCREEN: u32 = 0;
 const TIMEOUT: Duration = Duration::from_secs(2);
+/// Whole-observation budget, well inside the Host's per-request limit.
+const OBSERVE_BUDGET: Duration = Duration::from_secs(8);
 
 #[derive(Clone, Debug)]
 pub struct Node {
@@ -215,12 +217,16 @@ impl Accessibility {
             targets: Vec::new(),
             truncated: false,
         };
+        let deadline = std::time::Instant::now() + OBSERVE_BUDGET;
+        let mut visited = 0usize;
         let mut stack = vec![(root, 0u16)];
         while let Some((node, depth)) = stack.pop() {
-            if tree.elements.len() >= NODE_BUDGET {
+            // Every visited node costs bus round trips, rendered or not.
+            if visited >= NODE_BUDGET || std::time::Instant::now() >= deadline {
                 tree.truncated = true;
                 break;
             }
+            visited += 1;
             let Ok(facts) = self.facts(&node) else {
                 // The object vanished while reading; the tree is no longer complete.
                 tree.truncated = true;
@@ -249,7 +255,9 @@ impl Accessibility {
     }
 
     /// Invokes the observed click Action without pointer or focus changes.
-    pub fn click(&self, target: &ElementTarget, pid: i32) -> Result<(), ComputerError> {
+    /// Re-checks a snapshot element before any input: same process, still
+    /// present, enabled and visible. Failures here are certain refusals.
+    pub fn check(&self, target: &ElementTarget, pid: i32) -> Result<(), ComputerError> {
         if self.pid(&target.node.bus) != Some(pid) {
             return Err(unavailable(
                 "The element no longer belongs to the target process",
@@ -263,6 +271,11 @@ impl Accessibility {
                 "The element is no longer enabled and visible; observe again",
             ));
         }
+        Ok(())
+    }
+
+    /// Invokes the observed click Action without pointer or focus changes.
+    pub fn click(&self, target: &ElementTarget) -> Result<(), ComputerError> {
         let done: bool = self
             .call(&target.node, ACTION, "DoAction", &(target.action,))
             .map_err(|e| error(ComputerErrorCode::Failed, e.to_string()))?;
