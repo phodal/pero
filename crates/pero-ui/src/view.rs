@@ -325,6 +325,7 @@ impl Render for Workbench {
             .capture_action(cx.listener(|this,_:&crate::workspace_tab_actions::FocusPane8,window,cx|this.focus_numbered_pane(7,window,cx)))
             .capture_action(cx.listener(|this,_:&crate::workspace_tab_actions::FocusPane9,window,cx|this.focus_numbered_pane(8,window,cx)))
 
+            .capture_action(cx.listener(|this,_:&crate::workspace_recent::OpenRecentContent,window,cx|{this.open_recent_content(window,cx);cx.stop_propagation();}))
             .capture_action(cx.listener(|this,_:&crate::web_documents::OpenWeb,window,cx| {this.choose_web(window,cx);cx.stop_propagation();}))
             .capture_action(cx.listener(|this,_:&crate::document_save_as::SaveDocumentAs,_,cx| {this.choose_document_save_as(cx);cx.stop_propagation();}))
             .capture_action(cx.listener(|this,_:&crate::workspace_view::OpenDocument,_,cx| {this.choose_document(cx);cx.stop_propagation();}))

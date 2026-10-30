@@ -100,3 +100,6 @@ mod workspace_close;
 mod workspace_pane_tabs;
 #[cfg(any(target_family="wasm",feature="native"))]
 mod workspace_tab_actions;
+
+#[cfg(any(target_family="wasm",feature="native"))]
+mod workspace_recent;

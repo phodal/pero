@@ -150,6 +150,8 @@ impl Workbench {
 
             KeyBinding::new("cmd-l",crate::web_documents::OpenWeb,None),
             KeyBinding::new("ctrl-l",crate::web_documents::OpenWeb,None),
+            KeyBinding::new("cmd-p",crate::workspace_recent::OpenRecentContent,None),
+            KeyBinding::new("ctrl-p",crate::workspace_recent::OpenRecentContent,None),
             KeyBinding::new("cmd-o",crate::workspace_view::OpenDocument,None),
             KeyBinding::new("ctrl-o",crate::workspace_view::OpenDocument,None),
             KeyBinding::new("ctrl-tab", crate::workspace_pane_tabs::NextPaneTabMru, None),
