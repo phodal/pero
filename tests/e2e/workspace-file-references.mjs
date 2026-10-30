@@ -53,8 +53,9 @@ try {
   await expect.poll(async()=>(await reader()).dirty).toBe(false);
   expect((await page.evaluate(()=>window.__fileReferenceFrames)).some(frame=>frame.action==='save_draft'&&frame.bytes<4096)).toBe(true);
   await app.evaluate(({dialog},path)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:path});},copy);
-  await page.keyboard.press(`${modifier}+Shift+s`);await expect.poll(()=>readFile(copy,'utf8'),{timeout:30000}).toBe(' '+source);
+  await page.keyboard.press(`${modifier}+Shift+s`);
   await expect.poll(async()=>(await state()).activeContent.value.source).toBe(copy);
+  expect(await readFile(copy,'utf8')).toBe(' '+source);
   expect((await page.evaluate(()=>window.__fileReferenceFrames)).some(frame=>frame.action==='save_as_reference'&&frame.bytes<4096)).toBe(true);
   expect((await state()).documents.length).toBe(1);expect((await reader()).dirty).toBe(false);
   await page.screenshot({scale:'css',path:resolve(out,'reference-save-as.png')});
