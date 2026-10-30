@@ -29,21 +29,11 @@ unsafe extern "C" {
     fn CGEventSetLocation(event: *mut c_void, point: Point);
     fn CGEventSetFlags(event: *mut c_void, flags: u64);
     fn CGEventPostToPid(pid: i32, event: *mut c_void);
+    fn CGEventPost(tap: u32, event: *mut c_void);
 }
 unsafe extern "C" {
     fn dlsym(handle: *mut c_void, name: *const c_char) -> *mut c_void;
 }
-#[link(name = "ApplicationServices", kind = "framework")]
-unsafe extern "C" {
-    fn AXUIElementCreateSystemWide() -> *mut c_void;
-    fn AXUIElementCopyElementAtPosition(
-        system: *mut c_void,
-        x: f32,
-        y: f32,
-        element: *mut *mut c_void,
-    ) -> i32;
-}
-
 pub struct WindowInput<'a> {
     pid: i32,
     id: u32,
@@ -182,15 +172,97 @@ impl<'a> WindowInput<'a> {
         };
         Ok(focus)
     }
-    pub fn drag(&self, from: (f64, f64), to: (f64, f64)) -> Result<(), ComputerError> {
-        let _focus = self.focus()?;
+    pub fn drag(
+        &self,
+        from: (f64, f64),
+        to: (f64, f64),
+        delivery: pero_contracts::computer_use::ComputerDelivery,
+        cancellation: &computer_runtime::Cancellation,
+    ) -> Result<(), ComputerError> {
+        let foreground = delivery == pero_contracts::computer_use::ComputerDelivery::Foreground;
+        if foreground {
+            self.foreground_point(from)?;
+            self.foreground_point(to)?;
+        }
+        let _focus = if foreground { None } else { self.focus()? };
+        self.button_event(1, from, 0, foreground)?;
+        let mut held = HeldButton {
+            window: self,
+            point: from,
+            number: 0,
+            up: 2,
+            foreground,
+            armed: true,
+        };
         for (kind, x, y) in ffi::drag_plan(from, to, 1, 2, 6, ffi::DRAG_STEPS, None) {
-            self.mouse(kind, (x, y), 0, 1)?;
-            std::thread::sleep(Duration::from_millis(12));
+            if kind != 6 {
+                continue;
+            }
+            cancellation.wait(Duration::from_millis(12))?;
+            self.button_event(kind, (x, y), 0, foreground)?;
+            held.point = (x, y);
+        }
+        self.button_event(6, to, 0, foreground)?;
+        held.point = to;
+        held.release()
+    }
+    pub fn hold(
+        &self,
+        point: (f64, f64),
+        button: MouseButton,
+        hold_ms: u16,
+        delivery: pero_contracts::computer_use::ComputerDelivery,
+        cancellation: &computer_runtime::Cancellation,
+    ) -> Result<(), ComputerError> {
+        let foreground = delivery == pero_contracts::computer_use::ComputerDelivery::Foreground;
+        if foreground {
+            self.foreground_point(point)?;
+        }
+        let _focus = if foreground { None } else { self.focus()? };
+        let (number, down, up, _) = codes(button);
+        self.button_event(down, point, number, foreground)?;
+        let held = HeldButton {
+            window: self,
+            point,
+            number,
+            up,
+            foreground,
+            armed: true,
+        };
+        let result = cancellation.wait(Duration::from_millis(hold_ms.into()));
+        held.release()?;
+        result
+    }
+    fn button_event(
+        &self,
+        kind: u32,
+        point: (f64, f64),
+        button: u32,
+        foreground: bool,
+    ) -> Result<(), ComputerError> {
+        if !foreground {
+            return self.mouse(kind, point, button, 1);
+        }
+        let source = unsafe { CfRef::from_created(CGEventSourceCreate(-1)) }.ok_or_else(failed)?;
+        let event = unsafe {
+            CfRef::from_created(CGEventCreateMouseEvent(
+                source.as_ptr(),
+                kind,
+                Point {
+                    x: point.0,
+                    y: point.1,
+                },
+                button,
+            ))
+        }
+        .ok_or_else(failed)?;
+        unsafe {
+            CGEventPost(0, event.as_ptr());
         }
         Ok(())
     }
     pub fn key(&self, code: u8, flags: u64) -> Result<(), ComputerError> {
+        let _focus = self.focus()?;
         let source = unsafe { CfRef::from_created(CGEventSourceCreate(-1)) }.ok_or_else(failed)?;
         for down in [true, false] {
             let event = unsafe {
@@ -209,19 +281,58 @@ impl<'a> WindowInput<'a> {
         }
         Ok(())
     }
+    pub fn text(&self, text: &str) -> Result<(), ComputerError> {
+        let _focus = self.focus()?;
+        ffi::post_text(self.pid, text);
+        Ok(())
+    }
+    pub fn move_to(
+        &self,
+        point: (f64, f64),
+        delivery: pero_contracts::computer_use::ComputerDelivery,
+    ) -> Result<(), ComputerError> {
+        if delivery == pero_contracts::computer_use::ComputerDelivery::Foreground {
+            self.foreground_point(point)?;
+            // kCGEventMouseMoved, kCGHIDEventTap; this intentionally moves the real cursor.
+            let source =
+                unsafe { CfRef::from_created(CGEventSourceCreate(-1)) }.ok_or_else(failed)?;
+            let event = unsafe {
+                CfRef::from_created(CGEventCreateMouseEvent(
+                    source.as_ptr(),
+                    5,
+                    Point {
+                        x: point.0,
+                        y: point.1,
+                    },
+                    0,
+                ))
+            }
+            .ok_or_else(failed)?;
+            unsafe {
+                CGEventPost(0, event.as_ptr());
+            }
+            Ok(())
+        } else {
+            let _focus = self.focus()?;
+            self.mouse(5, point, 0, 0)
+        }
+    }
     fn foreground_point(&self, (x, y): (f64, f64)) -> Result<(), ComputerError> {
-        let system =
-            unsafe { CfRef::from_created(AXUIElementCreateSystemWide()) }.ok_or_else(failed)?;
-        let mut element = std::ptr::null_mut();
-        let status = unsafe {
-            AXUIElementCopyElementAtPosition(system.as_ptr(), x as f32, y as f32, &mut element)
-        };
-        let element = unsafe { CfRef::from_created(element) };
-        // Apple's system-wide hit test follows the topmost window. Unlike a
-        // CGWindowList rectangle scan, it does not mistake the full-display
-        // non-interactive Dock surface on macOS 27 for the input recipient.
-        if status != 0 || element.as_ref().and_then(ffi::ax_pid) != Some(self.pid) {
-            return Err(ComputerError { code: ComputerErrorCode::TargetUnavailable, message: "The foreground point belongs to another application or cannot be hit-tested; expose the target and observe again".into() });
+        let hit = ffi::ax_element_at_point(x, y);
+        let hit_pid = hit.as_ref().and_then(ffi::ax_pid);
+        let hit_window = hit
+            .as_ref()
+            .and_then(crate::observation::window_of)
+            .map(|w| ffi::ax_window_id(&w));
+        let valid = hit_pid == Some(self.pid) && hit_window == Some(self.id);
+        if !valid {
+            return Err(ComputerError {
+                code: ComputerErrorCode::TargetUnavailable,
+                message: format!(
+                    "The foreground point does not belong to the selected window; expose the target and observe again (hit pid {:?}, window {:?}; selected pid {}, window {})",
+                    hit_pid, hit_window, self.pid, self.id
+                ),
+            });
         }
         Ok(())
     }
@@ -235,11 +346,29 @@ impl<'a> WindowInput<'a> {
         ffi::post_mouse_global(point.0, point.1, button, count);
         Ok(())
     }
-    pub fn foreground_drag(&self, from: (f64, f64), to: (f64, f64)) -> Result<(), ComputerError> {
-        self.foreground_point(from)?;
-        self.foreground_point(to)?;
-        ffi::post_mouse_drag_global(from, to, MouseButton::Left, None);
-        Ok(())
+}
+struct HeldButton<'a, 'b> {
+    window: &'a WindowInput<'b>,
+    point: (f64, f64),
+    number: u32,
+    up: u32,
+    foreground: bool,
+    armed: bool,
+}
+impl HeldButton<'_, '_> {
+    fn release(mut self) -> Result<(), ComputerError> {
+        self.armed = false;
+        self.window
+            .button_event(self.up, self.point, self.number, self.foreground)
+    }
+}
+impl Drop for HeldButton<'_, '_> {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = self
+                .window
+                .button_event(self.up, self.point, self.number, self.foreground);
+        }
     }
 }
 fn failed() -> ComputerError {

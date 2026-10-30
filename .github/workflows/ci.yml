@@ -265,6 +265,9 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Computer Use loopback transport contracts
+        run: node tests/e2e/computer-transport.mjs
+
       - name: Set up Rust nightly
         uses: dtolnay/rust-toolchain@v1
         with:
@@ -275,6 +278,12 @@ jobs:
         uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: stable
+
+      - name: Set up Go for bundled harness
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.27.3"
+          cache-dependency-path: harness/go/go.sum
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
@@ -287,6 +296,7 @@ jobs:
           kit="$RUNNER_TEMP/gpui-kit"
           echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
           git init --quiet "$kit"
+          git -C "$kit" config core.autocrlf false
           git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
           git -C "$kit" fetch --depth 1 origin ec89cfc36404667b7947aeb3d40b1c2859d729dd
           git -C "$kit" checkout --detach FETCH_HEAD
@@ -312,7 +322,7 @@ jobs:
           esac
 
       - name: Font-tool environment recovery tests
-        run: node --test scripts/build/fonttools.test.mjs scripts/build/patch-checkout.test.mjs
+        run: node --test scripts/build/fonttools.test.mjs scripts/build/patch-checkout.test.mjs scripts/build/gpui-kit.test.mjs
       - name: Resolve pinned local GPUI packages
         run: node scripts/cargo.mjs check -p pero-contracts
 
@@ -347,6 +357,7 @@ jobs:
           xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use.mjs
           xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use-workbench.mjs
           node tests/contracts/mcp-settings.mjs
+          node tests/contracts/mcp-ownership.mjs
           xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/mcp-settings.mjs
 
       - name: Desktop E2E evidence

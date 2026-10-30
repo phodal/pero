@@ -1,12 +1,16 @@
-import React, { createContext, useContext, useId, useState } from 'react';
-import {openDocument,type AppDocumentInput} from './document';
+import React, { createContext, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
+import {openDocument,standaloneDocuments,type AppDocumentInput} from './document';
 import { iconArtwork } from './icons.generated';
+import { useAppContext, useTheme } from './index';
+import { mountReaderSurface } from './reader-surface';
+import {contentIcons, type ContentIconInput, type ContentIconRegistry} from '../../icons/content';
 import { Button, type ButtonProps } from './components/button';
 export { Button, type ButtonProps } from './components/button';
 export { Input, Textarea, FilePicker, type FilePickerProps } from './components/input';
 export { Feedback } from './components/feedback';
 export { Field, type FieldProps, type FieldControlProps } from './components/field';
 export { Toolbar, PageHeader } from './components/layout';
+
 export type { IconName } from './icons.generated';
 
 export function IconButton({ label, ...props }: ButtonProps & { label: string }) {
@@ -16,6 +20,15 @@ export function Icon({ name }: { name: string }) {
   const icon = iconArtwork(name);
   return <svg {...icon.props} aria-hidden="true" width="15" height="15">{icon.children}</svg>;
 }
+/** Decorative content glyph; the surrounding title/action supplies the accessible name. */
+export function ContentIcon({source,registry=contentIcons}:{source:ContentIconInput;registry?:ContentIconRegistry}) {
+  const theme=useTheme();
+  const artwork=registry.artwork({...source,dark:source.dark??theme.mode==='dark'});
+  if(artwork.kind==='bundled')return <Icon name={artwork.name}/>;
+  return artwork.monochrome?<span aria-hidden="true" style={{display:'inline-block',width:15,height:15,flexShrink:0,backgroundColor:'currentColor',maskImage:`url("${artwork.src}")`,maskSize:'contain',maskRepeat:'no-repeat',maskPosition:'center'}}/>:
+    <img aria-hidden="true" alt="" width="15" height="15" src={artwork.src} style={{flexShrink:0}}/>;
+}
+
 export function Checkbox({ checked, onCheckedChange, ...props }: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'onChange'> & { onCheckedChange(value: boolean): void }) {
   return <input type="checkbox" {...props} checked={checked} onChange={event => onCheckedChange(event.target.checked)} className="pero-ui-checkbox"/>;
 }
@@ -62,13 +75,27 @@ export function ResultView({ result, labels, className = '' }: { result: { title
   return <section className={`pero-ui-result ${className}`} aria-label={result.title}><h3>{result.title}</h3><div className="pero-ui-table-scroll" tabIndex={0}><table><thead><tr>{result.columns.map((column, i) => <th key={i} scope="col">{column}</th>)}</tr></thead><tbody>{result.rows.map((row, i) => <tr key={i}>{row.map((cell, j) => <td key={j}>{typeof cell === 'number' ? cell.toLocaleString(undefined, { maximumFractionDigits: 5 }) : cell ?? '—'}</td>)}</tr>)}</tbody></table></div>{!result.rows.length && <p>{labels.empty}</p>}<p className="pero-ui-result-source">{labels.source}: {result.provenance.label}</p></section>;
 }
 
-/** Full source access. Hosted Apps use the shared workspace reader; standalone Apps retain exact text. */
+function StandaloneContent({document:source}:{document:AppDocumentInput}) {
+  const container=useRef<HTMLDivElement>(null),surface=useRef<ReturnType<typeof mountReaderSurface>>(null);
+  const context=useAppContext();
+  const reading=useMemo(()=>standaloneDocuments.admit(source),[source.id,source.title,source.text,JSON.stringify(source.format),source.location?.record]);
+  useEffect(()=>{
+    const mounted=mountReaderSurface(container.current!,{source:reading,context,url:'./_reader/reader.html',link:url=>window.open(url,'_blank','noopener')});
+    surface.current=mounted;
+    return ()=>{mounted.dispose();surface.current=null;};
+  },[]);
+  useEffect(()=>{surface.current?.source(reading);},[reading]);
+  useEffect(()=>{surface.current?.context(context);},[context]);
+  return <div ref={container} className="pero-standalone-reader"/>;
+}
+
+/** The workspace and standalone Apps use one source-backed GPUI reader. */
 export function ContentView({document,labels}:{document:AppDocumentInput;labels:{open:string;source:string;opening:string}}) {
   const [opening,setOpening]=useState(false),[error,setError]=useState('');
   const hosted=window.parent!==window;
   return <div className="pero-content-view">
-    {hosted ? <Button disabled={opening} onClick={()=>{setOpening(true);setError('');void openDocument(document).catch(error=>setError(error instanceof Error?error.message:String(error))).finally(()=>setOpening(false));}}>{opening?labels.opening:labels.open}</Button>
-      : <textarea aria-label={labels.source} readOnly value={document.text} spellCheck={false} className="pero-content-source"/>}
+    {hosted ? <Button disabled={opening} onClick={()=>{setOpening(true);setError('');void openDocument(document).catch(error=>setError(error instanceof Error?error.message:String(error))).finally(()=>setOpening(false));}}><ContentIcon source={{kind:document.format.kind,language:document.format.kind==='code'?document.format.language:undefined,path:document.title}}/>{opening?labels.opening:labels.open}</Button>
+      : <StandaloneContent document={document}/>}
     {error && <p role="alert">{error}</p>}
   </div>;
 }

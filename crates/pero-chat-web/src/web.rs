@@ -10,7 +10,7 @@ use gpui_kit::{
 use pero_chat_ui::{ChatAction, ChatPanel, assets::UiAssets, theme::Palettes};
 use pero_contracts::HostEvent;
 use serde_json::json;
-use std::{borrow::Cow, cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 use wasm_bindgen::prelude::*;
 
 thread_local! {
@@ -170,49 +170,10 @@ pub fn run(theme_json: &str, dark: bool, locale: &str) -> Result<(), JsValue> {
         .with_assets(UiAssets)
         .with_http_client(http)
         .run_embedded(move |cx| {
-            cx.text_system()
-                .add_fonts(vec![
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/Inter-Regular.ttf").as_slice(),
-                    ),
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/Workbench-regular.ttf")
-                            .as_slice(),
-                    ),
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/Workbench-bold.ttf").as_slice(),
-                    ),
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/IBMPlexSans-Regular.ttf")
-                            .as_slice(),
-                    ),
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/JetBrainsMono-Regular.ttf")
-                            .as_slice(),
-                    ),
-                ])
-                .expect("bundled fonts");
-            gpui_kit::init(cx);
-            if cx.platform_info().is_mac() {
-                use gpui_kit::component::input::{
-                    Copy, Cut, DeleteToBeginningOfLine, DeleteToEndOfLine, MoveEnd, MoveHome,
-                    Paste, Redo, SelectAll, Undo,
-                };
-                cx.bind_keys([
-                    KeyBinding::new("cmd-a", SelectAll, Some("Input")),
-                    KeyBinding::new("cmd-c", Copy, Some("Input")),
-                    KeyBinding::new("cmd-x", Cut, Some("Input")),
-                    KeyBinding::new("cmd-v", Paste, Some("Input")),
-                    KeyBinding::new("cmd-z", Undo, Some("Input")),
-                    KeyBinding::new("cmd-shift-z", Redo, Some("Input")),
-                    KeyBinding::new("cmd-left", MoveHome, Some("Input")),
-                    KeyBinding::new("cmd-right", MoveEnd, Some("Input")),
-                    KeyBinding::new("cmd-backspace", DeleteToBeginningOfLine, Some("Input")),
-                    KeyBinding::new("cmd-delete", DeleteToEndOfLine, Some("Input")),
-                ]);
-            }
+            pero_chat_ui::web_platform::initialize(cx);
             gpui_kit::component::set_locale(&locale);
-            pero_theme::ResolvedAppearance::resolve(&Default::default(), dark, &palettes).install(cx);
+            pero_theme::ResolvedAppearance::resolve(&Default::default(), dark, &palettes)
+                .install(cx);
             gpui_kit::open_window(WindowOptions::default(), cx, |window, cx| {
                 let view = cx.new(|cx| ChatWindow::new(palettes, dark, locale, window, cx));
                 CHAT.with(|slot| *slot.borrow_mut() = Some(view.downgrade()));
@@ -249,7 +210,12 @@ pub fn receive_host_event(json: &str) -> Result<(), JsValue> {
         if event.kind == "workbench_settings" {
             if let Ok(preferences) = serde_json::from_value(event.data.clone()) {
                 ui.preferences = preferences;
-                pero_theme::ResolvedAppearance::resolve(&ui.preferences, ui.system_dark, &ui.palettes).install(cx);
+                pero_theme::ResolvedAppearance::resolve(
+                    &ui.preferences,
+                    ui.system_dark,
+                    &ui.palettes,
+                )
+                .install(cx);
             }
         }
         ui.panel.update(cx, |panel, cx| {
@@ -265,7 +231,8 @@ pub fn snapshot() -> String {
     update(|ui, cx| {
         value = ui.panel.read(cx).snapshot(cx);
         value["ready"] = true.into();
-        value["appearance"] = serde_json::to_value(pero_theme::UiAppearance::global(cx)).expect("serializable appearance");
+        value["appearance"] = serde_json::to_value(pero_theme::UiAppearance::global(cx))
+            .expect("serializable appearance");
     });
     value.to_string()
 }
@@ -302,8 +269,8 @@ pub fn compose(text: &str) {
 
 #[wasm_bindgen]
 pub fn set_appearance(json: &str) -> Result<(), JsValue> {
-    let appearance: pero_theme::ResolvedAppearance = serde_json::from_str(json)
-        .map_err(|error|JsValue::from_str(&error.to_string()))?;
-    update(|_,cx| appearance.install(cx));
+    let appearance: pero_theme::ResolvedAppearance =
+        serde_json::from_str(json).map_err(|error| JsValue::from_str(&error.to_string()))?;
+    update(|_, cx| appearance.install(cx));
     Ok(())
 }

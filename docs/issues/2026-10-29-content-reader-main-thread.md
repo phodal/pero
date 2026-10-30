@@ -77,3 +77,70 @@ features were removed. This remains an open performance incident: a low warm
 p95 does not excuse a delayed highlighter or whole-selection stall. These are
 functional release-Wasm receipts, not release-Oz, cold-start distributions or
 installed-package results. `allLongTasks` contains the complete record.
+
+## 2026-10-30 actual Worker and native mirror measurement
+
+The hidden 1px IME textarea previously soft-wrapped the full native selection.
+Disabling hidden wrapping and containing its layout retains the actual textarea
+text/selection/clipboard path. An isolated CSS-only experiment reduced 21 long
+tasks to two: a 338 ms delayed highlighter and a 68 ms Select All task.
+
+The dedicated content Worker now performs JSON syntax and large root preview
+parsing. Shared immutable sources retain their preview and syntax indexes across
+views. Actual Desktop asserts both Worker completions and no Worker errors,
+structural gutter fold/unfold, precise clipboard and the existing table/search
+operations. Three release-Wasm functional runs of the same 1,086,892-byte/8,000-row
+source recorded thirty-switch p95 30.6–31.3 ms, maximum 31.5–33 ms and no long task
+inside timed open/switch samples. The full trace still has a 57–61 ms
+Select All task. Screenshots/receipts remain in `test-results/content-reader/`.
+
+The incident stays open: this improves the main-thread path without disabling
+features, but whole native selection has not met the frame budget. Large nested
+projection, sorting/filtering, cold distributions, 100k-row actual UI, physical IME
+and installed packages are not certified by the 8k functional benchmark.
+
+## 100k-row actual UI and selection profile
+
+The same real Desktop functional script now also passes 100,000 rows / 13,688,892
+bytes, with syntax, preview and six retained Worker transformations completing
+without errors. Thirty warm switches have p95 32.1 ms / maximum 32.4 ms, but
+Source opening is 110 ms (59 ms task). All-operation traces contain eight long
+tasks, peaking at 845 ms at native Select All; typing/copy/find include 51–103 ms
+tasks. Receipt: `performance-completed-100k.json`. No budget pass is claimed.
+
+A CDP trace on the 8k fixture attributes about 57.8 ms to browser Layout with
+24,008 dirty objects when the textarea mirrors the full native selection.
+Changing hidden font kerning/ligature rendering did not improve it and was not
+shipped. The original text/selection and normal 16px IME font remain intact.
+Root parsing and table transformations now run in an actual Worker; browser
+selection layout, large editor creation and large nested projections remain open.
+
+## Final nested-projection wiring regression
+
+The real 2,001-column Desktop gate now reaches the final column and copies its
+exact original numeric spelling after the compact-height repair. Expanding its
+4,000-row nested array nevertheless completes with zero `nodeCompleted` events.
+The cell-open handler called `shared_project` directly, bypassing the existing
+size-aware Worker/cache path used by initial load, restoration and breadcrumbs.
+It now pushes the selected source range and calls that same `refresh_projection`
+entry point. The fresh release-Wasm `pero-content-release-UWtLMd` build passes
+the unchanged Desktop gate: one real nested Worker completion, no failures, exact
+source spans and no new work on cached reopening. The receipt is
+`test-results/wide-content/result.json`.
+
+## Full native EditContext selection receipt
+
+The preceding EditContext profiling lane retains all 13,288,892 UTF-16 units of
+the 13,688,892-byte source in Chromium's native text/selection interface. Actual
+full/partial clipboard, readonly interaction and CDP composition pass; this does
+not constitute physical IME acceptance. The Select All trace records zero Layout
+events and two UpdateLayoutTree events totaling 0.103 ms (maximum 0.086 ms),
+removing the old 845 ms textarea Layout path without shrinking native selection.
+
+Thirty retained switches have p95 30.1 ms; Source opening is 96.5 ms. The trace
+still records a 71.219 ms FunctionCall and an earlier 58 ms task. This incident
+therefore stays open for residual interaction tasks and cold distributions.
+Receipts are `test-results/input-conduit/gpui-100k-performance.json` and
+`gpui-100k-selection-trace.json`, separately fingerprinted from the final pane
+workflow build. These measurements are not a universal frame-budget or packaged
+release claim.

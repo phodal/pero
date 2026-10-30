@@ -1,5 +1,6 @@
 [workspace]
-members = ["crates/pero-contracts", "crates/pero-theme", "crates/pero-runtime", "crates/pero-host", "crates/pero-ui", "crates/pero-chat-ui", "crates/pero-chat-web", "crates/pero-worker"]
+members = ["crates/pero-contracts", "crates/pero-theme", "crates/pero-runtime", "crates/pero-host", "crates/pero-ui", "crates/pero-chat-ui", "crates/pero-chat-web", "crates/pero-reader-web", "crates/pero-worker", "crates/pero-content-worker"]
+exclude = ["target"]
 resolver = "2"
 
 [workspace.package]

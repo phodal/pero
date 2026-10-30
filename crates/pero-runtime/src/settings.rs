@@ -103,6 +103,13 @@ pub fn load_chat_agent(path: &Path) -> Option<String> {
     value["chat_agent"].as_str().map(str::to_owned)
 }
 
+pub fn load_icon_theme(path: &Path) -> Option<String> {
+    serde_json::from_slice::<serde_json::Value>(&std::fs::read(path).ok()?).ok()?["icon_theme"].as_str().map(str::to_owned)
+}
+pub fn save_icon_theme(path: &Path, id: Option<&str>) -> io::Result<()> {
+    update(path, |settings| settings["icon_theme"] = serde_json::json!(id))
+}
+
 pub fn save_chat_agent(path: &Path, agent: &str) -> io::Result<()> {
     update(path, |value| value["chat_agent"] = agent.into())
 }
@@ -181,6 +188,9 @@ mod tests {
                 layout
             },
         };
+        save_harness(&path, &pero_contracts::harness_settings::HarnessSettings {
+            endpoint: "https://api.deepseek.com".into(), model: "deepseek-chat".into(), encrypted_api_key: Some("Y2lwaGVy".into()),
+        }).unwrap();
         save_workbench(&path, &preferences).unwrap();
         assert_eq!(load_workbench(&path), preferences);
         save_locale(&path, "en").unwrap();
@@ -195,6 +205,8 @@ mod tests {
         let value: serde_json::Value =
             serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         assert!(value["remote_connection"].is_null());
+        assert_eq!(value["harness"]["model"], "deepseek-chat");
+        assert_eq!(value["harness"]["encrypted_api_key"], "Y2lwaGVy");
         assert_eq!(load_locale(&path).as_deref(), Some("en"));
         assert_eq!(load_workbench(&path), preferences);
         #[cfg(unix)]
@@ -256,4 +268,8 @@ pub fn save_mcp(
         }
         value["local_mcp"][agent_id] = configuration;
     })
+}
+
+pub fn save_harness(path: &Path, settings: &pero_contracts::harness_settings::HarnessSettings) -> io::Result<()> {
+    update(path, |value| value["harness"] = serde_json::to_value(settings).expect("harness settings"))
 }

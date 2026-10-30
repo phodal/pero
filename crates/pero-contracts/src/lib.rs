@@ -1,3 +1,4 @@
+pub mod harness_settings;
 use serde::{Deserialize, Serialize};
 pub mod app_chat;
 pub use app_chat::AppChatScope;
@@ -7,6 +8,9 @@ pub mod computer_runtime;
 pub mod context;
 pub mod content_document;
 pub mod content_origin;
+pub mod content_location;
+pub mod workspace_draft;
+pub mod workspace_source;
 pub mod content_link;
 pub mod file_document;
 pub mod i18n;
@@ -286,3 +290,21 @@ mod history_tests {
 }
 
 pub mod appearance;
+
+pub mod workspace_session;
+
+pub mod reader_state;
+
+pub mod content_search;
+
+pub mod markdown_source;
+
+pub mod content_icon;
+pub mod icon_theme;
+
+pub mod content_syntax;
+pub mod mcp_source;
+pub mod content_preview_tape;
+pub mod workspace_panes;
+pub mod pane_tabs;
+pub mod text_edit_anchor;

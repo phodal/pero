@@ -40,7 +40,10 @@ continues to own managed App semantics.
 - `ComputerAction` fixes a request ID, target, observation, delivery mode and
   typed input. An element anchor is observation-local; a pixel anchor also
   names that observation's screenshot. Click, text, logical key chord, scroll
-  and drag are the complete v1 input vocabulary.
+  and drag remain available. The additive macOS vocabulary also includes value
+  replacement/clear, finite semantic actions, pointer move, bounded hold, hover with dwell,
+  and explicit foreground window focus. A semantic value write does not submit
+  a form or promise that an application binding has committed.
 - `ComputerActionReceipt` echoes the request, target and observation with an
   `executed`, `rejected` or `unknown` outcome. Rejection and unknown effects
   require a structured error. Execution acknowledgement never asserts task
@@ -208,3 +211,47 @@ pixel capture and all five foreground input kinds. Windows cross-compilation
 and Clippy pass; Windows desktop execution, pure Wayland and signed/notarized
 package launch have not passed acceptance here. Provider and package evidence
 is recorded separately in [Computer Use verification](../fitness/computer-use.md).
+
+## macOS capability completion, 2026-10-30
+
+`ComputerElement.state` reports native enabled/secure/focused/settable facts and
+optional selected/expanded state. `semantic_actions` contains a finite, generated
+vocabulary: press, open, confirm, cancel, show-menu, scroll-to-visible, increment
+and decrement. A request cannot forward an arbitrary AX method. Admission checks
+both element advertisements and runtime action/delivery/addressing support.
+`set_value` accepts an empty replacement; `type_text` remains insertion. Successful
+macOS receipts report semantic, window-event or foreground-event execution and,
+when applicable, the actual semantic action. Other drivers may omit execution
+details and continue to refuse unimplemented inputs.
+
+An `open` application accepts the existing name string or a typed bundle-ID
+selector. macOS discovers all layer-zero windows, including several from the same
+process, and resolves running bundle IDs through NSRunningApplication. New app
+launches still use the verified installed catalog, never a caller-supplied path.
+
+`observe.options` supports AX-only reads and bounded node/depth budgets. A subtree
+root names a control from this conversation's current observation and selected
+target. Expansion replaces that observation with a new ID and local numbering.
+Every action attempt still consumes the current observation. macOS retains native
+AX handles and validates live window ownership before using them; it never resolves
+a subtree number by rescanning the whole window. Subtree, secure and incomplete
+trees do not produce whole-window images. Text is bounded separately from nodes.
+
+macOS uses AX logical geometry for observation and background input, and the
+ScreenCaptureKit filter's content rectangle for image resolution. WindowManager
+thumbnail rectangles are not application coordinates. Foreground hit tests require
+the exact selected window ID as well as its PID; same-process overlays refuse.
+Middle clicks and multi-clicks retain physical button/count semantics. Explicit
+semantic actions do not silently become foreground input.
+
+`hold` holds one button for 1–10000 ms and always releases it; `move` positions
+the pointer and `hover` adds a 0–5000 ms `dwell_ms`; each advertises background
+and foreground delivery independently. `focus_window` requires explicit
+foreground delivery and target addressing. The worker reads connection closure
+independently of input execution. Desktop stop closes stdin first; cancellation
+wakes a hold, hover or drag and scoped button cleanup releases it before exit.
+Interrupted input retains an unknown receipt, with no automatic replay. Forced
+process termination remains a bounded fallback when graceful exit cannot finish.
+
+The owned AppKit, SwiftUI and Electron acceptance and release limitations are in
+[the macOS verification record](../fitness/computer-use-macos.md).

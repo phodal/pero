@@ -1,13 +1,15 @@
 //! Retained document items. Navigation owns selection; each item owns its view.
 use crate::{app::Workbench, workspace::WorkspaceItem};
 use gpui_kit::{prelude::*, *};
-use pero_chat_ui::content_reader::{ContentReader, ReaderAction};
-use pero_contracts::content_document::{ContentDocument, ContentFormat};
+use pero_chat_ui::content_reader::ContentReader;
+use pero_contracts::content_document::ContentDocument;
 use pero_contracts::content_origin::ContentOrigin;
 
 pub(crate) struct WorkspaceDocument {
     pub item: WorkspaceItem,
     pub view: Entity<ContentReader>,
+    pub cached: bool,
+    pub owner_seen: bool,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -18,10 +20,22 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.remember_current_location(cx);
         let item = WorkspaceItem::Document {
             origin: document.origin.clone(),
             source: document.id.clone(),
         };
+        self.recovery
+            .deferred
+            .retain(|document| document.saved.item() != item);
+        let recovered = self
+            .documents
+            .iter()
+            .position(|open| open.item == item && open.cached)
+            .map(|index| {
+                let open = self.documents.remove(index);
+                open.view.read(cx).reading_state(cx)
+            });
         let view = if let Some(open) = self.documents.iter_mut().find(|open| open.item == item) {
             open.view.update(cx, |view, cx| {
                 if view.dirty() && document.revision != view.document.revision {
@@ -32,42 +46,57 @@ impl Workbench {
             });
             open.view.clone()
         } else {
+            let fresh_file = !self.recovery.applying && matches!(document.origin, ContentOrigin::File { .. });
             let locale = self.locale.clone();
-            let view = cx.new(|cx| ContentReader::new(document, locale, window, cx).workspace(cx));
+            let view =
+                cx.new(|cx| ContentReader::new(document, locale, window, cx).workspace(window, cx));
+            if fresh_file {
+                view.update(cx, |view, cx| {
+                    let mut reading = view.reading_state(cx);
+                    reading.source = true;
+                    view.restore_reading_state(reading, window, cx);
+                });
+            }
             let close_item = item.clone();
-            let subscription=cx.subscribe_in(&view,window,move |this,_,action,window,cx| {
-                match action {
-                    ReaderAction::Save {source,revision,text}=>this.command(serde_json::json!({"method":"documents","action":"save","request_id":format!("save:{source}"),"source":source,"revision":revision,"text":text}),cx),
-                    ReaderAction::Reload {path}=>this.command(serde_json::json!({"method":"documents","action":"open","request_id":"reload","path":path}),cx),
-                    ReaderAction::DiscardAndClose=>this.discard_document(&close_item,window,cx),
-                    ReaderAction::Link(href)=> {
-                        let origin=match &close_item {WorkspaceItem::Document {origin,..}=>origin,_=>return};
-                        match pero_contracts::content_link::ContentLink::resolve(origin,href) {
-                            pero_contracts::content_link::ContentLink::File(href)=> {
-                                let WorkspaceItem::Document {source,..}=&close_item else {return;};
-                                this.command(serde_json::json!({"method":"documents","action":"follow","request_id":"link","source":source,"href":href}),cx);
-                            }
-                            pero_contracts::content_link::ContentLink::External(url)=>cx.open_url(&url),
-                            _=> {this.error=Some(this.t("content.link_unavailable").into());cx.notify();}
-                        }
-                    }
-                }
+            let subscription =
+                cx.subscribe_in(&view, window, move |this, reader, action, window, cx| {
+                    this.handle_document_action(&close_item, reader, action, window, cx)
+                });
+            let observed_item = item.clone();
+            let observer = cx.observe(&view, move |this, view, cx| {
+                this.observe_document_view(&observed_item, &view, cx)
             });
-            let observer = cx.observe(&view, |_, _, cx| cx.notify());
             self.documents.push(WorkspaceDocument {
                 item: item.clone(),
                 view: view.clone(),
+                cached: false,
+                owner_seen: true,
                 _subscriptions: vec![subscription, observer],
             });
             view
         };
+        if let Some(state) = recovered {
+            view.update(cx, |view, cx| view.restore_reading_state(state, window, cx));
+        }
         self.navigation.open(item);
+        self.navigation.ensure_document_layout();
+        if !self.recovery.applying {
+            self.ensure_document_panes(window, cx);
+        }
         self.sync_follow(cx);
+        self.queue_workspace_checkpoint(cx);
         view.update(cx, |view, cx| view.focus(window, cx));
         cx.notify();
     }
 
-    pub(crate) fn has_unsaved_documents(&self,cx:&App)->bool {self.documents.iter().any(|open|open.view.read(cx).dirty())}
+    pub(crate) fn has_unsaved_documents(&self, cx: &App) -> bool {
+        self.documents.iter().any(|open| open.view.read(cx).dirty())
+            || self.recovery.deferred.iter().any(|document| {
+                document.saved.draft.is_some()
+                    || document.saved.draft_ref.is_some()
+                    || document.saved.legacy_draft
+            })
+    }
     pub(crate) fn choose_document(&mut self, cx: &mut Context<Self>) {
         self.command(serde_json::json!({"action":"choose_document"}), cx);
     }
@@ -77,17 +106,40 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
+        if self.receive_document_save_as(event, window, cx) {
+            return true;
+        }
         match event.kind.as_str() {
             "document_choose" => {
                 self.choose_document(cx);
                 true
             }
             "document_file" | "document_open" => {
-                match serde_json::from_value::<pero_contracts::content_document::DocumentHeader>(
+                match serde_json::from_value::<pero_contracts::content_location::DocumentOpening>(
                     event.data.clone(),
                 ) {
-                    Ok(header) => {
+                    Ok(opening) => {
+                        let (header, location) = opening.into_parts();
                         let document = header.into_document(event.text.clone());
+                        if event.request_id.as_deref() == Some("open-file") {
+                            let item = WorkspaceItem::Document {
+                                origin: document.origin.clone(),
+                                source: document.id.clone(),
+                            };
+                            if self.recovery.deferred.iter().any(|deferred| {
+                                deferred.saved.item() == item
+                                    && (deferred.saved.draft.is_some()
+                                        || deferred.saved.draft_ref.is_some()
+                                        || deferred.saved.legacy_draft)
+                            }) {
+                                if let Some(route) = self.navigation.select(&item) {
+                                    self.activate_route(route, window, cx);
+                                }
+                                self.request_workspace_source(&item, cx);
+                                return true;
+                            }
+                        }
+
                         if event
                             .request_id
                             .as_deref()
@@ -98,19 +150,56 @@ impl Workbench {
                                 .iter()
                                 .find(|open| open.view.read(cx).document.id == document.id)
                             {
-                                open.view.update(cx, |view, cx| view.saved(document, cx));
+                                open.view
+                                    .update(cx, |view, cx| view.saved(document.clone(), cx));
+                                for pane in &self.pane_views {
+                                    if pane.item == open.item && pane.view != open.view {
+                                        pane.view.update(cx, |view, cx| {
+                                            view.saved(document.clone(), cx)
+                                        });
+                                    }
+                                }
+                                let item = open.item.clone();
+                                self.navigation
+                                    .bind_document_revision(&item, document.revision);
+                                self.saved_workspace_file(&document.id, &document);
+                            } else if let Some(deferred) = self.recovery.deferred.iter_mut().find(|open| open.saved.header.source.id == document.id) {
+                                deferred.saved.header = document.header();
+                                deferred.saved.draft = None;
+                                deferred.saved.draft_ref = None;
+                                deferred.saved.legacy_draft = false;
                             }
+                            let item = WorkspaceItem::Document { origin: document.origin.clone(), source: document.id.clone() };
+                            self.resume_workspace_close(&item, true, window, cx);
                         } else if event.request_id.as_deref() == Some("reload") {
                             if let Some(open) = self
                                 .documents
                                 .iter()
                                 .find(|open| open.view.read(cx).document.id == document.id)
                             {
-                                open.view
-                                    .update(cx, |view, cx| view.reload(document, window, cx));
+                                open.view.update(cx, |view, cx| {
+                                    view.reload(document.clone(), window, cx)
+                                });
+                                for pane in &self.pane_views {
+                                    if pane.item == open.item && pane.view != open.view {
+                                        pane.view.update(cx, |view, cx| {
+                                            view.reload(document.clone(), window, cx)
+                                        });
+                                    }
+                                }
                             }
+                            self.saved_workspace_file(&document.id, &document);
                         } else {
                             self.open_document(document, window, cx);
+                            if let Some(location) = location {
+                                if let Some(item) = self.navigation.current().cloned() {
+                                    if let Some(view) = self.active_document_view(&item) {
+                                        view.update(cx, |view, cx| {
+                                            view.reveal_record(location.record as usize, window, cx)
+                                        });
+                                    }
+                                }
+                            }
                         }
                         self.error = None;
                     }
@@ -120,6 +209,11 @@ impl Workbench {
                 true
             }
             "document_error" => {
+                if let Some(source) = event.data["source"].as_str() {
+                    self.failed_workspace_file_save(source);
+                    let item = WorkspaceItem::Document { origin: ContentOrigin::File { path: source.to_owned() }, source: source.to_owned() };
+                    self.resume_workspace_close(&item, false, window, cx);
+                }
                 let key = match event.data["reason"].as_str() {
                     Some("conflict") => "content.conflict",
                     Some("unsupported") => "content.unsupported",
@@ -129,6 +223,11 @@ impl Workbench {
                     Some(open.view.read(cx).document.id.as_str()) == event.data["source"].as_str()
                 }) {
                     open.view.update(cx, |view, cx| view.file_failed(key, cx));
+                    for pane in &self.pane_views {
+                        if pane.item == open.item && pane.view != open.view {
+                            pane.view.update(cx, |view, cx| view.file_failed(key, cx));
+                        }
+                    }
                 } else {
                     self.error = Some(self.t(key).into());
                 }
@@ -155,6 +254,11 @@ impl Workbench {
             );
         }
         self.documents.retain(|open| &open.item != item);
+        self.pane_views.retain(|view| &view.item != item);
+        self.recovery
+            .deferred
+            .retain(|document| &document.saved.item() != item);
+        self.queue_workspace_checkpoint(cx);
         if let Some(route) = self.navigation.close(item) {
             self.activate_route(route, window, cx);
         }
@@ -162,15 +266,21 @@ impl Workbench {
     }
     pub(crate) fn reconcile_documents(&mut self, cx: &mut Context<Self>) {
         let chats = &self.chat.read(cx).chats;
-        self.documents.retain(|open| match &open.item {
-            WorkspaceItem::Document {
-                origin: ContentOrigin::App { app, panel },
-                ..
-            } => self.apps.contains_panel(app, panel),
-            WorkspaceItem::Document { origin, .. } => origin
-                .thread_id()
-                .is_none_or(|owner| chats.iter().any(|chat| chat.id == owner)),
-            _ => false,
+        self.documents.retain_mut(|open| {
+            let available = match &open.item {
+                WorkspaceItem::Document {
+                    origin: ContentOrigin::App { app, panel },
+                    ..
+                } => self.apps.retains_panel(app, panel),
+                WorkspaceItem::Document { origin, .. } => origin
+                    .thread_id()
+                    .is_none_or(|owner| chats.iter().any(|chat| chat.id == owner)),
+                _ => false,
+            };
+            if available {
+                open.owner_seen = true;
+            }
+            available || open.cached && !open.owner_seen
         });
         let updates = self
             .documents
@@ -192,31 +302,39 @@ impl Workbench {
         for (view, document) in updates {
             view.update(cx, |view, cx| view.replace(document, cx));
         }
+        for pane in &self.pane_views {
+            if let Some(primary) = self.documents.iter().find(|open| open.item == pane.item) {
+                let document = primary.view.read(cx).document.clone();
+                if pane.view != primary.view
+                    && !pane.view.read(cx).document.shares_source(&document)
+                {
+                    pane.view.update(cx, |view, cx| view.replace(document, cx));
+                }
+            }
+        }
     }
 
-    pub(crate) fn document_content(&self, _cx: &App) -> AnyElement {
-        let view = self
-            .documents
-            .iter()
-            .find(|open| Some(&open.item) == self.navigation.current())
-            .map(|open| open.view.clone());
+    pub(crate) fn document_content(&self, cx: &mut Context<Self>) -> AnyElement {
+        if let Some(layout) = self.navigation.pane_layout() {
+            if let Some(root) = &layout.root {
+                return self.render_pane_tree(root, cx);
+            }
+        }
         div()
             .flex_1()
-            .min_h_0()
-            .children(view.clone())
-            .when(view.is_none(), |el| el.child(self.t("content.unavailable")))
+            .child(self.t("content.unavailable"))
             .into_any_element()
     }
 
-    pub(crate) fn document_label(&self, item: &WorkspaceItem, cx: &App) -> (String, &'static str) {
+    pub(crate) fn document_label(&self, item: &WorkspaceItem, cx: &App) -> (String, String) {
         self.documents
             .iter()
             .find(|open| &open.item == item)
             .map(|open| {
-                let icon = match open.view.read(cx).document.format {
-                    ContentFormat::Text | ContentFormat::Markdown => "file",
-                    _ => "file-code",
-                };
+                let icon = pero_chat_ui::icon_theme::document_icon(
+                    &open.view.read(cx).document,
+                    pero_theme::UiAppearance::global(cx).dark,
+                );
                 (
                     format!(
                         "{}{}",
@@ -230,6 +348,16 @@ impl Workbench {
                     icon,
                 )
             })
-            .unwrap_or_else(|| (self.t("content.document").into(), "file"))
+            .unwrap_or_else(|| {
+                self.recovery.deferred.iter()
+                    .find(|document| &document.saved.item() == item)
+                    .map(|document| {
+                        let header = &document.saved.header;
+                        (header.source.title.clone(), pero_chat_ui::icon_theme::source_icon(
+                            &header.format, &header.source.title, pero_theme::UiAppearance::global(cx).dark,
+                        ))
+                    })
+                    .unwrap_or_else(|| (self.t("content.document").into(), "file".into()))
+            })
     }
 }

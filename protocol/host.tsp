@@ -44,32 +44,117 @@ model DocumentHeader {source:DocumentSource;revision:safeint;format:ContentForma
 model OpenFileDocument {method:"documents";action:"open";request_id:string;path:string;...Closed}
 model FollowFileDocument {method:"documents";action:"follow";request_id:string;source:string;href:string;...Closed}
 model SaveFileDocument {method:"documents";action:"save";request_id:string;source:string;revision:safeint;text:string;...Closed}
+model FileCopy {path:string;text:string;protected_sources:string[];...Closed}
+model SaveAsFileDocument {method:"documents";action:"save_as";request_id:string;copy:FileCopy;...Closed}
+model SaveDraftFileDocument {method:"documents";action:"save_draft";request_id:string;draft:DraftRef;...Closed}
+model SaveAsReferenceFileDocument {method:"documents";action:"save_as_reference";request_id:string;path:string;source:SourceKey;draft:DraftRef|null;protected_sources:string[];...Closed}
+model ChooseDocumentSave {action:"choose_document_save";request_id:string;suggested:string;...Closed}
 model ReleaseFileDocument {method:"documents";action:"release";source:string;...Closed}
-@oneOf union FileDocumentRequest {OpenFileDocument,FollowFileDocument,SaveFileDocument,ReleaseFileDocument}
+@oneOf union FileDocumentRequest {OpenFileDocument,FollowFileDocument,SaveFileDocument,SaveAsFileDocument,SaveDraftFileDocument,SaveAsReferenceFileDocument,ReleaseFileDocument}
+model DocumentSaveChooseEvent {kind:"document_save_choose";...EventBase}
+model DocumentSavePathEvent {kind:"document_save_path";...EventBase;data:{path:string;...Closed}}
+model DocumentSaveCancelledEvent {kind:"document_save_cancelled";...EventBase}
 model DocumentChooseEvent {kind:"document_choose";...EventBase}
-model DocumentOpenEvent {kind:"document_open";...EventBase;data:DocumentHeader}
+model ReaderLocation {record:uint32;...Closed}
+model LocatedDocumentHeader {header:DocumentHeader;location:ReaderLocation;...Closed}
+model DocumentOpenEvent {kind:"document_open";...EventBase;data:DocumentHeader|LocatedDocumentHeader}
 model FileDocumentEvent {kind:"document_file";...EventBase;data:DocumentHeader}
 model FileDocumentErrorEvent {kind:"document_error";...EventBase;data:{source:string;reason:"conflict"|"unsupported"|"unavailable"|"read_write";...Closed}}
+
+// Durable recovery is separate from tool execution and Desktop preference settings.
+model ReaderRange {start:safeint;end:safeint;...Closed}
+model ReaderSearch {case_insensitive:boolean;regex:boolean;whole_word:boolean;...Closed}
+model ReaderState {source_revision?:safeint|null;source:boolean;selection:ReaderRange;scroll:[float64,float64];preview_scroll:[float64,float64];preview_reveal?:ReaderRange|null;query:string;search_open:boolean;search:ReaderSearch;folded_lines:safeint[];path:ReaderRange[];...Closed}
+model WorkspaceSimpleItem {kind:"conversation"|"web"|"project"|"task";value:string;...Closed}
+model WorkspaceDocumentItem {kind:"document";value:{origin:ContentOrigin;source:string;...Closed};...Closed}
+model WorkspaceAppItem {kind:"app";value:{name:string;panel:string;...Closed};...Closed}
+@oneOf union WorkspaceItem {WorkspaceSimpleItem,WorkspaceDocumentItem,WorkspaceAppItem}
+scalar WorkbenchPage extends string;
+model WorkspacePageRoute {kind:"page";value:"conversation"|"document"|"web"|"projects"|"agents"|"tasks"|"workers"|"apps"|"insights"|"connections";...Closed}
+model WorkspaceContentRoute {kind:"content";value:WorkspaceItem;...Closed}
+@oneOf union WorkspaceRoute {WorkspacePageRoute,WorkspaceContentRoute}
+// Legacy route-only history and one-item leaves migrate only while reading local checkpoints.
+union PaneItemKind {"primary","rendered_preview"}
+model HistoryEntry {route:WorkspaceRoute;reading?:ReaderState|null;preview?:boolean;view_kind?:PaneItemKind;...Closed}
+model WorkspaceHistory {reading:ReaderState|null;preview?:boolean;view_kind?:PaneItemKind;back:HistoryEntry[];forward:HistoryEntry[];...Closed}
+model PaneItem {id:safeint;route:WorkspaceRoute;kind?:PaneItemKind;reading?:ReaderState|null;...Closed}
+model PaneTabSet {items:PaneItem[];active:safeint|null;preview:safeint|null;pinned_count:safeint;activation_history:safeint[];history:WorkspaceHistory;closed:HistoryEntry[];...Closed}
+model PaneLeaf {id:safeint;tabs:PaneTabSet;...Closed}
+model PaneLeafNode {kind:"leaf";view:PaneLeaf;...Closed}
+model PaneSplitNode {kind:"split";id:safeint;axis:"horizontal"|"vertical";ratio:float64;first:PaneNode;second:PaneNode;...Closed}
+@oneOf union PaneNode {PaneLeafNode,PaneSplitNode}
+model PaneLayout {root:PaneNode|null;focused:safeint|null;next_id:safeint;next_view_id:safeint;...Closed}
+model WorkspaceSnapshot {items:WorkspaceItem[];route:WorkspaceRoute;other:WorkspaceRoute|null;focused:"left"|"right";panes:PaneLayout;...WorkspaceHistory}
+model SourceKey {origin:ContentOrigin;source:string;revision:safeint;...Closed}
+model DraftRef {source:SourceKey;version:safeint;...Closed}
+model DraftEdit {old:ReaderRange;inserted:string;...Closed}
+model SavedDocument {header:DocumentHeader;reading:ReaderState;draft:string|null;draft_ref?:DraftRef|null;legacy_draft?:boolean;...Closed}
+model InlineHtml {id:string;title:string;html:string;...Closed}
+model SavedWeb {id:string;url:string;html?:InlineHtml;...Closed}
+model WorkspaceSession {version:1;workspace:string;navigation:WorkspaceSnapshot;documents:SavedDocument[];web:SavedWeb[];...Closed}
+model WorkspaceSource {header:DocumentHeader;text:string;...Closed}
+model WorkspaceRestore {session:WorkspaceSession|null;sources:WorkspaceSource[];conflicts:string[];unavailable:SourceKey[];...Closed}
+model GetWorkspaceSession {method:"workspace";action:"get";...Closed}
+model SaveWorkspaceSession {method:"workspace";action:"save";request_id:string;refresh:SourceKey[];session:WorkspaceSession;sources:WorkspaceSource[];...Closed}
+model ReadWorkspaceSource {method:"workspace";action:"read";request_id:string;key:SourceKey;...Closed}
+model ResetWorkspaceSession {method:"workspace";action:"reset";request_id:string;...Closed}
+model SourceChunk {offset:safeint;text:string;done:boolean;...Closed}
+model BeginWorkspaceSource {method:"workspace";action:"source_begin";request_id:string;header:DocumentHeader;total_bytes:safeint;...Closed}
+model AppendWorkspaceSource {method:"workspace";action:"source_chunk";request_id:string;chunk:SourceChunk;...Closed}
+model StoreWorkspaceDraft {method:"workspace";action:"store_draft";request_id:string;base:DraftRef|null;draft:DraftRef;edits:DraftEdit[];...Closed}
+@oneOf union WorkspaceSessionRequest {GetWorkspaceSession,SaveWorkspaceSession,ReadWorkspaceSource,ResetWorkspaceSession,BeginWorkspaceSource,AppendWorkspaceSource,StoreWorkspaceDraft}
+model WorkspaceRestoredEvent {kind:"workspace_restored";...EventBase;data:WorkspaceRestore}
+model WorkspaceSavedEvent {kind:"workspace_saved";...EventBase}
+model WorkspaceErrorEvent {kind:"workspace_error";...EventBase}
+model WorkspaceSourceEvent {kind:"workspace_source";...EventBase;data:{source:WorkspaceSource;conflict:boolean;draft?:string|null;...Closed}}
+model WorkspaceSourceErrorEvent {kind:"workspace_source_error";...EventBase;data:{key:SourceKey;draft?:string|null;...Closed}}
+model WorkspaceResetEvent {kind:"workspace_reset";...EventBase}
+model WorkspaceSourceStoredEvent {kind:"workspace_source_stored";...EventBase}
+model DraftStoredEvent {kind:"draft_stored";...EventBase;data:DraftRef}
 
 // Browser engines supply navigation observations; workspace IDs remain stable.
 model WebLoading {kind:"loading";...Closed}
 model WebReady {kind:"ready";...Closed}
 model WebFailed {kind:"failed";message:string;...Closed}
 @oneOf union WebLoad {WebLoading,WebReady,WebFailed}
-model WebObservation {url:string;title:string;load:WebLoad;can_back:boolean;can_forward:boolean;...Closed}
-model WebDocument {id:string;observation:WebObservation;...Closed}
+model WebObservation {url:string;title:string;load:WebLoad;can_back:boolean;can_forward:boolean;notice?:string;...Closed}
+model WebDocument {id:string;observation:WebObservation;html?:InlineHtml;...Closed}
 model WebOpenedEvent {kind:"web_opened";...EventBase;data:WebDocument}
 model WebStateEvent {kind:"web_state";...EventBase;data:WebDocument}
 model WebClosedEvent {kind:"web_closed";...EventBase;data:{id:string;...Closed}}
 model WebErrorEvent {kind:"web_error";...EventBase}
 model WebChooseEvent {kind:"web_choose";...EventBase}
 model WebOpenCommand {action:"web_open";url:string;...Closed}
+model WebHtmlCommand {action:"web_html";source:InlineHtml;...Closed}
+model WebRestoreCommand {action:"web_restore";id:string;url:string;html?:InlineHtml|null;...Closed}
 model WebNavigateCommand {action:"web_navigate";id:string;url:string;...Closed}
 model WebControlCommand {action:"web_back"|"web_forward"|"web_reload"|"web_close";id:string;...Closed}
 model SurfaceBounds {x:float64;y:float64;width:float64;height:float64;...Closed}
 model WebSurfaceCommand {action:"web_surface";id:string|null;bounds?:SurfaceBounds;...Closed}
+model WebSurfaceSlot {id:string;bounds:SurfaceBounds;focused:boolean;...Closed}
+model WebSurfacesCommand {action:"web_surfaces";surfaces:WebSurfaceSlot[];...Closed}
+model WebFocusedEvent {kind:"web_focused";...EventBase;data:{id:string;...Closed}}
 /** Private Desktop/native browser-engine commands, not Host stdin. */
-@oneOf union WebCommand {WebOpenCommand,WebNavigateCommand,WebControlCommand,WebSurfaceCommand}
+@oneOf union WebCommand {WebOpenCommand,WebHtmlCommand,WebRestoreCommand,WebNavigateCommand,WebControlCommand,WebSurfaceCommand,WebSurfacesCommand}
+model IconVariants {light:string;dark?:string;...Closed}
+model IconGlyphMap is Record<IconVariants>;
+model IconAssociationMap is Record<string>;
+model IconThemeAssociations {kinds?:IconAssociationMap;languages?:IconAssociationMap;filenames?:IconAssociationMap;extensions?:IconAssociationMap;apps?:IconAssociationMap;...Closed}
+model IconThemePackage {version:1;id:string;name:string;icons:IconGlyphMap;associations:IconThemeAssociations;...Closed}
+model IconThemeInfo {id:string;name:string;...Closed}
+model IconThemeState {installed:IconThemeInfo[];selected:string|null;theme:IconThemePackage|null;...Closed}
+model GetIconThemes {method:"icons";action:"get";request_id:string;...Closed}
+model InstallIconTheme {method:"icons";action:"install";request_id:string;path:string;...Closed}
+model SelectIconTheme {method:"icons";action:"select";request_id:string;id:string|null;...Closed}
+model RemoveIconTheme {method:"icons";action:"remove";request_id:string;id:string;...Closed}
+@oneOf union IconThemeRequest {GetIconThemes,InstallIconTheme,SelectIconTheme,RemoveIconTheme}
+model IconThemesEvent {kind:"icon_themes"|"icon_themes_error";...EventBase;data:IconThemeState}
+model McpSourceRequest {method:"mcp";action:"open";request_id:string;thread_id?:string|null;...Closed}
+model McpAppBinding {id:string;server:string;resource_uri:string;tool:string;tool_call:string;thread_id:string;...Closed}
+model McpPermittedEvent {kind:"mcp_permitted";...EventBase;thread_id?:string;data:{locale:string;...Closed}}
+model McpSourcesEvent {kind:"mcp_sources";...EventBase;thread_id?:string;data:{url:string;...Closed}}
+model McpErrorEvent {kind:"mcp_error";...EventBase}
+model McpAppOpenedEvent {kind:"mcp_app_opened";...ThreadEventBase;data:McpAppBinding}
 
 // User-managed non-secret MCP configuration, scoped to one local ACP Agent.
 model McpStdioTransport { type:"stdio";command:string;args?:string[];...Closed }
@@ -178,6 +263,9 @@ union HostCommand {
 @oneOf
 union HostInput {
   McpSettingsRequest,
+  IconThemeRequest,
+  McpSourceRequest,
+  WorkspaceSessionRequest,
   FileDocumentRequest,
   LocalWorkerRequest,
   EchoRequest,
@@ -340,8 +428,11 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 @oneOf
 union HostEvent {
   McpSettingsEvent, McpSettingsErrorEvent,
-  WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,
+  DocumentSaveChooseEvent,DocumentSavePathEvent,DocumentSaveCancelledEvent,
+  WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,WorkspaceSourceEvent,WorkspaceSourceErrorEvent,WorkspaceResetEvent,WorkspaceSourceStoredEvent,DraftStoredEvent,
+  WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,WebFocusedEvent,IconThemesEvent,
   DocumentOpenEvent,
+  McpPermittedEvent,McpSourcesEvent,McpErrorEvent,McpAppOpenedEvent,
   DocumentChooseEvent,
   FileDocumentEvent,
   FileDocumentErrorEvent,

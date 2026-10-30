@@ -12,6 +12,7 @@ impl Workbench {
     pub(crate) fn sync_settings_panel(&self, cx: &mut Context<Self>) {
         if let Some(panel) = &self.settings_panel {
             panel.update(cx, |panel, cx| {
+                if panel.harness.is_none() { panel.harness = self.harness.clone(); panel.harness_sync = true; }
                 panel.computer = self.computer.clone();
                 panel.computer_pending = false;
                 panel.receive(
@@ -38,6 +39,7 @@ impl Workbench {
                         SettingsAction::Save(preferences) => {
                             this.save_preferences(preferences.clone(), cx)
                         }
+                        SettingsAction::Icons(action) => this.icon_theme_action(action.clone(),cx),
                         SettingsAction::Locale(locale) => {
                             if request_locale(locale).is_err() {
                                 this.error = Some("error.preferences".into());
@@ -54,6 +56,9 @@ impl Workbench {
                         }
                         SettingsAction::Close => this.close_settings(window, cx),
                         SettingsAction::Mcp(command) => this.command(command.clone(), cx),
+                        SettingsAction::Harness(control) => {
+                            this.command(serde_json::to_value(control).expect("harness control"), cx);
+                        }
                         SettingsAction::Computer(control) => {
                             this.command(serde_json::to_value(control).expect("computer control"), cx);
                         }
@@ -68,6 +73,8 @@ impl Workbench {
         let agents = self.chat.read(cx).agents.clone();
         panel.update(cx, |panel, cx| { panel.mcp.agents = agents; panel.mcp_select_first(cx); });
         self.settings_panel = Some(panel);
+        #[cfg(target_family = "wasm")]
+        self.command(serde_json::json!({"action":"harness_get"}), cx);
         self.sync_settings_panel(cx);
         cx.notify();
     }
@@ -82,7 +89,15 @@ impl Workbench {
             });
         }
         #[cfg(target_family = "wasm")]
-        window.close_dialog(cx);
+        {
+            window.close_dialog(cx);
+            // Settings may have opened from a dropdown whose focus handle is gone.
+            if let Some(view) = self.navigation.current().and_then(|item| self.active_document_view(item)) {
+                view.update(cx, |view, cx| view.focus(window, cx));
+            } else {
+                self.workspace_focus.focus(window, cx);
+            }
+        }
         let _ = window;
         cx.notify();
     }
@@ -166,6 +181,7 @@ impl Workbench {
         window.open_dialog(cx, move |dialog, window, _| {
             let viewport = window.viewport_size();
             let owner = owner.clone();
+            let cancel_owner = owner.clone();
             let cancel_panel = panel.clone();
             dialog
                 .w((viewport.width - px(48.)).min(px(900.)))
@@ -175,7 +191,13 @@ impl Workbench {
                 .overlay_closable(false)
                 .on_ok(|_, _, _| false)
                 .on_cancel(move |_, window, cx| {
-                    !cancel_panel.update(cx, |panel, cx| panel.clear_search(window, cx))
+                    if !cancel_panel.update(cx, |panel, cx| panel.clear_search(window, cx)) {
+                        let owner = cancel_owner.clone();
+                        window.defer(cx, move |window, cx| {
+                            let _ = owner.update(cx, |this, cx| this.close_settings(window, cx));
+                        });
+                    }
+                    false
                 })
                 .content({
                     let panel = panel.clone();

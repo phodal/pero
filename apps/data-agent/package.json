@@ -1,0 +1,13 @@
+{
+  "name": "@pero/app-data-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../scripts/build/apps.mjs --app data-agent",
+    "test": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test -v",
+    "typecheck": "../../node_modules/.bin/tsc -p tsconfig.json"
+  },
+  "dependencies": { "react": "19.2.8", "react-dom": "19.2.8" },
+  "devDependencies": { "@types/react": "19.3.0", "@types/react-dom": "19.3.0" }
+}

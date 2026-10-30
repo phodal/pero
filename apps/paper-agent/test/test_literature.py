@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, urlsplit
 sys.path.insert(0, str(Path(__file__).parents[1] / "backend"))
 
 from paper_agent.literature import LiteratureClient, PaperIdentity, SearchQuery, deduplicate
-from paper_agent.model import Invalid
+from paper_agent.model import Invalid, canonical
 
 
 class Response(BytesIO):
@@ -139,6 +139,24 @@ class LiteratureTest(unittest.TestCase):
             return Response({"result": {}})
         with self.assertRaisesRegex(Invalid, "PubMed XML"):
             LiteratureClient(malformed_xml).read({"id": "123"})
+
+    def test_unpaired_surrogates_in_provider_json_remain_encodable(self):
+        def fetch(url, **_options):
+            host = urlsplit(url).hostname
+            if host == "api.alphaxiv.org":
+                return Response([{"paperId": "2601.12345", "title": "Loss \ud835", "abstract": "see \U0001d434"}])
+            if host == "api.openalex.org":
+                work = {**WORK, "id": "https://openalex.org/W999", "doi": None, "display_name": "Other \ud835",
+                        "abstract_inverted_index": {"\ud835": [0], "term": [1]}}
+                return Response({"results": [work]})
+            return Response(status=503)
+        result = LiteratureClient(fetch, lambda: NOW).search({"query": "loss", "sources": ["alphaxiv", "openalex"]})
+        items = {item["source"]: item for item in result["items"]}
+        self.assertEqual(items["alphaxiv"]["title"], "Loss \ufffd")
+        self.assertEqual(items["alphaxiv"]["abstract"], "see \U0001d434")
+        self.assertEqual(items["openalex"]["title"], "Other \ufffd")
+        self.assertEqual(items["openalex"]["abstract"], "\ufffd term")
+        self.assertIn("Loss \ufffd".encode(), canonical(result))
 
 
 if __name__ == "__main__":

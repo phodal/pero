@@ -2,6 +2,8 @@
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub mod assets;
 #[cfg(any(target_family = "wasm", feature = "native"))]
+pub mod icon_theme;
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod chat;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod composer;
@@ -19,8 +21,12 @@ mod panel;
 mod session_controls;
 pub mod stream;
 pub mod artifact_read;
+#[cfg(target_family = "wasm")]
+pub mod web_platform;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub mod content_reader;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod source_syntax;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod content_table;
 #[cfg(any(target_family = "wasm", feature = "native"))]

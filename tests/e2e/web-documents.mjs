@@ -18,7 +18,8 @@ const server=createServer((request,response)=>{
 });
 await new Promise(done=>server.listen(0,'127.0.0.1',done));
 const origin=`http://127.0.0.1:${server.address().port}`;
-const app=await electron.launch({args:['--use-mock-keychain',resolve(root,'desktop')],cwd:root,env:{...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'desktop'),PERO_LOCALE:'en',PERO_APPS_ROOT:resolve(temp,'apps'),PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_AGENTS_FILE:resolve(temp,'agents.json')}});
+const launch=()=>electron.launch({args:['--use-mock-keychain',resolve(root,'desktop')],cwd:root,env:{...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'desktop'),PERO_LOCALE:'en',PERO_APPS_ROOT:resolve(temp,'apps'),PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_AGENTS_FILE:resolve(temp,'agents.json')}});
+let app=await launch();
 let page;
 try {
   page=await app.firstWindow();const errors=[];page.on('pageerror',error=>errors.push(error.message));
@@ -55,12 +56,12 @@ try {
   await engine('document.querySelector("#next").click()',true);
   await expect.poll(async()=>(await document()).observation.title).toBe('Page two');
   await expect.poll(async()=>(await document()).observation.can_back).toBe(true);
-  await page.mouse.click(278,56);await expect.poll(async()=>(await document()).observation.url).toBe(origin+'/a');
+  await page.mouse.click(278,44);await expect.poll(async()=>(await document()).observation.url).toBe(origin+'/a');
   await expect.poll(async()=>(await document()).observation.can_forward).toBe(true);
-  await page.mouse.click(307,56);await expect.poll(async()=>(await document()).observation.url).toBe(origin+'/b');
+  await page.mouse.click(307,44);await expect.poll(async()=>(await document()).observation.url).toBe(origin+'/b');
   await address(origin+'/flaky');await expect.poll(async()=>(await document()).observation.load.kind).toBe('failed');
   expect((await document()).observation.load.message).toContain('500');
-  failing=false;await page.mouse.click(325,56);await expect.poll(async()=>(await document()).observation.load.kind).toBe('ready');
+  failing=false;await page.mouse.click(325,44);await expect.poll(async()=>(await document()).observation.load.kind).toBe('ready');
   expect(await engine('document.body.textContent')).toContain('Recovered');
   await address('file:///tmp/not-a-web-document');await expect.poll(async()=>(await state()).error).toBeTruthy();
   expect((await state()).webDocuments.length).toBe(1);
@@ -85,8 +86,19 @@ try {
   const tab=(await state()).activeTabBounds;await page.mouse.click(tab.right-17,18);
   await expect.poll(async()=>(await state()).webDocuments.length).toBe(0);
   expect(await app.evaluate(({webContents},id)=>webContents.getAllWebContents().some(contents=>contents.id===id),engineId)).toBe(false);
+  // A new engine restores the stable source ID and last committed URL.
+  await address(origin+'/a');await expect.poll(async()=>(await document()).observation.load.kind).toBe('ready');
+  await engine('document.querySelector("#next").click()',true);
+  await expect.poll(async()=>(await document()).observation.url).toBe(origin+'/b');
+  await app.close();app=await launch();page=await app.firstWindow();
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
+  await expect.poll(async()=>(await document())?.observation.load.kind,{timeout:15000}).toBe('ready');
+  expect((await document()).id).toBe(origin+'/a');expect((await document()).observation.url).toBe(origin+'/b');
+  expect(await engine('document.querySelector("h1").textContent')).toBe('Page two');
+  expect(await engine('document.querySelector("#draft").value')).toBe('');
   expect(errors).toEqual([]);
-  await writeFile(resolve(out,'result.json'),JSON.stringify({checks:['actual isolated WebContentsView renders X-Frame-Options DENY page','no App/Electron bridge in remote page','retained identity and form state across workspace routes','engine-owned back/forward history','HTTP failure and retry','file URL cannot bypass document authority','multiple Web sources, overlay hiding and dark workspace','narrow workspace and teardown'],errors},null,2));
+  await writeFile(resolve(out,'result.json'),JSON.stringify({checks:['actual isolated WebContentsView renders X-Frame-Options DENY page','no App/Electron bridge in remote page','retained identity and form state across workspace routes','engine-owned back/forward history','HTTP failure and retry','file URL cannot bypass document authority','multiple Web sources, overlay hiding and dark workspace','narrow workspace and teardown','restart restores identity and final URL with a fresh engine'],errors},null,2));
   console.log('Verified isolated Web engine, retained page, history, failure/retry, authority and teardown.');
 } catch(error) {
   if(page){await page.screenshot({scale:'css',path:resolve(out,'failure.png')});await writeFile(resolve(out,'failure.json'),await page.evaluate(()=>window.peroDiagnostics.snapshot()));}throw error;

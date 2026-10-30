@@ -8,7 +8,10 @@ test('panel sources retain revisions, isolate identities and reject authority sp
   assert.equal(first.text,input.text);
   assert.equal(docs.admit({...input,title:'Renamed'}).header.revision,first.header.revision);
   assert.equal(docs.admit({...input,text:'[]'}).header.revision,2);
+  const located=docs.admit({...input,location:{record:0}});
+  assert.deepEqual(located.location,{record:0});
+  assert.equal(docs.admit({...input,location:{record:99}}).header.revision,located.header.revision);
   assert.notEqual(new AppDocuments('other','main').admit(input).header.source.id,first.header.source.id);
   assert.deepEqual(first.header.source.origin,{kind:'app',app:'data',panel:'main'});
-  for(const value of [{...input,origin:{kind:'file',path:'/secret'}},{...input,revision:10},{...input,format:{kind:'html'}},{...input,format:{kind:'text',language:'rust'}}])assert.throws(()=>docs.admit(value));
+  for(const value of [{...input,origin:{kind:'file',path:'/secret'}},{...input,revision:10},{...input,format:{kind:'html'}},{...input,format:{kind:'text',language:'rust'}},{...input,location:{record:-1}},{...input,location:{record:0,path:'/secret'}}])assert.throws(()=>docs.admit(value));
 });

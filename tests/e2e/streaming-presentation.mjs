@@ -101,6 +101,7 @@ try {
     await writeFile(phase, '3');
     await expect.poll(async () => Boolean((await chat()).permission)).toBe(true);
     expect((await chat()).tools[0].content).not.toContain('must not duplicate');
+    expect(JSON.parse((await chat()).tools[1].content)).toEqual({ url: 'https://example.test/weather', prompt: 'Extract the weather forecast.' });
     await clickBounds('inputBounds', item => item.tool === 'fetch');
     expect((await chat()).tools[1].input_open).toBe(true);
     await shot('fetch-parameters');
@@ -111,8 +112,9 @@ try {
     expect((await state()).reasoningBounds[1].open).toBe(true);
     await clickBounds('toolBounds', item => item.tool === 'search');
     await clickBounds('toolBounds', item => item.tool === 'search');
-    await expect.poll(async () => (await state()).contentReaders.length).toBe(1);
-    await expect.poll(async () => (await state()).contentReaders[0].bounds?.height).toBeLessThan(200);
+    const readerFor = async id => (await state()).contentReaders.find(reader => reader.id.endsWith(`/${id}`));
+    await expect.poll(async () => (await readerFor('search'))?.bounds?.height).toBeLessThan(200);
+    await expect.poll(async () => (await readerFor('fetch'))?.bounds?.height).toBeLessThan(200);
     await shot('compact-json-result');
     await writeFile(phase, '4');
     await expect.poll(async () => (await chat()).state).toBe('idle');

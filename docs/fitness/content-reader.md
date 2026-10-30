@@ -72,8 +72,8 @@ ellipsis; cell copy and Source retain the complete serialized token.
 
 A retained reader shares its preview metadata with the table and reuses it
 when an unchanged immutable source switches modes. Query, sort and column
-width survive those switches. This is a per-reader lifetime; a global parse
-cache and worker execution remain separate work.
+width survive those switches. The current immutable source snapshot now shares those indexes across its
+inline and workspace views; it releases them when the source is released.
 
 The existing actual Electron probe now checks filtering 8,000 rows down to 11,
 exact big-integer and Unicode cell clipboard values, ArrowRight, sort/reset,
@@ -91,35 +91,160 @@ and maximum 369.8 ms. The full interaction trace still recorded 21 long tasks,
 peaking at 776 ms around Select All. Keep the performance incident open; this
 is a functionality and retained-state receipt, not a frame-budget pass.
 
-## Current boundaries
+## 2026-10-30 Worker and folding acceptance
 
-- The shared reader now serves inline results and retained workspace file/App
-  documents. File editing and a real App handoff are recorded in
-  [workspace acceptance](workspace-documents.md). Multi-buffer operations,
-  regex search, restart recovery and a global document cache remain separate work.
-- Kit's selected Syntect backend folds multiline braces, but does not provide
-  structural JSON array folding. Full JSON folding remains a functional gap;
-  merely rendering an Editor does not complete that requirement.
-- Table selection currently covers one cell. Cell ranges, Data Agent dataset/
-  chart integration and exporting transformed datasets remain incomplete.
-- Preview parsing is explicitly bounded to 2 MiB and 128 columns. Complete
-  source remains available. Malformed records and duplicate keys report errors;
-  missing values, nulls, exact numeric spelling and source positions stay distinct.
-- Large-source highlighting and native full selection can still block the
-  Wasm thread. [The incident remains open](../issues/2026-10-29-content-reader-main-thread.md).
-  Functionality is preserved; neither best performance nor a frame-budget pass
-  is claimed.
-- Desktop-owned `app_use`, `app_describe` and `app_write` results keep up to
-  16 KiB inline. Larger JSON is stored by conversation and SHA-256. Both the
-  Agent's ordinary `content_read` tool and the trusted UI use the same range
-  and UTF-8 chunk rules. UI reads do not become Agent tool results.
-- Byte reads seek into the file. JSON Pointer reads currently scan the whole
-  stored source. The App producer may already have normalized numeric values;
-  preserving its serialized text cannot recover previously lost precision.
-- External ACP Agents control their own model context; this Host cannot
-  rewrite those independent requests. Complete-file UI loading is a Desktop
-  capability; native preview and installed Windows/Linux packages are not
-  certified by this probe.
-- MCP Apps capability negotiation, resource discovery, sandbox policy,
-  `AppBridge` and `ui/*` lifecycle are not implemented. Existing iframe and
-  file-read capabilities do not establish compatibility.
+The actual background Electron release-Wasm probe now asserts both preview
+and syntax Worker requests completed without errors. The dedicated Worker
+Wasm is about 174 kB before gzip; it has no GPUI startup. Preview exchange
+contains column names and source spans, never a second graph of JSON values.
+Revision crosses the JS boundary as bigint. Root JSON/JSONL previews above
+64 KiB parse in that Worker; replacement parsing debounces 200 ms. Native and
+small-source parsing stay synchronous. Worker parsing does not use the former
+2 MiB synchronous-UI guard. The pure Worker test also verifies 100,000 JSONL
+records, original big-number spans and u64 revision precision; this is not a
+100k-row UI performance receipt.
+
+The Kit cache applies its patch without editing the original checkout. Wasm's
+blanket folding disable was removed: the probe actually clicks the JSON root
+gutter to fold and unfold, then verifies full/partial native selection and
+exact copying. Color, search, read-only protection and table operations remain.
+
+Across three functional release-Wasm runs of the same 1,086,892-byte, 8,000-row
+source, thirty retained switches had median about 30 ms, p95 30.6–31.3 ms and
+maximum 31.5–33 ms. None of those timed samples contains a long task. The full
+interaction trace still includes a 57–61 ms Select All task; the previous
+trace had 21 long tasks with a 776 ms maximum. Keep the performance incident
+open. Single preview/source opening samples are not a cold-start distribution.
+Receipts and actual light/dark/narrow/fold screenshots remain under
+`test-results/content-reader/`.
+
+## Actual Markdown/search navigation
+
+`tests/e2e/reader-navigation.mjs` passes on the real hidden Desktop: a heading
+link scrolls to its target, opening Source selects that heading, and an actual
+rendered drag hands its exact 3..11 byte range to Source and back. Canceling a
+Source gesture then clearing selection cannot resurrect the old range. Kit
+clears global selection before a button click, so the source button consumes
+the observed selection from that pointer gesture. The observer always records
+None too; it is not a last-nonempty selection cache.
+
+Regex and Unicode whole-word matching use the typed source engine and Kit's
+match painting/navigation. One Enter advances once and Shift+Enter reverses;
+the reader consumes its focused search action so browser beforeinput cannot
+cause a second navigation. Invalid regex is recoverable. Dark and narrow search/
+error screenshots are in `test-results/reader-navigation/`; page errors are empty.
+
+## Earlier boundaries before the pane and EditContext pass
+
+These boundaries describe the earlier combined receipt. The final pass below
+supersedes the pane, nested projection, native selection and pointer-cache rows.
+
+- Large nested projections still run synchronously. Large-source sorting and
+  filtering now use a retained Worker source; native/small-source work stays local.
+- Selection is one cell. Fixed Zed also uses single-cell selection; cell ranges,
+  transformed export and Data Agent context are Pero extensions.
+- Synchronous preview retains its 2 MiB guard and all previews have 128 columns.
+  Missing/null/value identity and original numeric spelling remain distinct.
+- Full native Select All still has a long task. No logical selection substitute
+  or disabled highlighter is used to claim a performance pass.
+- Source positions are revision-bound bytes rather than live-edit anchors.
+  Generic pane trees, physical IME, assistive technology and installed packages
+  remain separate gates.
+- Output files, SHA-256 references and UTF-8 range reads remain unchanged. JSON
+  Pointer reads scan the stored source; external ACP Agents own their model context.
+- MCP Apps transport/resource/official bridge and Data Agent dataset lifecycle
+  remain unimplemented; generic Web embedding does not establish compatibility.
+
+## Earlier combined verification
+
+The final source snapshot matches 47 recorded source fingerprints, including the
+Reader, StreamText and source table. Sequential hidden Desktop suites pass for
+content/structural folds, Markdown navigation, crash recovery, Web IME, actual file
+save/conflict, Web restart, retained workspace documents and real Virtual Cell
+computation/source handoff. The App bundle was rebuilt from the merged SDK source;
+its complete result is about 20 kB and retains App provenance. No actual model,
+scientific conclusion or installed package is accepted by those local workflows.
+Native shipping-feature compilation, 109 core tests, TypeScript/codegen/locales/
+icons checks and Virtual Cell typechecking pass separately. The tested narrow
+Workbench is 1000 px, its configured minimum; 800 px is not claimed.
+
+## Save As, location history and retained transformations
+
+Save As is a real Host file operation selected through Desktop/native save panels.
+Actual hidden Desktop acceptance covers cancellation, File identity migration,
+reading state, original-disk preservation, subsequent Save, dirty/open-target and
+external-disk conflicts, write failure, existing clean target replacement and
+readonly ACP source copies. Picker returns are fixtures; physical OS-panel visuals
+remain unaccepted. Readonly copies retain their original producer authority.
+
+Navigation history now stores typed route/location entries. Actual Markdown
+anchor Back/Forward restores selection, highlight and scroll before and after a
+Host checkpoint/renderer reload, without appending restoration history. Ordinary
+mode toggles do not push a location. Kit's pending reveal is explicitly canceled
+when restoring an older position; otherwise the old anchor can overwrite the
+restored viewport. Reader bounds are also checked against the actual window edge.
+Locations bind to source revision; incompatible geometry is cleared while route
+and reading preferences remain. This does not implement edit-tracking anchors.
+
+Large tables seed one Worker source with original text and preview spans, then
+send only typed filter/sort specifications and receive original row indices.
+Source lifetime ends when its table is dropped. A 200 ms filter debounce coalesces
+work; stale results cannot replace the current projection. Loading/error states
+preserve the old rows until success, when stale cell selection is cleared. The
+actual 8k/100k probes each assert six successful transformations and no failures,
+in addition to syntax/preview completion. Exact big-number sorting, Unicode cell
+copy, transformed-row source navigation and column widths still pass.
+
+A real 100,000-row, 13,688,892-byte Desktop workflow passes all those operations,
+full/partial source copy, folding, read-only protection and search. Thirty warm
+switches have median 29.9 ms, p95 32.1 ms and maximum 32.4 ms. Source opening is
+110 ms, including a 59 ms task. The complete trace has eight long tasks, including
+an 845 ms native Select All layout task and 51–103 ms typing/copy/find work. This
+is a functionality receipt, not a 100k-row frame-budget pass. The baseline 8k
+probe remains separate; receipts are `performance-completed-8k.json` and
+`performance-completed-100k.json`. `PERO_CONTENT_ROWS=100000` reproduces the large
+workflow; `PERO_CONTENT_TRACE=1` additionally writes a CDP selection trace and
+marks its instrumentation in the receipt.
+
+## Pane, native selection and nested-source closure
+
+The user clarified that the product target is the ACP conversation/tool-result
+flow, not a general file editor. These are current implementation receipts for
+the requested test integration. The excess editing surface will be cleaned up
+after merge; File/editor acceptance does not establish ACP parity.
+
+The [current content-flow closure](../exec-plans/2026-10-30-content-view-parity.md)
+records the actual installed Zed comparison and per-gate evidence. Pane-local
+tabs, preview/pin/MRU/closed history, arbitrary pane trees, lazy source restore,
+separate source/rendered item kinds, shared buffer Undo and edit-tracking anchors
+are implemented. Actual Desktop covers drag, same-buffer clones, independent
+view state, restart, light/dark and the configured 1000-pixel minimum width.
+
+The 13,688,892-byte/100k-row File workflow now uses bounded source and draft
+references. Actual edit, acknowledged checkpoint, process loss, draft recovery,
+Save and Save As pass with 3,144-byte metadata, a 653-byte journal and reference
+commands below 4 KiB. This also covers a real optional App catalog failure.
+
+Two-dimensional Kit virtualization displays all 2,001 source columns while
+rendering nine initially and seven near the end. Exact large-number copy and
+original byte ranges pass. Expanding a 4,000-row nested array completes one real
+Worker analysis; returning and reopening reuses it. The inline Reader height
+includes its toolbar, filter, header and rows, so one-row results remain visible.
+Receipt: `test-results/wide-content/result.json`.
+
+The preceding native EditContext profiling receipt preserves full source text
+and native selection, exact clipboard and readonly behavior. Its Select All trace
+has zero Layout events, replacing the earlier 845 ms textarea Layout. Warm
+switch p95 is 30.1 ms; a 71.219 ms FunctionCall and an earlier 58 ms task remain.
+This is measured progress, not a universal frame-budget pass. Physical IME,
+screen readers and installed packages remain separate gates.
+
+For immutable output artifacts, JSON Pointer reads retain their current source
+span index. The separate Node benchmark uses 8,177,790 bytes/100k rows: repeated
+read p95 changes from 28.58 ms to 0.008875 ms, while cold time changes from 47.14
+to 58.94 ms. This does not improve the first read or measure Desktop latency.
+Receipt: `test-results/content-artifacts/pointer-performance.json`.
+
+The large-source performance incident remains open for residual tasks and cold
+distributions. MCP Apps and Data Agent are deferred; their presence in an older
+plan does not establish compatibility or dataset/Agent acceptance.

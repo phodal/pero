@@ -12,9 +12,11 @@
     "dev:apps": "npm run build && node scripts/dev/apps.mjs",
     "dev:paper": "npm run build && node scripts/dev/apps.mjs --app paper-agent",
     "dev:native": "node scripts/dev/native.mjs",
-    "build": "npm run build:apps && npm run build:wasm && npm run build:host && npm run build:computer && npm run build:worker && npm run build:web && npm run build:desktop",
+    "build": "npm run build:apps && npm run build:wasm && npm run build:host && npm run build:harness && npm run build:computer && npm run build:worker && npm run build:web && npm run build:desktop",
     "build:apps": "node scripts/build/apps.mjs",
     "build:wasm": "node scripts/build/wasm.mjs",
+    "start": "npm run start --workspace @pero/desktop",
+    "build:harness": "node scripts/build/harness.mjs",
     "build:host": "node scripts/cargo.mjs build -p pero-host",
     "build:worker": "node scripts/cargo.mjs build -p pero-worker",
     "build:web": "npm run build --workspace @pero/web",
@@ -64,11 +66,13 @@
     "build:computer": "node scripts/build/computer.mjs",
     "test:computer": "npm run test:computer:contracts && node tests/e2e/computer-transport.mjs && node tests/e2e/computer-settings.mjs",
     "test:computer:native": "PERO_COMPUTER_NATIVE=1 node tests/e2e/computer-native.mjs",
+    "test:computer:macos": "PERO_COMPUTER_NATIVE=1 node tests/e2e/computer-macos.mjs && PERO_COMPUTER_NATIVE=1 node tests/e2e/computer-frameworks.mjs",
     "test:computer:linux": "xvfb-run -a node tests/e2e/computer-linux.mjs"
   },
   "devDependencies": {
     "@agentclientprotocol/claude-agent-acp": "0.98.0",
     "@agentclientprotocol/codex-acp": "2.3.0",
+    "@modelcontextprotocol/ext-apps": "1.7.5",
     "@modelcontextprotocol/sdk": "1.32.2",
     "@playwright/test": "1.64.1",
     "@types/node": "^24.0.0",
@@ -80,7 +84,8 @@
     "json-schema-to-typescript": "16.0.0",
     "typescript": "7.0.2",
     "vite": "8.3.5",
-    "yaml": "2.8.3"
+    "yaml": "2.8.3",
+    "zod": "4.6.7"
   },
   "allowScripts": {
     "esbuild@0.28.2": true

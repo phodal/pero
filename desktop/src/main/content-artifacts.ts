@@ -11,6 +11,7 @@ import {
 /** Host-owned result files, scoped to the actual calling conversation. */
 export class ContentArtifacts {
   private readonly root: string;
+  private indexed?: { thread: string; id: string; source: JsonSource };
   constructor(root: string) {
     this.root = root;
   }
@@ -26,6 +27,7 @@ export class ContentArtifacts {
     await writeFile(join(directory, `${id}.json`), selection.source.text, {
       mode: 0o600,
     });
+    this.indexed = { thread, id, source: selection.source };
     return selection.reference(id);
   }
   async read(thread: string, request: ContentRead) {
@@ -33,12 +35,18 @@ export class ContentArtifacts {
     const file = await open(path, 'r');
     try {
       const { size } = await file.stat();
-      const pointer =
-        request.selection.kind === 'pointer'
-          ? JsonSource.stored(await readFile(path, 'utf8')).pointer(
-              request.selection.pointer,
-            )
-          : undefined;
+      let pointer: { start: number; end: number } | undefined;
+      if (request.selection.kind === 'pointer') {
+        let source = this.indexed?.thread === thread && this.indexed.id === request.id
+          ? this.indexed.source : undefined;
+        if (!source) {
+          source = JsonSource.stored(await readFile(path, 'utf8'));
+          // One current immutable source bounds residency. Byte-range reads
+          // continue using file chunks and never need the full source.
+          this.indexed = { thread, id: request.id, source };
+        }
+        pointer = source.pointer(request.selection.pointer);
+      }
       const selection = request.range(size, pointer);
       const buffer = Buffer.alloc(
         Math.min(request.limit, selection.end - selection.start),
@@ -60,6 +68,7 @@ export class ContentArtifacts {
     }
   }
   async forget(thread: string) {
+    if (this.indexed?.thread === thread) this.indexed = undefined;
     await rm(this.directory(thread), { recursive: true, force: true });
   }
 }

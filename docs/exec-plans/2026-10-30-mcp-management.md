@@ -46,9 +46,10 @@ MCP path or to Pero without corresponding implementation and tests.
    rendering through an explicit AppBridge. App iframes never receive connector
    management or credential access.
 
-Issue #15 retains ownership of transport/tool-refresh/resource-query regression
-coverage. Resource queries currently fetch on demand; a notification-driven cache
-is not a prerequisite for correctness. Issue #9 remains separate memory work.
+Issue #15 was closed as `not_planned` on 2026-10-30; that closure is not evidence
+of complete transport/tool-refresh/resource-query acceptance. Resource queries
+currently fetch on demand; a notification-driven cache is not a prerequisite for
+correctness. Issue #9 remains separate memory work.
 
 ## First-slice acceptance
 
@@ -74,3 +75,17 @@ Headed CI remains pending; screenshots/results must be associated with the exact
 final source. See the resolved [renderer incident](../issues/2026-10-30-mcp-settings-renderer.md)
 for the reproduced debug-Wasm stack failure and its correction. This is only the
 first local configuration slice, not completion of all issue #50 stages.
+
+## Master integration
+
+Master `d03ddef` adds its own source-view MCP Apps provider, reader panes and icon
+theme settings. Preserve those implementations: root Host `mcp.rs` owns the Apps
+provider and `mcp-servers.json`; `mcp_settings.rs` extends the existing Agent
+manager with per-Agent `local_mcp` preferences. Neither store grants authority to
+the other. The settings slice does not migrate credentials or automatically
+connect Apps when an Agent server is enabled. Reuse the existing Apps host for
+later integration rather than introducing another one.
+
+The merged protocol retains both request/event families; Settings retains icons,
+focus recovery and MCP. Combined acceptance includes both UI flows and real
+Host/provider route/store separation. See the [integration record](../issues/2026-10-30-mcp-master-integration.md).

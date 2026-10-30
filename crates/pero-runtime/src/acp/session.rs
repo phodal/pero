@@ -167,9 +167,13 @@ async fn run(
         format!("正在连接 {}", config.name),
         Value::Null,
     );
+    // Resolve the explicit workspace argument after the user chooses a checkout.
+    let args: Vec<_> = config.args.iter().map(|arg| {
+        if arg == "{workspace}" { cwd.to_string_lossy().into_owned() } else { arg.clone() }
+    }).collect();
     let agent = AcpAgent::new(
         AcpAgentConfig::new(&config.command)
-            .args(&config.args)
+            .args(&args)
             .envs(config.env.clone()),
     );
     let model_api = Arc::new(Mutex::new(ModelApi::default()));

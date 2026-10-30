@@ -1,9 +1,34 @@
-import type { AppDocumentInput } from '../../content-source/app-document';
+import {AppDocuments, type AppDocumentInput} from '../../content-source/app-document';
+import {mountReaderSurface} from './reader-surface';
+import {normalizeLocale,translate} from '../../../locales';
+import type {ReaderContext} from './reader-surface';
 export type { AppDocumentInput };
 
-/** Opens source in the owning Workbench. It never submits an Agent prompt. */
+let standalone:ReturnType<typeof mountReaderSurface>|undefined;
+let standalonePanel:HTMLDialogElement|undefined;
+let standaloneTitle:HTMLElement|undefined;
+export const standaloneDocuments=new AppDocuments('standalone','content');
+
+/** Opens source in the owning reader. It never submits an Agent prompt. */
 export function openDocument(document:AppDocumentInput):Promise<void> {
-  if(window.parent===window)return Promise.reject(new Error('Open this App in the Pero Workbench to use workspace documents.'));
+  if(window.parent===window){
+    const source=standaloneDocuments.admit(document);
+    const locale=normalizeLocale(window.document.documentElement.lang),dark=getComputedStyle(window.document.documentElement).colorScheme==='dark';
+    if(!standalonePanel){
+      const panel=window.document.createElement('dialog');panel.className='pero-standalone-document';
+      const header=window.document.createElement('header'),title=window.document.createElement('strong'),close=window.document.createElement('button');
+      title.id='pero-document-title';panel.setAttribute('aria-labelledby',title.id);title.textContent=document.title;
+      close.type='button';close.textContent=translate(locale,'workspace.close_tab');close.onclick=()=>panel.close();
+      header.append(title,close);const body=window.document.createElement('div');body.className='pero-standalone-document-body';panel.append(header,body);
+      window.document.body.append(panel);standalonePanel=panel;standaloneTitle=title;
+      const contextChanged=(event:Event)=>standalone?.context((event as CustomEvent<ReaderContext>).detail);
+      window.addEventListener('pero:app:context-changed',contextChanged);
+      panel.addEventListener('close',()=>{window.removeEventListener('pero:app:context-changed',contextChanged);standalone?.dispose();standalone=undefined;panel.remove();standalonePanel=undefined;standaloneTitle=undefined;},{once:true});
+      standalone=mountReaderSurface(body,{source,context:{locale,dark},url:'./_reader/reader.html',link:url=>window.open(url,'_blank','noopener')});
+      panel.showModal();
+    }else{standaloneTitle!.textContent=document.title;standalone!.source(source);}
+    return Promise.resolve();
+  }
   return new Promise((resolve,reject)=> {
     const id=crypto.randomUUID();
     const receive=(event:MessageEvent)=> {

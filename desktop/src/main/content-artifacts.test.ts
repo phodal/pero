@@ -57,6 +57,12 @@ test('large output is file backed, resumable and bound to its conversation', asy
       ContentRead.parse({ id: result.artifact.id, pointer: '/rows/7999/id' }),
     );
     assert.equal(node.text, '"9007199254748992"');
+    for (const index of [7998, 17, 7999, 0]) {
+      const sibling=await artifacts.read('thread-1',ContentRead.parse({id:result.artifact.id,pointer:`/rows/${index}/value`}));
+      assert.equal(sibling.text,JSON.stringify('中文😀'.repeat(8)));
+    }
+    const restoredStore=new ContentArtifacts(root);
+    assert.equal((await restoredStore.read('thread-1',ContentRead.parse({id:result.artifact.id,pointer:'/rows/7998/id'}))).text,'"9007199254748991"');
     let request = ContentRead.parse({
       id: result.artifact.id,
       maxBytes: 16384,

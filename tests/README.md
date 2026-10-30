@@ -191,3 +191,21 @@ took 76.468 seconds there versus 35.035 seconds in the earlier headed run
 `41010694432`. All assertions and the existing 15-second bounded operations and
 10-second screenshot timeout remain unchanged; this is not a product deadline
 or a claim that the failed run passed.
+
+`node tests/contracts/mcp-ownership.mjs` is the integrated Host composition
+regression. Build Host and Desktop first (`npm run build:host && npm run
+build:desktop`) and install the locked npm dependencies, including the MCP SDK
+and Apps extension. It drives both `settings.mcp.*` and master `mcp` routes,
+checks unknown-thread rejection, serves the real Node provider panel over
+loopback, and proves identical names remain independent in Agent settings and
+`mcp-servers.json`. It never sends a `connect` command: the shared inert MCP
+endpoint must receive zero requests. The Host/provider must exit gracefully and
+close the panel listener before `test-results/mcp-ownership/result.json` is
+written. Actual MCP Apps SDK/tool behavior remains covered separately by
+`node --test desktop/src/main/mcp-sources.test.ts`.
+
+Icon-theme acceptance admits its document fixtures through the real Desktop →
+Host `documents/open` boundary. General `Ctrl+O` file editing was intentionally
+removed from the product; keyboard file-open is not an icon-theme assertion.
+Theme import/select/remove, actual tab artwork, dark variants, fallback and
+restart persistence remain exercised through the real UI.

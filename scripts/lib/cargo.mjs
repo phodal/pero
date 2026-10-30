@@ -1,23 +1,20 @@
-import { copyFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { root } from './paths.mjs';
 import { run } from './run.mjs';
 import { prepareWebBackend, webBackend } from './gpui-web.mjs';
-
-export const kit = resolve(process.env.PERO_GPUI_KIT_PATH || resolve(root, '../../test/gpui-kit'));
+import {patchedKit,prepareKit} from './gpui-kit.mjs';
+export {kit} from './gpui-kit.mjs';
 
 const patchedCrates = ['gpui-kit', 'gpui-base', 'gpui-component', 'gpui-component-macros', 'gpui-kit-assets', 'gpui-webview', 'gpui-pre-web'];
 
 export function cargoArgs(args) {
-  if (!existsSync(resolve(kit, 'crates/kit/Cargo.toml'))) {
-    throw new Error('Set PERO_GPUI_KIT_PATH to your gpui-kit checkout (see desktop/README.md).');
-  }
   const crates = { 'gpui-kit': 'kit', 'gpui-base': 'base', 'gpui-component': 'component',
     'gpui-component-macros': 'component-macros', 'gpui-kit-assets': 'assets', 'gpui-webview':'webview' };
   const toolchain = args[0]?.startsWith('+') ? [args.shift()] : [];
   return [...toolchain, ...Object.entries(crates).flatMap(([name, path]) => [
-    '--config', `patch.crates-io.${name}.path=${JSON.stringify(resolve(kit, 'crates', path))}`,
+    '--config', `patch.crates-io.${name}.path=${JSON.stringify(resolve(patchedKit, 'crates', path))}`,
   ]), '--config', `patch.crates-io.gpui-pre-web.path=${JSON.stringify(webBackend)}`, ...args];
 }
 
@@ -34,6 +31,7 @@ function lockUsesRegistryGpui() {
 // and a --locked build refuses to rewrite the lock. Resolve once, and restore the
 // committed lock if resolution stops halfway (Cargo writes before downloads finish).
 export async function ensureGpuiLock() {
+  await prepareKit();
   await prepareWebBackend();
   if (!lockUsesRegistryGpui()) return;
   const lock = resolve(root, 'Cargo.lock');

@@ -1,0 +1,165 @@
+{
+  "observed_at": "2026-10-30T05:01:44Z",
+  "method": "GitHub connector REST repository and releases endpoints; gh API repository search sorted by stars; stars and forks are repository snapshots, not WebView adoption",
+  "repositories": [
+    {
+      "repo": "longbridge/gpui-kit",
+      "id": 814684486,
+      "url": "https://github.com/longbridge/gpui-kit",
+      "stars": 18784,
+      "forks": 1168,
+      "archived": false,
+      "pushed_at": "2026-10-29T10:12:10Z",
+      "license_github": "NOASSERTION",
+      "parent": null,
+      "latest_release": {
+        "tag": "v0.8.1",
+        "published_at": "2026-10-26T08:27:19Z",
+        "prerelease": false,
+        "url": "https://github.com/longbridge/gpui-kit/releases/tag/v0.8.1"
+      },
+      "source": "https://api.github.com/repos/longbridge/gpui-kit"
+    },
+    {
+      "repo": "longbridge/gpui-fast",
+      "id": 1384497334,
+      "url": "https://github.com/longbridge/gpui-fast",
+      "stars": 309,
+      "forks": 38,
+      "archived": false,
+      "pushed_at": "2026-10-26T06:50:14Z",
+      "license_github": "Apache-2.0",
+      "parent": null,
+      "latest_release": {
+        "tag": "v0.1.12",
+        "published_at": "2026-10-26T08:25:08Z",
+        "prerelease": false,
+        "url": "https://github.com/longbridge/gpui-fast/releases/tag/v0.1.12"
+      },
+      "source": "https://api.github.com/repos/longbridge/gpui-fast"
+    },
+    {
+      "repo": "bokuweb/gpui-cef",
+      "id": 1346185174,
+      "url": "https://github.com/bokuweb/gpui-cef",
+      "stars": 3,
+      "forks": 0,
+      "archived": false,
+      "pushed_at": "2026-10-26T10:29:22Z",
+      "license_github": "Apache-2.0",
+      "parent": null,
+      "latest_release": {
+        "tag": "v0.1.1",
+        "published_at": "2026-09-26T02:33:59Z",
+        "prerelease": false,
+        "url": "https://github.com/bokuweb/gpui-cef/releases/tag/v0.1.1"
+      },
+      "source": "https://api.github.com/repos/bokuweb/gpui-cef"
+    },
+    {
+      "repo": "longbridge/wef",
+      "id": 1066095012,
+      "url": "https://github.com/longbridge/wef",
+      "stars": 44,
+      "forks": 5,
+      "archived": false,
+      "pushed_at": "2026-01-01T14:31:11Z",
+      "license_github": "NOASSERTION",
+      "parent": null,
+      "latest_release": null,
+      "source": "https://api.github.com/repos/longbridge/wef"
+    },
+    {
+      "repo": "uxsoft/gpui-web",
+      "id": 1424515051,
+      "url": "https://github.com/uxsoft/gpui-web",
+      "stars": 0,
+      "forks": 0,
+      "archived": false,
+      "pushed_at": "2026-10-27T09:48:56Z",
+      "license_github": "Apache-2.0",
+      "parent": null,
+      "latest_release": null,
+      "source": "https://api.github.com/repos/uxsoft/gpui-web"
+    },
+    {
+      "repo": "longbridge/wry",
+      "id": 930122946,
+      "url": "https://github.com/longbridge/wry",
+      "stars": 0,
+      "forks": 0,
+      "archived": false,
+      "pushed_at": "2026-07-30T15:26:09Z",
+      "license_github": "Apache-2.0",
+      "parent": "tauri-apps/wry",
+      "latest_release": null,
+      "source": "https://api.github.com/repos/longbridge/wry"
+    },
+    {
+      "repo": "huacnlee/gpui-wry-example",
+      "id": 1038454259,
+      "url": "https://github.com/huacnlee/gpui-wry-example",
+      "stars": 2,
+      "forks": 1,
+      "archived": false,
+      "pushed_at": "2025-08-15T08:27:51Z",
+      "license_github": null,
+      "parent": null,
+      "latest_release": null,
+      "source": "https://api.github.com/repos/huacnlee/gpui-wry-example"
+    },
+    {
+      "repo": "autistic-computer/zz",
+      "id": 1331390385,
+      "url": "https://github.com/autistic-computer/zz",
+      "stars": 9,
+      "forks": 0,
+      "archived": false,
+      "pushed_at": "2026-10-30T02:46:59Z",
+      "license_github": "Apache-2.0",
+      "parent": null,
+      "latest_release": {
+        "tag": "v0.22.0",
+        "published_at": "2026-10-23T14:50:41Z",
+        "prerelease": false,
+        "url": "https://github.com/autistic-computer/zz/releases/tag/v0.22.0"
+      },
+      "source": "https://api.github.com/repos/autistic-computer/zz"
+    },
+    {
+      "repo": "zed-industries/zed",
+      "id": 340547520,
+      "url": "https://github.com/zed-industries/zed",
+      "stars": 92398,
+      "forks": 11287,
+      "archived": false,
+      "pushed_at": "2026-10-30T02:53:50Z",
+      "license_github": "NOASSERTION",
+      "parent": null,
+      "latest_release": {
+        "tag": "v1.27.0-pre",
+        "published_at": "2026-10-28T15:18:12Z",
+        "prerelease": true,
+        "url": "https://github.com/zed-industries/zed/releases/tag/v1.27.0-pre"
+      },
+      "source": "https://api.github.com/repos/zed-industries/zed"
+    }
+  ],
+  "redirect": {
+    "requested": "longbridge/gpui-component",
+    "to": "https://api.github.com/repositories/814684486",
+    "canonical": "longbridge/gpui-kit",
+    "same_id": 814684486
+  },
+  "composition_pr": {
+    "source": "https://api.github.com/repos/zed-industries/zed/pulls/62379",
+    "state": "open",
+    "merged": false
+  },
+  "license_corrections": {
+    "longbridge/gpui-kit": "Apache-2.0 software source; source LICENSE-APACHE and README; repository API NOASSERTION reflects multiple notices",
+    "longbridge/wef": "Apache-2.0 source LICENSE-APACHE despite repository API NOASSERTION",
+    "bokuweb/gpui-cef": "MIT OR Apache-2.0 current workspace Cargo.toml (source 0.2.0); repository API Apache-2.0; latest tagged GitHub release is 0.1.1",
+    "longbridge/wry": "published lb-wry 0.53.3 source Cargo.toml Apache-2.0 OR MIT"
+  }
+}

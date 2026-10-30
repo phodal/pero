@@ -1,3 +1,5 @@
+#[cfg(target_family="wasm")]
+use crate::workspace::LegacyPage;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
 pub(crate) use crate::native::{request_locale, send_probe, session_command};
 use crate::theme::Palettes;
@@ -15,7 +17,7 @@ use pero_chat_ui::{ChatAction, ChatPanel};
 use pero_contracts::{EchoRequest, HostEvent, MAX_TEXT_CHARS};
 use serde_json::{Value, json};
 #[cfg(target_family = "wasm")]
-use std::{borrow::Cow, cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -30,6 +32,8 @@ thread_local! {
 extern "C" {
     #[wasm_bindgen(js_namespace = window, js_name = peroSendProbe, catch)]
     fn send_probe(json: &str) -> Result<(), JsValue>;
+    #[wasm_bindgen(js_namespace = window, js_name = peroWindowCloseResult)]
+    pub(crate) fn window_close_result(ready:bool);
     #[wasm_bindgen(js_namespace = window, js_name = peroSetLocale, catch)]
     pub(crate) fn request_locale(locale: &str) -> Result<(), JsValue>;
     #[wasm_bindgen(js_namespace = window, js_name = peroSessionCommand, catch)]
@@ -40,6 +44,14 @@ pub(crate) struct Workbench {
     pub workspace_focus:FocusHandle,
     pub input: Entity<InputState>,
     pub documents:Vec<crate::documents::WorkspaceDocument>,
+    pub pane_views:Vec<crate::workspace_pane_views::PaneReader>,
+    pub pane_tabs:crate::workspace_pane_tabs::PaneTabsUiState,
+    pub pane_surfaces:Vec<pero_contracts::workspace_panes::PaneSurface>,
+    pub pane_split_bounds:Vec<(u64,pero_contracts::workspace_panes::PaneBounds)>,
+    pub pane_resize:Option<crate::workspace_pane_views::PaneResize>,
+    pub pending_close:Option<crate::workspace_close::ClosePlan>,
+    pub pending_save_as:Option<crate::document_save_as::PendingSaveAs>,
+    pub save_as_feedback:Option<crate::document_save_as::SaveAsFeedback>,
     #[cfg(not(target_family="wasm"))]
     pub native_web_pages:std::collections::BTreeMap<String,crate::web_documents::WorkspaceNativeWeb>,
     pub web_documents:Vec<pero_contracts::web_document::WebDocument>,
@@ -53,6 +65,7 @@ pub(crate) struct Workbench {
     pub preferences: pero_contracts::workbench::WorkbenchPreferences,
     pub preferences_status: crate::settings_menu::PreferenceSaveState,
     pub settings_menu_open: bool,
+    pub harness: Option<pero_contracts::harness_settings::HarnessState>,
     pub computer: Option<pero_contracts::computer_runtime::ComputerUseState>,
     pub settings_mcp_requested: bool,
     pub settings_panel: Option<Entity<crate::settings_view::SettingsPanel>>,
@@ -68,6 +81,7 @@ pub(crate) struct Workbench {
     pub task_status: crate::projects::TaskStatusFilter,
     pub pending_project_workspace: bool,
     pub navigation: WorkspaceNavigation,
+    pub recovery:crate::workspace_restore::WorkspaceRecovery,
     pub remote: crate::remote::RemoteState,
     pub local_execution: crate::local_execution::LocalExecution,
     pub contribution: crate::contributions::ContributionState,
@@ -105,12 +119,61 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> Self {
         cx.bind_keys([
+            KeyBinding::new("cmd-alt-shift-left",crate::workspace_pane_views::SplitPaneLeft,None),
+            KeyBinding::new("ctrl-alt-shift-left",crate::workspace_pane_views::SplitPaneLeft,None),
+            KeyBinding::new("ctrl-alt-left",crate::workspace_pane_views::FocusPaneLeft,None),
+            KeyBinding::new("cmd-alt-shift-right",crate::workspace_pane_views::SplitPaneRight,None),
+            KeyBinding::new("ctrl-alt-shift-right",crate::workspace_pane_views::SplitPaneRight,None),
+            KeyBinding::new("ctrl-alt-right",crate::workspace_pane_views::FocusPaneRight,None),
+            KeyBinding::new("cmd-alt-shift-up",crate::workspace_pane_views::SplitPaneUp,None),
+            KeyBinding::new("ctrl-alt-shift-up",crate::workspace_pane_views::SplitPaneUp,None),
+            KeyBinding::new("ctrl-alt-up",crate::workspace_pane_views::FocusPaneUp,None),
+            KeyBinding::new("cmd-alt-shift-down",crate::workspace_pane_views::SplitPaneDown,None),
+            KeyBinding::new("ctrl-alt-shift-down",crate::workspace_pane_views::SplitPaneDown,None),
+            KeyBinding::new("ctrl-alt-down",crate::workspace_pane_views::FocusPaneDown,None),
+            KeyBinding::new("cmd-shift-w",crate::workspace_pane_views::ClosePane,None),
+            KeyBinding::new("ctrl-shift-w",crate::workspace_pane_views::ClosePane,None),
+            KeyBinding::new("alt-left",crate::workspace_view::WorkspaceBack,None),
+            KeyBinding::new("alt-right",crate::workspace_view::WorkspaceForward,None),
+            KeyBinding::new("cmd-alt-right",crate::workspace_view::NextContent,None),
+            KeyBinding::new("cmd-alt-left",crate::workspace_view::PreviousContent,None),
+            KeyBinding::new("cmd-\\",crate::workspace_pane_views::SplitPaneRight,None),
+            KeyBinding::new("ctrl-\\",crate::workspace_pane_views::SplitPaneRight,None),
+            KeyBinding::new("cmd-w",crate::workspace_tab_actions::ClosePaneTab,None),
+            KeyBinding::new("ctrl-w",crate::workspace_tab_actions::ClosePaneTab,None),
+            KeyBinding::new("cmd-shift-t",crate::workspace_tab_actions::ReopenClosedPaneTab,None),
+            KeyBinding::new("ctrl-shift-t",crate::workspace_tab_actions::ReopenClosedPaneTab,None),
+            KeyBinding::new("cmd-k v",crate::workspace_tab_actions::OpenPreviewToSide,None),
+            KeyBinding::new("ctrl-k v",crate::workspace_tab_actions::OpenPreviewToSide,None),
+            KeyBinding::new("enter",crate::workspace_pane_tabs::ConfirmPaneTabSwitch,Some("PaneTabSwitcher")),
+            KeyBinding::new("escape",crate::workspace_pane_tabs::CancelPaneTabSwitch,Some("PaneTabSwitcher")),
+
             KeyBinding::new("cmd-l",crate::web_documents::OpenWeb,None),
             KeyBinding::new("ctrl-l",crate::web_documents::OpenWeb,None),
-            KeyBinding::new("cmd-o",crate::workspace_view::OpenDocument,None),
-            KeyBinding::new("ctrl-o",crate::workspace_view::OpenDocument,None),
-            KeyBinding::new("ctrl-tab", crate::workspace_view::NextContent, None),
-            KeyBinding::new("ctrl-shift-tab", crate::workspace_view::PreviousContent, None),
+            KeyBinding::new("cmd-p",crate::workspace_recent::OpenRecentContent,None),
+            KeyBinding::new("ctrl-p",crate::workspace_recent::OpenRecentContent,None),
+            KeyBinding::new("ctrl-tab", crate::workspace_pane_tabs::NextPaneTabMru, None),
+            KeyBinding::new("ctrl-shift-tab", crate::workspace_pane_tabs::PreviousPaneTabMru, None),
+        ]);
+        cx.bind_keys([
+            KeyBinding::new("cmd-1",crate::workspace_tab_actions::FocusPane1,None),
+            KeyBinding::new("ctrl-1",crate::workspace_tab_actions::FocusPane1,None),
+            KeyBinding::new("cmd-2",crate::workspace_tab_actions::FocusPane2,None),
+            KeyBinding::new("ctrl-2",crate::workspace_tab_actions::FocusPane2,None),
+            KeyBinding::new("cmd-3",crate::workspace_tab_actions::FocusPane3,None),
+            KeyBinding::new("ctrl-3",crate::workspace_tab_actions::FocusPane3,None),
+            KeyBinding::new("cmd-4",crate::workspace_tab_actions::FocusPane4,None),
+            KeyBinding::new("ctrl-4",crate::workspace_tab_actions::FocusPane4,None),
+            KeyBinding::new("cmd-5",crate::workspace_tab_actions::FocusPane5,None),
+            KeyBinding::new("ctrl-5",crate::workspace_tab_actions::FocusPane5,None),
+            KeyBinding::new("cmd-6",crate::workspace_tab_actions::FocusPane6,None),
+            KeyBinding::new("ctrl-6",crate::workspace_tab_actions::FocusPane6,None),
+            KeyBinding::new("cmd-7",crate::workspace_tab_actions::FocusPane7,None),
+            KeyBinding::new("ctrl-7",crate::workspace_tab_actions::FocusPane7,None),
+            KeyBinding::new("cmd-8",crate::workspace_tab_actions::FocusPane8,None),
+            KeyBinding::new("ctrl-8",crate::workspace_tab_actions::FocusPane8,None),
+            KeyBinding::new("cmd-9",crate::workspace_tab_actions::FocusPane9,None),
+            KeyBinding::new("ctrl-9",crate::workspace_tab_actions::FocusPane9,None),
         ]);
         let workspace_focus=cx.focus_handle();
         workspace_focus.focus(window,cx);
@@ -207,6 +270,7 @@ impl Workbench {
             ConversationTab::Chat,
             &preferences.layout,
             false,
+            None,
         );
         Self {
             workspace_focus,
@@ -222,7 +286,7 @@ impl Workbench {
             resizing_chat: false,
             chat_resize_focus: cx.focus_handle().tab_stop(true),
             input,
-            documents:vec![],
+            documents:vec![],pane_views:vec![],pane_tabs:Default::default(),pane_surfaces:vec![],pane_split_bounds:vec![],pane_resize:None,pending_close:None,pending_save_as:None,save_as_feedback:None,
             input_locale: String::new(),
             locale,
             palettes,
@@ -230,6 +294,7 @@ impl Workbench {
             preferences,
             preferences_status: Default::default(),
             settings_menu_open: false,
+            harness: None,
             computer: None,
             settings_mcp_requested: false,
             settings_panel: None,
@@ -245,6 +310,7 @@ impl Workbench {
             task_status: Default::default(),
             pending_project_workspace: false,
             navigation,
+            recovery:Default::default(),
             tab: ConversationTab::Chat,
             connected: false,
             pending: None,
@@ -266,12 +332,14 @@ impl Workbench {
     }
 
     pub fn sync_follow(&mut self, cx: &mut Context<Self>) {
-        let origin=match self.navigation.current() {
+        let pane_thread=self.navigation.pane_layout().filter(|_|self.navigation.pane_layout_visible()).and_then(|layout|layout.conversation().map(str::to_owned));
+        let origin=pane_thread.as_ref().map(|id|pero_contracts::content_origin::ContentOrigin::Conversation {thread_id:id.clone()}).or_else(||match self.navigation.current() {
             Some(WorkspaceItem::App {name,panel})=>Some(pero_contracts::content_origin::ContentOrigin::App {app:name.clone(),panel:panel.clone()}),
             Some(WorkspaceItem::Conversation(id))=>Some(pero_contracts::content_origin::ContentOrigin::Conversation {thread_id:id.clone()}),
             Some(WorkspaceItem::Document {origin,..})=>Some(origin.clone()),
             _=>None,
-        };
+        });
+        let pinned=pane_thread.and_then(|id|self.chat.read(cx).chats.iter().position(|chat|chat.id==id));
         let scope=origin.and_then(|origin|match origin {
             pero_contracts::content_origin::ContentOrigin::App {app,panel}=>Some(pero_contracts::AppChatScope {app,panel}),
             origin=>origin.thread_id().and_then(|id|self.chat.read(cx).chats.iter().find(|chat|chat.id==id).and_then(|chat|chat.scope.clone())),
@@ -288,6 +356,7 @@ impl Workbench {
         self.chat.update(cx, |chat, cx| {
             if !visible { chat.set_visible(false, cx); }
             chat.set_scope(scope, cx);
+            if let Some(index)=pinned {if chat.active_chat!=Some(index) {chat.focus_chat(Some(index),cx);}}
             chat.set_visible(visible, cx);
             chat.show_return_to_review = show_return;
         });
@@ -295,6 +364,7 @@ impl Workbench {
 
     pub(crate) fn navigate(&mut self, page: WorkbenchPage, cx: &mut Context<Self>) {
         self.navigation.show(page);
+        self.queue_workspace_checkpoint(cx);
         self.sync_follow(cx);
         cx.notify();
     }
@@ -392,8 +462,8 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) {
         let event_kind = event.kind.clone();
-        let feature_handled = self.receive_mcp(&event, cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
-            || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
+        let feature_handled = self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
+            || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
             || self.receive_local_execution(&event, cx)
             || self.receive_contribution(&event, cx)
             || self.receive_apps(&event, cx)
@@ -462,6 +532,7 @@ impl Workbench {
                     "ready" => self.connected = true,
                     "disconnected" => {
                         self.connected = false;
+                        self.cancel_workspace_close();
                         self.pending = None;
                         self.chat.update(cx, |panel, cx| {
                             for chat in &mut panel.chats {
@@ -536,8 +607,10 @@ impl Workbench {
             self.sync_settings_panel(cx);
         }
         self.apply_local_execution(window, cx);
+        self.apply_workspace_recovery(window,cx);
         self.reconcile_content(window, cx);
         self.sync_follow(cx);
+        self.queue_workspace_checkpoint(cx);
         cx.notify();
     }
     pub(crate) fn install_appearance(&mut self, cx: &mut Context<Self>) {
@@ -574,49 +647,7 @@ pub fn run(theme_json: &str, dark: bool, locale: &str) -> Result<(), JsValue> {
         .with_assets(crate::assets::UiAssets)
         .with_http_client(http)
         .run_embedded(move |cx| {
-            // Catalog glyphs are bundled; arbitrary CJK text uses the canvas fallback above.
-            cx.text_system()
-                .add_fonts(vec![
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/Inter-Regular.ttf").as_slice(),
-                    ),
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/Workbench-regular.ttf")
-                            .as_slice(),
-                    ),
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/Workbench-bold.ttf").as_slice(),
-                    ),
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/IBMPlexSans-Regular.ttf")
-                            .as_slice(),
-                    ),
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/JetBrainsMono-Regular.ttf")
-                            .as_slice(),
-                    ),
-                ])
-                .expect("bundled fonts");
-            gpui_kit::init(cx);
-            // Wasm has no target_os=macos; bind ordinary editing to the actual OS.
-            if cx.platform_info().is_mac() {
-                use gpui_kit::component::input::{
-                    Copy, Cut, DeleteToBeginningOfLine, DeleteToEndOfLine, MoveEnd, MoveHome,
-                    Paste, Redo, SelectAll, Undo,
-                };
-                cx.bind_keys([
-                    KeyBinding::new("cmd-a", SelectAll, Some("Input")),
-                    KeyBinding::new("cmd-c", Copy, Some("Input")),
-                    KeyBinding::new("cmd-x", Cut, Some("Input")),
-                    KeyBinding::new("cmd-v", Paste, Some("Input")),
-                    KeyBinding::new("cmd-z", Undo, Some("Input")),
-                    KeyBinding::new("cmd-shift-z", Redo, Some("Input")),
-                    KeyBinding::new("cmd-left", MoveHome, Some("Input")),
-                    KeyBinding::new("cmd-right", MoveEnd, Some("Input")),
-                    KeyBinding::new("cmd-backspace", DeleteToBeginningOfLine, Some("Input")),
-                    KeyBinding::new("cmd-delete", DeleteToEndOfLine, Some("Input")),
-                ]);
-            }
+            pero_chat_ui::web_platform::initialize(cx);
             gpui_kit::component::set_locale(&locale);
             pero_theme::ResolvedAppearance::resolve(&Default::default(), dark, &palettes).install(cx);
             let (window, view) =
@@ -641,6 +672,20 @@ pub fn receive_host_event(json: &str) -> Result<(), JsValue> {
     }
     update(|ui, window, cx| ui.receive(event, window, cx));
     Ok(())
+}
+
+#[cfg(target_family="wasm")]
+#[wasm_bindgen]
+pub fn request_window_close() {
+    update(|ui,window,cx|ui.request_workspace_window_close(window,cx));
+}
+
+#[cfg(target_family="wasm")]
+#[wasm_bindgen]
+pub fn checkpoint_workspace(discard:bool)->String {
+    let mut command=String::new();
+    update(|ui,_,cx| {if let Some(value)=ui.workspace_checkpoint(discard,true,cx) {command=value.to_string();}});
+    command
 }
 
 #[cfg(target_family = "wasm")]
@@ -691,12 +736,22 @@ pub fn snapshot() -> String {
         value["webEntryOpen"]=json!(ui.web_entry_open);
         value["documents"]=json!(ui.documents.iter().map(|open|json!({"item":open.item,"title":open.view.read(cx).document.title,"reader":open.view.read(cx).snapshot(cx)})).collect::<Vec<_>>());
         value["contentTabs"] = serde_json::json!(ui.navigation.items());
+        value["pendingClose"]=serde_json::json!(&ui.pending_close);
+        value["paneSurfaces"]=serde_json::json!(ui.pane_surfaces);
+        value["paneViews"]=serde_json::json!(ui.pane_views.iter().map(|view|serde_json::json!({"view":view.id,"pane":ui.navigation.pane_layout().and_then(|layout|layout.view(view.id).map(|(pane,_)|pane)),"item":view.item,"reader":view.view.read(cx).snapshot(cx)})).collect::<Vec<_>>());
+        if let Some(layout)=ui.navigation.pane_layout() {
+            let strips=ui.pane_tabs_snapshot(layout,cx);
+            if ui.navigation.pane_layout_visible() {if let Some(bounds)=strips.as_array().and_then(|strips|strips.iter().find(|strip|strip["pane"]==serde_json::json!(layout.focused))).and_then(|strip|strip["tabs"].as_array()).and_then(|tabs|tabs.iter().find(|tab|tab["active"]==true)) {value["activeTabBounds"]=bounds.clone();}}
+            value["paneTabs"]=strips;
+        }
+        value["workspaceNavigation"]=serde_json::json!(ui.navigation.snapshot());
         value["activeContent"] = serde_json::json!(ui.navigation.current());
-        if let Some(index)=ui.navigation.current().and_then(|item|ui.navigation.items().iter().position(|candidate|candidate==item)) {
+        if !ui.navigation.pane_layout_visible() {if let Some(index)=ui.navigation.current().and_then(|item|ui.navigation.items().iter().filter(|item|matches!(item,WorkspaceItem::Project(_)|WorkspaceItem::Task(_))).position(|candidate|candidate==item)) {
             if let Some(bounds)=ui.tab_scroll.bounds_for_item(index) {
                 let strip=ui.tab_scroll.bounds();let offset=ui.tab_scroll.offset().x;
                 value["activeTabBounds"]=json!({"left":f32::from(bounds.left()+offset),"right":f32::from(bounds.right()+offset),"stripLeft":f32::from(strip.left()),"stripRight":f32::from(strip.right())});
             }
+        }
         }
         value["chatPanelWidth"] = serde_json::json!(ui.preferences.layout.chat_width());
         value["preferencesStatus"] = serde_json::json!(ui.preferences_status);

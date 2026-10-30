@@ -5,6 +5,7 @@ use std::borrow::Cow;
 gpui_kit::assets::icon_assets!(
     SelectedKitIcons,
     [
+        Pin,
         Square,
         LayoutGrid,
         ChevronLeft,
@@ -16,7 +17,17 @@ gpui_kit::assets::icon_assets!(
         Box,
         SortAscending,
         SortDescending,
-        ChevronsUpDown
+        ChevronsUpDown,
+        BookOpenText,
+        FileBraces,
+        FileSpreadsheet,
+        FileCog,
+        FileTerminal,
+        Braces,
+        FileType,
+        CodeXml,
+        Hash,
+        Notebook
     ]
 );
 
@@ -24,6 +35,7 @@ gpui_kit::assets::icon_assets!(
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UiIcon {
     Settings,
+    Pin,
     AlertCircle,
     Database,
     Languages,
@@ -74,6 +86,16 @@ pub enum UiIcon {
     SortAscending,
     SortDescending,
     ChevronsUpDown,
+    BookOpenText,
+    FileBraces,
+    FileSpreadsheet,
+    FileCog,
+    FileTerminal,
+    Braces,
+    FileType,
+    CodeXml,
+    Hash,
+    Notebook,
 }
 
 impl UiIcon {
@@ -84,6 +106,7 @@ impl UiIcon {
     fn lookup(name: &str) -> Option<Self> {
         match name {
             "settings" => Some(Self::Settings),
+            "pin" => Some(Self::Pin),
             "alert-circle" => Some(Self::AlertCircle),
             "database" => Some(Self::Database),
             "languages" => Some(Self::Languages),
@@ -134,13 +157,123 @@ impl UiIcon {
             "sort-ascending" => Some(Self::SortAscending),
             "sort-descending" => Some(Self::SortDescending),
             "chevrons-up-down" => Some(Self::ChevronsUpDown),
+            "book-open-text" => Some(Self::BookOpenText),
+            "file-braces" => Some(Self::FileBraces),
+            "file-spreadsheet" => Some(Self::FileSpreadsheet),
+            "file-cog" => Some(Self::FileCog),
+            "file-terminal" => Some(Self::FileTerminal),
+            "braces" => Some(Self::Braces),
+            "file-type" => Some(Self::FileType),
+            "code-xml" => Some(Self::CodeXml),
+            "hash" => Some(Self::Hash),
+            "notebook" => Some(Self::Notebook),
             _ => None,
         }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Settings => "settings",
+            Self::Pin => "pin",
+            Self::AlertCircle => "alert-circle",
+            Self::Database => "database",
+            Self::Languages => "languages",
+            Self::Sun => "sun",
+            Self::Moon => "moon",
+            Self::CircleFilled => "circle-filled",
+            Self::CircleCheckFilled => "circle-check-filled",
+            Self::ArrowLeft => "arrow-left",
+            Self::Server => "server",
+            Self::Clock => "clock",
+            Self::Copy => "copy",
+            Self::LayoutList => "layout-list",
+            Self::Folder => "folder",
+            Self::Devices => "devices",
+            Self::BrandGithub => "brand-github",
+            Self::Search => "search",
+            Self::ChevronDown => "chevron-down",
+            Self::Plus => "plus",
+            Self::Check => "check",
+            Self::FileCode => "file-code",
+            Self::Terminal => "terminal",
+            Self::ArrowRight => "arrow-right",
+            Self::PlayerPause => "player-pause",
+            Self::ExternalLink => "external-link",
+            Self::File => "file",
+            Self::Square => "square",
+            Self::ChevronRight => "chevron-right",
+            Self::Lightbulb => "lightbulb",
+            Self::Shield => "shield",
+            Self::Image => "image",
+            Self::Sparkles => "sparkles",
+            Self::Code => "code",
+            Self::MessageCircle => "message-circle",
+            Self::TextCursor => "text-cursor",
+            Self::Globe => "globe",
+            Self::GitBranch => "git-branch",
+            Self::X => "x",
+            Self::Refresh => "refresh",
+            Self::PlayerPlay => "player-play",
+            Self::LayoutGrid => "layout-grid",
+            Self::ChevronLeft => "chevron-left",
+            Self::PanelRightOpen => "panel-right-open",
+            Self::PanelRightClose => "panel-right-close",
+            Self::Minus => "minus",
+            Self::Maximize => "maximize",
+            Self::Network => "network",
+            Self::Box => "box",
+            Self::SortAscending => "sort-ascending",
+            Self::SortDescending => "sort-descending",
+            Self::ChevronsUpDown => "chevrons-up-down",
+            Self::BookOpenText => "book-open-text",
+            Self::FileBraces => "file-braces",
+            Self::FileSpreadsheet => "file-spreadsheet",
+            Self::FileCog => "file-cog",
+            Self::FileTerminal => "file-terminal",
+            Self::Braces => "braces",
+            Self::FileType => "file-type",
+            Self::CodeXml => "code-xml",
+            Self::Hash => "hash",
+            Self::Notebook => "notebook",
+        }
+    }
+
+    pub fn from_content(icon: pero_contracts::content_icon::ContentIcon) -> Self {
+        // The source registry admits only catalog glyphs; this converts to the renderer asset.
+        Self::lookup(icon.name()).expect("content icon is bundled")
+    }
+
+    pub fn for_document(
+        document: &pero_contracts::content_document::ContentDocument,
+        dark: bool,
+    ) -> Self {
+        let input = pero_contracts::content_icon::ContentIconInput::document(
+            &document.format,
+            &document.title,
+            dark,
+        );
+        Self::from_content(
+            pero_contracts::content_icon::ContentIconRegistry::default().resolve(input),
+        )
+    }
+
+    pub fn for_app(name: &str, dark: bool) -> Self {
+        Self::from_content(
+            pero_contracts::content_icon::ContentIconRegistry::default().resolve(
+                pero_contracts::content_icon::ContentIconInput {
+                    kind: pero_contracts::content_icon::ContentIconKind::App,
+                    app: Some(name),
+                    dark,
+                    ..Default::default()
+                },
+            ),
+        )
     }
 
     pub fn path(self) -> &'static str {
         match self {
             Self::Settings => "icons/settings.svg",
+            Self::Pin => "icons/pin.svg",
             Self::AlertCircle => "icons/alert-circle.svg",
             Self::Database => "icons/database.svg",
             Self::Languages => "icons/languages.svg",
@@ -191,6 +324,16 @@ impl UiIcon {
             Self::SortAscending => "icons/sort-ascending.svg",
             Self::SortDescending => "icons/sort-descending.svg",
             Self::ChevronsUpDown => "icons/chevrons-up-down.svg",
+            Self::BookOpenText => "icons/book-open-text.svg",
+            Self::FileBraces => "icons/file-braces.svg",
+            Self::FileSpreadsheet => "icons/file-spreadsheet.svg",
+            Self::FileCog => "icons/file-cog.svg",
+            Self::FileTerminal => "icons/file-terminal.svg",
+            Self::Braces => "icons/braces.svg",
+            Self::FileType => "icons/file-type.svg",
+            Self::CodeXml => "icons/code-xml.svg",
+            Self::Hash => "icons/hash.svg",
+            Self::Notebook => "icons/notebook.svg",
         }
     }
 
@@ -202,6 +345,12 @@ impl UiIcon {
 pub struct UiAssets;
 impl AssetSource for UiAssets {
     fn load(&self, path: &str) -> anyhow::Result<Option<Cow<'static, [u8]>>> {
+        if let Some(svg) = crate::icon_theme::load(path) {
+            return Ok(Some(Cow::Owned(svg)));
+        }
+        if path.starts_with("icon-themes/") {
+            return self.load(UiIcon::File.path());
+        }
         let icon = path
             .strip_prefix("icons/")
             .and_then(|name| name.strip_suffix(".svg"))
@@ -210,6 +359,7 @@ impl AssetSource for UiAssets {
             Some(UiIcon::Settings) => Some(Cow::Borrowed(include_bytes!(
                 "../../../web/public/icons/settings.svg"
             ))),
+            Some(UiIcon::Pin) => SelectedKitIcons.load("icons/pin.svg")?,
             Some(UiIcon::AlertCircle) => Some(Cow::Borrowed(include_bytes!(
                 "../../../web/public/icons/alert-circle.svg"
             ))),
@@ -338,6 +488,16 @@ impl AssetSource for UiAssets {
             Some(UiIcon::SortAscending) => SelectedKitIcons.load("icons/sort-ascending.svg")?,
             Some(UiIcon::SortDescending) => SelectedKitIcons.load("icons/sort-descending.svg")?,
             Some(UiIcon::ChevronsUpDown) => SelectedKitIcons.load("icons/chevrons-up-down.svg")?,
+            Some(UiIcon::BookOpenText) => SelectedKitIcons.load("icons/book-open-text.svg")?,
+            Some(UiIcon::FileBraces) => SelectedKitIcons.load("icons/file-braces.svg")?,
+            Some(UiIcon::FileSpreadsheet) => SelectedKitIcons.load("icons/file-spreadsheet.svg")?,
+            Some(UiIcon::FileCog) => SelectedKitIcons.load("icons/file-cog.svg")?,
+            Some(UiIcon::FileTerminal) => SelectedKitIcons.load("icons/file-terminal.svg")?,
+            Some(UiIcon::Braces) => SelectedKitIcons.load("icons/braces.svg")?,
+            Some(UiIcon::FileType) => SelectedKitIcons.load("icons/file-type.svg")?,
+            Some(UiIcon::CodeXml) => SelectedKitIcons.load("icons/code-xml.svg")?,
+            Some(UiIcon::Hash) => SelectedKitIcons.load("icons/hash.svg")?,
+            Some(UiIcon::Notebook) => SelectedKitIcons.load("icons/notebook.svg")?,
             None => None,
         })
     }
@@ -345,6 +505,7 @@ impl AssetSource for UiAssets {
     fn list(&self, prefix: &str) -> anyhow::Result<Vec<SharedString>> {
         Ok([
             UiIcon::Settings,
+            UiIcon::Pin,
             UiIcon::AlertCircle,
             UiIcon::Database,
             UiIcon::Languages,
@@ -395,6 +556,16 @@ impl AssetSource for UiAssets {
             UiIcon::SortAscending,
             UiIcon::SortDescending,
             UiIcon::ChevronsUpDown,
+            UiIcon::BookOpenText,
+            UiIcon::FileBraces,
+            UiIcon::FileSpreadsheet,
+            UiIcon::FileCog,
+            UiIcon::FileTerminal,
+            UiIcon::Braces,
+            UiIcon::FileType,
+            UiIcon::CodeXml,
+            UiIcon::Hash,
+            UiIcon::Notebook,
         ]
         .into_iter()
         .map(UiIcon::path)

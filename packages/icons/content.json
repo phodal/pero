@@ -1,0 +1,49 @@
+{
+  "kinds": {
+    "file": "file",
+    "text": "file",
+    "code": "file-code",
+    "markdown": "book-open-text",
+    "json": "file-braces",
+    "json_lines": "file-spreadsheet",
+    "app": "layout-grid",
+    "web": "globe",
+    "image": "image"
+  },
+  "languages": {
+    "json": "file-braces", "jsonl": "file-spreadsheet", "ndjson": "file-spreadsheet",
+    "markdown": "book-open-text", "md": "book-open-text",
+    "rust": "file-cog", "rs": "file-cog",
+    "python": "file-terminal", "py": "file-terminal",
+    "javascript": "braces", "js": "braces", "jsx": "braces",
+    "typescript": "file-type", "ts": "file-type", "tsx": "file-type",
+    "html": "code-xml", "xml": "code-xml", "svg": "code-xml",
+    "css": "hash", "scss": "hash", "less": "hash",
+    "shell": "terminal", "shellscript": "terminal", "bash": "terminal", "sh": "terminal", "zsh": "terminal", "powershell": "terminal",
+    "sql": "database", "sqlite": "database",
+    "yaml": "file-cog", "yml": "file-cog", "toml": "file-cog", "ini": "file-cog",
+    "c": "file-code", "cpp": "file-code", "c++": "file-code", "go": "file-code", "golang": "file-code", "java": "file-code", "ruby": "file-code", "swift": "file-code", "kotlin": "file-code", "cobol": "file-code",
+    "csv": "file-spreadsheet", "tsv": "file-spreadsheet"
+  },
+  "filenames": {
+    "readme": "book-open-text", "readme.md": "book-open-text", "license": "file",
+    "dockerfile": "box", "containerfile": "box", "makefile": "file-cog",
+    ".gitignore": "git-branch", ".gitattributes": "git-branch"
+  },
+  "extensions": {
+    "json": "file-braces", "jsonl": "file-spreadsheet", "ndjson": "file-spreadsheet",
+    "csv": "file-spreadsheet", "tsv": "file-spreadsheet", "parquet": "file-spreadsheet", "xlsx": "file-spreadsheet",
+    "md": "book-open-text", "markdown": "book-open-text", "mdx": "book-open-text",
+    "rs": "file-cog", "py": "file-terminal", "pyi": "file-terminal",
+    "js": "braces", "mjs": "braces", "cjs": "braces", "jsx": "braces",
+    "ts": "file-type", "tsx": "file-type", "d.ts": "file-type",
+    "html": "code-xml", "htm": "code-xml", "xml": "code-xml", "svg": "code-xml",
+    "css": "hash", "scss": "hash", "less": "hash",
+    "sh": "terminal", "bash": "terminal", "zsh": "terminal", "ps1": "terminal", "bat": "terminal",
+    "sql": "database", "db": "database", "sqlite": "database", "sqlite3": "database",
+    "toml": "file-cog", "yaml": "file-cog", "yml": "file-cog", "ini": "file-cog", "conf": "file-cog",
+    "c": "file-code", "h": "file-code", "cc": "file-code", "cpp": "file-code", "hpp": "file-code", "go": "file-code", "java": "file-code", "rb": "file-code", "swift": "file-code", "kt": "file-code", "cob": "file-code", "cbl": "file-code",
+    "ipynb": "notebook", "png": "image", "jpg": "image", "jpeg": "image", "gif": "image", "webp": "image"
+  },
+  "apps": { "virtual-cell": "network", "paper-agent": "book-open-text" }
+}

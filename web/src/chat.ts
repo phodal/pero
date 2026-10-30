@@ -1,3 +1,4 @@
+import {installContentAnalysis} from './content-analysis';
 import init, { run, receive_host_event, snapshot, paste_image, set_system_theme, set_appearance, compose } from './chat-wasm/pero_chat_web';
 import themes from './theme.generated.json';
 import { normalizeLocale, translate } from '../../locales';
@@ -67,6 +68,7 @@ try {
   context = await readyContext;
   applyContext();
   await init();
+  installContentAnalysis();
   run(JSON.stringify(themes), context.dark, normalizeLocale(context.locale));
   const deadline = performance.now() + 30000;
   while (!JSON.parse(snapshot()).ready) {

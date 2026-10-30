@@ -32,14 +32,27 @@ pub fn serve<D: DesktopDriver>(desktop: D) -> io::Result<()> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(std::process::id() as i32);
     let mut driver = ComputerRuntime::new(desktop, host_pid);
-    for line in io::stdin().lock().lines() {
-        let line = line?;
-        if line.len() > 1_000_000 {
-            return Err(io::Error::other(
-                "Computer request exceeds the transport limit",
-            ));
+    let cancellation = driver.cancellation.clone();
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    std::thread::spawn(move || {
+        for line in io::stdin().lock().lines() {
+            let request = line.and_then(|line| {
+                if line.len() > 1_000_000 {
+                    return Err(io::Error::other(
+                        "Computer request exceeds the transport limit",
+                    ));
+                }
+                serde_json::from_str::<Request>(&line).map_err(io::Error::other)
+            });
+            let failed = request.is_err();
+            if sender.send(request).is_err() || failed {
+                break;
+            }
         }
-        let request: Request = serde_json::from_str(&line)?;
+        cancellation.cancel();
+    });
+    for request in receiver {
+        let request = request?;
         let result = driver.call(request.thread, request.request);
         let response = match result {
             Ok(value) => Response::Success {

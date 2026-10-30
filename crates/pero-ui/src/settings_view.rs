@@ -2,6 +2,7 @@
 use crate::{
     settings_controls::{FontSizeField, selection_button, setting_row},
     settings_menu::PreferenceSaveState,
+    settings_section::SettingsSection,
     workspace::WorkbenchPage,
 };
 use gpui_kit::{
@@ -24,53 +25,13 @@ use pero_theme::{TextRole, UiAppearance, WorkbenchStyle as W};
 
 gpui_kit::actions!(settings, [FocusSettingsSearch, FocusSettingsNavigation]);
 
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) enum SettingsSection {
-    General,
-    #[default]
-    Theme,
-    InterfaceFont,
-    ChatFont,
-    CodeFont,
-    Computer,
-    Mcp,
-}
-impl SettingsSection {
-    const ALL: [Self; 7] = [
-        Self::General,
-        Self::Theme,
-        Self::InterfaceFont,
-        Self::ChatFont,
-        Self::CodeFont,
-        Self::Computer,
-        Self::Mcp,
-    ];
-    fn key(self) -> &'static str {
-        match self {
-            Self::General => "settings.general",
-            Self::Theme => "settings.theme",
-            Self::InterfaceFont => "settings.interface_font",
-            Self::ChatFont => "settings.chat_font",
-            Self::CodeFont => "settings.code_font",
-            Self::Computer => "computer.title",
-            Self::Mcp => "mcp.title",
-        }
-    }
-    fn scope(self) -> Option<FontScope> {
-        match self {
-            Self::InterfaceFont => Some(FontScope::Interface),
-            Self::ChatFont => Some(FontScope::Chat),
-            Self::CodeFont => Some(FontScope::Code),
-            _ => None,
-        }
-    }
-}
-
 #[derive(Clone)]
 pub(crate) enum SettingsAction {
+    Icons(crate::icon_themes::IconThemeAction),
     Save(WorkbenchPreferences),
     Locale(&'static str),
     Navigate(WorkbenchPage),
+    Harness(pero_contracts::harness_settings::HarnessControl),
     Computer(pero_contracts::computer_runtime::ComputerControl),
     Mcp(serde_json::Value),
     Close,
@@ -85,6 +46,10 @@ pub(crate) struct SettingsPanel {
     pub computer_pending: bool,
     pub(crate) mcp: crate::settings_mcp::McpEditor,
     pub(crate) section: SettingsSection,
+    pub(crate) harness: Option<pero_contracts::harness_settings::HarnessState>,
+    pub(crate) harness_inputs: [Entity<InputState>; 3],
+    pub(crate) harness_sync: bool,
+    pub(crate) harness_remove_confirm: bool,
     navigation: Entity<TreeState>,
     navigation_focus: FocusHandle,
     navigation_query: Option<(String, String)>,
@@ -116,6 +81,9 @@ impl SettingsPanel {
                     .validate(|value, _| value.bytes().all(|byte| byte.is_ascii_digit()))
             })
         });
+        let harness_inputs = std::array::from_fn(|index| cx.new(|cx| {
+            InputState::new(window, cx).masked(index == 2).placeholder(pero_contracts::i18n::text(&locale, ["harness.endpoint", "harness.model", "harness.api_key"][index]))
+        }));
         let navigation = cx.new(|cx| TreeState::new(cx));
         let navigation_focus = cx.focus_handle();
         let is_mac = cx.platform_info().is_mac();
@@ -222,6 +190,7 @@ impl SettingsPanel {
             bounds: Bounds::default(),
             preferences_status: Default::default(),
             error: None,
+            harness: None, harness_inputs, harness_sync: true, harness_remove_confirm: false,
             computer: None,
             computer_pending: false,
             section: Default::default(),
@@ -285,10 +254,15 @@ impl SettingsPanel {
             "width":f32::from(value.size.width),"height":f32::from(value.size.height)})
         };
         serde_json::json!({"query":self.search.read(cx).value().as_ref(),"section":self.section.key(),
-            "preferences":self.preferences,"error":self.error,"computer":self.computer,"computerPending":self.computer_pending,"mcp":self.mcp.snapshot(cx),"bounds":bounds(self.bounds),
+            "preferences":self.preferences,"error":self.error,"computer":self.computer,"computerPending":self.computer_pending,"mcp":self.mcp.snapshot(cx),"bounds":bounds(self.bounds),"iconTheme":&*pero_chat_ui::icon_theme::snapshot(),
             "scroll":{"bounds":bounds(self.content_scroll.bounds()),"offsetY":f32::from(self.content_scroll.offset().y),
                 "maxY":f32::from(self.content_scroll.max_offset().y),"anchors":(0..self.content_scroll.children_count()).filter_map(|index|self.content_scroll.bounds_for_item(index).map(bounds)).collect::<Vec<_>>()},
             "matches":self.matching_sections(cx).iter().map(|section|section.key()).collect::<Vec<_>>(),
+            "harness":self.harness,"harnessInputs":self.harness_inputs.iter().enumerate().map(|(index,input)|{
+                let mut result=bounds(input.read(cx).input_bounds());
+                if index < 2 { result["value"]=serde_json::json!(input.read(cx).value().as_ref()); }
+                result
+            }).collect::<Vec<_>>(),
             "fontInputs":self.font_inputs.iter().map(|input| {
                 let input=input.read(cx);let mut result=bounds(input.input_bounds());
                 result["value"]=serde_json::json!(input.value().as_ref());result
@@ -431,6 +405,7 @@ impl SettingsPanel {
                 false,
                 cx,
             ))
+            .child(setting_row(self.t("icons.title"),"",None,crate::icon_themes::controls(&self.locale,cx),false,cx))
             .into_any_element()
     }
 
@@ -478,14 +453,15 @@ impl SettingsPanel {
         let query = self.search.read(cx).value().trim().to_lowercase();
         SettingsSection::ALL
             .into_iter()
-            .filter(|section| cfg!(target_family = "wasm") || *section != SettingsSection::Computer)
+            .filter(|section| cfg!(target_family = "wasm") || !matches!(section, SettingsSection::Computer | SettingsSection::Harness))
             .filter(|section| {
                 let mut text = self.t(section.key()).to_owned();
                 let keys: &[&str] = match section {
                     SettingsSection::General => &["menu.language"],
                     SettingsSection::Mcp => &["mcp.agent", "mcp.add"],
+                    SettingsSection::Harness => &["harness.api_key", "harness.endpoint", "harness.model"],
                     SettingsSection::Computer => &["computer.enable", "computer.permissions", "computer.stop"],
-                    SettingsSection::Theme => &["settings.appearance", "settings.accent"],
+                    SettingsSection::Theme => &["settings.appearance", "settings.accent", "icons.title"],
                     SettingsSection::InterfaceFont => &[
                         "settings.font_size",
                         "settings.interface_font_hint",
@@ -538,9 +514,9 @@ impl SettingsPanel {
             .copied()
             .filter(|section| {
                 !query.is_empty()
-                    || if matches!(self.section, SettingsSection::General | SettingsSection::Computer | SettingsSection::Mcp) {
+                    || if !self.section.is_appearance() {
                         *section == self.section
-                    } else { !matches!(section, SettingsSection::General | SettingsSection::Computer | SettingsSection::Mcp) }
+                    } else { section.is_appearance() }
             })
             .collect::<Vec<_>>();
         let mut content = div()
@@ -559,6 +535,7 @@ impl SettingsPanel {
                 SettingsSection::General => self.language_settings(cx),
                 SettingsSection::Computer => self.computer_settings(cx),
                 SettingsSection::Mcp => self.mcp_settings(cx),
+                SettingsSection::Harness => self.harness_settings(cx),
                 _ => self.font_settings(section, window, cx),
             };
             content = content.child(
@@ -788,6 +765,8 @@ impl SettingsPanel {
                                     "settings.general"
                                 } else if self.section == SettingsSection::Mcp {
                                     "mcp.title"
+                                } else if self.section == SettingsSection::Harness {
+                                    "harness.title"
                                 } else if self.section == SettingsSection::Computer {
                                     "computer.title"
                                 } else {
@@ -850,6 +829,7 @@ impl SettingsPanel {
 
 impl Render for SettingsPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.sync_harness_inputs(window, cx);
         if self.focus_search {
             self.focus_search = false;
             self.search.update(cx, |input, cx| input.focus(window, cx));
@@ -878,7 +858,7 @@ impl Render for SettingsPanel {
             let children = sections
                 .iter()
                 .copied()
-                .filter(|section| !matches!(section, SettingsSection::General | SettingsSection::Computer | SettingsSection::Mcp))
+                .filter(|section| section.is_appearance())
                 .map(|section| TreeItem::new(section.key(), self.t(section.key())))
                 .collect::<Vec<_>>();
             if !children.is_empty() {
@@ -887,6 +867,9 @@ impl Render for SettingsPanel {
                         .children(children)
                         .expanded(true),
                 );
+            }
+            if sections.contains(&SettingsSection::Harness) {
+                roots.push(TreeItem::new(SettingsSection::Harness.key(), self.t(SettingsSection::Harness.key())));
             }
             if sections.contains(&SettingsSection::Computer) {
                 roots.push(TreeItem::new(SettingsSection::Computer.key(), self.t(SettingsSection::Computer.key())));

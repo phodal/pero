@@ -7,11 +7,21 @@ use serde::{Deserialize, Serialize};
 pub enum ComputerRequest {
     Status {},
     Targets {},
-    Open { application: ComputerApplication },
-    Observe { target: ComputerTargetRef },
-    Act { action: ComputerAction },
+    Open {
+        application: ComputerApplicationSelector,
+    },
+    Observe {
+        target: ComputerTargetRef,
+        #[serde(default)]
+        options: ComputerObserveOptions,
+    },
+    Act {
+        action: ComputerAction,
+    },
     Stop {},
-    Receipt { request_id: ComputerRef },
+    Receipt {
+        request_id: ComputerRef,
+    },
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
