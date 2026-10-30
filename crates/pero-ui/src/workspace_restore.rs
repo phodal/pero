@@ -16,20 +16,30 @@ use pero_contracts::{
 pub(crate) struct WorkspaceRecovery {
     requested: bool,
     ready: bool,
-    applying: bool,
+    pub(crate) applying: bool,
     queued: bool,
     replayed: bool,
     catalog: bool,
     pending: Option<WorkspaceRestore>,
     last: Option<WorkspaceSession>,
-    sent: Vec<PublishedSource>,
-    sequence: u64,
+    pub(crate) sent: Vec<PublishedSource>,
+    pub(crate) sequence: u64,
+    pub(crate) deferred: Vec<DeferredDocument>,
+    pub(crate) failed: bool,
+    pub(crate) reset_confirm: bool,
+    pub(crate) reset_pending: Option<String>,
     #[cfg(not(target_family = "wasm"))]
     native_close: Option<String>,
 }
-struct PublishedSource {
-    key: SourceKey,
-    document: pero_contracts::content_document::ContentDocument,
+pub(crate) struct DeferredDocument {
+    pub saved: SavedDocument,
+    pub loading: bool,
+    pub failed: bool,
+    pub close_after_load: bool,
+}
+pub(crate) struct PublishedSource {
+    pub(crate) key: SourceKey,
+    pub(crate) document: pero_contracts::content_document::ContentDocument,
 }
 impl Workbench {
     pub(crate) fn receive_workspace(
@@ -59,6 +69,47 @@ impl Workbench {
                     Ok(restored) => self.recovery.pending = Some(restored),
                     Err(_) => self.error = Some(self.t("workspace.recovery_failed").into()),
                 }
+                true
+            }
+            "workspace_source" => {
+                if let Ok(recovered) = serde_json::from_value::<
+                    pero_contracts::workspace_session::RecoveredSource,
+                >(event.data.clone())
+                {
+                    self.materialize_workspace_source(
+                        recovered.source,
+                        recovered.conflict,
+                        window,
+                        cx,
+                    );
+                }
+                true
+            }
+            "workspace_source_error" => {
+                if let Ok(key) = serde_json::from_value::<SourceKey>(event.data["key"].clone()) {
+                    if let Some(document) = self
+                        .recovery
+                        .deferred
+                        .iter_mut()
+                        .find(|document| SourceKey::of(&document.saved.header) == key)
+                    {
+                        document.loading = false;
+                        document.failed = true;
+                    }
+                }
+                cx.notify();
+                true
+            }
+            "workspace_reset" => {
+                self.recovery.reset_pending = None;
+                self.recovery.reset_confirm = false;
+                self.recovery.failed = false;
+                self.recovery.ready = true;
+                self.recovery.sent.clear();
+                self.recovery.last = None;
+                self.error = None;
+                self.queue_workspace_checkpoint(cx);
+                cx.notify();
                 true
             }
             "workspace_saved" => {
@@ -98,9 +149,11 @@ impl Workbench {
                     .detach();
                 }
 
+                self.recovery.reset_pending = None;
                 self.recovery.sent.clear();
                 self.recovery.last = None;
                 if event.request_id.is_none() {
+                    self.recovery.failed = true;
                     self.recovery.ready = false;
                 }
                 self.error = Some(
@@ -136,47 +189,35 @@ impl Workbench {
         }
         self.recovery.applying = true;
         self.recovery.sent.clear();
-        for source in restored.sources {
-            let key = SourceKey::of(&source.header);
-            let state = session
-                .documents
-                .iter()
-                .find(|document| SourceKey::of(&document.header) == key)
-                .expect("saved source has descriptor");
-            let document = source.header.into_document(source.text);
-            self.open_document(document, window, cx);
-            if let Some(open) = self
-                .documents
-                .iter_mut()
-                .find(|open| open.item == state.item())
-            {
-                self.recovery.sent.push(PublishedSource {
-                    key: key.clone(),
-                    document: open.view.read(cx).document.clone(),
-                });
-                open.owner_seen = false;
-                open.cached = !matches!(state.header.source.origin, ContentOrigin::File { .. });
-                open.view.update(cx, |view, cx| {
-                    if let Some(draft) = &state.draft {
-                        view.restore_draft(draft.clone(), window, cx);
-                    }
-                    view.restore_reading_state(state.reading.clone(), window, cx);
-                    if restored.conflicts.contains(&state.header.source.id) {
-                        view.file_failed("content.conflict", cx);
-                    }
-                });
-            }
-        }
+        self.recovery.deferred = session
+            .documents
+            .iter()
+            .cloned()
+            .map(|saved| DeferredDocument {
+                failed: restored.unavailable.contains(&SourceKey::of(&saved.header)),
+                saved,
+                loading: false,
+                close_after_load: false,
+            })
+            .collect();
         self.navigation.restore(session.navigation.clone());
+        for source in restored.sources {
+            let conflict = restored.conflicts.contains(&source.header.source.id);
+            self.materialize_workspace_source(source, conflict, window, cx);
+        }
         for page in &session.web {
-            let mut document = pero_contracts::web_document::WebDocument::open(
-                pero_contracts::web_document::WebAddress::try_from(page.id.clone())
-                    .expect("saved Web identity"),
-            );
+            let mut document = if let Some(html) = &page.html {
+                pero_contracts::web_document::WebDocument::inline(html.clone())
+            } else {
+                pero_contracts::web_document::WebDocument::open(
+                    pero_contracts::web_document::WebAddress::try_from(page.id.clone())
+                        .expect("saved Web identity"),
+                )
+            };
             document.observation.url = page.url.clone();
             self.web_documents.push(document);
             self.web_command(
-                serde_json::json!({"action":"web_restore","id":page.id,"url":page.url}),
+                serde_json::json!({"action":"web_restore","id":page.id,"url":page.url,"html":page.html}),
                 window,
                 cx,
             );
@@ -277,6 +318,19 @@ impl Workbench {
                 });
             }
         }
+        documents.extend(
+            self.recovery
+                .deferred
+                .iter()
+                .filter(|document| navigation.items.contains(&document.saved.item()))
+                .map(|document| {
+                    let mut saved = document.saved.clone();
+                    if discard {
+                        saved.draft = None;
+                    }
+                    saved
+                }),
+        );
         self.recovery.sent.retain(|published| {
             documents
                 .iter()
@@ -293,6 +347,7 @@ impl Workbench {
             .map(|page| SavedWeb {
                 id: page.id.clone(),
                 url: page.observation.url.clone(),
+                html: page.html.clone(),
             })
             .collect();
         let session = WorkspaceSession {
@@ -345,6 +400,14 @@ impl Workbench {
             if let (WorkspaceRoute::Content(item @ WorkspaceItem::Document { .. }), Some(state)) =
                 (&entry.route, entry.reading)
             {
+                if let Some(document) = self
+                    .recovery
+                    .deferred
+                    .iter_mut()
+                    .find(|document| &document.saved.item() == item)
+                {
+                    document.saved.reading = state.clone();
+                }
                 if let Some(open) = self.documents.iter().find(|open| &open.item == item) {
                     open.view
                         .update(cx, |view, cx| view.restore_reading_state(state, window, cx));

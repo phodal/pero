@@ -29,6 +29,9 @@ impl Workbench {
             origin: document.origin.clone(),
             source: document.id.clone(),
         };
+        self.recovery
+            .deferred
+            .retain(|document| document.saved.item() != item);
         let recovered = self
             .documents
             .iter()
@@ -98,6 +101,11 @@ impl Workbench {
 
     pub(crate) fn has_unsaved_documents(&self, cx: &App) -> bool {
         self.documents.iter().any(|open| open.view.read(cx).dirty())
+            || self
+                .recovery
+                .deferred
+                .iter()
+                .any(|document| document.saved.draft.is_some())
     }
     pub(crate) fn choose_document(&mut self, cx: &mut Context<Self>) {
         self.command(serde_json::json!({"action":"choose_document"}), cx);
@@ -189,6 +197,9 @@ impl Workbench {
             );
         }
         self.documents.retain(|open| &open.item != item);
+        self.recovery
+            .deferred
+            .retain(|document| &document.saved.item() != item);
         self.queue_workspace_checkpoint(cx);
         if let Some(route) = self.navigation.close(item) {
             self.activate_route(route, window, cx);
@@ -348,7 +359,7 @@ impl Workbench {
                     })
                     .children(open.map(|open| open.view.clone()))
                     .when(open.is_none(), |pane| {
-                        pane.child(self.t("content.unavailable"))
+                        pane.child(self.deferred_document_content(&item, cx))
                     })
             }))
             .into_any_element()
@@ -377,6 +388,16 @@ impl Workbench {
                     icon,
                 )
             })
-            .unwrap_or_else(|| (self.t("content.document").into(), "file"))
+            .unwrap_or_else(|| {
+                (
+                    self.recovery
+                        .deferred
+                        .iter()
+                        .find(|document| &document.saved.item() == item)
+                        .map(|document| document.saved.header.source.title.clone())
+                        .unwrap_or_else(|| self.t("content.document").into()),
+                    "file",
+                )
+            })
     }
 }

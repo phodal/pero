@@ -28,16 +28,24 @@ impl Workbench {
         if self.pending_save_as.is_some() {
             return;
         }
-        let Some(open) = self.documents.iter().find(|open| &open.item == item) else {
+        let header = if let Some(open) = self.documents.iter().find(|open| &open.item == item) {
+            open.view.read(cx).document.header()
+        } else if let Some(document) = self
+            .recovery
+            .deferred
+            .iter()
+            .find(|document| &document.saved.item() == item && document.saved.draft.is_some())
+        {
+            document.saved.header.clone()
+        } else {
             return;
         };
-        let source = &open.view.read(cx).document;
-        let suggested = match &source.origin {
+        let suggested = match &header.source.origin {
             ContentOrigin::File { path } => path.clone(),
             _ => {
-                let mut name = source.title.clone();
+                let mut name = header.source.title.clone();
                 if std::path::Path::new(&name).extension().is_none() {
-                    let extension = match source.format {
+                    let extension = match header.format {
                         pero_contracts::content_document::ContentFormat::Json => "json",
                         pero_contracts::content_document::ContentFormat::JsonLines => "jsonl",
                         pero_contracts::content_document::ContentFormat::Markdown => "md",
@@ -94,21 +102,40 @@ impl Workbench {
             let Some(path) = event.data["path"].as_str() else {
                 return false;
             };
-            let Some(open) = self.documents.iter().find(|open| open.item == item) else {
+            let text = if let Some(open) = self.documents.iter().find(|open| open.item == item) {
+                let reader = open.view.read(cx);
+                Some(
+                    reader
+                        .draft(cx)
+                        .unwrap_or_else(|| reader.document.source().into()),
+                )
+            } else {
+                self.recovery
+                    .deferred
+                    .iter()
+                    .find(|document| document.saved.item() == item)
+                    .and_then(|document| document.saved.draft.clone())
+            };
+            let Some(text) = text else {
                 self.pending_save_as = None;
                 self.error = Some(self.t("content.unavailable").into());
                 return true;
             };
-            let reader = open.view.read(cx);
-            let text = reader
-                .draft(cx)
-                .unwrap_or_else(|| reader.document.source().into());
-            let protected_sources = self
+            let mut protected_sources = self
                 .documents
                 .iter()
                 .filter(|open| open.item != item && open.view.read(cx).dirty())
                 .map(|open| open.view.read(cx).document.id.clone())
                 .collect::<Vec<_>>();
+            protected_sources.extend(
+                self.recovery
+                    .deferred
+                    .iter()
+                    .filter(|document| {
+                        document.saved.item() != item && document.saved.draft.is_some()
+                    })
+                    .map(|document| document.saved.header.source.id.clone()),
+            );
             self.command(serde_json::json!({"method":"documents","action":"save_as","request_id":request,"copy":{"path":path,"text":text,"protected_sources":protected_sources}}),cx);
             return true;
         }
@@ -177,6 +204,19 @@ impl Workbench {
                     view.draft(cx)
                         .unwrap_or_else(|| view.document.source().into()),
                 )
+            })
+            .or_else(|| {
+                self.recovery
+                    .deferred
+                    .iter()
+                    .find(|document| document.saved.item() == item)
+                    .and_then(|document| {
+                        document
+                            .saved
+                            .draft
+                            .as_ref()
+                            .map(|draft| (document.saved.reading.clone(), draft.clone()))
+                    })
             });
         // A destination edited while the picker/write was pending keeps its own buffer.
         if self
@@ -197,6 +237,9 @@ impl Workbench {
         if file_source {
             self.navigation.replace_identity(&item, target.clone());
             self.documents.retain(|open| open.item != item);
+            self.recovery
+                .deferred
+                .retain(|document| document.saved.item() != item);
             if let WorkspaceItem::Document { source, .. } = &item {
                 if source != &document.id {
                     self.command(serde_json::json!({"method":"documents","action":"release","source":source}),cx);

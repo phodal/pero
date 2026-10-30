@@ -75,9 +75,7 @@ impl Workbench {
                     self.chat.read(cx).chats.iter().any(|chat| &chat.id == id)
                 }
                 WorkspaceItem::Web(id) => self.web_documents.iter().any(|page| &page.id == id),
-                WorkspaceItem::Document { .. } => {
-                    self.documents.iter().any(|open| &open.item == *item)
-                }
+                WorkspaceItem::Document { .. } => self.has_workspace_document(item),
                 WorkspaceItem::Project(key) => {
                     projects.iter().any(|project| project.matches_key(key))
                 }
@@ -127,6 +125,7 @@ impl Workbench {
                 self.workspace_focus.focus(window, cx);
             }
             WorkspaceRoute::Content(item @ WorkspaceItem::Document { .. }) => {
+                self.request_workspace_source(&item, cx);
                 if let Some(open) = self.documents.iter().find(|open| open.item == item) {
                     open.view.update(cx, |view, cx| view.focus(window, cx));
                 }
@@ -161,6 +160,22 @@ impl Workbench {
         self.queue_workspace_checkpoint(cx);
         if let WorkspaceItem::Web(id) = item {
             self.web_command(json!({"action":"web_close","id":id}), window, cx);
+            return;
+        }
+        if let Some(deferred) = self
+            .recovery
+            .deferred
+            .iter_mut()
+            .find(|document| &document.saved.item() == item)
+        {
+            if deferred.saved.draft.is_some() {
+                deferred.close_after_load = true;
+                self.navigation.select(item);
+                self.request_workspace_source(item, cx);
+                cx.notify();
+                return;
+            }
+            self.discard_document(item, window, cx);
             return;
         }
         if let Some(open) = self.documents.iter().find(|open| &open.item == item) {

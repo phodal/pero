@@ -348,6 +348,7 @@ impl Render for Workbench {
                     .flex_col()
                     .when(has_tabs, |el| el.child(self.content_tabs(cx)))
                     .when(self.web_entry_open || self.navigation.page()==WorkbenchPage::Web,|el|el.child(self.web_toolbar(cx)))
+                    .children(self.recovery_controls(cx))
                     .when(self.error.is_some(), |el| {
                         el.child(
                             div()
