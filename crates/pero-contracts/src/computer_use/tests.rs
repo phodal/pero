@@ -141,6 +141,40 @@ fn action_admission_uses_the_current_observation_and_explicit_delivery() {
             Some(InvalidRequest),
         ),
         (
+            "hover needs an element that advertises hover",
+            "request-11",
+            |action, _, _| {
+                if let ComputerInput::Hover { anchor, .. } = &mut action.input {
+                    *anchor = ComputerAnchor::Element {
+                        element_id: "editor".to_owned().try_into().unwrap(),
+                    };
+                }
+            },
+            Some(Unsupported),
+        ),
+        (
+            "hold is not implied by click support",
+            "request-12",
+            |_, _, caps| {
+                caps.actions
+                    .retain(|support| support.action != ComputerActionKind::Hold)
+            },
+            Some(Unsupported),
+        ),
+        (
+            "move point is outside the image",
+            "request-10",
+            |action, _, _| {
+                if let ComputerInput::Move {
+                    anchor: ComputerAnchor::Pixel { point, .. },
+                } = &mut action.input
+                {
+                    point.y = 200;
+                }
+            },
+            Some(InvalidRequest),
+        ),
+        (
             "zero scroll has no effect",
             "request-4",
             |action, _, _| {
@@ -201,6 +235,34 @@ fn action_admission_uses_the_current_observation_and_explicit_delivery() {
             .map(|error| error.code);
         assert_eq!(error, *expected, "{name}");
     }
+}
+
+#[test]
+fn pointer_durations_round_trip_within_bounds() {
+    for (value, ok) in [(0, true), (5000, true), (5001, false)] {
+        assert_eq!(
+            ComputerDwellMs::try_from(value).is_ok(),
+            ok,
+            "dwell {value}"
+        );
+    }
+    for (value, ok) in [(0, false), (1, true), (10000, true), (10001, false)] {
+        assert_eq!(ComputerHoldMs::try_from(value).is_ok(), ok, "hold {value}");
+    }
+    let input: ComputerInput = serde_json::from_value(serde_json::json!({
+        "kind": "hold",
+        "anchor": { "kind": "element", "element_id": "increment" },
+        "button": "right",
+        "hold_ms": 750
+    }))
+    .unwrap();
+    assert_eq!(input.kind(), ComputerActionKind::Hold);
+    assert_eq!(input.addressing(), ComputerAddressing::Element);
+    let ComputerInput::Hold { hold_ms, .. } = &input else {
+        unreachable!()
+    };
+    assert_eq!(hold_ms.duration(), std::time::Duration::from_millis(750));
+    assert_eq!(serde_json::to_value(&input).unwrap()["hold_ms"], 750);
 }
 
 #[test]

@@ -208,7 +208,7 @@ pub fn execute(
             ComputerInput::Drag { from, to, .. } => {
                 window.drag(point(from), point(to), action.delivery, cancellation)
             }
-            ComputerInput::LongPress {
+            ComputerInput::Hold {
                 anchor,
                 button,
                 hold_ms,
@@ -218,7 +218,7 @@ pub fn execute(
                     ComputerMouseButton::Right => MouseButton::Right,
                     ComputerMouseButton::Middle => MouseButton::Middle,
                 };
-                window.long_press(
+                window.hold(
                     location(&anchor)?,
                     button,
                     u16::from(hold_ms),
@@ -228,6 +228,10 @@ pub fn execute(
             }
             ComputerInput::FocusWindow {} => unreachable!("focus dispatched before geometry"),
             ComputerInput::Move { anchor } => window.move_to(location(&anchor)?, action.delivery),
+            ComputerInput::Hover { anchor, dwell_ms } => {
+                window.move_to(location(&anchor)?, action.delivery)?;
+                cancellation.wait(dwell_ms.duration())
+            }
             ComputerInput::SetValue { .. } | ComputerInput::PerformAction { .. } => {
                 unreachable!("semantic inputs dispatched before geometry")
             }

@@ -206,7 +206,7 @@ impl<'a> WindowInput<'a> {
         held.point = to;
         held.release()
     }
-    pub fn long_press(
+    pub fn hold(
         &self,
         point: (f64, f64),
         button: MouseButton,

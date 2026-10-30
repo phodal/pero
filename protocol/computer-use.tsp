@@ -14,7 +14,7 @@ scalar ComputerRef extends string;
 
 /** Replacement permits an empty value to clear the field. */
 @maxLength(10000) scalar ComputerValue extends string;
-enum ComputerActionKind { click, type_text, press_key, scroll, drag, set_value, perform_action, move, long_press, focus_window }
+enum ComputerActionKind { click, type_text, press_key, scroll, drag, set_value, perform_action, move, hover, hold, focus_window }
 enum ComputerSemanticAction { press, open, confirm, cancel, show_menu, scroll_to_visible, increment, decrement }
 enum ComputerDelivery { background, foreground }
 enum ComputerAddressing { element, pixel, target }
@@ -141,11 +141,28 @@ model ComputerSetValue { kind: "set_value"; element_id: ComputerRef; value: Comp
 model ComputerPerformAction { kind: "perform_action"; element_id: ComputerRef; action: ComputerSemanticAction; ...ComputerClosed; }
 /** Foreground moves the real pointer; background posts a window-directed move. */
 model ComputerMove { kind: "move"; anchor: ComputerAnchor; ...ComputerClosed; }
-@minValue(1) @maxValue(10000) scalar ComputerHoldMillis extends uint16;
-model ComputerLongPress { kind: "long_press"; anchor: ComputerAnchor; button: ComputerMouseButton; hold_ms: ComputerHoldMillis; ...ComputerClosed; }
+/** Pointer pause after reaching the anchor, in milliseconds. */
+@minValue(0) @maxValue(5000) scalar ComputerDwellMs extends uint16;
+/** Button press duration before release, in milliseconds. */
+@minValue(1) @maxValue(10000) scalar ComputerHoldMs extends uint16;
+/** Moves the pointer to the anchor, then waits `dwell_ms` without button or key events. */
+model ComputerHover {
+  kind: "hover";
+  anchor: ComputerAnchor;
+  dwell_ms: ComputerDwellMs;
+  ...ComputerClosed;
+}
+/** Presses one button at the anchor, keeps it down for `hold_ms`, then always releases it. */
+model ComputerHold {
+  kind: "hold";
+  anchor: ComputerAnchor;
+  button: ComputerMouseButton;
+  hold_ms: ComputerHoldMs;
+  ...ComputerClosed;
+}
 /** Explicit foreground focus; never implicit in a background input. */
 model ComputerFocusWindow { kind: "focus_window"; ...ComputerClosed; }
-@oneOf union ComputerInput { ComputerClick, ComputerTypeText, ComputerPressKey, ComputerScroll, ComputerDrag, ComputerSetValue, ComputerPerformAction, ComputerMove, ComputerLongPress, ComputerFocusWindow }
+@oneOf union ComputerInput { ComputerClick, ComputerTypeText, ComputerPressKey, ComputerScroll, ComputerDrag, ComputerSetValue, ComputerPerformAction, ComputerMove, ComputerHover, ComputerHold, ComputerFocusWindow }
 model ComputerAction {
   request_id: ComputerRef;
   target: ComputerTargetRef;

@@ -33,7 +33,8 @@
         "set_value",
         "perform_action",
         "move",
-        "long_press",
+        "hover",
+        "hold",
         "focus_window"
       ]
     },

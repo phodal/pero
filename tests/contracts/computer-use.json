@@ -69,7 +69,15 @@
         ]
       },
       {
-        "action": "long_press",
+        "action": "hover",
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
+      },
+      {
+        "action": "hold",
         "delivery": "background",
         "addressing": [
           "element",
@@ -115,7 +123,8 @@
           "click",
           "perform_action",
           "move",
-          "long_press"
+          "hover",
+          "hold"
         ],
         "semantic_actions": [
           "press"
@@ -196,7 +205,7 @@
           "kind": "element",
           "element_id": "editor"
         },
-        "text": "你好，Pero 🙂\n"
+        "text": "\u4f60\u597d\uff0cPero \ud83d\ude42\n"
       }
     },
     {
@@ -357,7 +366,7 @@
       "input": {
         "kind": "set_value",
         "element_id": "editor",
-        "value": "你好🌱"
+        "value": "\u4f60\u597d\ud83c\udf31"
       }
     },
     {
@@ -413,7 +422,7 @@
       "observation_id": "observation-1",
       "delivery": "background",
       "input": {
-        "kind": "long_press",
+        "kind": "hold",
         "anchor": {
           "kind": "element",
           "element_id": "increment"
@@ -432,6 +441,86 @@
       "delivery": "foreground",
       "input": {
         "kind": "focus_window"
+      }
+    },
+    {
+      "request_id": "request-10",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "move",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        }
+      }
+    },
+    {
+      "request_id": "request-11",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "hover",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        },
+        "dwell_ms": 5000
+      }
+    },
+    {
+      "request_id": "request-12",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "hold",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        },
+        "button": "left",
+        "hold_ms": 800
+      }
+    },
+    {
+      "request_id": "request-13",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "hover",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 10,
+            "y": 20
+          }
+        },
+        "dwell_ms": 0
       }
     }
   ],
@@ -988,7 +1077,7 @@
         "observation_id": "observation-1",
         "delivery": "background",
         "input": {
-          "kind": "long_press",
+          "kind": "hold",
           "anchor": {
             "kind": "element",
             "element_id": "increment"
@@ -1010,7 +1099,7 @@
         "observation_id": "observation-1",
         "delivery": "background",
         "input": {
-          "kind": "long_press",
+          "kind": "hold",
           "anchor": {
             "kind": "element",
             "element_id": "increment"
@@ -1018,6 +1107,76 @@
           "button": "middle",
           "hold_ms": 10001
         }
+      }
+    },
+    {
+      "name": "hover dwell is bounded",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "hover",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        },
+        "dwell_ms": 5001
+      }
+    },
+    {
+      "name": "hover requires an explicit dwell",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "hover",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        }
+      }
+    },
+    {
+      "name": "move carries no button",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "move",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 1,
+            "y": 1
+          }
+        },
+        "button": "left"
+      }
+    },
+    {
+      "name": "click does not carry a hold duration",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "click",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 1,
+            "y": 1
+          }
+        },
+        "button": "left",
+        "count": 1,
+        "hold_ms": 500
+      }
+    },
+    {
+      "name": "long_press is not a v1 action name",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "long_press",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        },
+        "button": "left",
+        "hold_ms": 500
       }
     }
   ]

@@ -46,7 +46,8 @@ impl ComputerAction {
             | ComputerInput::PressKey { anchor, .. }
             | ComputerInput::Scroll { anchor, .. }
             | ComputerInput::Move { anchor, .. }
-            | ComputerInput::LongPress { anchor, .. } => {
+            | ComputerInput::Hover { anchor, .. }
+            | ComputerInput::Hold { anchor, .. } => {
                 observation.check_anchor(anchor, kind, capabilities)?
             }
             ComputerInput::SetValue { element_id, .. }
@@ -106,7 +107,8 @@ impl ComputerInput {
             | Self::PressKey { anchor, .. }
             | Self::Scroll { anchor, .. }
             | Self::Move { anchor, .. }
-            | Self::LongPress { anchor, .. } => match anchor {
+            | Self::Hover { anchor, .. }
+            | Self::Hold { anchor, .. } => match anchor {
                 ComputerAnchor::Element { .. } => ComputerAddressing::Element,
                 ComputerAnchor::Pixel { .. } => ComputerAddressing::Pixel,
             },

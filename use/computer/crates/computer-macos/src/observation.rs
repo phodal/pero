@@ -176,7 +176,8 @@ pub fn observe(
                 actions.extend([
                     ComputerActionKind::Click,
                     ComputerActionKind::Move,
-                    ComputerActionKind::LongPress,
+                    ComputerActionKind::Hover,
+                    ComputerActionKind::Hold,
                 ]);
             }
             if value_settable {

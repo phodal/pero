@@ -41,7 +41,7 @@ continues to own managed App semantics.
   typed input. An element anchor is observation-local; a pixel anchor also
   names that observation's screenshot. Click, text, logical key chord, scroll
   and drag remain available. The additive macOS vocabulary also includes value
-  replacement/clear, finite semantic actions, pointer move, bounded long press,
+  replacement/clear, finite semantic actions, pointer move, bounded hold, hover with dwell,
   and explicit foreground window focus. A semantic value write does not submit
   a form or promise that an application binding has committed.
 - `ComputerActionReceipt` echoes the request, target and observation with an
@@ -244,11 +244,12 @@ the exact selected window ID as well as its PID; same-process overlays refuse.
 Middle clicks and multi-clicks retain physical button/count semantics. Explicit
 semantic actions do not silently become foreground input.
 
-`long_press` holds one button for 1–10000 ms; `move` supports hover and advertises
-background and foreground delivery independently. `focus_window` requires explicit
+`hold` holds one button for 1–10000 ms and always releases it; `move` positions
+the pointer and `hover` adds a 0–5000 ms `dwell_ms`; each advertises background
+and foreground delivery independently. `focus_window` requires explicit
 foreground delivery and target addressing. The worker reads connection closure
 independently of input execution. Desktop stop closes stdin first; cancellation
-wakes a long press or drag and scoped button cleanup releases it before exit.
+wakes a hold, hover or drag and scoped button cleanup releases it before exit.
 Interrupted input retains an unknown receipt, with no automatic replay. Forced
 process termination remains a bounded fallback when graceful exit cannot finish.
 

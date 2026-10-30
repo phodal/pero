@@ -20,12 +20,12 @@ pub fn actions() -> Vec<ComputerActionSupport> {
     use ComputerDelivery::*;
     vec![
         ComputerActionSupport {
-            action: LongPress,
+            action: Hold,
             delivery: Background,
             addressing: vec![Element, Pixel],
         },
         ComputerActionSupport {
-            action: LongPress,
+            action: Hold,
             delivery: Foreground,
             addressing: vec![Element, Pixel],
         },
@@ -51,6 +51,16 @@ pub fn actions() -> Vec<ComputerActionSupport> {
         },
         ComputerActionSupport {
             action: Move,
+            delivery: Foreground,
+            addressing: vec![Element, Pixel],
+        },
+        ComputerActionSupport {
+            action: Hover,
+            delivery: Background,
+            addressing: vec![Element, Pixel],
+        },
+        ComputerActionSupport {
+            action: Hover,
             delivery: Foreground,
             addressing: vec![Element, Pixel],
         },

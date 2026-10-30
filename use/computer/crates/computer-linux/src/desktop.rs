@@ -493,7 +493,7 @@ impl DesktopDriver for Desktop {
         app: &Window,
         snap: &X11Snapshot,
         action: ComputerAction,
-        _: &computer_runtime::Cancellation,
+        cancellation: &computer_runtime::Cancellation,
     ) -> Result<Option<ComputerExecution>, ComputerError> {
         if let ComputerInput::Click {
             anchor: ComputerAnchor::Element { element_id },
@@ -615,20 +615,38 @@ impl DesktopDriver for Desktop {
                 count,
             } => {
                 aim(anchor(&a)?)?;
-                click(
-                    match button {
-                        ComputerMouseButton::Left => 1,
-                        ComputerMouseButton::Middle => 2,
-                        ComputerMouseButton::Right => 3,
-                    },
-                    count.into(),
-                )?;
+                click(x11_button(button), count.into())?;
             }
-            ComputerInput::LongPress { .. }
-            | ComputerInput::FocusWindow {}
+            ComputerInput::Move { anchor: a } => aim(anchor(&a)?)?,
+            ComputerInput::Hover {
+                anchor: a,
+                dwell_ms,
+            } => {
+                aim(anchor(&a)?)?;
+                c.flush().map_err(failure)?;
+                cancellation.wait(dwell_ms.duration())?;
+            }
+            ComputerInput::Hold {
+                anchor: a,
+                button,
+                hold_ms,
+            } => {
+                let button = x11_button(button);
+                aim(anchor(&a)?)?;
+                let pressed = fake(BUTTON_PRESS_EVENT, button, 0, 0);
+                // From here on always release exactly once: closing the connection
+                // cancels the wait early, and the first failure is reported without
+                // replaying the press.
+                let held = pressed
+                    .and_then(|_| c.flush().map_err(failure))
+                    .and_then(|_| cancellation.wait(hold_ms.duration()));
+                let released = fake(BUTTON_RELEASE_EVENT, button, 0, 0)
+                    .and_then(|_| c.flush().map_err(failure));
+                held.and(released)?;
+            }
+            ComputerInput::FocusWindow {}
             | ComputerInput::SetValue { .. }
-            | ComputerInput::PerformAction { .. }
-            | ComputerInput::Move { .. } => {
+            | ComputerInput::PerformAction { .. } => {
                 return Err(error(
                     ComputerErrorCode::Unsupported,
                     "This input is not implemented on this platform",
@@ -641,14 +659,16 @@ impl DesktopDriver for Desktop {
                 aim(end)?;
                 aim(start)?;
                 fake(BUTTON_PRESS_EVENT, 1, 0, 0)?;
-                for step in 1..=12 {
+                // Once pressed, the button is released even if a motion step fails.
+                let moved = (1..=12).try_for_each(|step| {
                     let x =
                         i32::from(start.0) + (i32::from(end.0) - i32::from(start.0)) * step / 12;
                     let y =
                         i32::from(start.1) + (i32::from(end.1) - i32::from(start.1)) * step / 12;
-                    fake(MOTION_NOTIFY_EVENT, 0, x as i16, y as i16)?;
-                }
-                fake(BUTTON_RELEASE_EVENT, 1, 0, 0)?;
+                    fake(MOTION_NOTIFY_EVENT, 0, x as i16, y as i16)
+                });
+                let released = fake(BUTTON_RELEASE_EVENT, 1, 0, 0);
+                moved.and(released)?;
             }
             ComputerInput::Scroll {
                 anchor: a,
@@ -684,11 +704,10 @@ impl DesktopDriver for Desktop {
                     if shifted {
                         emit(shift, true)?;
                     }
-                    emit(code, true)?;
-                    emit(code, false)?;
-                    if shifted {
-                        emit(shift, false)?;
-                    }
+                    // Every key pressed here is released before reporting a failure.
+                    let typed = emit(code, true).and_then(|_| emit(code, false));
+                    let unshifted = if shifted { emit(shift, false) } else { Ok(()) };
+                    typed.and(unshifted)?;
                 }
             }
             ComputerInput::PressKey { anchor: a, keys } => {
@@ -700,15 +719,31 @@ impl DesktopDriver for Desktop {
                 aim(anchor(&a)?)?;
                 click(1, 1)?;
                 focus()?;
-                for (code, _) in &inputs {
+                // Release exactly the keys that went down, in reverse order, even
+                // when a later press fails.
+                let mut down = Vec::with_capacity(inputs.len());
+                let pressed = inputs.iter().try_for_each(|(code, _)| {
                     emit(*code, true)?;
+                    down.push(*code);
+                    Ok::<_, ComputerError>(())
+                });
+                let mut released = Ok(());
+                for code in down.iter().rev() {
+                    // Attempt every release; keep the first failure.
+                    released = released.and(emit(*code, false));
                 }
-                for (code, _) in inputs.iter().rev() {
-                    emit(*code, false)?;
-                }
+                pressed.and(released)?;
             }
         }
         c.flush().map(|()| None).map_err(failure)
+    }
+}
+
+fn x11_button(button: ComputerMouseButton) -> u8 {
+    match button {
+        ComputerMouseButton::Left => 1,
+        ComputerMouseButton::Middle => 2,
+        ComputerMouseButton::Right => 3,
     }
 }
 

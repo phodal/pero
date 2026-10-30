@@ -121,7 +121,8 @@ pub enum ComputerActionKind {
     SetValue,
     PerformAction,
     Move,
-    LongPress,
+    Hover,
+    Hold,
     FocusWindow,
 }
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -275,10 +276,14 @@ pub enum ComputerAnchor {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ComputerInput {
-    LongPress {
+    Hold {
         anchor: ComputerAnchor,
         button: ComputerMouseButton,
-        hold_ms: ComputerHoldMillis,
+        hold_ms: ComputerHoldMs,
+    },
+    Hover {
+        anchor: ComputerAnchor,
+        dwell_ms: ComputerDwellMs,
     },
     FocusWindow {},
     SetValue {
@@ -327,7 +332,8 @@ impl ComputerInput {
             Self::SetValue { .. } => ComputerActionKind::SetValue,
             Self::PerformAction { .. } => ComputerActionKind::PerformAction,
             Self::Move { .. } => ComputerActionKind::Move,
-            Self::LongPress { .. } => ComputerActionKind::LongPress,
+            Self::Hover { .. } => ComputerActionKind::Hover,
+            Self::Hold { .. } => ComputerActionKind::Hold,
             Self::FocusWindow { .. } => ComputerActionKind::FocusWindow,
         }
     }

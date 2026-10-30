@@ -88,8 +88,36 @@ macro_rules! budget {
     };
 }
 budget!(ComputerNodeBudget, 4096);
-budget!(ComputerHoldMillis, 10000);
 budget!(ComputerDepthBudget, 64);
+
+macro_rules! computer_millis {
+    ($name:ident, $min:expr, $max:expr, $message:expr) => {
+        #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+        #[serde(try_from = "u16", into = "u16")]
+        pub struct $name(u16);
+        impl TryFrom<u16> for $name {
+            type Error = &'static str;
+            fn try_from(value: u16) -> Result<Self, Self::Error> {
+                if !($min..=$max).contains(&value) {
+                    return Err($message);
+                }
+                Ok(Self(value))
+            }
+        }
+        impl From<$name> for u16 {
+            fn from(value: $name) -> Self {
+                value.0
+            }
+        }
+        impl $name {
+            pub fn duration(self) -> std::time::Duration {
+                std::time::Duration::from_millis(u64::from(self.0))
+            }
+        }
+    };
+}
+computer_millis!(ComputerDwellMs, 0, 5000, "A hover dwell is 0–5000 ms");
+computer_millis!(ComputerHoldMs, 1, 10000, "A hold lasts 1–10000 ms");
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ComputerObserveOptions {

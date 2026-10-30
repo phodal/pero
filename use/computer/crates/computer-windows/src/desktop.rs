@@ -182,7 +182,8 @@ impl DesktopDriver for Desktop {
                     )
                 }
             }
-            ComputerInput::LongPress { .. }
+            ComputerInput::Hold { .. }
+            | ComputerInput::Hover { .. }
             | ComputerInput::FocusWindow {}
             | ComputerInput::SetValue { .. }
             | ComputerInput::PerformAction { .. }

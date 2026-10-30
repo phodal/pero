@@ -29,7 +29,8 @@ export type ComputerInput =
   | ComputerSetValue
   | ComputerPerformAction
   | ComputerMove
-  | ComputerLongPress
+  | ComputerHover
+  | ComputerHold
   | ComputerFocusWindow;
 export type ComputerAnchor = ComputerElementAnchor | ComputerPixelAnchor;
 export type ComputerMouseButton = "left" | "right" | "middle";
@@ -42,7 +43,14 @@ export type ComputerKey = string;
 export type ComputerValue = string;
 export type ComputerSemanticAction =
   "press" | "open" | "confirm" | "cancel" | "show_menu" | "scroll_to_visible" | "increment" | "decrement";
-export type ComputerHoldMillis = number;
+/**
+ * Pointer pause after reaching the anchor, in milliseconds.
+ */
+export type ComputerDwellMs = number;
+/**
+ * Button press duration before release, in milliseconds.
+ */
+export type ComputerHoldMs = number;
 export type ComputerControl =
   ComputerGetControl | ComputerSetControl | ComputerPermissionsControl | ComputerStopControl;
 export type ComputerSettingsRequest = GetComputerSettings | SetComputerSettings;
@@ -170,11 +178,22 @@ export interface ComputerMove {
   kind: "move";
   anchor: ComputerAnchor;
 }
-export interface ComputerLongPress {
-  kind: "long_press";
+/**
+ * Moves the pointer to the anchor, then waits `dwell_ms` without button or key events.
+ */
+export interface ComputerHover {
+  kind: "hover";
+  anchor: ComputerAnchor;
+  dwell_ms: ComputerDwellMs;
+}
+/**
+ * Presses one button at the anchor, keeps it down for `hold_ms`, then always releases it.
+ */
+export interface ComputerHold {
+  kind: "hold";
   anchor: ComputerAnchor;
   button: ComputerMouseButton;
-  hold_ms: ComputerHoldMillis;
+  hold_ms: ComputerHoldMs;
 }
 /**
  * Explicit foreground focus; never implicit in a background input.

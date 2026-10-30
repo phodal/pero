@@ -20,7 +20,8 @@ export type ComputerActionKind =
   | "set_value"
   | "perform_action"
   | "move"
-  | "long_press"
+  | "hover"
+  | "hold"
   | "focus_window";
 export type ComputerDelivery = "background" | "foreground";
 export type ComputerAddressing = "element" | "pixel" | "target";
