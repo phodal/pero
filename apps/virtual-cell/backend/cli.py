@@ -11,7 +11,7 @@ import sys
 
 from contract import Invalid, canonical
 from candidates import propose
-from evaluation import evaluate, test_queries
+from evaluation import ComparisonInputs, compare, evaluate, test_queries
 from split import check_split, freeze_split
 
 MAX_INPUT_BYTES = 512 * 1024 * 1024
@@ -43,12 +43,22 @@ def main(argv=None):
         if name == "candidates":
             command.add_argument("--plan", required=True)
         command.add_argument("--out", required=True)
+    command = commands.add_parser("compare")
+    command.add_argument("--bundle", required=True, help="Frozen input bundle or exported local comparison")
+    command.add_argument("--out", required=True)
     args = parser.parse_args(argv)
     try:
-        dataset, spec = load(args.dataset), load(args.spec)
+        if args.command == "compare":
+            document = load(args.bundle)
+            bundle = document.get("bundle", document) if isinstance(document, dict) else document
+            inputs = ComparisonInputs.parse_bundle(bundle)
+            comparison = compare(inputs)
+            result = {"evaluation": comparison.evaluation, "predictions": list(comparison.predictions)}
+        else:
+            dataset, spec = load(args.dataset), load(args.spec)
         if args.command == "split":
             result = freeze_split(dataset, spec)
-        else:
+        elif args.command != "compare":
             split = load(args.split)
             if args.command == "queries":
                 check_split(dataset, spec, split)

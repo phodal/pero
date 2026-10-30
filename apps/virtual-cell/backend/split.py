@@ -21,6 +21,10 @@ PARTITIONS = ("train", "validation", "test")
 def freeze_split(dataset, spec):
     dataset_digest = validate_dataset(dataset)
     spec_digest, facts = validate_spec(spec)
+    return _freeze_validated(dataset, spec, dataset_digest, spec_digest, facts)
+
+
+def _freeze_validated(dataset, spec, dataset_digest, spec_digest, facts):
     if spec["dataset"]["digest"] != dataset_digest:
         raise Invalid("spec_dataset_mismatch")
     if any(spec["context"][key]["value"] != dataset["measurement"][key] for key in ("readout", "assay")):
@@ -97,9 +101,10 @@ def check_split(dataset, spec, split):
     split_digest = check_sealed(split, "split_digest_mismatch")
     if split.get("schema") != SPLIT_SCHEMA:
         raise Invalid("split_schema")
-    if split["dataset_digest"] != validate_dataset(dataset):
+    dataset_digest = validate_dataset(dataset)
+    if split["dataset_digest"] != dataset_digest:
         raise Invalid("split_dataset_stale")
-    spec_digest, _ = validate_spec(spec)
+    spec_digest, facts = validate_spec(spec)
     if split["spec_digest"] != spec_digest:
         raise Invalid("split_spec_stale")
     if split["blind"] is not False or split.get("isolation") != "unverified":
@@ -130,6 +135,6 @@ def check_split(dataset, spec, split):
                     raise Invalid("split_component_unseen", cid)
     # Re-sealing edited assignments/counts is not sufficient: v1 implements
     # exactly the frozen deterministic protocol, including all exclusions.
-    if split != freeze_split(dataset, spec):
+    if split != _freeze_validated(dataset, spec, dataset_digest, spec_digest, facts):
         raise Invalid("split_protocol_mismatch")
     return split_digest

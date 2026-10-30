@@ -8,6 +8,8 @@ import signal
 import threading
 
 from contract import Invalid, canonical
+from dataset_download import DatasetDownload
+from local_comparisons import ComparisonHistory
 from workbench import MAX_BODY, Workbench
 
 
@@ -15,7 +17,9 @@ def authenticated(secret, token):
     return bool(secret) and hmac.compare_digest(secret, token)
 
 
-def handler(workbench, secret):
+def handler(workbench, secret, comparisons=None, dataset=None):
+    comparisons = comparisons or ComparisonHistory(workbench)
+    dataset = dataset or DatasetDownload(workbench.root)
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
             pass
@@ -47,6 +51,14 @@ def handler(workbench, secret):
                 data = json.loads(body) if body else {}
                 if not isinstance(data, dict):
                     raise Invalid("request_invalid")
+                if self.command == "GET" and self.path == "/api/dataset":
+                    return self.reply(200, dataset.read())
+                if self.command == "POST" and self.path in ("/api/dataset/download", "/api/dataset/verify", "/api/dataset/cancel"):
+                    if data:
+                        raise Invalid("dataset_request_fields")
+                    if self.path.endswith("/cancel"):
+                        return self.reply(200, dataset.cancel())
+                    return self.reply(202, dataset.start(verify_only=self.path.endswith("/verify")))
                 if self.command == "GET" and self.path == "/api/inputs":
                     return self.reply(200, workbench.catalog())
                 if self.command == "POST" and self.path == "/api/inputs":
@@ -56,6 +68,19 @@ def handler(workbench, secret):
                 if self.command == "GET" and self.path in ("/api/evidence/all", "/api/evidence/exclude_bad_coverage"):
                     protocol = self.path.rsplit("/", 1)[1]
                     return self.reply(200, {"content": (Path(__file__).parents[1] / "evidence/norman-sc0-v1" / protocol / "evaluation.json").read_text()})
+                if self.path == "/api/comparisons":
+                    if self.command == "GET":
+                        return self.reply(200, comparisons.catalog())
+                    if self.command == "POST":
+                        return self.reply(202, comparisons.start(data.get("inputId")))
+                if self.path.startswith("/api/comparisons/"):
+                    identity, *action = self.path.removeprefix("/api/comparisons/").split("/")
+                    if self.command == "GET" and not action:
+                        return self.reply(200, comparisons.read(identity))
+                    if self.command == "POST" and action == ["cancel"]:
+                        return self.reply(200, comparisons.cancel(identity))
+                    if self.command == "GET" and action == ["export"]:
+                        return self.reply(200, comparisons.export(identity))
                 if self.command == "POST" and self.path == "/api/execute":
                     return self.reply(200, workbench.execute(data.get("inputId"), data.get("operation")))
                 if self.command == "GET" and self.path.startswith("/api/artifacts/"):
@@ -66,7 +91,9 @@ def handler(workbench, secret):
                     return self.reply(200, workbench.read(identity))
                 self.reply(404, {"code": "route_missing"})
             except Invalid as error:
-                self.reply(400, {"code": error.code, "detail": error.detail})
+                self.reply(500 if error.code == "download_state_write_failed" else
+                           409 if error.code in ("comparison_already_running", "comparison_backend_stopping", "dataset_download_active", "dataset_download_stopping") else 400,
+                           {"code": error.code, "detail": error.detail})
             except (ValueError, TypeError, KeyError, UnicodeError, RecursionError):
                 self.reply(400, {"code": "request_invalid"})
             except OSError:
@@ -77,8 +104,11 @@ def handler(workbench, secret):
 
 
 def main():
+    workbench = Workbench(os.environ["PERO_APP_DATA"])
+    comparisons = ComparisonHistory(workbench)
+    dataset = DatasetDownload(workbench.root)
     server = ThreadingHTTPServer(("127.0.0.1", 0),
-                                handler(Workbench(os.environ["PERO_APP_DATA"]), os.environ["PERO_APP_TOKEN"]))
+                                handler(workbench, os.environ["PERO_APP_TOKEN"], comparisons, dataset))
     server.daemon_threads = True
     print(json.dumps({"port": server.server_port}), flush=True)
     def stop(_signal, _frame):
@@ -88,6 +118,8 @@ def main():
     try:
         server.serve_forever()
     finally:
+        comparisons.close()
+        dataset.close()
         server.server_close()
 
 

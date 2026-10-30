@@ -55,14 +55,23 @@ async function settled() {
   expect((await mcp()).error).toBeNull();
 }
 async function open(direct = false) {
-  progress(direct ? 'open direct MCP menu' : 'open settings');
+  progress(direct ? 'open MCP category without search' : 'open settings');
   await bounded(openSettings(page), 'settings menu');
-  // Footer order from the bottom: all settings, language, appearance, MCP.
-  for (let i = 0; i < (direct ? 4 : 1); i++) await page.keyboard.press('ArrowUp');
+  // All settings is the last footer action; categories live in its navigation tree.
+  await page.keyboard.press('ArrowUp');
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await state()).settingsOpen).toBe(true);
   if (direct) {
+    await frame();
+    const { query, matches } = (await state()).settings;
+    expect(query).toBe(''); expect(matches).toContain('mcp.title');
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+e' : 'Control+Shift+e');
+    // Follow the visible tree, including its appearance group, rather than a stale row offset.
+    for (let remaining = matches.length + 1; remaining > 0 && (await state()).settings.section !== 'mcp.title'; remaining--) {
+      await page.keyboard.press('ArrowDown'); await frame();
+    }
     await expect.poll(async () => (await state()).settings.section).toBe('mcp.title');
+    expect((await state()).settings.query).toBe('');
   } else {
     await capture('settings-before-search');
     progress('focus Settings search');
@@ -252,7 +261,7 @@ try {
   await writeFile(resolve(out, 'ui-result.json'), JSON.stringify({ passed: true, headless: process.env.PERO_MCP_TEST_HEADLESS === '1', checks: [
     'actual GPUI add disabled', 'explicit server-wide enable confirmation', 'real ACP injection',
     'edit revokes grant for new sessions', 'write failure and retry', 'dark/narrow/Chinese',
-    'restart persistence and direct MCP menu', 'stale-write conflict and refresh recovery', 'import is disabled', 'confirmed removal', 'no operator credential disclosure',
+    'restart persistence and visible MCP category navigation without search', 'stale-write conflict and refresh recovery', 'import is disabled', 'confirmed removal', 'no operator credential disclosure',
     'configured state does not imply connected or discovered tools',
     'correlated IPC rejection settles busy and preserves draft', 'unrelated error does not settle pending save',
     'unknown save requires real Host reload before retry without replay', 'read rejection reload recovery',

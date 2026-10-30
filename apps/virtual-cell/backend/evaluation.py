@@ -19,16 +19,18 @@ baselines are recomputed from the training view; submissions are additional
 models only. QC, batch and guide diagnostics cannot certify biological effects.
 """
 import copy
+from dataclasses import dataclass
 import math
 import statistics
 
 from baselines import BASELINES, OUTPUT_CONDITION_MEAN, baseline_mean, check_predictions, run_baseline
-from contract import Invalid, sealed, validate_spec
+from contract import Invalid, sealed
 from dataset import comparison_support, evaluation_view, readout_support, training_view
-from split import check_split
+from split import check_split, freeze_split
 
 EVALUATION_SCHEMA = "point.virtual-cell.evaluation.v1"
 METHOD = "virtual-cell.evaluation.v1"
+_UNFROZEN = object()
 
 
 def _delta(mean, control):
@@ -58,9 +60,53 @@ def test_queries(dataset, split):
     return {cid: tuple(by_id[cid]["targets"]) for cid in split["assignments"]["test"]}
 
 
+@dataclass(frozen=True)
+class ComparisonInputs:
+    """A frozen scientific input, admitted at import or the standalone CLI.
+
+    Raw input crosses this boundary once at import, disk read or the CLI.
+    Content integrity alone does not establish scientific compatibility.
+    Prediction alignment belongs to the evaluator, not the HTTP adapter.
+    """
+    dataset: dict
+    spec: dict
+    split: dict
+    predictions: tuple = ()
+
+    @classmethod
+    def parse(cls, dataset, spec, split=_UNFROZEN, predictions=()):
+        if split is _UNFROZEN:
+            split = freeze_split(dataset, spec)
+        else:
+            check_split(dataset, spec, split)
+        return cls(dataset, spec, split, tuple(predictions))
+
+    @classmethod
+    def parse_bundle(cls, bundle):
+        if not isinstance(bundle, dict) or not {"dataset", "spec"} <= bundle.keys():
+            raise Invalid("bundle_fields")
+        predictions = bundle.get("predictions", ())
+        if not isinstance(predictions, (list, tuple)):
+            raise Invalid("predictions_required")
+        return cls.parse(bundle["dataset"], bundle["spec"], bundle.get("split", _UNFROZEN), predictions)
+
+
+@dataclass(frozen=True)
+class ComparisonResult:
+    evaluation: dict
+    predictions: tuple
+
+
 def evaluate(dataset, spec, split, prediction_docs=()):
-    split_digest = check_split(dataset, spec, split)
-    spec_digest, _ = validate_spec(spec)
+    """External scientific boundary retained for existing CLI/callers."""
+    return compare(ComparisonInputs.parse(dataset, spec, split, prediction_docs)).evaluation
+
+
+def compare(inputs: ComparisonInputs) -> ComparisonResult:
+    """Compute once; retain the actual predictions used by the evaluator."""
+    dataset, spec, split = inputs.dataset, inputs.spec, inputs.split
+    prediction_docs = inputs.predictions
+    split_digest, spec_digest = split["digest"], split["spec_digest"]
     rules = spec["evaluation"]
     train = training_view(dataset, split)
     baselines = [run_baseline(name, split, train, test_queries(dataset, split)) for name in BASELINES]
@@ -170,7 +216,7 @@ def evaluate(dataset, spec, split, prediction_docs=()):
         ]}
         entry["acceptance"] = {"status": "not_reviewed", "authority": "Host/Project Decision"}
 
-    return sealed({
+    report = sealed({
         "schema": EVALUATION_SCHEMA,
         "method": METHOD,
         "spec_digest": spec_digest,
@@ -193,3 +239,5 @@ def evaluate(dataset, spec, split, prediction_docs=()):
         "intervals": {"status": "not_computed", "reason": "uncertainty_protocol_not_implemented"},
         "models": models,
     })
+
+    return ComparisonResult(report, tuple(baselines))

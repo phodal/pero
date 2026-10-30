@@ -1,0 +1,5 @@
+# Preparation-only synthetic transformation tests; not App runtime dependencies.
+# Match the versions used for local validation. Real H5AD inspection also needs
+# its separately recorded pandas/h5py/anndata environment.
+numpy==2.3.5
+scipy==1.17.0
