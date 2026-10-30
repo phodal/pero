@@ -239,6 +239,8 @@ try {
   expect(await read(experimentPath(first.id))).toEqual(first);
   await frame.getByRole('button', { name: 'New experiment', exact: true }).click();
   await frame.getByLabel('Template', { exact: true }).selectOption(first.templateId);
+  await frame.getByLabel('Observation window', { exact: true }).fill('6');
+  await frame.getByLabel('Samples', { exact: true }).fill('601');
   await frame.getByLabel('Total candidate budget', { exact: true }).fill('30');
   const cancelTarget = await action('Freeze specification', '/api/experiments');
   const running = await action('Run bounded search', `${experimentPath(cancelTarget.id)}/search`);
