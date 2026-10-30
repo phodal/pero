@@ -82,7 +82,12 @@ impl Apps {
                 .map(pero_runtime::settings::load_app_python)
                 .transpose()?
                 .unwrap_or_default();
-            let mut store = AppStore::open(root, python)?;
+            let required = std::env::var("PERO_REQUIRED_APPS").unwrap_or_default();
+            let mut required_names = std::collections::BTreeSet::new();
+            for name in required.split(',').map(str::trim).filter(|name| !name.is_empty()) {
+                required_names.insert(pero_runtime::apps::AppName::try_from(name.to_owned())?);
+            }
+            let mut store = AppStore::open_required(root, python, required_names)?;
             if let Some(catalog) = &builtins {
                 store.seed_builtins_only(catalog, names.as_deref())?;
             }
@@ -127,17 +132,17 @@ impl Apps {
                 }
                 Request::Enable { method, id, name } => {
                     let _ = (method, id);
-                    serde_json::to_value(store.set_enabled(&name, true)?)
+                    serde_json::to_value(store.set_enabled(&name, true).map_err(|error| error.to_string())?)
                 }
                 Request::Disable { method, id, name } => {
                     let _ = (method, id);
-                    let catalog = store.set_enabled(&name, false)?;
+                    let catalog = store.set_enabled(&name, false).map_err(|error| error.to_string())?;
                     agents.stop_app_sessions(&name);
                     serde_json::to_value(catalog)
                 }
                 Request::Uninstall { method, id, name } => {
                     let _ = (method, id);
-                    let catalog = store.uninstall(&name)?;
+                    let catalog = store.uninstall(&name).map_err(|error| error.to_string())?;
                     agents.stop_app_sessions(&name);
                     serde_json::to_value(catalog)
                 }

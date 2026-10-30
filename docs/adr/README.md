@@ -22,5 +22,6 @@
 - [0019: Grok-style Computer Use isolated Linux desktop](0019-grok-computer-use-isolated-desktop.md)
 - [0020: Grok-style Computer Use input gaps](0020-grok-computer-use-input-gaps.md)
 - [0021: Compact App Chat presentation](0021-floating-app-chat.md)
+- [0022: Required App tenure](0022-required-app-tenure.md)
 
 - [0023: Conversation charts from the harness](0023-conversation-charts.md)

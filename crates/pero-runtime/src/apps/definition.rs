@@ -108,6 +108,7 @@ pub struct AppSummary {
     pub display_name: String,
     pub description: String,
     pub enabled: bool,
+    pub tenure: super::Tenure,
     pub panels: Vec<AppPanel>,
     #[serde(skip_serializing_if="Vec::is_empty")]
     pub writes: Vec<AppWriteRoute>,
@@ -185,6 +186,7 @@ impl AppDefinition {
             display_name: self.display_name.clone(),
             description: self.description.clone(),
             enabled,
+            tenure: super::Tenure::Optional,
             panels: self.contributes.panels.clone(),
             writes: self.contributes.writes.clone(),
         }

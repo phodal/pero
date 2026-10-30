@@ -177,7 +177,14 @@ app.whenReady().then(async () => {
     PERO_APPS_ROOT: process.env.PERO_APPS_ROOT || resolve(app.getPath('userData'), 'apps'),
     PERO_BUILTIN_APPS_ROOT: resolve(root, 'apps'),
     // A source checkout holds test-only Apps too; seed only those the Pero product builds.
-    ...(app.isPackaged ? {} : { PERO_BUILTIN_APPS: process.env.PERO_BUILTIN_APPS || (JSON.parse(readFileSync(resolve(root, 'products/pero.json'), 'utf8')).apps as string[]).join(',') }),
+    // Required names stay enabled. They are not a field of the App manifest.
+    ...(() => {
+      const product = JSON.parse(readFileSync(resolve(root, 'products/pero.json'), 'utf8')) as { apps?: string[]; required?: string[] };
+      return {
+        PERO_REQUIRED_APPS: process.env.PERO_REQUIRED_APPS || (product.required || []).join(','),
+        ...(app.isPackaged ? {} : { PERO_BUILTIN_APPS: process.env.PERO_BUILTIN_APPS || (product.apps || []).join(',') }),
+      };
+    })(),
     ...(process.env.PERO_APP_NODE ? { PERO_APP_NODE: process.env.PERO_APP_NODE } : {}),
     ...(process.env.PERO_APP_PYTHON ? { PERO_APP_PYTHON: process.env.PERO_APP_PYTHON } : {}),
     PERO_HISTORY_PATH: process.env.PERO_HISTORY_PATH || resolve(app.getPath('userData'), 'sessions.jsonl'),
