@@ -108,7 +108,7 @@ impl FileDocuments {
                 SaveError::StaleRevision | SaveError::ChangedOnDisk => FileError::Conflict,
             })?;
         if let FileSave::Write(next) = decision {
-            std::fs::write(id, next.snapshot().source())?;
+            write_file(Path::new(id), next.snapshot().source())?;
             self.revisions.insert(id.into(), next.snapshot().revision);
             self.files.insert(id.into(), next);
         }
@@ -134,7 +134,7 @@ impl FileDocuments {
         if let Some(previous) = self.files.get(&id) {
             return self.save(&id, previous.snapshot().revision, copy.text);
         }
-        std::fs::write(&path, copy.text)?;
+        write_file(&path, &copy.text)?;
         self.open(&path)
     }
     pub fn recovery_source(&self, id: &str, revision: u64) -> Option<ContentDocument> {
@@ -148,6 +148,37 @@ impl FileDocuments {
         self.files.remove(id);
     }
 }
+/// Publish completed contents atomically and keep an existing file's write permissions.
+fn write_file(path: &Path, text: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    let permissions = match std::fs::OpenOptions::new().write(true).open(path) {
+        Ok(file) => Some(file.metadata()?.permissions()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error),
+    };
+    let pending = path.with_file_name(format!(".pero-save-{}.tmp", uuid::Uuid::new_v4()));
+    let result = (|| {
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(if permissions.is_some() { 0o600 } else { 0o666 });
+        }
+        let mut file = options.open(&pending)?;
+        file.write_all(text.as_bytes())?;
+        if let Some(permissions) = permissions {
+            file.set_permissions(permissions)?;
+        }
+        file.sync_all()?;
+        drop(file);
+        std::fs::rename(&pending, path)
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(pending);
+    }
+    result
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,12 +187,25 @@ mod tests {
         let path =
             std::env::temp_dir().join(format!("pero-file-document-{}.md", uuid::Uuid::new_v4()));
         std::fs::write(&path, "# Original\n中文").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
+        }
         let mut files = FileDocuments::default();
         let opened = files.open(&path).unwrap();
         let saved = files
             .save(&opened.id, opened.revision, "# Edited\n中文".into())
             .unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), saved.source());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o640
+            );
+        }
         std::fs::write(&path, "external edit").unwrap();
         assert!(matches!(
             files.save(&saved.id, saved.revision, "draft".into()),
