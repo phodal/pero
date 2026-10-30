@@ -1,0 +1,17 @@
+# Hostile-Agent image only: Worker, control journal and reusable credentials
+# never enter this image. The reviewed base must supply tini and CA roots.
+ARG RUNTIME_BASE_IMAGE
+FROM ${RUNTIME_BASE_IMAGE}
+ARG SOURCE_REVISION
+LABEL org.opencontainers.image.source="https://github.com/phodal/pero" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}"
+COPY --chmod=0555 pero-agent-acp pero-agent-connect /usr/local/bin/
+COPY --chmod=0555 entrypoint.isolated.sh /usr/local/bin/pero-isolated-entrypoint
+# Public trust root only; fixture-generated TLS private keys stay outside Pods.
+COPY --chmod=0444 control-ca.pem /etc/pero/control-ca.pem
+COPY --chown=10001:10001 workspace/ /opt/pero/workspace/
+RUN test -x /usr/bin/tini && test -x /bin/sh && test -s /etc/ssl/certs/ca-certificates.crt && test -s /opt/pero/workspace/.pero-workspace-revision
+ENV HOME=/tmp
+USER 10001:10001
+WORKDIR /workspace
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/pero-isolated-entrypoint"]

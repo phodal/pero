@@ -81,6 +81,10 @@ impl ChatPanel {
             })
             .collect();
         self.attachments.dedup_by(|a, b| a.id == b.id);
+        self.context_preview_bounds.retain(|id, _| self.attachments.iter().any(|reference| &reference.id == id));
+        for reference in &self.attachments {
+            self.context_preview_bounds.entry(reference.id.clone()).or_default();
+        }
         let completion = CompletionQuery::at(&editor.value(), editor.cursor()).filter(|q| {
             !editor
                 .tokens()

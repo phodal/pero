@@ -22,7 +22,8 @@ continues to own managed App semantics.
 ## Domain values
 
 - `ComputerCapabilities` identifies `pero.computer-use.v1`, one runtime instance,
-  available observation channels and explicit action/delivery pairs. This is
+  available observation channels, display environment and explicit
+  action/delivery/addressing triples. This is
   supported vocabulary, not authorization or a promise that every app accepts
   every input.
 - `ComputerTarget` describes a window or desktop. Its reference binds an opaque
@@ -39,7 +40,10 @@ continues to own managed App semantics.
 - `ComputerAction` fixes a request ID, target, observation, delivery mode and
   typed input. An element anchor is observation-local; a pixel anchor also
   names that observation's screenshot. Click, text, logical key chord, scroll
-  and drag are the complete v1 input vocabulary.
+  and drag remain available. The additive macOS vocabulary also includes value
+  replacement/clear, finite semantic actions, pointer move, bounded hold, hover with dwell,
+  and explicit foreground window focus. A semantic value write does not submit
+  a form or promise that an application binding has committed.
 - `ComputerActionReceipt` echoes the request, target and observation with an
   `executed`, `rejected` or `unknown` outcome. Rejection and unknown effects
   require a structured error. Execution acknowledgement never asserts task
@@ -56,7 +60,7 @@ Logical key chords are ordered key names, not OS keycodes or scripts.
 
 `ComputerAction::prepare(observation, capabilities)` consumes a typed action
 and returns `PreparedComputerAction` or `ComputerError`. It checks the current
-runtime, exact target and observation identity, advertised delivery pair,
+runtime, exact target and observation identity, advertised delivery/addressing combination,
 element identity/action, screenshot identity and point bounds. An empty scroll
 is refused. The core reads no time or external state.
 
@@ -101,6 +105,35 @@ record provenance and module-only adaptations. Cargo uses local paths. Builds
 require no Point credentials, checkout or extraction cache; public registry
 dependencies remain locked in `use/computer/Cargo.lock`.
 
+## Package isolation
+
+The executable root composes `computer-runtime` with one of `computer-macos`,
+`computer-windows` or `computer-linux`. The runtime consumer declares the
+`DesktopDriver` port and keeps its associated snapshot opaque. `computer-core`
+owns Pero window identity, geometry, image values and control projection; it
+has no native SDK or transport dependency. `pero-contracts` remains the single
+public vocabulary and pure action-admission owner.
+
+Only macOS/Windows adapter manifests depend on Point. Their `bridge.rs` files
+convert Point values at that boundary. Linux, core and runtime contain no Point
+types or dependencies. The Linux source-only build proves this by deleting
+Point and its consuming implementations; only the executable composition
+manifest changes. The temporary lock graph is pruned with registry versions
+checked against the original pin set before the normal locked test/build.
+
+`computer-testkit` drives the actual platform profiles through public action
+admission using one shared expected-success/refusal catalogue. These value
+checks are separate from the native callback/focus/pointer acceptance suites.
+A Windows background UIA click advertises element addressing only; foreground
+text/key also requires element addressing. X11 advertises foreground pixel
+addressing. Unsupported routes are rejected before entering a native backend.
+
+The display environment distinguishes native, X11, Xwayland, Wayland and
+unavailable. Linux combines actual X11 connection success with declared session
+metadata; desktop context is not a tested compositor claim. Pure Wayland has
+no action capability here. A future Cua backend implements the same consumer
+port; see [integration assessment](../design-docs/computer-use-cua-adapter.md).
+
 ## Runtime and ownership
 
 ```mermaid
@@ -108,9 +141,9 @@ flowchart LR
   Agent[ACP Agent] -->|Host-injected conversation identity| MCP[Existing Desktop MCP]
   MCP --> Authority[Selected running conversation]
   Authority --> Desktop[DesktopComputer: receipts and evidence]
-  Desktop -->|Private NDJSON| Native[Native helper: Point macOS backend]
+  Desktop -->|Private NDJSON| Native[Native helper: runtime and platform libraries]
   Native --> Core[Pure action admission]
-  Native --> OS[Accessibility and CoreGraphics]
+  Native --> OS[AX / UIA / X11 native APIs]
   Settings[Settings or Product menu] --> Host[Host runtime settings]
   Host --> Desktop
 ```
@@ -178,3 +211,47 @@ pixel capture and all five foreground input kinds. Windows cross-compilation
 and Clippy pass; Windows desktop execution, pure Wayland and signed/notarized
 package launch have not passed acceptance here. Provider and package evidence
 is recorded separately in [Computer Use verification](../fitness/computer-use.md).
+
+## macOS capability completion, 2026-10-30
+
+`ComputerElement.state` reports native enabled/secure/focused/settable facts and
+optional selected/expanded state. `semantic_actions` contains a finite, generated
+vocabulary: press, open, confirm, cancel, show-menu, scroll-to-visible, increment
+and decrement. A request cannot forward an arbitrary AX method. Admission checks
+both element advertisements and runtime action/delivery/addressing support.
+`set_value` accepts an empty replacement; `type_text` remains insertion. Successful
+macOS receipts report semantic, window-event or foreground-event execution and,
+when applicable, the actual semantic action. Other drivers may omit execution
+details and continue to refuse unimplemented inputs.
+
+An `open` application accepts the existing name string or a typed bundle-ID
+selector. macOS discovers all layer-zero windows, including several from the same
+process, and resolves running bundle IDs through NSRunningApplication. New app
+launches still use the verified installed catalog, never a caller-supplied path.
+
+`observe.options` supports AX-only reads and bounded node/depth budgets. A subtree
+root names a control from this conversation's current observation and selected
+target. Expansion replaces that observation with a new ID and local numbering.
+Every action attempt still consumes the current observation. macOS retains native
+AX handles and validates live window ownership before using them; it never resolves
+a subtree number by rescanning the whole window. Subtree, secure and incomplete
+trees do not produce whole-window images. Text is bounded separately from nodes.
+
+macOS uses AX logical geometry for observation and background input, and the
+ScreenCaptureKit filter's content rectangle for image resolution. WindowManager
+thumbnail rectangles are not application coordinates. Foreground hit tests require
+the exact selected window ID as well as its PID; same-process overlays refuse.
+Middle clicks and multi-clicks retain physical button/count semantics. Explicit
+semantic actions do not silently become foreground input.
+
+`hold` holds one button for 1–10000 ms and always releases it; `move` positions
+the pointer and `hover` adds a 0–5000 ms `dwell_ms`; each advertises background
+and foreground delivery independently. `focus_window` requires explicit
+foreground delivery and target addressing. The worker reads connection closure
+independently of input execution. Desktop stop closes stdin first; cancellation
+wakes a hold, hover or drag and scoped button cleanup releases it before exit.
+Interrupted input retains an unknown receipt, with no automatic replay. Forced
+process termination remains a bounded fallback when graceful exit cannot finish.
+
+The owned AppKit, SwiftUI and Electron acceptance and release limitations are in
+[the macOS verification record](../fitness/computer-use-macos.md).

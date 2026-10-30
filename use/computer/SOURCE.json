@@ -3,7 +3,7 @@
   "revision": "a1b9150059a8858bac68497e6789e2b7cac8b08c",
   "subdirectory": "computer",
   "license": "MIT",
-  "usage": "Vendored native dependency closure behind the Pero Computer Use v1 contract; no Point application, service, CLI or runtime configuration is shipped.",
+  "usage": "Vendored native dependencies used only by computer-macos and computer-windows; Pero core, runtime and Linux have no Point dependency. No Point application, service, CLI or runtime configuration is shipped.",
   "design_reference": {
     "repository": "https://github.com/trycua/cua",
     "revision": "cbe3991f268c7e155bd028fbc9b449b40146cfe9",

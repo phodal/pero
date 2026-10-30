@@ -17,6 +17,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	gh "github.com/phodal/pero/server/internal/github"
+	"github.com/phodal/pero/server/internal/runtimegateway"
+	"github.com/phodal/pero/server/internal/sandbox"
 	"github.com/phodal/pero/server/internal/store"
 )
 
@@ -24,11 +26,25 @@ type API struct {
 	db           *store.Store
 	operatorHash [32]byte
 	github       *gh.Service
+	sandbox      *sandbox.Runtime
+	gateway      *runtimegateway.Gateway
 }
 type contextKey struct{}
 
 func Handler(db *store.Store, operatorToken string, services ...*gh.Service) http.Handler {
-	a := &API{db: db, operatorHash: sha256.Sum256([]byte(operatorToken))}
+	return handler(db, operatorToken, nil, nil, services...)
+}
+
+// HandlerWithSandbox is explicit composition-root wiring; the default server
+// and existing clients remain unchanged when no runtime configuration is supplied.
+func HandlerWithSandbox(db *store.Store, operatorToken string, runtime *sandbox.Runtime, services ...*gh.Service) http.Handler {
+	return handler(db, operatorToken, runtime, nil, services...)
+}
+func handler(db *store.Store, operatorToken string, runtime *sandbox.Runtime, artifactReader ArtifactReader, services ...*gh.Service) http.Handler {
+	return configuredHandler(db, operatorToken, runtime, artifactReader, nil, services...)
+}
+func configuredHandler(db *store.Store, operatorToken string, runtime *sandbox.Runtime, artifactReader ArtifactReader, gateway *runtimegateway.Gateway, services ...*gh.Service) http.Handler {
+	a := &API{db: db, operatorHash: sha256.Sum256([]byte(operatorToken)), sandbox: runtime, gateway: gateway}
 	if len(services) > 0 {
 		a.github = services[0]
 	}
@@ -36,6 +52,8 @@ func Handler(db *store.Store, operatorToken string, services ...*gh.Service) htt
 	a.registerClients(mux)
 	a.registerContributions(mux)
 	a.registerGitHub(mux)
+	a.registerSandbox(mux)
+	a.registerArtifacts(mux, artifactReader)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := db.Ping(r.Context()); err != nil {
 			respond(w, 503, map[string]string{"status": "unavailable"})
@@ -53,12 +71,29 @@ func Handler(db *store.Store, operatorToken string, services ...*gh.Service) htt
 	mux.HandleFunc("POST /api/v1/workers/enroll", a.enrollWorker)
 	mux.HandleFunc("POST /api/v1/workers/{id}/disable", a.disableOwnedWorker)
 	mux.HandleFunc("POST /api/worker/v1/claims", a.claim)
+	mux.HandleFunc("POST /api/worker/v1/runs/{id}/channel", a.runtimeChannel)
 	mux.HandleFunc("GET /api/worker/v1/runs/{id}", a.workerRun)
 	mux.HandleFunc("POST /api/worker/v1/runs/{id}/renew", a.renew)
 	mux.HandleFunc("POST /api/worker/v1/runs/{id}/events", a.events)
 	mux.HandleFunc("POST /api/worker/v1/runs/{id}/complete", a.complete)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		if gateway != nil && strings.HasPrefix(r.URL.Path, "/api/runtime/") {
+			gateway.Handler().ServeHTTP(w, r)
+			return
+		}
+		duration := 10 * time.Second
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) > 1 && parts[1] == "client" {
+			parts = append(parts[:1], parts[2:]...)
+		}
+		if r.Method == http.MethodGet && len(parts) == 8 && parts[0] == "api" && parts[1] == "v1" && parts[2] == "runs" && parts[4] == "artifacts" && parts[6] == "files" {
+			duration = 2 * time.Minute
+			if http.NewResponseController(w).SetWriteDeadline(time.Now().Add(duration)) != nil {
+				respond(w, 500, map[string]string{"error": "bounded artifact transport unavailable"})
+				return
+			}
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), duration)
 		defer cancel()
 		r = r.WithContext(ctx)
 		w.Header().Set("Cache-Control", "no-store")

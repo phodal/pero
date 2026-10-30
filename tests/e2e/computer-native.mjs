@@ -16,8 +16,7 @@ const states=[];
 const desktop=new DesktopComputer(resolve(root,'target/debug/pero-computer'),resolve(run,'evidence'),event=>states.push(structuredClone(event.data)));
 const fixture=await computerFixture(root,run);
 const guard=await computerFixture(root,run,true);
-await guard.activate();
-const backgroundActivations=(await fixture.state()).activations ?? 0;
+let backgroundActivations=0;
 const signal=new AbortController().signal;
 const call=request=>desktop.call('native-acceptance',request,signal);
 const state=fixture.state;
@@ -34,6 +33,8 @@ const act=async(observation,input,delivery='background')=>{
  const result=await call({operation:'act',action});receipts.push(result.receipt);assert.equal(result.kind,'receipt');assert.equal(result.receipt.outcome.status,'executed',JSON.stringify(result));return action;
 };
 try {
+ await guard.activate();
+ backgroundActivations=(await fixture.state()).activations ?? 0;
  const status=await desktop.status();assert.equal(status.status.accessibility,'granted',JSON.stringify(status));assert.equal(status.status.screen_recording,'granted',JSON.stringify(status));
  await desktop.restore(true);
  target=await poll(async()=>{const value=await call({operation:'targets'});return value.targets.find(t=>t.title==='Pero Computer Fixture')?.reference;});
@@ -62,7 +63,7 @@ try {
  assert.equal((await state()).activations ?? 0,backgroundActivations,'Background input must not activate the target application');
  assert.equal((await guard.state()).text,'');assert.equal((await guard.state()).clicks,0);
  const foreground=process.env.PERO_COMPUTER_FOREGROUND==='1';
- if(foreground){const backgroundDrags=(await state()).drags;await fixture.activate();observation=await observe();await act(observation,{kind:'drag',screenshot_id:observation.screenshot.id,from:point,to:{x:point.x+80,y:point.y+50}},'foreground');await poll(async()=>(await state()).drags>backgroundDrags,'foreground drag');}
+ if(foreground){const backgroundDrags=(await state()).drags;await fixture.activate();observation=await observe();const increment=observation.elements.find(e=>e.label==='Increment');await act(observation,{kind:'click',anchor:{kind:'element',element_id:increment.id},button:'left',count:1},'foreground');await poll(async()=>(await state()).count===2,'foreground element click');observation=await observe();await act(observation,{kind:'drag',screenshot_id:observation.screenshot.id,from:point,to:{x:point.x+80,y:point.y+50}},'foreground');await poll(async()=>(await state()).drags>backgroundDrags,'foreground drag');}
  await desktop.stop();
  const old=await call({operation:'observe',target}).catch(error=>error);assert.equal(old.detail?.code,'target_unavailable');
  const lookup=await call({operation:'receipt',request_id:action.request_id});assert.deepEqual(lookup.receipt,receipts[0]);

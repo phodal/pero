@@ -30,9 +30,10 @@ Non-goals:
 - macOS and Windows hosts. They are out of scope for this ADR and will get
   a separate ADR later.
 - Wayland, macOS or Windows guests inside the isolated backend.
-- New input vocabulary (`move`, `hover`, `hold_ms`), app allowlists and other
-  input gaps. Those are covered by a separate ADR (0020, Grok-style Computer Use input
-  gaps).
+- Input vocabulary. `move`, `hover` (`dwell_ms`) and `hold` (`hold_ms`)
+  already landed in the ADR 0016 contract through #48; the isolated backend
+  reuses them unchanged. App allowlists and the remaining input gaps are
+  covered by a separate ADR (0020, Grok-style Computer Use input gaps).
 - A hosted multi-tenant cloud service, billing or remote fleet management
   (a remote Worker may host the same backend later; see open questions).
 - Exposing VNC to the network, or general remote-desktop features

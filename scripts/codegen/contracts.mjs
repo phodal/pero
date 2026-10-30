@@ -4,7 +4,9 @@ import { compile as compileTypeSpec, NodeHost, logDiagnostics } from '@typespec/
 import { compile } from 'json-schema-to-typescript';
 import { scriptOptions } from '../lib/options.mjs';
 
-const { root, outDir, check } = scriptOptions('protocol/generated');
+const { root, outDir, check, computer } = scriptOptions('protocol/generated', {
+  computer: { type: 'boolean', default: false },
+});
 
 // TypeSpec emits one $id per type; rewrite to a self-contained $defs bundle that
 // ajv, json-schema-to-typescript, typify and datamodel-code-generator all read.
@@ -92,8 +94,10 @@ for (const [path, output] of Object.entries(outputs)) {
   } else writeFileSync(path, output);
 }
 }
-await generate('host', 'HostProtocol', ['HostInput', 'HostEvent', 'WebCommand']);
-await generate('remote', 'RemoteProtocol', ['RemoteProtocol']);
+if (!computer) {
+  await generate('host', 'HostProtocol', ['HostInput', 'HostEvent', 'WebCommand']);
+  await generate('remote', 'RemoteProtocol', ['RemoteProtocol']);
+}
 await generate('computer-observation', 'ComputerObservationContract', ['ComputerCapabilities', 'ComputerTarget', 'ComputerObservation'], 'computer-use');
 await generate('computer-action', 'ComputerActionContract', ['ComputerAction', 'ComputerActionReceipt', 'ComputerError'], 'computer-use');
 await generate('computer-request', 'ComputerRequestContract', ['ComputerRequest', 'ComputerWorkerRequest', 'ComputerControl', 'ComputerSettingsRequest'], 'computer-runtime');

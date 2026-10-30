@@ -17,15 +17,16 @@ try{
  const page=await app.firstWindow();page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await page.waitForFunction(()=>window.peroDiagnostics,undefined,{timeout:60000});
  const state=()=>page.evaluate(()=>window.peroDiagnostics?JSON.parse(window.peroDiagnostics.snapshot()):{});
- await expect.poll(async()=>(await state()).agents?.map(agent=>agent.id)||[]).toEqual(expect.arrayContaining(['codex','fixture']));
  await page.waitForFunction(()=>!document.getElementById('loading'));
+ await expect.poll(async()=>(await state()).agents?.map(agent=>agent.id)||[]).toEqual(expect.arrayContaining(['codex','fixture']));
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await page.mouse.click(100,28);
  await expect.poll(async()=>(await state()).navigation).toBe(0);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await expect.poll(async()=>(await state()).chats?.length).toBe(1);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
- await page.mouse.click(await page.evaluate(()=>innerWidth-208),await page.evaluate(()=>innerHeight-20));
+ // The compact composer places the Codex picker 154px from the right edge.
+ await page.mouse.click(await page.evaluate(()=>innerWidth-154),await page.evaluate(()=>innerHeight-20));
  await page.keyboard.press('ArrowUp');
  await page.keyboard.press('Enter');
  await expect.poll(async()=>(await state()).chats?.[0]?.agent).toBe('fixture');

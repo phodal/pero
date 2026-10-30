@@ -1,0 +1,3 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+go_library(name="runtimechannel", srcs=["channel.go"], importpath="github.com/phodal/pero/server/internal/runtimechannel", visibility=["//server:__subpackages__"])
+go_test(name="runtimechannel_test",srcs=["channel_test.go"],embed=[":runtimechannel"])

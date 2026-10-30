@@ -1,0 +1,3 @@
+load("@rules_go//go:def.bzl","go_library","go_test")
+go_library(name="runtimeauth",srcs=["tokenreview.go"],importpath="github.com/phodal/pero/server/internal/runtimeauth",visibility=["//server:__subpackages__"],deps=["//server/internal/runtimechannel"])
+go_test(name="runtimeauth_test",srcs=["tokenreview_test.go"],embed=[":runtimeauth"],deps=["//server/internal/runtimechannel"])

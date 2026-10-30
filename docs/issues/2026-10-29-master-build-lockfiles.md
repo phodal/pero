@@ -69,3 +69,115 @@ store; no repository gate or TLS verification was disabled.
 
 Remote CI and Pages acceptance remain pending publication of the repair.
 Local build verification does not upload artifacts or deploy the site.
+
+## Integrated master follow-up (2026-10-29)
+
+PR #20 standard CI run `40908701966` exposed two build failures also present
+in incoming master `dc75f94`; the affected script and npm inputs are identical
+on the integrated feature tree.
+
+- Windows contracts preparation passed an absolute `D:` archive path to GNU
+  tar, which interpreted the drive prefix as a remote host. Extract the pinned,
+  checksum-verified crate by basename with the extraction directory as the
+  process working directory. No GNU-only flag is needed for BSD tar.
+- The frozen npm action-cache stamp is stale again after package-script changes.
+  Regenerate it with the pinned Bazel/pnpm toolchain without changing dependency
+  versions or weakening the frozen lock check.
+
+Tar verification: GNU tar reproduced `Cannot connect to D: resolve failed`
+with a colon-prefixed archive argument. Fresh production `prepareWebBackend()`
+extraction and patch application passed in a temporary path containing spaces
+and a colon; Linux `node scripts/cargo.mjs check -p pero-contracts` passed.
+Native Windows execution remains a CI acceptance step, not a local claim.
+
+The pinned sync added only the missing root importer for the already-declared
+`@modelcontextprotocol/sdk` 1.32.2 (`zod` 4.6.7), plus its three input hashes.
+Removing those three importer lines reproduces the prior pnpm lock byte for
+byte: all package and snapshot entries are unchanged. `package.json`,
+`package-lock.json`, and `MODULE.bazel.lock` are byte-identical to the integrated
+head. The original frozen check failed before sync; afterward
+`bazel test --config=ci //:checks` executed all seven checks successfully, with
+no lock rewrite. The sync used writable XDG data/cache paths in this container.
+
+## Patch checkout byte contract (2026-10-29)
+
+Windows run `40924600214` reached pinned GPUI patch application but rejected
+line 6 as corrupt. The canonical LF patch parses and applies to the pinned
+crate; converting its bytes to CRLF reproduces that exact parser failure.
+The patch contains blank context lines accepted as LF but not as CRLF.
+
+A targeted `patches/*.patch text eol=lf` attribute now fixes patch bytes at
+checkout, independently of Git's Windows `core.autocrlf` default. The patch,
+crate checksum and patch digest algorithm are unchanged. A real temporary Git
+index checkout test reproduces the CRLF failure without the attribute and
+verifies exact canonical bytes and successful parsing with it. CI runs this
+portable regression alongside the font-tool environment tests.
+
+The existing post-checkout LF conversion succeeds in the Linux reproduction;
+why it did not prevent the observed Windows failure has not been established.
+Native Windows CI remains required to verify the explicit attribute repair.
+
+## Integrated CI acceptance (2026-10-30)
+
+Standard CI [40962596409](https://github.com/phodal/pero/actions/runs/40962596409)
+passed all 16 jobs for head `26c371fad79ff6bb60ff32d7e3a383c9ba3e182f`,
+testing merge `7beb3d9eeaf842eb2a899c1506ebf8bc37e2f15a`. Native Windows CI
+completed the contracts preparation and patch checkout checks, closing the
+Windows acceptance requirement above. Linux and macOS frozen Bazel generated
+checks passed. Windows skips those Bazel generated checks under the existing
+workflow condition and runs the npm checks instead; this is not a claim that
+Windows executed the skipped gate. Desktop E2E ran on Linux only.
+
+This tracker remains `verifying` because a new Pages workflow/deployment
+acceptance has not been established. Standard CI success does not certify the
+Pages service configuration, artifact upload or deployed site. Earlier pending
+CI statements describe their historical checkpoints; the remaining acceptance
+item is Pages, not the integrated Windows repair.
+
+## Icon generated-byte portability (2026-10-30)
+
+Standard CI [40992933908](https://github.com/phodal/pero/actions/runs/40992933908)
+Windows job `123859362810` passed Build, TypeScript, locales and contracts but
+failed the strict icon-generated `assets.rs` comparison. It tested merge
+`1a67f59d3e4a570c0d1e90858929068ca606426c` against master `0847ddc`.
+The icon generator, inputs and outputs are identical on the local PR tree and
+that merge. The Linux strict icon check passes with Rust 1.99.1 / rustfmt 1.10.0.
+
+A real Git checkout with `core.autocrlf=true` reproduces the same file-specific
+failure: `assets.rs` acquires 405 CRLF line endings while generation emits LF.
+However, the workflow's later `core.autocrlf=false; git checkout -- .` removes
+those CRLFs in the Linux reproduction. Actual failing Windows file/stdout bytes
+were not recorded, so this reproduces a portability defect, not a proven account
+of why that workflow's conversion failed. Path ordering is not implicated by the
+local reproduction. Native Windows CI acceptance remains required.
+
+The bounded correction defines LF for the two generated icon outputs and the
+two license files embedded verbatim in generated TSX, following the patch-byte
+attribute precedent. The generator explicitly requests Unix newlines from
+rustfmt; the strict comparison is unchanged. A mismatch now reports only numeric
+lengths, CRLF counts and first differing code units, not file contents, so another
+native failure can be diagnosed instead of inferred.
+
+The existing checkout regression now also runs the production icon generator
+against a minimal artwork catalog in a temporary Git index. It proves failure
+without attributes, exact generation/check success with Windows checkout defaults
+and a Windows formatter preference, and rejection of both CRLF drift and stale
+content in each generated output. No CI gate, dependency pin or generated content
+is changed.
+
+## macOS Computer Use script cache (2026-10-30)
+
+PR #51 added the macOS native acceptance command to `package.json`. Standard CI
+[41004124147](https://github.com/phodal/pero/actions/runs/41004124147) failed the
+Linux and macOS frozen Bazel checks before target analysis with exit 48: the
+rules_js input cache still held the previous package.json hash. Native Computer
+Use CI on all three operating systems passed independently. This is the same
+script-only cache invalidation described above; no dependency upgrade is needed.
+
+Regenerate the existing cache with the pinned Bazel/pnpm toolchain, then rerun the
+frozen generated checks. Retain the lockfiles, dependency pins and freeze gate.
+
+The pinned Bazel 9.2.0 `bazel run @npm//:sync` regenerated only the package.json
+input hash. `pnpm-lock.yaml`, `package-lock.json` and `MODULE.bazel.lock` remain
+byte-identical. `bazel test --config=ci //:checks` then passed all seven frozen
+checks locally. Publication must rerun the remote frozen jobs; no gate was removed.

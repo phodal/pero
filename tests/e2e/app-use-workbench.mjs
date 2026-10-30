@@ -1,6 +1,8 @@
 // Workbench and standalone Products share the same MCP authority and App RPC.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { requestAppChat } from '../fixtures/app-chat-launch.mjs';
+import { waitForFullAppUse } from '../fixtures/app-use-progress.mjs';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -19,17 +21,27 @@ try{
  const state=()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()));
  await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
  await expect.poll(async()=>(await state()).apps?.some(a=>a.name==='virtual-cell')).toBe(true);
- await page.mouse.click(80,await page.evaluate(()=>innerHeight-76));
+ // Apps is the second compact footer row, below Insights.
+ await page.mouse.click(80,await page.evaluate(()=>innerHeight-55));
  await expect.poll(async()=>(await state()).navigation).toBe(7);
  await expect.poll(async()=>(await state()).appsLoading).toBe(false);
- await page.mouse.click(1305,110+79*(await state()).apps.findIndex(a=>a.name==='virtual-cell'));
+ const catalog=await state();
+ const row=catalog.apps.findIndex(a=>a.name==='virtual-cell');
+ // Match the compact catalog geometry used by workspace.mjs.
+ await page.mouse.click(1305,76+(catalog.contentTabs.length?30:0)+58*row);
+ await expect.poll(async()=>(await state()).activeContent).toEqual({kind:'app',value:{name:'virtual-cell',panel:'main'}});
  const frame=page.frameLocator('iframe[title="virtual-cell"]');
  await expect(frame.getByLabel('Find gene',{exact:true})).toBeVisible({timeout:20000});
- await frame.locator('body').evaluate(()=>parent.postMessage({type:'pero:app:chat',text:'app-use:full'},'*'));
+ const parentOrigin=await page.evaluate(()=>location.origin);
+ const launch=await frame.locator('body').evaluate(requestAppChat,{text:'app-use:full',parentOrigin});
  await expect.poll(async()=>(await state()).composer).toBe('app-use:full');
  const left=await page.locator('#pero-app-surface').evaluate(element=>element.getBoundingClientRect().right);
- await page.mouse.click(left+150,await page.evaluate(()=>innerHeight-70));await page.keyboard.press('Enter');
  const active=async()=>{const s=await state();return s.chats[s.activeChat];};
+ const beforeFull=await active();
+ expect(beforeFull.id).toBe(launch.threadId);
+ expect(beforeFull.scope).toEqual({app:'virtual-cell',panel:'main'});
+ await page.mouse.click(left+150,await page.evaluate(()=>innerHeight-70));await page.keyboard.press('Enter');
+ const fullProgress=await waitForFullAppUse(active,beforeFull);
  await expect.poll(async()=>(await active()).messages.filter(m=>m.role==='assistant').at(-1)?.text||'',{timeout:30000}).toContain('APP_USE_RESULT:');
  await expect.poll(async()=>(await active()).state).toBe('idle');
  const text=(await active()).messages.filter(m=>m.role==='assistant').at(-1).text;
@@ -48,7 +60,8 @@ try{
  await page.mouse.click(100,28);await expect.poll(async()=>(await active()).scope).toBeNull();
  await page.evaluate(()=>window.releaseContext());
  await expect.poll(async()=>(await state()).attachments.length).toBe(0);
- await frame.locator('body').evaluate(()=>parent.postMessage({type:'pero:app:chat',text:''},'*'));
+ const restored=await frame.locator('body').evaluate(requestAppChat,{text:'',parentOrigin});
+ expect(restored.threadId).toBe(original);
  await expect.poll(async()=>(await active()).id).toBe(original);
  await expect.poll(async()=>(await state()).attachments.length).toBe(1);
  await page.screenshot({path:resolve(output,'original-draft.png')});
@@ -69,7 +82,7 @@ try{
  await page.screenshot({path:resolve(output,'ordinary-hidden.png')});
 
  expect(errors).toEqual([]);
- await writeFile(resolve(output,'result.json'),JSON.stringify({checks,errors,result,ordinary,state:await state()},null,2));
+ await writeFile(resolve(output,'result.json'),JSON.stringify({checks,errors,fullProgress,result,ordinary,state:await state()},null,2));
 }catch(error){
  if(app){const page=await app.firstWindow();await page.screenshot({path:resolve(output,'failure.png')});await writeFile(resolve(output,'failure-state.json'),await page.evaluate(()=>window.peroDiagnostics?.snapshot()||'{}'));}
  throw error;

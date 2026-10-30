@@ -1,0 +1,17 @@
+# Review-only Role example. This does not create/bind an identity or credential.
+# Controller installation and a RoleBinding for the control plane are separate.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pero-runtime-provider
+  namespace: pero-runtime
+rules:
+  - apiGroups: [extensions.agents.x-k8s.io]
+    resources: [sandboxclaims]
+    verbs: [create, get, delete]
+  - apiGroups: [agents.x-k8s.io]
+    resources: [sandboxes]
+    verbs: [get]
+  - apiGroups: ['']
+    resources: [pods]
+    verbs: [get]

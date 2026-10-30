@@ -3,6 +3,7 @@ package subagents
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -74,7 +75,7 @@ func TestCleanRestartRetainsHistoricalChildWithoutReplayingEffects(t *testing.T)
 	if effects.Load() != 1 || models.Load() != 4 || childID == "" {
 		t.Fatalf("first run models=%d effects=%d child=%q", models.Load(), effects.Load(), childID)
 	}
-	if err := h.Dispose(ctx); err != nil {
+	if err := h.Dispose(ctx); err != nil && !errors.Is(err, harness.ErrHarnessDisposalInProgress) {
 		t.Fatal(err)
 	}
 	if err := h.Drain(ctx); err != nil {
@@ -137,7 +138,7 @@ func TestCleanRestartRetainsHistoricalChildWithoutReplayingEffects(t *testing.T)
 	}
 	// Final drain joins any admitted work before checking effects: this is not a
 	// sleep-based assertion, and it cannot hide a delayed automatic replay.
-	if err := fresh.Dispose(ctx); err != nil {
+	if err := fresh.Dispose(ctx); err != nil && !errors.Is(err, harness.ErrHarnessDisposalInProgress) {
 		t.Fatal(err)
 	}
 	if err := fresh.Drain(ctx); err != nil {

@@ -1,18 +1,34 @@
 // A source-only build must work without a Point checkout or ignored target cache.
 import assert from 'node:assert/strict';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '../..');
 const copy = mkdtempSync(join(tmpdir(), 'pero-computer-source-'));
 try {
   // Copy the real manifests and sources; retain workspace dependency inheritance.
-  for (const path of ['Cargo.toml', 'use/computer', 'crates/pero-contracts', 'locales', 'scripts/build/computer.mjs']) {
+  for (const path of ['Cargo.toml', 'use/computer', 'crates/pero-contracts', 'locales', 'scripts/build/computer.mjs', 'tests/contracts/computer-use.json', 'tests/contracts/computer-platforms.json']) {
     const destination = join(copy, path);
     mkdirSync(resolve(destination, '..'), { recursive: true });
-    cpSync(join(root, path), destination, { recursive: true });
+    cpSync(join(root, path), destination, { recursive: true, filter: path => !['target', '.git'].includes(basename(path)) });
+  }
+  if (process.argv.includes('--linux-only')) {
+    assert.equal(process.platform, 'linux', 'The independent Linux build requires a Linux host');
+    // Delete both Point implementations. Only the executable composition manifest
+    // changes; core/runtime/Linux manifests and sources remain byte-for-byte copies.
+    for (const path of ['vendor', 'crates/computer-macos', 'crates/computer-windows']) {
+      rmSync(join(copy, 'use/computer', path), { recursive: true, force: true });
+    }
+    const manifest = join(copy, 'use/computer/Cargo.toml');
+    let cargo = readFileSync(manifest, 'utf8');
+    for (const platform of ['macos', 'windows']) {
+      const block = `[target.'cfg(target_os = "${platform}")'.dependencies]\ncomputer-${platform} = { path = "crates/computer-${platform}" }\n\n`;
+      assert.ok(cargo.includes(block));
+      cargo = cargo.replace(block, '');
+    }
+    writeFileSync(manifest, cargo);
   }
   const env = {
     ...process.env,
@@ -25,6 +41,17 @@ try {
     GIT_CONFIG_KEY_0: 'url.file:///no-point-build-source/.insteadOf',
     GIT_CONFIG_VALUE_0: 'https://github.com/phodal/point.git',
   };
+  if (process.argv.includes('--linux-only')) {
+    // Removing implementations changes the composition graph. Let Cargo prune
+    // only this temporary lockfile, then verify registry versions stayed pinned.
+    const manifest = join(copy, 'use/computer/Cargo.toml');
+    const locked = readFileSync(join(copy, 'use/computer/Cargo.lock'), 'utf8');
+    const metadata = JSON.parse(execFileSync('cargo', ['metadata', '--manifest-path', manifest, '--format-version', '1'], { cwd: copy, env, encoding: 'utf8' }));
+    for (const pkg of metadata.packages.filter(pkg => pkg.source?.startsWith('registry+'))) {
+      assert.ok(locked.includes(`name = "${pkg.name}"\nversion = "${pkg.version}"\nsource = "${pkg.source}"`), `Registry dependency changed: ${pkg.name} ${pkg.version}`);
+    }
+    console.log('Independent Linux graph resolves with both Point implementations deleted; registry versions remain pinned.');
+  }
   for (const args of [['--test'], []]) {
     execFileSync(process.execPath, ['scripts/build/computer.mjs', ...args], { cwd: copy, env, stdio: 'inherit' });
   }

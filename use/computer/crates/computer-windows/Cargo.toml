@@ -1,0 +1,18 @@
+[package]
+name = "computer-windows"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+pero-contracts = { path = "../../../../crates/pero-contracts" }
+computer-core = { path = "../computer-core" }
+computer-runtime = { path = "../computer-runtime" }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+point-computer-core = { path = "../../vendor/point/crates/point-computer-core" }
+point-computer-backend = { path = "../../vendor/point/crates/point-computer-backend" }
+point-computer-windows = { path = "../../vendor/point/crates/point-computer-windows" }
+
+[dev-dependencies]
+computer-testkit = { path = "../computer-testkit" }

@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "command_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/phodal/pero/server/cmd/pero-agent-connect",
+    visibility = ["//visibility:private"],
+    deps = ["//server/internal/remoteacp"],
+)
+
+go_binary(
+    name = "pero-agent-connect",
+    embed = [":command_lib"],
+    visibility = ["//visibility:public"],
+)
