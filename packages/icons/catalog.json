@@ -49,5 +49,15 @@
   "box": { "kit": "Box", "aliases": ["models"] },
   "sort-ascending": { "kit": "SortAscending" },
   "sort-descending": { "kit": "SortDescending" },
-  "chevrons-up-down": { "kit": "ChevronsUpDown" }
+  "chevrons-up-down": { "kit": "ChevronsUpDown" },
+  "book-open-text": { "kit": "BookOpenText" },
+  "file-braces": { "kit": "FileBraces" },
+  "file-spreadsheet": { "kit": "FileSpreadsheet" },
+  "file-cog": { "kit": "FileCog" },
+  "file-terminal": { "kit": "FileTerminal" },
+  "braces": { "kit": "Braces" },
+  "file-type": { "kit": "FileType" },
+  "code-xml": { "kit": "CodeXml" },
+  "hash": { "kit": "Hash" },
+  "notebook": { "kit": "Notebook" }
 }

@@ -16,7 +16,17 @@ gpui_kit::assets::icon_assets!(
         Box,
         SortAscending,
         SortDescending,
-        ChevronsUpDown
+        ChevronsUpDown,
+        BookOpenText,
+        FileBraces,
+        FileSpreadsheet,
+        FileCog,
+        FileTerminal,
+        Braces,
+        FileType,
+        CodeXml,
+        Hash,
+        Notebook
     ]
 );
 
@@ -74,6 +84,16 @@ pub enum UiIcon {
     SortAscending,
     SortDescending,
     ChevronsUpDown,
+    BookOpenText,
+    FileBraces,
+    FileSpreadsheet,
+    FileCog,
+    FileTerminal,
+    Braces,
+    FileType,
+    CodeXml,
+    Hash,
+    Notebook,
 }
 
 impl UiIcon {
@@ -134,6 +154,16 @@ impl UiIcon {
             "sort-ascending" => Some(Self::SortAscending),
             "sort-descending" => Some(Self::SortDescending),
             "chevrons-up-down" => Some(Self::ChevronsUpDown),
+            "book-open-text" => Some(Self::BookOpenText),
+            "file-braces" => Some(Self::FileBraces),
+            "file-spreadsheet" => Some(Self::FileSpreadsheet),
+            "file-cog" => Some(Self::FileCog),
+            "file-terminal" => Some(Self::FileTerminal),
+            "braces" => Some(Self::Braces),
+            "file-type" => Some(Self::FileType),
+            "code-xml" => Some(Self::CodeXml),
+            "hash" => Some(Self::Hash),
+            "notebook" => Some(Self::Notebook),
             _ => None,
         }
     }
@@ -191,6 +221,16 @@ impl UiIcon {
             Self::SortAscending => "icons/sort-ascending.svg",
             Self::SortDescending => "icons/sort-descending.svg",
             Self::ChevronsUpDown => "icons/chevrons-up-down.svg",
+            Self::BookOpenText => "icons/book-open-text.svg",
+            Self::FileBraces => "icons/file-braces.svg",
+            Self::FileSpreadsheet => "icons/file-spreadsheet.svg",
+            Self::FileCog => "icons/file-cog.svg",
+            Self::FileTerminal => "icons/file-terminal.svg",
+            Self::Braces => "icons/braces.svg",
+            Self::FileType => "icons/file-type.svg",
+            Self::CodeXml => "icons/code-xml.svg",
+            Self::Hash => "icons/hash.svg",
+            Self::Notebook => "icons/notebook.svg",
         }
     }
 
@@ -338,6 +378,16 @@ impl AssetSource for UiAssets {
             Some(UiIcon::SortAscending) => SelectedKitIcons.load("icons/sort-ascending.svg")?,
             Some(UiIcon::SortDescending) => SelectedKitIcons.load("icons/sort-descending.svg")?,
             Some(UiIcon::ChevronsUpDown) => SelectedKitIcons.load("icons/chevrons-up-down.svg")?,
+            Some(UiIcon::BookOpenText) => SelectedKitIcons.load("icons/book-open-text.svg")?,
+            Some(UiIcon::FileBraces) => SelectedKitIcons.load("icons/file-braces.svg")?,
+            Some(UiIcon::FileSpreadsheet) => SelectedKitIcons.load("icons/file-spreadsheet.svg")?,
+            Some(UiIcon::FileCog) => SelectedKitIcons.load("icons/file-cog.svg")?,
+            Some(UiIcon::FileTerminal) => SelectedKitIcons.load("icons/file-terminal.svg")?,
+            Some(UiIcon::Braces) => SelectedKitIcons.load("icons/braces.svg")?,
+            Some(UiIcon::FileType) => SelectedKitIcons.load("icons/file-type.svg")?,
+            Some(UiIcon::CodeXml) => SelectedKitIcons.load("icons/code-xml.svg")?,
+            Some(UiIcon::Hash) => SelectedKitIcons.load("icons/hash.svg")?,
+            Some(UiIcon::Notebook) => SelectedKitIcons.load("icons/notebook.svg")?,
             None => None,
         })
     }
@@ -395,6 +445,16 @@ impl AssetSource for UiAssets {
             UiIcon::SortAscending,
             UiIcon::SortDescending,
             UiIcon::ChevronsUpDown,
+            UiIcon::BookOpenText,
+            UiIcon::FileBraces,
+            UiIcon::FileSpreadsheet,
+            UiIcon::FileCog,
+            UiIcon::FileTerminal,
+            UiIcon::Braces,
+            UiIcon::FileType,
+            UiIcon::CodeXml,
+            UiIcon::Hash,
+            UiIcon::Notebook,
         ]
         .into_iter()
         .map(UiIcon::path)
