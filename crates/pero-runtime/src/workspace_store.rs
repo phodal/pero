@@ -23,12 +23,14 @@ struct Checkpoint {
 pub struct WorkspaceStore {
     directory: PathBuf,
     sources: Vec<StoredSource>,
+    session: Option<WorkspaceSession>,
 }
 impl WorkspaceStore {
     pub fn new(settings: &Path) -> Self {
         Self {
             directory: settings.with_extension("workspace"),
             sources: vec![],
+            session: None,
         }
     }
     pub fn load(&mut self) -> io::Result<WorkspaceRestore> {
@@ -46,29 +48,66 @@ impl WorkspaceStore {
                 "Invalid saved workspace",
             ));
         }
-        let mut sources = Vec::new();
-        for document in &saved.session.documents {
-            let key = SourceKey::of(&document.header);
-            let stored = saved
-                .sources
-                .iter()
-                .find(|source| source.key == key)
-                .ok_or_else(|| {
-                    io::Error::new(io::ErrorKind::InvalidData, "Saved source is unavailable")
-                })?;
-            let text =
-                std::fs::read_to_string(self.directory.join(format!("{}.txt", stored.blob)))?;
-            sources.push(WorkspaceSource {
-                header: document.header.clone(),
-                text,
-            });
-        }
         self.sources = saved.sources;
-        Ok(WorkspaceRestore {
-            session: Some(saved.session),
-            sources,
-            conflicts: vec![],
-        })
+        self.session = Some(saved.session.clone());
+        let mut restored = WorkspaceRestore {
+            session: Some(saved.session.clone()),
+            ..Default::default()
+        };
+        for document in &saved.session.documents {
+            let item = document.item();
+            if saved.session.navigation.route
+                == pero_contracts::workspace_session::WorkspaceRoute::Content(item.clone())
+                || saved.session.navigation.other.as_ref()
+                    == Some(&pero_contracts::workspace_session::WorkspaceRoute::Content(
+                        item,
+                    ))
+            {
+                let key = SourceKey::of(&document.header);
+                match self.read_source(&key) {
+                    Ok(source) => restored.sources.push(source),
+                    Err(_) => restored.unavailable.push(key),
+                }
+            }
+        }
+        Ok(restored)
+    }
+    pub fn read_source(&self, key: &SourceKey) -> io::Result<WorkspaceSource> {
+        let header = self
+            .session
+            .as_ref()
+            .and_then(|session| {
+                session
+                    .documents
+                    .iter()
+                    .find(|document| SourceKey::of(&document.header) == *key)
+            })
+            .map(|document| document.header.clone())
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Saved source descriptor is unavailable",
+                )
+            })?;
+        let stored = self
+            .sources
+            .iter()
+            .find(|source| source.key == *key)
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::NotFound, "Saved source is unavailable")
+            })?;
+        let text = std::fs::read_to_string(self.directory.join(format!("{}.txt", stored.blob)))?;
+        Ok(WorkspaceSource { header, text })
+    }
+    pub fn reset(&mut self) -> io::Result<()> {
+        match std::fs::remove_dir_all(&self.directory) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+        self.sources.clear();
+        self.session = None;
+        Ok(())
     }
     pub fn needs_source(&self, key: &SourceKey) -> bool {
         !self.sources.iter().any(|source| &source.key == key)
@@ -112,7 +151,7 @@ impl WorkspaceStore {
                 .any(|document| SourceKey::of(&document.header) == source.key)
         });
         let saved = Checkpoint {
-            session,
+            session: session.clone(),
             sources: stored.clone(),
         };
         write(
@@ -126,6 +165,7 @@ impl WorkspaceStore {
             .map(|source| source.blob)
             .collect();
         self.sources = stored;
+        self.session = Some(session);
         // Publish the checkpoint first. Cleanup only removes superseded recovery copies, never producer files.
         for blob in unused {
             let _ = std::fs::remove_file(self.directory.join(format!("{blob}.txt")));

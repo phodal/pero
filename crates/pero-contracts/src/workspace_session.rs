@@ -161,7 +161,9 @@ impl SavedDocument {
 #[serde(deny_unknown_fields)]
 pub struct SavedWeb {
     pub id: String,
-    pub url: WebAddress,
+    pub url: crate::web_document::WebLocation,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub html: Option<crate::web_document::InlineHtml>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -195,7 +197,9 @@ impl WorkspaceSession {
                     }
             })
             && self.web.iter().enumerate().all(|(i, page)| {
-                WebAddress::try_from(page.id.clone()).is_ok()
+                (if let Some(html) = &page.html {
+                    !html.id.is_empty() && page.id == format!("html:{}", html.id)
+                } else { WebAddress::try_from(page.id.clone()).is_ok() })
                     && self
                         .navigation
                         .items
@@ -227,6 +231,14 @@ pub struct WorkspaceRestore {
     pub session: Option<WorkspaceSession>,
     pub sources: Vec<WorkspaceSource>,
     pub conflicts: Vec<String>,
+    #[serde(default)]
+    pub unavailable: Vec<SourceKey>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredSource {
+    pub source: WorkspaceSource,
+    pub conflict: bool,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -238,6 +250,15 @@ pub enum WorkspaceMethod {
 pub enum WorkspaceCommand {
     Get {
         method: WorkspaceMethod,
+    },
+    Read {
+        method: WorkspaceMethod,
+        request_id: String,
+        key: SourceKey,
+    },
+    Reset {
+        method: WorkspaceMethod,
+        request_id: String,
     },
     Save {
         method: WorkspaceMethod,
