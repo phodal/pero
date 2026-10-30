@@ -155,6 +155,14 @@ impl DesktopDriver for Desktop {
                     )
                 }
             }
+            ComputerInput::Move { .. }
+            | ComputerInput::Hover { .. }
+            | ComputerInput::Hold { .. } => {
+                return Err(error(
+                    ComputerErrorCode::Unsupported,
+                    "Move, hover and hold are not available on this platform yet",
+                ));
+            }
             ComputerInput::Drag { from, to, .. } => self.driver.drag(
                 app,
                 native::DragRequest {

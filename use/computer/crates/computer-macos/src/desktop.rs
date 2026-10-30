@@ -290,6 +290,14 @@ impl DesktopDriver for Desktop {
                 scroll::pixels(&window, location, delta_x, delta_y)?;
                 return Ok(());
             }
+            ComputerInput::Move { .. }
+            | ComputerInput::Hover { .. }
+            | ComputerInput::Hold { .. } => {
+                return Err(error(
+                    ComputerErrorCode::Unsupported,
+                    "Move, hover and hold are not available on this platform yet",
+                ));
+            }
             ComputerInput::Drag { from, to, .. } => {
                 if action.delivery == ComputerDelivery::Background {
                     window.drag(point(from)?, point(to)?)?;
