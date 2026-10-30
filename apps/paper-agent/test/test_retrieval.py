@@ -155,3 +155,32 @@ class LocalLibrarySearch(unittest.TestCase):
                 store.prepare(no_match, NOW)
             with self.assertRaisesRegex(Invalid, 'searchable words'):
                 store.prepare(ResearchRequest.parse(dict(question='???', paperIds=[papers[0].id], requestId='punctuation', fullText=True)), NOW)
+
+    def test_hybrid_finds_a_passage_without_shared_keywords(self):
+        from app_infra.rag import passage_input, query_input
+        from paper_agent.retrieval import HYBRID_METHOD
+        paper = PaperSnapshot.from_reading(dict(title='Retrieval', sourceId='test', url='https://example.invalid/paper', contentKind='abstract', content='Abstract'), NOW)
+        pages = {1: 'Glacier inventories remain unrelated.', 2: 'Attention mechanism controls weighting.'}
+        doc = PdfDocument.create(paper.id, 'b' * 64, 'https://arxiv.org/pdf/1706.03762',
+             tuple(PdfPage(number, 400, 600, text) for number, text in pages.items()), NOW)
+        prepared = chunks(paper, doc)
+        mapping = {passage_input(chunk.source.title, chunk.content): [1.0, 0.0] if chunk.page == 2 else [0.0, 1.0] for chunk in prepared}
+        mapping[query_input('注意力机制')] = [1.0, 0.0]
+
+        class MapEmbedder:
+            signature = 'space-a'
+            def embed(self, text):
+                return mapping.get(text)
+
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / 'index.sqlite'
+            with SearchIndex(path, MapEmbedder()) as index:
+                index.replace(SourceVersion.of(paper, doc), prepared)
+                found = index.search(SearchQuery('注意力机制', (paper.id,), pdf_only=True))
+            self.assertEqual(found.method, HYBRID_METHOD)
+            self.assertEqual(found.hits[0].chunk.page, 2)
+            hit = found.hits[0].chunk
+            self.assertEqual(doc.page(hit.page).text[hit.start:hit.start + len(hit.content)], hit.content)
+            with SearchIndex(path) as lexical:
+                self.assertFalse(lexical.search(SearchQuery('注意力机制', (paper.id,), pdf_only=True)).hits)
+                self.assertEqual(lexical.search(SearchQuery('attention weighting', (paper.id,), pdf_only=True)).hits[0].chunk.page, 2)

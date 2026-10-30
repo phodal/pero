@@ -1,17 +1,21 @@
-"""Pero Host-owned Paper Agent Python backend; no model or execution loop."""
+"""Pero Host-owned Paper Agent Python backend. The Host owns the research loop.
+
+A local embedding model is optional. Without it, saved-paper search stays keyword-only.
+"""
 from http.server import ThreadingHTTPServer
 import json
 import os
 import signal
 import threading
 
+from app_infra.embed import open_embedder
 from paper_agent.http import handler
 from paper_agent.store import ResearchStore
 
 
 def main():
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler(
-        ResearchStore(os.environ["PERO_APP_DATA"]), os.environ["PERO_APP_TOKEN"]))
+        ResearchStore(os.environ["PERO_APP_DATA"], open_embedder()), os.environ["PERO_APP_TOKEN"]))
     server.daemon_threads = True
     print(json.dumps({"port": server.server_port}), flush=True)
 

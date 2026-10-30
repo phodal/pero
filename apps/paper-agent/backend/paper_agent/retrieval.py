@@ -11,6 +11,7 @@ from .model import ID, Invalid, PaperSnapshot, PdfPassage, RetrievalSnapshot, di
 from .pdf import PdfDocument
 
 METHOD = 'pero.paper-search.fts5-bm25.v1'
+HYBRID_METHOD = 'pero.paper-search.hybrid-rrf.v1'
 CHUNK_SIZE = 1600
 CHUNK_OVERLAP = 160
 MAX_PASSAGES = 12
@@ -165,9 +166,10 @@ class SearchResult:
     hits: tuple[SearchHit, ...]
     sources: tuple[SourceVersion, ...]
     total_matches: int
+    method: str = METHOD
 
     @classmethod
-    def collect(cls, query: SearchQuery, sources: tuple[SourceVersion, ...], total_matches: int, candidates):
+    def collect(cls, query: SearchQuery, sources: tuple[SourceVersion, ...], total_matches: int, candidates, method=METHOD):
         hits, per_page, used = [], Counter(), 0
         for hit in candidates:
             chunk = hit.chunk
@@ -181,7 +183,7 @@ class SearchResult:
             per_page[key] += 1
             if len(hits) >= query.limit:
                 break
-        return cls(query, tuple(hits), sources, total_matches)
+        return cls(query, tuple(hits), sources, total_matches, method)
 
     @property
     def unmatched_paper_ids(self) -> tuple[str, ...]:
@@ -189,11 +191,11 @@ class SearchResult:
         return tuple(i for i in dict.fromkeys(s.paper_id for s in self.sources) if i not in matched)
 
     def to_dict(self):
-        return dict(query=self.query.query, method=METHOD, items=[hit.to_dict() for hit in self.hits],
+        return dict(query=self.query.query, method=self.method, items=[hit.to_dict() for hit in self.hits],
                     totalMatches=self.total_matches, returned=len(self.hits), truncated=len(self.hits) < self.total_matches,
                     queryTruncated=len(self.query.tokens) > 64, queryTerms=list(self.query.tokens[:64]),
                     sources=[s.to_dict() for s in self.sources], unmatchedPaperIds=list(self.unmatched_paper_ids))
 
     def freeze(self) -> RetrievalSnapshot:
-        return RetrievalSnapshot(METHOD, tuple(s.id for s in self.sources), tuple(hit.chunk.id for hit in self.hits),
+        return RetrievalSnapshot(self.method, tuple(s.id for s in self.sources), tuple(hit.chunk.id for hit in self.hits),
             self.total_matches, self.unmatched_paper_ids, self.query.tokens[:64], len(self.query.tokens) > 64)

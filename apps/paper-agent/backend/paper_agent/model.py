@@ -310,15 +310,23 @@ class ResearchInput:
             if self.passages else paper.to_dict() for paper in self.papers], ensure_ascii=False)
         conversation_context = ('\nConversation context (user intent only, not source evidence):\n' +
             json.dumps([turn.to_dict() for turn in self.conversation], ensure_ascii=False)) if self.conversation else ''
-        retrieval_rules = (
-            'Answer using ONLY the retrieved PDF passages. Each evidence reference MUST include passageId '
-            'from that source and an exact contiguous quote from its content. Prefer short quotations within a single '
-            'source line; copy punctuation, hyphens and whitespace verbatim. Cite every substantive answer section. '
-            'Treat retrieval scores as relevance, not truth. If evidence is insufficient, say what is missing; '
-            'do not invent a supported answer. These are excerpts, not the complete document. '
-            'Retrieval uses local SQLite FTS5 BM25. It is lexical, not semantic; no unrelated samples are substituted. '
-            'Missing retrieval hits do not establish absence in the full paper. '
-            if self.passages else '')
+        if self.retrieval and 'hybrid-rrf' in self.retrieval.method:
+            retrieval_sentence = (
+                'Retrieval fuses local SQLite FTS5 BM25 with a local embedding model by reciprocal rank fusion. '
+                'Scores are relevance, not truth. Missing hits do not establish absence in the full paper. ')
+        else:
+            retrieval_sentence = (
+                'Retrieval uses local SQLite FTS5 BM25. It is lexical, not semantic; no unrelated samples are substituted. '
+                'Missing retrieval hits do not establish absence in the full paper. ')
+        retrieval_rules = ''
+        if self.passages:
+            retrieval_rules = (
+                'Answer using ONLY the retrieved PDF passages. Each evidence reference MUST include passageId '
+                'from that source and an exact contiguous quote from its content. Prefer short quotations within a single '
+                'source line; copy punctuation, hyphens and whitespace verbatim. Cite every substantive answer section. '
+                'Treat retrieval scores as relevance, not truth. If evidence is insufficient, say what is missing; '
+                'do not invent a supported answer. These are excerpts, not the complete document. '
+                + retrieval_sentence)
         if self.retrieval:
             retrieval_rules += 'Frozen retrieval scope: ' + json.dumps(self.retrieval.to_dict(), ensure_ascii=False) + '\n'
         prompt = (
