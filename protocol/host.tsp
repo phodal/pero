@@ -53,7 +53,9 @@ model DocumentSaveChooseEvent {kind:"document_save_choose";...EventBase}
 model DocumentSavePathEvent {kind:"document_save_path";...EventBase;data:{path:string;...Closed}}
 model DocumentSaveCancelledEvent {kind:"document_save_cancelled";...EventBase}
 model DocumentChooseEvent {kind:"document_choose";...EventBase}
-model DocumentOpenEvent {kind:"document_open";...EventBase;data:DocumentHeader}
+model ReaderLocation {record:uint32;...Closed}
+model LocatedDocumentHeader {header:DocumentHeader;location:ReaderLocation;...Closed}
+model DocumentOpenEvent {kind:"document_open";...EventBase;data:DocumentHeader|LocatedDocumentHeader}
 model FileDocumentEvent {kind:"document_file";...EventBase;data:DocumentHeader}
 model FileDocumentErrorEvent {kind:"document_error";...EventBase;data:{source:string;reason:"conflict"|"unsupported"|"unavailable"|"read_write";...Closed}}
 
@@ -117,6 +119,12 @@ model SurfaceBounds {x:float64;y:float64;width:float64;height:float64;...Closed}
 model WebSurfaceCommand {action:"web_surface";id:string|null;bounds?:SurfaceBounds;...Closed}
 /** Private Desktop/native browser-engine commands, not Host stdin. */
 @oneOf union WebCommand {WebOpenCommand,WebHtmlCommand,WebRestoreCommand,WebNavigateCommand,WebControlCommand,WebSurfaceCommand}
+model McpSourceRequest {method:"mcp";action:"open";request_id:string;thread_id?:string|null;...Closed}
+model McpAppBinding {id:string;server:string;resource_uri:string;tool:string;tool_call:string;thread_id:string;...Closed}
+model McpPermittedEvent {kind:"mcp_permitted";...EventBase;thread_id?:string;data:{locale:string;...Closed}}
+model McpSourcesEvent {kind:"mcp_sources";...EventBase;thread_id?:string;data:{url:string;...Closed}}
+model McpErrorEvent {kind:"mcp_error";...EventBase}
+model McpAppOpenedEvent {kind:"mcp_app_opened";...ThreadEventBase;data:McpAppBinding}
 
 // ---------- Host input: one JSON object per stdin line ----------
 
@@ -213,6 +221,7 @@ union HostCommand {
 
 @oneOf
 union HostInput {
+  McpSourceRequest,
   WorkspaceSessionRequest,
   FileDocumentRequest,
   LocalWorkerRequest,
@@ -379,6 +388,7 @@ union HostEvent {
   WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,WorkspaceSourceEvent,WorkspaceSourceErrorEvent,WorkspaceResetEvent,
   WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,
   DocumentOpenEvent,
+  McpPermittedEvent,McpSourcesEvent,McpErrorEvent,McpAppOpenedEvent,
   DocumentChooseEvent,
   FileDocumentEvent,
   FileDocumentErrorEvent,

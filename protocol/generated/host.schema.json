@@ -2163,7 +2163,14 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/DocumentHeader"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DocumentHeader"
+            },
+            {
+              "$ref": "#/$defs/LocatedDocumentHeader"
+            }
+          ]
         }
       },
       "required": [
@@ -2805,6 +2812,18 @@
           "$ref": "#/$defs/DocumentOpenEvent"
         },
         {
+          "$ref": "#/$defs/McpPermittedEvent"
+        },
+        {
+          "$ref": "#/$defs/McpSourcesEvent"
+        },
+        {
+          "$ref": "#/$defs/McpErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/McpAppOpenedEvent"
+        },
+        {
           "$ref": "#/$defs/DocumentChooseEvent"
         },
         {
@@ -2932,6 +2951,9 @@
     "HostInput": {
       "title": "HostInput",
       "oneOf": [
+        {
+          "$ref": "#/$defs/McpSourceRequest"
+        },
         {
           "$ref": "#/$defs/WorkspaceSessionRequest"
         },
@@ -3496,6 +3518,23 @@
       ],
       "additionalProperties": false
     },
+    "LocatedDocumentHeader": {
+      "title": "LocatedDocumentHeader",
+      "type": "object",
+      "properties": {
+        "header": {
+          "$ref": "#/$defs/DocumentHeader"
+        },
+        "location": {
+          "$ref": "#/$defs/ReaderLocation"
+        }
+      },
+      "required": [
+        "header",
+        "location"
+      ],
+      "additionalProperties": false
+    },
     "LocatedHistoryEntry": {
       "title": "LocatedHistoryEntry",
       "type": "object",
@@ -3519,6 +3558,115 @@
       ],
       "additionalProperties": false
     },
+    "McpAppBinding": {
+      "title": "McpAppBinding",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "server": {
+          "type": "string"
+        },
+        "resource_uri": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "tool_call": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "server",
+        "resource_uri",
+        "tool",
+        "tool_call",
+        "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "McpAppOpenedEvent": {
+      "title": "McpAppOpenedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_app_opened"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/McpAppBinding"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "McpErrorEvent": {
+      "title": "McpErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
     "McpOrigin": {
       "title": "McpOrigin",
       "type": "object",
@@ -3538,6 +3686,139 @@
         "kind",
         "server",
         "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "McpPermittedEvent": {
+      "title": "McpPermittedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_permitted"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "locale": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "locale"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "McpSourceRequest": {
+      "title": "McpSourceRequest",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "mcp"
+        },
+        "action": {
+          "type": "string",
+          "const": "open"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "thread_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id"
+      ],
+      "additionalProperties": false
+    },
+    "McpSourcesEvent": {
+      "title": "McpSourcesEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_sources"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
       ],
       "additionalProperties": false
     },
@@ -4057,6 +4338,21 @@
         "text",
         "thread_id",
         "data"
+      ],
+      "additionalProperties": false
+    },
+    "ReaderLocation": {
+      "title": "ReaderLocation",
+      "type": "object",
+      "properties": {
+        "record": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "record"
       ],
       "additionalProperties": false
     },

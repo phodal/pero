@@ -5,6 +5,7 @@
  */
 export type HostProtocol = HostInput | HostEvent | WebCommand;
 export type HostInput =
+  | McpSourceRequest
   | WorkspaceSessionRequest
   | FileDocumentRequest
   | LocalWorkerRequest
@@ -68,6 +69,10 @@ export type HostEvent =
   | WebErrorEvent
   | WebChooseEvent
   | DocumentOpenEvent
+  | McpPermittedEvent
+  | McpSourcesEvent
+  | McpErrorEvent
+  | McpAppOpenedEvent
   | DocumentChooseEvent
   | FileDocumentEvent
   | FileDocumentErrorEvent
@@ -138,6 +143,12 @@ export type AppAgentStatus = "running" | "text" | "needs_input" | "completed" | 
 export type WebCommand =
   WebOpenCommand | WebHtmlCommand | WebRestoreCommand | WebNavigateCommand | WebControlCommand | WebSurfaceCommand;
 
+export interface McpSourceRequest {
+  method: "mcp";
+  action: "open";
+  request_id: string;
+  thread_id?: string | null;
+}
 export interface GetWorkspaceSession {
   method: "workspace";
   action: "get";
@@ -760,7 +771,56 @@ export interface DocumentOpenEvent {
   version: 1;
   request_id: string | null;
   text: string;
-  data: DocumentHeader;
+  data: DocumentHeader | LocatedDocumentHeader;
+}
+export interface LocatedDocumentHeader {
+  header: DocumentHeader;
+  location: ReaderLocation;
+}
+export interface ReaderLocation {
+  record: number;
+}
+export interface McpPermittedEvent {
+  kind: "mcp_permitted";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id?: string;
+  data: {
+    locale: string;
+  };
+}
+export interface McpSourcesEvent {
+  kind: "mcp_sources";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id?: string;
+  data: {
+    url: string;
+  };
+}
+export interface McpErrorEvent {
+  kind: "mcp_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface McpAppOpenedEvent {
+  kind: "mcp_app_opened";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: McpAppBinding;
+}
+export interface McpAppBinding {
+  id: string;
+  server: string;
+  resource_uri: string;
+  tool: string;
+  tool_call: string;
+  thread_id: string;
 }
 export interface DocumentChooseEvent {
   kind: "document_choose";
