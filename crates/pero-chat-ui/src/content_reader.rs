@@ -194,6 +194,7 @@ impl ContentReader {
             "columns":self.preview.as_ref().map(|p|p.columns.len()).ok(),"previewLoading":self.preview_loading,"error":self.preview.as_ref().err().filter(|_|!self.preview_loading),
             "selection":self.editor.as_ref().map(|e|e.read(cx).selected_range()),
             "searchError":self.search_error,"searchOptions":self.search_options,"markdownSelection":self.markdown.as_ref().and_then(|markdown|markdown.read(cx).selected_source_range(&self.preview_document,cx)),"markdownReveal":self.markdown.as_ref().and_then(|markdown|markdown.read(cx).source_reveal()),
+            "markdownObservedSelection":self.markdown.as_ref().and_then(|markdown|markdown.read(cx).observed_source_selection(&self.preview_document,cx)),
             "previewScroll":[f32::from(preview_offset.x),f32::from(preview_offset.y)],
             "search":self.editor.as_ref().map(|e| {let s=e.read(cx).search_session();serde_json::json!({"open":self.search_open,"query":self.search_input.read(cx).value().as_ref(),"matches":s.matcher.len(),"current":s.matcher.current()})}),
             "foldable":self.editor.as_ref().map(|e|e.read(cx).display_map().is_fold_candidate(0)),
@@ -609,7 +610,7 @@ impl Render for ContentReader {
                             if event.button == MouseButton::Left && !this.source {
                                 this.markdown.as_ref().and_then(|view| {
                                     view.read(cx)
-                                        .selected_source_range(&this.preview_document, cx)
+                                        .observed_source_selection(&this.preview_document, cx)
                                 })
                             } else {
                                 None

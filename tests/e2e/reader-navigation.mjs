@@ -72,6 +72,7 @@ try {
     return range && range.end > range.start;
   }).toBe(true);
   const renderedSelection = (await reader()).markdownSelection;
+  await expect.poll(async () => (await reader()).markdownObservedSelection).toEqual(renderedSelection);
   await page.mouse.click(bounds.x + 100, bounds.y + 16);
   await expect.poll(async () => (await reader()).source).toBe(true);
   expect((await reader()).selection).toEqual(renderedSelection);

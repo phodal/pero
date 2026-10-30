@@ -129,6 +129,7 @@ pub struct StreamText {
         std::ops::Range<usize>,
     )>,
     last_source_reveal: Option<std::ops::Range<usize>>,
+    observed_selection: Option<std::ops::Range<usize>>,
     observed_bytes: usize,
     _document_observer: Subscription,
 }
@@ -146,6 +147,10 @@ impl StreamText {
             // push_str queues an asynchronous parse. Follow only when that
             // parsed source commits, so the next layout has its actual height.
             let committed_bytes = document.read(cx).rendered_text().source().len();
+            // Keep the current selection, including explicit cancellation. Kit
+            // clears its inline ranges synchronously at the start of a pointer
+            // event; its notification is delivered after that event's capture.
+            this.observed_selection = document.read(cx).selected_source_range();
             this.apply_source_reveal(cx);
             if committed_bytes != this.observed_bytes {
                 this.observed_bytes = committed_bytes;
@@ -161,6 +166,7 @@ impl StreamText {
             reveal_scroll: None,
             pending_source_reveal: None,
             last_source_reveal: None,
+            observed_selection: None,
             observed_bytes: text.len(),
             _document_observer: observer,
         }
@@ -188,6 +194,15 @@ impl StreamText {
     pub fn source_reveal(&self) -> Option<std::ops::Range<usize>> {
         self.last_source_reveal.clone()
     }
+    pub fn observed_source_selection(
+        &self,
+        source: &pero_contracts::content_document::ContentDocument,
+        cx: &App,
+    ) -> Option<std::ops::Range<usize>> {
+        (self.document.read(cx).rendered_text().source() == source.source())
+            .then(|| self.observed_selection.clone())
+            .flatten()
+    }
     pub fn reveal_source(
         &mut self,
         source: &pero_contracts::content_document::ContentDocument,
@@ -209,6 +224,7 @@ impl StreamText {
         let target = rendered.range_for_source(range.clone());
         self.pending_source_reveal = None;
         if let Some(target) = target {
+            self.observed_selection = None;
             let color = cx.theme().selection;
             self.document.update(cx, |document, cx| {
                 document.clear_selection(cx);
@@ -272,6 +288,7 @@ impl StreamText {
     /// Tool updates may replace prior output. TextViewState recognizes prefix
     /// growth itself and uses its append path instead of replacing that source.
     pub fn replace(&mut self, text: &str, cx: &mut Context<Self>) {
+        self.observed_selection = None;
         self.pending.clear();
         self.pending_source_reveal = None;
         self.last_source_reveal = None;
