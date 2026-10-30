@@ -10,8 +10,8 @@ Builds on [0016: Computer Use v1 contract](0016-computer-use-contract.md).
 Independent of 0019 (Grok-style isolated Linux desktop): everything here applies to the
 local backend and to any later backend.
 
-Numbering: 0017 and 0018 are reserved by draft PR #20 (isolated Agent runtime
-and Agent Sandbox runtime), hence this ADR is 0020.
+Numbering: 0017 (isolated Agent runtime) and 0018 (Agent Sandbox runtime) are
+on master and 0019 is the Grok-style isolated desktop, hence this ADR is 0020.
 
 ## 1. Context
 
