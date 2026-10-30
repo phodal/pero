@@ -1,0 +1,20 @@
+{
+  "name": "@pero/app-control-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../scripts/build/apps.mjs --app control-lab",
+    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
+    "test:ui": "node --test test/presentation.test.ts",
+    "test": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test -v"
+  },
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
+  }
+}
