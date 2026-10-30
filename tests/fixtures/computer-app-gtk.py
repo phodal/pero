@@ -14,7 +14,8 @@ gi.require_version('Gdk', '3.0')
 from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 output = Path(sys.argv[1])
-effects = dict(pid=os.getpid(), counts=dict(first=0, second=0), checked=False, ready=False)
+effects = dict(pid=os.getpid(), counts=dict(first=0, second=0), checked=False, ready=False,
+               ephemeral=0, ephemeral_hidden=False)
 
 
 def save(*_):
@@ -56,6 +57,24 @@ def window(key, x):
         secret.set_visibility(False)
         secret.set_text('fixture-secret')
         box.pack_start(secret, False, False, 0)
+        ephemeral = Gtk.Button(label='Ephemeral')
+
+        def ephemeral_clicked(_):
+            effects['ephemeral'] += 1
+            save()
+
+        ephemeral.connect('clicked', ephemeral_clicked)
+        box.pack_start(ephemeral, False, False, 0)
+
+        def hide_on_request():
+            # The test asks for the control to disappear between observe and act.
+            if not effects['ephemeral_hidden'] and output.with_suffix('.hide').exists():
+                ephemeral.hide()
+                effects['ephemeral_hidden'] = True
+                save()
+            return True
+
+        GLib.timeout_add(50, hide_on_request)
         draft = Gtk.Entry()
         draft.set_text('Plain draft')
         box.pack_start(draft, False, False, 0)

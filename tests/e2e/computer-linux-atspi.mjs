@@ -61,6 +61,11 @@ try{
  assert.equal((await call({operation:'act',action})).receipt.outcome.status,'executed');
  assert.equal((await call({operation:'act',action:{...action,request_id:'replay'}})).receipt.outcome.error.code,'stale_observation');
  await waitFor(async()=>(await effects()).counts.first===2,'single effect');
+ // An element that disappears after observation is refused before any input.
+ const before=await observe(first.target);const ephemeral=byLabel(before,'Ephemeral');assert.deepEqual(ephemeral.actions,['click']);
+ await writeFile(resolve(run,'effects.hide'),'');await waitFor(async()=>(await effects()).ephemeral_hidden,'element hidden');
+ const gone=(await call({operation:'act',action:{request_id:'gone',target:first.target,observation_id:before.id,delivery:'background',input:{kind:'click',anchor:{kind:'element',element_id:ephemeral.id},button:'left',count:1}}})).receipt;
+ assert.equal(gone.outcome.status,'rejected',JSON.stringify(gone));assert.equal(gone.outcome.error.code,'target_unavailable');assert.equal((await effects()).ephemeral,0);
  await writeFile(resolve(out,'linux-atspi-result.json'),JSON.stringify({passed:true,scope:'actual Linux Xvfb + session D-Bus + AT-SPI + GTK 3; no window manager, real model, Wayland compositor or physical desktop',pid,effects:await effects(),capabilities:listed.capabilities,first:first.observation,second:second.observation},null,2));
- console.log('Linux AT-SPI passed: window binding, control facts, background element clicks, refusals and stale observations.');
+ console.log('Linux AT-SPI passed: window binding, control facts, background element clicks, refusals, vanished elements and stale observations.');
 }finally{native?.stdin.end();native?.kill();fixture.kill();await rm(run,{recursive:true,force:true});}
