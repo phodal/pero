@@ -16,7 +16,8 @@ const rows=['{"group":"A","n":9007199254740993,"note":"中文😀"}','{"group":"
 const source='[\n'+rows.join(',\n')+'\n]';await writeFile(fixture,source);
 const agents=join(temp,'agents.json');await writeFile(agents,JSON.stringify([{id:'codex',name:'Data transport fixture',command:process.execPath,args:[join(root,'tests/fixtures/data-agent-acp.mjs')]}]));
 const settings=join(temp,'settings.json');await writeFile(settings,JSON.stringify({chat_agent:'codex'}));
-const env={...process.env,PERO_DESKTOP_DATA_DIR:join(temp,'profile'),PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:join(temp,'history.jsonl'),PERO_AGENTS_FILE:agents,PERO_LOCALE:'en'};
+// Data Agent is test-only: opt it in beside the product's builtin Apps.
+const env={...process.env,PERO_BUILTIN_APPS:[...JSON.parse(await readFile(join(root,'products/pero.json'),'utf8')).apps,'data-agent'].join(','),PERO_DESKTOP_DATA_DIR:join(temp,'profile'),PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:join(temp,'history.jsonl'),PERO_AGENTS_FILE:agents,PERO_LOCALE:'en'};
 const app=await electron.launch({args:['--use-mock-keychain',join(distribution,'desktop')],cwd:distribution,env});
 let page;const errors=[],checks=[],logs=[];app.process().stderr?.on('data',data=>logs.push(String(data)));
 try{
