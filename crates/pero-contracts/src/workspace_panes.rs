@@ -5,6 +5,8 @@ use crate::{
     workspace_session::{WorkspaceItem, WorkspaceRoute},
 };
 use serde::{Deserialize, Serialize};
+#[path = "pane_history_navigation.rs"]
+mod history_navigation;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PaneId(pub u64);
@@ -461,29 +463,16 @@ impl PaneLayout {
                 )
             })
     }
-    pub fn new(route: WorkspaceRoute, reading: Option<ReaderState>) -> Self {
-        let mut tabs = PaneTabSet::default();
-        tabs.open(
-            PaneItem {
-                kind: PaneItemKind::Primary,
-                id: ViewId(1),
-                route,
-                reading,
-            },
-            OpenIntent::Permanent,
-        )
-        .expect("initial pane item");
+    pub fn empty() -> Self {
         Self {
-            root: Some(PaneNode::Leaf {
-                view: PaneLeaf {
-                    id: PaneId(1),
-                    tabs,
-                },
-            }),
-            focused: Some(PaneId(1)),
-            next_id: 2,
-            next_view_id: 2,
+            root: Some(PaneNode::Leaf {view: PaneLeaf {id: PaneId(1),tabs:PaneTabSet::default()}}),
+            focused: Some(PaneId(1)), next_id:2, next_view_id:1,
         }
+    }
+    pub fn new(route: WorkspaceRoute, reading: Option<ReaderState>) -> Self {
+        let mut layout=Self::empty();
+        layout.open_tab(PaneId(1),route,reading,OpenIntent::Permanent).expect("initial pane item");
+        layout
     }
     pub fn place(
         &mut self,
