@@ -159,7 +159,7 @@ Cursor 的一行可以标 `(+N descendants omitted)`。把该元素 id 和当前
 ### 5. 没有悬停，打开应用只认名字
 
 写作时公开动作里没有移动指针而不点击。#48 已合入 `move`、`hover`（带
-`dwell_ms`）和 `hold`（带 `hold_ms`，原 `long_press` 改名）：Linux X11 用
+`dwell_ms`）和 `hold`（带 `hold_ms`）：Linux X11 用
 XTest 投递，macOS 用已有的鼠标事件，Windows 明确拒绝。这一条的悬停部分已实现。
 
 `open` 的参数是最长 128 字的应用名。Cursor 可以用 bundle id、`.app` 路径、
