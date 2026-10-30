@@ -21,6 +21,7 @@ const ajv = new Ajv2020({ strict: true, strictTypes: false });
 ajv.addSchema(schema);
 const validateInput = ajv.getSchema(`${schema.$id}#/$defs/AppRequest`);
 const validateResult = ajv.getSchema(`${schema.$id}#/$defs/AppsResultEvent`);
+const validateRecord = ajv.getSchema(`${schema.$id}#/$defs/AppRecord`);
 const failures = [];
 const preparePythonApp = async (name, dependency, sharedEnvironment) => {
   const environment = sharedEnvironment || resolve(temp, 'environments', name);
@@ -108,6 +109,11 @@ try {
   const installed = await host.request('install', { path: source });
   assert.equal(installed.value[0].name, 'sample');
   assert.equal(installed.value[0].enabled, false);
+  assert.equal(installed.value[0].tenure, 'optional');
+  assert(validateRecord({ ...installed.value[0], tenure: 'required' }));
+  assert(!validateRecord({ ...installed.value[0], tenure: 'unknown' }));
+  const { tenure: _tenure, ...withoutTenure } = installed.value[0];
+  assert(!validateRecord(withoutTenure));
   assert.equal((await host.request('enable', { name: 'sample' })).ok, true);
   await host.close();
   host = await launch();
