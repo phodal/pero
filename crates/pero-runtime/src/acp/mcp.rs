@@ -42,12 +42,13 @@ mod tests {
     use super::*;
     #[test]
     fn managed_grants_are_added_to_new_snapshots_without_overwriting_operator_configuration() {
+        let command = std::env::current_exe().unwrap();
         let agent: AgentConfig = serde_json::from_value(serde_json::json!({
-            "id":"fixture","name":"Fixture","command":"/fixture",
+            "id":"fixture","name":"Fixture","command":command,
             "mcp_servers":[{"name":"operator","type":"http","url":"https://example.test","headers":[{"name":"Authorization","value":"synthetic-secret"}]}]
         })).unwrap();
         let configuration: McpConfiguration = serde_json::from_value(serde_json::json!({"revision":1,"servers":[
-            {"name":"granted","enabled":true,"transport":{"type":"stdio","command":"/fixture/mcp","args":["--docs"]}},
+            {"name":"granted","enabled":true,"transport":{"type":"stdio","command":command,"args":["--docs"]}},
             {"name":"disabled","transport":{"type":"http","url":"https://example.test/mcp"}}
         ]})).unwrap();
         configuration.validate(&agent.mcp_server_names()).unwrap();
