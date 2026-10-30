@@ -95,3 +95,8 @@ mod workspace_draft_upload;
 
 #[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
 mod workspace_close;
+
+#[cfg(any(target_family="wasm",feature="native"))]
+mod workspace_pane_tabs;
+#[cfg(any(target_family="wasm",feature="native"))]
+mod workspace_tab_actions;
