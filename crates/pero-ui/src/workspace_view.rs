@@ -57,18 +57,26 @@ impl Workbench {
 
     pub(crate) fn floating_app_chat(&self, viewport_width: f32, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
-        let width = (viewport_width - self.layout.sidebar_width - 24.).clamp(100., 420.);
-        let height = (f32::from(window.viewport_size().height) - 100.).max(160.).min(if self.floating_chat_expanded { 560. } else { 250. });
+        let width = (viewport_width - self.layout.sidebar_width - 24.).clamp(100., 480.);
         let expanded = self.floating_chat_expanded;
+        let panel = self.chat.read(cx);
+        let rows = panel.composer.read(cx).value().lines().count().clamp(1, 3);
+        let attachment_rows = panel.attachments.len().div_ceil(3).min(3);
+        let compact_height = 100. + (rows - 1) as f32 * 22. + attachment_rows as f32 * 32.;
+        let height = (f32::from(window.viewport_size().height) - 100.).max(100.).min(if expanded { 560. } else { compact_height });
         div().id("floating-app-chat").absolute().right(px(12.)).bottom(px(12.)).w(px(width)).h(px(height))
             .on_prepaint(|bounds, _, _| Self::publish_app_chat_overlay(Some(bounds)))
-            .flex().flex_col().bg(p.surface).border_1().border_color(p.border)
-            .child(div().flex().items_center().px(px(8.)).border_b_1().border_color(p.border)
-                .child(div().flex_1().child(self.t("chat.panel_title")))
-                .child(Button::new("float-chat-expand").ghost().small().label(self.t(if expanded {"chat.hide_messages"} else {"chat.show_messages"})).on_click(cx.listener(|this, _, _, cx| { this.floating_chat_expanded = !this.floating_chat_expanded; this.sync_follow(cx); cx.notify(); })))
-                .child(Button::new("float-chat-dock").ghost().small().label(self.t("chat.dock")).on_click(cx.listener(|this, _, _, cx| { this.floating_chat = false; this.sync_follow(cx); cx.notify(); })))
-                .child(Button::new("float-chat-close").ghost().small().label(self.t("chat.close_panel")).on_click(cx.listener(|this, _, _, cx| this.set_chat_dock(false, cx)))))
-            .child(div().px(px(8.)).text_color(p.text_muted).child(self.t("chat.float_covered")))
+            .flex().flex_col().bg(p.surface).border_1().border_color(p.border).rounded(px(8.))
+            .child(div().flex().items_center().px(px(6.)).when(expanded, |el| el.border_b_1().border_color(p.border))
+                .child(div().flex_1().when(expanded, |el| el.child(self.t("chat.panel_title"))))
+                .child(Button::new("float-chat-expand").ghost().small().icon(Icon::default().path(if expanded {"icons/chevron-down.svg"} else {"icons/maximize.svg"}))
+                    .accessibility_label(self.t(if expanded {"chat.hide_messages"} else {"chat.show_messages"})).tooltip(self.t(if expanded {"chat.hide_messages"} else {"chat.show_messages"}))
+                    .on_click(cx.listener(|this, _, _, cx| { this.floating_chat_expanded = !this.floating_chat_expanded; this.sync_follow(cx); cx.notify(); })))
+                .child(Button::new("float-chat-dock").ghost().small().icon(Icon::default().path("icons/panel-right-open.svg")).accessibility_label(self.t("chat.dock")).tooltip(self.t("chat.dock"))
+                    .on_click(cx.listener(|this, _, _, cx| { this.floating_chat = false; this.sync_follow(cx); cx.notify(); })))
+                .child(Button::new("float-chat-close").ghost().small().icon(Icon::default().path("icons/minus.svg")).accessibility_label(self.t("chat.close_panel")).tooltip(self.t("chat.close_panel"))
+                    .on_click(cx.listener(|this, _, _, cx| this.set_chat_dock(false, cx)))))
+            .when(expanded, |el| el.child(div().px(px(8.)).text_color(p.text_muted).child(self.t("chat.float_covered"))))
             .child(self.chat.clone())
     }
     pub(crate) fn record_task_selection(&mut self, task: Option<String>) {
@@ -261,6 +269,12 @@ impl Workbench {
     }
 
     pub(crate) fn set_chat_dock(&mut self, open: bool, cx: &mut Context<Self>) {
+        if open && !self.preferences.layout.chat_open && self.floating_chat && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. })) {
+            let panel = self.chat.read(cx);
+            self.floating_chat_expanded = panel.error.is_some() || panel.active_chat.and_then(|index| panel.chats.get(index)).is_some_and(|chat| {
+                chat.busy() || chat.permission.is_some() || chat.error.is_some() || chat.state == pero_chat_ui::session_state::SessionState::AuthRequired
+            });
+        }
         self.preferences.layout.chat_open = open;
         self.save_preferences(self.preferences.clone(), cx);
         self.sync_follow(cx);
@@ -485,7 +499,7 @@ impl Workbench {
                 },
             )
             .when(
-                self.layout.chat != ChatPlacement::Slot && (self.navigation.page() == WorkbenchPage::Tasks
+                !matches!(self.layout.chat, ChatPlacement::Slot | ChatPlacement::Float) && (self.navigation.page() == WorkbenchPage::Tasks
                     || self.navigation.page() == WorkbenchPage::Web
                     || matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }))),
                 |el| {
@@ -510,7 +524,7 @@ impl Workbench {
                     )
                 },
             )
-            .when(self.chat_dock_visible() && self.navigation.pane_layout().is_none_or(|layout| layout.leaves().len() <= 1) && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. })), |el| {
+            .when(self.layout.chat == ChatPlacement::Dock && self.navigation.pane_layout().is_none_or(|layout| layout.leaves().len() <= 1) && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. })), |el| {
                 el.child(Button::new("workspace-chat-floating").ghost().small().label(self.t(if self.floating_chat { "chat.dock" } else { "chat.float" }))
                     .on_click(cx.listener(|this, _, _, cx| { this.floating_chat = !this.floating_chat; this.floating_chat_expanded = false; this.sync_follow(cx); cx.notify(); })))
             })

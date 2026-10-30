@@ -49,6 +49,7 @@ impl ChatWindow {
                     }
                     ChatAction::PreviewContext{reference,thread_id}=>json!({"action":"app_context_preview","reference":reference,"thread_id":thread_id}),
                     ChatAction::Selected{thread_id}=>json!({"action":"app_use_selection","thread_id":thread_id}),
+                    ChatAction::CompactNeedsSpace => json!({"action":"chat_expand"}),
                     ChatAction::Content(intent) => serde_json::to_value(intent).expect("content intent"),
                     ChatAction::ChooseWorkspace => json!({"action":"choose_workspace"}),
                     ChatAction::ChooseContext { kind, request_id } => {

@@ -12,12 +12,15 @@ nav select:focus-visible{outline:2px solid var(--pero-focus);outline-offset:2px}
 nav{gap:12px}
 nav span{font-weight:600}
 #product-chat-toggle{margin-left:auto;padding:4px 10px}
-#product-chat{position:absolute;z-index:2;display:flex;flex-direction:column;box-sizing:border-box;border:1px solid var(--pero-border);border-radius:6px;overflow:hidden;background:var(--pero-surface)}
+#product-chat{position:absolute;z-index:2;display:flex;flex-direction:column;box-sizing:border-box;border:1px solid var(--pero-border);border-radius:8px;overflow:hidden;background:var(--pero-surface)}
 #product-chat[hidden]{display:flex;visibility:hidden;pointer-events:none}
 #product-chat>header{display:flex;align-items:center;gap:6px;min-height:32px;padding:0 8px;border-bottom:1px solid var(--pero-border)}
 #product-chat>header[hidden]{display:none}
 #product-chat>header strong{flex:1;font-weight:500}
 #product-chat>header button{padding:2px 7px}
+#product-chat.compact>header{min-height:26px;justify-content:flex-end}
+#product-chat.compact>header strong{display:none}
+#product-chat.compact>header button{border:0;padding:2px 6px;color:var(--pero-text-muted)}
 #product-chat-body{position:relative;flex:1;min-height:0}
 #product-chat iframe{display:block;width:100%;height:100%;border:0}
 .chat-panel-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;padding:20px;background:var(--pero-surface)}

@@ -141,24 +141,25 @@ function update() {
   appTitle.hidden = !selector.hidden;
   appTitle.textContent = context.product.name;
   selector.setAttribute('aria-label', translate(context.locale, 'apps.switch'));
-  toggle.hidden = !context.product.chat || embedded;
+  toggle.hidden = !context.product.chat || embedded || chatOpen;
   const notice = selectedThread && chatNotices.get(selectedThread);
   toggle.textContent = translate(context.locale, chatOpen ? 'chat.close_panel' : 'chat.open_panel') +
     (notice ? ` · ${translate(context.locale, notice === 'permission' ? 'chat.permission' : notice === 'running' ? 'chat.thinking' : notice === 'auth' ? 'chat.signin' : 'roadmap.attention')}` : '');
   toggle.setAttribute('aria-expanded', String(chatOpen));
   toggle.setAttribute('aria-controls', chatPanel.id);
   chatTitle.textContent = translate(context.locale, 'chat.panel_title');
-  chatExpand.textContent = translate(context.locale, chatExpanded ? 'project.collapse' : 'project.expand');
+  chatExpand.textContent = translate(context.locale, chatExpanded ? 'chat.hide_messages' : 'chat.show_messages');
   chatExpand.setAttribute('aria-expanded', String(chatExpanded));
   chatClose.textContent = translate(context.locale, 'chat.close_panel');
   for (const [name, value] of Object.entries(context.dark ? themes.dark : themes.light)) document.documentElement.style.setProperty(`--pero-${name}`, value);
   if (appearance) applyAppearance(appearance);
   const top = navigation.hidden ? 0 : navigation.getBoundingClientRect().height;
-  const chatWidth = Math.min(440, Math.max(0, innerWidth - 24));
-  const chatHeight = Math.min(chatExpanded ? 640 : 180, Math.max(0, innerHeight - top - 24));
+  const chatWidth = Math.min(480, Math.max(0, innerWidth - 24));
+  const chatHeight = Math.min(chatExpanded ? Math.min(560, innerHeight * .7) : 120, Math.max(0, innerHeight - top - 24));
   surface.surface({ visible: !reader, name: selected.app, panel: selected.panel, top,
     dark: appearance?.dark ?? context.dark, appearance, locale: context.locale, width: innerWidth, height: innerHeight - top });
   chatPanel.hidden = !context.product.chat || !(chatOpen || embedded) || capturePending || (embedded && !chatSlotReady);
+  chatPanel.classList.toggle('compact', !embedded && !chatExpanded);
   chatHeader.hidden = embedded;
   const bounds = embedded && chatSlot ? chatSlot.rect : {x:innerWidth-chatWidth-12,y:innerHeight-chatHeight-12,width:chatWidth,height:chatHeight};
   chatPanel.style.cssText = `left:${bounds.x}px;top:${bounds.y}px;width:${bounds.width}px;height:${bounds.height}px`;
@@ -213,6 +214,7 @@ bridge.connect().then(value => {
     context: { dark: value.dark, locale: value.locale, active: chatOpen, scope: { app: selected.app, panel: selected.panel || 'main' } },
     command:command=>{
       const intent=command as {action?:string;thread_id?:string};
+      if(intent.action==='chat_expand') { if(chatOpen && !chatSlot) { chatExpanded = true; update(); } return Promise.resolve(); }
       if(intent.action==='prompt' && chatOpen && !chatSlot) { chatExpanded = true; update(); }
       if(intent.action==='app_use_selection')return bridge.appUseCommand({action:'select',thread_id:intent.thread_id}).then(()=>{});
       if(intent.action==='app_context_preview'){

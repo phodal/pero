@@ -197,6 +197,13 @@ impl Workbench {
         let mut subscriptions = subscriptions;
         subscriptions.push(cx.observe_in(&chat, window, |this, _, window, cx| {
             this.reconcile_content(window, cx);
+            let panel = this.chat.read(cx);
+            let needs_attention = panel.error.is_some() || panel.chats.get(panel.active_chat.unwrap_or(usize::MAX)).is_some_and(|chat| {
+                chat.permission.is_some() || chat.error.is_some() || chat.state == pero_chat_ui::session_state::SessionState::AuthRequired
+            });
+            if needs_attention && this.floating_chat && this.preferences.layout.chat_open && matches!(this.navigation.current(), Some(WorkspaceItem::App { .. })) {
+                this.floating_chat_expanded = true;
+            }
             this.sync_follow(cx);
             cx.notify();
         }));
@@ -237,6 +244,12 @@ impl Workbench {
                     this.tab = ConversationTab::Chat;
                     this.error = None;
                     this.sync_follow(cx);
+                }
+                ChatAction::CompactNeedsSpace => {
+                    if this.floating_chat && this.chat_dock_visible() && !this.floating_chat_expanded {
+                        this.floating_chat_expanded = true;
+                        this.sync_follow(cx);
+                    }
                 }
                 ChatAction::ReturnToReview => {
                     this.remote.public_contributions = true;
@@ -289,7 +302,7 @@ impl Workbench {
             apps: crate::apps::AppCatalog::default(),
             app_surface: String::new(),
             app_chat_slot: None,
-            floating_chat: false,
+            floating_chat: true,
             floating_chat_expanded: false,
             layout,
             resizing_chat: false,

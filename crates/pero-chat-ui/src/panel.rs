@@ -27,6 +27,8 @@ pub enum ChatAction {
     },
     PreviewContext { reference: ContextReference, thread_id: String },
     Selected { thread_id: Option<String> },
+    /// A compact surface needs room for a picker or a larger draft.
+    CompactNeedsSpace,
     Activated,
     ReturnToReview,
 }
