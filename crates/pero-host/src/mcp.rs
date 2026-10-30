@@ -10,18 +10,15 @@ use pero_contracts::{
 use pero_runtime::settings;
 
 impl Manager {
-    pub(super) fn mcp_configuration(
+    pub(super) fn load_mcp_configuration(
         &self,
         agent: &pero_runtime::acp::AgentConfig,
     ) -> Result<McpConfiguration, McpSettingsError> {
-        let configuration = self
-            .settings_path
+        self.settings_path
             .as_deref()
             .map(|path| settings::load_mcp(path, &agent.id))
-            .transpose()?
-            .unwrap_or_default();
-        configuration.validate(&agent.mcp_server_names())?;
-        Ok(configuration)
+            .transpose()
+            .map(Option::unwrap_or_default)
     }
 
     pub fn dispatch_mcp(&mut self, value: serde_json::Value) {
@@ -48,9 +45,15 @@ impl Manager {
                 .iter()
                 .find(|agent| agent.id == agent_id)
                 .ok_or(McpSettingsError::Unavailable)?;
-            let current = self.mcp_configuration(agent)?;
+            let current = self.load_mcp_configuration(agent)?;
             match request {
-                McpSettingsRequest::Get { .. } => Ok(current),
+                McpSettingsRequest::Get { .. } => {
+                    // Operator reservations may change after settings were saved.
+                    // Keep safe user configuration readable for rename/removal;
+                    // replacement and session admission check reservations.
+                    current.validate(&[])?;
+                    Ok(current)
+                }
                 McpSettingsRequest::Set {
                     revision, servers, ..
                 } => {

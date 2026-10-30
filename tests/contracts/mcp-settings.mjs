@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { once } from 'node:events';
-import { readFile, mkdir, writeFile, stat } from 'node:fs/promises';
+import { readFile, mkdir, writeFile, stat, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
 import schema from '../../protocol/generated/host.schema.json' with { type: 'json' };
@@ -17,7 +17,8 @@ function conforms(name, value) {
 }
 const fixture = await mcpSettingsFixture(root);
 const output = resolve(root, 'test-results/mcp-settings');
-let host;
+await rm(resolve(output, 'host-result.json'), { force: true });
+let host, fixtureClosed = false;
 const publicEvents = [];
 function launch() {
   const child = spawn(resolve(root, 'target/debug/pero-host'), ['--stdio'], { cwd: fixture.temp, env: fixture.env });
@@ -93,6 +94,24 @@ try {
   assert.deepEqual((await get()).servers, [edited]);
   current = await set(current, []);
   assert.deepEqual(managed(await session('removed')), []);
+  // Operator configuration may change after a valid managed entry was persisted.
+  current = await set(current, [disabled]);
+  await host.stop(); host = undefined;
+  const agents = JSON.parse(await readFile(fixture.env.PERO_AGENTS_FILE, 'utf8'));
+  agents[0].mcp_servers.push({ name: disabled.name, command: process.execPath, args: [], env: [] });
+  await writeFile(fixture.env.PERO_AGENTS_FILE, JSON.stringify(agents), { mode: 0o600 });
+  host = launch(); await host.next('ready');
+  current = await get(); assert.deepEqual(current.servers, [disabled]);
+  const sessionsBeforeCollision = (await fixture.sessions()).length;
+  host.send({ action: 'new_session', thread_id: 'collision-blocked', agent_id: 'fixture' });
+  await host.next('session_error', event => event.thread_id === 'collision-blocked');
+  assert.equal((await fixture.sessions()).length, sessionsBeforeCollision, 'collision must block ACP startup');
+  await set({ revision: current.revision - 1 }, [], 'conflict');
+  assert.deepEqual((await get()).servers, [disabled]);
+  current = await set(current, []);
+  assert.deepEqual((await get()).servers, []);
+  const recovered = await session('collision-repaired');
+  assert.equal(recovered.filter(server => server.name === disabled.name).length, 1, 'operator entry retained after repair');
   const saved = JSON.parse(await readFile(fixture.settings, 'utf8'));
   assert.deepEqual(saved.unrelated, { preserved: true });
   if (process.platform !== 'win32') assert.equal((await stat(fixture.settings)).mode & 0o777, 0o600);
@@ -102,12 +121,13 @@ try {
   assert(!publicText.includes('"connected":true'), 'configuration falsely claimed MCP connectivity');
   assert.equal(fixture.requests(), 0, 'settings or ACP fixture unexpectedly connected to MCP');
   await host.stop(); host = undefined;
+  await fixture.close(); fixtureClosed = true;
   await mkdir(output, { recursive: true });
   await writeFile(resolve(output, 'host-result.json'), JSON.stringify({ passed: true, checks: [
     'disabled omitted from ACP', 'enabled HTTP injected', 'stdio edit injected for new session only',
     'existing session remains usable', 'operator configuration retained but not disclosed',
     'restart persistence', 'remove omitted from ACP', 'unrelated preferences preserved',
-    'private settings file', 'no credentials in public events or stderr', 'no MCP connection or connected claim',
+    'operator-name collision remains readable and repairable while sessions fail closed', 'private settings file', 'no credentials in public events or stderr', 'no MCP connection or connected claim',
   ] }, null, 2));
   console.log('MCP settings Host/ACP acceptance passed (fixture only; no MCP connectivity claimed).');
-} finally { host?.kill(); await fixture.close(); }
+} finally { host?.kill(); if (!fixtureClosed) await fixture.close(); }
