@@ -19,6 +19,10 @@ await mkdir(isolated, { recursive: true });
 const out = resolve(root, 'test-results/content-reader');
 await mkdir(out, { recursive: true });
 const sources = [
+  'Cargo.toml',
+  'Cargo.lock',
+  'crates/pero-content-worker/src/lib.rs',
+  'scripts/lib/gpui-kit.mjs',
   'patches/gpui-pre-web-0.3.10-ime.patch',
   'scripts/lib/gpui-web.mjs',
   'crates/pero-contracts/src/web_document.rs',
@@ -50,6 +54,7 @@ const sources = [
   'crates/pero-ui/src/documents.rs',
   'crates/pero-ui/src/workspace.rs',
   'crates/pero-chat-ui/src/content_reader.rs',
+  'crates/pero-chat-ui/src/stream.rs',
   'crates/pero-chat-ui/src/conversation.rs',
   'crates/pero-chat-ui/src/tool_ui.rs',
   'crates/pero-chat-ui/src/panel.rs',

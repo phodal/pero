@@ -26,7 +26,7 @@ try {
   await launch();await page.mouse.click(500,300);await open(file);
   await expect.poll(async()=>(await state()).documents.length).toBe(1);
   let b=(await state()).documents[0].reader.bounds;
-  await page.mouse.click(b.x+100,b.y+16);await expect.poll(async()=>(await state()).documents[0].reader.source).toBe(true);
+  await page.mouse.click(b.x+100,b.y+16);await expect.poll(async()=>(await state()).documents[0].reader.source).toBe(true);await paint();
   await page.mouse.click(b.x+160,b.y+100);await page.keyboard.press(`${modifier}+a`);await page.keyboard.insertText(draft);
   await expect.poll(async()=>(await state()).documents[0].reader.dirty).toBe(true);
   await page.keyboard.press(`${modifier}+f`);await page.keyboard.insertText('draft');

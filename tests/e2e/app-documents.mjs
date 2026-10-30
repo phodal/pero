@@ -17,11 +17,11 @@ try {
   await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1488,1086));
   await expect.poll(async()=>(await state()).apps?.some(a=>a.name==='virtual-cell')).toBe(true);
-  await page.mouse.click(80,await page.evaluate(()=>innerHeight-76));
+  await page.mouse.click(80,await page.evaluate(()=>innerHeight-52));
   await expect.poll(async()=>(await state()).navigation).toBe(7);
   await expect.poll(async()=>(await state()).appsLoading).toBe(false);
   await paint();
-  await page.mouse.click(1305,110+79*(await state()).apps.findIndex(a=>a.name==='virtual-cell'));
+  await page.mouse.click(1317,76+64*(await state()).apps.findIndex(a=>a.name==='virtual-cell'));
   await expect.poll(async()=>(await state()).activeApp?.name).toBe('virtual-cell');
   const frame=page.frameLocator('iframe[title="virtual-cell"]');
   await expect(frame.getByRole('button',{name:'Load synthetic example',exact:true})).toBeVisible({timeout:20000});
