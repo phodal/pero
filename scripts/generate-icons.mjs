@@ -1,11 +1,13 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { contentIconData } from './lib/content-icons.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const kit = resolve(process.env.PERO_GPUI_KIT_PATH || resolve(root, '../../test/gpui-kit'));
 const catalog = JSON.parse(await readFile(resolve(root, 'packages/icons/catalog.json'), 'utf8'));
 const entries = Object.entries(catalog);
+const content = contentIconData(catalog, JSON.parse(await readFile(resolve(root,'packages/icons/content.json'),'utf8')));
 const variant = name => name.split('-').map(part => part[0].toUpperCase() + part.slice(1)).join('');
 const names = (name, icon) => [name, ...(icon.aliases || [])];
 const kitNames = entries.filter(([, icon]) => icon.kit).map(([, icon]) => icon.kit);
@@ -107,6 +109,9 @@ export function iconArtwork(name: string) {
 for (const [path, contents] of [
   ['crates/pero-chat-ui/src/assets.rs', execFileSync('rustfmt', ['--edition', '2024', '--emit', 'stdout'], { input: rust, encoding: 'utf8' })],
   ['packages/app-sdk/src/icons.generated.tsx', tsx],
+  ['packages/icons/content-data.generated.js', content.javascript],
+  ['packages/icons/content-data.generated.d.ts', content.declarations],
+  ['crates/pero-contracts/src/content_icon_data.rs', execFileSync('rustfmt',['--edition','2024','--emit','stdout'],{input:content.rust,encoding:'utf8'})],
 ]) {
   const file = resolve(root, path);
   if (process.argv.includes('--check')) {

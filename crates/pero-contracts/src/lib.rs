@@ -289,3 +289,5 @@ pub mod reader_state;
 pub mod content_search;
 
 pub mod markdown_source;
+
+pub mod content_icon;
