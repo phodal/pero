@@ -6,13 +6,13 @@ import { resolve } from 'node:path';
 import { root } from './paths.mjs';
 import { run } from './run.mjs';
 
-const target=resolve(root,'target');
+const target=resolve(root,process.env.CARGO_TARGET_DIR || 'target');
 mkdirSync(target,{recursive:true});
-export const webBackend = resolve(realpathSync(target), 'patched-dependencies/gpui-pre-web-0.3.10');
+const patch = resolve(root, 'patches/gpui-pre-web-0.3.10-ime.patch');
+const digest = createHash('sha256').update(readFileSync(patch)).digest('hex');
+export const webBackend = resolve(realpathSync(target), `patched-dependencies/gpui-pre-web-0.3.10-${digest.slice(0,12)}`);
 
 export async function prepareWebBackend() {
-  const patch = resolve(root, 'patches/gpui-pre-web-0.3.10-ime.patch');
-  const digest = createHash('sha256').update(readFileSync(patch)).digest('hex');
   const stamp = resolve(webBackend, '.pero-patch');
   if (existsSync(stamp) && readFileSync(stamp, 'utf8') === digest) return;
 
