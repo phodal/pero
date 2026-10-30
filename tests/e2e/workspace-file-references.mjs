@@ -30,7 +30,9 @@ try {
   let bounds=(await reader()).bounds;await page.mouse.click(bounds.x+100,bounds.y+16);
   await expect.poll(async()=>(await reader()).source).toBe(true);
   bounds=(await reader()).bounds;await page.mouse.click(bounds.x+120,bounds.y+75);
-  await page.keyboard.press(process.platform==='darwin'?'Meta+ArrowUp':'Control+Home');await page.keyboard.insertText(' ');
+  await page.keyboard.press(process.platform==='darwin'?'Meta+ArrowUp':'Control+Home');
+  await expect.poll(async()=>(await reader()).selection).toEqual({start:0,end:0});
+  await page.keyboard.insertText(' ');
   await expect.poll(async()=>(await reader()).dirty).toBe(true);
   const started=Date.now();await page.evaluate(()=>window.peroWorkspaceCheckpoint(false));const checkpointMs=Date.now()-started;
   const checkpoint=JSON.parse(await readFile(resolve(recovery,'session.json'),'utf8'));

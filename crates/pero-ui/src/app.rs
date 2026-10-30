@@ -17,7 +17,7 @@ use pero_chat_ui::{ChatAction, ChatPanel};
 use pero_contracts::{EchoRequest, HostEvent, MAX_TEXT_CHARS};
 use serde_json::{Value, json};
 #[cfg(target_family = "wasm")]
-use std::{borrow::Cow, cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -647,49 +647,7 @@ pub fn run(theme_json: &str, dark: bool, locale: &str) -> Result<(), JsValue> {
         .with_assets(crate::assets::UiAssets)
         .with_http_client(http)
         .run_embedded(move |cx| {
-            // Catalog glyphs are bundled; arbitrary CJK text uses the canvas fallback above.
-            cx.text_system()
-                .add_fonts(vec![
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/Inter-Regular.ttf").as_slice(),
-                    ),
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/Workbench-regular.ttf")
-                            .as_slice(),
-                    ),
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/Workbench-bold.ttf").as_slice(),
-                    ),
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/IBMPlexSans-Regular.ttf")
-                            .as_slice(),
-                    ),
-                    Cow::Borrowed(
-                        include_bytes!("../../../web/public/fonts/JetBrainsMono-Regular.ttf")
-                            .as_slice(),
-                    ),
-                ])
-                .expect("bundled fonts");
-            gpui_kit::init(cx);
-            // Wasm has no target_os=macos; bind ordinary editing to the actual OS.
-            if cx.platform_info().is_mac() {
-                use gpui_kit::component::input::{
-                    Copy, Cut, DeleteToBeginningOfLine, DeleteToEndOfLine, MoveEnd, MoveHome,
-                    Paste, Redo, SelectAll, Undo,
-                };
-                cx.bind_keys([
-                    KeyBinding::new("cmd-a", SelectAll, Some("Input")),
-                    KeyBinding::new("cmd-c", Copy, Some("Input")),
-                    KeyBinding::new("cmd-x", Cut, Some("Input")),
-                    KeyBinding::new("cmd-v", Paste, Some("Input")),
-                    KeyBinding::new("cmd-z", Undo, Some("Input")),
-                    KeyBinding::new("cmd-shift-z", Redo, Some("Input")),
-                    KeyBinding::new("cmd-left", MoveHome, Some("Input")),
-                    KeyBinding::new("cmd-right", MoveEnd, Some("Input")),
-                    KeyBinding::new("cmd-backspace", DeleteToBeginningOfLine, Some("Input")),
-                    KeyBinding::new("cmd-delete", DeleteToEndOfLine, Some("Input")),
-                ]);
-            }
+            pero_chat_ui::web_platform::initialize(cx);
             gpui_kit::component::set_locale(&locale);
             pero_theme::ResolvedAppearance::resolve(&Default::default(), dark, &palettes).install(cx);
             let (window, view) =
