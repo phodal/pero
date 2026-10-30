@@ -230,3 +230,46 @@
 +    }
 
      fn request_decorations(&self, _decorations: WindowDecorations) {}
+--- a/src/text_system.rs
++++ b/src/text_system.rs
+@@ -468,3 +468,16 @@
+             );
+         }
++        // Named system faces, not generic sans-serif. OffscreenCanvas otherwise
++        // picks a Latin fallback and a mismatched Han face in Electron.
++        if !color {
++            for family in [
++                "PingFang SC",
++                "Hiragino Sans GB",
++                "Microsoft YaHei",
++                "Noto Sans CJK SC",
++                "Noto Sans SC",
++            ] {
++                families.push(quote_family(family));
++            }
++        }
+         families.push(
+--- a/src/canvas_text.rs
++++ b/src/canvas_text.rs
+@@ -64,6 +64,21 @@
+         )
+         .map_err(|error| anyhow!("setting Canvas text direction: {error:?}"))?;
+         ensure!(assigned, "Canvas text direction could not be set");
++        // OffscreenCanvas does not inherit document.lang, so Han uses the wrong face.
++        if let Some(lang) = web_sys::window()
++            .and_then(|window| window.document())
++            .and_then(|document| document.document_element())
++            .and_then(|root| root.get_attribute("lang"))
++            .filter(|lang| !lang.is_empty())
++        {
++            let assigned = js_sys::Reflect::set(
++                self.context.as_ref(),
++                &JsValue::from_str("lang"),
++                &JsValue::from_str(&lang),
++            )
++            .map_err(|error| anyhow!("setting Canvas text language: {error:?}"))?;
++            ensure!(assigned, "Canvas text language could not be set");
++        }
+         Ok(())
+     }
+ }
