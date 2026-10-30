@@ -94,7 +94,7 @@ try {
     expect((await active()).id).toBe(destination.id);
     expect((await active()).scope).toEqual({ app: 'virtual-cell', panel: 'main' });
     await expect.poll(async () => (await state()).composer).toBe(prompt);
-    const bounds = await chat.locator('canvas').boundingBox();
+    const bounds = await chat.locator('canvas:not([role="textbox"])').boundingBox();
     await page.mouse.click(bounds.x + 150, bounds.y + bounds.height - 70);
     await page.keyboard.press('Enter');
     if (approval) await expect.poll(async () => Boolean((await active())?.permission)).toBe(true);
@@ -108,7 +108,7 @@ try {
     // GPUI exposes the painted option bounds in the Chat canvas coordinates.
     const optionBounds = async () => (await state()).permissionBounds.find(item => item.chat === conversation.id && item.index === index)?.bounds;
     await expect.poll(async () => { const bounds = await optionBounds(); return Boolean(bounds && bounds.width > 0 && bounds.height > 0); }).toBe(true);
-    const bounds = await chat.locator('canvas').boundingBox();
+    const bounds = await chat.locator('canvas:not([role="textbox"])').boundingBox();
     const option = await optionBounds();
     await page.mouse.click(bounds.x + option.x + option.width / 2, bounds.y + option.y + option.height / 2);
     await expect.poll(async () => (await active()).permission).toBeNull();
@@ -156,7 +156,7 @@ try {
   expect((await state()).contextPreviewBounds.filter(item=>item.image)).toHaveLength(1);
   await expect.poll(async()=>{const bounds=(await state()).contextPreviewBounds.find(item=>item.image)?.bounds;return Boolean(bounds&&bounds.width>0&&bounds.height>0);}).toBe(true);
   const capturePreview=(await state()).contextPreviewBounds.find(item=>item.image);
-  const chatCanvas=await chat.locator('canvas').boundingBox();
+  const chatCanvas=await chat.locator('canvas:not([role="textbox"])').boundingBox();
   await page.mouse.click(chatCanvas.x+capturePreview.bounds.x+capturePreview.bounds.width/2,chatCanvas.y+capturePreview.bounds.y+capturePreview.bounds.height/2);
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('textbox',{name:'Annotation note'}).fill('Inspect the selected cells in this frozen frame');
@@ -170,7 +170,7 @@ try {
   await frame.locator('body').evaluate(()=>parent.postMessage({type:'pero:app:chat',text:'app-use:context'},'*'));
   await expect.poll(async()=>(await state()).composer).toContain('app-use:context');
   expectedScenario='context';
-  {const bounds=await chat.locator('canvas').boundingBox();await page.mouse.click(bounds.x+150,bounds.y+bounds.height-70);await page.keyboard.press('Enter');}
+  {const bounds=await chat.locator('canvas:not([role="textbox"])').boundingBox();await page.mouse.click(bounds.x+150,bounds.y+bounds.height-70);await page.keyboard.press('Enter');}
   const frozen=await result();expect(frozen.error).toBeUndefined();
   expect((await state()).contextPreviewBounds).toEqual([]);
   expect(frozen.contexts.find(context=>context.schema==='pero.app-object.v1').state.view).toBe('cells');expect(frozen.images).toBe(1);expect(frozen.contexts.find(context=>context.schema==='pero.app-annotations.v1')).toMatchObject({note:'Inspect the selected cells in this frozen frame',regions:[{x:0,y:0}]});
@@ -184,7 +184,7 @@ try {
   await expect.poll(async()=>(await state()).attachments.length).toBe(1);
   await frame.locator('body').evaluate(()=>parent.postMessage({type:'pero:app:chat',text:'app-use:input'},'*'));
   await expect.poll(async()=>(await state()).composer).toContain('app-use:input');expectedScenario='input';
-  {const bounds=await chat.locator('canvas').boundingBox();await page.mouse.click(bounds.x+150,bounds.y+bounds.height-70);await page.keyboard.press('Enter');}
+  {const bounds=await chat.locator('canvas:not([role="textbox"])').boundingBox();await page.mouse.click(bounds.x+150,bounds.y+bounds.height-70);await page.keyboard.press('Enter');}
   const imported=await result();expect(imported.error).toBeUndefined();
   expect(await frame.locator('body').evaluate(async(_,id)=>(await (await fetch('/api/artifacts/'+id)).json()).kind,imported.inputId)).toBe('inputs');
   checks.push('An explicitly attached conversation file is fetched through its temporary App/task grant, imported by the actual App action and read back from the real backend');
