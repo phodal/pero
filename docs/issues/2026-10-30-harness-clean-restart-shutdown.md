@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: resolved
+status: open
 date: 2026-10-30
 ---
 
@@ -27,3 +27,20 @@ failure is from the Windows CI run above). With the documented pending receipt
 accepted, 100 race runs and the full `subagents` package race suite pass. The PR
 still requires its Windows CI check before merge; no Windows execution is
 inferred from the macOS runs.
+
+## Approval acceptance recurrence
+
+The same incorrect synchronous-disposal assumption also exists in
+`TestApprovalIsScopedDurableAndFailClosed`. It failed in
+CI job 124198996658.
+Before this follow-up, the unchanged test reproduced the identical pending
+sentinel 11 times in 10,000 local race runs (Go 1.26.4; 46.889 seconds), without
+a race-detector finding. A short 100-run sample had passed.
+
+The approval test now accepts only `ErrHarnessDisposalInProgress` and then
+requires successful `Drain`. Its approval event order, tool effect count,
+scope and fail-closed assertions are unchanged. This is a test lifecycle
+correction, not a change to production disposal semantics.
+
+New exact-head CI is pending. The current cloud command executor is unavailable;
+no new local test execution is claimed for this follow-up.
