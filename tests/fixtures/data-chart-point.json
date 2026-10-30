@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "weekly-active-users",
+  "queryId": "weekly_active_users",
+  "title": "周活跃用户（按方案）",
+  "description": "口径：自然周，按方案分组；不含内部账号。",
+  "chart": {
+    "type": "line",
+    "x": "week",
+    "y": "activeUsers",
+    "series": "plan",
+    "yLabel": "周活跃用户"
+  },
+  "rows": [
+    { "week": "2026-07-13", "plan": "Pro", "activeUsers": 12400 },
+    { "week": "2026-07-13", "plan": "Team", "activeUsers": 8200 },
+    { "week": "2026-07-20", "plan": "Pro", "activeUsers": 13150 },
+    { "week": "2026-07-20", "plan": "Team", "activeUsers": null },
+    { "week": "2026-07-27", "plan": "Pro", "activeUsers": 13800 },
+    { "week": "2026-07-27", "plan": "Team", "activeUsers": 9040 }
+  ],
+  "source": {
+    "label": "示意数据，未查询任何真实来源",
+    "caveats": [
+      "仅用于演示文档形状；数值是编造的。",
+      "7-20 的 Team 没有观测值，写作 null 而不是 0。"
+    ]
+  }
+}
