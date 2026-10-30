@@ -25,14 +25,51 @@ window.peroAppUseRevoke = async(thread,scope) => {await bridge.appUseCommand({ac
 let context: Context;
 let runtimeConnected = false;
 let selected: { app: string; panel?: string };
+let chatSlot: {scope:{app:string;panel:string};rect:{x:number;y:number;width:number;height:number}} | null = null;
+let chatSlotReady = false;
 const report = (error: Error) => surface.event({ kind: 'apps_error', text: error.message } as HostEvent);
 const launchAppChat=appChatLauncher({
-  open:scope=>{if(!chat||!context.product.chat||selected.app!==scope.app)throw new Error('Chat is not enabled for this App');chatOpen=true;update();},
+  open:scope=>{if(!chat||!context.product.chat||selected.app!==scope.app)throw new Error('Chat is not enabled for this App');if(!chatSlot)chatOpen=true;update();},
   draft:async()=>chat?.selectedDraft(),
-  command:value=>bridge.appUseCommand(value),
+  command:async value=>{
+    const request = value as { action?: string; options?: { capture?: boolean } };
+    if (request.action !== 'context' || !request.options?.capture) return bridge.appUseCommand(value);
+    capturePending = true; update();
+    try {
+      // Let the compositor paint the uncovered App before Desktop captures pixels.
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      return await bridge.appUseCommand(value);
+    } finally { capturePending = false; update(); }
+  },
   deliver:(thread_id,contexts,text,replace)=>chat?.event({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}}),
 });
-const surface = mountAppSurfaces(async () => bridge.open(selected.app).catch(report),launchAppChat,openReading);
+const surface = mountAppSurfaces(async () => bridge.open(selected.app).catch(report),launchAppChat,openReading,undefined,async slot=>{
+  const accepted = !!slot && !!context?.product.chat && !!chat && !reader && selected?.app === slot.scope.app && (selected.panel || 'main') === slot.scope.panel;
+  const next = accepted ? slot : null;
+  if (JSON.stringify(chatSlot) !== JSON.stringify(next)) { chatSlot = next; chatSlotReady = false; queueMicrotask(update); }
+  if (!next) return false;
+  // The separate Chat iframe selects its scope asynchronously. Do not expose
+  // the previous App's transcript in the slot while that selection settles.
+  const deadline = performance.now() + 5000;
+  while (JSON.stringify(chatSlot) === JSON.stringify(next) && performance.now() < deadline) {
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    const draft = await chat?.selectedDraft();
+    if (JSON.stringify(chatSlot) === JSON.stringify(next) && draft?.threadId && draft.scope?.app === next.scope.app && draft.scope.panel === next.scope.panel) {
+      chatSlotReady = true; update();
+      // Give the newly sized Chat iframe a chance to paint before the App
+      // removes its fallback and the user can interact with the slot.
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      const rendered = await chat?.selectedDraft();
+      const ready = JSON.stringify(chatSlot) === JSON.stringify(next) && !reader && !capturePending && !chatPanel.hidden &&
+        selected?.app === next.scope.app && (selected.panel || 'main') === next.scope.panel &&
+        rendered?.threadId === draft.threadId && rendered.scope?.app === next.scope.app && rendered.scope.panel === next.scope.panel;
+      if (!ready && JSON.stringify(chatSlot) === JSON.stringify(next)) { chatSlot = null; chatSlotReady = false; update(); }
+      return ready;
+    }
+  }
+  if (JSON.stringify(chatSlot) === JSON.stringify(next)) { chatSlot = null; chatSlotReady = false; update(); }
+  return false;
+});
 const readingPanel=document.createElement('section'); readingPanel.id='product-document'; readingPanel.hidden=true;
 const readingHeader=document.createElement('header');
 const readingTitle=document.createElement('strong'); readingTitle.id='product-document-title';
@@ -62,10 +99,30 @@ navigation.append(toggle);
 document.body.append(navigation);
 const chatPanel = document.createElement('aside');
 chatPanel.id = 'product-chat'; chatPanel.hidden = true;
+chatPanel.dataset.peroAppChatOverlay = '';
+const chatHeader = document.createElement('header');
+const chatTitle = document.createElement('strong');
+const chatExpand = document.createElement('button'); chatExpand.type = 'button';
+const chatClose = document.createElement('button'); chatClose.type = 'button';
+const chatBody = document.createElement('div'); chatBody.id = 'product-chat-body';
+chatHeader.append(chatTitle, chatExpand, chatClose); chatPanel.append(chatHeader, chatBody);
 document.body.append(chatPanel);
 let chat: ChatSurface | undefined;
-let chatOpen = true;
+let chatOpen = false;
+let chatExpanded = false;
+let capturePending = false;
 let chatReady = false;
+const chatNotices = new Map<string, 'running' | 'permission' | 'auth' | 'error'>();
+let selectedThread: string | undefined;
+const refreshChatNotice = () => {
+  void chat?.selectedDraft().then(draft => {
+    if (draft?.scope?.app !== selected.app || draft.scope.panel !== (selected.panel || 'main')) return;
+    selectedThread = draft.threadId;
+    const notice = selectedThread && chatNotices.get(selectedThread);
+    if (chatOpen && !chatSlot && notice && notice !== 'running') chatExpanded = true;
+    update();
+  });
+};
 const initializeChat = () => {
   if (!context?.connected || !chatReady) return;
   chat?.event({ version: 1, kind: 'ready', request_id: null, text: '' });
@@ -76,6 +133,7 @@ const initializeChat = () => {
 };
 function update() {
   if (!context || !selected) return;
+  const embedded = !!chatSlot && !reader && chatSlot.scope.app === selected.app && chatSlot.scope.panel === (selected.panel || 'main');
   document.title = context.product.name;
   document.documentElement.style.colorScheme = context.dark ? 'dark' : 'light';
   navigation.hidden = context.product.apps.length < 2 && !context.product.chat;
@@ -83,36 +141,57 @@ function update() {
   appTitle.hidden = !selector.hidden;
   appTitle.textContent = context.product.name;
   selector.setAttribute('aria-label', translate(context.locale, 'apps.switch'));
-  toggle.hidden = !context.product.chat;
-  toggle.textContent = translate(context.locale, chatOpen ? 'chat.close_panel' : 'chat.open_panel');
+  toggle.hidden = !context.product.chat || embedded;
+  const notice = selectedThread && chatNotices.get(selectedThread);
+  toggle.textContent = translate(context.locale, chatOpen ? 'chat.close_panel' : 'chat.open_panel') +
+    (notice ? ` · ${translate(context.locale, notice === 'permission' ? 'chat.permission' : notice === 'running' ? 'chat.thinking' : notice === 'auth' ? 'chat.signin' : 'roadmap.attention')}` : '');
   toggle.setAttribute('aria-expanded', String(chatOpen));
   toggle.setAttribute('aria-controls', chatPanel.id);
+  chatTitle.textContent = translate(context.locale, 'chat.panel_title');
+  chatExpand.textContent = translate(context.locale, chatExpanded ? 'project.collapse' : 'project.expand');
+  chatExpand.setAttribute('aria-expanded', String(chatExpanded));
+  chatClose.textContent = translate(context.locale, 'chat.close_panel');
   for (const [name, value] of Object.entries(context.dark ? themes.dark : themes.light)) document.documentElement.style.setProperty(`--pero-${name}`, value);
   if (appearance) applyAppearance(appearance);
   const top = navigation.hidden ? 0 : navigation.getBoundingClientRect().height;
-  const narrow = innerWidth < 1000;
-  const chatWidth = context.product.chat && chatOpen ? narrow ? innerWidth : Math.round(Math.max(360, innerWidth * .36)) : 0;
-  surface.surface({ visible: !reader && !(narrow && chatWidth), name: selected.app, panel: selected.panel, top,
-    dark: appearance?.dark ?? context.dark, appearance, locale: context.locale, width: innerWidth - chatWidth, height: innerHeight - top });
-  chatPanel.hidden = !context.product.chat || !chatOpen;
-  chatPanel.style.cssText = `left:${innerWidth - chatWidth}px;top:${top}px;width:${chatWidth}px;height:${innerHeight - top}px`;
-  chat?.context({ dark: context.dark, appearance, locale: context.locale, active: chatOpen, scope: { app: selected.app, panel: selected.panel || 'main' } });
-  readingPanel.hidden=!reader || narrow && Boolean(chatWidth);
-  readingPanel.style.cssText=`left:0;top:${top}px;width:${innerWidth-chatWidth}px;height:${innerHeight-top}px`;
+  const chatWidth = Math.min(440, Math.max(0, innerWidth - 24));
+  const chatHeight = Math.min(chatExpanded ? 640 : 180, Math.max(0, innerHeight - top - 24));
+  surface.surface({ visible: !reader, name: selected.app, panel: selected.panel, top,
+    dark: appearance?.dark ?? context.dark, appearance, locale: context.locale, width: innerWidth, height: innerHeight - top });
+  chatPanel.hidden = !context.product.chat || !(chatOpen || embedded) || capturePending || (embedded && !chatSlotReady);
+  chatHeader.hidden = embedded;
+  const bounds = embedded && chatSlot ? chatSlot.rect : {x:innerWidth-chatWidth-12,y:innerHeight-chatHeight-12,width:chatWidth,height:chatHeight};
+  chatPanel.style.cssText = `left:${bounds.x}px;top:${bounds.y}px;width:${bounds.width}px;height:${bounds.height}px`;
+  chat?.context({ dark: context.dark, appearance, locale: context.locale, active: chatOpen || embedded, scope: { app: selected.app, panel: selected.panel || 'main' } });
+  chat?.event({ version: 1, kind: 'chat_compact', request_id: null, text: '', data: !embedded && !chatExpanded });
+  readingPanel.hidden=!reader;
+  readingPanel.style.cssText=`left:0;top:${top}px;width:${innerWidth}px;height:${innerHeight-top}px`;
   closeReading.textContent=translate(context.locale,'workspace.close_tab');
   reader?.context({dark:context.dark,appearance,locale:context.locale});
 }
-toggle.onclick = () => { chatOpen = !chatOpen; update(); };
+toggle.onclick = () => { chatOpen = !chatOpen; update(); if (chatOpen) refreshChatNotice(); };
+chatExpand.onclick = () => { chatExpanded = !chatExpanded; update(); };
+chatClose.onclick = () => { chatOpen = false; update(); toggle.focus(); };
 selector.onchange = () => {
   reader?.dispose();reader=undefined;
   selected = { app: selector.value };
+  selectedThread = undefined;
   update();
+  refreshChatNotice();
   void bridge.open(selected.app).catch(report);
 };
 bridge.onEvent(event => {
   if (event.kind === 'ready') { runtimeConnected = true; if (context) context.connected = true; initializeChat(); }
   if (event.kind === 'disconnected') { runtimeConnected = false; if (context) context.connected = false; }
   chat?.event(event);
+  if (event.thread_id && ['turn_started', 'permission', 'session_auth_required', 'session_auth_error', 'session_authenticated', 'session_ready', 'session_error', 'turn_finished', 'session_closed'].includes(event.kind)) {
+    if (event.kind === 'turn_started') chatNotices.set(event.thread_id, 'running');
+    if (event.kind === 'permission') chatNotices.set(event.thread_id, 'permission');
+    if (event.kind === 'session_auth_required' || event.kind === 'session_auth_error') chatNotices.set(event.thread_id, 'auth');
+    if (event.kind === 'session_error') chatNotices.set(event.thread_id, 'error');
+    if (['turn_finished', 'session_closed', 'session_ready', 'session_authenticated'].includes(event.kind)) chatNotices.delete(event.thread_id);
+    refreshChatNotice();
+  }
   if (event.kind === 'apps_catalog') {
     const catalog = event.data as { name: string; displayName: string }[];
     for (const option of selector.options) option.textContent = catalog.find(app => app.name === option.value)?.displayName || option.value;
@@ -129,11 +208,12 @@ window.addEventListener('resize', update);
 bridge.connect().then(value => {
   context = value; selected = value.product.entry!;
   context.connected ||= runtimeConnected;
-  if (value.product.chat) chat = mountChatSurface(chatPanel, {
+  if (value.product.chat) chat = mountChatSurface(chatBody, {
     readContent: request=>bridge.readContent(request),
     context: { dark: value.dark, locale: value.locale, active: chatOpen, scope: { app: selected.app, panel: selected.panel || 'main' } },
     command:command=>{
       const intent=command as {action?:string;thread_id?:string};
+      if(intent.action==='prompt' && chatOpen && !chatSlot) { chatExpanded = true; update(); }
       if(intent.action==='app_use_selection')return bridge.appUseCommand({action:'select',thread_id:intent.thread_id}).then(()=>{});
       if(intent.action==='app_context_preview'){
         const preview=command as {reference:Parameters<typeof previewContext>[0];thread_id:string};
