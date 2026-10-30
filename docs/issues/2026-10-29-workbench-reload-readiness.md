@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: verifying
+status: resolved
 date: 2026-10-29
 ---
 
@@ -99,3 +99,18 @@ shows the original five-/15-second polls expire before startup and the reordered
 versions pass, keeping those budgets unchanged. These are sequencing checks, not
 new actual Electron runs. Full desktop CI acceptance remains pending; the two
 App Use suites were not reached by this failed job.
+
+## Final CI acceptance (2026-10-30)
+
+Standard CI [40962596409](https://github.com/phodal/pero/actions/runs/40962596409)
+passed all 16 jobs for head `26c371fad79ff6bb60ff32d7e3a383c9ba3e182f`,
+testing merge `7beb3d9eeaf842eb2a899c1506ebf8bc37e2f15a`. The Linux Desktop
+job completed all four actual Electron suites: Workbench, tool calls, Product
+App Use and Workbench App Use, each with `errors: []`. This closes the pending
+full-suite acceptance above without changing the historical failure evidence.
+
+The retained screenshots and results are in
+[Desktop artifact 12936827324](https://github.com/phodal/pero/actions/runs/40962596409/artifacts/12936827324),
+ZIP SHA-256 `0b6e3ec3c12e86d0f442da92dd2d3b6d8daf22f8bedd3081325e6d920c99ac80`.
+Desktop E2E remains Linux-only in this workflow; the macOS and Windows E2E
+steps were skipped by their existing conditions, not accepted as executed.

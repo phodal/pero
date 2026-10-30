@@ -130,3 +130,23 @@ all original result, idle, DOM, permission and scope assertions remain unchanged
 Deterministic clock-value tests cover normal progress, stalled/repeated events,
 old results, wrong thread/scope, errors, unexpected tools, runPlan completion and
 the overall ceiling. Real Electron acceptance remains required on the new head.
+
+## Final Electron acceptance (2026-10-30)
+
+Standard CI [40962596409](https://github.com/phodal/pero/actions/runs/40962596409)
+passed all 16 jobs for head `26c371fad79ff6bb60ff32d7e3a383c9ba3e182f`,
+testing merge `7beb3d9eeaf842eb2a899c1506ebf8bc37e2f15a`. All four Linux
+Electron suites completed with `errors: []`, including both App Use consumers.
+The full Product scenario completed in 4,792 ms and the full Workbench scenario
+in 22,784 ms, with 25 completed tools each. The original draft identity, policy,
+content, capture, scope and final-result assertions remained enabled.
+
+These real samples are below the old 30-second aggregate limit. The extended
+runPlan and coalesced-progress cases are covered by deterministic tests, not by
+claiming that this CI run exercised a longer real-time sample. Screenshots and
+results are retained in
+[Desktop artifact 12936827324](https://github.com/phodal/pero/actions/runs/40962596409/artifacts/12936827324),
+ZIP SHA-256 `0b6e3ec3c12e86d0f442da92dd2d3b6d8daf22f8bedd3081325e6d920c99ac80`.
+This closes the pending Electron checkpoints above. macOS and Windows Desktop
+E2E were skipped under existing workflow conditions; no native E2E acceptance
+is inferred for those platforms.

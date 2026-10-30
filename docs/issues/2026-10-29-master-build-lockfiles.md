@@ -116,3 +116,20 @@ portable regression alongside the font-tool environment tests.
 The existing post-checkout LF conversion succeeds in the Linux reproduction;
 why it did not prevent the observed Windows failure has not been established.
 Native Windows CI remains required to verify the explicit attribute repair.
+
+## Integrated CI acceptance (2026-10-30)
+
+Standard CI [40962596409](https://github.com/phodal/pero/actions/runs/40962596409)
+passed all 16 jobs for head `26c371fad79ff6bb60ff32d7e3a383c9ba3e182f`,
+testing merge `7beb3d9eeaf842eb2a899c1506ebf8bc37e2f15a`. Native Windows CI
+completed the contracts preparation and patch checkout checks, closing the
+Windows acceptance requirement above. Linux and macOS frozen Bazel generated
+checks passed. Windows skips those Bazel generated checks under the existing
+workflow condition and runs the npm checks instead; this is not a claim that
+Windows executed the skipped gate. Desktop E2E ran on Linux only.
+
+This tracker remains `verifying` because a new Pages workflow/deployment
+acceptance has not been established. Standard CI success does not certify the
+Pages service configuration, artifact upload or deployed site. Earlier pending
+CI statements describe their historical checkpoints; the remaining acceptance
+item is Pages, not the integrated Windows repair.
