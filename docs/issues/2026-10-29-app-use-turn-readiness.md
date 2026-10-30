@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: resolved
+status: in_progress
 ---
 
 # App Use could arrive before the Host turn event
@@ -186,3 +186,45 @@ implements only its wire contract, without changing production code. The
 Workbench now also checks the acknowledged thread and exact App scope before
 submission, and the original thread acknowledgement on return. This environment
 has no built Web distribution/Xvfb; real Electron execution is still required.
+
+
+## Product fresh-selection query after merge (2026-10-30)
+
+Post-merge run40998415271 (merge `3cd756c08e0a9e010ab946d33f11055f0388b903`)
+failed Product's first `app-use:deny` context handoff. Artifact12953055017,
+ZIP SHA256 `8d7d820a18e9811f44fa373bc71feb0c863245ef4baf6ddba131d93d2474c576`,
+contains an empty composer, one idle `virtual-cell/main` draft
+`chat-1793331942357-1`, fixture session `app-use-fixture`, no messages and no
+session error. Runtime logs show `AppChatContext.freeze` rejecting its initial
+fresh-selection check with `APP_DRAFT_CHANGED`. Unlike the prior Workbench
+late delivery, this context was actually rejected.
+
+The guard does not read the main process's `authority.select` acknowledgement.
+It executes `window.peroAppUseThread`, which asks the Chat iframe for its current
+selection a second time. That message query resolves `undefined` after two
+seconds without a reply, indistinguishable from an actually empty selection.
+The retained incident has no timing for that query: timeout is a reproduced
+failure mode, not a proven timestamped cause of this CI failure.
+
+The Desktop adapter now reads a fresh snapshot directly from the current
+window's exact `pero://chat/chat.html` direct child frame, like the existing
+Workbench snapshot read. It rejects duplicate frames and checks the location
+inside the executed read; missing, not-ready, navigated or destroyed Chat cannot
+authorize a context. It does not use App frames, cached selection, selection
+ACKs or an App-supplied thread as evidence. Both `AppChatContext` guards remain
+unchanged, as do original-draft delivery and capture checks. No retry, replay,
+context fallback or production timeout increase is introduced.
+
+Product E2E now awaits the existing correlated App chat acknowledgement before
+its unchanged composer assertion and checks the original destination and scope.
+A rejected launch fails immediately rather than appearing as an empty-composer
+poll failure. Deterministic tests hold the fresh read past the former two-second
+window, test actual selection changes, frame ownership/lifecycle failures,
+pre-capture switching and original-draft asynchronous delivery without replay.
+The App Use unit suites are bundled for the existing Linux CI stage because
+plain Node type stripping cannot load their existing parameter properties and
+extensionless imports. All 10 bundled unit tests, 34 fixture tests, full
+`npm run check`, JavaScript syntax and diff checks passed. Restoring only the
+old selection implementation in a temporary test bundle makes the deterministic
+delayed-read case fail with the original `APP_DRAFT_CHANGED`; the new path passes.
+Real Electron acceptance for this change remains pending.
