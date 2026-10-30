@@ -199,12 +199,6 @@ impl SettingsPanel {
             _subscriptions: subscriptions,
         }
     }
-    pub(crate) fn show_mcp(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.section = SettingsSection::Mcp;
-        self.navigation_query = None;
-        self.clear_search(window, cx);
-        cx.notify();
-    }
     pub(crate) fn receive(
         &mut self,
         preferences: &WorkbenchPreferences,
@@ -458,7 +452,9 @@ impl SettingsPanel {
         let query = self.search.read(cx).value().trim().to_lowercase();
         SettingsSection::ALL
             .into_iter()
-            .filter(|section| cfg!(target_family = "wasm") || !matches!(section, SettingsSection::Computer | SettingsSection::Harness))
+            // Computer Use is wired through the Electron workbench. The built-in
+            // Agent model is configured on the workbench and the native preview.
+            .filter(|section| cfg!(target_family = "wasm") || !matches!(section, SettingsSection::Computer))
             .filter(|section| {
                 let mut text = self.t(section.key()).to_owned();
                 let keys: &[&str] = match section {

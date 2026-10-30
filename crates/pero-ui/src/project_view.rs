@@ -2,7 +2,6 @@ use crate::{
     app::Workbench,
     projects::{Project, ProjectTab},
     remote::string,
-    remote_view::phase,
     workspace::{ConversationTab, WorkbenchPage, WorkspaceItem},
 };
 use gpui_kit::{
@@ -600,38 +599,23 @@ impl Workbench {
     }
 
     pub(crate) fn insights_view(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+        let p = pero_theme::UiAppearance::global(cx).palette.clone();
+        let ui = pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body);
+        let caption = pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption);
         let sessions = self
             .chat
             .read(cx)
             .chats
             .iter()
             .enumerate()
-            .filter(|(_, chat)| chat.permission.is_some() || chat.error.is_some() || chat.busy())
-            .map(|(i, chat)| {
-                let status = self.t(if chat.permission.is_some() {
-                    "insights.approval"
-                } else if chat.error.is_some() {
-                    "insights.attention"
-                } else {
-                    "filter.running"
-                });
-                (i, chat.title.display().to_owned(), status)
-            })
-            .collect::<Vec<_>>();
-        let tasks = self
-            .remote
-            .tasks()
-            .iter()
-            .filter(|task| {
-                matches!(
-                    phase(task),
-                    crate::cloud::Phase::Succeeded
-                        | crate::cloud::Phase::Failed
-                        | crate::cloud::Phase::Reconcile
-                        | crate::cloud::Phase::Running
-                        | crate::cloud::Phase::Stopping
-                        | crate::cloud::Phase::Queued
+            .map(|(index, chat)| {
+                (
+                    index,
+                    chat.id.clone(),
+                    chat.title.display().to_owned(),
+                    self.insights.get(&chat.id).cloned(),
+                    self.insights_error.get(&chat.id).cloned(),
+                    self.insights_requested.contains(&chat.id),
                 )
             })
             .collect::<Vec<_>>();
@@ -648,54 +632,138 @@ impl Workbench {
                     .font_weight(FontWeight::MEDIUM)
                     .child(self.t("nav.insights")),
             )
-            .when(sessions.is_empty() && tasks.is_empty(), |el| {
+            .when(sessions.is_empty(), |el| {
                 el.child(
                     div()
                         .py(px(12.))
+                        .text_size(ui)
                         .text_color(p.text_muted)
                         .child(self.t("insights.empty")),
                 )
             })
-            .children(sessions.into_iter().map(|(i, title, status)| {
-                let analysis = self.chat.read(cx).chats.get(i).and_then(|chat| self.insights.get(&chat.id));
-                let label = match analysis {
-                    Some(summary) => format!(
-                        "{} · {} · {} {} · {} {} · {} {}",
-                        title,
-                        status,
-                        summary.turns,
-                        self.t("insights.turns"),
-                        summary.failed,
-                        self.t("insights.failed"),
-                        summary.tool_calls,
-                        self.t("insights.tools"),
-                    ),
-                    None => format!("{title} · {status}"),
-                };
-                Button::new(("insight-session", i))
-                    .ghost()
-                    .w_full()
-                    .h(px(pero_theme::UiAppearance::global(cx).typography.row_height() + 8.))
-                    .justify_start()
-                    .label(label)
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.navigate(WorkbenchPage::Conversation, cx);
-                        this.focus_chat(Some(i), ConversationTab::Chat, cx);
-                    }))
+            .children(sessions.into_iter().map(|(index, id, title, summary, error, requested)| {
+                let open = cx.listener(move |this, _, _, cx| {
+                    this.navigate(WorkbenchPage::Conversation, cx);
+                    this.focus_chat(Some(index), ConversationTab::Chat, cx);
+                });
+                let retry_id = id.clone();
+                div()
+                    .py(px(12.))
+                    .border_b_1()
+                    .border_color(p.border)
+                    .child(
+                        Button::new(("insight-session", index))
+                            .ghost()
+                            .w_full()
+                            .justify_start()
+                            .label(title)
+                            .on_click(open),
+                    )
+                    .child(if let Some(error) = error {
+                        div()
+                            .pt(px(8.))
+                            .text_size(ui)
+                            .text_color(p.error)
+                            .child(error)
+                            .child(
+                                Button::new(("insight-retry", index))
+                                    .ghost()
+                                    .mt(px(8.))
+                                    .label(self.t("insights.retry"))
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        this.retry_insights(retry_id.clone(), cx);
+                                    })),
+                            )
+                            .into_any_element()
+                    } else if let Some(summary) = summary {
+                        self.insights_facts(&summary, &p, ui, caption)
+                    } else if requested {
+                        div()
+                            .pt(px(8.))
+                            .text_size(ui)
+                            .text_color(p.text_muted)
+                            .child(self.t("insights.loading"))
+                            .into_any_element()
+                    } else {
+                        div().into_any_element()
+                    })
             }))
-            .children(tasks.into_iter().enumerate().map(|(i, task)| {
-                let id = string(task, "id").to_string();
-                Button::new(("insight-task", i))
-                    .ghost()
-                    .w_full()
-                    .h(px(pero_theme::UiAppearance::global(cx).typography.row_height() + 8.))
-                    .justify_start()
-                    .label(format!(
-                        "{} · {}",
-                        string(task, "title"),
-                        self.t(phase(task).label_key())
-                    ))
-                    .on_click(cx.listener(move |this, _, _, cx| this.open_task(id.clone(), cx)))
-            }))
+    }
+
+    fn insights_facts(
+        &self,
+        summary: &crate::insights::Summary,
+        p: &pero_theme::Palette,
+        ui: gpui::Pixels,
+        caption: gpui::Pixels,
+    ) -> gpui::AnyElement {
+        if summary.journal_empty() {
+            return div()
+                .pt(px(8.))
+                .text_size(ui)
+                .text_color(p.text_muted)
+                .child(self.t("insights.no_journal"))
+                .into_any_element();
+        }
+        let missing = self.t("insights.missing").to_string();
+        let shown = |value: &str| {
+            if value.is_empty() {
+                missing.clone()
+            } else {
+                value.to_string()
+            }
+        };
+        div()
+            .pt(px(8.))
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .text_size(ui)
+            .child(self.insights_fact("insights.turns", summary.turns.to_string(), p, caption))
+            .child(self.insights_fact("insights.failed", summary.failed.to_string(), p, caption))
+            .child(self.insights_fact("insights.stopped", summary.stopped.to_string(), p, caption))
+            .child(self.insights_fact("insights.tools", summary.tool_calls.to_string(), p, caption))
+            .child(self.insights_fact(
+                "insights.tool_errors",
+                summary.tool_errors.to_string(),
+                p,
+                caption,
+            ))
+            .child(self.insights_fact("insights.request", shown(&summary.request), p, caption))
+            .child(self.insights_fact("insights.reply", shown(&summary.response), p, caption))
+            .child(self.insights_fact("insights.model", shown(&summary.model), p, caption))
+            .child(self.insights_fact("insights.branch", shown(&summary.git_branch), p, caption))
+            .child(self.insights_fact(
+                "insights.repository",
+                shown(&summary.repository),
+                p,
+                caption,
+            ))
+            .child(
+                div()
+                    .text_size(caption)
+                    .text_color(p.text_muted)
+                    .child(self.t(if summary.resumed {
+                        "insights.resumed"
+                    } else {
+                        "insights.fresh"
+                    })),
+            )
+            .into_any_element()
+    }
+
+    fn insights_fact(
+        &self,
+        label: &str,
+        value: String,
+        p: &pero_theme::Palette,
+        caption: gpui::Pixels,
+    ) -> gpui::Div {
+        div().child(
+            div()
+                .text_size(caption)
+                .text_color(p.text_muted)
+                .child(self.t(label)),
+        ).child(div().pt(px(2.)).child(value))
     }
 }

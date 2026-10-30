@@ -58,17 +58,12 @@ impl Workbench {
                     cx.notify();
                 }),
             ];
-        if self.settings_mcp_requested {
-            panel.update(cx, |panel, cx| { panel.show_mcp(window, cx); });
-            self.settings_mcp_requested = false;
-        }
         let agents = self.chat.read(cx).agents.clone();
         panel.update(cx, |panel, cx| { panel.mcp.agents = agents; panel.mcp_select_first(cx); });
         let host = cx.entity().downgrade();
         panel.update(cx, |panel, cx| panel.bind_host(host, cx));
         self.settings_panel = Some(panel);
         self.apply_settings_section(cx);
-        #[cfg(target_family = "wasm")]
         self.command(serde_json::json!({"action":"harness_get"}), cx);
         self.sync_settings_panel(cx);
         cx.notify();

@@ -75,6 +75,8 @@ mod local_execution;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
 mod native_device;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
+mod native_harness;
+#[cfg(all(feature = "native", not(target_family = "wasm")))]
 mod native_secrets;
 
 #[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]

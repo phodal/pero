@@ -167,8 +167,11 @@ pub(crate) struct DeviceOutcome {
     pub command: Option<Value>,
 }
 impl NativeDevice {
-    pub fn new(data: &Path, preconfigured: bool) -> Self {
-        Self::load(SecretStore::new(data, "local-execution"), preconfigured)
+    pub fn new(data: &Path, preconfigured: bool, ephemeral: bool) -> Self {
+        Self::load(
+            SecretStore::open(data, "local-execution", ephemeral),
+            preconfigured,
+        )
     }
     fn load(store: SecretStore, preconfigured: bool) -> Self {
         let (record, error) = match store.load::<DeviceRecord>() {

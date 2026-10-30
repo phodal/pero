@@ -26,10 +26,10 @@ pub(crate) fn navigation_roots(panel: &SettingsPanel, cx: &App) -> Vec<TreeItem>
     }
     for section in [
         SettingsSection::Agents,
+        SettingsSection::Harness,
         SettingsSection::Workers,
         SettingsSection::Connections,
         SettingsSection::Mcp,
-        SettingsSection::Harness,
         SettingsSection::Computer,
     ] {
         if sections.contains(&section) {

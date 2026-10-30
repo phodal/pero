@@ -43,7 +43,10 @@ pub fn dispatch(
             let source = draft.source.source.clone();
             let result = (|| {
                 let store = workspace.as_mut().ok_or(FileError::Unavailable)?;
-                if files.recovery_source(&source, draft.source.revision).is_none() {
+                if files
+                    .recovery_source(&source, draft.source.revision)
+                    .is_none()
+                {
                     let baseline = store.read_source(&draft.source)?;
                     files.restore_if_closed(baseline.header.into_document(baseline.text));
                 }

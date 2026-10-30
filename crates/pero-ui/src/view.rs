@@ -14,6 +14,9 @@ use crate::{
 use gpui_kit::{component::WindowExt, prelude::*, *};
 use std::rc::Rc;
 
+const INITIAL_VISIBLE_SESSIONS: usize = 5;
+const SESSION_REVEAL_STEP: usize = 10;
+
 impl Workbench {
     fn ui<'a>(&'a self, cx: &'a App) -> Ui<'a> {
         let appearance = pero_theme::UiAppearance::global(cx);
@@ -65,15 +68,20 @@ impl Workbench {
                             this.refresh_apps(cx);
                         }
                     }
-                    SidebarAction::OpenProject(key) => {
-                        this.chat.update(cx, |panel, _| panel.deleting_chat = None);
-                        this.open_project(key.clone(), window, cx);
-                    }
                     SidebarAction::ToggleProject(key) => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
                         if !this.collapsed_projects.remove(key) {
                             this.collapsed_projects.insert(key.clone());
                         }
+                    }
+                    SidebarAction::RevealSessions(key) => {
+                        let shown = this
+                            .revealed_sessions
+                            .get(key)
+                            .copied()
+                            .unwrap_or(INITIAL_VISIBLE_SESSIONS);
+                        this.revealed_sessions
+                            .insert(key.clone(), shown.saturating_add(SESSION_REVEAL_STEP));
                     }
                     SidebarAction::SelectSession(index) => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
@@ -104,7 +112,6 @@ impl Workbench {
                 attention: chat.permission.is_some() || chat.error.is_some(),
                 action: SidebarAction::SelectSession(i),
                 delete: Some(DeleteAffordance {
-                    confirming: panel.deleting_chat.as_deref() == Some(chat.id.as_str()),
                     request: SidebarAction::RequestDelete(i),
                     confirm: SidebarAction::ConfirmDelete(i),
                     cancel: SidebarAction::CancelDelete,
@@ -122,7 +129,6 @@ impl Workbench {
                     .filter(|(_, chat)| {
                         project.contains_workspace(&chat.workspace) && matches(&chat.title)
                     })
-                    .take(8)
                     .map(|(i, chat)| session_row(i, chat))
                     .collect::<Vec<_>>();
                 rows.extend(
@@ -171,6 +177,11 @@ impl Workbench {
                     active: self.navigation.page() == WorkbenchPage::Tasks
                         && self.selected_project.as_ref() == Some(&project.key),
                     collapsed: self.collapsed_projects.contains(&project.key),
+                    revealed: self
+                        .revealed_sessions
+                        .get(&project.key)
+                        .copied()
+                        .unwrap_or(INITIAL_VISIBLE_SESSIONS),
                     path: project
                         .workspace
                         .unwrap_or_else(|| project.shared_id.unwrap_or_default()),

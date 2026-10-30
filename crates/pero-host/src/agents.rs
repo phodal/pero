@@ -179,6 +179,7 @@ impl Manager {
             Err(error) => {
                 let mut event = HostEvent::new("error", None, error.to_string());
                 event.thread_id = Some(thread_id);
+                event.message_key = Some("insights.failed".into());
                 let _ = self.tx.send(event);
             }
         }

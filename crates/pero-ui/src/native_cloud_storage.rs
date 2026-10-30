@@ -96,8 +96,8 @@ struct SavedConnection {
 }
 
 impl CloudSession {
-    pub(crate) fn with_store(data: &Path) -> Self {
-        Self::load_vault(SecretStore::new(data, "cloud"))
+    pub(crate) fn with_store(data: &Path, ephemeral: bool) -> Self {
+        Self::load_vault(SecretStore::open(data, "cloud", ephemeral))
     }
     fn load_vault(vault: SecretStore) -> Self {
         let mut session = Self::new();

@@ -289,4 +289,132 @@ mod tests {
         let error = reduce(prepared.state, facts).unwrap_err();
         assert_eq!(error, Error::TURN_GAP);
     }
+
+    /// Hand count, before running the fold:
+    /// two explicit turns; one ends in error after a failed tool; one is aborted.
+    /// Meta and compact records are not user turns. Thinking and tool arguments
+    /// are not fields, so they cannot appear in the excerpts.
+    /// turns=2, failed=1, stopped=1, user_messages=2, meta=1, compact=1,
+    /// tool_calls=1, tool_errors=1, input=10, output=4, cache_read=2.
+    #[test]
+    fn hand_counted_fixture_matches_the_fold() {
+        use crate::{Finish, MessageClass, ModelId, Record, RecordKind, ToolCallId, ToolName};
+        let user_text = |seq, text: &str| {
+            Record::new(
+                seq,
+                None,
+                RecordKind::User {
+                    class: MessageClass::Text,
+                    text: text.into(),
+                },
+            )
+        };
+        let analysis = analyze(
+            &transcript(
+                vec![
+                    Record::new(1, None, RecordKind::TurnStart { turn: 1 }),
+                    user_text(2, "Fix the parser"),
+                    Record::new(
+                        3,
+                        None,
+                        RecordKind::User {
+                            class: MessageClass::Meta,
+                            text: "keepalive".into(),
+                        },
+                    ),
+                    Record::new(
+                        4,
+                        None,
+                        RecordKind::Assistant {
+                            class: MessageClass::Compact,
+                            text: "earlier summary".into(),
+                            finish: Finish::None,
+                            interrupted: false,
+                        },
+                    ),
+                    Record::new(
+                        5,
+                        None,
+                        RecordKind::ToolCall {
+                            id: ToolCallId::new("t1"),
+                            name: ToolName::new("Read").unwrap(),
+                            error: false,
+                            child: None,
+                        },
+                    ),
+                    Record::new(
+                        6,
+                        None,
+                        RecordKind::ToolResult {
+                            id: ToolCallId::new("t1"),
+                            name: None,
+                            error: true,
+                        },
+                    ),
+                    Record::new(
+                        7,
+                        None,
+                        RecordKind::Assistant {
+                            class: MessageClass::Text,
+                            text: "Parser updated".into(),
+                            finish: Finish::None,
+                            interrupted: false,
+                        },
+                    )
+                    .with_tokens(TokenUsage {
+                        input: 10,
+                        output: 4,
+                        cache_read: 2,
+                        ..TokenUsage::default()
+                    })
+                    .with_model(ModelId::new("deepseek-v4")),
+                    Record::new(
+                        8,
+                        None,
+                        RecordKind::TurnEnd {
+                            turn: 1,
+                            finish: Finish::Error,
+                        },
+                    ),
+                    Record::new(9, None, RecordKind::TurnStart { turn: 2 }),
+                    user_text(10, "Stop here"),
+                    Record::new(
+                        11,
+                        None,
+                        RecordKind::TurnEnd {
+                            turn: 2,
+                            finish: Finish::Aborted,
+                        },
+                    ),
+                ],
+                TokenUsage::default(),
+            ),
+            &input(),
+        )
+        .unwrap();
+        assert_eq!(analysis.metrics.turns, 2);
+        assert_eq!(analysis.metrics.failed, 1);
+        assert_eq!(analysis.metrics.stopped, 1);
+        assert_eq!(analysis.metrics.completed, 0);
+        assert_eq!(analysis.metrics.user_messages, 2);
+        assert_eq!(analysis.metrics.meta_messages, 1);
+        assert_eq!(analysis.metrics.compact_summaries, 1);
+        assert_eq!(analysis.metrics.tool_calls, 1);
+        assert_eq!(analysis.metrics.tool_errors, 1);
+        assert_eq!(analysis.metrics.tokens.input, 10);
+        assert_eq!(analysis.metrics.tokens.output, 4);
+        assert_eq!(analysis.metrics.tokens.cache_read, 2);
+        assert_eq!(analysis.turns[0].request, "Fix the parser");
+        assert_eq!(analysis.turns[0].response, "Parser updated");
+        assert_eq!(analysis.turns[1].request, "Stop here");
+        assert_eq!(analysis.turns[1].response, "");
+        assert_eq!(analysis.session.model.as_str(), "deepseek-v4");
+        assert!(
+            !analysis
+                .turns
+                .iter()
+                .any(|turn| turn.request.contains("keepalive")
+                    || turn.response.contains("earlier summary"))
+        );
+    }
 }
