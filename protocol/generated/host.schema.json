@@ -2692,6 +2692,20 @@
       ],
       "additionalProperties": false
     },
+    "HistoryEntry": {
+      "title": "HistoryEntry",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/LocatedHistoryEntry"
+        },
+        {
+          "$ref": "#/$defs/WorkspacePageRoute"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceContentRoute"
+        }
+      ]
+    },
     "HostCommand": {
       "title": "HostCommand",
       "oneOf": [
@@ -2762,6 +2776,15 @@
         },
         {
           "$ref": "#/$defs/WorkspaceErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceSourceEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceSourceErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceResetEvent"
         },
         {
           "$ref": "#/$defs/WebOpenedEvent"
@@ -2980,6 +3003,27 @@
         "type",
         "data",
         "mime_type"
+      ],
+      "additionalProperties": false
+    },
+    "InlineHtml": {
+      "title": "InlineHtml",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "html": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "html"
       ],
       "additionalProperties": false
     },
@@ -3452,6 +3496,29 @@
       ],
       "additionalProperties": false
     },
+    "LocatedHistoryEntry": {
+      "title": "LocatedHistoryEntry",
+      "type": "object",
+      "properties": {
+        "route": {
+          "$ref": "#/$defs/WorkspaceRoute"
+        },
+        "reading": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "route"
+      ],
+      "additionalProperties": false
+    },
     "McpOrigin": {
       "title": "McpOrigin",
       "type": "object",
@@ -3631,6 +3698,141 @@
         "action",
         "request_id",
         "path"
+      ],
+      "additionalProperties": false
+    },
+    "PaneLayout": {
+      "title": "PaneLayout",
+      "type": "object",
+      "properties": {
+        "root": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaneNode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "focused": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "next_id": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "root",
+        "focused",
+        "next_id"
+      ],
+      "additionalProperties": false
+    },
+    "PaneLeaf": {
+      "title": "PaneLeaf",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "route": {
+          "$ref": "#/$defs/WorkspaceRoute"
+        },
+        "reading": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "route",
+        "reading"
+      ],
+      "additionalProperties": false
+    },
+    "PaneLeafNode": {
+      "title": "PaneLeafNode",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "leaf"
+        },
+        "view": {
+          "$ref": "#/$defs/PaneLeaf"
+        }
+      },
+      "required": [
+        "kind",
+        "view"
+      ],
+      "additionalProperties": false
+    },
+    "PaneNode": {
+      "title": "PaneNode",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PaneLeafNode"
+        },
+        {
+          "$ref": "#/$defs/PaneSplitNode"
+        }
+      ]
+    },
+    "PaneSplitNode": {
+      "title": "PaneSplitNode",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "split"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "axis": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "horizontal"
+            },
+            {
+              "type": "string",
+              "const": "vertical"
+            }
+          ]
+        },
+        "ratio": {
+          "type": "number"
+        },
+        "first": {
+          "$ref": "#/$defs/PaneNode"
+        },
+        "second": {
+          "$ref": "#/$defs/PaneNode"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "axis",
+        "ratio",
+        "first",
+        "second"
       ],
       "additionalProperties": false
     },
@@ -3900,6 +4102,16 @@
       "title": "ReaderState",
       "type": "object",
       "properties": {
+        "source_revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "source": {
           "type": "boolean"
         },
@@ -3931,6 +4143,16 @@
           ],
           "minItems": 2,
           "maxItems": 2
+        },
+        "preview_reveal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "query": {
           "type": "string"
@@ -3964,6 +4186,33 @@
         "search",
         "folded_lines",
         "path"
+      ],
+      "additionalProperties": false
+    },
+    "ReadWorkspaceSource": {
+      "title": "ReadWorkspaceSource",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace"
+        },
+        "action": {
+          "type": "string",
+          "const": "read"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "key": {
+          "$ref": "#/$defs/SourceKey"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "key"
       ],
       "additionalProperties": false
     },
@@ -4318,6 +4567,29 @@
       "minLength": 1,
       "maxLength": 128
     },
+    "ResetWorkspaceSession": {
+      "title": "ResetWorkspaceSession",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace"
+        },
+        "action": {
+          "type": "string",
+          "const": "reset"
+        },
+        "request_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id"
+      ],
+      "additionalProperties": false
+    },
     "ResolveApp": {
       "title": "ResolveApp",
       "type": "object",
@@ -4506,6 +4778,9 @@
         },
         "url": {
           "type": "string"
+        },
+        "html": {
+          "$ref": "#/$defs/InlineHtml"
         }
       },
       "required": [
@@ -5795,6 +6070,9 @@
           "$ref": "#/$defs/WebOpenCommand"
         },
         {
+          "$ref": "#/$defs/WebHtmlCommand"
+        },
+        {
           "$ref": "#/$defs/WebRestoreCommand"
         },
         {
@@ -5852,6 +6130,9 @@
         },
         "observation": {
           "$ref": "#/$defs/WebObservation"
+        },
+        "html": {
+          "$ref": "#/$defs/InlineHtml"
         }
       },
       "required": [
@@ -5909,6 +6190,24 @@
       "required": [
         "kind",
         "message"
+      ],
+      "additionalProperties": false
+    },
+    "WebHtmlCommand": {
+      "title": "WebHtmlCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "web_html"
+        },
+        "source": {
+          "$ref": "#/$defs/InlineHtml"
+        }
+      },
+      "required": [
+        "action",
+        "source"
       ],
       "additionalProperties": false
     },
@@ -5980,6 +6279,9 @@
         },
         "can_forward": {
           "type": "boolean"
+        },
+        "notice": {
+          "type": "string"
         }
       },
       "required": [
@@ -6074,6 +6376,16 @@
         },
         "url": {
           "type": "string"
+        },
+        "html": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InlineHtml"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -6509,6 +6821,40 @@
       ],
       "additionalProperties": false
     },
+    "WorkspaceResetEvent": {
+      "title": "WorkspaceResetEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_reset"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
     "WorkspaceRestore": {
       "title": "WorkspaceRestore",
       "type": "object",
@@ -6534,12 +6880,19 @@
           "items": {
             "type": "string"
           }
+        },
+        "unavailable": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceKey"
+          }
         }
       },
       "required": [
         "session",
         "sources",
-        "conflicts"
+        "conflicts",
+        "unavailable"
       ],
       "additionalProperties": false
     },
@@ -6670,6 +7023,12 @@
         },
         {
           "$ref": "#/$defs/SaveWorkspaceSession"
+        },
+        {
+          "$ref": "#/$defs/ReadWorkspaceSource"
+        },
+        {
+          "$ref": "#/$defs/ResetWorkspaceSession"
         }
       ]
     },
@@ -6742,16 +7101,36 @@
             }
           ]
         },
+        "panes": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaneLayout"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reading": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "back": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/WorkspaceRoute"
+            "$ref": "#/$defs/HistoryEntry"
           }
         },
         "forward": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/WorkspaceRoute"
+            "$ref": "#/$defs/HistoryEntry"
           }
         }
       },
@@ -6779,6 +7158,104 @@
       "required": [
         "header",
         "text"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceSourceErrorEvent": {
+      "title": "WorkspaceSourceErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_source_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "$ref": "#/$defs/SourceKey"
+            }
+          },
+          "required": [
+            "key"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceSourceEvent": {
+      "title": "WorkspaceSourceEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_source"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/WorkspaceSource"
+            },
+            "conflict": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "source",
+            "conflict"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
       ],
       "additionalProperties": false
     }

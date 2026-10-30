@@ -16,10 +16,13 @@ export type HostInput =
   | HostCommand
   | AppRequest
   | ContributionRequest;
-export type WorkspaceSessionRequest = GetWorkspaceSession | SaveWorkspaceSession;
+export type WorkspaceSessionRequest =
+  GetWorkspaceSession | SaveWorkspaceSession | ReadWorkspaceSource | ResetWorkspaceSession;
 export type ContentOrigin = ConversationOrigin | FileOrigin | AppOrigin | McpOrigin;
 export type WorkspaceItem = WorkspaceSimpleItem | WorkspaceDocumentItem | WorkspaceAppItem;
 export type WorkspaceRoute = WorkspacePageRoute | WorkspaceContentRoute;
+export type PaneNode = PaneLeafNode | PaneSplitNode;
+export type HistoryEntry = LocatedHistoryEntry | WorkspacePageRoute | WorkspaceContentRoute;
 export type ContentFormat = PlainContentFormat | CodeContentFormat;
 export type FileDocumentRequest =
   OpenFileDocument | FollowFileDocument | SaveFileDocument | SaveAsFileDocument | ReleaseFileDocument;
@@ -56,6 +59,9 @@ export type HostEvent =
   | WorkspaceRestoredEvent
   | WorkspaceSavedEvent
   | WorkspaceErrorEvent
+  | WorkspaceSourceEvent
+  | WorkspaceSourceErrorEvent
+  | WorkspaceResetEvent
   | WebOpenedEvent
   | WebStateEvent
   | WebClosedEvent
@@ -130,7 +136,7 @@ export type AppAgentStatus = "running" | "text" | "needs_input" | "completed" | 
  * Private Desktop/native browser-engine commands, not Host stdin.
  */
 export type WebCommand =
-  WebOpenCommand | WebRestoreCommand | WebNavigateCommand | WebControlCommand | WebSurfaceCommand;
+  WebOpenCommand | WebHtmlCommand | WebRestoreCommand | WebNavigateCommand | WebControlCommand | WebSurfaceCommand;
 
 export interface GetWorkspaceSession {
   method: "workspace";
@@ -179,8 +185,10 @@ export interface WorkspaceSnapshot {
   route: WorkspaceRoute;
   other: WorkspaceRoute | null;
   focused: "left" | "right";
-  back: WorkspaceRoute[];
-  forward: WorkspaceRoute[];
+  panes?: PaneLayout | null;
+  reading?: ReaderState | null;
+  back: HistoryEntry[];
+  forward: HistoryEntry[];
 }
 export interface WorkspaceSimpleItem {
   kind: "conversation" | "web" | "project" | "task";
@@ -218,6 +226,62 @@ export interface WorkspaceContentRoute {
   kind: "content";
   value: WorkspaceItem;
 }
+export interface PaneLayout {
+  root: PaneNode | null;
+  focused: number | null;
+  next_id: number;
+}
+export interface PaneLeafNode {
+  kind: "leaf";
+  view: PaneLeaf;
+}
+export interface PaneLeaf {
+  id: number;
+  route: WorkspaceRoute;
+  reading: ReaderState | null;
+}
+export interface ReaderState {
+  source_revision?: number | null;
+  source: boolean;
+  selection: ReaderRange;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  scroll: [unknown, unknown];
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  preview_scroll: [unknown, unknown];
+  preview_reveal?: ReaderRange | null;
+  query: string;
+  search_open: boolean;
+  search: ReaderSearch;
+  folded_lines: number[];
+  path: ReaderRange[];
+}
+export interface ReaderRange {
+  start: number;
+  end: number;
+}
+export interface ReaderSearch {
+  case_insensitive: boolean;
+  regex: boolean;
+  whole_word: boolean;
+}
+export interface PaneSplitNode {
+  kind: "split";
+  id: number;
+  axis: "horizontal" | "vertical";
+  ratio: number;
+  first: PaneNode;
+  second: PaneNode;
+}
+export interface LocatedHistoryEntry {
+  route: WorkspaceRoute;
+  reading?: ReaderState | null;
+}
 export interface SavedDocument {
   header: DocumentHeader;
   reading: ReaderState;
@@ -240,41 +304,30 @@ export interface CodeContentFormat {
   kind: "code";
   language: string;
 }
-export interface ReaderState {
-  source: boolean;
-  selection: ReaderRange;
-  /**
-   * @minItems 2
-   * @maxItems 2
-   */
-  scroll: [unknown, unknown];
-  /**
-   * @minItems 2
-   * @maxItems 2
-   */
-  preview_scroll: [unknown, unknown];
-  query: string;
-  search_open: boolean;
-  search: ReaderSearch;
-  folded_lines: number[];
-  path: ReaderRange[];
-}
-export interface ReaderRange {
-  start: number;
-  end: number;
-}
-export interface ReaderSearch {
-  case_insensitive: boolean;
-  regex: boolean;
-  whole_word: boolean;
-}
 export interface SavedWeb {
   id: string;
   url: string;
+  html?: InlineHtml;
+}
+export interface InlineHtml {
+  id: string;
+  title: string;
+  html: string;
 }
 export interface WorkspaceSource {
   header: DocumentHeader;
   text: string;
+}
+export interface ReadWorkspaceSource {
+  method: "workspace";
+  action: "read";
+  request_id: string;
+  key: SourceKey;
+}
+export interface ResetWorkspaceSession {
+  method: "workspace";
+  action: "reset";
+  request_id: string;
 }
 export interface OpenFileDocument {
   method: "documents";
@@ -605,6 +658,7 @@ export interface WorkspaceRestore {
   session: WorkspaceSession | null;
   sources: WorkspaceSource[];
   conflicts: string[];
+  unavailable: SourceKey[];
 }
 export interface WorkspaceSavedEvent {
   kind: "workspace_saved";
@@ -614,6 +668,31 @@ export interface WorkspaceSavedEvent {
 }
 export interface WorkspaceErrorEvent {
   kind: "workspace_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface WorkspaceSourceEvent {
+  kind: "workspace_source";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: {
+    source: WorkspaceSource;
+    conflict: boolean;
+  };
+}
+export interface WorkspaceSourceErrorEvent {
+  kind: "workspace_source_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: {
+    key: SourceKey;
+  };
+}
+export interface WorkspaceResetEvent {
+  kind: "workspace_reset";
   version: 1;
   request_id: string | null;
   text: string;
@@ -628,6 +707,7 @@ export interface WebOpenedEvent {
 export interface WebDocument {
   id: string;
   observation: WebObservation;
+  html?: InlineHtml;
 }
 export interface WebObservation {
   url: string;
@@ -635,6 +715,7 @@ export interface WebObservation {
   load: WebLoad;
   can_back: boolean;
   can_forward: boolean;
+  notice?: string;
 }
 export interface WebLoading {
   kind: "loading";
@@ -1352,10 +1433,15 @@ export interface WebOpenCommand {
   action: "web_open";
   url: string;
 }
+export interface WebHtmlCommand {
+  action: "web_html";
+  source: InlineHtml;
+}
 export interface WebRestoreCommand {
   action: "web_restore";
   id: string;
   url: string;
+  html?: InlineHtml | null;
 }
 export interface WebNavigateCommand {
   action: "web_navigate";

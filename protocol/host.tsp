@@ -60,7 +60,7 @@ model FileDocumentErrorEvent {kind:"document_error";...EventBase;data:{source:st
 // Durable recovery is separate from tool execution and Desktop preference settings.
 model ReaderRange {start:safeint;end:safeint;...Closed}
 model ReaderSearch {case_insensitive:boolean;regex:boolean;whole_word:boolean;...Closed}
-model ReaderState {source:boolean;selection:ReaderRange;scroll:[float64,float64];preview_scroll:[float64,float64];query:string;search_open:boolean;search:ReaderSearch;folded_lines:safeint[];path:ReaderRange[];...Closed}
+model ReaderState {source_revision?:safeint|null;source:boolean;selection:ReaderRange;scroll:[float64,float64];preview_scroll:[float64,float64];preview_reveal?:ReaderRange|null;query:string;search_open:boolean;search:ReaderSearch;folded_lines:safeint[];path:ReaderRange[];...Closed}
 model WorkspaceSimpleItem {kind:"conversation"|"web"|"project"|"task";value:string;...Closed}
 model WorkspaceDocumentItem {kind:"document";value:{origin:ContentOrigin;source:string;...Closed};...Closed}
 model WorkspaceAppItem {kind:"app";value:{name:string;panel:string;...Closed};...Closed}
@@ -69,40 +69,54 @@ scalar WorkbenchPage extends string;
 model WorkspacePageRoute {kind:"page";value:"conversation"|"document"|"web"|"projects"|"agents"|"tasks"|"workers"|"apps"|"insights"|"connections";...Closed}
 model WorkspaceContentRoute {kind:"content";value:WorkspaceItem;...Closed}
 @oneOf union WorkspaceRoute {WorkspacePageRoute,WorkspaceContentRoute}
-model WorkspaceSnapshot {items:WorkspaceItem[];route:WorkspaceRoute;other:WorkspaceRoute|null;focused:"left"|"right";back:WorkspaceRoute[];forward:WorkspaceRoute[];...Closed}
+model LocatedHistoryEntry {route:WorkspaceRoute;reading?:ReaderState|null;...Closed}
+@oneOf union HistoryEntry {LocatedHistoryEntry,WorkspacePageRoute,WorkspaceContentRoute}
+model PaneLeaf {id:safeint;route:WorkspaceRoute;reading:ReaderState|null;...Closed}
+model PaneLeafNode {kind:"leaf";view:PaneLeaf;...Closed}
+model PaneSplitNode {kind:"split";id:safeint;axis:"horizontal"|"vertical";ratio:float64;first:PaneNode;second:PaneNode;...Closed}
+@oneOf union PaneNode {PaneLeafNode,PaneSplitNode}
+model PaneLayout {root:PaneNode|null;focused:safeint|null;next_id:safeint;...Closed}
+model WorkspaceSnapshot {items:WorkspaceItem[];route:WorkspaceRoute;other:WorkspaceRoute|null;focused:"left"|"right";panes?:PaneLayout|null;reading?:ReaderState|null;back:HistoryEntry[];forward:HistoryEntry[];...Closed}
 model SourceKey {origin:ContentOrigin;source:string;revision:safeint;...Closed}
 model SavedDocument {header:DocumentHeader;reading:ReaderState;draft:string|null;...Closed}
-model SavedWeb {id:string;url:string;...Closed}
+model InlineHtml {id:string;title:string;html:string;...Closed}
+model SavedWeb {id:string;url:string;html?:InlineHtml;...Closed}
 model WorkspaceSession {version:1;workspace:string;navigation:WorkspaceSnapshot;documents:SavedDocument[];web:SavedWeb[];...Closed}
 model WorkspaceSource {header:DocumentHeader;text:string;...Closed}
-model WorkspaceRestore {session:WorkspaceSession|null;sources:WorkspaceSource[];conflicts:string[];...Closed}
+model WorkspaceRestore {session:WorkspaceSession|null;sources:WorkspaceSource[];conflicts:string[];unavailable:SourceKey[];...Closed}
 model GetWorkspaceSession {method:"workspace";action:"get";...Closed}
 model SaveWorkspaceSession {method:"workspace";action:"save";request_id:string;refresh:SourceKey[];session:WorkspaceSession;sources:WorkspaceSource[];...Closed}
-@oneOf union WorkspaceSessionRequest {GetWorkspaceSession,SaveWorkspaceSession}
+model ReadWorkspaceSource {method:"workspace";action:"read";request_id:string;key:SourceKey;...Closed}
+model ResetWorkspaceSession {method:"workspace";action:"reset";request_id:string;...Closed}
+@oneOf union WorkspaceSessionRequest {GetWorkspaceSession,SaveWorkspaceSession,ReadWorkspaceSource,ResetWorkspaceSession}
 model WorkspaceRestoredEvent {kind:"workspace_restored";...EventBase;data:WorkspaceRestore}
 model WorkspaceSavedEvent {kind:"workspace_saved";...EventBase}
 model WorkspaceErrorEvent {kind:"workspace_error";...EventBase}
+model WorkspaceSourceEvent {kind:"workspace_source";...EventBase;data:{source:WorkspaceSource;conflict:boolean;...Closed}}
+model WorkspaceSourceErrorEvent {kind:"workspace_source_error";...EventBase;data:{key:SourceKey;...Closed}}
+model WorkspaceResetEvent {kind:"workspace_reset";...EventBase}
 
 // Browser engines supply navigation observations; workspace IDs remain stable.
 model WebLoading {kind:"loading";...Closed}
 model WebReady {kind:"ready";...Closed}
 model WebFailed {kind:"failed";message:string;...Closed}
 @oneOf union WebLoad {WebLoading,WebReady,WebFailed}
-model WebObservation {url:string;title:string;load:WebLoad;can_back:boolean;can_forward:boolean;...Closed}
-model WebDocument {id:string;observation:WebObservation;...Closed}
+model WebObservation {url:string;title:string;load:WebLoad;can_back:boolean;can_forward:boolean;notice?:string;...Closed}
+model WebDocument {id:string;observation:WebObservation;html?:InlineHtml;...Closed}
 model WebOpenedEvent {kind:"web_opened";...EventBase;data:WebDocument}
 model WebStateEvent {kind:"web_state";...EventBase;data:WebDocument}
 model WebClosedEvent {kind:"web_closed";...EventBase;data:{id:string;...Closed}}
 model WebErrorEvent {kind:"web_error";...EventBase}
 model WebChooseEvent {kind:"web_choose";...EventBase}
 model WebOpenCommand {action:"web_open";url:string;...Closed}
-model WebRestoreCommand {action:"web_restore";id:string;url:string;...Closed}
+model WebHtmlCommand {action:"web_html";source:InlineHtml;...Closed}
+model WebRestoreCommand {action:"web_restore";id:string;url:string;html?:InlineHtml|null;...Closed}
 model WebNavigateCommand {action:"web_navigate";id:string;url:string;...Closed}
 model WebControlCommand {action:"web_back"|"web_forward"|"web_reload"|"web_close";id:string;...Closed}
 model SurfaceBounds {x:float64;y:float64;width:float64;height:float64;...Closed}
 model WebSurfaceCommand {action:"web_surface";id:string|null;bounds?:SurfaceBounds;...Closed}
 /** Private Desktop/native browser-engine commands, not Host stdin. */
-@oneOf union WebCommand {WebOpenCommand,WebRestoreCommand,WebNavigateCommand,WebControlCommand,WebSurfaceCommand}
+@oneOf union WebCommand {WebOpenCommand,WebHtmlCommand,WebRestoreCommand,WebNavigateCommand,WebControlCommand,WebSurfaceCommand}
 
 // ---------- Host input: one JSON object per stdin line ----------
 
@@ -362,7 +376,7 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 @oneOf
 union HostEvent {
   DocumentSaveChooseEvent,DocumentSavePathEvent,DocumentSaveCancelledEvent,
-  WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,
+  WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,WorkspaceSourceEvent,WorkspaceSourceErrorEvent,WorkspaceResetEvent,
   WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,
   DocumentOpenEvent,
   DocumentChooseEvent,
