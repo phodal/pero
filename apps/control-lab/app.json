@@ -15,7 +15,7 @@
     "writes": [
       {
         "name": "experiment-step",
-        "description": "Read or create a frozen Control Lab experiment, run its bounded search, lock a candidate, independently verify, cancel, or re-evaluate saved observations. Backend owns numeric bounds and immutable policy; execution success never implies engineering PASS.",
+        "description": "Read a frozen Control Lab experiment, run its bounded search, lock a candidate, independently verify, cancel, or re-evaluate saved observations. Backend owns numeric bounds and immutable policy; execution success never implies engineering PASS.",
         "path": "/api/agent-step",
         "schema": {
           "type": "object",
@@ -23,9 +23,7 @@
             "action": {
               "type": "string",
               "enum": [
-                "list",
                 "read",
-                "create",
                 "search",
                 "cancel",
                 "lock",
@@ -37,104 +35,14 @@
               "type": "string",
               "maxLength": 100
             },
-            "templateId": {
-              "type": "string",
-              "enum": [
-                "robust-pid",
-                "p-golden",
-                "pi-golden",
-                "active-filter"
-              ]
-            },
-            "parameters": {
-              "type": "object",
-              "properties": {
-                "kp": {
-                  "type": "number"
-                },
-                "ki": {
-                  "type": "number"
-                },
-                "kd": {
-                  "type": "number"
-                },
-                "n": {
-                  "type": "number"
-                },
-                "horizon": {
-                  "type": "number"
-                },
-                "samples": {
-                  "type": "number"
-                },
-                "r": {
-                  "type": "number"
-                },
-                "c": {
-                  "type": "number"
-                },
-                "gain": {
-                  "type": "number"
-                }
-              },
-              "additionalProperties": false
-            },
-            "criteria": {
-              "type": "object",
-              "properties": {
-                "overshootMax": {
-                  "type": "number"
-                },
-                "settlingMax": {
-                  "type": "number"
-                },
-                "steadyErrorMax": {
-                  "type": "number"
-                },
-                "disturbanceMax": {
-                  "type": "number"
-                },
-                "cutoffTarget": {
-                  "type": "number"
-                },
-                "cutoffTolerance": {
-                  "type": "number"
-                },
-                "passbandGainTarget": {
-                  "type": "number"
-                },
-                "gainTolerance": {
-                  "type": "number"
-                },
-                "peakingMax": {
-                  "type": "number"
-                },
-                "controlEffortMax": {
-                  "type": "number"
-                },
-                "settlingBand": {
-                  "type": "number"
-                }
-              },
-              "additionalProperties": false
-            },
-            "budget": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 30
-            },
-            "candidateBudget": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 30
-            },
             "candidateId": {
               "type": "string",
               "maxLength": 100
             }
           },
           "required": [
-            "action"
+            "action",
+            "experimentId"
           ],
           "additionalProperties": false
         }

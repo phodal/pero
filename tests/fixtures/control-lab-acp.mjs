@@ -64,7 +64,7 @@ async function exercise(prompt, signal) {
   await step({ action: 'propose', parameters: { kp: 999 } }, '/result', /between|bounds|range/i);
   await step({ action: 'propose', parameters: { horizon: 60 } }, '/result', /not declared|only|frozen|controller|component|additional|schema|unknown|invalid/i);
   await step({ action: 'propose', parameters: { kp: 3 }, criteria: { steadyErrorMax: .5 } }, '/result', /not declared|schema|invalid|frozen|policy/i);
-  await step({ action: 'search', budget: 3 }, '/result', /frozen|budget/i);
+  await step({ action: 'search', budget: 3 }, '/result', /frozen|budget|additional|schema|invalid|declared/i);
   await step({ action: 'propose', parameters: { kp: 3 } }, '/result/status');
   async function settled() {
     const deadline = Date.now() + 60000;
@@ -76,7 +76,7 @@ async function exercise(prompt, signal) {
     assert.fail('Real solver did not finish within fixture deadline');
   }
   await settled();
-  await step({ action: 'search', budget: original.candidateBudget }, '/result/status'); await settled();
+  await step({ action: 'search' }, '/result/status'); await settled();
   const candidates = await step({ action: 'read' }, '/result/candidates');
   assert.equal(candidates.length, 2);
   const proposal = candidates.find(item => item.id.startsWith('proposal-'));

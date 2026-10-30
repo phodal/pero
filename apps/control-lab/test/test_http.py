@@ -26,14 +26,29 @@ class HttpTest(unittest.TestCase):
             try:
                 with self.assertRaises(HTTPError) as denied:request('/api/experiments',token='wrong')
                 self.assertEqual(denied.exception.code,401)
-                created=request('/api/agent-step',{'action':'create','templateId':'robust-pid','candidateBudget':2})
+                created=request('/api/experiments',{'templateId':'robust-pid','candidateBudget':2})
                 self.assertEqual(created['candidateBudget'],2)
                 self.assertEqual(request('/api/experiments/'+created['id'])['specHash'],created['specHash'])
                 self.assertEqual(request('/api/agent-step',{'action':'read','experimentId':created['id']})['specHash'],created['specHash'])
                 exported=request('/api/experiments/'+created['id']+'/export')
                 self.assertEqual(exported['experiment']['specHash'],created['specHash'])
                 self.assertIn('sourceHashes',exported['exportProvenance'])
-                with self.assertRaises(HTTPError):request('/api/agent-step',{'action':'create','templateId':'robust-pid','candidateBudget':31})
+                for data in (
+                    {'action':'create','templateId':'robust-pid'},
+                    {'action':'list'},
+                    {'action':'read','experimentId':created['id'],'criteria':{'steadyErrorMax':.5}},
+                    {'action':'search','experimentId':created['id'],'candidateBudget':30},
+                    {'action':'search','experimentId':created['id'],'budget':2},
+                    {'action':'propose','experimentId':created['id'],'parameters':{'horizon':60}},
+                    {'action':[], 'experimentId':created['id']},
+                    {'action':{}, 'experimentId':created['id']},
+                    {'action':'read'},
+                    {'action':'read','experimentId':[]},
+                    {'action':'read','experimentId':'not-an-id'},
+                ):
+                    with self.subTest(data=data), self.assertRaises(HTTPError) as denied:
+                        request('/api/agent-step',data)
+                    self.assertEqual(denied.exception.code,400)
             finally:
                 server.shutdown();worker.join();server.server_close();store.close()
 

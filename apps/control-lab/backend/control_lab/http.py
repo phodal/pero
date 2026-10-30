@@ -23,10 +23,7 @@ def handler(store, secret):
             self.wfile.write(body)
 
         def action(self, action, identity, data):
-            if action == 'list': return store.listing()
             if action == 'read': return store.read(identity)
-            if action == 'create':
-                return store.create({k:v for k,v in data.items() if k in ('templateId','parameters','criteria','candidateBudget')})
             if action == 'propose': return store.propose(identity,data.get('parameters'))
             if action == 'search': return store.start(identity, 'search', data.get('budget'))
             if action == 'verify': return store.start(identity, 'verify')
@@ -62,9 +59,16 @@ def handler(store, secret):
                     if not isinstance(data,dict): raise Invalid('Request must be a JSON object')
                     if self.path == '/api/experiments': return self.reply(201,store.create(data))
                     if self.path == '/api/agent-step':
-                        allowed = {'action','experimentId','templateId','parameters','criteria','candidateBudget','budget','candidateId'}
-                        if set(data)-allowed: raise Invalid('Unknown Agent request field')
-                        return self.reply(200,self.action(data.get('action'),data.get('experimentId'),data))
+                        fields = {'read': set(), 'search': set(), 'propose': {'parameters'},
+                                  'cancel': set(), 'lock': {'candidateId'}, 'verify': set(), 'reevaluate': set()}
+                        action = data.get('action')
+                        if not isinstance(action, str) or action not in fields: raise Invalid('Unknown Agent action')
+                        identity = data.get('experimentId')
+                        if not isinstance(identity, str) or not re.fullmatch(r'[a-f0-9]{32}', identity):
+                            raise Invalid('An experiment ID is required')
+                        if set(data)-({'action','experimentId'} | fields[action]):
+                            raise Invalid('Unknown Agent request field')
+                        return self.reply(200,self.action(action,identity,data))
                     match = re.fullmatch(r'/api/experiments/([a-f0-9]{32})/(search|verify|cancel|lock|reevaluate|propose)',self.path)
                     if match:
                         allowed = {'search':{'budget'},'lock':{'candidateId'},'propose':{'parameters'}}.get(match[2],set())

@@ -32,6 +32,24 @@ release-package acceptance is claimed. The implementation branch starts from
 
 ## Open gates
 
+The Agent data route now rejects experiment creation and changes to frozen
+criteria, modeling inputs and candidate budget; human creation remains on its
+existing route. This is an entry-point restriction, not a trusted research
+goal: the Host does not yet bind an approved experiment ID and spec hash to a
+session, and generic App Use can still operate the human UI. The two supplied
+read-only Skills give workflow guidance but do not enforce this boundary.
+Do not count the scripted ACP fixture as a real model or run the proposed
+single-goal acceptance until Host binding and bypass rejection are verified.
+The authorized DeepSeek budget for this continuation is six provider HTTP
+attempts total, at most 8192 output tokens per request; none was used here.
+
+The remaining binding must use trusted Host state tied to the actual submitted
+context and session, verify the ID and hash against the backend's frozen Spec,
+and reject unbound or mismatched requests as well as generic UI and computer
+operations that bypass the goal. It needs a single cross-process attempt ledger,
+real ACP/MCP tool evidence, independent exported-evidence re-evaluation and
+process cleanup before a real-model result can be claimed.
+
 - Run actual Desktop interaction, dark/light/narrow screenshots and App Use
   acceptance. The current cloud workspace has no native display; do not
   substitute headless screenshots for a native-window gate.
