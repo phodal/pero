@@ -3,9 +3,12 @@ import { Button, Checkbox, EmptyState, Feedback, Field, FilePicker, Input, Selec
 import type { Api, Paper, SearchItem } from './types';
 import type { Translator } from './i18n';
 
+const sourceNames: Record<string, string> = { huggingface: 'Hugging Face', alphaxiv: 'alphaXiv', openalex: 'OpenAlex', biorxiv: 'bioRxiv', pubmed: 'PubMed' };
+
 export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImportPdf, importingPdf }: { api: Api; active: boolean; onImportPdf(file: File): Promise<void>; importingPdf: boolean; t: Translator; onAdded(paper: Paper, focus: boolean): Promise<void>; onClose(): void; onError(error: unknown): void }) {
-  const [tab, setTab] = useState('search'), [query, setQuery] = useState(''), [source, setSource] = useState('all');
+  const [tab, setTab] = useState('search'), [query, setQuery] = useState(''), [source, setSource] = useState('all'), [priority, setPriority] = useState('default');
   const [results, setResults] = useState<SearchItem[] | null>(null), [warnings, setWarnings] = useState<string[]>([]);
+  const [resultPriority, setResultPriority] = useState('default');
   const [busy, setBusy] = useState(false), [adding, setAdding] = useState('');
   const [title, setTitle] = useState(''), [url, setUrl] = useState(''), [content, setContent] = useState(''), [kind, setKind] = useState('full-text');
   const mounted = useRef(true), epoch = useRef(0), panel = useRef<HTMLElement>(null), activeNow = useRef(active);
@@ -14,11 +17,11 @@ export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImpor
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; epoch.current++; }; }, []);
   async function search() {
     if (!query.trim() || busy) return;
-    setBusy(true); const version = ++epoch.current; setWarnings([]);
+    setBusy(true); const version = ++epoch.current; setWarnings([]); setResults(null);
     try {
-      const result = await api.post<{ items: SearchItem[]; warnings?: (string | { source?: string; message?: string; error?: string })[] }>('/api/search', { query, limit: 12, sources: source === 'all' ? ['alphaxiv', 'openalex', 'biorxiv', 'pubmed'] : [source] });
+      const result = await api.post<{ items: SearchItem[]; warnings?: (string | { source?: string; message?: string; error?: string })[] }>('/api/search', { query, limit: 12, priority, sources: source === 'all' ? ['huggingface', 'alphaxiv', 'openalex', 'biorxiv', 'pubmed'] : [source] });
       if (mounted.current && version === epoch.current) {
-        setResults(result.items);
+        setResults(result.items); setResultPriority(priority);
         setWarnings((result.warnings ?? []).map(value => typeof value === 'string' ? value : `${value.source ?? ''}: ${value.message ?? value.error ?? ''}`));
       }
     } catch (error) { if (mounted.current && version === epoch.current) onError(error); }
@@ -54,15 +57,24 @@ export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImpor
       <TabsContent value="search" forceMount>
         <div className="pa-search-form" role="search" onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing && event.target instanceof HTMLInputElement) { event.preventDefault(); void search(); } }}>
           <Field label={t('findLabel')}>{props => <Input {...props} value={query} onChange={event => setQuery(event.target.value)} placeholder={t('searchPlaceholder')} maxLength={500}/>}</Field>
-          <Toolbar><Select label={t('sourceLabel')} value={source} onChange={setSource} options={[{ value: 'all', label: t('allSources') }, { value: 'alphaxiv', label: 'alphaXiv' }, { value: 'openalex', label: 'OpenAlex' }, { value: 'biorxiv', label: 'bioRxiv' }, { value: 'pubmed', label: 'PubMed' }]}/>
+          <Toolbar><Select label={t('sourceLabel')} value={source} onChange={setSource} options={[{ value: 'all', label: t('allSources') }, { value: 'huggingface', label: 'Hugging Face' }, { value: 'alphaxiv', label: 'alphaXiv' }, { value: 'openalex', label: 'OpenAlex' }, { value: 'biorxiv', label: 'bioRxiv' }, { value: 'pubmed', label: 'PubMed' }]}/>
+            <Select label={t('searchOrder')} value={priority} onChange={setPriority} options={[{ value: 'default', label: t('orderRelevant') }, { value: 'recency', label: t('orderNewest') }, { value: 'popular', label: t('orderCited') }]}/>
             <Button onClick={() => void search()} variant="primary" busy={busy} disabled={!query.trim()}>{busy ? t('searching') : t('searchAction')}</Button>
             <Button disabled={!!adding || !query.trim()} onClick={() => void add({ id: query, ...(source !== 'all' ? { source } : {}) })}>{t('fetchPaper')}</Button>
           </Toolbar><small>{t('publicSearch')}</small>
         </div>
         {warnings.map((warning, index) => <Feedback key={index}>{warning}</Feedback>)}
+        {!!results?.length && resultPriority === 'popular' && <p className="pa-muted">{t('citedOrderScope')}</p>}
         {results?.length === 0 && <Feedback>{t('noMatches')}</Feedback>}
         <ol className="pa-search-results">{results?.map(item => <li key={`${item.source}:${item.id}`}>
-          <div><h3>{item.title}</h3><small>{item.source}</small>{!!item.authors?.length && <p className="pa-muted">{item.authors.slice(0, 4).join(', ')}</p>}{item.abstract && <p className="pa-search-abstract">{item.abstract}</p>}</div>
+          <div><h3>{item.title}</h3>
+            {!!item.authors?.length && <p className="pa-muted">{item.authors.slice(0, 4).join(', ')}{item.authors.length > 4 ? ' et al.' : ''}</p>}
+            <div className="pa-search-meta"><span>{item.publicationDate || t('dateUnavailable')}</span><span>{item.citations == null ? t('citationsUnavailable') : `${item.citations.toLocaleString()} ${t('citationCount')}${item.citationSource ? ` (${sourceNames[item.citationSource] ?? item.citationSource})` : ''}`}</span>{item.hfVotes != null && <span>{item.hfVotes.toLocaleString()} {t('communityLikes')} (Hugging Face)</span>}{item.githubStars != null && <span>{item.githubStars.toLocaleString()} {t('githubStars')} (GitHub)</span>}<span>{sourceNames[item.source] ?? item.source}</span></div>
+            {item.abstract && <p className="pa-search-abstract">{item.abstract}</p>}
+            <div className="pa-search-links">{item.url && item.url !== item.paperUrl && <a href={item.url} target="_blank" rel="noreferrer">{t('searchOriginal')}</a>}{item.paperUrl && <a href={item.paperUrl} target="_blank" rel="noreferrer">Hugging Face</a>}{item.pdfUrl && <a href={item.pdfUrl} target="_blank" rel="noreferrer">PDF</a>}{item.githubUrl && <a href={item.githubUrl} target="_blank" rel="noreferrer">GitHub</a>}{item.projectUrl && item.projectUrl !== item.githubUrl && <a href={item.projectUrl} target="_blank" rel="noreferrer">{t('projectPage')}</a>}{item.thumbnailUrl && <a href={item.thumbnailUrl} target="_blank" rel="noreferrer">{t('searchImage')}</a>}{item.doi && <span>DOI: {item.doi}</span>}</div>
+            {!!item.alternatives?.length && <details className="pa-search-alternatives"><summary>{t('otherSources')} ({item.alternatives.length})</summary><ul>{item.alternatives.map(alternative => <li key={`${alternative.source}:${alternative.id}`}>{alternative.url ? <a href={alternative.url} target="_blank" rel="noreferrer">{sourceNames[alternative.source] ?? alternative.source}</a> : sourceNames[alternative.source] ?? alternative.source}</li>)}</ul></details>}
+          </div>
+          {item.thumbnailId && <img className="pa-search-thumbnail" src={`/api/paper-thumbnails/${encodeURIComponent(item.thumbnailId)}.png`} alt="" loading="lazy" onError={event => { event.currentTarget.hidden = true; }}/>}
           <Button disabled={!!adding} onClick={() => void add({ id: item.id, source: item.source }, `${item.source}:${item.id}`)}>{adding === `${item.source}:${item.id}` ? t('loading') : t('addShort')}</Button>
         </li>)}</ol>
       </TabsContent>

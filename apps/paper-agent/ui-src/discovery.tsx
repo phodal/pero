@@ -76,7 +76,7 @@ export function Discovery({ api, opening, library, locked, selected, onRefresh, 
           const reading = library.papers.find(p => p.source === 'openalex' && p.sourceId === paper.id);
           const included = !!reading && selected.includes(reading.id);
           return <li key={paper.id} data-work-id={paper.id}>
-            <h2><button type="button" className="pa-discovery-title" disabled={!!action || !paper.abstract.trim()} onClick={() => void act(paper, false)}>{paper.title}</button></h2><p className="pa-document-meta"><span>{paper.publicationDate?.slice(0, 4) || '—'}</span><span>{paper.citations} {t('citationCount')}</span></p><p className="pa-muted">{paper.authors.join(', ')}</p>
+            <h2><button type="button" className="pa-discovery-title" disabled={!!action || !paper.abstract.trim()} onClick={() => void act(paper, false)}>{paper.title}</button></h2><p className="pa-document-meta"><span>{paper.publicationDate?.slice(0, 4) || t('dateUnavailable')}</span><span>{paper.citations == null ? t('citationsUnavailable') : `${paper.citations.toLocaleString()} ${t('citationCount')} (OpenAlex)`}</span></p><p className="pa-muted">{paper.authors.join(', ')}</p>
             {paper.abstract ? <p className="pa-discovery-preview">{paper.abstract}</p> : <p className="pa-muted">{t('noDiscoveryAbstract')}</p>}
             <Toolbar>
               <Button disabled={!!action || saved} onClick={() => void act(paper, false, true)}>{saved ? t('favorited') : action === paper.id ? t('loading') : t('favorite')}</Button>
