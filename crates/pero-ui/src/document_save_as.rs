@@ -67,11 +67,6 @@ impl Workbench {
         self.error = None;
         self.command(serde_json::json!({"action":"choose_document_save","request_id":request,"suggested":suggested}),cx);
     }
-    pub(crate) fn save_as_pending(&self, item: &WorkspaceItem) -> bool {
-        self.pending_save_as
-            .as_ref()
-            .is_some_and(|pending| &pending.item == item)
-    }
     pub(crate) fn receive_document_save_as(
         &mut self,
         event: &HostEvent,

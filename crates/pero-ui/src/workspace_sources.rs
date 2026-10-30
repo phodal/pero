@@ -165,9 +165,9 @@ impl Workbench {
             .find(|document| &document.saved.item() == item);
         let failed = deferred.is_some_and(|document| document.failed);
         let draft = deferred.is_some_and(|document| {
-            (document.saved.draft.is_some()
+            document.saved.draft.is_some()
                 || document.saved.draft_ref.is_some()
-                || document.saved.legacy_draft)
+                || document.saved.legacy_draft
         });
         let retry = item.clone();
         let copy = item.clone();
