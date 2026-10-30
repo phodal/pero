@@ -284,6 +284,8 @@ mod history_tests {
 
 pub mod appearance;
 
+pub mod workspace_session;
+
 pub mod reader_state;
 
 pub mod content_search;

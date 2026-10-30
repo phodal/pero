@@ -1,43 +1,15 @@
 use pero_contracts::content_origin::ContentOrigin;
-/// A stable identity for content that can remain open in the workbench.
-/// Titles and other presentation metadata come from the current source object.
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
-pub(crate) enum WorkspaceItem {
-    Conversation(String),
-    Web(String),
-    Document {
-        origin: ContentOrigin,
-        source: String,
-    },
-    Project(String),
-    Task(String),
-    App {
-        name: String,
-        panel: String,
-    },
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum WorkbenchPage {
-    Conversation,
-    Document,
-    Web,
-    #[default]
-    Projects,
-    Agents,
-    Tasks,
-    Workers,
-    Apps,
-    Insights,
-    Connections,
-}
-
+pub(crate) use pero_contracts::workspace_session::{
+    PaneSide, WorkbenchPage, WorkspaceItem, WorkspaceRoute, WorkspaceSnapshot,
+};
 #[cfg(target_family = "wasm")]
-impl WorkbenchPage {
+pub(crate) trait LegacyPage {
+    fn legacy_index(self) -> usize;
+}
+#[cfg(target_family = "wasm")]
+impl LegacyPage for WorkbenchPage {
     /// Numeric names are retained only for the existing diagnostic consumers.
-    pub(crate) fn legacy_index(self) -> usize {
+    fn legacy_index(self) -> usize {
         match self {
             Self::Conversation => 0,
             Self::Document => 10,
@@ -71,34 +43,16 @@ impl ConversationTab {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
-pub(crate) enum WorkspaceRoute {
-    Page(WorkbenchPage),
-    Content(WorkspaceItem),
-}
-
-impl WorkspaceRoute {
-    pub(crate) fn page(&self) -> WorkbenchPage {
-        match self {
-            Self::Page(page) => *page,
-            Self::Content(WorkspaceItem::Conversation(_)) => WorkbenchPage::Conversation,
-            Self::Content(WorkspaceItem::Document { .. }) => WorkbenchPage::Document,
-            Self::Content(WorkspaceItem::Web(_)) => WorkbenchPage::Web,
-            Self::Content(WorkspaceItem::Project(_) | WorkspaceItem::Task(_)) => {
-                WorkbenchPage::Tasks
-            }
-            Self::Content(WorkspaceItem::App { .. }) => WorkbenchPage::Apps,
-        }
-    }
-}
-
 /// Owns open content and the one visible route. Closing a tab changes this
 /// value only; it never deletes a source object or stops its execution.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct WorkspaceNavigation {
     items: Vec<WorkspaceItem>,
     route: WorkspaceRoute,
+    other: Option<WorkspaceRoute>,
+    focused: PaneSide,
+    back: Vec<WorkspaceRoute>,
+    forward: Vec<WorkspaceRoute>,
 }
 
 impl Default for WorkspaceNavigation {
@@ -106,6 +60,10 @@ impl Default for WorkspaceNavigation {
         Self {
             items: Vec::new(),
             route: WorkspaceRoute::Page(WorkbenchPage::Projects),
+            other: None,
+            focused: PaneSide::Left,
+            back: vec![],
+            forward: vec![],
         }
     }
 }
@@ -132,14 +90,128 @@ impl WorkspaceNavigation {
 
     /// A route is returned only when it changes, so the shell can carry out
     /// activation once rather than repeating it while rendering.
+    fn set_route(&mut self, route: WorkspaceRoute) {
+        if self.other.as_ref() == Some(&route) {
+            self.other = Some(std::mem::replace(&mut self.route, route));
+            self.focused = if self.focused == PaneSide::Left {
+                PaneSide::Right
+            } else {
+                PaneSide::Left
+            };
+        } else {
+            if !matches!(
+                route,
+                WorkspaceRoute::Content(WorkspaceItem::Document { .. })
+            ) {
+                self.other = None;
+                self.focused = PaneSide::Left;
+            }
+            self.route = route;
+        }
+    }
     fn change_route(&mut self, route: WorkspaceRoute) -> Option<WorkspaceRoute> {
         if self.route == route {
             return None;
         }
-        self.route = route.clone();
-        Some(route)
+        self.back.push(self.route.clone());
+        self.forward.clear();
+        self.set_route(route);
+        Some(self.route.clone())
     }
-
+    pub(crate) fn snapshot(&self) -> WorkspaceSnapshot {
+        WorkspaceSnapshot {
+            items: self.items.clone(),
+            route: self.route.clone(),
+            other: self.other.clone(),
+            focused: self.focused,
+            back: self.back.clone(),
+            forward: self.forward.clone(),
+        }
+    }
+    pub(crate) fn restore(&mut self, snapshot: WorkspaceSnapshot) {
+        self.items = snapshot.items;
+        self.route = snapshot.route;
+        self.other = snapshot.other;
+        self.focused = snapshot.focused;
+        self.back = snapshot.back;
+        self.forward = snapshot.forward;
+    }
+    pub(crate) fn can_back(&self) -> bool {
+        self.back.iter().any(|route| route != &self.route)
+    }
+    pub(crate) fn can_forward(&self) -> bool {
+        self.forward.iter().any(|route| route != &self.route)
+    }
+    pub(crate) fn go_back(&mut self) -> Option<WorkspaceRoute> {
+        while let Some(route) = self.back.pop() {
+            if route != self.route {
+                self.forward.push(self.route.clone());
+                self.set_route(route);
+                return Some(self.route.clone());
+            }
+        }
+        None
+    }
+    pub(crate) fn go_forward(&mut self) -> Option<WorkspaceRoute> {
+        while let Some(route) = self.forward.pop() {
+            if route != self.route {
+                self.back.push(self.route.clone());
+                self.set_route(route);
+                return Some(self.route.clone());
+            }
+        }
+        None
+    }
+    fn prune_history(&mut self) {
+        let available = |route: &WorkspaceRoute| match route {
+            WorkspaceRoute::Page(_) => true,
+            WorkspaceRoute::Content(item) => self.items.contains(item),
+        };
+        self.back.retain(available);
+        self.forward.retain(available);
+        if self.other.as_ref().is_some_and(|route| !available(route)) {
+            self.other = None;
+            self.focused = PaneSide::Left;
+        }
+    }
+    pub(crate) fn split_document(&mut self, item: &WorkspaceItem) -> bool {
+        if !matches!(self.current(), Some(WorkspaceItem::Document { .. }))
+            || !matches!(item, WorkspaceItem::Document { .. })
+            || self.current() == Some(item)
+            || !self.items.contains(item)
+        {
+            return false;
+        }
+        self.other = Some(WorkspaceRoute::Content(item.clone()));
+        self.focused = PaneSide::Left;
+        true
+    }
+    pub(crate) fn collapse_panes(&mut self) -> Option<WorkspaceRoute> {
+        let other = self.other.take()?;
+        let changed = if self.focused == PaneSide::Right {
+            self.back.push(self.route.clone());
+            self.forward.clear();
+            self.route = other;
+            Some(self.route.clone())
+        } else {
+            None
+        };
+        self.focused = PaneSide::Left;
+        changed
+    }
+    pub(crate) fn panes(&self) -> Option<(&WorkspaceItem, &WorkspaceItem, PaneSide)> {
+        let WorkspaceRoute::Content(active) = &self.route else {
+            return None;
+        };
+        let WorkspaceRoute::Content(other) = self.other.as_ref()? else {
+            return None;
+        };
+        Some(if self.focused == PaneSide::Left {
+            (active, other, self.focused)
+        } else {
+            (other, active, self.focused)
+        })
+    }
     pub(crate) fn open(&mut self, item: WorkspaceItem) -> Option<WorkspaceRoute> {
         if !self.items.contains(&item) {
             self.items.push(item.clone());
@@ -173,7 +245,24 @@ impl WorkspaceNavigation {
             }
         }
         if self.current() == Some(old) {
-            self.route = WorkspaceRoute::Content(new);
+            self.route = WorkspaceRoute::Content(new.clone());
+        }
+        let replace = |route: &mut WorkspaceRoute| {
+            if let WorkspaceRoute::Content(item) = route {
+                if item == old {
+                    *item = new.clone();
+                }
+            }
+        };
+        if let Some(other) = &mut self.other {
+            replace(other);
+        }
+        for route in self.back.iter_mut().chain(&mut self.forward) {
+            replace(route);
+        }
+        if self.other.as_ref() == Some(&self.route) {
+            self.other = None;
+            self.focused = PaneSide::Left;
         }
         self.items = items;
         true
@@ -199,10 +288,18 @@ impl WorkspaceNavigation {
     pub(crate) fn close(&mut self, item: &WorkspaceItem) -> Option<WorkspaceRoute> {
         let index = self.items.iter().position(|open| open == item)?;
         self.items.remove(index);
-        if self.current() != Some(item) {
-            return None;
-        }
-        self.change_route(self.replacement_route(item, index))
+        let route = if self.current() == Some(item) {
+            let next = self
+                .other
+                .take()
+                .unwrap_or_else(|| self.replacement_route(item, index));
+            self.focused = PaneSide::Left;
+            self.change_route(next)
+        } else {
+            None
+        };
+        self.prune_history();
+        route
     }
 
     /// Removes unavailable sources without opening new ones. A utility page
@@ -221,7 +318,12 @@ impl WorkspaceNavigation {
                 (item.clone(), index)
             });
         self.items.retain(|item| available.contains(item));
-        removed.and_then(|(item, index)| self.change_route(self.replacement_route(&item, index)))
+        let route=removed.and_then(|(item,index)| {
+            let next=self.other.take().filter(|route|matches!(route,WorkspaceRoute::Content(item) if self.items.contains(item))).unwrap_or_else(||self.replacement_route(&item,index));
+            self.focused=PaneSide::Left;self.change_route(next)
+        });
+        self.prune_history();
+        route
     }
 
     pub(crate) fn select_next(&mut self) -> Option<WorkspaceRoute> {
@@ -262,6 +364,8 @@ mod tests {
         Reconcile(Vec<WorkspaceItem>),
         Next,
         Previous,
+        Back,
+        Forward,
     }
 
     #[test]
@@ -301,6 +405,33 @@ mod tests {
         }
 
         let cases = [
+            Case {
+                name: "workspace history walks sources and utility pages without opening duplicates",
+                actions: vec![
+                    Open(document.clone()),
+                    Open(app.clone()),
+                    Back,
+                    Forward,
+                    Show(WorkbenchPage::Connections),
+                    Back,
+                ],
+                items: vec![document.clone(), app.clone()],
+                route: WorkspaceRoute::Content(app.clone()),
+            },
+            Case {
+                name: "new navigation clears the forward branch and closed sources leave history",
+                actions: vec![
+                    Open(document.clone()),
+                    Open(app.clone()),
+                    Back,
+                    Open(project.clone()),
+                    Forward,
+                    Close(document.clone()),
+                    Back,
+                ],
+                items: vec![app.clone(), project.clone()],
+                route: WorkspaceRoute::Page(WorkbenchPage::Projects),
+            },
             Case {
                 name: "Web sources retain one tab across utility pages and reopen",
                 actions: vec![
@@ -685,6 +816,8 @@ mod tests {
                     Reconcile(available) => tabs.reconcile(&available),
                     Next => tabs.select_next(),
                     Previous => tabs.select_previous(),
+                    Back => tabs.go_back(),
+                    Forward => tabs.go_forward(),
                 };
                 assert_eq!(
                     activation,
@@ -696,5 +829,63 @@ mod tests {
             assert_eq!(tabs.items(), case.items, "{}", case.name);
             assert_eq!(tabs.route(), &case.route, "{}", case.name);
         }
+    }
+    #[test]
+    fn document_panes_share_navigation_and_restore_focus_without_duplicate_views() {
+        let document = |path: &str| WorkspaceItem::Document {
+            origin: ContentOrigin::File { path: path.into() },
+            source: path.into(),
+        };
+        let left = document("/left.md");
+        let right = document("/right.md");
+        for (focus_right, close_left, expected) in [
+            (false, false, left.clone()),
+            (false, true, right.clone()),
+            (true, false, left.clone()),
+            (true, true, right.clone()),
+        ] {
+            let mut navigation = WorkspaceNavigation::default();
+            navigation.open(left.clone());
+            navigation.open(right.clone());
+            navigation.select(&left);
+            assert!(navigation.split_document(&right));
+            assert!(!navigation.split_document(&left));
+            if focus_right {
+                navigation.select(&right);
+            }
+            let snapshot = navigation.snapshot();
+            assert!(snapshot.valid());
+            let mut restored = WorkspaceNavigation::default();
+            restored.restore(snapshot);
+            assert_eq!(
+                restored.panes(),
+                Some((
+                    &left,
+                    &right,
+                    if focus_right {
+                        super::PaneSide::Right
+                    } else {
+                        super::PaneSide::Left
+                    }
+                ))
+            );
+            restored.close(if close_left { &left } else { &right });
+            assert_eq!(restored.current(), Some(&expected));
+            assert!(restored.panes().is_none());
+            assert!(restored.snapshot().valid());
+        }
+        let mut navigation = WorkspaceNavigation::default();
+        navigation.open(left.clone());
+        navigation.open(right.clone());
+        navigation.select(&left);
+        navigation.split_document(&right);
+        navigation.select(&right);
+        navigation.go_back();
+        assert_eq!(navigation.current(), Some(&left));
+        assert_eq!(navigation.panes().unwrap().2, super::PaneSide::Left);
+        navigation.select(&right);
+        assert!(navigation.collapse_panes().is_some());
+        assert_eq!(navigation.current(), Some(&left));
+        assert!(navigation.panes().is_none());
     }
 }
