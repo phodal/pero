@@ -1,11 +1,11 @@
 // Actual Desktop/Host writes; OS picker return values and ACP output are explicit fixtures.
 import {expect} from '@playwright/test';
 import {electron} from './electron.mjs';
-import {mkdtemp,mkdir,writeFile,readFile,stat} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,readFile,stat,realpath} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 const root=resolve(process.env.PERO_CONTENT_TEST_ROOT||resolve(import.meta.dirname,'../..'));
-const out=resolve(root,'test-results/save-as'),temp=await mkdtemp(resolve(tmpdir(),'pero-save-as-'));
+const out=resolve(root,'test-results/save-as'),temp=await realpath(await mkdtemp(resolve(tmpdir(),'pero-save-as-')));
 await mkdir(out,{recursive:true});
 const original=resolve(temp,'original.md'),target=resolve(temp,'copy.md'),other=resolve(temp,'other.md');
 const baseline='# Original\n\n原始 source\n',draft='# Saved draft\n\n中文 and 9007199254740993.\n';
@@ -28,7 +28,7 @@ try {
   const saveAs=()=>page.keyboard.press(`${modifier}+Shift+s`);
   const edit=async text=>{
     let r=(await current()).reader,b=r.bounds;
-    if(!r.source){await page.mouse.click(b.x+100,b.y+16);await expect.poll(async()=>(await current()).reader.source).toBe(true);}
+    if(!r.source){await page.mouse.click(b.x+100,b.y+16);await expect.poll(async()=>(await current()).reader.source).toBe(true);await paint();}
     b=(await current()).reader.bounds;await page.mouse.click(b.x+170,b.y+90);await page.keyboard.press(`${modifier}+a`);await page.keyboard.insertText(text);
     await expect.poll(async()=>(await current()).reader.editorBytes).toBe(Buffer.byteLength(text));
   };
@@ -71,6 +71,7 @@ try {
   await page.mouse.click(100,28);await expect.poll(async()=>(await state()).composerFocused).toBe(true);
   await page.keyboard.type('contentview');await page.keyboard.press('Enter');
   await expect.poll(async()=>(await state()).chats[0].state,{timeout:15000}).toBe('idle');
+  await expect.poll(async()=>(await state()).toolBounds[0]?.bounds?.width).toBeGreaterThan(0);
   const toggle=(await state()).toolBounds[0].bounds;await page.mouse.click(toggle.x+80,toggle.y+12);await paint();
   await expect.poll(async()=>(await state()).contentReaders.length).toBe(1);
   const inline=(await state()).contentReaders[0].bounds;await page.mouse.click(inline.x+100,inline.y-15);

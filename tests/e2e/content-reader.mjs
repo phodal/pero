@@ -12,10 +12,15 @@ const root = resolve(
 const out = resolve(import.meta.dirname, '../../test-results/content-reader');
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-content-e2e-'));
 await mkdir(out, { recursive: true });
+const rowCount = Number(process.env.PERO_CONTENT_ROWS || 8000);
+if (![8000,100000].includes(rowCount)) throw new Error('Use the 8000 or 100000 row benchmark dataset');
+const filteredRows = [];
+for(let i=0;i<rowCount;i++) if(String(i).startsWith('100')) filteredRows.push(i+1);
+const lastFilteredRow = filteredRows.at(-1);
 const source =
   '[\n' +
   Array.from(
-    { length: 8000 },
+    { length: rowCount },
     (_, i) =>
       `{"id":${9007199254740993n + BigInt(i)},"label":"中文 row ${i}","amount":1.0000000000000000001,"data":{"ok":true,"text":"${'x'.repeat(25)}"}}`,
   ).join(',\n') +
@@ -170,7 +175,7 @@ try {
     .poll(async () => (await state()).contentReaders[0]?.rows, {
       timeout: 15000,
     })
-    .toBe(8000);
+    .toBe(rowCount);
   expect((await state()).chats[0].tools[0].content.length).toBeLessThan(2048);
   expect(
     (await state()).chats[0].messages.filter((m) => m.role === 'user').length,
@@ -187,10 +192,11 @@ try {
   await expect.poll(async () => (await reader()).foldable).toBe(true);
   await page.screenshot({ scale: 'css', path: resolve(out, 'source.png') });
   const foldBounds = (await reader()).bounds;
-  await page.mouse.click(foldBounds.x + 49, foldBounds.y + 52);
+  const foldX = 49 + (String(rowCount+2).length-4)*(await state()).appearance.typography.code*0.6;
+  await page.mouse.click(foldBounds.x + foldX, foldBounds.y + 52);
   await expect.poll(async () => (await reader()).folds).toBe(1);
   await page.screenshot({scale:'css',path:resolve(out,'structural-fold.png')});
-  await page.mouse.click(foldBounds.x + 49, foldBounds.y + 52);
+  await page.mouse.click(foldBounds.x + foldX, foldBounds.y + 52);
   await expect.poll(async () => (await reader()).folds).toBe(0);
 
   for (
@@ -235,6 +241,11 @@ try {
   const bounds = (await reader()).bounds;
   await page.mouse.click(bounds.x + 350, bounds.y + 90);
   await paint();
+  const selectionTrace = process.env.PERO_CONTENT_TRACE ? await page.context().newCDPSession(page) : null;
+  if (selectionTrace) await selectionTrace.send('Tracing.start', {
+    categories: 'devtools.timeline,toplevel,v8,disabled-by-default-v8.cpu_profiler',
+    options: 'sampling-frequency=1000', transferMode: 'ReturnAsStream',
+  });
   await phase('select-all');
   const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
   await page.keyboard.press(`${modifier}+a`);
@@ -252,6 +263,15 @@ try {
   expect((await state()).contentReaders[0].editorBytes).toBe(
     Buffer.byteLength(source),
   );
+  if (selectionTrace) {
+    const completed = new Promise(resolve => selectionTrace.once('Tracing.tracingComplete', resolve));
+    await selectionTrace.send('Tracing.end');
+    const {stream} = await completed;
+    let trace = '';
+    for (;;) {const chunk = await selectionTrace.send('IO.read', {handle:stream});trace += chunk.data;if(chunk.eof)break;}
+    await selectionTrace.send('IO.close', {handle:stream});await selectionTrace.detach();
+    await writeFile(resolve(out, 'selection-trace.json'), trace);
+  }
   await phase('copy');
   await page.keyboard.press(`${modifier}+a`);
   await page.keyboard.press(`${modifier}+c`);
@@ -288,7 +308,7 @@ try {
   await clickBounds((await reader()).bounds, 140, 15);
   await page.keyboard.press(`${modifier}+a`);
   await page.keyboard.type('ROW', { delay: 20 });
-  await expect.poll(async () => (await reader()).search.matches).toBe(8000);
+  await expect.poll(async () => (await reader()).search.matches).toBe(rowCount);
   await page.keyboard.press('Tab');
   await page.keyboard.press('Space');
   await paint();
@@ -296,7 +316,7 @@ try {
   expect((await reader()).search.query).toBe('ROW');
   await page.keyboard.press('Space');
   await paint();
-  await expect.poll(async () => (await reader()).search.matches).toBe(8000);
+  await expect.poll(async () => (await reader()).search.matches).toBe(rowCount);
   await page.keyboard.press('Tab');
   await page.keyboard.press('Space');
   await paint();
@@ -337,7 +357,7 @@ try {
   };
   const grid=async()=>(await reader()).table.gridBounds;
   await phase('table-filter');await filterRows('中文 row 100');
-  await expect.poll(async()=>(await reader()).table.visibleRows).toBe(11);
+  await expect.poll(async()=>(await reader()).table.visibleRows).toBe(filteredRows.length);
   expect((await reader()).table.firstRows[0]).toBe(101);
   let tableBounds=await grid();await page.mouse.click(tableBounds.x+100,tableBounds.y+42);
   await expect.poll(async()=>(await reader()).table.selectedCell).toEqual([0,1]);
@@ -346,16 +366,16 @@ try {
   await page.keyboard.press('ArrowRight');await page.keyboard.press(`${modifier}+c`);
   await expect.poll(async()=>app.evaluate(({clipboard})=>clipboard.readText())).toBe('"中文 row 100"');
   await phase('table-sort');await page.mouse.click(tableBounds.x+214,tableBounds.y+14);
-  await expect.poll(async()=>(await reader()).table.firstRows[0]).toBe(1010);
+  await expect.poll(async()=>(await reader()).table.firstRows[0]).toBe(lastFilteredRow);
   expect((await reader()).table.selectedCell).toBe(null);
   tableBounds=await grid();await page.mouse.click(tableBounds.x+100,tableBounds.y+42);await page.keyboard.press('Enter');
   await expect.poll(async()=>(await reader()).source).toBe(true);
-  expect((await reader()).cursor.line).toBe(1010);
-  await mode(false);expect((await reader()).table.firstRows[0]).toBe(1010);
+  expect((await reader()).cursor.line).toBe(lastFilteredRow);
+  await mode(false);expect((await reader()).table.firstRows[0]).toBe(lastFilteredRow);
   await filterRows('no matching value');await expect.poll(async()=>(await reader()).table.visibleRows).toBe(0);
   await page.screenshot({scale:'css',path:resolve(out,'filtered-empty.png')});
-  await filterRows('');await expect.poll(async()=>(await reader()).table.visibleRows).toBe(8000);
-  expect((await reader()).table.firstRows[0]).toBe(8000);
+  await filterRows('');await expect.poll(async()=>(await reader()).table.visibleRows).toBe(rowCount);
+  expect((await reader()).table.firstRows[0]).toBe(rowCount);
   tableBounds=await grid();await page.mouse.click(tableBounds.x+214,tableBounds.y+14);
   await expect.poll(async()=>(await reader()).table.sort).toEqual([0,'ascending']);
   await page.mouse.click(tableBounds.x+214,tableBounds.y+14);
@@ -374,7 +394,7 @@ try {
   await expect.poll(async () => (await reader()).rows).toBe(2);
   await page.screenshot({ scale: 'css', path: resolve(out, 'nested.png') });
   await clickBounds((await reader()).bounds, 150, 15);
-  await expect.poll(async () => (await reader()).rows).toBe(8000);
+  await expect.poll(async () => (await reader()).rows).toBe(rowCount);
   tableBounds=await grid();await page.mouse.dblclick(tableBounds.x+100,tableBounds.y+42);
   await expect.poll(async () => (await reader()).source).toBe(true);
   expect((await reader()).cursor.line).toBeGreaterThan(0);
@@ -473,6 +493,9 @@ try {
   expect(analysis.previewRequests).toBeGreaterThan(0);
   await expect.poll(async () => (await page.evaluate(() => window.peroContentAnalysisStats)).previewCompleted).toBe(analysis.previewRequests);
   expect((await page.evaluate(() => window.peroContentAnalysisStats)).previewFailures).toBe(0);
+  expect(analysis.projectionRequests).toBeGreaterThan(0);
+  await expect.poll(async () => (await page.evaluate(() => window.peroContentAnalysisStats)).projectionCompleted).toBe(analysis.projectionRequests);
+  expect((await page.evaluate(() => window.peroContentAnalysisStats)).projectionFailures).toBe(0);
   const longTasks = await page.evaluate(() => window.__contentLongTasks);
   const measuredTasks = longTasks.filter((task) =>
     Object.values(samples)
@@ -494,9 +517,10 @@ try {
     },
     dataset: {
       bytes: Buffer.byteLength(source),
-      rows: 8000,
+      rows: rowCount,
       sha256: createHash('sha256').update(source).digest('hex'),
     },
+    instrumentation: process.env.PERO_CONTENT_TRACE ? 'CDP selection trace' : 'PerformanceObserver',
     environment: {
       platform: platform(),
       arch: arch(),
