@@ -32,6 +32,8 @@ thread_local! {
 extern "C" {
     #[wasm_bindgen(js_namespace = window, js_name = peroSendProbe, catch)]
     fn send_probe(json: &str) -> Result<(), JsValue>;
+    #[wasm_bindgen(js_namespace = window, js_name = peroWindowCloseResult)]
+    pub(crate) fn window_close_result(ready:bool);
     #[wasm_bindgen(js_namespace = window, js_name = peroSetLocale, catch)]
     pub(crate) fn request_locale(locale: &str) -> Result<(), JsValue>;
     #[wasm_bindgen(js_namespace = window, js_name = peroSessionCommand, catch)]
@@ -496,7 +498,7 @@ impl Workbench {
                     "ready" => self.connected = true,
                     "disconnected" => {
                         self.connected = false;
-                        self.pending_close = None;
+                        self.cancel_workspace_close();
                         self.pending = None;
                         self.chat.update(cx, |panel, cx| {
                             for chat in &mut panel.chats {
@@ -678,6 +680,12 @@ pub fn receive_host_event(json: &str) -> Result<(), JsValue> {
     }
     update(|ui, window, cx| ui.receive(event, window, cx));
     Ok(())
+}
+
+#[cfg(target_family="wasm")]
+#[wasm_bindgen]
+pub fn request_window_close() {
+    update(|ui,window,cx|ui.request_workspace_window_close(window,cx));
 }
 
 #[cfg(target_family="wasm")]

@@ -166,7 +166,7 @@ impl Workbench {
                 true
             }
             "workspace_error" => {
-                self.pending_close = None;
+                self.cancel_workspace_close();
                 #[cfg(not(target_family = "wasm"))]
                 if self.recovery.native_close.as_deref() == event.request_id.as_deref()
                     && self.recovery.native_close.is_some()
@@ -330,6 +330,11 @@ impl Workbench {
                 .observe_view_reading(view.id, view.view.read(cx).reading_state(cx));
         }
         self.remember_current_location(cx);
+        if discard {
+            let dirty = self.documents.iter().filter(|open| open.view.read(cx).dirty()).map(|open| open.item.clone())
+                .chain(self.recovery.deferred.iter().filter(|open| open.saved.draft.is_some() || open.saved.draft_ref.is_some() || open.saved.legacy_draft).map(|open| open.saved.item())).collect::<Vec<_>>();
+            for item in dirty { self.navigation.clear_document_locations(&item); }
+        }
         let expired = self.navigation.prune_document_registry();
         self.documents.retain(|open| !expired.contains(&open.item));
         self.pane_views.retain(|view| !expired.contains(&view.item));
@@ -361,7 +366,7 @@ impl Workbench {
             };
             documents.push(SavedDocument {
                 header: header.clone(),
-                reading: view.read(cx).reading_state(cx),
+                reading: if discard && dirty { view.read(cx).reading_state(cx).without_location() } else { view.read(cx).reading_state(cx) },
                 draft: None,
                 draft_ref,
                 legacy_draft: false,
@@ -392,6 +397,7 @@ impl Workbench {
                         saved.draft = None;
                     }
                     if discard {
+                        if saved.draft.is_some() || saved.draft_ref.is_some() || saved.legacy_draft { saved.reading = saved.reading.without_location(); }
                         saved.draft = None;
                         saved.draft_ref = None;
                         saved.legacy_draft = false;

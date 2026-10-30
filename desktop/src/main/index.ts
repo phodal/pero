@@ -356,11 +356,11 @@ app.whenReady().then(async () => {
     if(workspaceWindowPending)return;workspaceWindowPending=true;
     const finish=async()=>{if(reload){await window.webContents.executeJavaScript('window.peroAllowUnloadOnce=true');window.webContents.reload();}else window.destroy();};
     try {
-      const dirty=await window.webContents.executeJavaScript('Boolean(window.peroHasUnsavedDocuments?.())');
-      if(dirty){const answer=dialog.showMessageBoxSync(window,{type:'warning',message:t('content.unsaved'),detail:t('content.unsaved_window'),buttons:[t('content.keep_editing'),t('content.discard_window')],defaultId:0,cancelId:0});if(answer!==1)return;}
+      const ready=await window.webContents.executeJavaScript('window.peroPrepareWindowClose ? window.peroPrepareWindowClose() : true');
+      if(!ready)return;
       await webPages?.checkpoint();
       if(mcpHost)await webPages?.prepareClose(url=>mcpHost!.ownsPanel(url));
-      await window.webContents.executeJavaScript(`window.peroWorkspaceCheckpoint?.(${dirty?'true':'false'})`);
+      await window.webContents.executeJavaScript('window.peroWorkspaceCheckpoint?.(true)');
       await finish();
     } catch(error) {
       if(window.isDestroyed())return;

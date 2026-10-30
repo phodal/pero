@@ -9,6 +9,7 @@ use pero_contracts::{
 pub(crate) struct ClosePlan {
     views: Vec<ViewId>,
     pane: Option<PaneId>,
+    window: bool,
     discarded: Vec<WorkspaceItem>,
     waiting: Option<WorkspaceItem>,
     prompting: bool,
@@ -18,6 +19,7 @@ impl ClosePlan {
         Self {
             views,
             pane,
+            window: false,
             discarded: vec![],
             waiting: None,
             prompting: false,
@@ -77,7 +79,7 @@ mod shell {
                         this.advance_workspace_close(window, cx);
                     }
                     None => {
-                        this.pending_close = None;
+                        this.cancel_workspace_close();
                         cx.notify();
                     }
                 }
@@ -85,6 +87,36 @@ mod shell {
         });
     }
     impl Workbench {
+        pub(crate) fn request_workspace_window_close(
+            &mut self,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            if self.pending_close.is_some() {
+                #[cfg(target_family = "wasm")]
+                crate::app::window_close_result(false);
+                return;
+            }
+            let views = self
+                .navigation
+                .pane_layout()
+                .map(|layout| layout.items().iter().map(|item| item.id).collect())
+                .unwrap_or_default();
+            let mut plan = ClosePlan::new(views, None);
+            plan.window = true;
+            self.pending_close = Some(plan);
+            self.advance_workspace_close(window, cx);
+        }
+        pub(crate) fn cancel_workspace_close(&mut self) {
+            if let Some(plan) = self.pending_close.take() {
+                #[cfg(target_family = "wasm")]
+                if plan.window {
+                    crate::app::window_close_result(false);
+                }
+                #[cfg(not(target_family = "wasm"))]
+                let _ = plan;
+            }
+        }
         pub(crate) fn close_pane_tab(
             &mut self,
             view: ViewId,
@@ -151,11 +183,25 @@ mod shell {
             if plan.prompting || plan.waiting.is_some() {
                 return;
             }
-            let sources = self
-                .navigation
-                .pane_layout()
-                .map(|layout| plan.last_sources(layout))
-                .unwrap_or_default();
+            let sources = if plan.window {
+                let mut sources = self
+                    .documents
+                    .iter()
+                    .map(|open| open.item.clone())
+                    .collect::<Vec<_>>();
+                for deferred in &self.recovery.deferred {
+                    let item = deferred.saved.item();
+                    if !sources.contains(&item) {
+                        sources.push(item);
+                    }
+                }
+                sources
+            } else {
+                self.navigation
+                    .pane_layout()
+                    .map(|layout| plan.last_sources(layout))
+                    .unwrap_or_default()
+            };
             let next = sources
                 .iter()
                 .find(|source| {
@@ -236,6 +282,12 @@ mod shell {
             window: &mut Window,
             cx: &mut Context<Self>,
         ) {
+            if !self.connected {
+                self.cancel_workspace_close();
+                self.error = Some(self.t("error.connection").into());
+                cx.notify();
+                return;
+            }
             if !self.close_source_dirty(&item, cx) {
                 self.advance_workspace_close(window, cx);
                 return;
@@ -273,7 +325,7 @@ mod shell {
                     self.pending_close.as_mut().unwrap().waiting = Some(item.clone());
                     self.request_workspace_source(&item, cx);
                 } else {
-                    self.pending_close = None;
+                    self.cancel_workspace_close();
                     self.error = Some(self.t("content.file_failed").into());
                 }
             }
@@ -309,7 +361,7 @@ mod shell {
                 return;
             }
             if !success {
-                self.pending_close = None;
+                self.cancel_workspace_close();
                 cx.notify();
                 return;
             }
@@ -325,6 +377,16 @@ mod shell {
             let Some(plan) = self.pending_close.take() else {
                 return;
             };
+            if plan.window {
+                // The window owner checkpoints the preserved layout after every File save ACK.
+                #[cfg(target_family = "wasm")]
+                crate::app::window_close_result(true);
+                #[cfg(not(target_family = "wasm"))]
+                if self.checkpoint_native_close(true, cx) {
+                    window.remove_window();
+                }
+                return;
+            }
             self.remember_current_location(cx);
             // Persist Host-owned baselines before dropping the last live File owner.
             if let Some(command) = self.workspace_checkpoint(false, true, cx) {

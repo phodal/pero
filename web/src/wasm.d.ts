@@ -7,6 +7,7 @@ declare module '*wasm/pero_ui' {
   export function snapshot(): string;
   export function has_unsaved_documents(): boolean;
   export function checkpoint_workspace(discard: boolean): string;
+  export function request_window_close(): void;
   export function paste_image(data: string, mime_type: string): void;
   export function set_system_theme(dark: boolean): void;
 }

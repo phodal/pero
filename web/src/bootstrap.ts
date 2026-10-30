@@ -1,7 +1,7 @@
 import {installContentAnalysis} from './content-analysis';
 import { loadContentResult, cancelContentResult } from './content-results';
 import type { ContentChunk, ConversationReadParameters } from '../../packages/content-source/index';
-import init, { run, receive_host_event, snapshot, has_unsaved_documents, checkpoint_workspace, paste_image, set_system_theme } from './wasm/pero_ui';
+import init, { run, receive_host_event, snapshot, has_unsaved_documents, checkpoint_workspace, request_window_close, paste_image, set_system_theme } from './wasm/pero_ui';
 import { appChatLauncher } from './app-chat';
 import { previewContext } from './context-preview';
 import themes from './theme.generated.json';
@@ -15,6 +15,8 @@ declare global {
   interface Window {
     peroHasUnsavedDocuments():boolean;
     peroWorkspaceCheckpoint(discard?:boolean):Promise<void>;
+    peroPrepareWindowClose():Promise<boolean>;
+    peroWindowCloseResult(ready:boolean):void;
     peroAllowUnloadOnce?:boolean;
     pero?: { webCommand(command:object):Promise<void>; readContent(request:ConversationReadParameters):Promise<ContentChunk>; connect(): Promise<HostEvent>; getLocale(): Promise<string>; setLocale(locale: string): Promise<void>; sendProbe(request: { id: string; text: string }): Promise<void>; onEvent(callback: (event: HostEvent) => void): () => void; sessionCommand(command: object): Promise<void>; remoteCommand(command: object): Promise<void>; computerCommand(command: object): Promise<unknown>; appsCommand(command: object): Promise<void>; appUseCommand(command: object): Promise<unknown>; chooseWorkspace(): Promise<void>; chooseContext(command?: object): Promise<void> };
     peroSendProbe(json: string): void;
@@ -39,6 +41,13 @@ try {
   }
   await init();
   installContentAnalysis();
+  let closeDecision:((ready:boolean)=>void)|undefined;
+  window.peroWindowCloseResult=ready=>{const decide=closeDecision;closeDecision=undefined;decide?.(ready);};
+  window.peroPrepareWindowClose=()=>new Promise(resolve=>{
+    if(closeDecision){resolve(false);return;}
+    closeDecision=resolve;
+    request_window_close();
+  });
   window.peroHasUnsavedDocuments=has_unsaved_documents;
   window.peroWorkspaceCheckpoint=async(discard=false)=>{const json=checkpoint_workspace(discard);if(json&&window.pero)await window.pero.sessionCommand(JSON.parse(json));};
   window.addEventListener('beforeunload',event=>{
