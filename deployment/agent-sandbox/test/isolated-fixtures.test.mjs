@@ -1,8 +1,65 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { baseline, probeJob, namespaces } from '../isolated/fixtures.mjs';
+import { ciliumImageReceipt } from '../isolated/cilium-evidence.mjs';
 const image=`127.0.0.1:1234/probe@sha256:${'a'.repeat(64)}`;
+
+test('Cilium evidence projects image pins without retaining Secret or List payloads',()=>{
+ const other=`quay.io/cilium/operator:v1@sha256:${'b'.repeat(64)}`;
+ const manifest=`apiVersion: v1
+kind: Secret
+metadata:
+  name: cilium-ca
+data:
+  ca.key: SYNTHETIC_BASE64_MARKER
+stringData:
+  tls.key: SYNTHETIC_PLAINTEXT_MARKER
+---
+apiVersion: v1
+kind: List
+items:
+  - kind: Secret
+    data:
+      tls.key: SYNTHETIC_NESTED_MARKER
+  - kind: DaemonSet
+    spec:
+      template:
+        spec:
+          containers:
+            - image: "${image}" # SYNTHETIC_COMMENT_MARKER
+            - image: '${other}'
+            - image: ${image}
+`;
+ assert.deepEqual(ciliumImageReceipt(manifest),{kind:'cilium-image-pins',images:[image,other].sort()});
+ for(const text of [
+  'kind: Secret\nstringData:\n  key: SYNTHETIC_ONLY_SECRET\n',
+  manifest+`  image: cilium:latest\n`,
+  manifest+`  image: ${image}0\n`,
+  manifest+`  image: "${image} SYNTHETIC_INVALID_IMAGE"\n`,
+ ])assert.throws(()=>ciliumImageReceipt(text),/^Error: Cilium image digest is absent(?: or malformed)?$/);
+});
+
+test('Cilium receipt CLI emits only the projection and emits nothing on a pin failure',async()=>{
+ const {mkdtemp,writeFile,rm}=await import('node:fs/promises');
+ const {tmpdir}=await import('node:os');
+ const {join}=await import('node:path');
+ const {spawnSync}=await import('node:child_process');
+ const directory=await mkdtemp(join(tmpdir(),'pero-cilium-evidence-'));
+ try {
+  const file=join(directory,'private-manifest.yaml');
+  for(const valid of [true,false]){
+   await writeFile(file,`kind: Secret\nstringData:\n  tls.key: SYNTHETIC_SECRET_MARKER\n---\nkind: DaemonSet\nspec:\n  image: ${valid?image:'latest-SYNTHETIC_SECRET_MARKER'}\n`);
+   const result=spawnSync(process.execPath,[fileURLToPath(new URL('../isolated/cilium-evidence.mjs',import.meta.url)),file],{encoding:'utf8'});
+   assert.equal(result.status,valid?0:1);
+   if(valid)assert.deepEqual(JSON.parse(result.stdout),{kind:'cilium-image-pins',images:[image]});
+   else assert.equal(result.stdout,'');
+   assert.doesNotMatch(result.stdout+result.stderr,/SYNTHETIC_SECRET_MARKER|tls\.key|kind: Secret/);
+  }
+ } finally {await rm(directory,{recursive:true,force:true});}
+});
+
 test('canaries isolate source egress without a destination-denial false positive',()=>{
  const b=baseline(image);const policies=b.items.filter(o=>o.kind==='NetworkPolicy');
  for(const ns of [namespaces.a,namespaces.b,namespaces.runtime]) {

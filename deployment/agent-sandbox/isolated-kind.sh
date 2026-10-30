@@ -157,12 +157,10 @@ verify_ipv4_cni() {
 verify_ipv4_cni installed
 cp "$work/cni/configmap.json" "$evidence/cni-configmap.json"
 cp "$pins" "$evidence/pins.json"
-# Fail if the pinned chart ever renders unpinned component images.
-helm get manifest cilium -n kube-system > "$evidence/cilium-manifest.yaml"
-node - "$evidence/cilium-manifest.yaml" <<'JS'
-const fs=require('node:fs'); const lines=fs.readFileSync(process.argv[2],'utf8').split('\n').filter(l=>/^\s+image:/.test(l));
-if(!lines.length||lines.some(l=>!/@sha256:[a-f0-9]{64}/.test(l)))throw Error('Cilium image digest is absent');
-JS
+# Helm's rendered chart contains generated TLS Secrets. Keep it private, fail
+# on any unpinned component image, and retain only validated image references.
+helm get manifest cilium -n kube-system > "$work/private/cilium-manifest.yaml"
+node "$fixture/cilium-evidence.mjs" "$work/private/cilium-manifest.yaml" > "$evidence/cilium-images.json"
 printf '{"apiVersion":"node.k8s.io/v1","kind":"RuntimeClass","metadata":{"name":"runsc"},"handler":"runsc"}\n' | kubectl apply -f -
 # Pin upstream controller image independently of the versioned manifest.
 sed "s#registry.k8s.io/agent-sandbox/agent-sandbox-controller:[^[:space:]]*#$(jq -r .agentSandbox.image "$pins")#" "$work/controller.yaml" > "$work/controller-pinned.yaml"
