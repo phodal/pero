@@ -44,7 +44,7 @@ def read_source(path):
         import anndata
         import numpy as np
         import pandas as pd
-        from transform import Cell, CellTable
+        from transform import Cell, CellTable, RULES
         from counts import CSCCounts
     except ImportError as error:
         raise Invalid("preparation_dependency_missing", "Use a separate preparation environment with numpy, scipy, pandas, h5py and anndata; App runtime is unchanged. " + str(error)) from None
@@ -57,7 +57,7 @@ def read_source(path):
             raise Invalid("source_obs_fields_missing", missing)
         if "X" not in adata.file:
             raise Invalid("source_X_required")
-        counts = CSCCounts.from_hdf5(adata.file["X"])
+        counts = CSCCounts.from_hdf5(adata.file["X"], max_nnz=RULES["count_reading"]["max_nnz"])
         cells = []
         for barcode, row in zip(adata.obs_names, adata.obs.loc[:, required].itertuples(index=False, name=None)):
             perturbation, guide, batch, coverage, n_cells = row

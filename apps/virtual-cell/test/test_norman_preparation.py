@@ -172,6 +172,8 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual(len([cid for cid in recipe.selected if "+" in cid]), 24)
         bundle, audit = prepare_cells(table, recipe)
         self.assertEqual(bundle, prepare_cells(table, recipe)[0])
+        # Only this synthetic fixture is bitwise equal across chunks; near-tied
+        # variances in other inputs can change ranking through floating reduction.
         tiny_chunks = CellTable(table.genes, table.cells, CSCCounts.from_sparse(fixture_matrix(table), max_nnz=1))
         self.assertEqual(bundle, prepare_cells(tiny_chunks, recipe)[0])
         provenance = bundle["dataset"]["source"]["preparation"]
@@ -220,6 +222,10 @@ class PreparationTests(unittest.TestCase):
         recipe = FrozenRecipe.freeze(inspected, mapping, 0.05)
         altered = copy.deepcopy(recipe.document)
         altered["rules"]["feature_count"] = 5
+        self.assert_invalid("recipe_protocol_mismatch", FrozenRecipe.read, sealed(altered))
+        self.assertEqual(recipe.document["rules"]["count_reading"]["max_nnz"], 65536)
+        altered = copy.deepcopy(recipe.document)
+        altered["rules"]["count_reading"]["max_nnz"] = 17
         self.assert_invalid("recipe_protocol_mismatch", FrozenRecipe.read, sealed(altered))
         bundle, _ = prepare_cells(table, recipe)
         bundle["spec"]["oversize"] = '"' * (9 * 1024 * 1024)

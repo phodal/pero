@@ -9,6 +9,8 @@ import numpy as np
 
 from contract import Invalid
 
+MAX_NNZ = 65536
+
 
 @dataclass(frozen=True)
 class CountChunk:
@@ -24,7 +26,7 @@ class CSCCounts:
     data: object
     indices: object
     indptr: np.ndarray
-    max_nnz: int = 65536
+    max_nnz: int = MAX_NNZ
 
     def __post_init__(self):
         if (len(self.shape) != 2 or any(not isinstance(n, int) or n < 1 for n in self.shape)
@@ -39,17 +41,17 @@ class CSCCounts:
             raise Invalid("source_csc_indptr")
 
     @classmethod
-    def from_sparse(cls, matrix, max_nnz=65536):
+    def from_sparse(cls, matrix, max_nnz=MAX_NNZ):
         """Fixture boundary only: the caller already owns an in-memory matrix."""
         csc = matrix.tocsc(copy=True)
         return cls(csc.shape, csc.data, csc.indices, csc.indptr, max_nnz)
 
     @classmethod
-    def from_hdf5(cls, group):
+    def from_hdf5(cls, group, *, max_nnz):
         if group.attrs.get("encoding-type") not in ("csc_matrix", b"csc_matrix"):
             raise Invalid("source_X_must_be_csc", "The fixed source uses CSC; no automatic full-matrix conversion")
         return cls(tuple(int(n) for n in group.attrs["shape"]), group["data"], group["indices"],
-                   np.asarray(group["indptr"][:]))
+                   np.asarray(group["indptr"][:]), max_nnz)
 
     def chunks(self, columns=None):
         for column in range(self.shape[1]) if columns is None else sorted(columns):

@@ -16,12 +16,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 from contract import Invalid, canonical, check_sealed, digest, sealed, text, validate_spec
 from dataset import DATASET_SCHEMA, condition_id, validate_dataset
 from split import freeze_split
-from counts import CSCCounts, group_sums, library_sums, training_moments
+from counts import MAX_NNZ, CSCCounts, group_sums, library_sums, training_moments
 
 VERSION = "norman-preparation.v1"
 CONTROL = "negative_control"
 RULES = {
     "double_count": 24, "feature_count": 256,
+    "count_reading": {"encoding": "csc_matrix", "max_nnz": MAX_NNZ},
     "selection": "sha256(seed:canonical-condition-id), ascending; no score input",
     "split": {"seed": 58, "validation_fraction": 0.20, "test_fraction": 0.25, "min_cells": 20},
     "qc": "good_coverage=true; number_of_cells=1; positive full-library sum; reviewed assigned guide",
