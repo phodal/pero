@@ -652,5 +652,6 @@
   "computer.loading": "Checking native connection…",
   "computer.refresh": "Refresh",
   "computer.stop": "Stop",
-  "computer.stop_hint": "Emergency stop: Command/Ctrl+Shift+Esc."
+  "computer.stop_hint": "Emergency stop: Command/Ctrl+Shift+Esc.",
+  "content.preparing_preview": "Preparing preview…"
 }

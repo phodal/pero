@@ -652,5 +652,6 @@
   "computer.loading": "正在检查原生连接…",
   "computer.refresh": "刷新",
   "computer.stop": "停止",
-  "computer.stop_hint": "紧急停止：Command/Ctrl+Shift+Esc。"
+  "computer.stop_hint": "紧急停止：Command/Ctrl+Shift+Esc。",
+  "content.preparing_preview": "正在准备预览…"
 }
