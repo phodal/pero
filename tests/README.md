@@ -141,3 +141,24 @@ permission requests appear; Desktop adds no second approval.
 actual App. It uses the installed provider login, writes evidence under
 `test-results/app-use-real`, and stays outside the default deterministic suite.
 See `docs/fitness/app-use.md` for acceptance boundaries.
+
+## Local Agent MCP configuration
+
+`npm run build:host && node tests/contracts/mcp-settings.mjs` exercises actual
+Host settings persistence and ACP `session/new` injection with the shared ACP
+fixture. It covers add-disabled, explicit enable, edit, remove, restart, unchanged
+running sessions and preservation of operator-managed configuration. Operator
+credentials must not appear in public Host events or stderr. The loopback HTTP
+endpoint binds an ephemeral port and must receive **no** connection: this slice
+manages configuration, not MCP health or tool discovery. No paid provider runs.
+The capture containing operator fixture credentials stays in a private temporary
+file and is deleted; only nonsecret pass evidence is written to
+`test-results/mcp-settings/host-result.json`.
+
+After `npm run build`, `node tests/e2e/mcp-settings.mjs` drives actual GPUI settings
+controls through Electron (including server-wide enable and remove confirmation),
+checks ACP injection, save failure/retry, restart and operator-secret exclusion,
+and captures light/dark, narrow and Chinese UI. It uses the same fixture and writes
+`test-results/mcp-settings/ui-result.json` plus screenshots. Linux requires the
+X11/Xvfb setup described above. A Host-only pass is **not** graphical acceptance;
+this suite must run on a desktop runner before claiming the UI was verified.

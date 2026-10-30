@@ -9,6 +9,8 @@ let timer;
 let workspace;
 const composerFixture = process.argv.includes('--composer');
 const capturePath = process.argv.find(arg => arg.startsWith('--capture='))?.slice('--capture='.length);
+// Opt-in capture proves the real Host → ACP boundary without a second MCP client.
+const sessionCapture = process.argv.find(arg => arg.startsWith('--session-capture='))?.slice('--session-capture='.length);
 const settings = { mode: 'write', effort: 'medium', approval: 'ask' };
 const configs = () => [
  {id:'model',name:'Model',category:'model',type:'select',currentValue:'fixture',options:[{value:'fixture',name:'Fixture'}]},
@@ -27,8 +29,9 @@ const finish = reason => {
 };
 readline.createInterface({input:process.stdin}).on('line',line=>{
  const message=JSON.parse(line),{id,method,params}=message;
- if (method==='initialize') send({id,result:{protocolVersion:1,agentCapabilities:composerFixture?{promptCapabilities:{image:true,embeddedContext:true}}:{},agentInfo:{name:'test-fixture',version:'1'}}});
+ if (method==='initialize') send({id,result:{protocolVersion:1,agentCapabilities:{...(composerFixture?{promptCapabilities:{image:true,embeddedContext:true}}:{}),...(sessionCapture?{mcpCapabilities:{http:true}}:{})},agentInfo:{name:'test-fixture',version:'1'}}});
  else if(method==='session/new'){
+  if(sessionCapture)appendFileSync(sessionCapture,JSON.stringify(params)+'\n',{mode:0o600});
   workspace=params.cwd;send({id,result:{sessionId:'fixture-session',configOptions:configs()}});
   if(composerFixture)send({method:'session/update',params:{sessionId:'fixture-session',update:{sessionUpdate:'available_commands_update',availableCommands:[{name:'compact',description:'Compact the conversation',input:{hint:'instructions'}}]}}});
  }

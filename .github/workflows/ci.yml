@@ -346,6 +346,8 @@ jobs:
           xvfb-run -a -s '-screen 0 1920x1200x24' npm run test:e2e
           xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use.mjs
           xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use-workbench.mjs
+          node tests/contracts/mcp-settings.mjs
+          xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/mcp-settings.mjs
 
       - name: Desktop E2E evidence
         if: always() && runner.os == 'Linux'
