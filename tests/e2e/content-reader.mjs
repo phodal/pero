@@ -184,6 +184,7 @@ try {
   await expect
     .poll(async () => (await reader()).editorBytes)
     .toBe(Buffer.byteLength(source));
+  await expect.poll(async () => (await reader()).foldable).toBe(true);
   await page.screenshot({ scale: 'css', path: resolve(out, 'source.png') });
   for (
     let cycle = 0;
@@ -458,6 +459,10 @@ try {
       },
     ]),
   );
+  const analysis = await page.evaluate(() => window.peroContentAnalysisStats);
+  expect(analysis.requests).toBeGreaterThan(0);
+  await expect.poll(async () => (await page.evaluate(() => window.peroContentAnalysisStats)).completed).toBe(analysis.requests);
+  expect((await page.evaluate(() => window.peroContentAnalysisStats)).failures).toBe(0);
   const longTasks = await page.evaluate(() => window.__contentLongTasks);
   const measuredTasks = longTasks.filter((task) =>
     Object.values(samples)
@@ -491,6 +496,7 @@ try {
       electron: await app.evaluate(() => process.versions.electron),
     },
     summary,
+    analysis: await page.evaluate(() => window.peroContentAnalysisStats),
     frames: {
       count: frames.length,
       p95Ms: percentile(frames, 0.95),

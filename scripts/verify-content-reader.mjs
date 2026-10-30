@@ -33,6 +33,10 @@ const sources = [
   'crates/pero-host/src/documents.rs',
   'crates/pero-chat-ui/src/artifact_read.rs',
   'crates/pero-contracts/src/content_document.rs',
+  'crates/pero-contracts/src/content_syntax.rs',
+  'crates/pero-chat-ui/src/source_syntax.rs',
+  'web/src/content-analysis.ts',
+  'web/src/content-analysis.worker.ts',
   'crates/pero-ui/src/documents.rs',
   'crates/pero-ui/src/workspace.rs',
   'crates/pero-chat-ui/src/content_reader.rs',
@@ -82,6 +86,7 @@ for (const path of [
   'protocol/generated',
   'packages/product',
   'packages/content-source',
+  'packages/icons',
   'packages/app-sdk/src',
   'apps/virtual-cell',
   'tests/fixtures/acp-agent.mjs',
@@ -89,7 +94,7 @@ for (const path of [
   await cp(resolve(root, path), resolve(isolated, path), {
     recursive: true,
     filter: (path) =>
-      !/[\\/](node_modules|__pycache__)([\\/]|$)/.test(path) && !/[\\/]web[\\/]src[\\/](wasm|chat-wasm)([\\/]|$)/.test(path),
+      !/[\\/](node_modules|__pycache__)([\\/]|$)/.test(path) && !/[\\/]web[\\/]src[\\/](wasm|chat-wasm|content-wasm)([\\/]|$)/.test(path),
   });
 }
 await symlink(
@@ -117,6 +122,8 @@ await run(
     'pero-ui',
     '-p',
     'pero-chat-web',
+    '-p',
+    'pero-content-worker',
     '--target',
     'wasm32-unknown-unknown',
   ],
@@ -133,6 +140,7 @@ await Promise.all(
   [
     ['pero_ui', 'wasm'],
     ['pero_chat_web', 'chat-wasm'],
+    ['pero_content_worker', 'content-wasm'],
   ].map(async ([artifact, folder]) => {
     const directory = join(isolated, 'web/src', folder);
     await mkdir(directory, { recursive: true });
