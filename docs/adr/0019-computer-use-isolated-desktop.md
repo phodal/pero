@@ -1,9 +1,9 @@
-# 0019: Computer Use isolated desktop mode
+# 0019: Computer Use isolated Linux desktop mode
 
 Status: proposed (design only, no implementation), 2026-10-30.
 
 Builds on [0016: Computer Use v1 contract](0016-computer-use-contract.md).
-This document describes a generic, publicly documented pattern (Xvfb/Xvnc,
+Scope: Linux Desktop hosts only. This document describes a generic, publicly documented pattern (Xvfb/Xvnc,
 a window manager, XTest input, x11vnc/TigerVNC, websockify/noVNC). It is not a
 description of any particular product's internals.
 
@@ -25,7 +25,12 @@ Non-goals:
 
 - Replacing the local backend. Local stays the default for operating the
   user's real apps.
+- macOS and Windows hosts. They are out of scope for this ADR and will get
+  a separate ADR later.
 - Wayland, macOS or Windows guests inside the isolated backend.
+- New input vocabulary (`move`, `hover`, `hold_ms`), app allowlists and other
+  input gaps. Those are covered by a separate ADR (0020, Computer Use input
+  gaps).
 - A hosted multi-tenant cloud service, billing or remote fleet management
   (a remote Worker may host the same backend later; see open questions).
 - Exposing VNC to the network, or general remote-desktop features
@@ -39,11 +44,11 @@ flowchart LR
   Agent["Agent (model)"] -->|ACP| Host["Pero Host<br/>sessions, authorization, receipts"]
   Host -->|MCP tools/call computer_use| MCP["Desktop MCP<br/>app-use-mcp.ts / computer.ts"]
   MCP --> Router{"backend"}
-  Router -->|local| Local["use/computer on user desktop<br/>macOS AX / Windows UIA / X11"]
+  Router -->|local| Local["use/computer on the Linux desktop<br/>X11"]
   Router -->|isolated| Session["isolated-session.ts (new)<br/>container, VNC token, handoff state"]
   Session -->|"spawns binary + args<br/>(container exec)"| Client["computer-client.ts (existing)<br/>one process, NDJSON over stdio"]
 
-  subgraph Sandbox["Container or VM (one session)"]
+  subgraph Sandbox["Linux host: container or host Xvfb (one session)"]
     Xvfb["Xvfb / Xvnc<br/>:99, fixed geometry"]
     WM["Window manager<br/>(e.g. openbox)"]
     Browser["Browser<br/>persistent profile"]
@@ -129,9 +134,6 @@ Draft only; `protocol/*.tsp` is not changed by this document.
 - Observation invalidation: entering a handoff advances a target epoch; every
   observation issued before it fails admission with `stale_observation`.
   Admission stays closed (`handoff_required`) until `handoff.returned`.
-- Input vocabulary: `move` (pointer to a pixel/element anchor), `hover`
-  (move plus optional `dwell_ms`), and `hold_ms` on click for long-press.
-  Bounded (for example `hold_ms <= 10000`), advertised per backend.
 
 ## 4. VNC security
 
@@ -162,15 +164,26 @@ Draft only; `protocol/*.tsp` is not changed by this document.
   volume; no host mounts other than the profile volume and an evidence
   directory; network egress policy configurable.
 
-## 6. Platforms
+## 6. Linux host
 
-- macOS: a Linux container through colima or Docker Desktop.
-- Windows: Docker Desktop or a WSL2 distribution.
-- Linux: a local container (Docker/Podman), or a host Xvfb display without a
-  container as a lighter, less isolated option.
-- The image contains Xvfb (or Xvnc), a window manager, a browser, the
-  `use/computer` binary, a VNC server and websockify. Desktop detects the
-  container runtime and reports `unsupported` with a reason when absent.
+Only Linux Desktop hosts are covered.
+
+- Container mode (default): a local Docker or Podman container runs Xvfb (or
+  Xvnc), a window manager, a browser, the `use/computer` binary, a VNC server
+  and websockify. Only the websockify port is published, on host loopback.
+  Desktop detects the container runtime and reports `unsupported` with a
+  reason when neither Docker nor Podman is available.
+- Host Xvfb mode (lighter, less isolated): Desktop starts a headless Xvfb
+  display (for example `:99`) plus WM, browser, VNC server and websockify
+  directly on the host as the user's own processes. It shares the user's
+  filesystem and network, so it is opt-in and labelled as weaker isolation.
+- noVNC view on an X11 host: the Electron window is a normal X11 client; the
+  noVNC canvas renders the isolated display over the websocket, and the
+  isolated display never touches the user's `$DISPLAY`.
+- noVNC view on a Wayland host: Electron runs natively (Ozone Wayland) or via
+  XWayland; either way the view is only a websocket canvas, so no Wayland
+  portal, screen-capture or input-injection permission is needed. The
+  isolated desktop itself stays X11 (Xvfb) inside the sandbox.
 
 ## 7. Relation to existing acceptance
 
@@ -182,8 +195,8 @@ Draft only; `protocol/*.tsp` is not changed by this document.
   start the image, run observe/act/receipt, a scripted handoff (view-only
   check, write window, invalidation) and teardown. Workflow changes are left
   to the maintainer.
-- macOS/Windows hosts need manual evidence that the container runtime path
-  works.
+- Manual evidence is needed for both Linux host modes (container, host
+  Xvfb) and for the noVNC view on X11 and Wayland sessions.
 
 ## 8. Related
 
@@ -202,12 +215,13 @@ Draft only; `protocol/*.tsp` is not changed by this document.
 
 ## 9. Phases and open questions
 
-1. Contract: `handoff_required`, handoff events/receipt, epoch invalidation,
-   move/hover/hold_ms in tsp and `pero-contracts`.
+1. Contract: backend selection, `handoff_required`, handoff events/receipt,
+   epoch invalidation in tsp and `pero-contracts`.
 2. Linux isolated backend: image, session lifecycle, Xvfb + WM + XTest.
 3. VNC: view-only noVNC view in Desktop, token, handoff write window, audit.
 4. Persistence and limits: profile volumes, idle stop, quotas.
-5. macOS (colima/Docker) and Windows (Docker/WSL2) hosts, fitness evidence.
+5. Fitness evidence on Linux hosts (container and host Xvfb, X11 and
+   Wayland sessions).
 
 Open questions:
 
