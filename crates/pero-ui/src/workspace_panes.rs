@@ -2,6 +2,16 @@
 use super::*;
 use pero_contracts::workspace_panes::{PaneId, PaneLayout, SplitDirection};
 impl WorkspaceNavigation {
+    pub(crate) fn ensure_document_layout(&mut self) {
+        if self.pane_layout.is_none()
+            && matches!(self.current(), Some(WorkspaceItem::Document { .. }))
+        {
+            self.pane_layout = Some(PaneLayout::new(
+                self.route.clone(),
+                self.history.reading.clone(),
+            ));
+        }
+    }
     pub(crate) fn pane_layout(&self) -> Option<&PaneLayout> {
         self.pane_layout.as_ref()
     }

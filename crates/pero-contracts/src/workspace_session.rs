@@ -103,7 +103,15 @@ impl WorkspaceSnapshot {
             .enumerate()
             .all(|(i, item)| !self.items[..i].contains(item))
             && self.panes.as_ref().is_none_or(|panes| {
-                panes.valid() && panes.leaves().iter().all(|view| admitted(&view.route))
+                panes.valid()
+                    && panes.leaves().iter().all(|view| admitted(&view.route))
+                    && (!matches!(
+                        self.route,
+                        WorkspaceRoute::Content(WorkspaceItem::Document { .. })
+                    ) || panes
+                        .focused
+                        .and_then(|id| panes.leaf(id))
+                        .is_some_and(|view| view.route == self.route))
             })
             && admitted(&self.route)
             && self.other.as_ref().is_none_or(|other| {

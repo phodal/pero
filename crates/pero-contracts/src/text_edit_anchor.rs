@@ -11,6 +11,7 @@ pub enum AnchorBias {
 pub struct TextEdit {
     pub old: Range<usize>,
     pub new_len: usize,
+    /// Row-start anchors removed by the edit (a mid-line start begins at the next row).
     pub old_lines: Range<usize>,
     pub new_line_count: usize,
 }
@@ -40,6 +41,7 @@ impl TextEdit {
         state.folded_lines = state
             .folded_lines
             .iter()
+            .filter(|line| !self.old_lines.contains(line))
             .map(|line| {
                 transform(
                     *line,

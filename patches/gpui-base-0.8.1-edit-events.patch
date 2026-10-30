@@ -1,16 +1,17 @@
 diff --git a/crates/base/src/input/base/state.rs b/crates/base/src/input/base/state.rs
 --- a/crates/base/src/input/base/state.rs
 +++ b/crates/base/src/input/base/state.rs
-@@ -131,6 +131,8 @@
+@@ -131,6 +131,9 @@
  #[derive(Clone)]
  pub enum InputEvent {
      Change,
++    EditTransaction {begin:bool},
 +    /// Accepted multiline mutations in application order, including IME preedit and undo.
 +    Edit {old:Range<usize>,inserted:String,old_lines:Range<usize>,new_line_count:usize},
      PressEnter { secondary: bool, shift: bool },
      Focus,
      Blur,
-@@ -4167,6 +4169,36 @@
+@@ -4167,6 +4170,44 @@
      /// Replace text in range in silent.
      ///
      /// This will not trigger any UI interaction, such as auto-completion.
@@ -35,11 +36,19 @@ diff --git a/crates/base/src/input/base/state.rs b/crates/base/src/input/base/st
 +        self.replay_history(undo,window,cx);
 +    }
 +
++    pub fn set_external_transaction(&mut self,begin:bool) {
++        if begin {self.undo_manager.begin_transaction();} else {self.undo_manager.commit_transaction();}
++    }
++    fn emit_edit_transaction(&self,begin:bool,cx:&mut Context<Self>) {
++        if self.emit_events && self.is_multi_line() {cx.emit(InputEvent::EditTransaction {begin});}
++    }
++
 +    fn emit_source_edit(&self,old_text:&Rope,range:&Range<usize>,new_text:&str,cx:&mut Context<Self>) {
 +        if !self.emit_events || !self.is_multi_line() || old_text.slice(range.clone()).bytes().eq(new_text.bytes()) {return;}
++        let start=old_text.offset_to_point(range.start);let end=old_text.offset_to_point(range.end);
 +        cx.emit(InputEvent::Edit {
 +            old:range.clone(),inserted:new_text.to_owned(),
-+            old_lines:old_text.offset_to_position(range.start).row..old_text.offset_to_position(range.end).row,
++            old_lines:(start.row+usize::from(start.column>0))..(end.row+usize::from(end.column>0)),
 +            new_line_count:new_text.bytes().filter(|byte|*byte==b'\n').count(),
 +        });
 +    }
@@ -47,7 +56,15 @@ diff --git a/crates/base/src/input/base/state.rs b/crates/base/src/input/base/st
      pub(crate) fn replace_text_in_range_silent(
          &mut self,
          range_utf16: Option<Range<usize>>,
-@@ -4263,6 +4295,7 @@
+@@ -4252,6 +4293,7 @@
+         let group = sorted.len() > 1;
+         if group {
+             self.undo_manager.begin_transaction();
++            self.emit_edit_transaction(true,cx);
+         }
+
+         let auto_closed_pairs_before = self.mode.auto_closed_pairs().clone();
+@@ -4263,6 +4305,7 @@
              let old_text = self.text.clone();
              self.mode.adjust_auto_closed_pair(range, new_text.len());
              self.text.replace(range.clone(), new_text);
@@ -55,17 +72,64 @@ diff --git a/crates/base/src/input/base/state.rs b/crates/base/src/input/base/st
 
              M::adjust_annotations(self, range, new_text.len());
              recorded |= self.push_history(
-@@ -4785,6 +4818,7 @@
+@@ -4318,6 +4361,7 @@
+             }
+
+             self.undo_manager.commit_transaction();
++            self.emit_edit_transaction(false,cx);
+         }
+
+         // One observable update per batch instead of one per edit.
+@@ -4471,9 +4515,10 @@
+             .map(|range| self.range_to_utf16(&range.into()))
+     }
+
+-    fn unmark_text(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {
+-        self.ime_marked_range = None;
++    fn unmark_text(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
++        let marked=self.ime_marked_range.take().is_some();
+         self.undo_manager.commit_transaction();
++        if marked {self.emit_edit_transaction(false,cx);}
+     }
+
+     /// Replace text in range.
+@@ -4594,6 +4639,7 @@
+             }
+             if ends_composition {
+                 self.undo_manager.commit_transaction();
++                self.emit_edit_transaction(false,cx);
+             }
+
+             if !self.silent_replace_text {
+@@ -4785,6 +4831,8 @@
              }
          }
 
++        if starts_composition {self.emit_edit_transaction(true,cx);}
 +        self.emit_source_edit(&old_text,&range,new_text,cx);
          M::adjust_annotations(self, &range, new_text.len());
          if let Some(diagnostics) = self.mode.diagnostics_mut() {
              diagnostics.reset(&self.text)
+@@ -4845,6 +4893,7 @@
+         }
+         if new_text.is_empty() {
+             self.undo_manager.commit_transaction();
++            self.emit_edit_transaction(false,cx);
+         }
+         cx.notify();
+     }
 diff --git a/crates/base/src/input/editor/search.rs b/crates/base/src/input/editor/search.rs
 --- a/crates/base/src/input/editor/search.rs
 +++ b/crates/base/src/input/editor/search.rs
+@@ -5,7 +5,7 @@
+ use std::{ops::Range, rc::Rc};
+
+ use super::{
+-    InputBaseState, Replace, RopeExt as _, Search, movement::MoveDirection, state::ScrollPadding,
++    InputBaseState, Replace, Search, movement::MoveDirection, state::ScrollPadding,
+ };
+
+ /// Stateful, presentation-independent search engine used by text inputs.
 @@ -271,13 +271,10 @@
          if ranges.is_empty() {
              return 0;
