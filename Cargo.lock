@@ -5473,10 +5473,12 @@ dependencies = [
 name = "pero-host"
 version = "0.1.0"
 dependencies = [
+ "futures-executor",
  "pero-contracts",
  "pero-runtime",
  "serde",
  "serde_json",
+ "session-analysis",
 ]
 
 [[package]]

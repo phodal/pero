@@ -2956,6 +2956,9 @@
         },
         {
           "$ref": "#/$defs/DeleteCommand"
+        },
+        {
+          "$ref": "#/$defs/InsightsCommand"
         }
       ]
     },
@@ -3159,6 +3162,9 @@
         },
         {
           "$ref": "#/$defs/CommandRejectedEvent"
+        },
+        {
+          "$ref": "#/$defs/InsightsEvent"
         }
       ]
     },
@@ -3470,6 +3476,155 @@
         "html"
       ],
       "additionalProperties": false
+    },
+    "InsightsCommand": {
+      "title": "InsightsCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "insights"
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        }
+      },
+      "required": [
+        "action",
+        "thread_id"
+      ],
+      "additionalProperties": false,
+      "description": "Read one saved session and return its Insights analysis."
+    },
+    "InsightsEvent": {
+      "title": "InsightsEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "insights"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/InsightsSummary"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "InsightsSummary": {
+      "title": "InsightsSummary",
+      "type": "object",
+      "properties": {
+        "turns": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "completed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "stopped": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "unfinished": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "unknown_turns": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "tool_errors": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "user_messages": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "request": {
+          "type": "string"
+        },
+        "response": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "git_branch": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "resumed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "turns",
+        "completed",
+        "failed",
+        "stopped",
+        "unfinished",
+        "unknown_turns",
+        "tool_calls",
+        "tool_errors",
+        "user_messages",
+        "request",
+        "response",
+        "model",
+        "git_branch",
+        "repository",
+        "resumed"
+      ],
+      "additionalProperties": false,
+      "description": "Derived session analysis. Not written into the session journal."
     },
     "InstallApp": {
       "title": "InstallApp",

@@ -8,11 +8,15 @@ implemented here.
 
 ## Boundary
 
-`prepare` validates a [`Transcript`](../../crates/session-analysis/src/types.rs)
-once, then `partition` cuts turn boundaries in order. `classify_turn` reads one
-turn and returns facts. `reduce` folds those facts in index order. The caller
-passes the analysis id and time. The core does not read a clock, files, git, or
-the network.
+`prepare` validates a transcript once, then `partition` cuts turn boundaries
+in order. `classify_turn` reads one turn and returns facts. `reduce` folds those
+facts in index order. The caller passes the analysis id and time. The core does
+not read a clock, files, git, or the network.
+
+The host shell is `crates/pero-host/src/insights.rs`. It maps one thread of
+`sessions.jsonl` into a transcript, calls the concurrent fold, and stores a
+checkpoint at `insights/<session-id>.checkpoint.json` next to that journal.
+The Insights page asks for that result by session id.
 
 `Session.git_branch` and `Session.repository` are copied onto the result. They
 are a link the caller already knows, not a git-analysis engine.

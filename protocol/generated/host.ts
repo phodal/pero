@@ -60,7 +60,8 @@ export type HostCommand =
   | ModelCommand
   | ConfigureCommand
   | CloseCommand
-  | DeleteCommand;
+  | DeleteCommand
+  | InsightsCommand;
 export type ContextKind =
   "file" | "directory" | "symbol" | "thread" | "skill" | "image" | "selection" | "branch_diff" | "fetch" | "app_object";
 export type ThreadId = string;
@@ -136,7 +137,8 @@ export type HostEvent =
   | SessionAuthenticatedEvent
   | PermissionEvent
   | PromptQueuedEvent
-  | CommandRejectedEvent;
+  | CommandRejectedEvent
+  | InsightsEvent;
 export type WebLoad = WebLoading | WebReady | WebFailed;
 /**
  * Catalog key resolved by the UI from locales/*.json.
@@ -704,6 +706,13 @@ export interface CloseCommand {
 }
 export interface DeleteCommand {
   action: "delete";
+  thread_id: ThreadId;
+}
+/**
+ * Read one saved session and return its Insights analysis.
+ */
+export interface InsightsCommand {
+  action: "insights";
   thread_id: ThreadId;
 }
 export interface ListApps {
@@ -1728,6 +1737,34 @@ export interface CommandRejectedEvent {
 }
 export interface CommandRejectedData {
   count: number;
+}
+export interface InsightsEvent {
+  kind: "insights";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: InsightsSummary;
+}
+/**
+ * Derived session analysis. Not written into the session journal.
+ */
+export interface InsightsSummary {
+  turns: number;
+  completed: number;
+  failed: number;
+  stopped: number;
+  unfinished: number;
+  unknown_turns: number;
+  tool_calls: number;
+  tool_errors: number;
+  user_messages: number;
+  request: string;
+  response: string;
+  model: string;
+  git_branch: string;
+  repository: string;
+  resumed: boolean;
 }
 export interface WebOpenCommand {
   action: "web_open";

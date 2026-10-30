@@ -28,6 +28,7 @@ pub struct Manager {
     app_bindings: HashMap<String, AppSessionBinding>,
     app_use: Option<acp::AppUseEndpoint>,
     settings_path: Option<PathBuf>,
+    history_path: PathBuf,
 }
 impl Manager {
     pub fn new(root: PathBuf) -> Self {
@@ -57,6 +58,7 @@ impl Manager {
         if let Some(parent) = history_file.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
+        let history_path = history_file.clone();
         let mut journal = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
@@ -110,8 +112,14 @@ impl Manager {
             vec![]
         });
         let settings_path = std::env::var_os("PERO_SETTINGS_PATH").map(PathBuf::from);
-        if let Some(selected) = settings_path.as_deref().and_then(pero_runtime::settings::load_chat_agent) {
-            if let Some(index) = agents.iter().position(|agent| agent.id == selected && agent.available()) {
+        if let Some(selected) = settings_path
+            .as_deref()
+            .and_then(pero_runtime::settings::load_chat_agent)
+        {
+            if let Some(index) = agents
+                .iter()
+                .position(|agent| agent.id == selected && agent.available())
+            {
                 let preferred = agents.remove(index);
                 agents.insert(0, preferred);
             }
@@ -125,13 +133,23 @@ impl Manager {
             app_bindings,
             app_use: acp::AppUseEndpoint::from_environment(),
             settings_path,
+            history_path,
         }
     }
-    pub fn configure_harness(&mut self, settings: &pero_contracts::harness_settings::HarnessSettings, api_key: String) {
+    pub fn configure_harness(
+        &mut self,
+        settings: &pero_contracts::harness_settings::HarnessSettings,
+        api_key: String,
+    ) {
         if let Some(agent) = self.agents.iter_mut().find(|agent| agent.id == "pero") {
-            for (flag, value) in [("--endpoint", &settings.endpoint), ("--model", &settings.model)] {
+            for (flag, value) in [
+                ("--endpoint", &settings.endpoint),
+                ("--model", &settings.model),
+            ] {
                 if let Some(index) = agent.args.iter().position(|arg| arg == flag) {
-                    if let Some(argument) = agent.args.get_mut(index + 1) { *argument = value.clone(); }
+                    if let Some(argument) = agent.args.get_mut(index + 1) {
+                        *argument = value.clone();
+                    }
                 }
             }
             agent.env.insert("DEEPSEEK_API_KEY".into(), api_key);
@@ -140,8 +158,37 @@ impl Manager {
     fn visible_history(&self) -> Vec<HostEvent> {
         HostEvent::without_deleted_threads(&self.history.lock().unwrap())
     }
+    fn publish_insights(&self, thread_id: String) {
+        if !super::insights::session_id_ok(&thread_id) {
+            self.send("error", "Invalid session request", serde_json::Value::Null);
+            return;
+        }
+        match super::insights::analyze_history(
+            &self.visible_history(),
+            &thread_id,
+            &self.history_path,
+            super::insights::now_ms(),
+            32,
+        ) {
+            Ok(report) => {
+                let mut event = HostEvent::new("insights", None, String::new());
+                event.thread_id = Some(thread_id);
+                event.data = report.to_json();
+                let _ = self.tx.send(event);
+            }
+            Err(error) => {
+                let mut event = HostEvent::new("error", None, error.to_string());
+                event.thread_id = Some(thread_id);
+                let _ = self.tx.send(event);
+            }
+        }
+    }
     pub fn has_thread(&self, thread: &str) -> bool {
-        self.sessions.contains_key(thread) || self.visible_history().iter().any(|event| event.thread_id.as_deref() == Some(thread))
+        self.sessions.contains_key(thread)
+            || self
+                .visible_history()
+                .iter()
+                .any(|event| event.thread_id.as_deref() == Some(thread))
     }
     fn send(&self, kind: &str, text: impl Into<String>, data: serde_json::Value) {
         let mut event = HostEvent::new(kind, None, text.into());
@@ -309,6 +356,7 @@ impl Manager {
                     }
                 }
             }
+            HostCommand::Insights { thread_id } => self.publish_insights(thread_id),
             HostCommand::Delete { thread_id } => {
                 if thread_id.is_empty() || thread_id.len() > 128 {
                     self.send("error", "Invalid session request", serde_json::Value::Null);

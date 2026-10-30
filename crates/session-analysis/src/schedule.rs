@@ -31,7 +31,10 @@ impl Budget {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Step {
     Partial(Checkpoint),
-    Done(Analysis),
+    Done {
+        analysis: Analysis,
+        checkpoint: Checkpoint,
+    },
 }
 
 pub async fn analyze_concurrent(
@@ -65,7 +68,11 @@ pub async fn resume(checkpoint: Checkpoint, turns: &[Turn], budget: Budget) -> R
         state = reduce(state, fact)?;
     }
     if take == pending.len() {
-        Ok(Step::Done(finish(state)))
+        let analysis = finish(state.clone());
+        Ok(Step::Done {
+            analysis,
+            checkpoint: Checkpoint::from_state(state),
+        })
     } else {
         Ok(Step::Partial(Checkpoint::from_state(state)))
     }
@@ -117,7 +124,15 @@ mod tests {
         let input = input();
         let sync = analyze(&transcript, &input).unwrap();
         let step = block_on(analyze_concurrent(&transcript, &input, Budget::all())).unwrap();
-        assert_eq!(step, Step::Done(sync));
+        let Step::Done {
+            analysis,
+            checkpoint,
+        } = step
+        else {
+            panic!("full budget finishes");
+        };
+        assert_eq!(analysis, sync);
+        assert_eq!(checkpoint.cursor(), Some(7));
     }
 
     #[test]
@@ -145,6 +160,9 @@ mod tests {
         assert_eq!(unchanged.cursor(), Some(2));
 
         let done = block_on(resume(checkpoint, &prepared.turns, Budget::all())).unwrap();
-        assert_eq!(done, Step::Done(sync));
+        let Step::Done { analysis, .. } = done else {
+            panic!("resume finishes the transcript");
+        };
+        assert_eq!(analysis, sync);
     }
 }

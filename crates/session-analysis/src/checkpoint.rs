@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::reduce::{ReduceState, check};
-use crate::types::Error;
+use crate::types::{Coverage, Error, Source};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -13,8 +13,20 @@ pub struct Checkpoint {
 }
 
 impl Checkpoint {
-    pub(crate) fn from_state(state: ReduceState) -> Self {
+    pub fn from_state(state: ReduceState) -> Self {
         Self { state }
+    }
+
+    pub fn session_id(&self) -> &str {
+        self.state.session.id.as_str()
+    }
+
+    /// Keep a saved prefix and point its source facts at a newer read of the
+    /// same journal. The cursor and reduced turns stay put.
+    pub fn retarget(mut self, source: Source, coverage: Coverage) -> Self {
+        self.state.source = source;
+        self.state.coverage = coverage;
+        self
     }
 
     pub(crate) fn into_state(self) -> ReduceState {

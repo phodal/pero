@@ -151,6 +151,10 @@ pub enum HostCommand {
     Delete {
         thread_id: String,
     },
+    /// Analyze one saved session. The result is an Insights event, not a journal line.
+    Insights {
+        thread_id: String,
+    },
 }
 
 /// Only the Desktop main process handles plaintext credentials. Runtime settings

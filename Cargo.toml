@@ -12,6 +12,7 @@ publish = false
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 pero-contracts = { path = "crates/pero-contracts" }
+session-analysis = { path = "crates/session-analysis" }
 pero-runtime = { path = "crates/pero-runtime" }
 pero-theme = { path = "crates/pero-theme" }
 pero-chat-ui = { path = "crates/pero-chat-ui" }

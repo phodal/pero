@@ -240,6 +240,8 @@ model ModelCommand { action: "model"; thread_id: string; model_id: string; ...Cl
 model ConfigureCommand { action: "configure"; thread_id: ThreadId; config_id: string; value: string; ...Closed }
 model CloseCommand { action: "close"; thread_id: string; ...Closed }
 model DeleteCommand { action: "delete"; thread_id: ThreadId; ...Closed }
+/** Read one saved session and return its Insights analysis. */
+model InsightsCommand { action: "insights"; thread_id: ThreadId; ...Closed }
 
 @oneOf
 union HostCommand {
@@ -258,6 +260,7 @@ union HostCommand {
   ConfigureCommand,
   CloseCommand,
   DeleteCommand,
+  InsightsCommand,
 }
 
 @oneOf
@@ -403,6 +406,26 @@ model ConfigurationChangedEvent { kind: "configuration_changed"; ...ThreadEventB
 model SessionErrorEvent { kind: "session_error"; ...ThreadEventBase }
 model SessionClosedEvent { kind: "session_closed"; ...ThreadEventBase }
 model SessionDeletedEvent { kind: "session_deleted"; ...ThreadEventBase }
+/** Derived session analysis. Not written into the session journal. */
+model InsightsSummary {
+  turns: uint32;
+  completed: uint32;
+  failed: uint32;
+  stopped: uint32;
+  unfinished: uint32;
+  unknown_turns: uint32;
+  tool_calls: uint32;
+  tool_errors: uint32;
+  user_messages: uint32;
+  request: string;
+  response: string;
+  `model`: string;
+  git_branch: string;
+  repository: string;
+  resumed: boolean;
+  ...Closed;
+}
+model InsightsEvent { kind: "insights"; ...ThreadEventBase; data: InsightsSummary }
 
 /** Events persisted to the session journal and replayed to the UI. */
 @oneOf
@@ -474,4 +497,5 @@ union HostEvent {
   PermissionEvent,
   PromptQueuedEvent,
   CommandRejectedEvent,
+  InsightsEvent,
 }

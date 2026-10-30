@@ -6,10 +6,11 @@ mod agents;
 mod apps;
 mod contributions;
 mod documents;
-mod workspace;
+mod icons;
+mod insights;
 mod local_worker;
 mod mcp;
-mod icons;
+mod workspace;
 
 fn emit(event: HostEvent) -> io::Result<()> {
     let mut stdout = io::stdout().lock();
@@ -26,8 +27,10 @@ fn main() -> io::Result<()> {
     let mut agents = agents::Manager::new(std::env::current_dir()?);
     let settings_path = std::env::var_os("PERO_SETTINGS_PATH").map(std::path::PathBuf::from);
     let mut apps = apps::Apps::new(settings_path.as_deref());
-    let mut workspace_store=settings_path.as_deref().map(pero_runtime::workspace_store::WorkspaceStore::new);
-    let mut documents=pero_runtime::file_documents::FileDocuments::default();
+    let mut workspace_store = settings_path
+        .as_deref()
+        .map(pero_runtime::workspace_store::WorkspaceStore::new);
+    let mut documents = pero_runtime::file_documents::FileDocuments::default();
     let workers = local_worker::LocalWorkers::new(settings_path.as_deref());
     let mut mcp = mcp::Mcp::new(settings_path.as_deref());
     let mut icons = icons::Icons::new(settings_path.as_deref());
@@ -53,20 +56,33 @@ fn main() -> io::Result<()> {
             agents.dispatch_mcp(value);
             continue;
         }
-        if value.get("method").and_then(|value|value.as_str())==Some("icons") {
-            emit(icons.dispatch(value))?;continue;
+        if value.get("method").and_then(|value| value.as_str()) == Some("icons") {
+            emit(icons.dispatch(value))?;
+            continue;
         }
-        if value.get("method").and_then(|value|value.as_str())==Some("mcp") {
-            emit(mcp.dispatch(value,&agents,&locale))?;continue;
+        if value.get("method").and_then(|value| value.as_str()) == Some("mcp") {
+            emit(mcp.dispatch(value, &agents, &locale))?;
+            continue;
         }
         if value.get("method").and_then(|v| v.as_str()) == Some("settings.harness") {
             #[derive(serde::Deserialize)]
             #[serde(deny_unknown_fields)]
-            struct Request { method: String, id: String, settings: pero_contracts::harness_settings::HarnessSettings, api_key: String }
-            let mut event = HostEvent::new("harness_settings_error", value.get("id").and_then(|v| v.as_str()).map(str::to_owned), String::new());
+            struct Request {
+                method: String,
+                id: String,
+                settings: pero_contracts::harness_settings::HarnessSettings,
+                api_key: String,
+            }
+            let mut event = HostEvent::new(
+                "harness_settings_error",
+                value.get("id").and_then(|v| v.as_str()).map(str::to_owned),
+                String::new(),
+            );
             if let Ok(request) = serde_json::from_value::<Request>(value) {
                 let _ = (&request.method, &request.id);
-                if settings_path.as_deref().is_some_and(|path| pero_runtime::settings::save_harness(path, &request.settings).is_ok()) {
+                if settings_path.as_deref().is_some_and(|path| {
+                    pero_runtime::settings::save_harness(path, &request.settings).is_ok()
+                }) {
                     agents.configure_harness(&request.settings, request.api_key);
                     event.kind = "harness_settings_saved".into();
                 }
@@ -74,15 +90,38 @@ fn main() -> io::Result<()> {
             emit(event)?;
             continue;
         }
-        if value.get("method").and_then(|value| value.as_str()).is_some_and(|method| method.starts_with("settings.computer")) {
+        if value
+            .get("method")
+            .and_then(|value| value.as_str())
+            .is_some_and(|method| method.starts_with("settings.computer"))
+        {
             use pero_contracts::computer_runtime::ComputerSettingsRequest;
-            let mut event = HostEvent::new("computer_settings_error", value.get("id").and_then(|id|id.as_str()).map(str::to_owned), String::new());
+            let mut event = HostEvent::new(
+                "computer_settings_error",
+                value
+                    .get("id")
+                    .and_then(|id| id.as_str())
+                    .map(str::to_owned),
+                String::new(),
+            );
             if let Ok(request) = serde_json::from_value::<ComputerSettingsRequest>(value) {
                 let enabled = match request {
-                    ComputerSettingsRequest::Get {} => Some(settings_path.as_deref().is_some_and(pero_runtime::settings::load_computer_enabled)),
-                    ComputerSettingsRequest::Set { enabled, .. } => settings_path.as_deref().filter(|path| pero_runtime::settings::save_computer_enabled(path, enabled).is_ok()).map(|_|enabled),
+                    ComputerSettingsRequest::Get {} => Some(
+                        settings_path
+                            .as_deref()
+                            .is_some_and(pero_runtime::settings::load_computer_enabled),
+                    ),
+                    ComputerSettingsRequest::Set { enabled, .. } => settings_path
+                        .as_deref()
+                        .filter(|path| {
+                            pero_runtime::settings::save_computer_enabled(path, enabled).is_ok()
+                        })
+                        .map(|_| enabled),
                 };
-                if let Some(enabled) = enabled { event.kind = "computer_settings".into(); event.data = serde_json::json!({"enabled":enabled}); }
+                if let Some(enabled) = enabled {
+                    event.kind = "computer_settings".into();
+                    event.data = serde_json::json!({"enabled":enabled});
+                }
             }
             emit(event)?;
             continue;
@@ -116,15 +155,24 @@ fn main() -> io::Result<()> {
             emit(event)?;
             continue;
         }
-        if value.get("method").and_then(|v|v.as_str())==Some("workspace") {
-            emit(workspace::dispatch(workspace_store.as_mut(),&mut documents,value))?;continue;
+        if value.get("method").and_then(|v| v.as_str()) == Some("workspace") {
+            emit(workspace::dispatch(
+                workspace_store.as_mut(),
+                &mut documents,
+                value,
+            ))?;
+            continue;
         }
         if value.get("method").and_then(|v| v.as_str()) == Some("contribution") {
             contributions::dispatch(value);
             continue;
         }
-        if value.get("method").and_then(|v|v.as_str())==Some("documents") {
-            if let Some(event)=documents::dispatch(&mut documents,workspace_store.as_mut(),value) {emit(event)?;}
+        if value.get("method").and_then(|v| v.as_str()) == Some("documents") {
+            if let Some(event) =
+                documents::dispatch(&mut documents, workspace_store.as_mut(), value)
+            {
+                emit(event)?;
+            }
             continue;
         }
         if value.get("method").and_then(|v| v.as_str()) == Some("apps") {

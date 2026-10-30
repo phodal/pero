@@ -659,12 +659,27 @@ impl Workbench {
                 )
             })
             .children(sessions.into_iter().map(|(i, title, status)| {
+                let analysis = self.chat.read(cx).chats.get(i).and_then(|chat| self.insights.get(&chat.id));
+                let label = match analysis {
+                    Some(summary) => format!(
+                        "{} · {} · {} {} · {} {} · {} {}",
+                        title,
+                        status,
+                        summary.turns,
+                        self.t("insights.turns"),
+                        summary.failed,
+                        self.t("insights.failed"),
+                        summary.tool_calls,
+                        self.t("insights.tools"),
+                    ),
+                    None => format!("{title} · {status}"),
+                };
                 Button::new(("insight-session", i))
                     .ghost()
                     .w_full()
                     .h(px(pero_theme::UiAppearance::global(cx).typography.row_height() + 8.))
                     .justify_start()
-                    .label(format!("{} · {}", title, status))
+                    .label(label)
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.navigate(WorkbenchPage::Conversation, cx);
                         this.focus_chat(Some(i), ConversationTab::Chat, cx);

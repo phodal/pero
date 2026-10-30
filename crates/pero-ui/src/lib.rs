@@ -28,6 +28,8 @@ mod cloud;
 mod local_roadmap;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod project_view;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod insights;
 #[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
 mod projects;
 #[cfg(any(target_family = "wasm", feature = "native"))]

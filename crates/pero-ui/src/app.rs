@@ -101,6 +101,8 @@ pub(crate) struct Workbench {
     pub last_echo: String,
     pub error: Option<String>,
     pub events: Vec<HostEvent>,
+    pub insights: std::collections::HashMap<String, crate::insights::Summary>,
+    insights_requested: std::collections::HashSet<String>,
     pub chat: Entity<ChatPanel>,
     pub search: Entity<InputState>,
     pub workspace: String,
@@ -342,6 +344,8 @@ impl Workbench {
             last_echo: String::new(),
             error: None,
             events: Vec::new(),
+            insights: std::collections::HashMap::new(),
+            insights_requested: std::collections::HashSet::new(),
             chat,
             search,
             workspace: String::new(),
@@ -389,9 +393,22 @@ impl Workbench {
 
     pub(crate) fn navigate(&mut self, page: WorkbenchPage, cx: &mut Context<Self>) {
         self.navigation.show(page);
+        if page == WorkbenchPage::Insights {
+            self.request_insights(cx);
+        }
         self.queue_workspace_checkpoint(cx);
         self.sync_follow(cx);
         cx.notify();
+    }
+
+    fn request_insights(&mut self, cx: &mut Context<Self>) {
+        let ids: Vec<String> = self.chat.read(cx).chats.iter().map(|chat| chat.id.clone()).collect();
+        for id in ids {
+            if self.insights.contains_key(&id) || !self.insights_requested.insert(id.clone()) {
+                continue;
+            }
+            self.command(json!({"action": "insights", "thread_id": id}), cx);
+        }
     }
 
     pub fn focus_chat(
@@ -487,6 +504,13 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) {
         let event_kind = event.kind.clone();
+        if event.kind == "insights" {
+            if let Some(id) = event.thread_id.clone() {
+                self.insights.insert(id, crate::insights::Summary::from_event(&event.data));
+            }
+            cx.notify();
+            return;
+        }
         let feature_handled = self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
             || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
             || self.receive_local_execution(&event, cx)
