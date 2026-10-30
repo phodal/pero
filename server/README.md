@@ -433,3 +433,21 @@ provision an existing account's Client scope when no Worker is assigned.
 Live configuration is held in `/etc/openpero/server.env` (0600); the GitHub App
 callback is `https://app.openpero.com/auth/github/callback`. Never commit its
 Client Secret. The service discards the GitHub access token after identity lookup.
+
+## Optional Agent Sandbox runtime
+
+`PERO_SANDBOX_CONFIG` selects an operator-owned JSON file for one fixed trusted
+Worker/pool. Without it the existing dispatch path is unchanged. Migration 15
+adds runtime binding receipts and a persistent runtime-only Worker queue fence;
+it does not create Kubernetes resources or register credentials by itself.
+Operator `POST /api/v1/tasks/{id}/runtime-dispatch` (`{}` plus required
+`Idempotency-Key`) atomically dispatches/reserves before claim creation.
+`GET /api/v1/runs/{id}/runtime` reads evidence; the corresponding `/reconcile` and
+`/release` POSTs take `{}` and use the original operation/UID. Client/Worker
+credentials cannot call these operator endpoints.
+
+See [ADR 0018](../docs/adr/0018-agent-sandbox-runtime.md), the
+[operator runbook](../deployment/agent-sandbox/README.md) and
+[verification limits](../docs/fitness/agent-sandbox-runtime.md). No Task may supply
+cluster configuration or executable paths. Default unattended permissions remain
+denied; Kubernetes is not a replacement for the existing native sandbox policy.

@@ -14,6 +14,7 @@ test_suite(
         "//server/internal/github:github_test",
         "//server/internal/httpapi:httpapi_test",
         "//server/internal/store:store_test",
+        "//server/internal/sandbox:sandbox_test",
     ],
     visibility = ["//visibility:public"],
 )

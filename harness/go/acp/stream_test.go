@@ -251,72 +251,107 @@ func TestLiveProjectionAttemptAndContentLanes(t *testing.T) {
 	}
 }
 
+type cancellationRetryAdapter struct {
+	harness.AdapterFunc
+	policy harness.ResolvedRetryPolicy
+}
+
+func (a cancellationRetryAdapter) RetryPolicyForProvider(string) (harness.ResolvedRetryPolicy, bool) {
+	return a.policy, true
+}
+
 func TestPromptAdmissionCancellation(t *testing.T) {
-	for _, action := range []string{"cancel", "close"} {
-		t.Run(action, func(t *testing.T) {
-			var calls atomic.Int32
-			h, err := harness.Boot(t.Context(), harness.Options{AdapterProviders: []string{"fixture"}, Adapter: harness.AdapterFunc(func(ctx context.Context, _ harness.GenerateRequest, emit func(harness.StreamChunk) error) (harness.Completion, error) {
-				calls.Add(1)
-				return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "next turn"}}}}, nil
-			})})
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
-			disk, err := harness.NewJSONLSessionPersistence(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
-			server, err := NewServer(Options{Harness: h, Persistence: disk, Provider: "fixture", Model: "fixture"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			sink := make(updateSink, 100)
-			server.writer = &wireWriter{encoder: json.NewEncoder(sink)}
-			defer server.closeAll(context.Background())
-			id, err := server.newSession(t.Context(), NewSessionParams{CWD: t.TempDir()})
-			if err != nil {
-				t.Fatal(err)
-			}
-			record, err := server.currentRecord(id)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var cancelled atomic.Bool
-			detach := record.agent.Session().Subscribe(func(event harness.Event) {
-				if event.Type == "agent/inbox/spliced" && cancelled.CompareAndSwap(false, true) {
-					raw, _ := json.Marshal(SessionParams{SessionID: string(id)})
-					if action == "close" {
-						server.requestRecordClose(record)
-					} else {
-						server.handleNotification(request{Method: "session/cancel", Params: raw})
+	policy, err := harness.ResolveRetryPolicy(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, phase := range []struct {
+		name, event string
+		wantCalls   int32
+	}{
+		{"admission", "agent/inbox/spliced", 0},
+		{"retry_backoff", "llm/retry", 1},
+	} {
+		for _, action := range []string{"cancel", "close"} {
+			t.Run(phase.name+"/"+action, func(t *testing.T) {
+				var calls atomic.Int32
+				h, err := harness.Boot(t.Context(), harness.Options{AdapterProviders: []string{"fixture"}, Adapter: cancellationRetryAdapter{policy: policy, AdapterFunc: func(ctx context.Context, _ harness.GenerateRequest, emit func(harness.StreamChunk) error) (harness.Completion, error) {
+					if calls.Add(1) == 1 && phase.wantCalls == 1 {
+						return harness.Completion{}, harness.NewProviderError("fixture transport failure", "TRANSPORT", nil)
 					}
-				}
-			})
-			defer detach()
-			stop, err := server.prompt(t.Context(), PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: "cancel before dispatch"}}})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if stop != "cancelled" {
-				t.Fatalf("stop = %q", stop)
-			}
-			if err := record.agent.WhenIdle(t.Context()); err != nil {
-				t.Fatal(err)
-			}
-			if got := calls.Load(); got != 0 {
-				t.Fatalf("cancelled before dispatch but provider executed %d times", got)
-			}
-			if action == "close" {
-				if err := waitRecordClose(t.Context(), record); err != nil {
+					return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "next turn"}}}}, nil
+				}}})
+				if err != nil {
 					t.Fatal(err)
 				}
-				return
-			}
-			stop, err = server.prompt(t.Context(), PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: "next turn"}}})
-			if err != nil || stop != "end_turn" || calls.Load() != 1 {
-				t.Fatalf("next prompt: stop=%q err=%v provider calls=%d", stop, err, calls.Load())
-			}
-		})
+				defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
+				disk, err := harness.NewJSONLSessionPersistence(t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				server, err := NewServer(Options{Harness: h, Persistence: disk, Provider: "fixture", Model: "fixture"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				sink := make(updateSink, 100)
+				server.writer = &wireWriter{encoder: json.NewEncoder(sink)}
+				defer server.closeAll(context.Background())
+				id, err := server.newSession(t.Context(), NewSessionParams{CWD: t.TempDir()})
+				if err != nil {
+					t.Fatal(err)
+				}
+				record, err := server.currentRecord(id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var cancelled atomic.Bool
+				detach := record.agent.Session().Subscribe(func(event harness.Event) {
+					if event.Type == phase.event && cancelled.CompareAndSwap(false, true) {
+						raw, _ := json.Marshal(SessionParams{SessionID: string(id)})
+						if action == "close" {
+							server.requestRecordClose(record)
+						} else {
+							server.handleNotification(request{Method: "session/cancel", Params: raw})
+						}
+					}
+				})
+				defer detach()
+				stop, err := server.prompt(t.Context(), PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: "cancel at the selected execution boundary"}}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if stop != "cancelled" {
+					t.Fatalf("stop = %q", stop)
+				}
+				if err := record.agent.WhenIdle(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				if got := calls.Load(); got != phase.wantCalls {
+					t.Fatalf("provider calls after cancellation = %d, want %d", got, phase.wantCalls)
+				}
+				var scheduled, started int32
+				for _, event := range record.agent.Session().Events() {
+					switch event.Type {
+					case "llm/retry":
+						scheduled++
+					case "llm/retry-started":
+						started++
+					}
+				}
+				if scheduled != phase.wantCalls || started != 0 {
+					t.Fatalf("retry receipts: scheduled=%d started=%d", scheduled, started)
+				}
+				if action == "close" {
+					if err := waitRecordClose(t.Context(), record); err != nil {
+						t.Fatal(err)
+					}
+					return
+				}
+				stop, err = server.prompt(t.Context(), PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: "next turn"}}})
+				if err != nil || stop != "end_turn" || calls.Load() != phase.wantCalls+1 {
+					t.Fatalf("next prompt: stop=%q err=%v provider calls=%d", stop, err, calls.Load())
+				}
+			})
+		}
 	}
 }

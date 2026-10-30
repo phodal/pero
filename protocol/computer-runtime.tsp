@@ -7,8 +7,19 @@ namespace Pero.Computer.Runtime;
 
 model ComputerStatusRequest { operation: "status"; ...ComputerClosed; }
 model ComputerTargetsRequest { operation: "targets"; ...ComputerClosed; }
-model ComputerOpenRequest { operation: "open"; @minLength(1) @maxLength(128) application: string; ...ComputerClosed; }
-model ComputerObserveRequest { operation: "observe"; target: ComputerTargetRef; ...ComputerClosed; }
+@minLength(1) @maxLength(128) scalar ComputerApplicationName extends string;
+model ComputerBundleSelector { kind: "bundle_id"; @minLength(1) @maxLength(128) bundle_id: string; ...ComputerClosed; }
+@oneOf union ComputerApplicationSelector { ComputerApplicationName, ComputerBundleSelector }
+model ComputerOpenRequest { operation: "open"; application: ComputerApplicationSelector; ...ComputerClosed; }
+model ComputerSubtree { observation_id: ComputerRef; element_id: ComputerRef; ...ComputerClosed; }
+model ComputerObserveOptions {
+  want_image?: boolean;
+  @minValue(1) @maxValue(4096) max_nodes?: uint16;
+  @minValue(1) @maxValue(64) max_depth?: uint16;
+  root?: ComputerSubtree | null;
+  ...ComputerClosed;
+}
+model ComputerObserveRequest { operation: "observe"; target: ComputerTargetRef; options?: ComputerObserveOptions; ...ComputerClosed; }
 model ComputerActRequest { operation: "act"; action: ComputerAction; ...ComputerClosed; }
 model ComputerStopRequest { operation: "stop"; ...ComputerClosed; }
 model ComputerReceiptRequest { operation: "receipt"; request_id: ComputerRef; ...ComputerClosed; }

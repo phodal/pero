@@ -7,8 +7,9 @@ mod supervisor;
 
 use control::{CloudFailure, Control};
 use journal::{Active, Claim, Journal};
-use model::{Outcome, ReconnectBackoff};
+use model::{Outcome, ReconnectBackoff, RemoteGrant};
 use pero_contracts::local_worker::{LocalWorkerStatus, WorkerProgress};
+use ring::rand::SecureRandom;
 use std::io::Write;
 use std::{
     path::PathBuf,
@@ -85,6 +86,7 @@ fn recover(control: &Control, journal: &mut Journal) -> Result<bool, CloudFailur
                 events: vec![],
                 acknowledged: 0,
                 result: None,
+                remote_grant: None,
             });
         }
         journal.save()?;
@@ -102,6 +104,11 @@ fn recover(control: &Control, journal: &mut Journal) -> Result<bool, CloudFailur
             return Ok(needs_review);
         }
         if active.result.is_none() {
+            if let Some(grant) = &active.remote_grant {
+                // Reconcile the same issuance receipt only; never reopen the duplex
+                // connection or regenerate the grant after an interrupted process.
+                let _ = control.open_channel(&active.run, grant);
+            }
             journal.state.active.as_mut().unwrap().result = Some(Outcome::new(
                 "reconcile",
                 "Worker restarted after acquiring execution; prompt was not replayed; inspect previous effects",
@@ -133,6 +140,12 @@ fn run() -> Result<(), String> {
                 }
             }
         });
+    }
+    let runtime_pod_uid = std::env::var("PERO_RUNTIME_POD_UID").ok();
+    if runtime_pod_uid.as_ref().is_some_and(|uid| {
+        uid.is_empty() || uid.len() > 128 || !uid.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-')
+    }) {
+        return Err("PERO_RUNTIME_POD_UID must be a bounded Kubernetes UID".into());
     }
     let control = Control::new(&required("PERO_CLOUD_URL")?, required("PERO_WORKER_TOKEN")?)?;
     let config_path = PathBuf::from(required("PERO_WORKER_CONFIG")?);
@@ -191,6 +204,7 @@ fn run() -> Result<(), String> {
             journal.state.pending_claim = Some(Claim {
                 request_id: uuid::Uuid::new_v4().to_string(),
                 instance_id: instance_id.clone(),
+                runtime_pod_uid: runtime_pod_uid.clone(),
             });
         }
         journal.save()?;
@@ -238,20 +252,60 @@ fn run() -> Result<(), String> {
             "Running assigned task",
             Some(run.id.clone()),
         );
+        let remote_grant = if let Some(remote) = &run.remote_execution {
+            let mut bytes = [0u8; 32];
+            ring::rand::SystemRandom::new()
+                .fill(&mut bytes)
+                .map_err(|_| "Unable to create scoped channel secret")?;
+            Some(RemoteGrant {
+                session_id: remote.session_id.clone(),
+                secret: bytes.iter().map(|b| format!("{b:02x}")).collect(),
+            })
+        } else {
+            None
+        };
         journal.state.active = Some(Active {
             run: run.clone(),
             request_id,
             events: vec![],
             acknowledged: 0,
             result: None,
+            remote_grant: remote_grant.clone(),
         });
         // This durable record MUST precede workspace access, Agent spawn and prompt submission.
         journal.save()?;
-        let result = match config.execution(&run) {
+        let execution = if let Some(grant) = &remote_grant {
+            let scratch = PathBuf::from(required("PERO_WORKER_STATE")?).with_extension("remote");
+            match config.remote_execution(&run, grant, control.origin(), scratch) {
+                Ok(execution) => match control.open_channel(&run, grant) {
+                    Ok(()) => Ok(execution),
+                    Err(_) => Err("Remote channel admission uncertain; original grant retained; no attach attempted".into()),
+                },
+                Err(error) => Err(error),
+            }
+        } else {
+            config.execution(&run)
+        };
+        let mut result = match execution {
             Ok(execution) => supervisor::execute(&control, &mut journal, execution, started)
                 .unwrap_or_else(|error| Outcome::new("reconcile", error)),
             Err(error) => Outcome::blocked(error),
         };
+        if run.remote_execution.is_some() && result.outcome == "failed" {
+            // A cancelled remote channel can close before the next renewal poll.
+            // Only an ordinary execution failure after confirmed LOCAL cleanup
+            // may acknowledge the trusted control-plane cancellation. Blocked
+            // launch, lease loss, or uncertain cleanup must remain reconciliation.
+            let cancelled = !result.needs_attention && control.inspect(&run).is_ok_and(|current| {
+                current.id == run.id && current.generation == run.generation
+                    && current.instance_id == run.instance_id && current.status == "cancel_requested"
+            });
+            result = if cancelled {
+                Outcome::new("cancelled", "Cloud cancellation confirmed; local remote bridge stopped; remote compute cleanup remains separate")
+            } else {
+                Outcome::new("reconcile", "Remote execution stopped without a confirmed result; original Run requires reconciliation")
+            };
+        }
         eprintln!("Run {}: {}", run.id, result.outcome);
         let stop = result.outcome == "reconcile" || result.needs_attention;
         let stop_message = result.summary.clone();

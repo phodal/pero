@@ -99,10 +99,20 @@ export class DesktopAppUse {
           );
         return result.value;
       },
-      selectedThread: async () =>
-        this.window().webContents.executeJavaScript(
-          `(async()=>{if(window.peroAppUseThread)return await window.peroAppUseThread();if(window.peroDiagnostics){const s=JSON.parse(window.peroDiagnostics.snapshot());return s.chats?.[s.activeChat]?.id;}})()`,
-        ),
+      selectedThread: async () => {
+        const contents = this.window().webContents;
+        // Product Chat owns its current selection in a separate trusted frame.
+        // Read it fresh, without a parent postMessage query whose timeout looks
+        // identical to a genuine empty selection. Never consult an App frame.
+        const frames = contents.mainFrame.frames.filter(frame => frame.url === 'pero://chat/chat.html');
+        if (frames.length > 1) throw new AppUseError('APP_DRAFT_CHANGED', 'The destination conversation is unavailable.');
+        if (frames.length === 1) return frames[0].executeJavaScript(
+          `(()=>{if(location.href!=='pero://chat/chat.html')throw new Error('The Chat frame changed');if(!window.peroChatDiagnostics)return;const s=JSON.parse(window.peroChatDiagnostics.snapshot());return s.chats?.[s.activeChat]?.id;})()`,
+        );
+        return contents.executeJavaScript(
+          `(()=>{if(window.peroDiagnostics){const s=JSON.parse(window.peroDiagnostics.snapshot());return s.chats?.[s.activeChat]?.id;}})()`,
+        );
+      },
       capture: async (rect, id) => {
         const window = this.window();
         if (!window.isVisible() || window.isMinimized())

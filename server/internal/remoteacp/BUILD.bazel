@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "remoteacp",
+    srcs = ["channel.go", "agent.go", "process_unix.go", "process_other.go"],
+    importpath = "github.com/phodal/pero/server/internal/remoteacp",
+    visibility = ["//server:__subpackages__"],
+    deps = ["//server/internal/runtimechannel"],
+)
+
+go_test(
+    name = "remoteacp_test",
+    srcs = ["channel_test.go", "agent_test.go", "cli_test.go"],
+    embed = [":remoteacp"],
+    deps = ["//server/internal/runtimegateway"],
+    env_inherit = ["PERO_REMOTE_AGENT_BINARY", "PERO_REMOTE_CONNECT_BINARY"],
+)

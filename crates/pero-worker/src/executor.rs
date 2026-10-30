@@ -1,6 +1,6 @@
 use crate::{
     approval::{Gate, Policy, protected_path},
-    model::{Outcome, Run},
+    model::{Outcome, RemoteGrant, Run},
 };
 use pero_contracts::HostEvent;
 use pero_runtime::acp::{self, AgentConfig, SessionCommand};
@@ -26,7 +26,10 @@ pub fn execution_env_allowed(key: &std::ffi::OsStr) -> bool {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    #[serde(default)]
     pub workspaces: BTreeMap<String, PathBuf>,
+    #[serde(default)]
+    pub remote_bridge: Option<PathBuf>,
     pub agents_file: Option<PathBuf>,
     #[serde(default)]
     pub native_approvals: BTreeMap<String, Policy>,
@@ -41,11 +44,13 @@ pub struct Execution {
     prompt: String,
     run_id: String,
     approval: Option<Policy>,
+    #[serde(default)]
+    remote: bool,
 }
 
 impl Execution {
     pub fn inherit_environment(&self) -> bool {
-        self.approval.is_none()
+        self.approval.is_none() && !self.remote
     }
 }
 
@@ -60,6 +65,14 @@ impl Config {
         }
     }
     pub fn ready(&self) -> Result<(), String> {
+        if let Some(bridge) = &self.remote_bridge {
+            if !bridge.is_absolute() || !bridge.is_file() {
+                return Err("Remote bridge must be an installed absolute executable".into());
+            }
+            if self.workspaces.is_empty() {
+                return Ok(());
+            }
+        }
         if self.workspaces.is_empty() {
             return Err("No local workspaces are configured".into());
         }
@@ -78,7 +91,55 @@ impl Config {
         }
         Ok(())
     }
+    pub fn remote_execution(
+        &self, run: &Run, grant: &RemoteGrant, origin: String, scratch: PathBuf,
+    ) -> Result<Execution, String> {
+        let remote = run.remote_execution.as_ref().ok_or("Missing remote execution binding")?;
+        let bridge = self.remote_bridge.as_ref().ok_or(
+            "Remote Run requires an operator-configured bridge; local fallback is forbidden",
+        )?;
+        if !bridge.is_absolute() || !bridge.is_file() || !self.native_approvals.is_empty() {
+            return Err("Remote bridge unavailable or local native approval policy is incompatible".into());
+        }
+        if remote.working_directory != "/workspace/repo"
+            || remote.session_id != grant.session_id
+            || remote.session_id.is_empty()
+            || remote.session_id.len() > 128
+            || !remote.session_id.bytes().all(|c| c.is_ascii_alphanumeric() || b"_.-".contains(&c))
+        {
+            return Err("Invalid server remote execution binding".into());
+        }
+        // This SDK lease/cwd is private Worker state, never the Task checkout.
+        let mut directories = std::fs::DirBuilder::new();
+        directories.recursive(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            directories.mode(0o700);
+        }
+        directories.create(&scratch).map_err(|_| "Private remote bridge directory unavailable")?;
+        let workspace = scratch.canonicalize().map_err(|_| "Private remote bridge directory unavailable")?;
+        let mut env = BTreeMap::new();
+        env.insert("PERO_REMOTE_CHANNEL_SECRET".into(), grant.secret.clone());
+        let agent = AgentConfig {
+            id: run.spec.agent_id.clone(), name: "Remote ACP bridge".into(),
+            command: bridge.to_string_lossy().into(),
+            args: vec![
+                "--control-url".into(), origin, "--run-id".into(), run.id.clone(),
+                "--session-id".into(), remote.session_id.clone(),
+                "--working-directory".into(), remote.working_directory.clone(),
+            ],
+            env, model: None, mcp_servers: vec![],
+        };
+        Ok(Execution {
+            workspace, agent, prompt: prompt(run), run_id: run.id.clone(),
+            approval: None, remote: true,
+        })
+    }
     pub fn execution(&self, run: &Run) -> Result<Execution, String> {
+        if run.remote_execution.is_some() {
+            return Err("Remote Run cannot fall back to local execution".into());
+        }
         let workspace = self
             .workspaces
             .get(&run.spec.workspace_key)
@@ -130,26 +191,28 @@ impl Config {
             }
         }
         agent.env.retain(|key, _| !key.starts_with("PERO_"));
-        let acceptance = match &run.spec.acceptance {
-            Value::String(text) => text.clone(),
-            Value::Null => String::new(),
-            value => value.to_string(),
-        };
-        let prompt = if acceptance.is_empty() {
-            run.spec.prompt.clone()
-        } else {
-            format!(
-                "{}\n\nAcceptance criteria:\n{}",
-                run.spec.prompt, acceptance
-            )
-        };
+        let prompt = prompt(run);
         Ok(Execution {
             workspace,
             agent,
             prompt,
             run_id: run.id.clone(),
             approval,
+            remote: false,
         })
+    }
+}
+
+fn prompt(run: &Run) -> String {
+    let acceptance = match &run.spec.acceptance {
+        Value::String(text) => text.clone(),
+        Value::Null => String::new(),
+        value => value.to_string(),
+    };
+    if acceptance.is_empty() {
+        run.spec.prompt.clone()
+    } else {
+        format!("{}\n\nAcceptance criteria:\n{}", run.spec.prompt, acceptance)
     }
 }
 
@@ -350,12 +413,14 @@ mod tests {
     #[test]
     fn cloud_paths_and_commands_never_select_an_execution() {
         let config = Config {
+            remote_bridge: None,
             workspaces: BTreeMap::new(),
             agents_file: None,
             native_approvals: BTreeMap::new(),
             allowed_agents: BTreeMap::new(),
         };
         let run = Run {
+            remote_execution: None,
             id: "r".into(),
             generation: 1,
             instance_id: "i".into(),

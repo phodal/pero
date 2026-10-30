@@ -58,6 +58,15 @@ func TestGitHubSourceEndpointsRemainOperatorOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Enabling the isolated runtime transport must not silently drop the
+	// existing source service from the ordinary authenticated API.
+	isolated := httptest.NewServer(httpapi.HandlerWithIsolatedRuntime(db, "test-operator", nil, nil, nil, nil, service))
+	defer isolated.Close()
+	isolatedStatus := request(t, isolated, "GET", "/api/v1/github/status", "test-operator", nil, "", 200)
+	var isolatedDecoded github.Status
+	if json.Unmarshal(isolatedStatus, &isolatedDecoded) != nil || !isolatedDecoded.Configured || len(isolatedDecoded.Repositories) != 1 {
+		t.Fatalf("isolated source composition lost service: %s", isolatedStatus)
+	}
 	server := httptest.NewServer(httpapi.Handler(db, "test-operator", service))
 	defer server.Close()
 	_, clientToken, err := db.CreateClient(ctx, "Reader", []string{"project"})
