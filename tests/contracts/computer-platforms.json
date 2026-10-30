@@ -151,6 +151,94 @@
         "windows",
         "linux"
       ]
+    },
+    {
+      "name": "background replace",
+      "request_id": "request-replace",
+      "delivery": "background",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "foreground replace",
+      "request_id": "request-replace",
+      "delivery": "foreground",
+      "supported": []
+    },
+    {
+      "name": "background clear",
+      "request_id": "request-clear",
+      "delivery": "background",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "foreground clear",
+      "request_id": "request-clear",
+      "delivery": "foreground",
+      "supported": []
+    },
+    {
+      "name": "background semantic",
+      "request_id": "request-semantic",
+      "delivery": "background",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "foreground semantic",
+      "request_id": "request-semantic",
+      "delivery": "foreground",
+      "supported": []
+    },
+    {
+      "name": "background move",
+      "request_id": "request-move",
+      "delivery": "background",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "foreground move",
+      "request_id": "request-move",
+      "delivery": "foreground",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "background hold",
+      "request_id": "request-hold",
+      "delivery": "background",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "foreground hold",
+      "request_id": "request-hold",
+      "delivery": "foreground",
+      "supported": [
+        "macos"
+      ]
+    },
+    {
+      "name": "background focus",
+      "request_id": "request-focus",
+      "delivery": "background",
+      "supported": []
+    },
+    {
+      "name": "foreground focus",
+      "request_id": "request-focus",
+      "delivery": "foreground",
+      "supported": [
+        "macos"
+      ]
     }
   ]
 }

@@ -38,7 +38,10 @@ impl DesktopDriver for UnsupportedDesktop {
             "No native window backend",
         ))
     }
-    fn open(&self, _: &str) -> Result<(Option<Window>, String), ComputerError> {
+    fn open(
+        &self,
+        _: &ComputerApplicationSelector,
+    ) -> Result<(Option<Window>, String), ComputerError> {
         Err(error(
             ComputerErrorCode::Unsupported,
             "No native launch backend",
@@ -47,13 +50,24 @@ impl DesktopDriver for UnsupportedDesktop {
     fn bounds(&self, _: &Window) -> Option<WindowBounds> {
         None
     }
-    fn observe(&self, _: &Window) -> Result<WindowObservation<()>, ComputerError> {
+    fn observe(
+        &self,
+        _: &Window,
+        _: &ComputerObserveOptions,
+        _: Option<&()>,
+    ) -> Result<WindowObservation<()>, ComputerError> {
         Err(error(
             ComputerErrorCode::Unsupported,
             "No native observation backend",
         ))
     }
-    fn input(&self, _: &Window, _: &(), _: ComputerAction) -> Result<(), ComputerError> {
+    fn input(
+        &self,
+        _: &Window,
+        _: &(),
+        _: ComputerAction,
+        _: &crate::Cancellation,
+    ) -> Result<Option<ComputerExecution>, ComputerError> {
         Err(error(
             ComputerErrorCode::Unsupported,
             "No native input backend",

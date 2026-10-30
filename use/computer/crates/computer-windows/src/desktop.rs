@@ -45,7 +45,17 @@ impl DesktopDriver for Desktop {
             .map(bridge::window)
             .collect())
     }
-    fn open(&self, name: &str) -> Result<(Option<Window>, String), ComputerError> {
+    fn open(
+        &self,
+        application: &ComputerApplicationSelector,
+    ) -> Result<(Option<Window>, String), ComputerError> {
+        let ComputerApplicationSelector::Name(name) = application else {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "Bundle ID selection is available on macOS",
+            ));
+        };
+        let name = name.as_str();
         let result = self.driver.launch_app(name, LaunchPermit::none());
         if result.ok {
             Ok((result.app.map(bridge::window), result.text))
@@ -56,12 +66,28 @@ impl DesktopDriver for Desktop {
     fn bounds(&self, app: &Window) -> Option<WindowBounds> {
         apps::window_bounds(app.window_id, app.pid).map(bridge::bounds)
     }
-    fn observe(&self, app: &Window) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
+    fn observe(
+        &self,
+        app: &Window,
+        options: &ComputerObserveOptions,
+        _: Option<&Self::Snapshot>,
+    ) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
+        let defaults = ComputerObserveOptions::default();
+        if options.root.is_some()
+            || options.max_nodes != defaults.max_nodes
+            || options.max_depth != defaults.max_depth
+        {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "This platform does not support bounded accessibility subtree observations",
+            ));
+        }
+
         let app = &bridge::native_window(app);
         let result = self.driver.snapshot(
             app,
             native::SnapshotRequest {
-                want_image: true,
+                want_image: options.want_image,
                 image_max_px: 1600,
                 ..Default::default()
             },
@@ -77,7 +103,8 @@ impl DesktopDriver for Desktop {
         app: &Window,
         snap: &native::Snapshot,
         action: ComputerAction,
-    ) -> Result<(), ComputerError> {
+        _: &computer_runtime::Cancellation,
+    ) -> Result<Option<ComputerExecution>, ComputerError> {
         let app = &bridge::native_window(app);
         let bounds = snap.window_bounds.ok_or_else(|| {
             error(
@@ -155,6 +182,16 @@ impl DesktopDriver for Desktop {
                     )
                 }
             }
+            ComputerInput::LongPress { .. }
+            | ComputerInput::FocusWindow {}
+            | ComputerInput::SetValue { .. }
+            | ComputerInput::PerformAction { .. }
+            | ComputerInput::Move { .. } => {
+                return Err(error(
+                    ComputerErrorCode::Unsupported,
+                    "This input is not implemented on this platform",
+                ));
+            }
             ComputerInput::Drag { from, to, .. } => self.driver.drag(
                 app,
                 native::DragRequest {
@@ -212,11 +249,11 @@ impl DesktopDriver for Desktop {
                     |delta: i32| delta.signum() * delta.unsigned_abs().div_ceil(120) as i32;
                 ffi::send_mouse_wheel(x, y, notches(delta_x), -notches(delta_y))
                     .map_err(|message| error(ComputerErrorCode::Failed, message))?;
-                return Ok(());
+                return Ok(None);
             }
         };
         if result.ok {
-            Ok(())
+            Ok(None)
         } else {
             Err(error(ComputerErrorCode::Failed, result.text))
         }

@@ -20,6 +20,7 @@ pub struct ComputerRuntime<D: DesktopDriver> {
     targets: HashMap<ComputerRef, Window>,
     observations: HashMap<ComputerRef, Observation<D::Snapshot>>,
     host_pid: i32,
+    pub(crate) cancellation: crate::Cancellation,
 }
 impl<D: DesktopDriver> ComputerRuntime<D> {
     pub fn new(driver: D, host_pid: i32) -> Self {
@@ -38,6 +39,7 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             targets: HashMap::new(),
             observations: HashMap::new(),
             host_pid,
+            cancellation: crate::Cancellation::default(),
         }
     }
     pub fn call(
@@ -63,13 +65,13 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
                 })
             }
             ComputerRequest::Open { application } => {
-                let (app, message) = self.driver.open(application.as_str())?;
+                let (app, message) = self.driver.open(&application)?;
                 let target = app
                     .filter(|app| app.pid != self.host_pid)
                     .map(|app| self.remember(app));
                 Ok(ComputerResponse::Opened { target, message })
             }
-            ComputerRequest::Observe { target } => self.observe(thread, target),
+            ComputerRequest::Observe { target, options } => self.observe(thread, target, options),
             ComputerRequest::Act { action } => Ok(ComputerResponse::Receipt {
                 receipt: self.act(&thread, action),
             }),
@@ -98,6 +100,7 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             kind: ComputerTargetKind::Window,
             title: app.title.clone(),
             application: Some(app.name.clone()),
+            application_id: (!app.application_id.is_empty()).then(|| app.application_id.clone()),
         };
         self.targets.insert(id, app);
         target
@@ -133,8 +136,31 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
         &mut self,
         thread: ComputerRef,
         target: ComputerTargetRef,
+        options: ComputerObserveOptions,
     ) -> Result<ComputerResponse, ComputerError> {
-        self.observations.remove(&thread);
+        let previous = self.observations.remove(&thread);
+        let basis = if let Some(root) = &options.root {
+            let previous = previous
+                .as_ref()
+                .filter(|previous| {
+                    previous.public.id == root.observation_id
+                        && previous.public.target == target
+                        && previous
+                            .public
+                            .elements
+                            .iter()
+                            .any(|element| element.id == root.element_id)
+                })
+                .ok_or_else(|| {
+                    error(
+                        ComputerErrorCode::StaleObservation,
+                        "Expand a control from the current conversation observation",
+                    )
+                })?;
+            Some(&previous.native)
+        } else {
+            None
+        };
         let app = self.target(&target)?;
         let WindowObservation {
             source,
@@ -142,7 +168,7 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             elements,
             image,
             truncated,
-        } = self.driver.observe(&app)?;
+        } = self.driver.observe(&app, &options, basis)?;
         let screenshot = image.as_ref().map(|image| ComputerScreenshot {
             id: reference(),
             media_type: image.media_type,
@@ -175,7 +201,7 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             request_id: action.request_id.clone(),
             target: action.target.clone(),
             observation_id: action.observation_id.clone(),
-            outcome: ComputerActionOutcome::Executed {},
+            outcome: ComputerActionOutcome::Executed { execution: None },
         };
         let prepared = (|| {
             let observation = self.observations.remove(thread).ok_or_else(|| {
@@ -192,7 +218,10 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             if current != observation.bounds {
                 return Err(error(
                     ComputerErrorCode::StaleObservation,
-                    "The window moved or resized; observe again",
+                    format!(
+                        "The window moved or resized; observe again (observed {:?}, current {:?})",
+                        observation.bounds, current
+                    ),
                 ));
             }
             self.driver.admit(&observation.native, &action)?;
@@ -202,9 +231,14 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             Err(error) => receipt.outcome = ComputerActionOutcome::Rejected { error },
             Ok((action, observation, app)) => {
                 // Input dispatch has begun. Any native failure is conservatively unknown.
-                if let Err(error) = self.driver.input(&app, &observation.native, action) {
-                    receipt.outcome = ComputerActionOutcome::Unknown { error };
-                }
+                receipt.outcome =
+                    match self
+                        .driver
+                        .input(&app, &observation.native, action, &self.cancellation)
+                    {
+                        Ok(execution) => ComputerActionOutcome::Executed { execution },
+                        Err(error) => ComputerActionOutcome::Unknown { error },
+                    };
             }
         }
         receipt

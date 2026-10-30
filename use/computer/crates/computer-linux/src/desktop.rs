@@ -253,7 +253,17 @@ impl DesktopDriver for Desktop {
         }
         Ok(apps)
     }
-    fn open(&self, name: &str) -> Result<(Option<Window>, String), ComputerError> {
+    fn open(
+        &self,
+        application: &ComputerApplicationSelector,
+    ) -> Result<(Option<Window>, String), ComputerError> {
+        let ComputerApplicationSelector::Name(name) = application else {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "Bundle ID selection is available on macOS",
+            ));
+        };
+        let name = name.as_str();
         if let Some(app) = self
             .targets()?
             .into_iter()
@@ -331,9 +341,49 @@ impl DesktopDriver for Desktop {
     fn bounds(&self, app: &Window) -> Option<WindowBounds> {
         self.geometry(app).ok()
     }
-    fn observe(&self, app: &Window) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
+    fn observe(
+        &self,
+        app: &Window,
+        options: &ComputerObserveOptions,
+        _: Option<&Self::Snapshot>,
+    ) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
+        if options.root.is_some() {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "This platform does not support accessibility subtree observations",
+            ));
+        }
         let (c, screen) = self.x()?;
         let bounds = self.geometry(app)?;
+        // A window without a bound tree is reported as truncated: its controls,
+        // including any secure fields, could not be confirmed.
+        let (elements, targets, truncated) = match &self.accessibility {
+            None => (Vec::new(), Vec::new(), false),
+            Some(bus) => match bus.observe(
+                app.pid,
+                bounds,
+                usize::from(u16::from(options.max_nodes)),
+                u16::from(options.max_depth),
+            ) {
+                Ok(tree) => (tree.elements, tree.targets, tree.truncated),
+                Err(_) => (Vec::new(), Vec::new(), true),
+            },
+        };
+        if !options.want_image {
+            return Ok(WindowObservation {
+                source: X11Snapshot {
+                    pid: app.pid,
+                    elements: targets,
+                    window_bounds: bounds,
+                    image_width: 0,
+                    image_height: 0,
+                },
+                bounds: Some(bounds),
+                elements,
+                image: None,
+                truncated,
+            });
+        }
         let (w, h) = (bounds.w as u16, bounds.h as u16);
         if u32::from(w) * u32::from(h) > 8_388_608 || w == 0 || h == 0 {
             return Err(error(
@@ -400,15 +450,6 @@ impl DesktopDriver for Desktop {
         JpegEncoder::new_with_quality(&mut jpeg, 80)
             .encode(&rgb, w.into(), h.into(), ExtendedColorType::Rgb8)
             .map_err(failure)?;
-        // A window without a bound tree is reported as truncated: its controls,
-        // including any secure fields, could not be confirmed.
-        let (elements, targets, truncated) = match &self.accessibility {
-            None => (Vec::new(), Vec::new(), false),
-            Some(bus) => match bus.observe(app.pid, bounds) {
-                Ok(tree) => (tree.elements, tree.targets, tree.truncated),
-                Err(_) => (Vec::new(), Vec::new(), true),
-            },
-        };
         Ok(WindowObservation {
             source: X11Snapshot {
                 pid: app.pid,
@@ -452,7 +493,8 @@ impl DesktopDriver for Desktop {
         app: &Window,
         snap: &X11Snapshot,
         action: ComputerAction,
-    ) -> Result<(), ComputerError> {
+        _: &computer_runtime::Cancellation,
+    ) -> Result<Option<ComputerExecution>, ComputerError> {
         if let ComputerInput::Click {
             anchor: ComputerAnchor::Element { element_id },
             ..
@@ -460,7 +502,11 @@ impl DesktopDriver for Desktop {
         {
             // Ownership, presence and state were re-checked in `admit`.
             let (bus, target) = self.element_target(snap, element_id)?;
-            return bus.click(target);
+            bus.click(target)?;
+            return Ok(Some(ComputerExecution {
+                route: ComputerExecutionRoute::Semantic,
+                semantic_action: None,
+            }));
         }
         let (c, screen) = self.x()?;
         let bounds = snap.window_bounds;
@@ -578,6 +624,16 @@ impl DesktopDriver for Desktop {
                     count.into(),
                 )?;
             }
+            ComputerInput::LongPress { .. }
+            | ComputerInput::FocusWindow {}
+            | ComputerInput::SetValue { .. }
+            | ComputerInput::PerformAction { .. }
+            | ComputerInput::Move { .. } => {
+                return Err(error(
+                    ComputerErrorCode::Unsupported,
+                    "This input is not implemented on this platform",
+                ));
+            }
             ComputerInput::Drag { from, to, .. } => {
                 let start = point(from);
                 let end = point(to);
@@ -652,7 +708,7 @@ impl DesktopDriver for Desktop {
                 }
             }
         }
-        c.flush().map_err(failure)
+        c.flush().map(|()| None).map_err(failure)
     }
 }
 

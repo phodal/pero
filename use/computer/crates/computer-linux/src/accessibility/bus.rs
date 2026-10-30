@@ -167,7 +167,13 @@ impl Accessibility {
 
     /// Binds the X11 window to one accessible frame of the same process, then reads
     /// its rendered subtree within the node and depth budgets.
-    pub fn observe(&self, pid: i32, bounds: WindowBounds) -> Result<AccessibleTree, String> {
+    pub fn observe(
+        &self,
+        pid: i32,
+        bounds: WindowBounds,
+        max_nodes: usize,
+        max_depth: u16,
+    ) -> Result<AccessibleTree, String> {
         let registry = Node {
             bus: REGISTRY.into(),
             path: OwnedObjectPath::try_from(ROOT).unwrap(),
@@ -222,7 +228,7 @@ impl Accessibility {
         let mut stack = vec![(root, 0u16)];
         while let Some((node, depth)) = stack.pop() {
             // Every visited node costs bus round trips, rendered or not.
-            if visited >= NODE_BUDGET || std::time::Instant::now() >= deadline {
+            if visited >= max_nodes.min(NODE_BUDGET) || std::time::Instant::now() >= deadline {
                 tree.truncated = true;
                 break;
             }
@@ -242,7 +248,7 @@ impl Accessibility {
                 node: node.clone(),
                 action,
             }));
-            if depth >= DEPTH_BUDGET {
+            if depth >= max_depth.min(DEPTH_BUDGET) {
                 tree.truncated = true;
                 continue;
             }

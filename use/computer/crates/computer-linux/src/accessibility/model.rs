@@ -1,8 +1,9 @@
 use computer_core::{ControlId, ObservedControl, WindowBounds};
 
-/// Upper bounds for one observation; exceeding either marks the tree truncated.
-pub const NODE_BUDGET: usize = 400;
-pub const DEPTH_BUDGET: u16 = 32;
+/// Ceilings for one observation, applied on top of the requested budgets;
+/// reaching either marks the tree truncated.
+pub const NODE_BUDGET: usize = 1200;
+pub const DEPTH_BUDGET: u16 = 64;
 
 // AT-SPI `AtspiStateType` bit positions in the two-word state set.
 const STATE_DEFUNCT: u32 = 6;

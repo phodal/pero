@@ -50,13 +50,21 @@ impl DesktopDriver for OwnedDesktop {
     fn targets(&self) -> Result<Vec<Window>, ComputerError> {
         Ok(vec![window()])
     }
-    fn open(&self, _: &str) -> Result<(Option<Window>, String), ComputerError> {
+    fn open(
+        &self,
+        _: &ComputerApplicationSelector,
+    ) -> Result<(Option<Window>, String), ComputerError> {
         Ok((Some(window()), String::new()))
     }
     fn bounds(&self, _: &Window) -> Option<WindowBounds> {
         Some(self.0.borrow().bounds)
     }
-    fn observe(&self, _: &Window) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
+    fn observe(
+        &self,
+        _: &Window,
+        _: &ComputerObserveOptions,
+        _: Option<&AppSnapshot>,
+    ) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
         Ok(WindowObservation {
             source: AppSnapshot(self.0.borrow().clicks),
             bounds: Some(self.0.borrow().bounds),
@@ -88,7 +96,8 @@ impl DesktopDriver for OwnedDesktop {
         _: &Window,
         basis: &AppSnapshot,
         _: ComputerAction,
-    ) -> Result<(), ComputerError> {
+        _: &crate::Cancellation,
+    ) -> Result<Option<ComputerExecution>, ComputerError> {
         let mut app = self.0.borrow_mut();
         assert_eq!(
             basis.0, app.clicks,
@@ -98,7 +107,7 @@ impl DesktopDriver for OwnedDesktop {
         if app.fail_after_input {
             Err(error(ComputerErrorCode::Failed, "Acknowledgement lost"))
         } else {
-            Ok(())
+            Ok(None)
         }
     }
 }
@@ -161,6 +170,7 @@ fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
                 thread.clone(),
                 ComputerRequest::Observe {
                     target: target.clone(),
+                    options: ComputerObserveOptions::default(),
                 },
             )
             .unwrap()
@@ -200,7 +210,7 @@ fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
             panic!()
         };
         let outcome = match receipt.outcome {
-            ComputerActionOutcome::Executed {} => "executed",
+            ComputerActionOutcome::Executed { .. } => "executed",
             ComputerActionOutcome::Unknown { .. } => "unknown",
             ComputerActionOutcome::Rejected { .. } => "rejected",
         };

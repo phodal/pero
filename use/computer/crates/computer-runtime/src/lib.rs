@@ -19,3 +19,6 @@ pub fn error(
         message: message.into(),
     }
 }
+
+mod cancellation;
+pub use cancellation::Cancellation;
