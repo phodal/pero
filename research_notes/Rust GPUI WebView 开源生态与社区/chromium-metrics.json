@@ -1,0 +1,156 @@
+{
+  "observed_date": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "repositories": [
+    {
+      "requested": "chromiumembedded/cef",
+      "full_name": "chromiumembedded/cef",
+      "url": "https://github.com/chromiumembedded/cef",
+      "stars": 4854,
+      "forks": 681,
+      "archived": false,
+      "pushed_at": "2026-10-23T20:34:38Z",
+      "license_api": "NOASSERTION",
+      "default_branch": "master",
+      "releases": [],
+      "latest_commit": [
+        {
+          "sha": "e537569ecda2e3f23ffdac559ecf7f80b8e59467",
+          "date": "2026-10-23T18:53:29Z",
+          "url": "https://github.com/chromiumembedded/cef/commit/e537569ecda2e3f23ffdac559ecf7f80b8e59467"
+        }
+      ]
+    },
+    {
+      "requested": "tauri-apps/cef-rs",
+      "full_name": "tauri-apps/cef-rs",
+      "url": "https://github.com/tauri-apps/cef-rs",
+      "stars": 489,
+      "forks": 80,
+      "archived": false,
+      "pushed_at": "2026-10-25T03:35:10Z",
+      "license_api": "Apache-2.0",
+      "default_branch": "dev",
+      "releases": [
+        {
+          "html_url": "https://github.com/tauri-apps/cef-rs/releases/tag/export-cef-dir-v156.2.0%2B156.0.14",
+          "tag_name": "export-cef-dir-v156.2.0+156.0.14",
+          "prerelease": false,
+          "published_at": "2026-10-25T03:30:28Z"
+        },
+        {
+          "html_url": "https://github.com/tauri-apps/cef-rs/releases/tag/cef-v156.2.0%2B156.0.14",
+          "tag_name": "cef-v156.2.0+156.0.14",
+          "prerelease": false,
+          "published_at": "2026-10-25T03:35:10Z"
+        },
+        {
+          "html_url": "https://github.com/tauri-apps/cef-rs/releases/tag/cef-dll-sys-v156.2.0%2B156.0.14",
+          "tag_name": "cef-dll-sys-v156.2.0+156.0.14",
+          "prerelease": false,
+          "published_at": "2026-10-25T03:32:42Z"
+        }
+      ],
+      "latest_commit": [
+        {
+          "sha": "84d6c77ad04fb5d43c0add1c2a90e6fb317537a1",
+          "date": "2026-10-25T03:28:32Z",
+          "url": "https://github.com/tauri-apps/cef-rs/commit/84d6c77ad04fb5d43c0add1c2a90e6fb317537a1"
+        }
+      ]
+    },
+    {
+      "requested": "servo/servo",
+      "full_name": "servo/servo",
+      "url": "https://github.com/servo/servo",
+      "stars": 38270,
+      "forks": 3861,
+      "archived": false,
+      "pushed_at": "2026-10-30T01:35:53Z",
+      "license_api": "MPL-2.0",
+      "default_branch": "main",
+      "releases": [
+        {
+          "html_url": "https://github.com/servo/servo/releases/tag/v0.7.0",
+          "tag_name": "v0.7.0",
+          "prerelease": false,
+          "published_at": "2026-10-05T18:32:02Z"
+        },
+        {
+          "html_url": "https://github.com/servo/servo/releases/tag/v0.6.0",
+          "tag_name": "v0.6.0",
+          "prerelease": false,
+          "published_at": "2026-09-29T15:33:02Z"
+        },
+        {
+          "html_url": "https://github.com/servo/servo/releases/tag/v0.1.3",
+          "tag_name": "v0.1.3",
+          "prerelease": false,
+          "published_at": "2026-08-22T16:43:00Z"
+        }
+      ],
+      "latest_commit": [
+        {
+          "sha": "0626de7b4efaabe3d3a50439a42f75383e837960",
+          "date": "2026-10-30T00:13:15Z",
+          "url": "https://github.com/servo/servo/commit/0626de7b4efaabe3d3a50439a42f75383e837960"
+        }
+      ]
+    },
+    {
+      "requested": "Julusian/rust-cef",
+      "full_name": "Julusian/rust-cef",
+      "url": "https://github.com/Julusian/rust-cef",
+      "stars": 42,
+      "forks": 14,
+      "archived": true,
+      "pushed_at": "2019-07-09T18:03:45Z",
+      "license_api": "Apache-2.0",
+      "default_branch": "master",
+      "releases": null,
+      "latest_commit": null
+    },
+    {
+      "requested": "dylanede/cef-rs",
+      "full_name": "dylanede/cef-rs",
+      "url": "https://github.com/dylanede/cef-rs",
+      "stars": 62,
+      "forks": 9,
+      "archived": false,
+      "pushed_at": "2017-10-08T14:55:14Z",
+      "license_api": "MIT",
+      "default_branch": "master",
+      "releases": null,
+      "latest_commit": null
+    },
+    {
+      "requested": "hytopiagg/cef-ui",
+      "full_name": "hytopiagg/cef-ui",
+      "url": "https://github.com/hytopiagg/cef-ui",
+      "stars": 31,
+      "forks": 5,
+      "archived": false,
+      "pushed_at": "2024-09-27T01:08:55Z",
+      "license_api": "MIT",
+      "default_branch": "main",
+      "releases": null,
+      "latest_commit": null
+    }
+  ],
+  "servoshell": {
+    "independent_repo_status": "servo/servoshell GitHub API 404",
+    "path": "https://github.com/servo/servo/tree/main/ports/servoshell"
+  },
+  "cef_binary": {
+    "source": "https://cef-builds.spotifycdn.com/index.json",
+    "version": "156.0.14+g4fa4ab5+chromium-156.0.8078.48",
+    "channel": "stable",
+    "platforms_observed": [
+      "macosarm64",
+      "macosx64",
+      "windows64",
+      "linux64"
+    ],
+    "date": "2026-10-24"
+  }
+}
