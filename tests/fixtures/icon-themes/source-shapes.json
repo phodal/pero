@@ -12,7 +12,12 @@
     }
   },
   "associations": {
-    "languages": { "rust": "rust" },
-    "kinds": { "json": "json", "json_lines": "json" }
+    "languages": {
+      "rust": "rust"
+    },
+    "kinds": {
+      "json": "json",
+      "json_lines": "json"
+    }
   }
 }
