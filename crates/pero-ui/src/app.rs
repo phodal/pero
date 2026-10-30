@@ -42,6 +42,8 @@ pub(crate) struct Workbench {
     pub workspace_focus:FocusHandle,
     pub input: Entity<InputState>,
     pub documents:Vec<crate::documents::WorkspaceDocument>,
+    pub pending_save_as:Option<crate::document_save_as::PendingSaveAs>,
+    pub save_as_feedback:Option<crate::document_save_as::SaveAsFeedback>,
     #[cfg(not(target_family="wasm"))]
     pub native_web_pages:std::collections::BTreeMap<String,crate::web_documents::WorkspaceNativeWeb>,
     pub web_documents:Vec<pero_contracts::web_document::WebDocument>,
@@ -107,6 +109,8 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> Self {
         cx.bind_keys([
+            KeyBinding::new("cmd-shift-s",crate::document_save_as::SaveDocumentAs,None),
+            KeyBinding::new("ctrl-shift-s",crate::document_save_as::SaveDocumentAs,None),
             KeyBinding::new("alt-left",crate::workspace_view::WorkspaceBack,None),
             KeyBinding::new("alt-right",crate::workspace_view::WorkspaceForward,None),
             KeyBinding::new("cmd-alt-right",crate::workspace_view::SplitDocument,None),
@@ -228,7 +232,7 @@ impl Workbench {
             resizing_chat: false,
             chat_resize_focus: cx.focus_handle().tab_stop(true),
             input,
-            documents:vec![],
+            documents:vec![],pending_save_as:None,save_as_feedback:None,
             input_locale: String::new(),
             locale,
             palettes,

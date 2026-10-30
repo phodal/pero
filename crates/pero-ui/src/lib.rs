@@ -75,3 +75,6 @@ mod layout;
 
 #[cfg(any(target_family="wasm",feature="native"))]
 mod workspace_restore;
+
+#[cfg(any(target_family="wasm",feature="native"))]
+mod document_save_as;

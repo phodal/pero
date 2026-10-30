@@ -103,6 +103,9 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
+        if self.receive_document_save_as(event, window, cx) {
+            return true;
+        }
         match event.kind.as_str() {
             "document_choose" => {
                 self.choose_document(cx);
@@ -266,7 +269,7 @@ impl Workbench {
                             this.queue_workspace_checkpoint(cx);
                         }),
                     )
-                    .when(split, |pane| {
+                    .map(|pane| {
                         pane.child(
                             div()
                                 .h(px(28.))
@@ -280,7 +283,25 @@ impl Workbench {
                                             .unwrap_or_default(),
                                     ),
                                 )
-                                .when(index == 1, |header| {
+                                .child(
+                                    gpui_kit::component::button::Button::new("save-document-as")
+                                        .ghost()
+                                        .small()
+                                        .label(self.t(if self.save_as_pending(&item) {
+                                            "content.saving_as"
+                                        } else {
+                                            "content.save_as"
+                                        }))
+                                        .disabled(self.pending_save_as.is_some())
+                                        .accessibility_label(self.t("content.save_as"))
+                                        .on_click(cx.listener({
+                                            let item = item.clone();
+                                            move |this, _, _, cx| {
+                                                this.choose_document_copy(&item, cx)
+                                            }
+                                        })),
+                                )
+                                .when(index == 1 && split, |header| {
                                     header.child(
                                         gpui_kit::component::button::Button::new(
                                             "close-document-split",
@@ -298,6 +319,19 @@ impl Workbench {
                                 }),
                         )
                     })
+                    .when(
+                        self.save_as_feedback
+                            .as_ref()
+                            .is_some_and(|feedback| feedback.item == item),
+                        |pane| {
+                            pane.child(
+                                div()
+                                    .px(px(8.))
+                                    .text_size(px(12.))
+                                    .child(self.t(self.save_as_feedback.as_ref().unwrap().key)),
+                            )
+                        },
+                    )
                     .when(cached, |pane| {
                         pane.child(
                             div()
