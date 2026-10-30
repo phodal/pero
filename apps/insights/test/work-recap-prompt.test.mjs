@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { workRecapPrompt } from '../ui-src/work-recap-model.mjs';
+import { analysisRequest, workRecapPrompt } from '../ui-src/work-recap-model.mjs';
 
 test('the next-step prompt keeps Point’s analysis contract', () => {
   const screen = readFileSync(new URL('../ui-src/pulse-work-recap.tsx', import.meta.url), 'utf8');
@@ -17,4 +17,15 @@ test('the next-step prompt keeps Point’s analysis contract', () => {
   assert.match(prompt, /杭州/);
   assert.match(prompt, /我来搜一下杭州今天的天气。/);
   assert.equal(prompt.includes('Unmatched older response'), false);
+});
+
+test('opening the recap starts analysis without a click', () => {
+  for (const [state, expected] of [
+    [{ recapReady: false, modelReady: true, started: false }, 'wait'],
+    [{ recapReady: true, modelReady: false, started: false }, 'wait'],
+    [{ recapReady: true, modelReady: true, started: false }, 'start'],
+    [{ recapReady: true, modelReady: true, started: true }, 'regenerate'],
+  ]) {
+    assert.equal(analysisRequest(state), expected);
+  }
 });

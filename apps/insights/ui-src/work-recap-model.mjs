@@ -1,3 +1,13 @@
+/**
+ * Opening Pulse posts /api/pulse/init once. The first analysis starts when the
+ * deterministic recap is ready and a model exists. The button only repeats it.
+ */
+export function analysisRequest({ recapReady, modelReady, started }) {
+  if (!recapReady || !modelReady) return 'wait';
+  if (started) return 'regenerate';
+  return 'start';
+}
+
 /** Never pair the legacy last request with an independently chosen response. */
 export function recapDisplayTurns(session) {
   return Array.isArray(session?.turns) ? session.turns.slice(-8) : [];

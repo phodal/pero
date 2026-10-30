@@ -1,5 +1,6 @@
 import { useAppAgent, useAppI18n } from '@pero/app-sdk';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { analysisRequest, workRecapPrompt } from './work-recap-model.mjs';
 import { PulseWorkRecap, type MemoryContext, type RecapSession, type RecapTurn, type WorkRecap } from './pulse-work-recap';
 
 type HostTurn = { status?: string; request?: string; response?: string; response_kind?: string; boundary?: string; seq_start?: number; seq_end?: number; truncated?: boolean };
@@ -88,6 +89,8 @@ export default function Insights() {
   const [error, setError] = useState('');
   const [suggestion, setSuggestion] = useState('');
   const [attempt, setAttempt] = useState(0);
+  const started = useRef(false);
+  const [canRegenerate, setCanRegenerate] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -127,6 +130,12 @@ export default function Insights() {
       setSuggestion(text);
     }).catch(reason => setError(reason instanceof Error ? reason.message : 'Insights failed'));
   };
+  useEffect(() => {
+    if (analysisRequest({ recapReady: !!recap, modelReady, started: started.current }) !== 'start' || !recap) return;
+    started.current = true;
+    setCanRegenerate(true);
+    runAnalysis(workRecapPrompt(recap, emptyMemory, locale));
+  }, [recap, modelReady, locale]);
   return <div className="point-pulse-page">
     {error && <p className="point-pulse-banner" role="alert">{error} <button type="button" onClick={() => setAttempt(value => value + 1)}>{locale === 'zh' ? '重试' : 'Retry'}</button></p>}
     <PulseWorkRecap
@@ -134,7 +143,7 @@ export default function Insights() {
       memory={emptyMemory}
       locale={locale}
       suggestion={suggestion}
-      delegate={modelReady && recap ? prompt => runAnalysis(prompt) : undefined}
+      delegate={modelReady && recap && canRegenerate ? prompt => runAnalysis(prompt) : undefined}
     />
   </div>;
 }
