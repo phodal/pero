@@ -2,6 +2,12 @@
 use super::*;
 
 impl ContentReader {
+    pub fn file_saving(&mut self, cx: &mut Context<Self>) {
+        self.saving = true;
+        self.file_error = None;
+        cx.notify();
+    }
+
     pub fn document_transaction(
         &mut self,
         begin: bool,
