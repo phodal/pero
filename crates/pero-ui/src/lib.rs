@@ -1,4 +1,6 @@
 #[cfg(any(target_family = "wasm", feature = "native"))]
+mod settings_harness;
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod app;
 #[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
 mod apps;
