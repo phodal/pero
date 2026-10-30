@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openpero.com/protocol/computer-observation.schema.json",
+  "title": "ComputerObservationContract",
+  "description": "Generated from protocol/computer-use.tsp. Do not edit.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/ComputerCapabilities"
+    },
+    {
+      "$ref": "#/$defs/ComputerTarget"
+    },
+    {
+      "$ref": "#/$defs/ComputerObservation"
+    }
+  ],
+  "$defs": {
+    "ComputerActionKind": {
+      "title": "ComputerActionKind",
+      "type": "string",
+      "enum": [
+        "click",
+        "type_text",
+        "press_key",
+        "scroll",
+        "drag"
+      ]
+    },
+    "ComputerActionSupport": {
+      "title": "ComputerActionSupport",
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/ComputerActionKind"
+        },
+        "delivery": {
+          "$ref": "#/$defs/ComputerDelivery"
+        }
+      },
+      "required": [
+        "action",
+        "delivery"
+      ],
+      "additionalProperties": false,
+      "description": "One supported action/delivery pair. Adapters may still refuse a particular target."
+    },
+    "ComputerCapabilities": {
+      "title": "ComputerCapabilities",
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "type": "string",
+          "const": "pero.computer-use.v1"
+        },
+        "runtime_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerObservationKind"
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerActionSupport"
+          }
+        }
+      },
+      "required": [
+        "protocol",
+        "runtime_id",
+        "observations",
+        "actions"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerDelivery": {
+      "title": "ComputerDelivery",
+      "type": "string",
+      "enum": [
+        "background",
+        "foreground"
+      ]
+    },
+    "ComputerDimension": {
+      "title": "ComputerDimension",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4294967295
+    },
+    "ComputerElement": {
+      "title": "ComputerElement",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "role": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerActionKind"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "label",
+        "depth",
+        "actions"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerObservation": {
+      "title": "ComputerObservation",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "target": {
+          "$ref": "#/$defs/ComputerTargetRef"
+        },
+        "elements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerElement"
+          }
+        },
+        "screenshot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerScreenshot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "target",
+        "elements",
+        "truncated"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerObservationKind": {
+      "title": "ComputerObservationKind",
+      "type": "string",
+      "enum": [
+        "accessibility",
+        "screenshot"
+      ]
+    },
+    "ComputerRef": {
+      "title": "ComputerRef",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "description": "Host-issued references, never OS handles, paths, credentials or caller identities."
+    },
+    "ComputerScreenshot": {
+      "title": "ComputerScreenshot",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "media_type": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "image/png"
+            },
+            {
+              "type": "string",
+              "const": "image/jpeg"
+            }
+          ]
+        },
+        "width": {
+          "$ref": "#/$defs/ComputerDimension"
+        },
+        "height": {
+          "$ref": "#/$defs/ComputerDimension"
+        }
+      },
+      "required": [
+        "id",
+        "media_type",
+        "width",
+        "height"
+      ],
+      "additionalProperties": false,
+      "description": "The Host resolves this immutable image reference to bytes; no local path is exposed."
+    },
+    "ComputerTarget": {
+      "title": "ComputerTarget",
+      "type": "object",
+      "properties": {
+        "reference": {
+          "$ref": "#/$defs/ComputerTargetRef"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "window"
+            },
+            {
+              "type": "string",
+              "const": "desktop"
+            }
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "application": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "reference",
+        "kind",
+        "title"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerTargetRef": {
+      "title": "ComputerTargetRef",
+      "type": "object",
+      "properties": {
+        "runtime_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "target_id": {
+          "$ref": "#/$defs/ComputerRef"
+        }
+      },
+      "required": [
+        "runtime_id",
+        "target_id"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

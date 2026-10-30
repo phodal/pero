@@ -357,3 +357,34 @@ The service must include migration 014 and the enrollment endpoints described in
 project grant can sign in and use local chats, but cannot enroll a project Worker
 until granted access. See [local-execution verification](../docs/fitness/local-execution.md)
 for the exact local fixture acceptance boundary.
+
+### Computer Use
+
+`npm run build` includes the source-built native helper (macOS 13+, Windows, Linux X11); rebuild it separately
+with `npm run build:computer`. The pinned source is fetched into ignored
+`target/`; `PERO_POINT_SOURCE=/path/to/point` can supply an offline checkout
+containing the exact commit in `use/computer/SOURCE.json`.
+
+Open Settings → Computer Use and enable the switch. On macOS, check the two OS grants.
+Use Open permissions for the application that launches Desktop. macOS may
+require a full quit/reopen after granting Accessibility and Screen & System
+Audio Recording; macOS 27 also labels access under Device Control and Data
+Access. Preflight is advisory, so an observed window is the actual access check.
+
+Ask the selected Agent to operate an application using `computer_use`. The
+Agent lists targets, observes the selected window, sends typed input and
+observes again. Existing Agent approval applies. Stop is available in Settings
+or with Command/Ctrl+Shift+Escape; it disables Computer Use until re-enabled. Chat Products expose these controls in their
+Computer Use menu. Supported observations and action/delivery pairs come from
+the selected platform. Windows keyboard input requires a focused UIA element;
+Linux provides X11 pixel/foreground input with text from its current keymap.
+Pure Wayland is unsupported. See the [platform matrix](../use/README.md).
+
+`npm run test:computer` covers contracts, process/MCP failures and actual
+Electron settings. `npm run test:computer:native` opts into the owned AppKit
+window test; it posts real native input and requires effective OS grants.
+`PERO_COMPUTER_AGENT=1 node tests/e2e/computer-agent.mjs` separately checks a
+real Codex status call. Add `PERO_COMPUTER_AGENT_NATIVE=1` to verify a real
+model operating the owned AppKit fixture. On Linux, `npm run test:computer:linux`
+runs an owned Tk window under Xvfb (requires python3-tk, xauth and x11-utils).
+See [verification and current limits](../docs/fitness/computer-use.md).

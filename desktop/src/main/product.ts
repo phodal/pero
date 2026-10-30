@@ -1,5 +1,5 @@
 import {ConversationContentRead} from '../../../packages/content-source/index.ts';
-import { app, BrowserWindow, ipcMain, Menu, protocol, nativeTheme, net, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, protocol, nativeTheme, net, dialog, globalShortcut } from 'electron';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { readFileSync } from 'node:fs';
@@ -7,6 +7,10 @@ import { resolve, sep, delimiter } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DesktopApps } from './apps';
 import { DesktopAppUse } from './app-use-mcp';
+import { DesktopComputer } from './computer';
+import { computerPermissions } from './computer-electron';
+import { randomUUID } from 'node:crypto';
+import { translate } from '../../../locales';
 import { Product } from '../../../packages/product/product';
 import { testWindowOptions } from './test-display';
 
@@ -20,6 +24,9 @@ let window: BrowserWindow;
 let host: ReturnType<typeof spawn>;
 let ready = false;
 let appUse: DesktopAppUse | undefined;
+let computer: DesktopComputer | undefined;
+let computerEnabled = false;
+const computerWrites = new Map<string, { resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
 let resolveReady: () => void;
 const hostReady = new Promise<void>(resolve => { resolveReady = resolve; });
 const apps = new DesktopApps(request => {
@@ -37,6 +44,17 @@ function menus() {
       { label: 'Dark / 深色', click: () => { nativeTheme.themeSource = 'dark'; } }] },
     { label: 'Language / 语言', submenu: (['en', 'zh-CN'] as const).map(value => ({ id: `locale-${value}`, label: value === 'en' ? 'English' : '简体中文', type: 'radio' as const, checked: locale === value,
       click: () => { host.stdin?.write(JSON.stringify({ method: 'settings.locale', locale: value }) + '\n'); } })) },
+    ...(product.chat ? [{ label: translate(locale, 'computer.title'), submenu: [
+      { id:'computer-enable', label: translate(locale, 'computer.enable'), type: 'checkbox' as const, checked: computerEnabled, enabled: ['darwin','win32','linux'].includes(process.platform) || computerEnabled, click: () => { void computer?.command({action:'computer_set',enabled:!computerEnabled}).catch(error => dialog.showErrorBox(translate(locale,'computer.title'),String(error))); } },
+      { id:'computer-permissions', label: translate(locale, 'computer.permissions'), enabled: process.platform === 'darwin', click: () => { void computer?.command({action:'computer_permissions'}).catch(error => dialog.showErrorBox(translate(locale,'computer.title'),String(error))); } },
+      { id:'computer-status', label: translate(locale, 'computer.refresh'), click: async () => {
+        if (!computer) return;
+        const state = await computer.status();
+        const permission = (value: 'granted'|'not_detected'|'unsupported') => translate(locale,`computer.${value}`);
+        await dialog.showMessageBox(window,{title:translate(locale,'computer.title'),message:translate(locale,state.status.available?(state.enabled?'computer.ready':'computer.disabled'):'computer.unsupported'),detail:`${translate(locale,'computer.accessibility')}: ${permission(state.status.accessibility)}\n${translate(locale,'computer.screen_recording')}: ${permission(state.status.screen_recording)}\n${state.error||state.status.message}`,buttons:['OK']});
+      } },
+      { id:'computer-stop', label: translate(locale, 'computer.stop'), enabled:computerEnabled, accelerator: 'CommandOrControl+Shift+Escape', click: () => { void computer?.command({action:'computer_stop'}).catch(error=>console.error(error)); } },
+    ] }] : []),
   ]));
 }
 app.whenReady().then(async () => {
@@ -62,7 +80,22 @@ app.whenReady().then(async () => {
       headers: { 'Content-Type': 'text/html', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; frame-src pero-app: pero://chat" },
     });
   });
-  appUse = product.chat ? new DesktopAppUse(() => window, event => window.webContents.send('product:event', event), resolve(profile, 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal)=>apps.applyWrite(write,signal)}) : undefined;
+  if (product.chat) {
+    computer = new DesktopComputer(resolve(root,'bin',process.platform==='win32'?'pero-computer.exe':'pero-computer'),resolve(profile,'computer-use'),event=>window.webContents.send('product:event',event),{
+      permissions: computerPermissions,
+      save: async enabled => {
+        if (!ready || !host.stdin?.writable) throw new Error('The local runtime is unavailable');
+        const id = randomUUID();
+        await new Promise<void>((resolve,reject)=>{
+          const timer=setTimeout(()=>{computerWrites.delete(id);reject(new Error('Saving Computer Use settings timed out'));},5000);
+          computerWrites.set(id,{resolve,reject,timer});
+          host.stdin!.write(JSON.stringify({method:'settings.computer',id,enabled})+'\n');
+        });
+      },
+    });
+    globalShortcut.register('CommandOrControl+Shift+Escape',()=>{void computer?.command({action:'computer_stop'}).catch(error=>console.error(error));});
+  }
+  appUse = product.chat ? new DesktopAppUse(() => window, event => window.webContents.send('product:event', event), resolve(profile, 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal)=>apps.applyWrite(write,signal)},computer) : undefined;
   const appUseEnvironment = await appUse?.start();
   host = spawn(resolve(root, 'bin', process.platform === 'win32' ? 'pero-host.exe' : 'pero-host'), ['--stdio'], { cwd: app.getPath('home'), env: {
     ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PERO_'))),
@@ -79,6 +112,15 @@ app.whenReady().then(async () => {
   }, stdio: 'pipe' });
   createInterface({ input: host.stdout! }).on('line', line => {
     const message = JSON.parse(line);
+    if (message.kind === 'computer_settings' || message.kind === 'computer_settings_error') {
+      const pending = computerWrites.get(message.request_id);
+      if (pending) { clearTimeout(pending.timer); computerWrites.delete(message.request_id); }
+      if (message.kind === 'computer_settings') {
+        computerEnabled = message.data.enabled;
+        void computer?.restore(computerEnabled).then(()=>pending?.resolve(),error=>pending?.reject(error)); menus();
+      } else pending?.reject(new Error('Could not save Computer Use settings'));
+      return;
+    }
     appUse?.accept(message);
     if (apps.accept(message)) return;
     if (message.kind === 'ready') { ready = true; resolveReady(); }
@@ -91,7 +133,7 @@ app.whenReady().then(async () => {
     }
   });
   host.stderr?.on('data', data => console.error(String(data)));
-  const stopped = () => { ready = false; appUse?.reset(); apps.close(); if (!window.isDestroyed()) window.webContents.send('product:event', { version: 1, kind: 'disconnected', request_id: null, text: '' }); };
+  const stopped = () => { ready = false; appUse?.reset(); void computer?.stop(); apps.close(); for (const pending of computerWrites.values()) { clearTimeout(pending.timer); pending.reject(new Error('The local runtime stopped')); } computerWrites.clear(); if (!window.isDestroyed()) window.webContents.send('product:event', { version: 1, kind: 'disconnected', request_id: null, text: '' }); };
   host.on('error', stopped); host.on('exit', stopped);
   const trusted = (event: Electron.IpcMainInvokeEvent) => {
     if (event.sender !== window.webContents || event.senderFrame?.url !== 'pero://workbench/') throw new Error('Untrusted sender');
@@ -159,4 +201,9 @@ app.whenReady().then(async () => {
   await window.loadURL('pero://workbench/');
 });
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => { appUse?.close(); apps.close(); host?.stdin?.end(); });
+let quitting = false;
+app.on('before-quit', event => {
+  if (quitting) return;
+  event.preventDefault(); quitting = true; globalShortcut.unregisterAll(); apps.close();
+  void (appUse?.close() || Promise.resolve()).catch(error=>console.error(error)).finally(()=>{host?.stdin?.end();app.quit();});
+});

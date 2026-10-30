@@ -1,0 +1,33 @@
+name: Computer Use
+on:
+  push:
+    paths: ['use/**', 'protocol/computer-*.tsp', 'crates/pero-contracts/**', 'scripts/build/computer.mjs', 'tests/**/computer-*', '.github/workflows/computer-use.yml']
+  pull_request:
+    paths: ['use/**', 'protocol/computer-*.tsp', 'crates/pero-contracts/**', 'scripts/build/computer.mjs', 'tests/**/computer-*', '.github/workflows/computer-use.yml']
+jobs:
+  native:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: node scripts/build/computer.mjs --test
+      - run: cargo clippy --manifest-path use/computer/Cargo.toml --locked --all-targets -- -D warnings
+      - run: node scripts/build/computer.mjs
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb xauth python3-tk x11-utils
+          xvfb-run -a node tests/e2e/computer-linux.mjs
+      - if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-computer-use
+          path: target/computer-verification/

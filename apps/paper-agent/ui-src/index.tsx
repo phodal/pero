@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppAgent, useAppApi, useAppI18n, useAppInfo, useAppChat, useAppObject, useAppDataChanged, appObjectProps } from '@pero/app-sdk';
-import { Button, Feedback, Icon } from '@pero/app-sdk/ui';
+import { Button, Feedback, Icon, PageHeader } from '@pero/app-sdk/ui';
 import { messages } from './i18n';
 import { ImportPanel, PaperList } from './library';
 import { LibrarySearch } from './library-search';
@@ -165,7 +165,9 @@ export default function PaperAgent() {
     {importingPdf && <p className="pa-loading" role="status">{t('pdfImporting')}</p>}
     {error && <div className="pa-global-error"><Feedback kind="error"><span>{error}</span><Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback></div>}
     <section className="pa-library-screen" hidden={screen !== 'library'} aria-label={t('papers')}>
-      <header className="pa-library-header">{libraryScreen !== 'papers' && <Button variant="ghost" aria-label={t('backToLibrary')} onClick={() => setLibraryScreen('papers')}>‹</Button>}<h1>{t(libraryScreen === 'import' ? 'add' : libraryScreen === 'discovery' ? 'discover' : 'papers')}</h1>{libraryScreen === 'papers' && <Button variant="ghost" aria-label={t('refresh')} onClick={() => void refresh().catch(onError)}><Icon name="refresh"/></Button>}{libraryScreen === 'papers' && <Button onClick={() => setLibraryScreen('import')}><Icon name="plus"/>{t('add')}</Button>}</header>
+      <PageHeader title={t(libraryScreen === 'import' ? 'add' : libraryScreen === 'discovery' ? 'discover' : 'papers')}
+        navigation={libraryScreen !== 'papers' && <Button variant="ghost" aria-label={t('backToLibrary')} onClick={() => setLibraryScreen('papers')}><Icon name="chevron-left"/></Button>}
+        actions={libraryScreen === 'papers' && <><Button variant="ghost" aria-label={t('refresh')} onClick={() => void refresh().catch(onError)}><Icon name="refresh"/></Button><Button onClick={() => setLibraryScreen('import')}><Icon name="plus"/>{t('add')}</Button></>}/>
       <div className="pa-library-content" hidden={libraryScreen !== 'papers'}>
         {loading ? <p role="status">{t('loading')}</p> : !library.papers.length ? <p>{t('emptyLibrary')}</p> : <LibrarySearch api={api} t={t} onOpen={async hit => { const paper = library.papers.find(p => p.id === hit.source.paperId); if (paper) { await read(paper); if (hit.source.documentId && hit.page) setPdfFocus({ documentId: hit.source.documentId, page: hit.page }); } }}><PaperList selecting={false} papers={library.papers} selected={draft.selected} readingId={reading?.id ?? ''} locked={locked} onRead={paper => void read(paper)} onSelect={() => {}} onDiscover={discover} t={t}/></LibrarySearch>}
         {!!library.favorites?.length && <details className="pa-library-saved"><summary>{t('favorites')} {library.favorites.length}</summary><ul className="pa-report-list">{library.favorites.map(favorite => <li key={favorite.id} data-favorite-work={favorite.paper.id}><Button variant="ghost" disabled={!favorite.paper.abstract.trim()} onClick={() => void readFavorite(favorite)}>{favorite.paper.title}</Button><div className="pa-actions"><Button variant="ghost" disabled={locked || !favorite.paper.abstract.trim()} onClick={() => void readFavorite(favorite, true)}>{t('addToMatrix')}</Button><Button variant="ghost" onClick={() => { setDiscoveryOpening({ historyId: favorite.batchId }); setLibraryScreen('discovery'); }}>{t('viewDiscovery')}</Button><a href={favorite.paper.url} target="_blank" rel="noreferrer">{t('original')}</a></div></li>)}</ul></details>}

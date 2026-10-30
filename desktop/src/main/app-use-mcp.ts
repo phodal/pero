@@ -11,6 +11,8 @@ import { ContentArtifacts } from './content-artifacts.ts';
 import { ContentRead } from '../../../packages/content-source/index.ts';
 import { AppChatContext } from './app-chat-context.ts';
 import { AppUse, type AppUsePorts, type AppUseEvent } from './app-use.ts';
+import { DesktopComputer, COMPUTER_TOOL, COMPUTER_INSTRUCTIONS } from './computer';
+import { ComputerFailure } from './computer-client';
 import { APP_USE_ACTIONS, APP_USE_VERBS, AppUseError } from './app-use-task.ts';
 
 type Event = {
@@ -78,6 +80,7 @@ export class DesktopAppUse {
       describe(): Promise<AppWriteDefinition[]>;
       apply(write: PreparedAppWrite, signal: AbortSignal): Promise<unknown>;
     },
+    readonly computer?: DesktopComputer,
   ) {
     this.results = new ContentArtifacts(join(evidenceRoot, 'content'));
     this.writes = writes;
@@ -152,6 +155,7 @@ export class DesktopAppUse {
           );
     if (event.kind === 'session_deleted' && event.thread_id) {
       this.inputs.forget(event.thread_id);
+      void this.computer?.forget(event.thread_id).catch(error => this.send({version:1,kind:'error',request_id:null,thread_id:event.thread_id,text:`Could not remove desktop evidence: ${String(error)}`}));
       void this.results.forget(event.thread_id).catch(error => this.send({version:1,kind:'error',request_id:null,thread_id:event.thread_id,text:`Could not remove result artifacts: ${String(error)}`}));
     }
     this.authority.accept(event);
@@ -165,9 +169,10 @@ export class DesktopAppUse {
     this.inputs.forget();
     this.authority.reset(true);
   }
-  close() {
+  async close() {
     this.reset();
     this.server?.close();
+    await this.computer?.stop();
   }
   async start(): Promise<{ PERO_APP_USE_URL: string; PERO_APP_USE_TOKEN: string }> {
     const token = randomBytes(32).toString('hex');
@@ -213,12 +218,13 @@ export class DesktopAppUse {
               : '2025-03-26',
             capabilities: { tools: {} },
             serverInfo: { name: 'pero-app-use', version: '0.1.0' },
-            instructions: TOOL.description,
+            instructions: TOOL.description + (this.computer ? '\n' + COMPUTER_INSTRUCTIONS : ''),
           };
         else if (message.method === 'tools/list')
           result = {
             tools: [
               TOOL,
+              ...(this.computer ? [COMPUTER_TOOL] : []),
               {
                 name: 'content_read',
                 description: 'Read a result artifact returned by this conversation. Use a JSON Pointer to select a node, or a byte range. Original numeric text is preserved. maxBytes bounds source bytes to 16 KiB. Follow nextRead only when needed; do not read the entire artifact by default.',
@@ -305,6 +311,14 @@ export class DesktopAppUse {
         else if (message.method?.startsWith('notifications/')) {
           response.writeHead(202).end();
           return;
+        } else if (message.method === 'tools/call' && message.params?.name === 'computer_use' && this.computer) {
+          const value = await this.authority.access(thread, undefined, (_scope, signal) => this.computer!.call(thread, message.params.arguments, signal), controller.signal);
+          const images: object[] = [];
+          if (value.kind === 'observation' && value.image) {
+            images.push({type:'image',data:value.image.data,mimeType:value.image.media_type});
+            value.image = undefined;
+          }
+          result = {content:[{type:'text',text:await this.results.select(thread,value)},...images],isError:value.kind==='receipt'&&value.receipt.outcome.status!=='executed'};
         } else if (message.method === 'tools/call' && message.params?.name === 'app_use') {
           const value = await this.authority.call(thread, message.params.arguments, controller.signal);
           const content: object[] = [];
@@ -348,7 +362,7 @@ export class DesktopAppUse {
               content: [
                 {
                   type: 'text',
-                  text: `${error instanceof AppUseError ? error.code : 'APP_USE_FAILED'}: ${error instanceof Error ? error.message : String(error)}`,
+                  text: `${error instanceof ComputerFailure ? error.detail.code : error instanceof AppUseError ? error.code : 'APP_USE_FAILED'}: ${error instanceof Error ? error.message : String(error)}`,
                 },
               ],
             },

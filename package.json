@@ -12,7 +12,7 @@
     "dev:apps": "npm run build && node scripts/dev/apps.mjs",
     "dev:paper": "npm run build && node scripts/dev/apps.mjs --app paper-agent",
     "dev:native": "node scripts/dev/native.mjs",
-    "build": "npm run build:apps && npm run build:wasm && npm run build:host && npm run build:worker && npm run build:web && npm run build:desktop",
+    "build": "npm run build:apps && npm run build:wasm && npm run build:host && npm run build:computer && npm run build:worker && npm run build:web && npm run build:desktop",
     "build:apps": "node scripts/build/apps.mjs",
     "build:wasm": "node scripts/build/wasm.mjs",
     "build:host": "node scripts/cargo.mjs build -p pero-host",
@@ -21,7 +21,7 @@
     "build:macos-dev": "node scripts/build/macos-dev-app.mjs",
     "build:macos-native": "node scripts/cargo.mjs build --release --locked -p pero-host -p pero-worker && node scripts/cargo.mjs +nightly-2026-10-28 build --release --locked -p pero-ui --features native --bin pero-native && node scripts/build/native-preview.mjs",
     "package:desktop": "node scripts/build/desktop-package.mjs",
-    "package:macos": "npm run build:apps && PERO_BUILD_RELEASE=1 node scripts/build/wasm.mjs && node scripts/cargo.mjs build --release --locked -p pero-host -p pero-worker && npm run build:web && npm run build:desktop && node scripts/build/macos-package.mjs",
+    "package:macos": "npm run build:apps && PERO_BUILD_RELEASE=1 node scripts/build/wasm.mjs && node scripts/cargo.mjs build --release --locked -p pero-host -p pero-worker && node scripts/build/computer.mjs --release && npm run build:web && npm run build:desktop && node scripts/build/macos-package.mjs",
     "build:desktop": "node scripts/build/desktop.mjs",
     "check": "tsc --noEmit && node scripts/codegen/theme.mjs --check && node scripts/check/locales.mjs && node scripts/codegen/contracts.mjs --check && node scripts/generate-icons.mjs --check",
     "gen:icons": "node scripts/generate-icons.mjs",
@@ -32,6 +32,7 @@
     "gen:overview": "node scripts/codegen/overview.mjs",
     "test": "node scripts/cargo.mjs test -p pero-contracts -p pero-runtime -p pero-host -p pero-chat-ui -p pero-chat-web -p pero-ui -p pero-worker",
     "test:contracts": "npm run build:host && node tests/contracts/host.mjs",
+    "test:computer:contracts": "node tests/contracts/computer-use.mjs && node scripts/cargo.mjs test -p pero-contracts computer_use",
     "test:apps": "node tests/e2e/apps.mjs",
     "test:paper": "node tests/e2e/paper-agent.mjs",
     "test:apps:contracts": "node tests/contracts/apps.mjs",
@@ -59,7 +60,11 @@
     "test:app-use:unit": "node --test desktop/src/main/app-use.test.ts desktop/src/main/app-context.test.ts && node --disallow-code-generation-from-strings --test packages/app-sdk/src/app-use.test.ts",
     "test:app-use:real": "PERO_APP_USE_REAL_AGENT=1 node tests/e2e/app-use-real.mjs",
     "test:app-use:bridge": "node tests/e2e/app-use-bridge.mjs",
-    "test:app-use": "npm run test:app-use:unit && npm run test:app-use:bridge && node tests/e2e/app-use-workbench.mjs && node tests/e2e/app-use.mjs"
+    "test:app-use": "npm run test:app-use:unit && npm run test:app-use:bridge && node tests/e2e/app-use-workbench.mjs && node tests/e2e/app-use.mjs",
+    "build:computer": "node scripts/build/computer.mjs",
+    "test:computer": "npm run test:computer:contracts && node tests/e2e/computer-transport.mjs && node tests/e2e/computer-settings.mjs",
+    "test:computer:native": "PERO_COMPUTER_NATIVE=1 node tests/e2e/computer-native.mjs",
+    "test:computer:linux": "xvfb-run -a node tests/e2e/computer-linux.mjs"
   },
   "devDependencies": {
     "@agentclientprotocol/claude-agent-acp": "0.98.0",

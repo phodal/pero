@@ -31,6 +31,8 @@ mod settings_view;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod settings_controls;
 #[cfg(any(target_family = "wasm", feature = "native"))]
+mod settings_computer;
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod settings_window;
 
 #[cfg(any(target_family = "wasm", feature = "native"))]

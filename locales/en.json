@@ -636,5 +636,21 @@
   "workspace.recovery_close": "Close without recovery",
   "workspace.recovery_retry": "Keep editing",
   "workspace.pane_left": "Left document pane",
-  "workspace.pane_right": "Right document pane"
+  "workspace.pane_right": "Right document pane",
+  "computer.title": "Computer Use",
+  "computer.enable": "Enable Computer Use",
+  "computer.hint": "Allow the selected conversation to observe and operate other application windows. Agent session approvals still apply.",
+  "computer.permissions": "Open permissions",
+  "computer.accessibility": "Accessibility",
+  "computer.screen_recording": "Screen recording",
+  "computer.granted": "Granted",
+  "computer.not_detected": "Not detected",
+  "computer.unsupported": "No permission check on this platform",
+  "computer.ready": "Enabled",
+  "computer.running": "Operating an application…",
+  "computer.disabled": "Disabled",
+  "computer.loading": "Checking native connection…",
+  "computer.refresh": "Refresh",
+  "computer.stop": "Stop",
+  "computer.stop_hint": "Emergency stop: Command/Ctrl+Shift+Esc."
 }

@@ -6,9 +6,12 @@ Reference source: `phodal/point`, revision
 `dcd549a9cc8807eda5ce682eef4621afbd9a02d9`, specifically
 `apps/paper-agent/{src,backend-src}` and
 `apps/scientific-viewer/backend-src/literature.mjs`.
-The Python implementation and Pero UI were written for this integration; no
-Point UI components, generated bundles, execution runtime or private user data
-are included. See [Apache-2.0](licenses/Apache-2.0.txt).
+The Python implementation and Paper Agent views were written for this integration.
+The bundled Pero App SDK now adapts Point's shared Button, Input/Textarea, Field
+and Toolbar from `packages/app-platform/app-sdk/src/components/`, revision
+`1398de034a3e3fc5e1e216cff762a555d6a4e900`, to Pero's styles. No Point generated
+bundles, execution runtime or private user data are included.
+See [Apache-2.0](licenses/Apache-2.0.txt).
 
 The independently bundled App UI includes React and ReactDOM 19.2.8 under MIT:
 [React](licenses/React-LICENSE.txt), [ReactDOM](licenses/ReactDOM-LICENSE.txt),

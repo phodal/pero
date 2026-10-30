@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 pub mod app_chat;
 pub use app_chat::AppChatScope;
 pub mod composer_capabilities;
+pub mod computer_use;
+pub mod computer_runtime;
 pub mod context;
 pub mod content_document;
 pub mod content_origin;

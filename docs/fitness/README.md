@@ -23,7 +23,7 @@ not configured. Setup and invocation instructions live in [Bazel quality gates](
 1. `npm run build`: native Host, GPUI WASM, web assets, and the Electron shell.
 2. `npm run check`: TypeScript, generated DESIGN.md theme, locale catalogs, and generated contracts.
 3. `npm test`: Rust tests for `pero-contracts`, `pero-runtime`, `pero-host`, `pero-chat-ui`, `pero-chat-web`, `pero-ui`, and `pero-worker`, including the ACP lifecycle cases in `tests/runtime/`.
-4. `npm run test:contracts`: every Host stdio JSONL line against `protocol/generated/host.schema.json`.
+4. `npm run test:contracts`: every Host stdio JSONL line against the Host and Computer Use extension schemas.
 5. `npm run test:e2e`: real Electron against the ACP fixture. Workbench session behavior, then the tool-call matrix.
 6. `npm run test:i18n`: shared catalogs in real Electron, including live switching, persistence after restart, native menus, and untranslated user content. Source rules are in [locales/README.md](../../locales/README.md).
 7. `cd server && go test ./...`: control-plane tests. PostgreSQL cases skip without `PERO_TEST_DATABASE_URL`. See [server/README.md](../../server/README.md).
@@ -80,6 +80,9 @@ Workspace navigation ownership and pure layout refactor:
 [workspace-architecture.md](workspace-architecture.md).
 
 Agent → App tools, task grants and panel evidence: [App Use](app-use.md).
+
+External Computer Use v1 types and pure admission (L0, no native driver):
+[Computer Use contract](computer-use.md).
 
 Automatic ACP Agent preparation, draft preservation and external login: [Agent preparation](agent-preparation.md).
 

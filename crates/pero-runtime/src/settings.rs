@@ -88,6 +88,16 @@ pub fn save_locale(path: &Path, locale: &str) -> io::Result<()> {
     })
 }
 
+pub fn load_computer_enabled(path: &Path) -> bool {
+    std::fs::read(path).ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|settings| settings.get("computer_use")?.get("enabled")?.as_bool())
+        .unwrap_or(false)
+}
+pub fn save_computer_enabled(path: &Path, enabled: bool) -> io::Result<()> {
+    update(path, |settings| settings["computer_use"] = serde_json::json!({ "enabled": enabled }))
+}
+
 pub fn load_chat_agent(path: &Path) -> Option<String> {
     let value: serde_json::Value = serde_json::from_slice(&std::fs::read(path).ok()?).ok()?;
     value["chat_agent"].as_str().map(str::to_owned)

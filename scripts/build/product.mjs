@@ -56,6 +56,7 @@ for (const { app, input } of inputs) {
 }
 execFileSync(process.execPath, [resolve(root, 'scripts/cargo.mjs'), 'build', '--release', '--locked', '-p', 'pero-host', '-p', 'pero-worker'], { stdio: 'inherit' });
 if (product.chat) {
+  execFileSync(process.execPath, [resolve(root, 'scripts/build/computer.mjs'), '--release'], { stdio: 'inherit' });
   execFileSync(process.execPath, [resolve(root, 'scripts/build/wasm.mjs'), '--chat-only'], { stdio: 'inherit' });
   execFileSync(process.execPath, [resolve(root, 'node_modules/vite/bin/vite.js'), 'build', '--outDir', resolve(root, 'web/dist-chat')], {
     cwd: resolve(root, 'web'), stdio: 'inherit', env: { ...process.env, PERO_CHAT_ONLY: '1' },
@@ -78,6 +79,9 @@ writeFileSync(join(output, 'package.json'), JSON.stringify({ name: name || produ
 const host = process.platform === 'win32' ? 'pero-host.exe' : 'pero-host';
 cpSync(resolve(root, 'target/release', host), join(output, 'bin', host));
 if (product.chat) {
+  cpSync(resolve(root, 'target/release', process.platform === 'win32' ? 'pero-computer.exe' : 'pero-computer'), join(output, 'bin', process.platform === 'win32' ? 'pero-computer.exe' : 'pero-computer'));
+  cpSync(resolve(root, 'target/release/computer-source.json'), join(output, 'bin/computer-source.json'));
+  cpSync(resolve(root, 'use/computer/NOTICE.md'), join(output, 'Computer-Use-NOTICE.md'));
   cpSync(resolve(root, 'web/dist-chat'), join(output, 'web/chat'), { recursive: true });
   // The Chat Wasm embeds its fonts. Avoid shipping Vite's duplicate public copy.
   rmSync(join(output, 'web/chat/fonts'), { recursive: true, force: true });

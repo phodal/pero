@@ -5,6 +5,8 @@ export const messages = {
   correctionNote: { zh: '修改备注（可选）', en: 'Correction note (optional)' }, saveCorrection: { zh: '保存修改', en: 'Save correction' },
   corrected: { zh: '已人工修改', en: 'Manually corrected' }, correctionHistory: { zh: '修改记录', en: 'Corrections' },
   importPdf: { zh: '导入 PDF', en: 'Import PDF' }, pdfImporting: { zh: '正在导入 PDF…', en: 'Importing PDF…' },
+  pdfFileHint: { zh: '选择 PDF 文件，或拖入窗口', en: 'Choose a PDF file or drop it into the window' },
+  textFileHint: { zh: 'UTF-8 文本或 Markdown，最大 500 KB', en: 'UTF-8 text or Markdown, up to 500 KB' },
   planningQuery: { zh: '正在整理检索词…', en: 'Preparing search terms…' }, selectingEvidence: { zh: '正在核对证据…', en: 'Reviewing evidence…' },
   ask: { zh: '提问', en: 'Ask' }, closeAgent: { zh: '关闭 Agent', en: 'Close Agent' },
   backToLibrary: { zh: '返回文库', en: 'Back to library' }, sendQuestion: { zh: '发送问题', en: 'Send question' },

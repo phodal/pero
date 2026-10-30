@@ -47,20 +47,35 @@ const normalize = (node) => {
   }
   return out;
 };
-async function generate(name, title, roots) {
-const emitted = await emit(name);
-const $defs = Object.fromEntries(Object.entries(emitted.$defs).sort(([a], [b]) => a.localeCompare(b))
+async function generate(name, title, roots, source = name) {
+const emitted = await emit(source);
+// Split Computer Use by observation and action while keeping one TypeSpec source.
+// Each bundle contains only the definitions reachable from its public roots.
+const included = new Set();
+function include(node) {
+  if (!node || typeof node !== 'object') return;
+  if (typeof node.$ref === 'string') {
+    const name = node.$ref.replace(/^.*\//, '').replace(/\.json$/, '');
+    if (!included.has(name) && emitted.$defs[name]) {
+      included.add(name);
+      include(emitted.$defs[name]);
+    }
+  }
+  for (const value of Object.values(node)) include(value);
+}
+if (source !== name) for (const root of roots) include({ $ref: root });
+const $defs = Object.fromEntries(Object.entries(emitted.$defs).filter(([key]) => source === name || included.has(key)).sort(([a], [b]) => a.localeCompare(b))
   .map(([name, schema]) => [name, { title: name, ...normalize(schema) }]));
 const schema = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   $id: `https://openpero.com/protocol/${name}.schema.json`,
   title,
-  description: `Generated from protocol/${name}.tsp. Do not edit.`,
+  description: `Generated from protocol/${source}.tsp. Do not edit.`,
   oneOf: roots.map(type => ({ $ref: `#/$defs/${type}` })),
   $defs,
 };
 const types = (await compile(structuredClone(schema), title, {
-  additionalProperties: false, bannerComment: `/* Generated from protocol/${name}.tsp by scripts/codegen/contracts.mjs. Do not edit. */`,
+  additionalProperties: false, bannerComment: `/* Generated from protocol/${source}.tsp by scripts/codegen/contracts.mjs. Do not edit. */`,
   strictIndexSignatures: true, unreachableDefinitions: true, format: true,
 })).replaceAll('\r\n', '\n');
 
@@ -79,3 +94,7 @@ for (const [path, output] of Object.entries(outputs)) {
 }
 await generate('host', 'HostProtocol', ['HostInput', 'HostEvent', 'WebCommand']);
 await generate('remote', 'RemoteProtocol', ['RemoteProtocol']);
+await generate('computer-observation', 'ComputerObservationContract', ['ComputerCapabilities', 'ComputerTarget', 'ComputerObservation'], 'computer-use');
+await generate('computer-action', 'ComputerActionContract', ['ComputerAction', 'ComputerActionReceipt', 'ComputerError'], 'computer-use');
+await generate('computer-request', 'ComputerRequestContract', ['ComputerRequest', 'ComputerWorkerRequest', 'ComputerControl', 'ComputerSettingsRequest'], 'computer-runtime');
+await generate('computer-response', 'ComputerResponseContract', ['ComputerWorkerResponse', 'ComputerUseState', 'ComputerSettingsEvent', 'ComputerSettingsErrorEvent', 'ComputerStateEvent'], 'computer-runtime');

@@ -10,6 +10,21 @@ Agent or Project access.
 Home and End navigation. `chart` uses Pero's DESIGN.md palette. Every frame
 bundles its own React runtime, so no React instance is shared with GPUI Wasm.
 
+The Button, Input/Textarea, Field and Toolbar implementations are adapted from
+Point's `packages/app-platform/app-sdk/src/components/` at revision
+`1398de034a3e3fc5e1e216cff762a555d6a4e900`. They use Pero's bundled stylesheet
+and theme variables. Point's runtime style injection and Radix composition are
+not dependencies of this SDK. Existing imports from `@pero/app-sdk/ui` remain
+compatible. Button accepts `busy`; Field associates its description and error
+with the control. Native controls expose refs.
+
+`PageHeader` aligns page navigation, title and actions. `FilePicker` takes
+translated `label` and `emptyLabel` strings and emits a selected File; the App
+owns validation and import. It supports keyboard activation and selecting the
+same file again. Shared controls follow the workbench's compact geometry and
+inherit the Host's appearance. Apps should consume these variables rather than
+redefine the base palette or UI font size.
+
 The frame announces `{type:'pero:app:ready'}` to its parent. The parent replies
 with `{type:'pero:app:context',context:{locale,dark,active}}`. The provider accepts
 only messages from its parent and validates the three fields. There are no

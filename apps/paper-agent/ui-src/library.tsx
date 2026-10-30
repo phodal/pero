@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Checkbox, EmptyState, Feedback, Field, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, Toolbar } from '@pero/app-sdk/ui';
+import { Button, Checkbox, EmptyState, Feedback, Field, FilePicker, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, Toolbar } from '@pero/app-sdk/ui';
 import type { Api, Paper, SearchItem } from './types';
 import type { Translator } from './i18n';
 
@@ -42,25 +42,22 @@ export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImpor
     } catch (error) { if (mounted.current) onError(error); }
     finally { if (mounted.current) setAdding(''); }
   }
-  async function file(event: React.ChangeEvent<HTMLInputElement>) {
-    const selected = event.target.files?.[0]; event.target.value = '';
-    if (!selected) return;
+  async function file(selected: File) {
     if (selected.size > 500000 || !/\.(txt|md|markdown)$/i.test(selected.name)) { onError(new Error(t('importFileError'))); return; }
     const text = await selected.text();
     if (!mounted.current) return;
     setContent(text); if (!title) setTitle(selected.name.replace(/\.[^.]+$/, ''));
   }
   return <section className="pa-import" ref={panel} aria-label={t('add')}>
-    <label className="pa-file pa-pdf-import">{t('importPdf')}<input aria-label={t('importPdf')} type="file" accept="application/pdf,.pdf" disabled={importingPdf} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void onImportPdf(file); }}/></label>
     <Tabs value={tab} onValueChange={setTab}>
-      <TabsList><TabsTrigger value="search">{t('search')}</TabsTrigger><TabsTrigger value="import">{t('import')}</TabsTrigger></TabsList>
+      <TabsList aria-label={t('add')}><TabsTrigger value="search">{t('search')}</TabsTrigger><TabsTrigger value="pdf">PDF</TabsTrigger><TabsTrigger value="import">{t('import')}</TabsTrigger></TabsList>
       <TabsContent value="search" forceMount>
-        <div className="pa-search-form" role="search" onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void search(); } }}>
+        <div className="pa-search-form" role="search" onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing && event.target instanceof HTMLInputElement) { event.preventDefault(); void search(); } }}>
           <Field label={t('findLabel')}>{props => <Input {...props} value={query} onChange={event => setQuery(event.target.value)} placeholder={t('searchPlaceholder')} maxLength={500}/>}</Field>
-          <div className="pa-actions"><Select label={t('sourceLabel')} value={source} onChange={setSource} options={[{ value: 'all', label: t('allSources') }, { value: 'alphaxiv', label: 'alphaXiv' }, { value: 'openalex', label: 'OpenAlex' }, { value: 'biorxiv', label: 'bioRxiv' }, { value: 'pubmed', label: 'PubMed' }]}/>
-            <Button onClick={() => void search()} variant="primary" disabled={busy || !query.trim()}>{busy ? t('searching') : t('searchAction')}</Button>
+          <Toolbar><Select label={t('sourceLabel')} value={source} onChange={setSource} options={[{ value: 'all', label: t('allSources') }, { value: 'alphaxiv', label: 'alphaXiv' }, { value: 'openalex', label: 'OpenAlex' }, { value: 'biorxiv', label: 'bioRxiv' }, { value: 'pubmed', label: 'PubMed' }]}/>
+            <Button onClick={() => void search()} variant="primary" busy={busy} disabled={!query.trim()}>{busy ? t('searching') : t('searchAction')}</Button>
             <Button disabled={!!adding || !query.trim()} onClick={() => void add({ id: query, ...(source !== 'all' ? { source } : {}) })}>{t('fetchPaper')}</Button>
-          </div><small>{t('publicSearch')}</small>
+          </Toolbar><small>{t('publicSearch')}</small>
         </div>
         {warnings.map((warning, index) => <Feedback key={index}>{warning}</Feedback>)}
         {results?.length === 0 && <Feedback>{t('noMatches')}</Feedback>}
@@ -69,13 +66,17 @@ export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImpor
           <Button disabled={!!adding} onClick={() => void add({ id: item.id, source: item.source }, `${item.source}:${item.id}`)}>{adding === `${item.source}:${item.id}` ? t('loading') : t('addShort')}</Button>
         </li>)}</ol>
       </TabsContent>
+      <TabsContent value="pdf" forceMount>
+        <div className="pa-import-form"><FilePicker label={importingPdf ? t('pdfImporting') : t('importPdf')} emptyLabel={t('pdfFileHint')} accept="application/pdf,.pdf" busy={importingPdf} onFile={file => void onImportPdf(file)}/></div>
+      </TabsContent>
       <TabsContent value="import" forceMount>
         <div className="pa-import-form" role="group" aria-label={t('import')}>
           <Field label={t('paperTitle')}>{props => <Input {...props} required value={title} maxLength={1000} onChange={event => setTitle(event.target.value)}/>}</Field>
           <Field label={t('paperUrl')}>{props => <Input {...props} type="url" required value={url} onChange={event => setUrl(event.target.value)} placeholder="https://…"/>}</Field>
           <Select label={t('contentKind')} value={kind} onChange={setKind} options={[{ value: 'full-text', label: t('fullText') }, { value: 'abstract', label: t('abstract') }, { value: 'report', label: t('sourceReport') }]}/>
           <Field label={t('paperText')}>{props => <Textarea {...props} required rows={12} value={content} maxLength={120000} onChange={event => setContent(event.target.value)}/>}</Field>
-          <div className="pa-actions"><label className="pa-file">{t('importFile')}<input type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" onChange={event => void file(event)}/></label><Button onClick={() => void importText()} variant="primary" disabled={!!adding || !title.trim() || !url.trim() || !content.trim()}>{adding === 'text' ? t('loading') : t('importAction')}</Button></div>
+          <FilePicker label={t('importFile')} emptyLabel={t('textFileHint')} accept=".txt,.md,.markdown,text/plain,text/markdown" onFile={selected => void file(selected)}/>
+          <Toolbar><Button onClick={() => void importText()} variant="primary" busy={adding === 'text'} disabled={!!adding || !title.trim() || !url.trim() || !content.trim()}>{adding === 'text' ? t('loading') : t('importAction')}</Button></Toolbar>
         </div>
       </TabsContent>
     </Tabs>

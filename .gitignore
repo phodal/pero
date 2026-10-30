@@ -40,6 +40,7 @@ apps/vscode/resources/
 # Rust
 Cargo.lock
 !/Cargo.lock
+!/use/computer/Cargo.lock
 target/
 /desktop/dist/
 /web/dist/

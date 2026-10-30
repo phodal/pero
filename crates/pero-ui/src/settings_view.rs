@@ -32,14 +32,16 @@ pub(crate) enum SettingsSection {
     InterfaceFont,
     ChatFont,
     CodeFont,
+    Computer,
 }
 impl SettingsSection {
-    const ALL: [Self; 5] = [
+    const ALL: [Self; 6] = [
         Self::General,
         Self::Theme,
         Self::InterfaceFont,
         Self::ChatFont,
         Self::CodeFont,
+        Self::Computer,
     ];
     fn key(self) -> &'static str {
         match self {
@@ -48,6 +50,7 @@ impl SettingsSection {
             Self::InterfaceFont => "settings.interface_font",
             Self::ChatFont => "settings.chat_font",
             Self::CodeFont => "settings.code_font",
+            Self::Computer => "computer.title",
         }
     }
     fn scope(self) -> Option<FontScope> {
@@ -65,6 +68,7 @@ pub(crate) enum SettingsAction {
     Save(WorkbenchPreferences),
     Locale(&'static str),
     Navigate(WorkbenchPage),
+    Computer(pero_contracts::computer_runtime::ComputerControl),
     Close,
 }
 
@@ -73,6 +77,8 @@ pub(crate) struct SettingsPanel {
     pub locale: String,
     pub preferences_status: PreferenceSaveState,
     pub error: Option<String>,
+    pub computer: Option<pero_contracts::computer_runtime::ComputerUseState>,
+    pub computer_pending: bool,
     section: SettingsSection,
     navigation: Entity<TreeState>,
     navigation_focus: FocusHandle,
@@ -209,6 +215,8 @@ impl SettingsPanel {
             bounds: Bounds::default(),
             preferences_status: Default::default(),
             error: None,
+            computer: None,
+            computer_pending: false,
             section: Default::default(),
             navigation,
             navigation_focus,
@@ -235,7 +243,7 @@ impl SettingsPanel {
         self.error = error.map(str::to_owned);
         cx.notify();
     }
-    fn t(&self, key: &str) -> &'static str {
+    pub(crate) fn t(&self, key: &str) -> &'static str {
         pero_contracts::i18n::text(&self.locale, key)
     }
     pub(crate) fn clear_search(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
@@ -264,7 +272,7 @@ impl SettingsPanel {
             "width":f32::from(value.size.width),"height":f32::from(value.size.height)})
         };
         serde_json::json!({"query":self.search.read(cx).value().as_ref(),"section":self.section.key(),
-            "preferences":self.preferences,"error":self.error,"bounds":bounds(self.bounds),
+            "preferences":self.preferences,"error":self.error,"computer":self.computer,"computerPending":self.computer_pending,"bounds":bounds(self.bounds),
             "scroll":{"bounds":bounds(self.content_scroll.bounds()),"offsetY":f32::from(self.content_scroll.offset().y),
                 "maxY":f32::from(self.content_scroll.max_offset().y),"anchors":(0..self.content_scroll.children_count()).filter_map(|index|self.content_scroll.bounds_for_item(index).map(bounds)).collect::<Vec<_>>()},
             "matches":self.matching_sections(cx).iter().map(|section|section.key()).collect::<Vec<_>>(),
@@ -457,10 +465,12 @@ impl SettingsPanel {
         let query = self.search.read(cx).value().trim().to_lowercase();
         SettingsSection::ALL
             .into_iter()
+            .filter(|section| cfg!(target_family = "wasm") || *section != SettingsSection::Computer)
             .filter(|section| {
                 let mut text = self.t(section.key()).to_owned();
                 let keys: &[&str] = match section {
                     SettingsSection::General => &["menu.language"],
+                    SettingsSection::Computer => &["computer.enable", "computer.permissions", "computer.stop"],
                     SettingsSection::Theme => &["settings.appearance", "settings.accent"],
                     SettingsSection::InterfaceFont => &[
                         "settings.font_size",
@@ -514,8 +524,9 @@ impl SettingsPanel {
             .copied()
             .filter(|section| {
                 !query.is_empty()
-                    || (*section == SettingsSection::General)
-                        == (self.section == SettingsSection::General)
+                    || if matches!(self.section, SettingsSection::General | SettingsSection::Computer) {
+                        *section == self.section
+                    } else { !matches!(section, SettingsSection::General | SettingsSection::Computer) }
             })
             .collect::<Vec<_>>();
         let mut content = div()
@@ -532,6 +543,7 @@ impl SettingsPanel {
             let body = match section {
                 SettingsSection::Theme => self.theme_settings(cx),
                 SettingsSection::General => self.language_settings(cx),
+                SettingsSection::Computer => self.computer_settings(cx),
                 _ => self.font_settings(section, window, cx),
             };
             content = content.child(
@@ -759,6 +771,8 @@ impl SettingsPanel {
                                     "settings.search_results"
                                 } else if self.section == SettingsSection::General {
                                     "settings.general"
+                                } else if self.section == SettingsSection::Computer {
+                                    "computer.title"
                                 } else {
                                     "settings.appearance"
                                 },
@@ -847,7 +861,7 @@ impl Render for SettingsPanel {
             let children = sections
                 .iter()
                 .copied()
-                .filter(|section| *section != SettingsSection::General)
+                .filter(|section| !matches!(section, SettingsSection::General | SettingsSection::Computer))
                 .map(|section| TreeItem::new(section.key(), self.t(section.key())))
                 .collect::<Vec<_>>();
             if !children.is_empty() {
@@ -856,6 +870,9 @@ impl Render for SettingsPanel {
                         .children(children)
                         .expanded(true),
                 );
+            }
+            if sections.contains(&SettingsSection::Computer) {
+                roots.push(TreeItem::new(SettingsSection::Computer.key(), self.t(SettingsSection::Computer.key())));
             }
             roots.extend(
                 crate::settings_menu::SettingsDestination::ALL

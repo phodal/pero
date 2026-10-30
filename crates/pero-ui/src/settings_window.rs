@@ -12,6 +12,8 @@ impl Workbench {
     pub(crate) fn sync_settings_panel(&self, cx: &mut Context<Self>) {
         if let Some(panel) = &self.settings_panel {
             panel.update(cx, |panel, cx| {
+                panel.computer = self.computer.clone();
+                panel.computer_pending = false;
                 panel.receive(
                     &self.preferences,
                     &self.locale,
@@ -51,6 +53,9 @@ impl Workbench {
                             this.sync_follow(cx);
                         }
                         SettingsAction::Close => this.close_settings(window, cx),
+                        SettingsAction::Computer(control) => {
+                            this.command(serde_json::to_value(control).expect("computer control"), cx);
+                        }
                     }
                     cx.notify();
                 }),

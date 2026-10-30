@@ -16,7 +16,7 @@ declare global {
     peroHasUnsavedDocuments():boolean;
     peroWorkspaceCheckpoint(discard?:boolean):Promise<void>;
     peroAllowUnloadOnce?:boolean;
-    pero?: { webCommand(command:object):Promise<void>; readContent(request:ConversationReadParameters):Promise<ContentChunk>; connect(): Promise<HostEvent>; getLocale(): Promise<string>; setLocale(locale: string): Promise<void>; sendProbe(request: { id: string; text: string }): Promise<void>; onEvent(callback: (event: HostEvent) => void): () => void; sessionCommand(command: object): Promise<void>; remoteCommand(command: object): Promise<void>; appsCommand(command: object): Promise<void>; appUseCommand(command: object): Promise<unknown>; chooseWorkspace(): Promise<void>; chooseContext(command?: object): Promise<void> };
+    pero?: { webCommand(command:object):Promise<void>; readContent(request:ConversationReadParameters):Promise<ContentChunk>; connect(): Promise<HostEvent>; getLocale(): Promise<string>; setLocale(locale: string): Promise<void>; sendProbe(request: { id: string; text: string }): Promise<void>; onEvent(callback: (event: HostEvent) => void): () => void; sessionCommand(command: object): Promise<void>; remoteCommand(command: object): Promise<void>; computerCommand(command: object): Promise<unknown>; appsCommand(command: object): Promise<void>; appUseCommand(command: object): Promise<unknown>; chooseWorkspace(): Promise<void>; chooseContext(command?: object): Promise<void> };
     peroSendProbe(json: string): void;
     peroSetLocale(locale: string): void;
     peroSessionCommand(json: string): void;
@@ -84,7 +84,7 @@ try {
       return;
     }
     if (!window.pero) { queueMicrotask(() => onEvent({version:1,kind:'error',request_id:null,text:'',message_key:'error.agent_browser'})); return; }
-    const pending = command.action==='app_use_selection' ? window.pero.appUseCommand({action:'select',thread_id:command.thread_id}) : typeof command.action === 'string' && command.action.startsWith('apps_') ? window.pero.appsCommand(command) : typeof command.action === 'string' && command.action.startsWith('remote_') ? window.pero.remoteCommand(command) : command.action === 'choose_workspace' ? window.pero.chooseWorkspace() : command.action === 'choose_context' ? window.pero.chooseContext(command.kind ? command : undefined) : window.pero.sessionCommand(command);
+    const pending = command.action==='app_use_selection' ? window.pero.appUseCommand({action:'select',thread_id:command.thread_id}) : typeof command.action === 'string' && command.action.startsWith('apps_') ? window.pero.appsCommand(command) : typeof command.action === 'string' && command.action.startsWith('computer_') ? window.pero.computerCommand(command) : typeof command.action === 'string' && command.action.startsWith('remote_') ? window.pero.remoteCommand(command) : command.action === 'choose_workspace' ? window.pero.chooseWorkspace() : command.action === 'choose_context' ? window.pero.chooseContext(command.kind ? command : undefined) : window.pero.sessionCommand(command);
     pending.catch(() => onEvent({version:1,kind:command.action === 'search_context' || command.action === 'resolve_context' || command.action === 'choose_context' && command.kind ? 'context_error' : command.thread_id?'session_error':'error',thread_id:command.thread_id,request_id:command.request_id ?? null,text:t('error.connection')}));
   };
   run(JSON.stringify(themes), dark, locale);
@@ -123,6 +123,7 @@ try {
     await window.pero.sessionCommand({action:'list_agents'});
     // The local workbench is ready even while Cloud refresh/enrollment waits.
     void window.pero.remoteCommand({action:'remote_refresh'}).catch(() => {});
+    void window.pero.computerCommand({action:'computer_get'}).catch(() => {});
     void window.pero.sessionCommand({action:'local_worker_init'}).catch(() => onEvent({version:1,kind:'error',request_id:null,text:'',message_key:'error.connection'}));
     await window.pero.appsCommand({action:'apps_list'});
   }

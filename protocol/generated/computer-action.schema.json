@@ -1,0 +1,456 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openpero.com/protocol/computer-action.schema.json",
+  "title": "ComputerActionContract",
+  "description": "Generated from protocol/computer-use.tsp. Do not edit.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/ComputerAction"
+    },
+    {
+      "$ref": "#/$defs/ComputerActionReceipt"
+    },
+    {
+      "$ref": "#/$defs/ComputerError"
+    }
+  ],
+  "$defs": {
+    "ComputerAction": {
+      "title": "ComputerAction",
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "target": {
+          "$ref": "#/$defs/ComputerTargetRef"
+        },
+        "observation_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "delivery": {
+          "$ref": "#/$defs/ComputerDelivery"
+        },
+        "input": {
+          "$ref": "#/$defs/ComputerInput"
+        }
+      },
+      "required": [
+        "request_id",
+        "target",
+        "observation_id",
+        "delivery",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerActionOutcome": {
+      "title": "ComputerActionOutcome",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ComputerExecuted"
+        },
+        {
+          "$ref": "#/$defs/ComputerRejected"
+        },
+        {
+          "$ref": "#/$defs/ComputerUnknown"
+        }
+      ]
+    },
+    "ComputerActionReceipt": {
+      "title": "ComputerActionReceipt",
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "target": {
+          "$ref": "#/$defs/ComputerTargetRef"
+        },
+        "observation_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "outcome": {
+          "$ref": "#/$defs/ComputerActionOutcome"
+        }
+      },
+      "required": [
+        "request_id",
+        "target",
+        "observation_id",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerAnchor": {
+      "title": "ComputerAnchor",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ComputerElementAnchor"
+        },
+        {
+          "$ref": "#/$defs/ComputerPixelAnchor"
+        }
+      ]
+    },
+    "ComputerClick": {
+      "title": "ComputerClick",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "click"
+        },
+        "anchor": {
+          "$ref": "#/$defs/ComputerAnchor"
+        },
+        "button": {
+          "$ref": "#/$defs/ComputerMouseButton"
+        },
+        "count": {
+          "$ref": "#/$defs/ComputerClickCount"
+        }
+      },
+      "required": [
+        "kind",
+        "anchor",
+        "button",
+        "count"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerClickCount": {
+      "title": "ComputerClickCount",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "ComputerDelivery": {
+      "title": "ComputerDelivery",
+      "type": "string",
+      "enum": [
+        "background",
+        "foreground"
+      ]
+    },
+    "ComputerDrag": {
+      "title": "ComputerDrag",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "drag"
+        },
+        "screenshot_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "from": {
+          "$ref": "#/$defs/ComputerPoint"
+        },
+        "to": {
+          "$ref": "#/$defs/ComputerPoint"
+        }
+      },
+      "required": [
+        "kind",
+        "screenshot_id",
+        "from",
+        "to"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerElementAnchor": {
+      "title": "ComputerElementAnchor",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "element"
+        },
+        "element_id": {
+          "$ref": "#/$defs/ComputerRef"
+        }
+      },
+      "required": [
+        "kind",
+        "element_id"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerError": {
+      "title": "ComputerError",
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ComputerErrorCode"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerErrorCode": {
+      "title": "ComputerErrorCode",
+      "type": "string",
+      "enum": [
+        "unsupported",
+        "permission_required",
+        "target_unavailable",
+        "stale_observation",
+        "invalid_request",
+        "cancelled",
+        "timeout",
+        "failed"
+      ]
+    },
+    "ComputerExecuted": {
+      "title": "ComputerExecuted",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "executed"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "Execution acknowledgement only; it does not assert a verified task outcome."
+    },
+    "ComputerInput": {
+      "title": "ComputerInput",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ComputerClick"
+        },
+        {
+          "$ref": "#/$defs/ComputerTypeText"
+        },
+        {
+          "$ref": "#/$defs/ComputerPressKey"
+        },
+        {
+          "$ref": "#/$defs/ComputerScroll"
+        },
+        {
+          "$ref": "#/$defs/ComputerDrag"
+        }
+      ]
+    },
+    "ComputerKey": {
+      "title": "ComputerKey",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "ComputerMouseButton": {
+      "title": "ComputerMouseButton",
+      "type": "string",
+      "enum": [
+        "left",
+        "right",
+        "middle"
+      ]
+    },
+    "ComputerPixelAnchor": {
+      "title": "ComputerPixelAnchor",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "pixel"
+        },
+        "screenshot_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "point": {
+          "$ref": "#/$defs/ComputerPoint"
+        }
+      },
+      "required": [
+        "kind",
+        "screenshot_id",
+        "point"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerPoint": {
+      "title": "ComputerPoint",
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "y": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "description": "Zero-based pixels of the referenced screenshot, not global screen coordinates."
+    },
+    "ComputerPressKey": {
+      "title": "ComputerPressKey",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "press_key"
+        },
+        "anchor": {
+          "$ref": "#/$defs/ComputerAnchor"
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerKey"
+          },
+          "minItems": 1,
+          "maxItems": 8
+        }
+      },
+      "required": [
+        "kind",
+        "anchor",
+        "keys"
+      ],
+      "additionalProperties": false,
+      "description": "Logical key names/chords (for example [\"Control\", \"a\"]), mapped by the adapter."
+    },
+    "ComputerRef": {
+      "title": "ComputerRef",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "description": "Host-issued references, never OS handles, paths, credentials or caller identities."
+    },
+    "ComputerRejected": {
+      "title": "ComputerRejected",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "rejected"
+        },
+        "error": {
+          "$ref": "#/$defs/ComputerError"
+        }
+      },
+      "required": [
+        "status",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerScroll": {
+      "title": "ComputerScroll",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "scroll"
+        },
+        "anchor": {
+          "$ref": "#/$defs/ComputerAnchor"
+        },
+        "delta_x": {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        "delta_y": {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        }
+      },
+      "required": [
+        "kind",
+        "anchor",
+        "delta_x",
+        "delta_y"
+      ],
+      "additionalProperties": false,
+      "description": "Logical content pixels: positive right/down. An adapter must refuse unsupported units."
+    },
+    "ComputerTargetRef": {
+      "title": "ComputerTargetRef",
+      "type": "object",
+      "properties": {
+        "runtime_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "target_id": {
+          "$ref": "#/$defs/ComputerRef"
+        }
+      },
+      "required": [
+        "runtime_id",
+        "target_id"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerText": {
+      "title": "ComputerText",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10000
+    },
+    "ComputerTypeText": {
+      "title": "ComputerTypeText",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "type_text"
+        },
+        "anchor": {
+          "$ref": "#/$defs/ComputerAnchor"
+        },
+        "text": {
+          "$ref": "#/$defs/ComputerText"
+        }
+      },
+      "required": [
+        "kind",
+        "anchor",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerUnknown": {
+      "title": "ComputerUnknown",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "unknown"
+        },
+        "error": {
+          "$ref": "#/$defs/ComputerError"
+        }
+      },
+      "required": [
+        "status",
+        "error"
+      ],
+      "additionalProperties": false,
+      "description": "Effects may have happened. Observe again; never silently replay the input."
+    }
+  }
+}
