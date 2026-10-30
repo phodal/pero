@@ -298,6 +298,7 @@ impl Workbench {
         discard: bool,
         cx: &mut Context<Self>,
     ) -> bool {
+        if !self.connected { return true; }
         if self.recovery.native_close.is_some() {
             return false;
         }
