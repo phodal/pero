@@ -50,6 +50,12 @@ chat-only Wasm 放在 `pero://chat/chat.html` iframe 中，不加载完整工作
 草稿。scope 不授予工具、文件或跨 App 权限。独立产品继续使用自己的 Host 和
 数据目录，不与另一个产品或工作台共享运行中的 GPUI Entity。
 
+[ADR 0021](adr/0021-floating-app-chat.md) 补充浮动与 App 内嵌呈现：工作台
+单面板 App 可以切换浮窗，独立产品可以展开浮窗；App SDK 的
+`AppConversation` 可声明一个区域，由受管父壳绑定当前 App scope 并放置已有
+聊天。嵌入不授予额外权限，独立产品仍使用自己的 chat-only iframe。实际开发
+Desktop 测试与剩余边界见 [验证记录](fitness/floating-app-chat.md)。
+
 App SDK 的 `useAppChat().open()` 和 `compose(text)` 只打开聊天或填入草稿，
 由宿主确认消息来自受管 App iframe；它们不自动发送。用户在共享 Composer
 中提交后，命令仍经已有 Host 的 ACP、授权、工作区租约与取消路径执行。消息、
