@@ -6,6 +6,9 @@ Builds on [0016: Computer Use v1 contract](0016-computer-use-contract.md).
 Independent of 0019 (isolated Linux desktop): everything here applies to the
 local backend and to any later backend.
 
+Numbering: 0017 and 0018 are reserved by draft PR #20 (isolated Agent runtime
+and Agent Sandbox runtime), hence this ADR is 0020.
+
 ## 1. Context
 
 `protocol/computer-use.tsp` v1 has
@@ -45,12 +48,12 @@ Known gaps:
   `allowed_apps: string[] | null` (null = current behaviour, any app). Entries
   are platform app identifiers (bundle ID, executable path or desktop file ID,
   per adapter), not window titles.
-- Enforcement lives in `use/computer/src/runtime.rs`: target resolution
+- Enforcement lives in `use/computer/crates/computer-runtime/src/runtime.rs`: target resolution
   (`remember` / `target`) and `observe` drop or reject windows whose app is
   not allowed, and `act` re-checks the resolved target before executing. A
   refusal returns `permission_required` (or a new `app_not_allowed` code) with
   the app ID, and produces a rejected receipt.
-- Desktop and the settings UI (`settings_computer.rs`) show and edit the list;
+- Desktop and the settings UI (`crates/pero-ui/src/settings_computer.rs`) show and edit the list;
   the Host never trusts an Agent-supplied allowlist.
 - Enforcing in the runtime, not only in Desktop, keeps a single admission
   point next to the native target handles.
@@ -73,7 +76,7 @@ Known gaps:
 
 - Contract: tsp + generated schemas + `pero-contracts` round-trip tests for
   new kinds and fields, including bounds rejection.
-- Runtime: allowlist unit tests in `runtime.rs` (observe filter, act
+- Runtime: allowlist unit tests in `use/computer/crates/computer-runtime/src/runtime.rs` (observe filter, act
   re-check, null list keeps behaviour).
 - Fitness rows in `docs/fitness/computer-use.md` for hover menus, long press
   and allowlist refusal per platform.
