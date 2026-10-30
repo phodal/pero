@@ -64,6 +64,13 @@ impl FileDocuments {
         self.files.insert(id, file);
         Ok(snapshot)
     }
+    pub fn restore(&mut self, snapshot: ContentDocument) -> bool {
+        let changed =
+            std::fs::read_to_string(&snapshot.id).map_or(true, |disk| disk != snapshot.source());
+        self.files
+            .insert(snapshot.id.clone(), FileDocument::recovered(snapshot));
+        changed
+    }
     pub fn follow(&mut self, source: &str, href: &str) -> Result<ContentDocument, FileError> {
         let file = self.files.get(source).ok_or(FileError::Unavailable)?;
         let base =
@@ -91,6 +98,13 @@ impl FileDocuments {
             self.files.insert(id.into(), next);
         }
         Ok(self.files[id].snapshot().clone())
+    }
+    pub fn recovery_source(&self, id: &str, revision: u64) -> Option<ContentDocument> {
+        self.files
+            .get(id)
+            .map(FileDocument::snapshot)
+            .filter(|source| source.revision == revision)
+            .cloned()
     }
     pub fn release(&mut self, id: &str) {
         self.files.remove(id);

@@ -23,7 +23,7 @@ agent-client-protocol = { version = "=3.5.0", features = ["process"] }
 serde.workspace = true
 tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
 url = "2"
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

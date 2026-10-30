@@ -31,6 +31,10 @@ impl FileDocument {
             ),
         }
     }
+    /// A recovery snapshot keeps the original disk baseline, so an external edit still conflicts.
+    pub fn recovered(snapshot: ContentDocument) -> Self {
+        Self { snapshot }
+    }
     pub fn snapshot(&self) -> &ContentDocument {
         &self.snapshot
     }

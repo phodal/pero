@@ -58,3 +58,5 @@ mod tests {
         );
     }
 }
+
+pub mod workspace_store;
