@@ -696,5 +696,6 @@
   "workspace.keep_tab": "Keep tab",
   "workspace.switch_tabs": "Switch tabs",
   "workspace.close_dont_save": "Don’t Save",
-  "workspace.close_cancel": "Cancel"
+  "workspace.close_cancel": "Cancel",
+  "workspace.recent_content": "Recent content"
 }

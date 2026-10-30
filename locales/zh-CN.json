@@ -696,5 +696,6 @@
   "workspace.keep_tab": "保留标签",
   "workspace.switch_tabs": "切换标签",
   "workspace.close_dont_save": "不保存",
-  "workspace.close_cancel": "取消"
+  "workspace.close_cancel": "取消",
+  "workspace.recent_content": "最近内容"
 }
