@@ -3,6 +3,8 @@ use crate::workspace::WorkbenchPage;
 use gpui_kit::{
     component::{
         input::{Input, InputState},
+        menu::{DropdownMenu, PopupMenuItem},
+        tooltip::Tooltip,
         *,
     },
     prelude::*,
@@ -20,7 +22,6 @@ pub(crate) struct RecentRow {
     pub delete: Option<DeleteAffordance>,
 }
 pub(crate) struct DeleteAffordance {
-    pub confirming: bool,
     pub request: SidebarAction,
     pub confirm: SidebarAction,
     pub cancel: SidebarAction,
@@ -31,6 +32,7 @@ pub(crate) struct ProjectGroup {
     pub path: String,
     pub active: bool,
     pub collapsed: bool,
+    pub revealed: usize,
     pub rows: Vec<RecentRow>,
 }
 pub(crate) struct SidebarProps<'a> {
@@ -44,8 +46,8 @@ pub(crate) struct SidebarProps<'a> {
 pub(crate) enum SidebarAction {
     NewChat,
     Navigate(WorkbenchPage),
-    OpenProject(String),
     ToggleProject(String),
+    RevealSessions(String),
     SelectSession(usize),
     SelectTask(String),
     RequestDelete(usize),
@@ -76,55 +78,13 @@ fn recent_row(
     } else {
         None
     };
-    let trailing = row.delete.map(|delete| {
-        let request = delete.request.clone();
-        let confirm = delete.confirm.clone();
-        let cancel = delete.cancel.clone();
-        let confirm_title = title.clone();
-        div()
-            .id(("recent-actions", index))
-            .flex_shrink_0()
-            .flex()
-            .items_center()
-            .gap(chrome.geo(pero_theme::ICON_GAP))
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .on_click(|_, _, cx| cx.stop_propagation())
-            .when(!delete.confirming, |el| {
-                el.child(
-                    pero_theme::ghost_icon_button(("recent-delete", index), chrome, cx)
-                        .icon(Icon::default().path("icons/x.svg"))
-                        .tooltip(ui.t("chat.delete"))
-                        .accessibility_label(format!("{}, {}", ui.t("chat.delete"), title))
-                        .on_click(click(on_action, request)),
-                )
-            })
-            .when(delete.confirming, |el| {
-                el.child(
-                    pero_theme::action_button(
-                        ("recent-delete-cancel", index),
-                        ui.t("chat.delete_cancel"),
-                        pero_theme::ActionKind::Ghost,
-                        chrome,
-                        cx,
-                    )
-                    .on_click(click(on_action, cancel)),
-                )
-                .child(
-                    pero_theme::action_button(
-                        ("recent-delete-confirm", index),
-                        ui.t("chat.delete_confirm"),
-                        pero_theme::ActionKind::Danger,
-                        chrome,
-                        cx,
-                    )
-                    .accessibility_label(format!("{}, {}", ui.t("chat.delete_confirm"), confirm_title))
-                    .on_click(click(on_action, confirm)),
-                )
-            })
-    });
+    let trailing = row
+        .delete
+        .map(|delete| session_menu(ui, index, &title, delete, on_action, chrome, cx));
     pero_theme::interaction_row(("recent-work", index), row.active, pero_theme::ROW_NAV, chrome)
         .cursor_pointer()
-        .px(chrome.geo(pero_theme::SPACE_8))
+        .pl(chrome.geo(pero_theme::SPACE_8 + pero_theme::SUB_INDENT))
+        .pr(chrome.geo(pero_theme::SPACE_8))
         .gap(chrome.geo(pero_theme::ICON_GAP))
         .aria_label(accessible)
         .on_click(click(on_action, row.action))
@@ -146,6 +106,150 @@ fn recent_row(
                 .child(row.label),
         )
         .children(trailing)
+}
+
+fn session_menu(
+    ui: Ui<'_>,
+    index: usize,
+    title: &str,
+    delete: DeleteAffordance,
+    on_action: &ActionHandler<SidebarAction>,
+    chrome: pero_theme::Chrome<'_>,
+    cx: &App,
+) -> impl IntoElement {
+    let label = ui.t("chat.delete_confirm");
+    let danger = ui.palette.error;
+    let request = delete.request;
+    let confirm = delete.confirm;
+    let cancel = delete.cancel;
+    let on_delete = on_action.clone();
+    let on_dismiss = on_action.clone();
+    div()
+        .id(("recent-actions", index))
+        .flex_shrink_0()
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_click(|_, _, cx| cx.stop_propagation())
+        .child(
+            pero_theme::ghost_icon_button(("recent-more", index), chrome, cx)
+                .icon(Icon::default().path("icons/dots.svg"))
+                .tooltip(ui.t("chat.actions"))
+                .accessibility_label(format!("{}, {}", ui.t("chat.actions"), title))
+                .dropdown_caret(false)
+                .dropdown_menu_with_anchor(Anchor::TopRight, move |menu, _, _| {
+                    let on_delete = on_delete.clone();
+                    let request = request.clone();
+                    let confirm = confirm.clone();
+                    menu.min_w(px(148.)).item(
+                        PopupMenuItem::element(move |_, _| {
+                            div().text_color(danger).child(label)
+                        })
+                        .on_click(move |_, window, cx| {
+                            on_delete(&request, window, cx);
+                            on_delete(&confirm, window, cx);
+                        }),
+                    )
+                })
+                .on_open_change(move |open, window, cx| {
+                    if !*open {
+                        on_dismiss(&cancel, window, cx);
+                    }
+                }),
+        )
+}
+
+fn project_header(
+    ui: Ui<'_>,
+    group_index: usize,
+    group: &ProjectGroup,
+    on_action: &ActionHandler<SidebarAction>,
+    chrome: pero_theme::Chrome<'_>,
+) -> impl IntoElement + use<> {
+    let p = ui.palette;
+    let hover = p.text.opacity(0.08);
+    let path = group.path.clone();
+    let name = group.name.clone();
+    let collapsed = group.collapsed;
+    div()
+        .id(("project-header", group_index))
+        .w_full()
+        .h(chrome.geo(pero_theme::ROW_NAV))
+        .pl(chrome.geo(pero_theme::SPACE_8))
+        .pr(chrome.geo(pero_theme::SPACE_8))
+        .flex()
+        .items_center()
+        .gap(chrome.geo(pero_theme::ICON_GAP))
+        .rounded(chrome.geo(pero_theme::RADIUS_SELECTION))
+        .cursor_pointer()
+        .text_size(chrome.text(pero_theme::TYPE_BODY))
+        .text_color(if group.active { p.text } else { p.text_muted })
+        .hover(move |row| row.bg(hover))
+        .aria_label(format!(
+            "{} {}",
+            ui.t(if collapsed {
+                "project.expand"
+            } else {
+                "project.collapse"
+            }),
+            name
+        ))
+        .when(!path.is_empty(), |row| {
+            let path = path.clone();
+            row.tooltip(move |window, cx| Tooltip::new(path.clone()).build(window, cx))
+        })
+        .on_click(click(
+            on_action,
+            SidebarAction::ToggleProject(group.key.clone()),
+        ))
+        .child(
+            div()
+                .w(chrome.geo(pero_theme::LEAD_BOX))
+                .h(chrome.geo(pero_theme::LEAD_BOX))
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(Icon::default().path(if collapsed {
+                    "icons/chevron-right.svg"
+                } else {
+                    "icons/chevron-down.svg"
+                })),
+        )
+        .child(div().min_w_0().flex_1().text_ellipsis().child(name))
+}
+
+fn show_more(
+    ui: Ui<'_>,
+    group_index: usize,
+    key: String,
+    on_action: &ActionHandler<SidebarAction>,
+    chrome: pero_theme::Chrome<'_>,
+) -> impl IntoElement {
+    let rest = chrome.palette.text.opacity(0.08);
+    let hover = chrome.palette.text.opacity(0.14);
+    let muted = chrome.palette.text_muted;
+    div()
+        .pl(chrome.geo(
+            pero_theme::SPACE_8 + pero_theme::SUB_INDENT + pero_theme::LEAD_BOX + pero_theme::ICON_GAP,
+        ))
+        .pr(chrome.geo(pero_theme::SPACE_8))
+        .py(chrome.geo(pero_theme::SPACE_4))
+        .child(
+            div()
+                .id(("project-show-more", group_index))
+                .self_start()
+                .h(chrome.geo(pero_theme::ROW_SUB))
+                .px(chrome.geo(pero_theme::SPACE_12))
+                .rounded(chrome.geo(pero_theme::RADIUS_SELECTION))
+                .flex()
+                .items_center()
+                .cursor_pointer()
+                .bg(rest)
+                .hover(move |row| row.bg(hover))
+                .text_size(chrome.text(pero_theme::TYPE_BODY))
+                .text_color(muted)
+                .child(ui.t("project.show_more"))
+                .on_click(click(on_action, SidebarAction::RevealSessions(key))),
+        )
 }
 
 pub(crate) fn sidebar(
@@ -216,77 +320,56 @@ pub(crate) fn sidebar(
                         .into_iter()
                         .enumerate()
                         .map(|(group_index, group)| {
-                            let count = group.rows.len();
-                            let rows = group
+                            let header = project_header(ui, group_index, &group, &on_action, chrome);
+                            let key = group.key.clone();
+                            let revealed = group.revealed;
+                            let collapsed = group.collapsed;
+                            let (sessions, tasks): (Vec<_>, Vec<_>) = group
                                 .rows
                                 .into_iter()
-                                .map(|row| {
-                                    index += 1;
-                                    recent_row(ui, row, index, &on_action, cx)
-                                })
-                                .collect::<Vec<_>>();
+                                .partition(|row| matches!(row.action, SidebarAction::SelectSession(_)));
+                            let more = sessions.len() > revealed;
+                            let empty = sessions.is_empty() && tasks.is_empty();
+                            let mut session_rows = Vec::new();
+                            for row in sessions.into_iter().take(revealed) {
+                                index += 1;
+                                session_rows.push(
+                                    recent_row(ui, row, index, &on_action, cx).into_any_element(),
+                                );
+                            }
+                            let mut task_rows = Vec::new();
+                            for row in tasks {
+                                index += 1;
+                                task_rows.push(
+                                    recent_row(ui, row, index, &on_action, cx).into_any_element(),
+                                );
+                            }
                             div()
                                 .mb(px(4.))
-                                .child(
-                                    div()
-                                        .w_full()
-                                        .h(chrome.geo(pero_theme::ROW_NAV))
-                                        .flex()
-                                        .items_center()
-                                        .gap(chrome.geo(pero_theme::ICON_GAP))
-                                        .text_color(p.text_muted)
-                                        .child(
-                                            pero_theme::ghost_icon_button(
-                                                ("project-disclosure", group_index),
-                                                chrome,
-                                                cx,
-                                            )
-                                            .icon(Icon::default().path(if group.collapsed {
-                                                "icons/chevron-right.svg"
-                                            } else {
-                                                "icons/chevron-down.svg"
-                                            }))
-                                            .accessibility_label(format!(
-                                                "{} {}",
-                                                ui.t(if group.collapsed {
-                                                    "project.expand"
-                                                } else {
-                                                    "project.collapse"
-                                                }),
-                                                group.name
-                                            ))
-                                            .on_click(click(
-                                                &on_action,
-                                                SidebarAction::ToggleProject(group.key.clone()),
-                                            )),
-                                        )
-                                        .child(
-                                            pero_theme::action_button(
-                                                ("sidebar-project", group_index),
-                                                group.name.clone(),
-                                                pero_theme::ActionKind::Ghost,
-                                                chrome,
-                                                cx,
-                                            )
-                                            .flex_1()
-                                            .min_w_0()
-                                            .justify_start()
-                                            .text_color(if group.active { p.text } else { p.text_muted })
-                                            .tooltip(group.path)
-                                            .on_click(click(
-                                                &on_action,
-                                                SidebarAction::OpenProject(group.key),
-                                            )),
-                                        ),
-                                )
-                                .when(!group.collapsed, |el| {
+                                .child(header)
+                                .when(!collapsed, |el| {
                                     el.child(
-                                        div().pl(px(22.)).flex().flex_col().children(rows).when(
-                                            count == 0,
-                                            |el| {
+                                        div()
+                                            .flex()
+                                            .flex_col()
+                                            .children(session_rows)
+                                            .when(more, |el| {
+                                                el.child(show_more(
+                                                    ui,
+                                                    group_index,
+                                                    key,
+                                                    &on_action,
+                                                    chrome,
+                                                ))
+                                            })
+                                            .children(task_rows)
+                                            .when(empty, |el| {
                                                 el.child(
                                                     div()
-                                                        .px(px(8.))
+                                                        .pl(chrome.geo(
+                                                            pero_theme::SPACE_8 + pero_theme::SUB_INDENT,
+                                                        ))
+                                                        .pr(chrome.geo(pero_theme::SPACE_8))
                                                         .py(px(8.))
                                                         .text_size(px(
                                                             pero_theme::TextRole::Caption
@@ -295,8 +378,7 @@ pub(crate) fn sidebar(
                                                         .text_color(p.text_muted)
                                                         .child(ui.t("project.no_recent")),
                                                 )
-                                            },
-                                        ),
+                                            }),
                                     )
                                 })
                         }),
