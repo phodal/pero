@@ -273,7 +273,7 @@ impl SettingsPanel {
             "width":f32::from(value.size.width),"height":f32::from(value.size.height)})
         };
         serde_json::json!({"query":self.search.read(cx).value().as_ref(),"section":self.section.key(),
-            "preferences":self.preferences,"error":self.error,"computer":self.computer,"computerPending":self.computer_pending,"bounds":bounds(self.bounds),
+            "preferences":self.preferences,"error":self.error,"computer":self.computer,"computerPending":self.computer_pending,"bounds":bounds(self.bounds),"iconTheme":&*pero_chat_ui::icon_theme::snapshot(),
             "scroll":{"bounds":bounds(self.content_scroll.bounds()),"offsetY":f32::from(self.content_scroll.offset().y),
                 "maxY":f32::from(self.content_scroll.max_offset().y),"anchors":(0..self.content_scroll.children_count()).filter_map(|index|self.content_scroll.bounds_for_item(index).map(bounds)).collect::<Vec<_>>()},
             "matches":self.matching_sections(cx).iter().map(|section|section.key()).collect::<Vec<_>>(),

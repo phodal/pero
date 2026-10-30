@@ -94,6 +94,29 @@ impl Render for PaneTabDrag {
 }
 
 impl Workbench {
+    pub(crate) fn pane_tabs_snapshot(&self, layout: &PaneLayout, cx: &App) -> serde_json::Value {
+        let mut value = self.pane_tabs.snapshot(layout);
+        for strip in value.as_array_mut().into_iter().flatten() {
+            let Some(leaf) = strip["pane"]
+                .as_u64()
+                .and_then(|id| layout.leaf(PaneId(id)))
+            else {
+                continue;
+            };
+            for tab in strip["tabs"].as_array_mut().into_iter().flatten() {
+                let Some(item) = tab["view"]
+                    .as_u64()
+                    .and_then(|id| leaf.tabs.item(ViewId(id)))
+                else {
+                    continue;
+                };
+                if let WorkspaceRoute::Content(source) = &item.route {
+                    tab["icon"] = serde_json::json!(self.content_label(source, cx).1);
+                }
+            }
+        }
+        value
+    }
     fn pane_tab_title(&self, item: &PaneItem, source_title: String) -> String {
         if item.kind == PaneItemKind::RenderedPreview {
             format!("{}: {source_title}", self.t("content.preview"))
