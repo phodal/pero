@@ -16,17 +16,18 @@ func validExecution(in executionInput) bool { return in.Generation > 0 && bounde
 
 func (a *API) claim(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		RequestID  string `json:"request_id"`
-		InstanceID string `json:"instance_id"`
+		RequestID     string `json:"request_id"`
+		InstanceID    string `json:"instance_id"`
+		RuntimePodUID string `json:"runtime_pod_uid,omitempty"`
 	}
 	if !decode(w, r, &in) {
 		return
 	}
-	if !bounded(in.RequestID, 128) || !bounded(in.InstanceID, 128) {
+	if !bounded(in.RequestID, 128) || !bounded(in.InstanceID, 128) || in.RuntimePodUID != "" && !bounded(in.RuntimePodUID, 128) {
 		invalid(w)
 		return
 	}
-	run, err := a.db.Claim(r.Context(), workerID(r), in.InstanceID, in.RequestID)
+	run, err := a.db.Claim(r.Context(), workerID(r), in.InstanceID, in.RequestID, in.RuntimePodUID)
 	if err != nil {
 		failure(w, err)
 		return

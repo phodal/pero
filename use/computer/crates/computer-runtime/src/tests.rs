@@ -1,5 +1,5 @@
 use super::*;
-use computer_core::{ObservedControl, Window, WindowBounds};
+use computer_core::{ControlId, ObservedControl, Window, WindowBounds};
 use pero_contracts::{computer_runtime::*, computer_use::*};
 use std::{cell::RefCell, rc::Rc};
 
@@ -8,6 +8,7 @@ struct App {
     bounds: WindowBounds,
     clicks: u32,
     fail_after_input: bool,
+    refuse_before_input: bool,
 }
 struct OwnedDesktop(Rc<RefCell<App>>);
 struct AppSnapshot(u32);
@@ -49,19 +50,27 @@ impl DesktopDriver for OwnedDesktop {
     fn targets(&self) -> Result<Vec<Window>, ComputerError> {
         Ok(vec![window()])
     }
-    fn open(&self, _: &str) -> Result<(Option<Window>, String), ComputerError> {
+    fn open(
+        &self,
+        _: &ComputerApplicationSelector,
+    ) -> Result<(Option<Window>, String), ComputerError> {
         Ok((Some(window()), String::new()))
     }
     fn bounds(&self, _: &Window) -> Option<WindowBounds> {
         Some(self.0.borrow().bounds)
     }
-    fn observe(&self, _: &Window) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
+    fn observe(
+        &self,
+        _: &Window,
+        _: &ComputerObserveOptions,
+        _: Option<&AppSnapshot>,
+    ) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
         Ok(WindowObservation {
             source: AppSnapshot(self.0.borrow().clicks),
             bounds: Some(self.0.borrow().bounds),
             elements: vec![
                 ObservedControl {
-                    index: 1,
+                    index: ControlId(1),
                     role: "Button".into(),
                     label: "Increment".into(),
                     value: String::new(),
@@ -76,12 +85,19 @@ impl DesktopDriver for OwnedDesktop {
             truncated: false,
         })
     }
+    fn admit(&self, _: &AppSnapshot, _: &ComputerAction) -> Result<(), ComputerError> {
+        if self.0.borrow().refuse_before_input {
+            return Err(error(ComputerErrorCode::Unsupported, "Not expressible"));
+        }
+        Ok(())
+    }
     fn input(
         &self,
         _: &Window,
         basis: &AppSnapshot,
         _: ComputerAction,
-    ) -> Result<(), ComputerError> {
+        _: &crate::Cancellation,
+    ) -> Result<Option<ComputerExecution>, ComputerError> {
         let mut app = self.0.borrow_mut();
         assert_eq!(
             basis.0, app.clicks,
@@ -91,21 +107,39 @@ impl DesktopDriver for OwnedDesktop {
         if app.fail_after_input {
             Err(error(ComputerErrorCode::Failed, "Acknowledgement lost"))
         } else {
-            Ok(())
+            Ok(None)
         }
     }
 }
 
 #[test]
 fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
-    for (name, moved, stopped, fail_after_input, expected, clicks) in [
-        ("acknowledged", false, false, false, "executed", 1),
-        ("lost acknowledgement", false, false, true, "unknown", 1),
-        ("window moved", true, false, false, "rejected", 0),
+    for (name, moved, stopped, fail_after_input, refuse_before_input, expected, clicks) in [
+        ("acknowledged", false, false, false, false, "executed", 1),
+        (
+            "lost acknowledgement",
+            false,
+            false,
+            true,
+            false,
+            "unknown",
+            1,
+        ),
+        (
+            "adapter refusal before input",
+            false,
+            false,
+            false,
+            true,
+            "rejected",
+            0,
+        ),
+        ("window moved", true, false, false, false, "rejected", 0),
         (
             "stop revoked the observation",
             false,
             true,
+            false,
             false,
             "rejected",
             0,
@@ -120,6 +154,7 @@ fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
             },
             clicks: 0,
             fail_after_input,
+            refuse_before_input,
         }));
         let mut runtime = ComputerRuntime::new(OwnedDesktop(app.clone()), 99);
         let thread: ComputerRef = "thread-1".to_owned().try_into().unwrap();
@@ -135,6 +170,7 @@ fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
                 thread.clone(),
                 ComputerRequest::Observe {
                     target: target.clone(),
+                    options: ComputerObserveOptions::default(),
                 },
             )
             .unwrap()
@@ -174,7 +210,7 @@ fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
             panic!()
         };
         let outcome = match receipt.outcome {
-            ComputerActionOutcome::Executed {} => "executed",
+            ComputerActionOutcome::Executed { .. } => "executed",
             ComputerActionOutcome::Unknown { .. } => "unknown",
             ComputerActionOutcome::Rejected { .. } => "rejected",
         };

@@ -11,9 +11,22 @@ export type ComputerRef = string;
 export type ComputerPlatform = "macos" | "windows" | "linux" | "other";
 export type ComputerDisplay = "native" | "x11" | "xwayland" | "wayland" | "unavailable";
 export type ComputerObservationKind = "accessibility" | "screenshot";
-export type ComputerActionKind = "click" | "type_text" | "press_key" | "scroll" | "drag";
+export type ComputerActionKind =
+  | "click"
+  | "type_text"
+  | "press_key"
+  | "scroll"
+  | "drag"
+  | "set_value"
+  | "perform_action"
+  | "move"
+  | "hover"
+  | "hold"
+  | "focus_window";
 export type ComputerDelivery = "background" | "foreground";
-export type ComputerAddressing = "element" | "pixel";
+export type ComputerAddressing = "element" | "pixel" | "target";
+export type ComputerSemanticAction =
+  "press" | "open" | "confirm" | "cancel" | "show_menu" | "scroll_to_visible" | "increment" | "decrement";
 export type ComputerDimension = number;
 
 export interface ComputerCapabilities {
@@ -41,6 +54,7 @@ export interface ComputerTarget {
   kind: "window" | "desktop";
   title: string;
   application?: string | null;
+  application_id?: string | null;
 }
 export interface ComputerTargetRef {
   runtime_id: ComputerRef;
@@ -60,6 +74,16 @@ export interface ComputerElement {
   value?: string | null;
   depth: number;
   actions: ComputerActionKind[];
+  state?: ComputerElementState | null;
+  semantic_actions?: ComputerSemanticAction[];
+}
+export interface ComputerElementState {
+  enabled: boolean;
+  secure: boolean;
+  focused: boolean;
+  value_settable: boolean;
+  selected?: boolean | null;
+  expanded?: boolean | null;
 }
 /**
  * The Host resolves this immutable image reference to bytes; no local path is exposed.

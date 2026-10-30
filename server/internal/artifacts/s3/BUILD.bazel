@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "s3",
+    srcs = ["store.go"],
+    importpath = "github.com/phodal/pero/server/internal/artifacts/s3",
+    visibility = ["//server:__subpackages__"],
+    deps = ["//server/internal/artifacts"],
+)
+
+go_test(
+    name = "s3_test",
+    srcs = ["store_test.go"],
+    embed = [":s3"],
+    deps = ["//server/internal/artifacts"],
+)
+
+go_test(
+    name = "s3_integration_test",
+    srcs = ["store_test.go", "integration_test.go"],
+    embed = [":s3"],
+    env = {"PERO_REQUIRE_TEST_S3": "1"},
+    env_inherit = ["PERO_TEST_S3_ENDPOINT", "PERO_TEST_S3_BUCKET", "PERO_TEST_S3_ACCESS_KEY_FILE", "PERO_TEST_S3_SECRET_KEY_FILE"],
+    tags = ["manual", "local", "external", "no-cache", "no-remote"],
+    deps = ["//server/internal/artifacts"],
+)

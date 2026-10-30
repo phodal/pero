@@ -64,7 +64,6 @@ const chatPanel = document.createElement('aside');
 chatPanel.id = 'product-chat'; chatPanel.hidden = true;
 document.body.append(chatPanel);
 let chat: ChatSurface | undefined;
-window.peroAppUseThread = () => chat?.selectedThread() || Promise.resolve(undefined);
 let chatOpen = true;
 let chatReady = false;
 const initializeChat = () => {

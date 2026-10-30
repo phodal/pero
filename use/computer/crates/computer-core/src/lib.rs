@@ -1,7 +1,7 @@
 //! Pero's native window values. No platform SDK, process, environment or transport.
 #![forbid(unsafe_code)]
 mod accessibility;
-pub use accessibility::ObservedControl;
+pub use accessibility::{ControlId, ObservedControl};
 use pero_contracts::computer_use::*;
 use std::num::NonZeroU32;
 

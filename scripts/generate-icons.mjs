@@ -131,7 +131,7 @@ export function iconArtwork(name: string) {
 `;
 
 for (const [path, contents] of [
-  ['crates/pero-chat-ui/src/assets.rs', execFileSync('rustfmt', ['--edition', '2024', '--emit', 'stdout'], { input: rust, encoding: 'utf8' })],
+  ['crates/pero-chat-ui/src/assets.rs', execFileSync('rustfmt', ['--edition', '2024', '--emit', 'stdout', '--config', 'newline_style=Unix'], { input: rust, encoding: 'utf8' })],
   ['packages/app-sdk/src/icons.generated.tsx', tsx],
   ['packages/icons/content-data.generated.js', content.javascript],
   ['packages/icons/content-data.generated.d.ts', content.declarations],
@@ -139,7 +139,13 @@ for (const [path, contents] of [
 ]) {
   const file = resolve(root, path);
   if (process.argv.includes('--check')) {
-    if (await readFile(file, 'utf8') !== contents) throw new Error(`Regenerate icons: node scripts/generate-icons.mjs (${path})`);
+    const actual = await readFile(file, 'utf8');
+    if (actual !== contents) {
+      let firstDifference = 0;
+      while (firstDifference < actual.length && firstDifference < contents.length && actual[firstDifference] === contents[firstDifference]) firstDifference++;
+      const stats = value => ({ length: value.length, crlf: (value.match(/\r\n/g) || []).length, codeUnit: value.charCodeAt(firstDifference) });
+      throw new Error(`Regenerate icons: node scripts/generate-icons.mjs (${path}); ${JSON.stringify({ firstDifference, actual: stats(actual), expected: stats(contents) })}`);
+    }
   } else {
     await writeFile(file, contents);
   }

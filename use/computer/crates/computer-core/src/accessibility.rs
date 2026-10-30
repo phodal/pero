@@ -1,8 +1,18 @@
 use pero_contracts::computer_use::*;
 
+/// Snapshot-local control identity and its one public reference representation.
+#[derive(Clone, Copy)]
+pub struct ControlId(pub u32);
+
+impl ControlId {
+    pub fn reference(self) -> ComputerRef {
+        format!("element-{}", self.0).try_into().unwrap()
+    }
+}
+
 /// Native control facts, before Pero's shared public action projection.
 pub struct ObservedControl {
-    pub index: u32,
+    pub index: ControlId,
     pub role: String,
     pub label: String,
     pub value: String,
@@ -31,12 +41,14 @@ impl ObservedControl {
             }
         }
         ComputerElement {
-            id: format!("element-{}", self.index).try_into().unwrap(),
+            id: self.index.reference(),
             role: self.role,
             label: self.label,
             value: (!self.secure && !self.value.is_empty()).then_some(self.value),
             depth: self.depth,
             actions,
+            state: None,
+            semantic_actions: Vec::new(),
         }
     }
 }
@@ -56,7 +68,7 @@ mod tests {
             ("AXButton", false, false, vec![]),
         ] {
             let element = ObservedControl {
-                index: 1,
+                index: ControlId(1),
                 role: role.into(),
                 label: "Owned control".into(),
                 value: "secret".into(),

@@ -1,5 +1,5 @@
 //! The only Point-to-Pero value conversion for this native library.
-use computer_core::{ObservedControl, Window, WindowBounds, WindowImage};
+use computer_core::{ControlId, ObservedControl, Window, WindowBounds, WindowImage};
 use computer_runtime::WindowObservation;
 use pero_contracts::computer_use::ComputerImageType;
 use point_computer_core::types as native;
@@ -37,7 +37,7 @@ pub fn observation(mut source: native::Snapshot) -> WindowObservation<native::Sn
         .iter()
         .map(|e| {
             ObservedControl {
-                index: e.index,
+                index: ControlId(e.index),
                 role: e.role.clone(),
                 label: e.title.clone(),
                 value: e.value.clone(),

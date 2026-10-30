@@ -88,7 +88,8 @@ export class ComputerClient {
       const force = setTimeout(() => child.kill('SIGKILL'), 1500);
       const deadline = setTimeout(() => reject(new Error('Native desktop process exit is unconfirmed')), 4000);
       child.once('exit', () => { clearTimeout(force); clearTimeout(deadline); this.closing = undefined; resolve(); });
-      child.kill('SIGTERM');
+      // EOF asks the native worker to cancel and release held input before exit.
+      child.stdin.end();
     });
     return this.closing;
   }

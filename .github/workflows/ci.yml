@@ -265,6 +265,9 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Computer Use loopback transport contracts
+        run: node tests/e2e/computer-transport.mjs
+
       - name: Set up Rust nightly
         uses: dtolnay/rust-toolchain@v1
         with:
@@ -312,7 +315,7 @@ jobs:
           esac
 
       - name: Font-tool environment recovery tests
-        run: node --test scripts/build/fonttools.test.mjs
+        run: node --test scripts/build/fonttools.test.mjs scripts/build/patch-checkout.test.mjs
       - name: Resolve pinned local GPUI packages
         run: node scripts/cargo.mjs check -p pero-contracts
 
@@ -340,6 +343,9 @@ jobs:
           PERO_TEST_HEADED: '1'
           PERO_TEST_SOFTWARE_GL: '1'
         run: |
+          node -e "require('esbuild').buildSync({entryPoints:['desktop/src/main/app-use.test.ts','desktop/src/main/app-context.test.ts'],outdir:process.env.RUNNER_TEMP+'/app-use-tests',bundle:true,platform:'node',format:'esm',external:['electron']})"
+          node --test "$RUNNER_TEMP"/app-use-tests/*.js
+          node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs
           xvfb-run -a -s '-screen 0 1920x1200x24' npm run test:e2e
           xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use.mjs
           xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use-workbench.mjs

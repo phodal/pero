@@ -1,6 +1,6 @@
 use crate::{
     journal::{Active, Claim},
-    model::{Event, Outcome, Run},
+    model::{Event, Outcome, RemoteGrant, Run},
 };
 use reqwest::{Url, blocking::Client};
 use serde::{Deserialize, de::DeserializeOwned};
@@ -147,9 +147,28 @@ impl Control {
         self.request::<Receipt>(
             reqwest::Method::POST,
             "/api/worker/v1/claims",
-            Some(json!({"request_id":claim.request_id,"instance_id":claim.instance_id})),
+            Some(serde_json::to_value(claim).map_err(|_| "Invalid claim identity")?),
         )
         .map(|r| r.run)
+    }
+    pub fn origin(&self) -> String {
+        self.base.to_string()
+    }
+    pub fn open_channel(&self, run: &Run, grant: &RemoteGrant) -> Result<(), CloudFailure> {
+        #[derive(Deserialize)]
+        struct Receipt {
+            session_id: String,
+        }
+        let receipt: Receipt = self.request(
+            reqwest::Method::POST,
+            &format!("/api/worker/v1/runs/{}/channel", run.id),
+            Some(json!({"generation":run.generation,"instance_id":run.instance_id,
+                "session_id":grant.session_id,"secret":grant.secret})),
+        )?;
+        if receipt.session_id != grant.session_id {
+            return Err("Remote channel receipt changed identity".into());
+        }
+        Ok(())
     }
     pub fn inspect(&self, run: &Run) -> Result<Run, CloudFailure> {
         self.request(
@@ -177,7 +196,8 @@ impl Control {
         struct Receipt {
             last_seq: u64,
         }
-        let receipt: Receipt = self.request(reqwest::Method::POST, &format!("/api/worker/v1/runs/{}/events", active.run.id), Some(json!({"generation":active.run.generation,"instance_id":active.run.instance_id,"events":batch})))?;
+        let receipt: Receipt = self.request(
+            reqwest::Method::POST, &format!("/api/worker/v1/runs/{}/events", active.run.id), Some(json!({"generation":active.run.generation,"instance_id":active.run.instance_id,"events":batch})))?;
         if receipt.last_seq < batch.last().unwrap().seq
             || receipt.last_seq > active.events.last().map_or(0, |e| e.seq)
         {
@@ -217,6 +237,7 @@ mod tests {
         let text = format!("{}{}", "\\\n".repeat(15000), "x".repeat(5000));
         let mut active = Active {
             run: Run {
+                remote_execution: None,
                 id: "r".into(),
                 generation: 1,
                 instance_id: "i".repeat(128),
@@ -233,6 +254,7 @@ mod tests {
             request_id: "request".into(),
             acknowledged: 0,
             result: None,
+            remote_grant: None,
             events: (1..=16)
                 .map(|seq| Event {
                     seq,

@@ -3,6 +3,7 @@ import readline from 'node:readline';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { appUseContent } from './app-use-content.mjs';
 const send = value => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...value }) + '\n');
 let server, requestId = 0, active, imageCount = 0;
 const sessionId = 'app-use-fixture';
@@ -58,7 +59,7 @@ async function run(scenario, signal, prompt) {
       return;
     }
     assert.notEqual(result.isError, true, text);
-    const value = JSON.parse(text);
+    const value = await appUseContent(text, rpc, signal);
     const images = result.content.filter(content => content.type === 'image');
     if (args.action === 'capture') {
       assert.equal(images.length, 1);

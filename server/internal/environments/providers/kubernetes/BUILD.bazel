@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kubernetes",
+    srcs = ["claim.go", "isolated.go",
+        "collector.go", "isolated_profile.go", "owner.go", "reader.go", "writer.go"],
+    importpath = "github.com/phodal/pero/server/internal/environments/providers/kubernetes",
+    visibility = ["//server:__subpackages__"],
+    deps = [
+        "//server/internal/environments/model",
+        "//server/internal/environments/ports",
+    ],
+)
+
+go_test(
+    name = "kubernetes_test",
+    srcs = ["claim_test.go", "isolated_test.go",
+        "collector_test.go", "lifecycle_test.go", "owner_test.go"],
+    embed = [":kubernetes"],
+    deps = [
+        "//server/internal/environments/model",
+        "//server/internal/environments/ports",
+    ],
+)
