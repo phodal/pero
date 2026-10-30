@@ -1,0 +1,45 @@
+diff --git a/crates/base/src/input/editor/search.rs b/crates/base/src/input/editor/search.rs
+--- a/crates/base/src/input/editor/search.rs
++++ b/crates/base/src/input/editor/search.rs
+@@ -197,6 +197,41 @@
+         cx.notify();
+     }
+
++    /// Supply source-backed matches from an application search engine (for
++    /// example regex or Unicode whole-word search). The editor continues to own
++    /// highlighting, viewport anchoring and previous/next navigation.
++    pub fn set_search_matches(
++        &mut self,
++        query: impl Into<String>,
++        case_insensitive: bool,
++        ranges: Vec<Range<usize>>,
++        cx: &mut Context<Self>,
++    ) {
++        debug_assert!(ranges.iter().all(|range| range.start <= range.end && range.end <= self.text.len()));
++        let query = query.into();
++        let changed = query != self.search_session.query
++            || case_insensitive != self.search_session.case_insensitive;
++        let anchor = changed.then(||self.last_layout.as_ref().map(|layout|layout.visible_range_offset.start)).flatten();
++        self.search_session.activate();
++        self.search_session.query = query;
++        self.search_session.case_insensitive = case_insensitive;
++        let matcher = &mut self.search_session.matcher;
++        matcher.text = self.text.clone();
++        matcher.query = None;
++        matcher.matched_ranges = Rc::new(ranges);
++        matcher.current_match_ix = matcher.current_match_ix.min(matcher.len().saturating_sub(1));
++        matcher.replacing = false;
++        if let Some(anchor)=anchor {matcher.update_cursor_by_offset(anchor);}
++        cx.notify();
++    }
++
++    /// Restore folded source lines once their highlighter candidates exist.
++    pub fn set_folded_lines(&mut self, lines: &[usize], cx: &mut Context<Self>) {
++        self.display_map.clear_folds();
++        for &line in lines {self.display_map.set_folded(line,true);}
++        cx.notify();
++    }
++
+     /// End the search: hide the built-in panel and the match highlights. The
+     /// query is kept so the next [`InputBaseState::open_search`] resumes it.
+     pub fn close_search(&mut self, cx: &mut Context<Self>) {
