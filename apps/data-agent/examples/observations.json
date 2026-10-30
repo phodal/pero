@@ -1,0 +1,8 @@
+[
+  {"region":"East","period":"2026-07","revenue":124500.25,"orders":830,"coverage":"complete"},
+  {"region":"West","period":"2026-07","revenue":118050.50,"orders":790,"coverage":"complete"},
+  {"region":"East","period":"2026-08","revenue":136220.75,"orders":902,"coverage":"complete"},
+  {"region":"West","period":"2026-08","revenue":121030.00,"orders":805,"coverage":"partial"},
+  {"region":"East","period":"2026-09","revenue":142600.10,"orders":935,"coverage":"complete"},
+  {"region":"West","period":"2026-09","revenue":null,"orders":840,"coverage":"missing revenue"}
+]
