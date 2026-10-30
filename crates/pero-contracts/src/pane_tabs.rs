@@ -478,6 +478,18 @@ impl PaneTabSet {
         self.history.retain(keep);
         self.closed.retain(|entry| keep(&entry.route));
     }
+    pub fn clear_document_locations(&mut self, source: &WorkspaceItem) {
+        for item in &mut self.items {
+            if item.route == WorkspaceRoute::Content(source.clone()) {
+                item.reading = item.reading.take().map(ReaderState::without_location);
+            }
+        }
+        self.history.clear_document_locations(source);
+        for entry in &mut self.closed {
+            entry.clear_document_locations(source);
+        }
+        self.history.reading = self.active().and_then(|item| item.reading.clone());
+    }
     pub fn valid(&self) -> bool {
         let mut ids = std::collections::HashSet::new();
         let mut routes = Vec::new();
@@ -657,6 +669,13 @@ mod tests {
             left.active().unwrap().reading.as_ref().unwrap().selection,
             9..11
         );
+        assert_eq!(right.active().unwrap().reading, Some(state(30)));
+        left.clear_document_locations(source);
+        assert_eq!(
+            left.active().unwrap().reading.as_ref().unwrap().selection,
+            0..0
+        );
+        assert!(left.active().unwrap().reading.as_ref().unwrap().source);
         assert_eq!(right.active().unwrap().reading, Some(state(30)));
         assert!(left.valid());
         assert!(right.valid());

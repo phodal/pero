@@ -87,6 +87,11 @@ impl HistoryEntry {
             }
         }
     }
+    pub fn clear_document_locations(&mut self, item: &WorkspaceItem) {
+        if self.route == WorkspaceRoute::Content(item.clone()) {
+            self.reading = self.reading.take().map(ReaderState::without_location);
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -217,6 +222,11 @@ impl WorkspaceHistory {
     pub fn replace_identity(&mut self, old: &WorkspaceItem, new: &WorkspaceItem) {
         for entry in self.back.iter_mut().chain(&mut self.forward) {
             entry.replace_identity(old, new);
+        }
+    }
+    pub fn clear_document_locations(&mut self, item: &WorkspaceItem) {
+        for entry in self.back.iter_mut().chain(&mut self.forward) {
+            entry.clear_document_locations(item);
         }
     }
 }
