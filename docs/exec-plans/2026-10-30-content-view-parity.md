@@ -93,7 +93,7 @@ simulated result alone.
 | --- | --- | --- |
 | Source admission | Typed metadata and conversation/file/App revision ownership | Real MCP resource authority and metadata |
 | Markdown | Actual Desktop anchors, exact rendered/source ranges, regex and whole-word navigation pass | Arbitrary HTML/plugin anchors and assistive-technology receipts |
-| Files | Host open/edit/save, conflict preservation, persisted draft and unload checkpoints | Save As and physical native dialogs |
+| Files | Host open/edit/save/Save As, copy authority, conflicts, persisted drafts and unload checkpoints | Physical native dialog interaction |
 | Workspace lifecycle | Host snapshots, revision-bound source-location back/forward, restart recovery and two distinct document panes | General pane tree, lazy inactive-source restore and edit-anchor migration |
 | Web | Electron and macOS Wry engines; stable ID and last URL restoration | Inline HTML, restored engine history/form/scroll and other OS receipts |
 | MCP Apps | Origin namespace only; a Pero compatibility extension | Real server/resource connection, metadata, AppBridge and acceptance |
