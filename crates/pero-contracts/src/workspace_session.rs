@@ -196,6 +196,7 @@ impl<'de> Deserialize<'de> for WorkspaceSnapshot {
                         let view = previous.find_route(&route).cloned().unwrap_or_else(|| {
                             crate::pane_tabs::PaneItem {
                                 id: layout.allocate_view_id(),
+                                kind: Default::default(),
                                 route,
                                 reading: None,
                             }
@@ -603,6 +604,7 @@ mod tests {
                             .into_iter()
                             .map(|route| HistoryEntry {
                                 route,
+                                view_kind: Default::default(),
                                 preview: false,
                                 reading: None
                             })

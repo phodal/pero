@@ -1,6 +1,6 @@
 //! A pane is a view identity; source identity and navigation remain separate.
 use crate::{
-    pane_tabs::{OpenIntent, OpenTab, PaneItem, PaneTabSet, ViewId},
+    pane_tabs::{OpenIntent, OpenTab, PaneItem, PaneItemKind, PaneTabSet, ViewId},
     reader_state::ReaderState,
     workspace_session::{WorkspaceItem, WorkspaceRoute},
 };
@@ -80,6 +80,7 @@ impl<'de> Deserialize<'de> for PaneLeaf {
                 let mut tabs = PaneTabSet::default();
                 tabs.open(
                     PaneItem {
+                        kind: PaneItemKind::Primary,
                         id: ViewId(saved.id.0),
                         route: saved.route,
                         reading: saved.reading,
@@ -256,7 +257,9 @@ impl<'de> Deserialize<'de> for PaneLayout {
     }
 }
 impl PaneLayout {
-    pub(crate) fn deserialize_snapshot<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<(Self, bool), D::Error> {
+    pub(crate) fn deserialize_snapshot<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<(Self, bool), D::Error> {
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
         struct Saved {
@@ -376,6 +379,7 @@ impl PaneLayout {
                     let mut result = tabs
                         .open(
                             PaneItem {
+                                kind: PaneItemKind::Primary,
                                 id: view,
                                 route,
                                 reading,
@@ -394,7 +398,15 @@ impl PaneLayout {
         let tab = self
             .leaf_mut(pane)?
             .tabs
-            .open(PaneItem { id, route, reading }, intent)
+            .open(
+                PaneItem {
+                    kind: PaneItemKind::Primary,
+                    id,
+                    route,
+                    reading,
+                },
+                intent,
+            )
             .ok()?;
         self.focused = Some(pane);
         Some((pane, tab))
@@ -453,6 +465,7 @@ impl PaneLayout {
         let mut tabs = PaneTabSet::default();
         tabs.open(
             PaneItem {
+                kind: PaneItemKind::Primary,
                 id: ViewId(1),
                 route,
                 reading,
@@ -505,6 +518,7 @@ impl PaneLayout {
             target,
             direction,
             Some(PaneItem {
+                kind: PaneItemKind::Primary,
                 id: view,
                 route,
                 reading,
@@ -574,6 +588,21 @@ impl PaneLayout {
         route: WorkspaceRoute,
         reading: Option<ReaderState>,
     ) -> Option<PaneId> {
+        let kind = self
+            .leaf(target)
+            .and_then(|leaf| leaf.active())
+            .filter(|item| item.route == route)
+            .map_or(PaneItemKind::Primary, |item| item.kind);
+        self.split_kind(target, direction, route, reading, kind)
+    }
+    pub fn split_kind(
+        &mut self,
+        target: PaneId,
+        direction: SplitDirection,
+        route: WorkspaceRoute,
+        reading: Option<ReaderState>,
+        kind: PaneItemKind,
+    ) -> Option<PaneId> {
         if self.leaf(target).is_none()
             || (!route.can_clone_pane()
                 && self
@@ -584,7 +613,16 @@ impl PaneLayout {
             return None;
         }
         let id = self.allocate_view_id();
-        self.insert_leaf(target, direction, Some(PaneItem { id, route, reading }))
+        self.insert_leaf(
+            target,
+            direction,
+            Some(PaneItem {
+                kind,
+                id,
+                route,
+                reading,
+            }),
+        )
     }
     pub fn close(&mut self, id: PaneId) -> bool {
         let Some(root) = self.root.take() else {

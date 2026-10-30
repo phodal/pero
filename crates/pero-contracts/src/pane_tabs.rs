@@ -10,11 +10,33 @@ use serde::{Deserialize, Serialize};
 #[serde(transparent)]
 pub struct ViewId(pub u64);
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PaneItemKind {
+    #[default]
+    Primary,
+    RenderedPreview,
+}
+impl PaneItemKind {
+    pub fn is_primary(&self) -> bool {
+        *self == Self::Primary
+    }
+    pub fn valid_for(self, route: &WorkspaceRoute) -> bool {
+        self == Self::Primary
+            || matches!(
+                route,
+                WorkspaceRoute::Content(WorkspaceItem::Document { .. })
+            )
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PaneItem {
     pub id: ViewId,
     pub route: WorkspaceRoute,
+    #[serde(default, skip_serializing_if = "PaneItemKind::is_primary")]
+    pub kind: PaneItemKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reading: Option<ReaderState>,
 }
@@ -90,7 +112,12 @@ impl PaneTabSet {
         self.items.iter().find(|item| item.id == id)
     }
     pub fn find_route(&self, route: &WorkspaceRoute) -> Option<&PaneItem> {
-        self.items.iter().find(|item| &item.route == route)
+        self.find_kind(route, PaneItemKind::Primary)
+    }
+    pub fn find_kind(&self, route: &WorkspaceRoute, kind: PaneItemKind) -> Option<&PaneItem> {
+        self.items
+            .iter()
+            .find(|item| &item.route == route && item.kind == kind)
     }
     pub fn is_pinned(&self, id: ViewId) -> bool {
         self.items
@@ -105,15 +132,18 @@ impl PaneTabSet {
     fn depart(&mut self) {
         if let Some(item) = self.active().cloned() {
             self.history.reading = item.reading;
+            self.history.view_kind = item.kind;
             self.history.preview = self.preview == Some(item.id);
             self.history.depart(&item.route);
         }
     }
     fn focus(&mut self, id: ViewId) -> bool {
-        let Some(item) = self.item(id) else {
+        let Some((reading, kind)) = self.item(id).map(|item| (item.reading.clone(), item.kind))
+        else {
             return false;
         };
-        self.history.reading = item.reading.clone();
+        self.history.reading = reading;
+        self.history.view_kind = kind;
         self.history.preview = self.preview == Some(id);
         self.active = Some(id);
         self.activation_history.retain(|entry| *entry != id);
@@ -141,11 +171,12 @@ impl PaneTabSet {
     ) -> Result<OpenTab, PaneTabError> {
         if item.id.0 == 0
             || !item.route.supports_pane()
+            || !item.kind.valid_for(&item.route)
             || !HistoryEntry::valid_location(&item.route, item.reading.as_ref())
         {
             return Err(PaneTabError::InvalidItem);
         }
-        if let Some(existing) = self.find_route(&item.route).map(|item| item.id) {
+        if let Some(existing) = self.find_kind(&item.route, item.kind).map(|item| item.id) {
             if intent == OpenIntent::Permanent {
                 self.promote(existing);
             }
@@ -281,6 +312,7 @@ impl PaneTabSet {
                 route: item.route.clone(),
                 reading: item.reading.clone(),
                 preview: false,
+                view_kind: item.kind,
             });
         }
         if self.active == Some(id) {
@@ -296,6 +328,7 @@ impl PaneTabSet {
             self.active = None;
             self.history.reading = None;
             self.history.preview = false;
+            self.history.view_kind = PaneItemKind::Primary;
             let fallback = self
                 .activation_history
                 .first()
@@ -313,6 +346,7 @@ impl PaneTabSet {
             id: new_id,
             route: entry.route,
             reading: entry.reading,
+            kind: entry.view_kind,
         };
         let reading = item.reading.clone();
         let opened = self.open(item, OpenIntent::Permanent).ok()?;
@@ -360,7 +394,10 @@ impl PaneTabSet {
         let route = self.active().map(|item| item.route.clone());
         let previous = self.history.clone();
         let entry = self.history.step_optional(route.as_ref(), forward)?;
-        if let Some(id) = self.find_route(&entry.route).map(|item| item.id) {
+        if let Some(id) = self
+            .find_kind(&entry.route, entry.view_kind)
+            .map(|item| item.id)
+        {
             if let Some(item) = self.items.iter_mut().find(|item| item.id == id) {
                 item.reading = entry.reading;
             }
@@ -371,6 +408,7 @@ impl PaneTabSet {
             id: new_id,
             route: entry.route,
             reading: entry.reading,
+            kind: entry.view_kind,
         };
         if self
             .open_inner(item.clone(), OpenIntent::History, entry.preview)
@@ -401,12 +439,15 @@ impl PaneTabSet {
         }
         self.history = history;
         self.history.preview = self.active == self.preview && self.active.is_some();
+        self.history.view_kind = self
+            .active()
+            .map_or(PaneItemKind::Primary, |item| item.kind);
     }
     pub fn rebase_edit(&mut self, item: &WorkspaceItem, edit: &TextEdit) {
-        if let Some(id) = self
-            .find_route(&WorkspaceRoute::Content(item.clone()))
-            .map(|item| item.id)
-        {
+        if let Some(id) = self.preview.filter(|id| {
+            self.item(*id)
+                .is_some_and(|view| view.route == WorkspaceRoute::Content(item.clone()))
+        }) {
             self.promote(id);
         }
         for view in &mut self.items {
@@ -437,20 +478,28 @@ impl PaneTabSet {
         self.history.reading = self.active().and_then(|item| item.reading.clone());
     }
     pub fn replace_identity(&mut self, old: &WorkspaceItem, new: &WorkspaceItem) {
+        if old == new {
+            return;
+        }
         let route = WorkspaceRoute::Content(new.clone());
-        let existing = self.find_route(&route).map(|item| item.id);
-        let mut duplicate = None;
+        let existing: Vec<_> = self
+            .items
+            .iter()
+            .filter(|item| item.route == route)
+            .map(|item| (item.kind, item.id))
+            .collect();
+        let mut duplicates = Vec::new();
         for view in &mut self.items {
             if view.route == WorkspaceRoute::Content(old.clone()) {
-                if let Some(target) = existing {
-                    duplicate = Some((view.id, target));
+                if let Some((_, target)) = existing.iter().find(|(kind, _)| *kind == view.kind) {
+                    duplicates.push((view.id, *target));
                 } else {
                     view.route = route.clone();
                     view.reading = None;
                 }
             }
         }
-        if let Some((source, target)) = duplicate {
+        for (source, target) in duplicates {
             let focused = self.active == Some(source);
             self.take(source);
             if focused {
@@ -492,17 +541,20 @@ impl PaneTabSet {
     }
     pub fn valid(&self) -> bool {
         let mut ids = std::collections::HashSet::new();
-        let mut routes = Vec::new();
+        let mut views: Vec<&PaneItem> = Vec::new();
         for item in &self.items {
             if item.id.0 == 0
                 || !ids.insert(item.id)
                 || !item.route.supports_pane()
-                || routes.contains(&&item.route)
+                || !item.kind.valid_for(&item.route)
+                || views
+                    .iter()
+                    .any(|previous| previous.route == item.route && previous.kind == item.kind)
                 || !HistoryEntry::valid_location(&item.route, item.reading.as_ref())
             {
                 return false;
             }
-            routes.push(&item.route);
+            views.push(item);
         }
         self.closed.len() <= 1024
             && self.pinned_count <= self.items.len()
@@ -530,6 +582,7 @@ mod tests {
     fn item(id: u64, path: &str) -> PaneItem {
         PaneItem {
             id: ViewId(id),
+            kind: PaneItemKind::Primary,
             route: WorkspaceRoute::Content(WorkspaceItem::Document {
                 origin: ContentOrigin::File { path: path.into() },
                 source: path.into(),
@@ -622,6 +675,61 @@ mod tests {
         assert!(!previews.can_reopen());
         assert!(!previews.can_step_history(false));
         assert!(previews.valid());
+    }
+    #[test]
+    fn rendered_preview_and_primary_keep_separate_items_over_one_source() {
+        let mut tabs = PaneTabSet::default();
+        tabs.open(item(1, "/a"), OpenIntent::Permanent).unwrap();
+        let mut rendered = item(2, "/a");
+        rendered.kind = PaneItemKind::RenderedPreview;
+        rendered.reading = Some(ReaderState {
+            source: false,
+            selection: 5..8,
+            ..Default::default()
+        });
+        tabs.open(rendered.clone(), OpenIntent::Permanent).unwrap();
+        assert_eq!(tabs.items().len(), 2);
+        tabs.move_tab(ViewId(2), 0);
+        tabs.close(ViewId(2));
+        let reopened = tabs.reopen_closed(ViewId(3)).unwrap();
+        assert_eq!(reopened.kind, PaneItemKind::RenderedPreview);
+        assert_eq!(reopened.reading, rendered.reading);
+        assert_eq!(tabs.find_route(&reopened.route).unwrap().id, ViewId(1));
+        tabs.activate(ViewId(1));
+        assert_eq!(
+            tabs.step_history(false, ViewId(4)).unwrap().kind,
+            PaneItemKind::RenderedPreview
+        );
+        let renamed = match item(5, "/copy").route {
+            WorkspaceRoute::Content(item) => item,
+            _ => unreachable!(),
+        };
+        let original = match item(1, "/a").route {
+            WorkspaceRoute::Content(item) => item,
+            _ => unreachable!(),
+        };
+        tabs.open(item(5, "/copy"), OpenIntent::Permanent).unwrap();
+        tabs.replace_identity(&original, &renamed);
+        assert_eq!(tabs.items().len(), 2);
+        assert_eq!(
+            tabs.find_route(&WorkspaceRoute::Content(renamed.clone()))
+                .unwrap()
+                .id,
+            ViewId(5)
+        );
+        assert!(
+            tabs.find_kind(
+                &WorkspaceRoute::Content(renamed.clone()),
+                PaneItemKind::RenderedPreview
+            )
+            .is_some()
+        );
+        tabs.replace_identity(&renamed, &renamed);
+        assert!(tabs.valid());
+        assert_eq!(
+            serde_json::from_value::<PaneTabSet>(serde_json::to_value(&tabs).unwrap()).unwrap(),
+            tabs
+        );
     }
     #[test]
     fn locations_history_and_edits_stay_in_their_pane_and_can_reopen_closed_tabs() {

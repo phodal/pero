@@ -1,11 +1,14 @@
 //! Explicit jumps share the workbench history with route changes.
 use super::{WorkspaceItem, WorkspaceRoute};
+use crate::pane_tabs::PaneItemKind;
 use crate::reader_state::ReaderState;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct HistoryEntry {
     pub route: WorkspaceRoute,
+    #[serde(skip_serializing_if = "PaneItemKind::is_primary")]
+    pub view_kind: PaneItemKind,
     #[serde(skip_serializing_if = "is_false")]
     pub preview: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -19,6 +22,8 @@ impl<'de> Deserialize<'de> for HistoryEntry {
             Located {
                 route: WorkspaceRoute,
                 #[serde(default)]
+                view_kind: PaneItemKind,
+                #[serde(default)]
                 preview: bool,
                 #[serde(default)]
                 reading: Option<ReaderState>,
@@ -30,15 +35,18 @@ impl<'de> Deserialize<'de> for HistoryEntry {
                 route,
                 reading,
                 preview,
+                view_kind,
             } => Self {
                 route,
                 reading,
                 preview,
+                view_kind,
             },
             Saved::Legacy(route) => Self {
                 route,
                 reading: None,
                 preview: false,
+                view_kind: PaneItemKind::Primary,
             },
         })
     }
@@ -49,6 +57,7 @@ fn is_false(value: &bool) -> bool {
 impl HistoryEntry {
     fn same_location(&self, other: &Self) -> bool {
         self.route == other.route
+            && self.view_kind == other.view_kind
             && match (&self.reading, &other.reading) {
                 (Some(left), Some(right)) => left.same_location(right),
                 // Older route-only entries do not identify a second position.
@@ -57,6 +66,7 @@ impl HistoryEntry {
     }
     pub fn valid(&self) -> bool {
         Self::valid_location(&self.route, self.reading.as_ref())
+            && self.view_kind.valid_for(&self.route)
     }
     pub fn valid_location(route: &WorkspaceRoute, reading: Option<&ReaderState>) -> bool {
         reading.is_none()
@@ -98,6 +108,8 @@ impl HistoryEntry {
 #[serde(default)]
 pub struct WorkspaceHistory {
     pub reading: Option<ReaderState>,
+    #[serde(skip_serializing_if = "PaneItemKind::is_primary")]
+    pub view_kind: PaneItemKind,
     #[serde(skip_serializing_if = "is_false")]
     pub preview: bool,
     pub back: Vec<HistoryEntry>,
@@ -118,6 +130,7 @@ impl WorkspaceHistory {
             route: route.clone(),
             reading: self.reading.take(),
             preview: std::mem::take(&mut self.preview),
+            view_kind: std::mem::take(&mut self.view_kind),
         });
         self.forward.clear();
     }
@@ -138,6 +151,7 @@ impl WorkspaceHistory {
             route: route.clone(),
             reading: Some(before),
             preview: self.preview,
+            view_kind: self.view_kind,
         };
         if self
             .back
@@ -162,6 +176,7 @@ impl WorkspaceHistory {
             route: route.clone(),
             reading: self.reading.clone(),
             preview: self.preview,
+            view_kind: self.view_kind,
         };
         let entries = if forward { &self.forward } else { &self.back };
         entries.iter().any(|entry| !entry.same_location(&current))
@@ -183,12 +198,14 @@ impl WorkspaceHistory {
             let entry = entries.pop()?;
             self.reading = entry.reading.clone();
             self.preview = entry.preview;
+            self.view_kind = entry.view_kind;
             return Some(entry);
         };
         let current = HistoryEntry {
             route: route.clone(),
             reading: self.reading.clone(),
             preview: self.preview,
+            view_kind: self.view_kind,
         };
         let (from, to) = if forward {
             (&mut self.forward, &mut self.back)
@@ -200,6 +217,7 @@ impl WorkspaceHistory {
                 to.push(current);
                 self.reading = entry.reading.clone();
                 self.preview = entry.preview;
+                self.view_kind = entry.view_kind;
                 return Some(entry);
             }
         }
@@ -328,6 +346,7 @@ mod tests {
         let entry = |item: WorkspaceItem| HistoryEntry {
             route: WorkspaceRoute::Content(item),
             preview: false,
+            view_kind: PaneItemKind::Primary,
             reading: Some(ReaderState {
                 source_revision: Some(1),
                 selection: 10..20,
