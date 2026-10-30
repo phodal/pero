@@ -96,6 +96,7 @@ final class Fixture: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
         effects["foregroundPID"] = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0
         if let window = window {
             effects["windowNumber"] = window.windowNumber
+            effects["keyWindow"] = window.isKeyWindow
             effects["frame"] = ["x":window.frame.origin.x,"y":window.frame.origin.y,"width":window.frame.width,"height":window.frame.height]
             if let entries = CGWindowListCopyWindowInfo(.optionIncludingWindow,CGWindowID(window.windowNumber)) as? [[String:Any]], let entry = entries.first {
                 effects["cgFrame"] = entry[kCGWindowBounds as String]

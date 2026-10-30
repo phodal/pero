@@ -111,7 +111,11 @@ try {
   if (foreground) {
     o = await observe();
     await act(o, { kind: 'focus_window' }, 'foreground');
-    await fixture.activate(); o = await observe();
+    await waitFor(async () => {
+      const current = await fixture.state();
+      return current.foregroundPID === fixture.pid && current.keyWindow;
+    }, 'focus_window activation and selected key window');
+    o = await observe();
     assert.ok(o.screenshot);
     await act(o, { kind: 'move', anchor: { kind: 'pixel', screenshot_id: o.screenshot.id, point: { x: Math.round(o.screenshot.width * 0.15), y: Math.round(o.screenshot.height * 0.65) } } }, 'foreground');
     await waitFor(async () => JSON.stringify((await fixture.state()).pointer) !== JSON.stringify(pointerBefore), 'foreground pointer move');
@@ -145,7 +149,7 @@ try {
   assert.ok((await fixture.state()).holdDurations.middle >= 0.14);
   o = await observe(); middle = (await fixture.state()).mouseEvents.middleUp;
   const controller = new AbortController();
-  const hold = desktop.call('macos-capabilities', { operation: 'act', action: { request_id: 'cancel-held-input', target, observation_id: o.id, delivery: 'background', input: { kind: 'long_press', anchor: { kind: 'element', element_id: element(o, 'Gesture canvas').id }, button: 'middle', hold_ms: 10000 } } }, controller.signal).catch(e => e);
+  const hold = desktop.call('macos-capabilities', { operation: 'act', action: { request_id: 'cancel-held-input', target, observation_id: o.id, delivery: foreground ? 'foreground' : 'background', input: { kind: 'long_press', anchor: { kind: 'element', element_id: element(o, 'Gesture canvas').id }, button: 'middle', hold_ms: 10000 } } }, controller.signal).catch(e => e);
   await waitFor(async () => (await fixture.state()).mouseEvents.middleDown === middle + 1, 'held button before cancellation');
   controller.abort(); await hold; await desktop.stop();
   await waitFor(async () => (await fixture.state()).mouseEvents.middleUp === middle + 1, 'button released when connection cancelled');
