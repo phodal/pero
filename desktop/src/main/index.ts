@@ -4,12 +4,13 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { resolve, sep, delimiter } from 'node:path';
+import { resolve, sep, delimiter, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { normalizeLocale, translate, type Locale, type MessageKey } from '../../../locales';
 import { RemoteAdapter, type StoredRemoteConnection } from './remote';
 import { DesktopApps } from './apps';
 import {WebPages} from './web-pages';
+import {McpHost} from './mcp-host.ts';
 import { DesktopContributions } from './contributions';
 import { LocalExecutionController } from './local-execution';
 import { DesktopAppUse } from './app-use-mcp';
@@ -45,6 +46,9 @@ let host: ChildProcessWithoutNullStreams;
 let ready = false;
 let appUse: DesktopAppUse | undefined;
 let webPages:WebPages|undefined;
+let mcpHost:McpHost|undefined;
+let mcpReady:Promise<void>|undefined;
+const mcpRequests=new Map<string,string|undefined>();
 let computer: DesktopComputer | undefined;
 let locale: Locale = 'en';
 const t = (key: MessageKey) => translate(locale, key);
@@ -164,6 +168,7 @@ app.whenReady().then(async () => {
     ...(app.isPackaged ? { PERO_ADAPTER_NODE: process.execPath } : {}),
     ...(process.env.PERO_AGENTS_FILE ? { PERO_AGENTS_FILE: process.env.PERO_AGENTS_FILE } : {}),
     PERO_SETTINGS_PATH: runtimeSettingsPath,
+    PERO_MCP_EXTERNAL:'1',
     PERO_APPS_ROOT: process.env.PERO_APPS_ROOT || resolve(app.getPath('userData'), 'apps'),
     PERO_BUILTIN_APPS_ROOT: resolve(root, 'apps'),
     ...(process.env.PERO_APP_NODE ? { PERO_APP_NODE: process.env.PERO_APP_NODE } : {}),
@@ -173,6 +178,19 @@ app.whenReady().then(async () => {
   createInterface({ input: host.stdout }).on('line', (line) => {
     try {
       const message = JSON.parse(line);
+      if(message.kind==='mcp_permitted'||message.kind==='mcp_error'){
+        const request=mcpRequests.get(message.request_id);
+        if(!mcpRequests.has(message.request_id))return;
+        mcpRequests.delete(message.request_id);
+        if(message.kind==='mcp_error'){send(message);return;}
+        if((message.thread_id||undefined)!==request)return;
+        void (async()=>{
+          if(!mcpHost)throw new Error('MCP Apps provider is unavailable');
+          mcpReady ||= mcpHost.start();await mcpReady;
+          send({version:1,kind:'mcp_sources',request_id:message.request_id,thread_id:request,text:'',data:{url:mcpHost.open(request,locale)}});
+        })().catch(error=>{mcpReady=undefined;send({version:1,kind:'mcp_error',request_id:message.request_id,text:error instanceof Error?error.message:String(error)});});return;
+      }
+      if(message.kind==='session_deleted'&&message.thread_id)mcpHost?.forgetThread(message.thread_id);
       if(message.kind==='computer_settings'||message.kind==='computer_settings_error'){
         const pending=preferenceWrites.get(message.request_id);
         if(pending){clearTimeout(pending.timer);preferenceWrites.delete(message.request_id);}
@@ -255,6 +273,13 @@ app.whenReady().then(async () => {
     if (!ready || !command || typeof command !== 'object') throw new Error('Invalid session command');
     const action = (command as { action?: string }).action;
     const method = (command as { method?: string }).method;
+    if(method==='mcp'){
+      const request=command as {action?:unknown;thread_id?:unknown};
+      if(request.action!=='open'||request.thread_id!==null&&request.thread_id!==undefined&&typeof request.thread_id!=='string')throw new Error('Invalid MCP source intent');
+      const id=randomUUID(),thread=typeof request.thread_id==='string'?request.thread_id:undefined;
+      mcpRequests.set(id,thread);
+      host.stdin.write(JSON.stringify({method:'mcp',action:'open',request_id:id,thread_id:thread})+'\n');return;
+    }
     if (action?.startsWith('local_worker_')) {
       if (!['local_worker_init','local_worker_enroll','local_worker_resume','local_worker_disable','local_worker_skip'].includes(action)) throw new Error('Invalid local execution action');
       await localExecution!.command(command);return;
@@ -316,7 +341,8 @@ app.whenReady().then(async () => {
   window = new BrowserWindow({ ...testWindowOptions, width: 1488, height: 1086, minWidth: 1000, minHeight: 680,
     title: t('window.title'), backgroundColor: '#F7F9FC',
     webPreferences: { ...testWindowOptions.webPreferences, preload: resolve(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
-  webPages=new WebPages(window,send,resolve(app.getPath('userData'),'web-sessions.json'));
+  webPages=new WebPages(window,send,resolve(app.getPath('userData'),'web-sessions.json'),url=>!!mcpHost?.ownsPanel(url));
+  mcpHost=new McpHost(resolve(dirname(runtimeSettingsPath),'mcp-servers.json'),__dirname,url=>shell.openExternal(url),binding=>send({version:1,kind:'mcp_app_opened',request_id:null,thread_id:binding.thread_id,text:'',data:binding}));
   window.on('closed',()=>webPages?.dispose());
   window.webContents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main) appUse?.reset(); });
   window.webContents.on('render-process-gone', () => appUse?.reset());
@@ -328,6 +354,7 @@ app.whenReady().then(async () => {
       const dirty=await window.webContents.executeJavaScript('Boolean(window.peroHasUnsavedDocuments?.())');
       if(dirty){const answer=dialog.showMessageBoxSync(window,{type:'warning',message:t('content.unsaved'),detail:t('content.unsaved_window'),buttons:[t('content.keep_editing'),t('content.discard_window')],defaultId:0,cancelId:0});if(answer!==1)return;}
       await webPages?.checkpoint();
+      if(mcpHost)await webPages?.prepareClose(url=>mcpHost!.ownsPanel(url));
       await window.webContents.executeJavaScript(`window.peroWorkspaceCheckpoint?.(${dirty?'true':'false'})`);
       await finish();
     } catch(error) {
@@ -374,7 +401,7 @@ app.on('before-quit', quit => {
       await closeWorkspaceForQuit?.();
       if(!window.isDestroyed()){shuttingDown=false;return;}
     }
-  const computerClosed=appUse?.close()||Promise.resolve(); globalShortcut.unregisterAll(); localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();
+  const computerClosed=Promise.all([appUse?.close(),mcpHost?.close()]); globalShortcut.unregisterAll(); localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();mcpRequests.clear();
   if (!host?.pid || host.exitCode !== null || host.signalCode !== null) {
     void computerClosed.catch(error=>console.error(error)).finally(()=>{shutdownComplete = true; app.quit();}); return;
   }

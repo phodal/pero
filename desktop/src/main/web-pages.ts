@@ -15,7 +15,7 @@ export class WebPages {
   private sessions:WebSessions;
   private loaded:Promise<void>;
   private permissions=new Set<string>();
-  constructor(private window:BrowserWindow,private send:(event:Event)=>void,sessionPath:string) {
+  constructor(private window:BrowserWindow,private send:(event:Event)=>void,sessionPath:string,private ownsMcp:(url:string)=>boolean=()=>false) {
     this.sessions=new WebSessions(sessionPath);
     this.loaded=this.sessions.load().catch(error=>this.error(String(error)));
     this.partition=session.fromPartition('persist:pero-web-content');
@@ -124,6 +124,7 @@ export class WebPages {
     }
   }
   async checkpoint(){await this.sessions.save(new Map([...this.pages].map(([id,page])=>[id,page.view.webContents])));}
+  async prepareClose(owns:(url:string)=>boolean){for(const page of this.pages.values())if(owns(page.view.webContents.getURL()))await page.view.webContents.executeJavaScript('window.peroMcpTeardown?.()');}
   async command(input:unknown) {
     // Only trusted renderer transport reaches this entry. Pages have no preload/IPC.
     if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Invalid Web command');
@@ -152,6 +153,7 @@ export class WebPages {
     if(command.action==='web_forward'&&history.canGoForward())history.goForward();
     if(command.action==='web_reload')page.view.webContents.reload();
     if(command.action==='web_close') {
+      if(this.ownsMcp(page.view.webContents.getURL()))await page.view.webContents.executeJavaScript('window.peroMcpTeardown?.()');
       this.window.contentView.removeChildView(page.view);page.view.webContents.close();this.pages.delete(command.id);
       if(page.document.html)this.html.delete(`pero-html://${createHash('sha256').update(command.id).digest('hex')}/`);
       this.send({version:1,kind:'web_closed',request_id:null,text:'',data:{id:command.id}});

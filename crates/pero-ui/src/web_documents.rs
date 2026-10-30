@@ -74,6 +74,13 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> bool {
         match event.kind.as_str() {
+            "mcp_choose" => self.choose_mcp(cx),
+            "mcp_sources" => {
+                if let Some(url) = event.data["url"].as_str() {
+                    self.web_command(json!({"action":"web_open","url":url}), window, cx);
+                }
+            }
+            "mcp_error" => self.error = Some(event.text.clone()),
             "web_choose" => self.choose_web(window, cx),
             "web_opened" | "web_state" => {
                 match serde_json::from_value::<WebDocument>(event.data.clone()) {
@@ -357,6 +364,8 @@ impl Workbench {
                 .small()
                 .flex_1(),
         );
+        toolbar = toolbar.child(Button::new("mcp-sources").ghost().small().label("MCP Apps")
+            .on_click(cx.listener(|this, _, _, cx| this.choose_mcp(cx))));
         if let Some(page) = current {
             match &page.observation.load {
                 WebLoad::Loading => {
@@ -396,6 +405,11 @@ impl Workbench {
             );
         }
         toolbar.into_any_element()
+    }
+    fn choose_mcp(&mut self, cx: &mut Context<Self>) {
+        let chat = self.chat.read(cx);
+        let thread = chat.active_chat.and_then(|index| chat.chats.get(index)).map(|chat|chat.id.clone());
+        self.command(json!({"method":"mcp","action":"open","request_id":"mcp-sources","thread_id":thread}),cx);
     }
     pub(crate) fn web_content(&self, cx: &mut Context<Self>) -> AnyElement {
         #[cfg(target_family = "wasm")]

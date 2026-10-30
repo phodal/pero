@@ -8,6 +8,7 @@ mod contributions;
 mod documents;
 mod workspace;
 mod local_worker;
+mod mcp;
 
 fn emit(event: HostEvent) -> io::Result<()> {
     let mut stdout = io::stdout().lock();
@@ -27,6 +28,7 @@ fn main() -> io::Result<()> {
     let mut workspace_store=settings_path.as_deref().map(pero_runtime::workspace_store::WorkspaceStore::new);
     let mut documents=pero_runtime::file_documents::FileDocuments::default();
     let workers = local_worker::LocalWorkers::new(settings_path.as_deref());
+    let mut mcp = mcp::Mcp::new(settings_path.as_deref());
     let locale = settings_path
         .as_deref()
         .and_then(pero_runtime::settings::load_locale)
@@ -36,7 +38,7 @@ fn main() -> io::Result<()> {
             )
             .into()
         });
-    emit(HostEvent::new("settings", None, locale))?;
+    emit(HostEvent::new("settings", None, locale.clone()))?;
     emit(HostEvent::message("ready", None, "status.host_ready"))?;
     let mut computer = HostEvent::new("computer_settings", None, String::new());
     computer.data = serde_json::json!({"enabled":settings_path.as_deref().is_some_and(pero_runtime::settings::load_computer_enabled)});
@@ -44,6 +46,9 @@ fn main() -> io::Result<()> {
     for line in io::stdin().lock().lines() {
         let line = line?;
         let value: serde_json::Value = serde_json::from_str(&line).unwrap_or_default();
+        if value.get("method").and_then(|value|value.as_str())==Some("mcp") {
+            emit(mcp.dispatch(value,&agents,&locale))?;continue;
+        }
         if value.get("method").and_then(|value| value.as_str()).is_some_and(|method| method.starts_with("settings.computer")) {
             use pero_contracts::computer_runtime::ComputerSettingsRequest;
             let mut event = HostEvent::new("computer_settings_error", value.get("id").and_then(|id|id.as_str()).map(str::to_owned), String::new());

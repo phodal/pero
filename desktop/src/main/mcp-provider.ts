@@ -21,5 +21,6 @@ async function main(){
     write({version:1,kind:'mcp_sources',request_id:value.request_id,thread_id:thread,text:'',data:{url:host.open(thread,typeof value.locale==='string'?value.locale:'en')}});
   }
   await host.close();
+  process.stdin.destroy();
 }
 void main().catch(async error=>{console.error(error instanceof Error?error.message:String(error));await host.close();process.exit(1);});
