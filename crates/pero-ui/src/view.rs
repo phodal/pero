@@ -11,7 +11,7 @@ use crate::{
     layout::{ChatPlacement, WorkspaceLayout},
     workspace::{ConversationTab, WorkbenchPage, WorkspaceItem},
 };
-use gpui_kit::{prelude::*, *};
+use gpui_kit::{component::WindowExt, prelude::*, *};
 use std::rc::Rc;
 
 impl Workbench {
@@ -286,7 +286,7 @@ impl Render for Workbench {
             self.navigation.route(),
             self.tab,
             &self.preferences.layout,
-            self.settings_menu_open || self.resizing_chat || self.settings_panel.is_some() || self.pane_tabs.switching() || gpui_kit::component::GlobalState::is_in_deferred_context(cx),
+            self.settings_menu_open || self.resizing_chat || self.settings_panel.is_some() || self.pane_tabs.switching() || window.has_active_dialog(cx) || gpui_kit::component::GlobalState::is_in_deferred_context(cx),
             self.navigation.pane_layout().filter(|_|pane_tree),
         );
         self.layout = layout;
