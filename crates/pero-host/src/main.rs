@@ -6,6 +6,7 @@ mod agents;
 mod apps;
 mod contributions;
 mod documents;
+mod workspace;
 mod local_worker;
 
 fn emit(event: HostEvent) -> io::Result<()> {
@@ -23,6 +24,7 @@ fn main() -> io::Result<()> {
     let mut agents = agents::Manager::new(std::env::current_dir()?);
     let settings_path = std::env::var_os("PERO_SETTINGS_PATH").map(std::path::PathBuf::from);
     let mut apps = apps::Apps::new(settings_path.as_deref());
+    let mut workspace_store=settings_path.as_deref().map(pero_runtime::workspace_store::WorkspaceStore::new);
     let mut documents=pero_runtime::file_documents::FileDocuments::default();
     let workers = local_worker::LocalWorkers::new(settings_path.as_deref());
     let locale = settings_path
@@ -67,6 +69,9 @@ fn main() -> io::Result<()> {
             };
             emit(event)?;
             continue;
+        }
+        if value.get("method").and_then(|v|v.as_str())==Some("workspace") {
+            emit(workspace::dispatch(workspace_store.as_mut(),&mut documents,value))?;continue;
         }
         if value.get("method").and_then(|v| v.as_str()) == Some("contribution") {
             contributions::dispatch(value);

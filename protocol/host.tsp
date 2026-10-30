@@ -51,6 +51,32 @@ model DocumentOpenEvent {kind:"document_open";...EventBase;data:DocumentHeader}
 model FileDocumentEvent {kind:"document_file";...EventBase;data:DocumentHeader}
 model FileDocumentErrorEvent {kind:"document_error";...EventBase;data:{source:string;reason:"conflict"|"unsupported"|"unavailable"|"read_write";...Closed}}
 
+// Durable recovery is separate from tool execution and Desktop preference settings.
+model ReaderRange {start:safeint;end:safeint;...Closed}
+model ReaderSearch {case_insensitive:boolean;regex:boolean;whole_word:boolean;...Closed}
+model ReaderState {source:boolean;selection:ReaderRange;scroll:[float64,float64];preview_scroll:[float64,float64];query:string;search_open:boolean;search:ReaderSearch;folded_lines:safeint[];path:ReaderRange[];...Closed}
+model WorkspaceSimpleItem {kind:"conversation"|"web"|"project"|"task";value:string;...Closed}
+model WorkspaceDocumentItem {kind:"document";value:{origin:ContentOrigin;source:string;...Closed};...Closed}
+model WorkspaceAppItem {kind:"app";value:{name:string;panel:string;...Closed};...Closed}
+@oneOf union WorkspaceItem {WorkspaceSimpleItem,WorkspaceDocumentItem,WorkspaceAppItem}
+scalar WorkbenchPage extends string;
+model WorkspacePageRoute {kind:"page";value:"conversation"|"document"|"web"|"projects"|"agents"|"tasks"|"workers"|"apps"|"insights"|"connections";...Closed}
+model WorkspaceContentRoute {kind:"content";value:WorkspaceItem;...Closed}
+@oneOf union WorkspaceRoute {WorkspacePageRoute,WorkspaceContentRoute}
+model WorkspaceSnapshot {items:WorkspaceItem[];route:WorkspaceRoute;other:WorkspaceRoute|null;focused:"left"|"right";back:WorkspaceRoute[];forward:WorkspaceRoute[];...Closed}
+model SourceKey {origin:ContentOrigin;source:string;revision:safeint;...Closed}
+model SavedDocument {header:DocumentHeader;reading:ReaderState;draft:string|null;...Closed}
+model SavedWeb {id:string;url:string;...Closed}
+model WorkspaceSession {version:1;workspace:string;navigation:WorkspaceSnapshot;documents:SavedDocument[];web:SavedWeb[];...Closed}
+model WorkspaceSource {header:DocumentHeader;text:string;...Closed}
+model WorkspaceRestore {session:WorkspaceSession|null;sources:WorkspaceSource[];conflicts:string[];...Closed}
+model GetWorkspaceSession {method:"workspace";action:"get";...Closed}
+model SaveWorkspaceSession {method:"workspace";action:"save";request_id:string;refresh:SourceKey[];session:WorkspaceSession;sources:WorkspaceSource[];...Closed}
+@oneOf union WorkspaceSessionRequest {GetWorkspaceSession,SaveWorkspaceSession}
+model WorkspaceRestoredEvent {kind:"workspace_restored";...EventBase;data:WorkspaceRestore}
+model WorkspaceSavedEvent {kind:"workspace_saved";...EventBase}
+model WorkspaceErrorEvent {kind:"workspace_error";...EventBase}
+
 // Browser engines supply navigation observations; workspace IDs remain stable.
 model WebLoading {kind:"loading";...Closed}
 model WebReady {kind:"ready";...Closed}
@@ -64,12 +90,13 @@ model WebClosedEvent {kind:"web_closed";...EventBase;data:{id:string;...Closed}}
 model WebErrorEvent {kind:"web_error";...EventBase}
 model WebChooseEvent {kind:"web_choose";...EventBase}
 model WebOpenCommand {action:"web_open";url:string;...Closed}
+model WebRestoreCommand {action:"web_restore";id:string;url:string;...Closed}
 model WebNavigateCommand {action:"web_navigate";id:string;url:string;...Closed}
 model WebControlCommand {action:"web_back"|"web_forward"|"web_reload"|"web_close";id:string;...Closed}
 model SurfaceBounds {x:float64;y:float64;width:float64;height:float64;...Closed}
 model WebSurfaceCommand {action:"web_surface";id:string|null;bounds?:SurfaceBounds;...Closed}
 /** Private Desktop/native browser-engine commands, not Host stdin. */
-@oneOf union WebCommand {WebOpenCommand,WebNavigateCommand,WebControlCommand,WebSurfaceCommand}
+@oneOf union WebCommand {WebOpenCommand,WebRestoreCommand,WebNavigateCommand,WebControlCommand,WebSurfaceCommand}
 
 // ---------- Host input: one JSON object per stdin line ----------
 
@@ -166,6 +193,7 @@ union HostCommand {
 
 @oneOf
 union HostInput {
+  WorkspaceSessionRequest,
   FileDocumentRequest,
   LocalWorkerRequest,
   EchoRequest,
@@ -327,6 +355,7 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 
 @oneOf
 union HostEvent {
+  WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,
   WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,
   DocumentOpenEvent,
   DocumentChooseEvent,
