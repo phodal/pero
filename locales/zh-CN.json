@@ -623,5 +623,18 @@
   "content.copy_cell": "复制单元格",
   "content.expand_value": "展开值",
   "content.locate_source": "定位源码",
-  "content.row_count": "{shown} / {total} 行"
+  "content.row_count": "{shown} / {total} 行",
+  "content.regex": "正则表达式",
+  "content.whole_word": "整词匹配",
+  "workspace.back": "后退",
+  "workspace.forward": "前进",
+  "workspace.split": "并排打开另一个文档",
+  "workspace.close_split": "关闭右侧窗格",
+  "workspace.cached_source": "已保存的快照，原始来源当前不可用。",
+  "workspace.recovery_failed": "无法恢复保存的工作区。",
+  "workspace.save_failed": "无法保存工作区恢复数据。",
+  "workspace.recovery_close": "关闭且不保留恢复数据",
+  "workspace.recovery_retry": "继续编辑",
+  "workspace.pane_left": "左侧文档窗格",
+  "workspace.pane_right": "右侧文档窗格"
 }

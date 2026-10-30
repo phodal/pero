@@ -623,5 +623,18 @@
   "content.copy_cell": "Copy cell",
   "content.expand_value": "Expand value",
   "content.locate_source": "Show source",
-  "content.row_count": "{shown} / {total} rows"
+  "content.row_count": "{shown} / {total} rows",
+  "content.regex": "Regular expression",
+  "content.whole_word": "Whole word",
+  "workspace.back": "Back",
+  "workspace.forward": "Forward",
+  "workspace.split": "Open another document beside",
+  "workspace.close_split": "Close right pane",
+  "workspace.cached_source": "Saved snapshot; the original source is unavailable.",
+  "workspace.recovery_failed": "Could not restore the saved workspace.",
+  "workspace.save_failed": "Could not save workspace recovery.",
+  "workspace.recovery_close": "Close without recovery",
+  "workspace.recovery_retry": "Keep editing",
+  "workspace.pane_left": "Left document pane",
+  "workspace.pane_right": "Right document pane"
 }
