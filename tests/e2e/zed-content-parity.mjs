@@ -33,6 +33,7 @@ const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 const checks = [];
 const errors = [];
 let phase = 'startup';
+let failed = false;
 let app;
 let page;
 const leaves = node => !node ? [] : node.kind === 'leaf' ? [node.view] : [...leaves(node.first), ...leaves(node.second)];
@@ -47,7 +48,7 @@ const compactLayout = snapshot => ({
   panes: panes(snapshot).map(pane => ({
     pane: pane.id, active: pane.tabs.active, preview: pane.tabs.preview ?? null,
     pinned: pane.tabs.pinned_count,
-    tabs: pane.tabs.items.map(item => ({ view: item.id, route: item.route })),
+    tabs: pane.tabs.items.map(item => ({ view: item.id, route: item.route, kind: item.kind ?? 'primary' })),
   })),
 });
 const paint = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -116,10 +117,21 @@ async function ensureSource(view) {
 }
 async function finish() {
   if (!app) return;
-  // Sources are clean at shutdown; this stub is only an emergency failure cleanup.
-  await app.evaluate(({ dialog }) => { dialog.showMessageBoxSync = () => 1; }).catch(() => {});
+  // Normal restart and success use the actual graceful checkpoint/close path.
   await app.close();
   app = undefined;
+}
+async function cleanupFailure() {
+  if (!app) return;
+  const owned = app;
+  app = undefined;
+  // A failed test may leave a dirty Kit modal. This destroys only this test's
+  // Electron windows/process; it is cleanup, never evidence of close behavior.
+  await owned.evaluate(({ BrowserWindow }) => {
+    for (const window of BrowserWindow.getAllWindows()) window.destroy();
+  }).catch(() => {});
+  owned.process().kill('SIGKILL');
+  await owned.close().catch(() => {});
 }
 
 try {
@@ -230,13 +242,36 @@ try {
   await expect.poll(async () => panes(await state()).length, { message: 'Pending capability: Markdown preview-to-side must create another real pane' }).toBe(paneCount + 1);
   await expect.poll(async () => (await state()).workspaceNavigation.panes.focused).toBe(originalPane);
   snapshot = await state();
-  const markdownCopies = panes(snapshot).flatMap(pane => pane.tabs.items.filter(item => sourcePath(item) === markdown).map(item => ({ pane: pane.id, view: item.id })));
+  const markdownCopies = panes(snapshot).flatMap(pane => pane.tabs.items.filter(item => sourcePath(item) === markdown).map(item => ({ pane: pane.id, view: item.id, kind: item.kind ?? 'primary' })));
   expect(markdownCopies).toHaveLength(2);
   const previewCopy = markdownCopies.find(item => item.view !== markdownView);
+  expect(previewCopy.kind).toBe('rendered_preview');
+  expect(markdownCopies.find(item => item.view === markdownView).kind).toBe('primary');
   await expect.poll(async () => readerFor(await state(), previewCopy.view)?.source).toBe(false);
   expect(readerFor(await state(), markdownView).source).toBe(true);
   checks.push('Markdown side preview has its own ViewId and mode while preserving original pane focus');
   await capture('04-markdown-side-preview');
+
+  phase = 'same-source-preview-drag';
+  await dragTab(previewCopy.view, markdownView);
+  await expect.poll(async () => panes(await state()).length).toBe(paneCount);
+  await expect.poll(async () => {
+    const pane = panes(await state()).find(pane => pane.id === originalPane);
+    return pane.tabs.items.filter(item => sourcePath(item) === markdown).map(item => ({
+      view: item.id, kind: item.kind ?? 'primary',
+    })).sort((a, b) => a.view - b.view);
+  }).toEqual([
+    {view: markdownView, kind: 'primary'},
+    {view: previewCopy.view, kind: 'rendered_preview'},
+  ].sort((a, b) => a.view - b.view));
+  await clickTab(markdownView);
+  await expect.poll(async () => readerFor(await state(), markdownView)?.source).toBe(true);
+  await clickTab(previewCopy.view);
+  await expect.poll(async () => readerFor(await state(), previewCopy.view)?.source).toBe(false);
+  await clickTab(markdownView);
+  await expect.poll(async () => readerFor(await state(), markdownView)?.source).toBe(true);
+  checks.push('dragging a rendered preview beside its source in one pane preserves both ViewIds, distinct item kinds, and independent modes');
+  await capture('04b-same-source-two-kinds');
 
   phase = 'theme-narrow-and-active-reveal';
   await setAppearance(page, 'dark');
@@ -287,9 +322,11 @@ try {
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ status: 'passed', checks, viewport: [1508, 1035], narrow: [840, 1035], profile, reference: 'test-results/zed-reference/05–16.jpg', errors }, null, 2));
   console.log(`Verified ${checks.length} Zed core content workflows using real Desktop input.`);
 } catch (error) {
+  failed = true;
   if (page && !page.isClosed()) await capture('failure').catch(() => {});
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ status: 'failed', phase, checks, remaining: error.message, profile, errors }, null, 2));
   throw error;
 } finally {
-  await finish();
+  if (failed) await cleanupFailure();
+  else await finish();
 }
