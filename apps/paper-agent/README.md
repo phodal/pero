@@ -130,9 +130,19 @@ independent acceptance decision.
 
 ## Workflow and boundaries
 
+Public literature search includes Hugging Face papers, alphaXiv, OpenAlex,
+bioRxiv and PubMed. All-source search lists Hugging Face results first in the
+default source order. The newest and citation-count options sort the returned
+results after matching duplicates; missing dates or citation counts are last.
+Citation counts come from OpenAlex and remain separate from Hugging Face likes
+and GitHub stars. Results retain alternate sources, publication dates, authors,
+and project, PDF or thumbnail links when supplied. The preview is a Hugging
+Face social thumbnail, not necessarily a figure from the paper.
+
 1. Imported papers become immutable snapshots with source identity, content
    kind, retrieval time and text digest. Abstracts, third-party reports and full
-   text remain distinct. Only alphaXiv offers the full-text retrieval action;
+   text remain distinct. The full-text retrieval action uses alphaXiv, including
+   papers selected through Hugging Face;
    original source/PDF links remain available. Public availability does not
    transfer publication rights. Searches send the entered query to the selected
    public services; confidential terms need appropriate permission.
