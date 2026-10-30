@@ -50,7 +50,12 @@ try{
  await expect.poll(async()=>(await state()).chats[0].state).toBe('idle');
  await input('wait');
  await expect.poll(async()=>(await state()).chats[0].state).toBe('running');
- await page.mouse.click(1430,1030);
+ // Read the rendered Stop button: the composer is centered and width-limited.
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ await expect.poll(async()=>{const bounds=(await state()).stopButtonBounds;return !!bounds && bounds.width>0 && bounds.height>0;}).toBe(true);
+ const stop=(await state()).stopButtonBounds;
+ await page.screenshot({path:resolve(out,'stop-button.png')});
+ await page.mouse.click(stop.x+stop.width/2,stop.y+stop.height/2);
  await expect.poll(async()=>(await state()).chats[0].state).toBe('idle');
  await input('permission');
  await expect.poll(async()=>(await state()).chats[0].permission!==null).toBe(true);
