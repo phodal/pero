@@ -7,7 +7,6 @@ use std::time::Duration;
 enum Update {
     Load(wry::PageLoadEvent, String),
     Title(String),
-    Navigate(String),
     Popup(String),
     Failed(String),
 }
@@ -163,10 +162,6 @@ impl NativeWebPage {
                 }
             }
             Update::Title(title) => self.document.observation.title = title,
-            Update::Navigate(uri) => match WebAddress::try_from(uri) {
-                Ok(address) => self.navigate(address, cx),
-                Err(error) => self.document.observation.load = WebLoad::Failed(error),
-            },
             Update::Popup(uri) => match WebAddress::try_from(uri) {
                 Ok(address) => cx.emit(NativeWebPopup(address.as_str().into())),
                 Err(error) => self.document.observation.notice = Some(error),

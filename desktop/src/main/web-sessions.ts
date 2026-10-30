@@ -9,7 +9,8 @@ export type WebEngineSession={entries:NavigationEntry[];index:number;page?:WebPa
 /** Chromium owns opaque history state; only the engine shell persists it. */
 export class WebSessions {
   private saved=new Map<string,WebEngineSession>();
-  constructor(private path:string){}
+  private path:string;
+  constructor(path:string){this.path=path;}
   async load() {
     let text:string;
     try {text=await readFile(this.path,'utf8');}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return;throw error;}

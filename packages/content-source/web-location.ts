@@ -1,7 +1,8 @@
 import {WebAddress} from './web-address.ts';
 /** Internal engine locations do not widen the HTTP-only address-entry contract. */
 export class WebLocation {
-  private constructor(readonly text:string){}
+  readonly text:string;
+  private constructor(text:string){this.text=text;}
   static parse(text:string):WebLocation {
     if(text==='about:blank')return new WebLocation(text);
     const value=new URL(text);
