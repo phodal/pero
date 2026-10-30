@@ -10,8 +10,8 @@ baseline: https://github.com/phodal/pero origin/master 168f6bc
 对比对象是 2026-10-30 本会话实际可用的 Cursor Computer Use，以及
 [github.com/phodal/pero](https://github.com/phodal/pero) 的 `origin/master`
 （`168f6bc`）。GitHub 上没有对应的开放 issue；路线图里的 Computer Use
-仍未勾选。远端帧缓冲如何接入，写在
-[Cursor VNC 边界](../design-docs/cursor-computer-use-vnc.md)，这次只定边界，不改契约和驱动。
+仍未勾选。Cursor 没有 VNC。Pero 若以后接入远端帧缓冲，边界写在
+[Cursor 对照下的 VNC 设计](../design-docs/cursor-computer-use-vnc.md)，这次只定边界，不改契约和驱动。
 
 ## 本会话里的实现
 
@@ -71,8 +71,9 @@ flowchart TB
 权限不是事先查询出来的通行证。缺辅助功能或屏幕录制时，动作被拒绝，并说明人
 要授予哪一项。Windows 上这两项在该工具定义里始终视为已授予。
 
-另一条路径是整屏接管。只有人要求接管显示器时才进入。它会移动真光标。这条
-路径拒绝文字输入。
+另一条路径是整屏接管。只有人要求接管本机显示器时才进入。它会移动真光标。这条
+路径拒绝文字输入。工具名里的 remote control 指的是接管这台机器的显示器，
+不是 VNC，也不是 RFB。本会话的工具列表里没有 VNC 客户端、服务端或远端帧缓冲。
 
 ```mermaid
 flowchart TB
@@ -85,8 +86,10 @@ flowchart TB
   Pixel --> Release[computer_release_control]
 ```
 
-应用范围对应 Pero 的后台窗口操作。整屏范围对应移动真实指针的桌面操作。
-VNC 只有帧缓冲和远端指针，对得上后一条，对不上前一条。
+应用范围对应 Pero 的后台窗口操作。整屏范围对应移动本机真实指针。
+Pero 路线图里的 VNC 若以后要接，只能对照整屏这一条的像素和指针形状；
+Cursor 本身不提供这条远端连接。边界写在
+[Cursor 对照下的 VNC 设计](../design-docs/cursor-computer-use-vnc.md)。
 
 ## 两边已经对齐的部分
 
