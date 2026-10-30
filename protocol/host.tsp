@@ -132,6 +132,19 @@ model WebSurfacesCommand {action:"web_surfaces";surfaces:WebSurfaceSlot[];...Clo
 model WebFocusedEvent {kind:"web_focused";...EventBase;data:{id:string;...Closed}}
 /** Private Desktop/native browser-engine commands, not Host stdin. */
 @oneOf union WebCommand {WebOpenCommand,WebHtmlCommand,WebRestoreCommand,WebNavigateCommand,WebControlCommand,WebSurfaceCommand,WebSurfacesCommand}
+model IconVariants {light:string;dark?:string;...Closed}
+model IconGlyphMap is Record<IconVariants>;
+model IconAssociationMap is Record<string>;
+model IconThemeAssociations {kinds?:IconAssociationMap;languages?:IconAssociationMap;filenames?:IconAssociationMap;extensions?:IconAssociationMap;apps?:IconAssociationMap;...Closed}
+model IconThemePackage {version:1;id:string;name:string;icons:IconGlyphMap;associations:IconThemeAssociations;...Closed}
+model IconThemeInfo {id:string;name:string;...Closed}
+model IconThemeState {installed:IconThemeInfo[];selected:string|null;theme:IconThemePackage|null;...Closed}
+model GetIconThemes {method:"icons";action:"get";request_id:string;...Closed}
+model InstallIconTheme {method:"icons";action:"install";request_id:string;path:string;...Closed}
+model SelectIconTheme {method:"icons";action:"select";request_id:string;id:string|null;...Closed}
+model RemoveIconTheme {method:"icons";action:"remove";request_id:string;id:string;...Closed}
+@oneOf union IconThemeRequest {GetIconThemes,InstallIconTheme,SelectIconTheme,RemoveIconTheme}
+model IconThemesEvent {kind:"icon_themes"|"icon_themes_error";...EventBase;data:IconThemeState}
 model McpSourceRequest {method:"mcp";action:"open";request_id:string;thread_id?:string|null;...Closed}
 model McpAppBinding {id:string;server:string;resource_uri:string;tool:string;tool_call:string;thread_id:string;...Closed}
 model McpPermittedEvent {kind:"mcp_permitted";...EventBase;thread_id?:string;data:{locale:string;...Closed}}
@@ -234,6 +247,7 @@ union HostCommand {
 
 @oneOf
 union HostInput {
+  IconThemeRequest,
   McpSourceRequest,
   WorkspaceSessionRequest,
   FileDocumentRequest,
@@ -399,7 +413,7 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 union HostEvent {
   DocumentSaveChooseEvent,DocumentSavePathEvent,DocumentSaveCancelledEvent,
   WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,WorkspaceSourceEvent,WorkspaceSourceErrorEvent,WorkspaceResetEvent,WorkspaceSourceStoredEvent,DraftStoredEvent,
-  WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,WebFocusedEvent,
+  WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,WebFocusedEvent,IconThemesEvent,
   DocumentOpenEvent,
   McpPermittedEvent,McpSourcesEvent,McpErrorEvent,McpAppOpenedEvent,
   DocumentChooseEvent,

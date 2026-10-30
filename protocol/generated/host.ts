@@ -5,6 +5,7 @@
  */
 export type HostProtocol = HostInput | HostEvent | WebCommand;
 export type HostInput =
+  | IconThemeRequest
   | McpSourceRequest
   | WorkspaceSessionRequest
   | FileDocumentRequest
@@ -17,6 +18,7 @@ export type HostInput =
   | HostCommand
   | AppRequest
   | ContributionRequest;
+export type IconThemeRequest = GetIconThemes | InstallIconTheme | SelectIconTheme | RemoveIconTheme;
 export type WorkspaceSessionRequest =
   | GetWorkspaceSession
   | SaveWorkspaceSession
@@ -83,6 +85,7 @@ export type HostEvent =
   | WebErrorEvent
   | WebChooseEvent
   | WebFocusedEvent
+  | IconThemesEvent
   | DocumentOpenEvent
   | McpPermittedEvent
   | McpSourcesEvent
@@ -164,6 +167,29 @@ export type WebCommand =
   | WebSurfaceCommand
   | WebSurfacesCommand;
 
+export interface GetIconThemes {
+  method: "icons";
+  action: "get";
+  request_id: string;
+}
+export interface InstallIconTheme {
+  method: "icons";
+  action: "install";
+  request_id: string;
+  path: string;
+}
+export interface SelectIconTheme {
+  method: "icons";
+  action: "select";
+  request_id: string;
+  id: string | null;
+}
+export interface RemoveIconTheme {
+  method: "icons";
+  action: "remove";
+  request_id: string;
+  id: string;
+}
 export interface McpSourceRequest {
   method: "mcp";
   action: "open";
@@ -861,6 +887,46 @@ export interface WebFocusedEvent {
   data: {
     id: string;
   };
+}
+export interface IconThemesEvent {
+  kind: "icon_themes" | "icon_themes_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: IconThemeState;
+}
+export interface IconThemeState {
+  installed: IconThemeInfo[];
+  selected: string | null;
+  theme: IconThemePackage | null;
+}
+export interface IconThemeInfo {
+  id: string;
+  name: string;
+}
+export interface IconThemePackage {
+  version: 1;
+  id: string;
+  name: string;
+  icons: IconGlyphMap;
+  associations: IconThemeAssociations;
+}
+export interface IconGlyphMap {
+  [k: string]: IconVariants | undefined;
+}
+export interface IconVariants {
+  light: string;
+  dark?: string;
+}
+export interface IconThemeAssociations {
+  kinds?: IconAssociationMap;
+  languages?: IconAssociationMap;
+  filenames?: IconAssociationMap;
+  extensions?: IconAssociationMap;
+  apps?: IconAssociationMap;
+}
+export interface IconAssociationMap {
+  [k: string]: string | undefined;
 }
 export interface DocumentOpenEvent {
   kind: "document_open";

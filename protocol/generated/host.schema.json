@@ -2802,6 +2802,29 @@
       ],
       "additionalProperties": false
     },
+    "GetIconThemes": {
+      "title": "GetIconThemes",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "icons"
+        },
+        "action": {
+          "type": "string",
+          "const": "get"
+        },
+        "request_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id"
+      ],
+      "additionalProperties": false
+    },
     "GetWorkbenchSettingsRequest": {
       "title": "GetWorkbenchSettingsRequest",
       "type": "object",
@@ -2954,6 +2977,9 @@
           "$ref": "#/$defs/WebFocusedEvent"
         },
         {
+          "$ref": "#/$defs/IconThemesEvent"
+        },
+        {
           "$ref": "#/$defs/DocumentOpenEvent"
         },
         {
@@ -3097,6 +3123,9 @@
       "title": "HostInput",
       "oneOf": [
         {
+          "$ref": "#/$defs/IconThemeRequest"
+        },
+        {
           "$ref": "#/$defs/McpSourceRequest"
         },
         {
@@ -3133,6 +3162,208 @@
           "$ref": "#/$defs/ContributionRequest"
         }
       ]
+    },
+    "IconAssociationMap": {
+      "title": "IconAssociationMap",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "IconGlyphMap": {
+      "title": "IconGlyphMap",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {
+        "$ref": "#/$defs/IconVariants"
+      }
+    },
+    "IconThemeAssociations": {
+      "title": "IconThemeAssociations",
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "$ref": "#/$defs/IconAssociationMap"
+        },
+        "languages": {
+          "$ref": "#/$defs/IconAssociationMap"
+        },
+        "filenames": {
+          "$ref": "#/$defs/IconAssociationMap"
+        },
+        "extensions": {
+          "$ref": "#/$defs/IconAssociationMap"
+        },
+        "apps": {
+          "$ref": "#/$defs/IconAssociationMap"
+        }
+      },
+      "additionalProperties": false
+    },
+    "IconThemeInfo": {
+      "title": "IconThemeInfo",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "IconThemePackage": {
+      "title": "IconThemePackage",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "icons": {
+          "$ref": "#/$defs/IconGlyphMap"
+        },
+        "associations": {
+          "$ref": "#/$defs/IconThemeAssociations"
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "name",
+        "icons",
+        "associations"
+      ],
+      "additionalProperties": false
+    },
+    "IconThemeRequest": {
+      "title": "IconThemeRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GetIconThemes"
+        },
+        {
+          "$ref": "#/$defs/InstallIconTheme"
+        },
+        {
+          "$ref": "#/$defs/SelectIconTheme"
+        },
+        {
+          "$ref": "#/$defs/RemoveIconTheme"
+        }
+      ]
+    },
+    "IconThemesEvent": {
+      "title": "IconThemesEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "icon_themes"
+            },
+            {
+              "type": "string",
+              "const": "icon_themes_error"
+            }
+          ]
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/IconThemeState"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "IconThemeState": {
+      "title": "IconThemeState",
+      "type": "object",
+      "properties": {
+        "installed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IconThemeInfo"
+          }
+        },
+        "selected": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "theme": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IconThemePackage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "installed",
+        "selected",
+        "theme"
+      ],
+      "additionalProperties": false
+    },
+    "IconVariants": {
+      "title": "IconVariants",
+      "type": "object",
+      "properties": {
+        "light": {
+          "type": "string"
+        },
+        "dark": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "light"
+      ],
+      "additionalProperties": false
     },
     "ImageContextContent": {
       "title": "ImageContextContent",
@@ -3218,6 +3449,33 @@
         "path",
         "method",
         "id"
+      ],
+      "additionalProperties": false
+    },
+    "InstallIconTheme": {
+      "title": "InstallIconTheme",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "icons"
+        },
+        "action": {
+          "type": "string",
+          "const": "install"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "path"
       ],
       "additionalProperties": false
     },
@@ -4901,6 +5159,33 @@
       ],
       "additionalProperties": false
     },
+    "RemoveIconTheme": {
+      "title": "RemoveIconTheme",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "icons"
+        },
+        "action": {
+          "type": "string",
+          "const": "remove"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "ReplayData": {
       "title": "ReplayData",
       "type": "object",
@@ -5418,6 +5703,40 @@
         "request_id",
         "kind",
         "query"
+      ],
+      "additionalProperties": false
+    },
+    "SelectIconTheme": {
+      "title": "SelectIconTheme",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "icons"
+        },
+        "action": {
+          "type": "string",
+          "const": "select"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "id"
       ],
       "additionalProperties": false
     },
