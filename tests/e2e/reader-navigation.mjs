@@ -1,6 +1,7 @@
 // Actual canvas interactions: anchors, source mapping, regex and whole-word search.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { setAppearance } from './sidebar-controls.mjs';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -84,6 +85,26 @@ try {
   await page.mouse.click(bounds.x + 100, bounds.y + 16);
   await paint();
   expect((await reader()).selection).toEqual(renderedSelection);
+  // A cancelled Source press must not retain the previous rendered range.
+  await page.keyboard.press('End');
+  const beforeCancelledPress = (await reader()).selection;
+  await page.mouse.click(bounds.x + 30, bounds.y + 16);
+  await expect.poll(async () => (await reader()).source).toBe(false);
+  await page.mouse.move(bounds.x + 12, bounds.y + 53);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 130, bounds.y + 53, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(async () => (await reader()).markdownObservedSelection?.end).toBeGreaterThan(0);
+  await page.mouse.move(bounds.x + 100, bounds.y + 16);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 700, bounds.y + 53);
+  await page.mouse.up();
+  expect((await reader()).source).toBe(false);
+  await page.mouse.click(bounds.x + 700, bounds.y + 53);
+  await expect.poll(async () => (await reader()).markdownObservedSelection).toBe(null);
+  await page.mouse.click(bounds.x + 100, bounds.y + 16);
+  await expect.poll(async () => (await reader()).source).toBe(true);
+  expect((await reader()).selection).toEqual(beforeCancelledPress);
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press(`${modifier}+f`);
   await expect.poll(async () => (await reader()).search?.open).toBe(true);
@@ -107,6 +128,9 @@ try {
   await page.keyboard.press('Enter');
   await paint();
   expect((await reader()).search.current).not.toEqual(beforeNext);
+  await page.keyboard.press('Shift+Enter');
+  await paint();
+  expect((await reader()).search.current).toEqual(beforeNext);
   await screen('regex-search');
   await query('[');
   await expect.poll(async () => !!(await reader()).searchError).toBe(true);
@@ -119,8 +143,22 @@ try {
   await expect.poll(async () => (await reader()).searchOptions.whole_word).toBe(true);
   await expect.poll(async () => (await reader()).search.matches).toBe(2);
   await screen('whole-word-search');
+  await setAppearance(page, 'dark');
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 800));
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector('canvas');
+    return canvas?.width === Math.round(innerWidth * devicePixelRatio) && canvas.height === Math.round(innerHeight * devicePixelRatio);
+  });
+  await paint();
+  expect((await reader()).search.matches).toBe(2);
+  await screen('whole-word-search-dark-narrow');
+  await query('[');
+  await expect.poll(async () => !!(await reader()).searchError).toBe(true);
+  await screen('invalid-regex-dark-narrow');
+  await query('row');
+  await expect.poll(async () => (await reader()).search.matches).toBe(2);
   expect(errors).toEqual([]);
-  await writeFile(resolve(out, 'result.json'), JSON.stringify({ checks: ['actual Markdown heading link', 'rendered selection to exact source range', 'source selection to rendered reveal', 'regex match painting and navigation', 'invalid regex recovery', 'whole-word keyboard toggle'], errors }, null, 2));
+  await writeFile(resolve(out, 'result.json'), JSON.stringify({ checks: ['actual Markdown heading link', 'rendered selection to exact source range', 'source selection to rendered reveal', 'cancelled source gesture and cleared rendered selection', 'regex match painting and Enter/Shift+Enter navigation', 'invalid regex recovery', 'whole-word keyboard toggle'], errors }, null, 2));
   console.log('Verified Markdown anchors, rendered/source mapping, regex and whole-word search.');
 } catch (error) {
   if (page) {

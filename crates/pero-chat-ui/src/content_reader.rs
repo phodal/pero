@@ -7,7 +7,7 @@ use gpui_kit::{
     component::{
         ActiveTheme, IconName, Sizable,
         button::*,
-        input::{Editor, EditorState, Input, InputEvent, InputState, RopeExt, Search},
+        input::{Editor, EditorState, Enter, Input, InputEvent, InputState, RopeExt, Search},
     },
     prelude::*,
     *,
@@ -105,7 +105,6 @@ impl ContentReader {
             cx.subscribe_in(&search_input, window, |this, _, event, _, cx| {
                 match event {
                     InputEvent::Change => this.apply_search(cx),
-                    InputEvent::PressEnter { shift, .. } => this.move_search(*shift, cx),
                     _ => {}
                 }
                 cx.notify();
@@ -628,6 +627,7 @@ impl Render for ContentReader {
                                     .then_some(captured)
                                     .flatten();
                                 this.open_source(range, window, cx);
+                                this.focus(window, cx);
                             })),
                     ),
             )
@@ -707,6 +707,22 @@ impl Render for ContentReader {
             .capture_action(cx.listener(|this, _: &Search, window, cx| {
                 this.search_source(window, cx);
                 cx.stop_propagation();
+            }))
+            .capture_action(cx.listener(|this, action: &Enter, window, cx| {
+                if this.search_open
+                    && this
+                        .search_input
+                        .read(cx)
+                        .focus_handle(cx)
+                        .is_focused(window)
+                {
+                    // Consume submit here: allowing single-line Enter to
+                    // propagate also lets Web beforeinput submit it again.
+                    this.move_search(action.shift, cx);
+                    cx.stop_propagation();
+                } else {
+                    cx.propagate();
+                }
             }))
             .capture_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 if this.search_open && event.keystroke.key == "escape" {
