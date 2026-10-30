@@ -173,7 +173,7 @@ impl Workbench {
             ReaderAction::EditTransaction {begin}=>{if let Some(primary)=self.documents.iter().find(|open|&open.item==item).map(|open|open.view.clone()) {if primary!=*view {primary.update(cx,|view,cx|view.document_transaction(*begin,window,cx));}}},
             ReaderAction::Undo {redo}=>{if let Some(primary)=self.documents.iter().find(|open|&open.item==item).map(|open|open.view.clone()) {primary.update(cx,|view,cx|view.undo_document(*redo,window,cx));}},
             ReaderAction::Edit {edit,inserted}=>self.synchronize_document_edit(item,view,edit,inserted,window,cx),
-            ReaderAction::Save {source,revision,text}=>self.command(serde_json::json!({"method":"documents","action":"save","request_id":format!("save:{source}"),"source":source,"revision":revision,"text":text}),cx),
+            ReaderAction::Save {source,..}=>{if let Some(draft)=self.begin_workspace_file_save(item,cx) {self.command(serde_json::json!({"method":"documents","action":"save_draft","request_id":format!("save:{source}"),"draft":draft}),cx);}},
             ReaderAction::Reload {path}=>self.command(serde_json::json!({"method":"documents","action":"open","request_id":"reload","path":path}),cx),
             ReaderAction::DiscardAndClose=>self.discard_document(item,window,cx),
             ReaderAction::Navigate {before,after}=>self.record_document_jump(item,before.clone(),after.clone(),cx),
@@ -196,6 +196,7 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.record_workspace_draft_edit(item,edit.old.clone(),inserted,cx);
         self.navigation.rebase_document_edit(item, edit);
         let Some(primary) = self
             .documents

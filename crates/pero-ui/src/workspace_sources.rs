@@ -10,6 +10,46 @@ use pero_contracts::{
     workspace_session::{SourceKey, WorkspaceSource},
 };
 impl Workbench {
+    pub(crate) fn publish_workspace_source(
+        &mut self,
+        document: &pero_contracts::content_document::ContentDocument,
+        cx: &mut Context<Self>,
+    ) {
+        let key = SourceKey::of(&document.header());
+        if self
+            .recovery
+            .sent
+            .iter()
+            .any(|published| published.key == key && published.document.shares_source(document))
+        {
+            return;
+        }
+        self.recovery.sequence += 1;
+        let request = format!("workspace-source:{}", self.recovery.sequence);
+        self.command(serde_json::json!({"method":"workspace","action":"source_begin","request_id":request,"header":document.header(),"total_bytes":document.bytes}),cx);
+        let text = document.source();
+        let mut offset = 0;
+        loop {
+            let mut end =
+                (offset + pero_contracts::workspace_source::SOURCE_CHUNK_BYTES).min(text.len());
+            while !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            let done = end == text.len();
+            self.command(serde_json::json!({"method":"workspace","action":"source_chunk","request_id":request,"chunk":{"offset":offset,"text":&text[offset..end],"done":done}}),cx);
+            if done {
+                break;
+            }
+            offset = end;
+        }
+        self.recovery.sent.retain(|published| published.key != key);
+        self.recovery
+            .sent
+            .push(super::workspace_restore::PublishedSource {
+                key,
+                document: document.clone(),
+            });
+    }
     pub(crate) fn has_workspace_document(&self, item: &WorkspaceItem) -> bool {
         self.documents.iter().any(|open| &open.item == item)
             || self
@@ -57,6 +97,12 @@ impl Workbench {
             return;
         };
         let deferred = self.recovery.deferred.remove(index);
+        self.restore_workspace_draft(
+            key.clone(),
+            deferred.saved.draft_ref.clone(),
+            deferred.saved.draft.as_deref(),
+            source.text.len(),
+        );
         let item = deferred.saved.item();
         let navigation = self.navigation.snapshot();
         let applying = self.recovery.applying;
@@ -108,7 +154,11 @@ impl Workbench {
             .iter()
             .find(|document| &document.saved.item() == item);
         let failed = deferred.is_some_and(|document| document.failed);
-        let draft = deferred.is_some_and(|document| document.saved.draft.is_some());
+        let draft = deferred.is_some_and(|document| {
+            (document.saved.draft.is_some()
+                || document.saved.draft_ref.is_some()
+                || document.saved.legacy_draft)
+        });
         let retry = item.clone();
         let copy = item.clone();
         let close = item.clone();

@@ -30,16 +30,17 @@ impl Workbench {
         }
         let header = if let Some(open) = self.documents.iter().find(|open| &open.item == item) {
             open.view.read(cx).document.header()
-        } else if let Some(document) = self
-            .recovery
-            .deferred
-            .iter()
-            .find(|document| &document.saved.item() == item && document.saved.draft.is_some())
-        {
+        } else if let Some(document) = self.recovery.deferred.iter().find(|document| {
+            &document.saved.item() == item
+                && (document.saved.draft.is_some() || document.saved.draft_ref.is_some())
+        }) {
             document.saved.header.clone()
         } else {
             return;
         };
+        if self.workspace_file_busy(&pero_contracts::workspace_session::SourceKey::of(&header)) {
+            return;
+        }
         let suggested = match &header.source.origin {
             ContentOrigin::File { path } => path.clone(),
             _ => {
@@ -102,25 +103,44 @@ impl Workbench {
             let Some(path) = event.data["path"].as_str() else {
                 return false;
             };
-            let text = if let Some(open) = self.documents.iter().find(|open| open.item == item) {
-                let reader = open.view.read(cx);
-                Some(
-                    reader
-                        .draft(cx)
-                        .unwrap_or_else(|| reader.document.source().into()),
+            let legacy = self
+                .recovery
+                .deferred
+                .iter()
+                .find(|document| {
+                    document.saved.item() == item && document.saved.draft_ref.is_none()
+                })
+                .and_then(|document| document.saved.draft.clone());
+            let view = self.active_document_view(&item);
+            let document = view.as_ref().map(|view| view.read(cx).document.clone());
+            let (key, draft) = if let Some(document) = &document {
+                let dirty = view.as_ref().is_some_and(|view| view.read(cx).dirty());
+                let draft = self.flush_workspace_draft(document, dirty, cx);
+                if !matches!(document.origin, ContentOrigin::File { .. }) {
+                    self.publish_workspace_source(document, cx);
+                }
+                (
+                    pero_contracts::workspace_session::SourceKey::of(&document.header()),
+                    draft,
+                )
+            } else if let Some(document) = self
+                .recovery
+                .deferred
+                .iter()
+                .find(|document| document.saved.item() == item)
+            {
+                (
+                    pero_contracts::workspace_session::SourceKey::of(&document.saved.header),
+                    document.saved.draft_ref.clone(),
                 )
             } else {
-                self.recovery
-                    .deferred
-                    .iter()
-                    .find(|document| document.saved.item() == item)
-                    .and_then(|document| document.saved.draft.clone())
-            };
-            let Some(text) = text else {
                 self.pending_save_as = None;
                 self.error = Some(self.t("content.unavailable").into());
                 return true;
             };
+            if matches!(key.origin, ContentOrigin::File { .. }) {
+                self.begin_workspace_file_copy(key.clone());
+            }
             let mut protected_sources = self
                 .documents
                 .iter()
@@ -132,11 +152,18 @@ impl Workbench {
                     .deferred
                     .iter()
                     .filter(|document| {
-                        document.saved.item() != item && document.saved.draft.is_some()
+                        document.saved.item() != item
+                            && (document.saved.draft.is_some()
+                                || document.saved.draft_ref.is_some()
+                                || document.saved.legacy_draft)
                     })
                     .map(|document| document.saved.header.source.id.clone()),
             );
-            self.command(serde_json::json!({"method":"documents","action":"save_as","request_id":request,"copy":{"path":path,"text":text,"protected_sources":protected_sources}}),cx);
+            if let Some(text) = legacy {
+                self.command(serde_json::json!({"method":"documents","action":"save_as","request_id":request,"copy":{"path":path,"text":text,"protected_sources":protected_sources}}),cx);
+            } else {
+                self.command(serde_json::json!({"method":"documents","action":"save_as_reference","request_id":request,"path":path,"source":key,"draft":draft,"protected_sources":protected_sources}),cx);
+            }
             return true;
         }
         if !matches!(
@@ -172,6 +199,19 @@ impl Workbench {
                 } else {
                     "content.file_failed"
                 };
+                if let WorkspaceItem::Document { source, .. } = &pending.item {
+                    self.failed_workspace_file_save(source);
+                }
+                for open in &self.documents {
+                    if open.item == pending.item {
+                        open.view.update(cx, |view, cx| view.file_failed(key, cx));
+                    }
+                }
+                for pane in &self.pane_views {
+                    if pane.item == pending.item {
+                        pane.view.update(cx, |view, cx| view.file_failed(key, cx));
+                    }
+                }
                 self.error = Some(self.t(key).into());
                 self.save_as_feedback = Some(SaveAsFeedback {
                     item: pending.item,
@@ -222,6 +262,9 @@ impl Workbench {
             .iter()
             .any(|open| open.item == target && open.item != item && open.view.read(cx).dirty())
         {
+            if let WorkspaceItem::Document { source, .. } = &item {
+                self.failed_workspace_file_save(source);
+            }
             self.error = Some(self.t("content.save_as_conflict").into());
             return;
         }
@@ -249,6 +292,9 @@ impl Workbench {
                     self.command(serde_json::json!({"method":"documents","action":"release","source":source}),cx);
                 }
             }
+        }
+        if file_source {
+            self.copied_workspace_file(&item, &document);
         }
         let saved = document.source().to_string();
         self.open_document(document, window, cx);

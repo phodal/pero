@@ -25,6 +25,7 @@ pub(crate) struct WorkspaceRecovery {
     pub(crate) sent: Vec<PublishedSource>,
     pub(crate) sequence: u64,
     pub(crate) deferred: Vec<DeferredDocument>,
+    pub(crate) drafts: Vec<crate::workspace_draft_upload::DraftUpload>,
     pub(crate) failed: bool,
     pub(crate) reset_confirm: bool,
     pub(crate) reset_pending: Option<String>,
@@ -76,6 +77,17 @@ impl Workbench {
                     pero_contracts::workspace_session::RecoveredSource,
                 >(event.data.clone())
                 {
+                    if let Some(draft) = recovered.draft {
+                        let key = SourceKey::of(&recovered.source.header);
+                        if let Some(document) = self
+                            .recovery
+                            .deferred
+                            .iter_mut()
+                            .find(|document| SourceKey::of(&document.saved.header) == key)
+                        {
+                            document.saved.draft = Some(draft);
+                        }
+                    }
                     self.materialize_workspace_source(
                         recovered.source,
                         recovered.conflict,
@@ -95,6 +107,9 @@ impl Workbench {
                     {
                         document.loading = false;
                         document.failed = true;
+                        if let Some(draft) = event.data["draft"].as_str() {
+                            document.saved.draft = Some(draft.to_owned());
+                        }
                     }
                 }
                 cx.notify();
@@ -107,9 +122,33 @@ impl Workbench {
                 self.recovery.ready = true;
                 self.recovery.sent.clear();
                 self.recovery.last = None;
+                let dirty = self
+                    .documents
+                    .iter()
+                    .filter_map(|open| {
+                        let view = open.view.read(cx);
+                        view.draft(cx).map(|text| {
+                            (
+                                SourceKey::of(&view.document.header()),
+                                text,
+                                view.document.bytes,
+                            )
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                for (source, text, bytes) in dirty {
+                    self.restore_workspace_draft(source, None, Some(&text), bytes);
+                }
                 self.error = None;
                 self.queue_workspace_checkpoint(cx);
                 cx.notify();
+                true
+            }
+            "workspace_source_stored" => true,
+            "draft_stored" => {
+                if let Some(request) = &event.request_id {
+                    self.acknowledge_workspace_draft(request);
+                }
                 true
             }
             "workspace_saved" => {
@@ -178,7 +217,7 @@ impl Workbench {
             return;
         };
         self.recovery.ready = true;
-        let Some(session) = restored.session else {
+        let Some(mut session) = restored.session else {
             #[cfg(not(target_family = "wasm"))]
             self.navigation.show(WorkbenchPage::Conversation);
             return;
@@ -223,8 +262,14 @@ impl Workbench {
             );
         }
         let route = self.navigation.route().clone();
+        for document in &mut session.documents {
+            if document.draft_ref.is_some() || document.legacy_draft {
+                document.draft = None;
+            }
+        }
         self.recovery.last = Some(session);
         self.recovery.applying = false;
+        self.restore_pane_app_surfaces(cx);
         self.activate_route(route, window, cx);
     }
     pub(crate) fn queue_workspace_checkpoint(&mut self, cx: &mut Context<Self>) {
@@ -273,7 +318,7 @@ impl Workbench {
         &mut self,
         discard: bool,
         force: bool,
-        cx: &App,
+        cx: &mut Context<Self>,
     ) -> Option<serde_json::Value> {
         if !self.recovery.ready || self.recovery.applying {
             return None;
@@ -285,41 +330,44 @@ impl Workbench {
         self.remember_current_location(cx);
         let navigation = self.navigation.snapshot();
         let mut documents = Vec::new();
-        let mut sources = Vec::new();
+        let sources: Vec<WorkspaceSource> = Vec::new();
         let mut refresh = Vec::new();
-        for open in self
+        let open_documents = self
             .documents
             .iter()
             .filter(|open| navigation.items.contains(&open.item))
-        {
-            let view = open.view.read(cx);
-            let header = view.document.header();
+            .map(|open| (open.item.clone(), open.view.clone()))
+            .collect::<Vec<_>>();
+        for (_, view) in open_documents {
+            let document = view.read(cx).document.clone();
+            let header = document.header();
             let key = SourceKey::of(&header);
+            let dirty = view.read(cx).dirty();
+            let draft_ref = if discard {
+                None
+            } else {
+                self.flush_workspace_draft(&document, dirty, cx)
+            };
             documents.push(SavedDocument {
                 header: header.clone(),
-                reading: view.reading_state(cx),
-                draft: if discard { None } else { view.draft(cx) },
+                reading: view.read(cx).reading_state(cx),
+                draft: None,
+                draft_ref,
+                legacy_draft: false,
             });
             if !self
                 .recovery
                 .sent
                 .iter()
-                .any(|sent| sent.key == key && sent.document.shares_source(&view.document))
+                .any(|sent| sent.key == key && sent.document.shares_source(&document))
             {
-                // The Host already owns file buffers. Other immutable producers are materialized once per revision.
                 if matches!(header.source.origin, ContentOrigin::File { .. }) {
                     refresh.push(key.clone());
                 } else {
-                    sources.push(WorkspaceSource {
-                        header,
-                        text: view.document.source().into(),
-                    });
+                    self.publish_workspace_source(&document, cx);
                 }
                 self.recovery.sent.retain(|sent| sent.key != key);
-                self.recovery.sent.push(PublishedSource {
-                    key,
-                    document: view.document.clone(),
-                });
+                self.recovery.sent.push(PublishedSource { key, document });
             }
         }
         documents.extend(
@@ -329,8 +377,13 @@ impl Workbench {
                 .filter(|document| navigation.items.contains(&document.saved.item()))
                 .map(|document| {
                     let mut saved = document.saved.clone();
+                    if saved.legacy_draft {
+                        saved.draft = None;
+                    }
                     if discard {
                         saved.draft = None;
+                        saved.draft_ref = None;
+                        saved.legacy_draft = false;
                     }
                     saved
                 }),
@@ -339,6 +392,11 @@ impl Workbench {
             documents
                 .iter()
                 .any(|document| SourceKey::of(&document.header) == published.key)
+        });
+        self.recovery.drafts.retain(|state| {
+            documents
+                .iter()
+                .any(|document| SourceKey::of(&document.header) == state.source)
         });
         let web = self
             .web_documents

@@ -87,3 +87,6 @@ mod workspace_pane_views;
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod workspace_surface_views;
+
+#[cfg(any(target_family="wasm",feature="native"))]
+mod workspace_draft_upload;

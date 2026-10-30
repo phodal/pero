@@ -83,11 +83,11 @@ impl Workbench {
 
     pub(crate) fn has_unsaved_documents(&self, cx: &App) -> bool {
         self.documents.iter().any(|open| open.view.read(cx).dirty())
-            || self
-                .recovery
-                .deferred
-                .iter()
-                .any(|document| document.saved.draft.is_some())
+            || self.recovery.deferred.iter().any(|document| {
+                document.saved.draft.is_some()
+                    || document.saved.draft_ref.is_some()
+                    || document.saved.legacy_draft
+            })
     }
     pub(crate) fn choose_document(&mut self, cx: &mut Context<Self>) {
         self.command(serde_json::json!({"action":"choose_document"}), cx);
@@ -113,6 +113,25 @@ impl Workbench {
                     Ok(opening) => {
                         let (header, location) = opening.into_parts();
                         let document = header.into_document(event.text.clone());
+                        if event.request_id.as_deref() == Some("open-file") {
+                            let item = WorkspaceItem::Document {
+                                origin: document.origin.clone(),
+                                source: document.id.clone(),
+                            };
+                            if self.recovery.deferred.iter().any(|deferred| {
+                                deferred.saved.item() == item
+                                    && (deferred.saved.draft.is_some()
+                                        || deferred.saved.draft_ref.is_some()
+                                        || deferred.saved.legacy_draft)
+                            }) {
+                                if let Some(route) = self.navigation.select(&item) {
+                                    self.activate_route(route, window, cx);
+                                }
+                                self.request_workspace_source(&item, cx);
+                                return true;
+                            }
+                        }
+
                         if event
                             .request_id
                             .as_deref()
@@ -132,8 +151,10 @@ impl Workbench {
                                         });
                                     }
                                 }
+                                let item = open.item.clone();
                                 self.navigation
-                                    .bind_document_revision(&open.item, document.revision);
+                                    .bind_document_revision(&item, document.revision);
+                                self.saved_workspace_file(&document.id, &document);
                             }
                         } else if event.request_id.as_deref() == Some("reload") {
                             if let Some(open) = self
@@ -152,6 +173,7 @@ impl Workbench {
                                     }
                                 }
                             }
+                            self.saved_workspace_file(&document.id, &document);
                         } else {
                             self.open_document(document, window, cx);
                             if let Some(location) = location {
@@ -172,6 +194,9 @@ impl Workbench {
                 true
             }
             "document_error" => {
+                if let Some(source) = event.data["source"].as_str() {
+                    self.failed_workspace_file_save(source);
+                }
                 let key = match event.data["reason"].as_str() {
                     Some("conflict") => "content.conflict",
                     Some("unsupported") => "content.unsupported",
