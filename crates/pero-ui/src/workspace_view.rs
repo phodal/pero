@@ -221,7 +221,7 @@ impl Workbench {
         self.sync_follow(cx);
     }
 
-    fn content_label(&self, item: &WorkspaceItem, cx: &App) -> (String, &'static str) {
+    fn content_label(&self, item: &WorkspaceItem, cx: &App) -> (String, String) {
         match item {
             WorkspaceItem::Conversation(id) => (
                 self.chat
@@ -231,7 +231,7 @@ impl Workbench {
                     .find(|chat| &chat.id == id)
                     .map(|chat| chat.title.display().to_owned())
                     .unwrap_or_else(|| self.t("chat.session").into()),
-                "message-circle",
+                "message-circle".into(),
             ),
             WorkspaceItem::Web(id) => (
                 self.web_documents
@@ -239,7 +239,7 @@ impl Workbench {
                     .find(|page| &page.id == id)
                     .map(|page| page.observation.title.clone())
                     .unwrap_or_else(|| self.t("web.open_url").into()),
-                "globe",
+                pero_chat_ui::icon_theme::kind_icon(pero_contracts::content_icon::ContentIconKind::Web,pero_theme::UiAppearance::global(cx).dark),
             ),
             item @ WorkspaceItem::Document { .. } => self.document_label(item, cx),
             WorkspaceItem::Project(key) => (
@@ -248,7 +248,7 @@ impl Workbench {
                     .find(|project| &project.key == key)
                     .map(|project| project.name)
                     .unwrap_or_else(|| self.t("nav.projects").into()),
-                "folder",
+                "folder".into(),
             ),
             WorkspaceItem::Task(id) => (
                 self.remote
@@ -258,7 +258,7 @@ impl Workbench {
                     .and_then(|task| task["title"].as_str())
                     .unwrap_or(id)
                     .into(),
-                "layout-list",
+                "layout-list".into(),
             ),
             WorkspaceItem::App { name, .. } => (
                 self.apps
@@ -267,11 +267,10 @@ impl Workbench {
                     .find(|app| &app.name == name)
                     .map(|app| app.display_name.clone())
                     .unwrap_or_else(|| name.clone()),
-                pero_chat_ui::assets::UiIcon::for_app(
+                pero_chat_ui::icon_theme::app_icon(
                     name,
                     pero_theme::UiAppearance::global(cx).dark,
-                )
-                .name(),
+                ),
             ),
         }
     }
@@ -341,7 +340,7 @@ impl Workbench {
                                     .icon(
                                         Icon::default()
                                             .size(px(W::ICON))
-                                            .path(pero_chat_ui::assets::UiIcon::named(icon).path()),
+                                            .path(pero_chat_ui::icon_theme::asset_path(&icon)),
                                     )
                                     .label(title.clone())
                                     .tooltip(title.clone())

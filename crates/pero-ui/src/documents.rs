@@ -284,16 +284,15 @@ impl Workbench {
             .into_any_element()
     }
 
-    pub(crate) fn document_label(&self, item: &WorkspaceItem, cx: &App) -> (String, &'static str) {
+    pub(crate) fn document_label(&self, item: &WorkspaceItem, cx: &App) -> (String, String) {
         self.documents
             .iter()
             .find(|open| &open.item == item)
             .map(|open| {
-                let icon = pero_chat_ui::assets::UiIcon::for_document(
+                let icon = pero_chat_ui::icon_theme::document_icon(
                     &open.view.read(cx).document,
                     pero_theme::UiAppearance::global(cx).dark,
-                )
-                .name();
+                );
                 (
                     format!(
                         "{}{}",
@@ -315,7 +314,7 @@ impl Workbench {
                         .find(|document| &document.saved.item() == item)
                         .map(|document| document.saved.header.source.title.clone())
                         .unwrap_or_else(|| self.t("content.document").into()),
-                    "file",
+                    "file".into(),
                 )
             })
     }

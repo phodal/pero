@@ -2,6 +2,8 @@
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub mod assets;
 #[cfg(any(target_family = "wasm", feature = "native"))]
+pub mod icon_theme;
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod chat;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod composer;

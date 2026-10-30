@@ -24,7 +24,7 @@ impl Workbench {
     }
 
     pub fn icon(&self, name: &str) -> Svg {
-        pero_chat_ui::assets::UiIcon::named(name).element().size(px(pero_theme::WorkbenchStyle::ICON)).flex_shrink_0()
+        svg().path(pero_chat_ui::icon_theme::asset_path(name)).size(px(pero_theme::WorkbenchStyle::ICON)).flex_shrink_0()
     }
 
     fn sidebar(&self, width: f32, cx: &mut Context<Self>) -> Stateful<Div> {

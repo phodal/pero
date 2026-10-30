@@ -72,6 +72,7 @@ ${entries.map(([name]) => `            Self::${variant(name)} => "icons/${name}.
 pub struct UiAssets;
 impl AssetSource for UiAssets {
     fn load(&self, path: &str) -> anyhow::Result<Option<Cow<'static, [u8]>>> {
+        if let Some(svg) = crate::icon_theme::load(path) { return Ok(Some(Cow::Owned(svg))); }
         let icon = path.strip_prefix("icons/").and_then(|name| name.strip_suffix(".svg")).and_then(UiIcon::lookup);
         Ok(match icon {
 ${entries.map(([name, icon]) => icon.kit
