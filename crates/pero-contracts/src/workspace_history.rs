@@ -251,4 +251,48 @@ mod tests {
         assert_eq!(history.back[0].route, WorkspaceRoute::Content(renamed));
         assert!(history.back[0].reading.is_none());
     }
+    #[test]
+    fn source_edits_rebase_only_matching_history_anchors_and_saved_revision() {
+        let item = |path: &str| WorkspaceItem::Document {
+            origin: ContentOrigin::File { path: path.into() },
+            source: path.into(),
+        };
+        let a = item("/a");
+        let b = item("/b");
+        let entry = |item: WorkspaceItem| HistoryEntry {
+            route: WorkspaceRoute::Content(item),
+            reading: Some(ReaderState {
+                source_revision: Some(1),
+                selection: 10..20,
+                query: "preserved".into(),
+                ..Default::default()
+            }),
+        };
+        let mut history = WorkspaceHistory {
+            back: vec![entry(a.clone()), entry(b.clone())],
+            forward: vec![entry(a.clone())],
+            ..Default::default()
+        };
+        history.rebase_edit(
+            &a,
+            &crate::text_edit_anchor::TextEdit {
+                old: 0..0,
+                new_len: 7,
+                old_lines: 0..0,
+                new_line_count: 1,
+            },
+        );
+        history.bind_revision(&a, 2);
+        for reading in [&history.back[0].reading, &history.forward[0].reading] {
+            let reading = reading.as_ref().unwrap();
+            assert_eq!(reading.selection, 17..27);
+            assert_eq!(reading.source_revision, Some(2));
+            assert_eq!(reading.query, "preserved");
+        }
+        assert_eq!(history.back[1].reading.as_ref().unwrap().selection, 10..20);
+        assert_eq!(
+            history.back[1].reading.as_ref().unwrap().source_revision,
+            Some(1)
+        );
+    }
 }
