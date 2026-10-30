@@ -7,7 +7,7 @@ mod state;
 use gpui_kit::component::Disableable;
 use gpui_kit::{
     component::{
-        ActiveTheme, IconName, Sizable,
+        ActiveTheme, IconName, Sizable, WindowExt,
         button::*,
         input::{
             Editor, EditorState, Enter, Input, InputEvent, InputState, Redo, RopeExt, Search, Undo,
@@ -185,6 +185,11 @@ impl ContentReader {
     }
 
     pub fn focus(&self, window: &mut Window, cx: &mut App) {
+        // A late source read may materialize a workspace preview behind a picker.
+        // The dialog keeps focus until its explicit close hands it back.
+        if self.placement == ReaderPlacement::Workspace && window.has_active_dialog(cx) {
+            return;
+        }
         if self.search_open {
             self.search_input
                 .update(cx, |input, cx| input.focus(window, cx));
