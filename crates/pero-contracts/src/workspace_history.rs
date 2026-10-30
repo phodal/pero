@@ -4,6 +4,8 @@ use crate::pane_tabs::PaneItemKind;
 use crate::reader_state::ReaderState;
 use serde::{Deserialize, Serialize};
 
+pub const MAX_NAVIGATION_HISTORY: usize = 1024;
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct HistoryEntry {
     pub route: WorkspaceRoute,
@@ -116,6 +118,11 @@ pub struct WorkspaceHistory {
     pub forward: Vec<HistoryEntry>,
 }
 impl WorkspaceHistory {
+    fn push(entries: &mut Vec<HistoryEntry>, entry: HistoryEntry) {
+        entries.retain(|previous| !previous.same_location(&entry));
+        entries.drain(..entries.len().saturating_sub(MAX_NAVIGATION_HISTORY - 1));
+        entries.push(entry);
+    }
     /// Observe ordinary cursor/scroll changes without turning each into a jump.
     pub fn observe(&mut self, route: &WorkspaceRoute, state: ReaderState) {
         if matches!(
@@ -126,12 +133,15 @@ impl WorkspaceHistory {
         }
     }
     pub fn depart(&mut self, route: &WorkspaceRoute) {
-        self.back.push(HistoryEntry {
-            route: route.clone(),
-            reading: self.reading.take(),
-            preview: std::mem::take(&mut self.preview),
-            view_kind: std::mem::take(&mut self.view_kind),
-        });
+        Self::push(
+            &mut self.back,
+            HistoryEntry {
+                route: route.clone(),
+                reading: self.reading.take(),
+                preview: std::mem::take(&mut self.preview),
+                view_kind: std::mem::take(&mut self.view_kind),
+            },
+        );
         self.forward.clear();
     }
     pub fn jump(
@@ -153,13 +163,7 @@ impl WorkspaceHistory {
             preview: self.preview,
             view_kind: self.view_kind,
         };
-        if self
-            .back
-            .last()
-            .is_none_or(|previous| !previous.same_location(&entry))
-        {
-            self.back.push(entry);
-        }
+        Self::push(&mut self.back, entry);
         self.reading = Some(after);
         self.forward.clear();
         true
@@ -214,7 +218,7 @@ impl WorkspaceHistory {
         };
         while let Some(entry) = from.pop() {
             if !entry.same_location(&current) {
-                to.push(current);
+                Self::push(to, current);
                 self.reading = entry.reading.clone();
                 self.preview = entry.preview;
                 self.view_kind = entry.view_kind;
@@ -256,6 +260,36 @@ mod tests {
         content_origin::ContentOrigin,
         workspace_session::{WorkbenchPage, WorkspaceSnapshot},
     };
+    #[test]
+    fn navigation_keeps_recent_distinct_locations_and_expires_old_sources() {
+        let mut history = WorkspaceHistory::default();
+        for id in 0..MAX_NAVIGATION_HISTORY + 8 {
+            history.depart(&WorkspaceRoute::Content(WorkspaceItem::Document {
+                origin: ContentOrigin::File {
+                    path: format!("/{id}"),
+                },
+                source: format!("/{id}"),
+            }));
+        }
+        assert_eq!(history.back.len(), MAX_NAVIGATION_HISTORY);
+        assert!(history.back.iter().all(|entry| match &entry.route {
+            WorkspaceRoute::Content(WorkspaceItem::Document { source, .. }) => source != "/0",
+            _ => false,
+        }));
+        let recent = history.back.last().unwrap().route.clone();
+        history.depart(&recent);
+        assert_eq!(history.back.len(), MAX_NAVIGATION_HISTORY);
+        assert_eq!(
+            history
+                .back
+                .iter()
+                .filter(|entry| entry.route == recent)
+                .count(),
+            1
+        );
+        assert!(history.step(&recent, false).is_some());
+        assert_eq!(history.forward.len(), 1);
+    }
     #[test]
     fn jumps_restore_positions_branch_and_survive_route_changes() {
         let document = WorkspaceRoute::Content(WorkspaceItem::Document {

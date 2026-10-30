@@ -6,7 +6,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 #[path = "workspace_history.rs"]
 mod history;
-pub use history::{HistoryEntry, WorkspaceHistory};
+pub use history::{HistoryEntry, MAX_NAVIGATION_HISTORY, WorkspaceHistory};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]

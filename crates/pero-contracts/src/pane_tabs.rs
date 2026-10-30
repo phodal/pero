@@ -2,7 +2,9 @@
 use crate::{
     reader_state::ReaderState,
     text_edit_anchor::TextEdit,
-    workspace_session::{HistoryEntry, WorkspaceHistory, WorkspaceItem, WorkspaceRoute},
+    workspace_session::{
+        HistoryEntry, MAX_NAVIGATION_HISTORY, WorkspaceHistory, WorkspaceItem, WorkspaceRoute,
+    },
 };
 use serde::{Deserialize, Serialize};
 
@@ -305,9 +307,8 @@ impl PaneTabSet {
         let index = self.items.iter().position(|item| item.id == id)?;
         if closing && self.preview != Some(id) {
             let item = &self.items[index];
-            if self.closed.len() == 1024 {
-                self.closed.remove(0);
-            }
+            self.closed
+                .drain(..self.closed.len().saturating_sub(MAX_NAVIGATION_HISTORY - 1));
             self.closed.push(HistoryEntry {
                 route: item.route.clone(),
                 reading: item.reading.clone(),
@@ -394,6 +395,20 @@ impl PaneTabSet {
         let route = self.active().map(|item| item.route.clone());
         let previous = self.history.clone();
         let entry = self.history.step_optional(route.as_ref(), forward)?;
+        let restored = self.restore_history_entry(entry, new_id);
+        if restored.is_none() {
+            self.history = previous;
+        }
+        restored
+    }
+    pub fn restore_history_entry(
+        &mut self,
+        entry: HistoryEntry,
+        new_id: ViewId,
+    ) -> Option<PaneItem> {
+        if !entry.valid() {
+            return None;
+        }
         if let Some(id) = self
             .find_kind(&entry.route, entry.view_kind)
             .map(|item| item.id)
@@ -410,13 +425,8 @@ impl PaneTabSet {
             reading: entry.reading,
             kind: entry.view_kind,
         };
-        if self
-            .open_inner(item.clone(), OpenIntent::History, entry.preview)
-            .is_err()
-        {
-            self.history = previous;
-            return None;
-        }
+        self.open_inner(item.clone(), OpenIntent::History, entry.preview)
+            .ok()?;
         Some(item)
     }
     /// Only snapshot admission uses this, once; regular navigation owns its own history.
@@ -556,7 +566,7 @@ impl PaneTabSet {
             }
             views.push(item);
         }
-        self.closed.len() <= 1024
+        self.closed.len() <= MAX_NAVIGATION_HISTORY
             && self.pinned_count <= self.items.len()
             && self.active.is_some() == !self.items.is_empty()
             && self.active.is_none_or(|id| ids.contains(&id))
