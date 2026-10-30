@@ -478,14 +478,32 @@ impl DesktopDriver for Desktop {
                 count,
             } => {
                 aim(anchor(&a)?)?;
-                click(
-                    match button {
-                        ComputerMouseButton::Left => 1,
-                        ComputerMouseButton::Middle => 2,
-                        ComputerMouseButton::Right => 3,
-                    },
-                    count.into(),
-                )?;
+                click(x11_button(button), count.into())?;
+            }
+            ComputerInput::Move { anchor: a } => aim(anchor(&a)?)?,
+            ComputerInput::Hover {
+                anchor: a,
+                dwell_ms,
+            } => {
+                aim(anchor(&a)?)?;
+                c.flush().map_err(failure)?;
+                std::thread::sleep(dwell_ms.duration());
+            }
+            ComputerInput::Hold {
+                anchor: a,
+                button,
+                hold_ms,
+            } => {
+                let button = x11_button(button);
+                aim(anchor(&a)?)?;
+                fake(BUTTON_PRESS_EVENT, button, 0, 0)?;
+                // The press is dispatched: from here on always attempt the release,
+                // and report the first failure without replaying the press.
+                let held = c.flush().map_err(failure).map(|_| {
+                    std::thread::sleep(hold_ms.duration());
+                });
+                let released = fake(BUTTON_RELEASE_EVENT, button, 0, 0);
+                held.and(released)?;
             }
             ComputerInput::Drag { from, to, .. } => {
                 let start = point(from);
@@ -562,6 +580,14 @@ impl DesktopDriver for Desktop {
             }
         }
         c.flush().map_err(failure)
+    }
+}
+
+fn x11_button(button: ComputerMouseButton) -> u8 {
+    match button {
+        ComputerMouseButton::Left => 1,
+        ComputerMouseButton::Middle => 2,
+        ComputerMouseButton::Right => 3,
     }
 }
 

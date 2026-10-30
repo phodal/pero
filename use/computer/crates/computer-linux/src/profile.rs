@@ -47,6 +47,21 @@ pub fn actions() -> Vec<ComputerActionSupport> {
             delivery: Foreground,
             addressing: vec![Pixel],
         },
+        ComputerActionSupport {
+            action: Move,
+            delivery: Foreground,
+            addressing: vec![Pixel],
+        },
+        ComputerActionSupport {
+            action: Hover,
+            delivery: Foreground,
+            addressing: vec![Pixel],
+        },
+        ComputerActionSupport {
+            action: Hold,
+            delivery: Foreground,
+            addressing: vec![Pixel],
+        },
     ]
 }
 
