@@ -69,6 +69,7 @@
   "devDependencies": {
     "@agentclientprotocol/claude-agent-acp": "0.98.0",
     "@agentclientprotocol/codex-acp": "2.3.0",
+    "@modelcontextprotocol/ext-apps": "1.7.5",
     "@modelcontextprotocol/sdk": "1.32.2",
     "@playwright/test": "1.64.1",
     "@types/node": "^24.0.0",
