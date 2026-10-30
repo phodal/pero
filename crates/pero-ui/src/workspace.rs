@@ -2,6 +2,10 @@ use pero_contracts::content_origin::ContentOrigin;
 use pero_contracts::reader_state::ReaderState;
 #[path = "workspace_panes.rs"]
 mod pane_navigation;
+#[path="workspace_tab_navigation.rs"]
+mod tab_navigation;
+#[path="workspace_source_registry.rs"]
+mod source_registry;
 pub(crate) use pero_contracts::workspace_session::{
     HistoryEntry, PaneSide, WorkbenchPage, WorkspaceHistory, WorkspaceItem, WorkspaceRoute,
     WorkspaceSnapshot,
@@ -132,7 +136,7 @@ impl WorkspaceNavigation {
             route: self.route.clone(),
             other: self.other.clone(),
             focused: self.focused,
-            history: self.history.clone(),
+            history: if self.pane_layout_visible() {self.focused_tabs().map(|tabs|tabs.history().clone()).unwrap_or_default()}else{self.history.clone()},
             panes: self.pane_layout.clone(),
         }
     }
@@ -145,24 +149,31 @@ impl WorkspaceNavigation {
         self.history = snapshot.history;
     }
     pub(crate) fn can_back(&self) -> bool {
-        self.history.can_step(&self.route, false)
+        if self.pane_layout_visible() {self.focused_tabs().is_some_and(|tabs|tabs.can_step_history(false))}else{self.history.can_step(&self.route,false)}
     }
     pub(crate) fn can_forward(&self) -> bool {
-        self.history.can_step(&self.route, true)
+        if self.pane_layout_visible() {self.focused_tabs().is_some_and(|tabs|tabs.can_step_history(true))}else{self.history.can_step(&self.route,true)}
     }
     pub(crate) fn step_history(&mut self, forward: bool) -> Option<HistoryEntry> {
+        if self.pane_layout_visible() {
+            let layout=self.pane_layout.as_mut()?;let pane=layout.focused?;let id=layout.allocate_view_id();
+            let item=layout.leaf_mut(pane)?.tabs.step_history(forward,id)?;
+            if let WorkspaceRoute::Content(source)=&item.route {if !self.items.contains(source) {self.items.push(source.clone());}}
+            self.activate_view(item.id);
+            return Some(HistoryEntry{route:item.route,reading:item.reading,view_kind:item.kind,preview:self.focused_tabs().is_some_and(|tabs|tabs.preview_id()==Some(item.id))});
+        }
         let entry = self.history.step(&self.route, forward)?;
         self.set_route(entry.route.clone());
         Some(entry)
     }
     pub(crate) fn observe_reading(&mut self, item: &WorkspaceItem, state: ReaderState) {
         if self.current() == Some(item) {
-            self.history.observe(&self.route, state);
+            if let Some(view)=self.active_view_id() {self.observe_view_reading(view,state);}else{self.history.observe(&self.route,state);}
         }
     }
     pub(crate) fn jump(&mut self, item: &WorkspaceItem, before: ReaderState, after: ReaderState) {
         if self.current() == Some(item) {
-            self.history.jump(&self.route, before, after);
+            if let Some(layout)=&mut self.pane_layout {if let Some(pane)=layout.focused {let tabs=&mut layout.leaf_mut(pane).unwrap().tabs;if let Some(view)=tabs.active_id(){tabs.jump(view,before,after);}}}else{self.history.jump(&self.route,before,after);}
         }
     }
     fn prune_history(&mut self) {
@@ -177,29 +188,17 @@ impl WorkspaceNavigation {
             self.focused = PaneSide::Left;
         }
     }
-    pub(crate) fn split_document(&mut self, item: &WorkspaceItem) -> bool {
-        if !matches!(self.current(), Some(WorkspaceItem::Document { .. }))
-            || !matches!(item, WorkspaceItem::Document { .. })
-            || self.current() == Some(item)
-            || !self.items.contains(item)
-        {
-            return false;
-        }
-        self.other = Some(WorkspaceRoute::Content(item.clone()));
-        self.focused = PaneSide::Left;
-        true
+    pub(crate) fn split_document(&mut self,item:&WorkspaceItem)->bool {
+        if !matches!(self.current(),Some(WorkspaceItem::Document{..}))||!matches!(item,WorkspaceItem::Document{..})||self.current()==Some(item)||!self.items.contains(item) {return false;}
+        self.ensure_pane_layout();let layout=self.pane_layout.as_mut().unwrap();let pane=layout.focused.unwrap();
+        if layout.split(pane,pero_contracts::workspace_panes::SplitDirection::Right,WorkspaceRoute::Content(item.clone()),None).is_none(){return false;}
+        self.focus_pane(pane);true
     }
-    pub(crate) fn collapse_panes(&mut self) -> Option<WorkspaceRoute> {
-        let other = self.other.take()?;
-        let changed = if self.focused == PaneSide::Right {
-            self.history.depart(&self.route);
-            self.route = other;
-            Some(self.route.clone())
-        } else {
-            None
-        };
-        self.focused = PaneSide::Left;
-        changed
+    pub(crate) fn collapse_panes(&mut self)->Option<WorkspaceRoute> {
+        let layout=self.pane_layout.as_mut()?;let focused=layout.focused?;
+        let others=layout.leaves().into_iter().filter(|leaf|leaf.id!=focused).map(|leaf|leaf.id).collect::<Vec<_>>();
+        for pane in others {layout.close(pane);}
+        self.focus_pane(focused)
     }
     pub(crate) fn panes(&self) -> Option<(&WorkspaceItem, &WorkspaceItem, PaneSide)> {
         let WorkspaceRoute::Content(active) = &self.route else {
@@ -239,18 +238,9 @@ impl WorkspaceNavigation {
         if old == &new || !self.items.contains(old) {
             return false;
         }
-        if let Some(layout) = &mut self.pane_layout {
-            for id in layout
-                .leaves()
-                .iter()
-                .filter(|view| view.route == WorkspaceRoute::Content(old.clone()))
-                .map(|view| view.id)
-                .collect::<Vec<_>>()
-            {
-                let view = layout.leaf_mut(id).unwrap();
-                view.route = WorkspaceRoute::Content(new.clone());
-                view.reading = None;
-            }
+        if let Some(layout)=&mut self.pane_layout {
+            let panes=layout.leaves().into_iter().map(|leaf|leaf.id).collect::<Vec<_>>();
+            for pane in panes {layout.leaf_mut(pane).unwrap().tabs.replace_identity(old,&new);}
         }
         let mut items = Vec::with_capacity(self.items.len());
         for item in &self.items {
@@ -340,24 +330,34 @@ impl WorkspaceNavigation {
     }
 
     pub(crate) fn select_next(&mut self) -> Option<WorkspaceRoute> {
-        if self.items.is_empty() {
+        if self.pane_layout.is_some() {
+            if self.pane_layout_visible(){return self.cycle_pane_tab(true);}
+            if !matches!(self.current(),Some(WorkspaceItem::Project(_)|WorkspaceItem::Task(_))) {return self.focus_pane(self.pane_layout.as_ref()?.focused?);}
+        }
+        let items=self.items.iter().filter(|item|matches!(item,WorkspaceItem::Project(_)|WorkspaceItem::Task(_))).cloned().collect::<Vec<_>>();
+        if items.is_empty() {
             return None;
         }
         let index = self
             .current()
-            .and_then(|current| self.items.iter().position(|item| item == current))
-            .map_or(0, |index| (index + 1) % self.items.len());
-        let next = self.items[index].clone();
+            .and_then(|current| items.iter().position(|item| item == current))
+            .map_or(0, |index| (index + 1) % items.len());
+        let next = items[index].clone();
         self.select(&next)
     }
 
     pub(crate) fn select_previous(&mut self) -> Option<WorkspaceRoute> {
-        let last = self.items.len().checked_sub(1)?;
+        if self.pane_layout.is_some() {
+            if self.pane_layout_visible(){return self.cycle_pane_tab(false);}
+            if !matches!(self.current(),Some(WorkspaceItem::Project(_)|WorkspaceItem::Task(_))) {return self.focus_pane(self.pane_layout.as_ref()?.focused?);}
+        }
+        let items=self.items.iter().filter(|item|matches!(item,WorkspaceItem::Project(_)|WorkspaceItem::Task(_))).cloned().collect::<Vec<_>>();
+        let last = items.len().checked_sub(1)?;
         let index = self
             .current()
-            .and_then(|current| self.items.iter().position(|item| item == current))
+            .and_then(|current| items.iter().position(|item| item == current))
             .map_or(last, |index| if index == 0 { last } else { index - 1 });
-        let previous = self.items[index].clone();
+        let previous = items[index].clone();
         self.select(&previous)
     }
 }
@@ -766,7 +766,7 @@ mod tests {
                 route: WorkspaceRoute::Page(WorkbenchPage::Workers),
             },
             Case {
-                name: "a utility page cycles forward into the first open item",
+                name: "a utility page returns to its focused pane without cycling source descriptors",
                 actions: vec![
                     Open(conversation.clone()),
                     Open(app.clone()),
@@ -774,7 +774,7 @@ mod tests {
                     Next,
                 ],
                 items: vec![conversation.clone(), app.clone()],
-                route: WorkspaceRoute::Content(conversation.clone()),
+                route: WorkspaceRoute::Content(app.clone()),
             },
             Case {
                 name: "a utility page cycles backward into the last open item",
@@ -788,13 +788,13 @@ mod tests {
                 route: WorkspaceRoute::Content(app.clone()),
             },
             Case {
-                name: "next wraps from the last tab to the first",
+                name: "task tabs cycle within their existing utility workspace",
                 actions: vec![Open(conversation.clone()), Open(project.clone()), Next],
                 items: vec![conversation.clone(), project.clone()],
-                route: WorkspaceRoute::Content(conversation.clone()),
+                route: WorkspaceRoute::Content(project.clone()),
             },
             Case {
-                name: "previous wraps from the first tab to the last",
+                name: "pane tabs do not cycle into utility source descriptors",
                 actions: vec![
                     Open(conversation.clone()),
                     Open(project.clone()),
@@ -802,7 +802,7 @@ mod tests {
                     Previous,
                 ],
                 items: vec![conversation.clone(), project.clone()],
-                route: WorkspaceRoute::Content(project.clone()),
+                route: WorkspaceRoute::Content(conversation.clone()),
             },
             Case {
                 name: "cycling a single tab retains its selection",
@@ -864,7 +864,8 @@ mod tests {
             assert!(navigation.split_document(&right));
             assert!(!navigation.split_document(&left));
             if focus_right {
-                navigation.select(&right);
+                let right_pane=navigation.pane_layout().unwrap().leaves()[1].id;
+                navigation.focus_pane(right_pane);
             }
             let snapshot = navigation.snapshot();
             assert!(snapshot.valid());
@@ -898,7 +899,7 @@ mod tests {
         assert_eq!(navigation.panes().unwrap().2, super::PaneSide::Left);
         navigation.select(&right);
         assert!(navigation.collapse_panes().is_some());
-        assert_eq!(navigation.current(), Some(&left));
+        assert_eq!(navigation.current(), Some(&right));
         assert!(navigation.panes().is_none());
     }
 }
