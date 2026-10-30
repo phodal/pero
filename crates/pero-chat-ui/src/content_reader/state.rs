@@ -155,9 +155,7 @@ impl ContentReader {
             .flatten()
     }
     pub fn restore_draft(&mut self, text: String, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.editable() {
-            return;
-        }
+        // Previously saved drafts must remain recoverable even though the reader is now read-only.
         self.open_source(None, window, cx);
         if let Some(editor) = &self.editor {
             editor.update(cx, |editor, cx| editor.set_value(text, window, cx));
