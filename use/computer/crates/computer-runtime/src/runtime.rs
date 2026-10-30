@@ -195,6 +195,7 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
                     "The window moved or resized; observe again",
                 ));
             }
+            self.driver.admit(&observation.native, &action)?;
             Ok((action, observation, app))
         })();
         match prepared {

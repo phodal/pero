@@ -21,6 +21,15 @@ pub trait DesktopDriver {
     fn open(&self, name: &str) -> Result<(Option<Window>, String), ComputerError>;
     fn bounds(&self, window: &Window) -> Option<WindowBounds>;
     fn observe(&self, window: &Window) -> Result<WindowObservation<Self::Snapshot>, ComputerError>;
+    /// Platform-specific refusals that are certain before any native input,
+    /// such as parameters the adapter cannot express. Rejected, never unknown.
+    fn admit(
+        &self,
+        _snapshot: &Self::Snapshot,
+        _action: &ComputerAction,
+    ) -> Result<(), ComputerError> {
+        Ok(())
+    }
     fn input(
         &self,
         window: &Window,
