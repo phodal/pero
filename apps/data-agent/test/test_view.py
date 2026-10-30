@@ -8,6 +8,7 @@ from urllib.error import HTTPError
 from http.server import ThreadingHTTPServer
 import threading
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "harness/go/charts/python"))
 sys.path.insert(0, str(Path(__file__).parents[1] / "backend"))
 from dataset import Dataset, Invalid
 from server import handler

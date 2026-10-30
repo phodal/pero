@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 import unittest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "harness/go/charts/python"))
 sys.path.insert(0, str(Path(__file__).parents[1] / "backend"))
 from chart_document import ChartDocument, document_for_view
 from dataset import Dataset, Invalid

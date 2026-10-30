@@ -19,6 +19,11 @@ if (!existsSync(resolve(appRoot, 'node_modules/react/package.json'))) {
   if (installed.error) throw installed.error;
   if (installed.status !== 0) throw new Error(`App ${appName} dependencies could not be installed`);
 }
+if (appName === 'data-agent') {
+  await mkdir(resolve(appRoot, 'backend/_core'), { recursive: true });
+  for (const name of ['dataset.py', 'view.py', 'chart_document.py'])
+    await cp(resolve(root, 'harness/go/charts/python', name), resolve(appRoot, 'backend/_core', name));
+}
 const sdk = resolve(root, 'packages/app-sdk/src');
 const outdir = resolve(appRoot, 'dist');
 await mkdir(outdir, { recursive: true });

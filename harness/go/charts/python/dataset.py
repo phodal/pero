@@ -1,4 +1,5 @@
 """Immutable JSON datasets and exact query results. No I/O or Agent runtime."""
+from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import Decimal, localcontext
 from enum import Enum

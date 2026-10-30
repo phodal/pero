@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import unittest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "harness/go/charts/python"))
 sys.path.insert(0, str(Path(__file__).parents[1] / "backend"))
 from dataset import Chart, ChartSpec, Dataset, Filter, Invalid, Query, Selection, export_records
 
