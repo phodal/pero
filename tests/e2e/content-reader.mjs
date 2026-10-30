@@ -465,15 +465,8 @@ try {
   await page.keyboard.press('Control+Tab');
   await paint();
   expect((await state()).activeContent).toEqual(lastTab);
-  // Close the preceding visible tab using the current tab's observed edge.
-  await page.mouse.click((await state()).activeTabBounds.left - 17, 18);
-  await paint();
-  expect((await state()).contentTabs.length).toBe(13);
-  expect((await state()).activeContent).toEqual(lastTab);
-  await page.screenshot({
-    scale: 'css',
-    path: resolve(out, 'close-earlier-tab.png'),
-  });
+  // Conversations share one pane view; other open conversations are in the
+  // sidebar, not adjacent tabs whose close buttons can be inferred from bounds.
   await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0].setSize(800, 800),
   );
