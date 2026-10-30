@@ -13,6 +13,7 @@ use gpui_kit::{
     *,
 };
 use pero_chat_ui::content_reader::{ContentReader, ReaderAction};
+use pero_contracts::pane_tabs::ViewId;
 use pero_contracts::workspace_panes::{
     PaneAxis, PaneBounds, PaneId, PaneNode, PaneSurface, SplitDirection,
 };
@@ -31,7 +32,7 @@ gpui_kit::actions!(
     ]
 );
 pub(crate) struct PaneReader {
-    pub id: PaneId,
+    pub id: ViewId,
     pub item: WorkspaceItem,
     pub view: Entity<ContentReader>,
     _subscriptions: Vec<Subscription>,
@@ -49,7 +50,7 @@ impl Workbench {
         let focused = self
             .navigation
             .pane_layout()
-            .and_then(|layout| layout.focused);
+            .and_then(|layout|layout.focused.and_then(|id|layout.leaf(id)).and_then(|leaf|leaf.tabs.active_id()));
         self.pane_views
             .iter()
             .find(|view| &view.item == item && Some(view.id) == focused)
@@ -62,22 +63,13 @@ impl Workbench {
             })
     }
     pub(crate) fn ensure_document_panes(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let leaves = self
-            .navigation
-            .pane_layout()
-            .map(|layout| layout.leaves().into_iter().cloned().collect::<Vec<_>>())
-            .unwrap_or_default();
-        self.pane_views.retain(|view| {
-            leaves.iter().any(|leaf| {
-                leaf.id == view.id && leaf.route == WorkspaceRoute::Content(view.item.clone())
-            })
-        });
-        self.pane_surfaces
-            .retain(|surface| leaves.iter().any(|leaf| leaf.id == surface.id));
-        for leaf in leaves {
-            let WorkspaceRoute::Content(item @ WorkspaceItem::Document { .. }) = leaf.route else {
-                continue;
-            };
+        let items=self.navigation.pane_layout().map(|layout|layout.items().into_iter().cloned().collect::<Vec<_>>()).unwrap_or_default();
+        let active=self.navigation.pane_layout().map(|layout|layout.active_items().into_iter().map(|item|item.id).collect::<Vec<_>>()).unwrap_or_default();
+        self.pane_views.retain(|view|items.iter().any(|item|item.id==view.id&&item.route==WorkspaceRoute::Content(view.item.clone())));
+        self.pane_surfaces.retain(|surface|self.navigation.pane_layout().is_some_and(|layout|layout.leaf(surface.id).is_some()));
+        for leaf in items {
+            if !active.contains(&leaf.id) {continue;}
+            let WorkspaceRoute::Content(item @ WorkspaceItem::Document { .. }) = leaf.route else {continue;};
             if self.pane_views.iter().any(|view| view.id == leaf.id) {
                 continue;
             }
@@ -138,7 +130,7 @@ impl Workbench {
     ) {
         let reading = view.read(cx).reading_state(cx);
         if let Some(pane) = self.pane_views.iter().find(|pane| pane.view == *view) {
-            self.navigation.observe_pane_reading(pane.id, reading);
+            self.navigation.observe_view_reading(pane.id, reading);
         } else if self.navigation.pane_layout().is_none() {
             self.navigation.observe_reading(item, reading);
         }
@@ -159,14 +151,7 @@ impl Workbench {
                 | ReaderAction::Undo { .. }
                 | ReaderAction::EditTransaction { .. }
         ) {
-            if let Some(id) = self
-                .pane_views
-                .iter()
-                .find(|pane| pane.view == *view)
-                .map(|pane| pane.id)
-            {
-                self.navigation.focus_pane(id);
-            }
+            if let Some(id)=self.pane_views.iter().find(|pane|pane.view==*view).map(|pane|pane.id) {self.navigation.activate_view(id);}
         }
         match action {
             ReaderAction::Focus=>{self.sync_follow(cx);self.queue_workspace_checkpoint(cx);cx.notify();},
@@ -196,6 +181,7 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.invalidate_close_decision(item);
         self.record_workspace_draft_edit(item,edit.old.clone(),inserted,cx);
         self.navigation.rebase_document_edit(item, edit);
         let Some(primary) = self
@@ -252,29 +238,7 @@ impl Workbench {
         }
         self.queue_workspace_checkpoint(cx);
     }
-    pub(crate) fn close_document_pane(
-        &mut self,
-        id: PaneId,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self
-            .navigation
-            .pane_layout()
-            .is_some_and(|layout| layout.leaves().len() <= 1)
-        {
-            if let Some(item) = self.navigation.current().cloned() {
-                self.close_content(&item, window, cx);
-            }
-            return;
-        }
-        self.remember_current_location(cx);
-        if let Some(route) = self.navigation.close_pane(id) {
-            self.ensure_document_panes(window, cx);
-            self.activate_route(route, window, cx);
-        }
-        self.queue_workspace_checkpoint(cx);
-    }
+    pub(crate) fn close_document_pane(&mut self,id:PaneId,window:&mut Window,cx:&mut Context<Self>) {self.request_close_pane(id,window,cx);}
     pub(crate) fn focus_document_pane_direction(
         &mut self,
         direction: SplitDirection,
@@ -359,7 +323,9 @@ impl Workbench {
             .navigation
             .pane_layout()
             .and_then(|layout| layout.leaf(id))
-            .is_some_and(|view| view.route.can_clone_pane());
+            .is_some_and(|view|view.route().is_some_and(WorkspaceRoute::can_clone_pane));
+        let active_document=self.navigation.pane_layout().and_then(|layout|layout.leaf(id)).and_then(|leaf|leaf.active()).and_then(|item|if let WorkspaceRoute::Content(source@WorkspaceItem::Document{..})=&item.route {Some(source.clone())}else{None});
+        let save_busy=self.pending_save_as.is_some()||active_document.as_ref().and_then(|item|self.documents.iter().find(|open|&open.item==item)).is_some_and(|open|self.workspace_file_busy(&pero_contracts::workspace_session::SourceKey::of(&open.view.read(cx).document.header())));
         let movable = [
             SplitDirection::Left,
             SplitDirection::Right,
@@ -441,6 +407,12 @@ impl Workbench {
                             }),
                     );
                 }
+                if let Some(item)=&active_document {
+                    let item=item.clone();let target=owner.clone();
+                    menu=menu.item(PopupMenuItem::new(pero_contracts::i18n::text(&locale,"content.save_as")).disabled(save_busy).on_click(move|_,window,cx| {let _=target.update(cx,|this,cx| {this.focus_pane(id,window,cx);this.choose_document_copy(&item,cx);});}));
+                }
+                let target=owner.clone();
+                menu=menu.item(PopupMenuItem::new(pero_contracts::i18n::text(&locale,"workspace.close_split")).on_click(move|_,window,cx| {let _=target.update(cx,|this,cx|this.request_close_pane(id,window,cx));}));
                 menu
             })
             .on_open_change(move|_,_,cx| {let _=menu_owner.update(cx,|_,cx|cx.notify());})

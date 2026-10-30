@@ -110,7 +110,7 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) {
         match route {
-            WorkspaceRoute::Page(page) => self.navigate(page, cx),
+            WorkspaceRoute::Page(page) => {self.navigate(page,cx);self.workspace_focus.focus(window,cx);},
             WorkspaceRoute::Content(WorkspaceItem::Conversation(id)) => {
                 let index = self
                     .chat
@@ -297,7 +297,7 @@ impl Workbench {
                     .items_center()
                     .overflow_x_scroll()
                     .track_scroll(&self.tab_scroll)
-                    .children(self.navigation.items().iter().map(|item| {
+                    .children(self.navigation.items().iter().filter(|item|matches!(item,WorkspaceItem::Project(_)|WorkspaceItem::Task(_))).map(|item| {
                         let (title, icon) = self.content_label(item, cx);
                         let select = item.clone();
                         let close = item.clone();

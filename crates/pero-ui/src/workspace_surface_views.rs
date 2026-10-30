@@ -4,11 +4,7 @@ use crate::{
     workspace::{WorkspaceItem, WorkspaceRoute},
 };
 use gpui_kit::{
-    component::{
-        button::*,
-        menu::{DropdownMenu, PopupMenuItem},
-        *,
-    },
+    component::{button::*, *},
     prelude::*,
     *,
 };
@@ -23,8 +19,8 @@ impl Workbench {
             .filter(|_| self.navigation.pane_layout_visible())
             .map(|layout| {
                 layout
-                    .leaves()
-                    .iter()
+                    .active_items()
+                    .into_iter()
                     .filter_map(|leaf| match &leaf.route {
                         WorkspaceRoute::Content(WorkspaceItem::App { name, panel })
                             if &leaf.route != self.navigation.route() =>
@@ -49,18 +45,23 @@ impl Workbench {
     ) -> Vec<(WorkspaceItem, String)> {
         let current = target
             .and_then(|id| self.navigation.pane_layout()?.leaf(id))
-            .map(|leaf| &leaf.route)
+            .and_then(|leaf| leaf.route())
             .unwrap_or_else(|| self.navigation.route());
-        self.navigation
-            .items()
-            .iter()
-            .filter(|item| {
-                let route = WorkspaceRoute::Content((*item).clone());
-                route.supports_pane() && !route.shares_pane_instance(current)
-            })
-            .map(|item| (item.clone(), self.content_label(item, cx).0))
-            .collect()
+        let mut sources = vec![];
+        if let Some(layout) = self.navigation.pane_layout() {
+            for tab in layout.items() {
+                if let WorkspaceRoute::Content(item) = &tab.route {
+                    if !tab.route.shares_pane_instance(current)
+                        && !sources.iter().any(|(source, _)| source == item)
+                    {
+                        sources.push((item.clone(), self.content_label(item, cx).0));
+                    }
+                }
+            }
+        }
+        sources
     }
+
     pub(crate) fn workspace_split_control(&self, cx: &mut Context<Self>) -> AnyElement {
         let button = Button::new("workspace-split")
             .ghost()
@@ -68,41 +69,13 @@ impl Workbench {
             .icon(Icon::default().path("icons/panel-right-open.svg"))
             .tooltip(self.t("workspace.split"))
             .accessibility_label(self.t("workspace.split"));
-        if self.navigation.route().can_clone_pane() {
-            return button
-                .on_click(cx.listener(|this, _, window, cx| this.toggle_document_split(window, cx)))
-                .into_any_element();
-        }
-        let candidates = self.pane_open_candidates(None, cx);
-        let owner = cx.entity().downgrade();
-        let menu_owner = owner.clone();
         button
-            .disabled(candidates.is_empty())
-            .dropdown_menu_with_anchor(Anchor::BottomRight, move |mut menu, _, _| {
-                for (item, title) in &candidates {
-                    let owner = owner.clone();
-                    let item = item.clone();
-                    menu = menu.item(PopupMenuItem::new(title.clone()).on_click(
-                        move |_, window, cx| {
-                            let _ = owner.update(cx, |this, cx| {
-                                this.open_item_in_pane(
-                                    item.clone(),
-                                    None,
-                                    SplitDirection::Right,
-                                    window,
-                                    cx,
-                                )
-                            });
-                        },
-                    ));
-                }
-                menu
-            })
-            .on_open_change(move |_, _, cx| {
-                let _ = menu_owner.update(cx, |_, cx| cx.notify());
-            })
+            .on_click(cx.listener(|this, _, window, cx| {
+                this.split_document_pane(SplitDirection::Right, window, cx)
+            }))
             .into_any_element()
     }
+
     pub(crate) fn focus_surface_pane(
         &mut self,
         id: PaneId,
@@ -128,7 +101,7 @@ impl Workbench {
             layout
                 .leaves()
                 .iter()
-                .find(|leaf| leaf.route == WorkspaceRoute::Content(item.clone()))
+                .find(|leaf| leaf.route() == Some(&WorkspaceRoute::Content(item.clone())))
                 .map(|leaf| leaf.id)
         }) {
             self.focus_surface_pane(id, window, cx);
@@ -136,25 +109,14 @@ impl Workbench {
     }
     pub(crate) fn render_pane_leaf(&self, leaf: &PaneLeaf, cx: &mut Context<Self>) -> AnyElement {
         let id = leaf.id;
-        let route = leaf.route.clone();
+        let route = leaf.route().cloned().unwrap_or(WorkspaceRoute::Page(
+            crate::workspace::WorkbenchPage::Document,
+        ));
         let item = match &route {
             WorkspaceRoute::Content(item) => Some(item.clone()),
             _ => None,
         };
-        let focused = self
-            .navigation
-            .pane_layout()
-            .is_some_and(|layout| layout.focused == Some(id));
         let document = route.can_clone_pane();
-        let save = item.clone();
-        let file_busy = item
-            .as_ref()
-            .and_then(|item| self.documents.iter().find(|open| &open.item == item))
-            .is_some_and(|open| {
-                self.workspace_file_busy(&pero_contracts::workspace_session::SourceKey::of(
-                    &open.view.read(cx).document.header(),
-                ))
-            });
         let owner = cx.entity().clone();
         div()
             .id(("workspace-pane", id.0 as usize))
@@ -176,74 +138,7 @@ impl Workbench {
                     }
                 }),
             )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .h(px(28.))
-                    .flex_shrink_0()
-                    .px(px(4.))
-                    .gap(px(4.))
-                    .border_b_1()
-                    .border_color(if focused {
-                        cx.theme().accent
-                    } else {
-                        cx.theme().border
-                    })
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .truncate()
-                            .text_size(px(12.))
-                            .child(
-                                item.as_ref()
-                                    .map(|item| self.content_label(item, cx).0)
-                                    .unwrap_or_default(),
-                            ),
-                    )
-                    .child(self.pane_actions(id, cx))
-                    .when(document, |header| {
-                        header.child(
-                            Button::new(("pane-save-as", id.0 as usize))
-                                .ghost()
-                                .small()
-                                .label(self.t("content.save_as"))
-                                .disabled(self.pending_save_as.is_some() || file_busy)
-                                .tooltip(self.t(
-                                    if item.as_ref().is_some_and(|item| self.save_as_pending(item))
-                                    {
-                                        "content.saving_as"
-                                    } else {
-                                        "content.save_as"
-                                    },
-                                ))
-                                .accessibility_label(self.t("content.save_as"))
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    if let Some(item) = &save {
-                                        this.choose_document_copy(item, cx);
-                                    }
-                                })),
-                        )
-                    })
-                    .when(
-                        self.navigation
-                            .pane_layout()
-                            .is_some_and(|layout| layout.leaves().len() > 1),
-                        |header| {
-                            header.child(
-                                Button::new(("close-pane", id.0 as usize))
-                                    .ghost()
-                                    .small()
-                                    .icon(IconName::Close)
-                                    .tooltip(self.t("workspace.close_split"))
-                                    .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.close_document_pane(id, window, cx)
-                                    })),
-                            )
-                        },
-                    ),
-            )
+            .child(self.pane_tab_bar(leaf, cx))
             .when(
                 document
                     && item.as_ref().is_some_and(|item| {
@@ -296,25 +191,29 @@ impl Workbench {
             .into_any_element()
     }
     fn pane_surface_content(&self, leaf: &PaneLeaf, cx: &mut Context<Self>) -> AnyElement {
-        match &leaf.route {
-            WorkspaceRoute::Content(item @ WorkspaceItem::Document { .. }) => {
-                if let Some(reader) = self.pane_views.iter().find(|pane| pane.id == leaf.id) {
+        match leaf.route() {
+            Some(WorkspaceRoute::Content(item @ WorkspaceItem::Document { .. })) => {
+                if let Some(reader) = self
+                    .pane_views
+                    .iter()
+                    .find(|pane| Some(pane.id) == leaf.tabs.active_id())
+                {
                     reader.view.clone().into_any_element()
                 } else {
                     self.deferred_document_content(item, cx)
                 }
             }
-            WorkspaceRoute::Content(WorkspaceItem::Conversation(_)) => {
+            Some(WorkspaceRoute::Content(WorkspaceItem::Conversation(_))) => {
                 self.chat.clone().into_any_element()
             }
-            WorkspaceRoute::Content(WorkspaceItem::App { .. }) => div()
+            Some(WorkspaceRoute::Content(WorkspaceItem::App { .. })) => div()
                 .flex_1()
                 .min_h_0()
                 .when(!cfg!(target_family = "wasm"), |view| {
                     view.child(self.t("apps.native_unavailable"))
                 })
                 .into_any_element(),
-            WorkspaceRoute::Content(WorkspaceItem::Web(id)) => {
+            Some(WorkspaceRoute::Content(WorkspaceItem::Web(id))) => {
                 #[cfg(target_family = "wasm")]
                 {
                     let _ = id;
@@ -335,7 +234,24 @@ impl Workbench {
                         .into_any_element()
                 }
             }
-            _ => div().flex_1().into_any_element(),
+            _ => div()
+                .flex_1()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    Button::new(("empty-pane-open", leaf.id.0 as usize))
+                        .ghost()
+                        .label(self.t("content.open_file"))
+                        .on_click({
+                            let id = leaf.id;
+                            cx.listener(move |this, _, window, cx| {
+                                this.focus_pane(id, window, cx);
+                                this.choose_document(cx);
+                            })
+                        }),
+                )
+                .into_any_element(),
         }
     }
     pub(crate) fn open_item_in_pane(
@@ -377,7 +293,7 @@ impl Workbench {
                         .filter(|surface| {
                             layout
                                 .leaf(surface.id)
-                                .is_some_and(|leaf| leaf.route == surface.route)
+                                .is_some_and(|leaf| leaf.route() == Some(&surface.route))
                         })
                         .cloned()
                         .collect::<Vec<_>>()

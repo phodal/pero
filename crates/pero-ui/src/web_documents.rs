@@ -310,7 +310,7 @@ impl Workbench {
         {
             let _ = bounds; // Kit measures the selected native view during prepaint.
             let visible = if self.layout.embedded_surface_visible {
-                if self.navigation.pane_layout_visible() {self.navigation.pane_layout().map(|layout|layout.leaves().iter().filter_map(|leaf|if let crate::workspace::WorkspaceRoute::Content(WorkspaceItem::Web(id))=&leaf.route {Some(id.clone())}else{None}).collect::<Vec<_>>()).unwrap_or_default()}
+                if self.navigation.pane_layout_visible() {self.navigation.pane_layout().map(|layout|layout.active_items().into_iter().filter_map(|leaf|if let crate::workspace::WorkspaceRoute::Content(WorkspaceItem::Web(id))=&leaf.route {Some(id.clone())}else{None}).collect::<Vec<_>>()).unwrap_or_default()}
                 else {self.navigation.current().and_then(|item|if let WorkspaceItem::Web(id)=item {Some(id.clone())}else{None}).into_iter().collect()}
             } else {vec![]};
             for (id, open) in &self.native_web_pages {

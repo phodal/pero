@@ -78,8 +78,8 @@ impl WorkspaceLayout {
         ) || panes.is_some_and(|layout| {
             layout.leaves().iter().any(|leaf| {
                 matches!(
-                    leaf.route,
-                    WorkspaceRoute::Content(WorkspaceItem::App { .. } | WorkspaceItem::Web(_))
+                    leaf.route(),
+                    Some(WorkspaceRoute::Content(WorkspaceItem::App { .. } | WorkspaceItem::Web(_)))
                 )
             })
         })) && content_visible
