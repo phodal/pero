@@ -314,7 +314,12 @@ impl PaneTabSet {
             route: entry.route,
             reading: entry.reading,
         };
+        let reading = item.reading.clone();
         let opened = self.open(item, OpenIntent::Permanent).ok()?;
+        if let Some(item) = self.items.iter_mut().find(|item| item.id == opened.active) {
+            item.reading = reading;
+        }
+        self.focus(opened.active);
         self.closed.pop();
         self.item(opened.active).cloned()
     }
@@ -569,11 +574,23 @@ mod tests {
             item(2, "/2").route
         );
         assert_eq!(tabs.closed_items(), previously_closed);
+        tabs.close(ViewId(9));
+        tabs.open(item(11, "/2"), OpenIntent::Permanent).unwrap();
+        tabs.observe(
+            ViewId(11),
+            ReaderState {
+                selection: 20..22,
+                ..Default::default()
+            },
+        );
+        let reopened = tabs.reopen_closed(ViewId(12)).unwrap();
+        assert_eq!(reopened.id, ViewId(11));
+        assert_eq!(reopened.reading, None);
         tabs.open(item(10, "/temporary"), OpenIntent::Preview)
             .unwrap();
         tabs.close(ViewId(10));
         assert_eq!(tabs.closed_items(), previously_closed);
-        tabs.take(ViewId(9));
+        tabs.take(ViewId(11));
         assert_eq!(tabs.closed_items(), previously_closed);
         assert!(tabs.valid());
         let saved: PaneTabSet =
