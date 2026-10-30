@@ -168,3 +168,16 @@ For a Linux environment without X11, the MCP suite alone also supports
 This runs actual sandboxed Electron/GPUI with Chromium's headless display backend,
 not a browser mock. `ui-result.json` records `headless`; keep this evidence
 separate from the default headed Xvfb CI run. No `--no-sandbox` flag is used.
+
+The MCP regressions also cover an operator name introduced after a managed entry
+was saved: management can still read/remove the entry, while session startup
+fails closed until repair. UI transport tests temporarily intercept only the
+existing Electron session IPC handler, reject or disconnect an in-flight request,
+and restore the original handler for real Host reload. They check correlation,
+draft preservation, busy-state recovery, and no replay before reconciliation.
+
+A success receipt is written only after Electron and fixture cleanup succeeds;
+a fresh run removes its previous receipt first. To exercise the failure path,
+add `PERO_MCP_TEST_FAIL_CLEANUP=1` to the MCP UI command. It runs every assertion,
+then injects a cleanup failure: expect a nonzero exit, `ui-failure.json`, and no
+`ui-result.json`. Archive that deliberate failure separately from acceptance.

@@ -9,7 +9,10 @@ const root = resolve(import.meta.dirname, '../..');
 const fixture = await mcpSettingsFixture(root);
 const out = resolve(root, 'test-results/mcp-settings');
 await mkdir(out, { recursive: true });
-let app, page, lastSnapshot, runtimeLog = '';
+// A previous pass must not survive a new failed run.
+await rm(resolve(out, 'ui-result.json'), { force: true });
+let fixtureClosed = false;
+let app, page, lastSnapshot, runtimeLog = '', transportFaultInstalled = false;
 const errors = [];
 const progress = label => console.log(`MCP UI: ${label}`);
 async function bounded(promise, label, timeout = 15000) {
@@ -22,9 +25,12 @@ const evaluate = (fn, value) => bounded(page.evaluate(fn, value), 'renderer eval
 const state = async () => (lastSnapshot = await evaluate(() => JSON.parse(window.peroDiagnostics.snapshot())));
 async function close() {
   if (!app) return;
-  const closing = app; app = undefined;
-  try { await bounded(closing.close(), 'Electron shutdown'); }
-  catch (error) { console.error('MCP UI shutdown failed; killing only test-owned Electron:', String(error)); closing.process().kill('SIGKILL'); throw error; }
+  try { if (transportFaultInstalled) await restoreTransport(); }
+  finally {
+    const closing = app; app = undefined;
+    try { await bounded(closing.close(), 'Electron shutdown'); }
+    catch (error) { console.error('MCP UI shutdown failed; killing only test-owned Electron:', String(error)); closing.process().kill('SIGKILL'); throw error; }
+  }
 }
 const mcp = async () => (await state()).settings.mcp;
 const frame = () => evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
@@ -101,6 +107,32 @@ async function launch() {
   await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected, undefined, { timeout: 60000 });
   await evaluate(() => { window.mcpAcceptanceEvents = []; window.pero.onEvent(event => window.mcpAcceptanceEvents.push(event)); });
 }
+// Fault only the existing Desktop IPC seam, then restore the exact real handler.
+async function interruptTransport() {
+  await bounded(app.evaluate(({ ipcMain }) => {
+    const original = ipcMain._invokeHandlers.get('pero:session');
+    if (typeof original !== 'function') throw new Error('Electron session IPC handler unavailable');
+    globalThis.mcpTransportFault = { original, commands: [], reject: null };
+    ipcMain.removeHandler('pero:session');
+    ipcMain.handle('pero:session', (event, command) => {
+      if (!command.method?.startsWith('settings.mcp.')) return original(event, command);
+      globalThis.mcpTransportFault.commands.push(command);
+      return new Promise((_resolve, reject) => { globalThis.mcpTransportFault.reject = reject; });
+    });
+  }), 'install IPC fault');
+  transportFaultInstalled = true;
+}
+async function restoreTransport() {
+  await bounded(app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('pero:session');
+    ipcMain.handle('pero:session', globalThis.mcpTransportFault.original);
+  }), 'restore real IPC');
+  transportFaultInstalled = false;
+}
+const faultCount = () => bounded(app.evaluate(() => globalThis.mcpTransportFault.commands.length), 'IPC command count');
+async function rejectTransport() {
+  await bounded(app.evaluate(() => globalThis.mcpTransportFault.reject(new Error('Synthetic MCP IPC rejection'))), 'reject IPC');
+}
 async function session(id) {
   progress(`create session ${id}`);
   await evaluate(thread_id => window.pero.sessionCommand({ action: 'new_session', thread_id, agent_id: 'fixture' }), id);
@@ -113,6 +145,28 @@ try {
   expect((await mcp()).config.servers).toEqual([]); await capture('empty');
   await click('mcp-add'); await expect.poll(async () => (await mcp()).editing).toBe(true);
   await click('mcp-http'); await input(0, 'Local docs'); await input(1, fixture.url);
+  await interruptTransport();
+  await click('mcp-save');
+  await expect.poll(async () => (await mcp()).pending).toBe(true);
+  const pendingRequest = (await mcp()).request_id;
+  expect(pendingRequest).toBeTruthy();
+  await bounded(app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('pero:event', {
+    version: 1, kind: 'error', request_id: 'unrelated-failure', text: 'Synthetic unrelated error',
+  })), 'unrelated Host error');
+  await frame();
+  expect((await mcp()).request_id).toBe(pendingRequest);
+  expect((await mcp()).pending).toBe(true); expect((await mcp()).saving).toBe(true);
+  await rejectTransport();
+  await expect.poll(async () => (await mcp()).error).toBe('mcp.error.interrupted_save');
+  expect((await mcp()).pending).toBe(false); expect((await mcp()).saving).toBe(false);
+  expect((await mcp()).needs_reload).toBe(true); expect((await mcp()).editing).toBe(true);
+  expect((await mcp()).inputs.slice(0, 2).map(input => input.value)).toEqual(['Local docs', fixture.url]);
+  await capture('interrupted-save');
+  await click('mcp-save'); await frame(); expect(await faultCount()).toBe(1);
+  await restoreTransport();
+  await click('mcp-cancel-edit'); await click('mcp-refresh'); await settled();
+  expect((await mcp()).needs_reload).toBe(false); expect((await mcp()).config.servers).toEqual([]);
+  await click('mcp-add'); await click('mcp-http'); await input(0, 'Local docs'); await input(1, fixture.url);
   await click('mcp-save'); await settled();
   expect((await mcp()).config.servers[0].enabled).toBe(false);
   expect(await session('ui-disabled')).toEqual([]); await capture('configured-disabled');
@@ -168,14 +222,43 @@ try {
   expect(await session('ui-removed')).toEqual([]);
   expect(fixture.requests()).toBe(0); expect(errors).toEqual([]);
   await capture('removed');
+  await interruptTransport(); await click('mcp-refresh');
+  await expect.poll(async () => (await mcp()).pending).toBe(true);
+  await rejectTransport();
+  await expect.poll(async () => (await mcp()).error).toBe('mcp.error.interrupted');
+  expect((await mcp()).saving).toBe(false); expect((await mcp()).pending).toBe(false);
+  await restoreTransport(); await click('mcp-refresh'); await settled();
+  await click('mcp-add'); await input(0, 'Disconnect draft');
+  await input(1, process.execPath);
+  await interruptTransport(); await click('mcp-save');
+  await expect.poll(async () => (await mcp()).pending).toBe(true);
+  await bounded(app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('pero:event', {
+    version: 1, kind: 'disconnected', request_id: null, text: '',
+  })), 'Host disconnect');
+  await expect.poll(async () => (await mcp()).pending).toBe(false);
+  expect((await mcp()).saving).toBe(false); expect((await mcp()).needs_reload).toBe(true);
+  expect((await mcp()).editing).toBe(true); expect((await mcp()).inputs[0].value).toBe('Disconnect draft');
+  await capture('disconnected-draft');
+  await click('mcp-save'); await frame(); expect(await faultCount()).toBe(1);
+  await close(); await launch(); await open(true);
+  expect((await mcp()).config.servers).toEqual([]); expect(errors).toEqual([]);
+
+  })(), 'complete acceptance suite', 300000);
+  progress('final cleanup');
+  await close();
+  await bounded(fixture.close(), 'fixture cleanup'); fixtureClosed = true;
+  // Opt-in fault proves a cleanup error cannot leave a successful receipt.
+  if (process.env.PERO_MCP_TEST_FAIL_CLEANUP === '1') throw new Error('Synthetic MCP cleanup failure');
   await writeFile(resolve(out, 'ui-result.json'), JSON.stringify({ passed: true, headless: process.env.PERO_MCP_TEST_HEADLESS === '1', checks: [
     'actual GPUI add disabled', 'explicit server-wide enable confirmation', 'real ACP injection',
     'edit revokes grant for new sessions', 'write failure and retry', 'dark/narrow/Chinese',
     'restart persistence and direct MCP menu', 'stale-write conflict and refresh recovery', 'import is disabled', 'confirmed removal', 'no operator credential disclosure',
     'configured state does not imply connected or discovered tools',
+    'correlated IPC rejection settles busy and preserves draft', 'unrelated error does not settle pending save',
+    'unknown save requires real Host reload before retry without replay', 'read rejection reload recovery',
+    'disconnect preserves draft and clears busy without replay', 'cleanup completes before success receipt',
   ], errors }, null, 2));
   console.log('MCP settings Electron/GPUI acceptance passed. No MCP connectivity or model calls.');
-  })(), 'complete acceptance suite', 300000);
 } catch (error) {
   console.error('MCP UI acceptance failed:', String(error).replaceAll(fixture.secret, '[redacted]'));
   // Preserve public state and bounded native diagnostics even after a renderer crash.
@@ -191,4 +274,4 @@ try {
     catch (captureError) { console.error(String(captureError)); }
   }
   throw error;
-} finally { try { await close(); } finally { await fixture.close(); } }
+} finally { try { await close(); } finally { if (!fixtureClosed) await bounded(fixture.close(), 'fixture cleanup'); } }
