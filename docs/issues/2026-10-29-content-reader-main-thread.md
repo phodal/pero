@@ -114,3 +114,33 @@ Changing hidden font kerning/ligature rendering did not improve it and was not
 shipped. The original text/selection and normal 16px IME font remain intact.
 Root parsing and table transformations now run in an actual Worker; browser
 selection layout, large editor creation and large nested projections remain open.
+
+## Final nested-projection wiring regression
+
+The real 2,001-column Desktop gate now reaches the final column and copies its
+exact original numeric spelling after the compact-height repair. Expanding its
+4,000-row nested array nevertheless completes with zero `nodeCompleted` events.
+The cell-open handler called `shared_project` directly, bypassing the existing
+size-aware Worker/cache path used by initial load, restoration and breadcrumbs.
+It now pushes the selected source range and calls that same `refresh_projection`
+entry point. The fresh release-Wasm `pero-content-release-UWtLMd` build passes
+the unchanged Desktop gate: one real nested Worker completion, no failures, exact
+source spans and no new work on cached reopening. The receipt is
+`test-results/wide-content/result.json`.
+
+## Full native EditContext selection receipt
+
+The preceding EditContext profiling lane retains all 13,288,892 UTF-16 units of
+the 13,688,892-byte source in Chromium's native text/selection interface. Actual
+full/partial clipboard, readonly interaction and CDP composition pass; this does
+not constitute physical IME acceptance. The Select All trace records zero Layout
+events and two UpdateLayoutTree events totaling 0.103 ms (maximum 0.086 ms),
+removing the old 845 ms textarea Layout path without shrinking native selection.
+
+Thirty retained switches have p95 30.1 ms; Source opening is 96.5 ms. The trace
+still records a 71.219 ms FunctionCall and an earlier 58 ms task. This incident
+therefore stays open for residual interaction tasks and cold distributions.
+Receipts are `test-results/input-conduit/gpui-100k-performance.json` and
+`gpui-100k-selection-trace.json`, separately fingerprinted from the final pane
+workflow build. These measurements are not a universal frame-budget or packaged
+release claim.

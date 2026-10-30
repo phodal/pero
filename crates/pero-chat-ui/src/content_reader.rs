@@ -598,9 +598,8 @@ impl ContentReader {
                     let before = this.reading_state(cx);
                     let range = &event.0;
                     if this.preview_document.text(range).starts_with(['{', '[']) {
-                        this.preview = this.preview_document.shared_project(range.clone());
                         this.path.push(range.clone());
-                        this.sync_table(window, cx);
+                        this.refresh_projection(false, window, cx);
                         this.copied = false;
                         cx.notify();
                     } else {
