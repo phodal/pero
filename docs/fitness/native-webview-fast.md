@@ -75,6 +75,10 @@ observations into automatic visual acceptance. Screenshots are under
 `split-view.png`, `dark-split-view.png`, `narrow.png`, and `narrow-page.png`.
 The full Workbench was launched with a worktree-local data directory.
 
+The two comparison captures are also checked in for review:
+[GPUI Pre](images/native-webview-fast/pre-overlay-obscured.png) and
+[GPUI Fast](images/native-webview-fast/composition-overlay-and-page.png).
+
 ## Remaining boundaries
 
 Physical Chinese IME composition, page-to-chrome keyboard shortcuts,
