@@ -17,3 +17,12 @@ nav span{font-weight:600}
 #product-chat iframe{display:block;width:100%;height:100%;border:0}
 .chat-panel-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;padding:20px;background:var(--pero-surface)}
 .chat-panel-status[hidden]{display:none}
+#product-document{position:absolute;display:flex;flex-direction:column;background:var(--pero-surface);min-width:0}
+#product-document[hidden]{display:none}
+#product-document>header{display:flex;align-items:center;gap:8px;min-height:30px;padding:0 8px;border-bottom:1px solid var(--pero-border)}
+#product-document>header strong{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+#product-document>header button{padding:1px 7px;min-height:24px}
+.product-document-reader{position:relative;flex:1;min-height:0}
+.product-document-reader iframe{display:block;border:0;width:100%;height:100%}
+.pero-reader-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;background:var(--pero-surface)}
+.pero-reader-status[hidden]{display:none}
