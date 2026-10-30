@@ -55,12 +55,12 @@ try {
   await engine('document.querySelector("#next").click()',true);
   await expect.poll(async()=>(await document()).observation.title).toBe('Page two');
   await expect.poll(async()=>(await document()).observation.can_back).toBe(true);
-  await page.mouse.click(278,56);await expect.poll(async()=>(await document()).observation.url).toBe(origin+'/a');
+  await page.mouse.click(278,44);await expect.poll(async()=>(await document()).observation.url).toBe(origin+'/a');
   await expect.poll(async()=>(await document()).observation.can_forward).toBe(true);
-  await page.mouse.click(307,56);await expect.poll(async()=>(await document()).observation.url).toBe(origin+'/b');
+  await page.mouse.click(307,44);await expect.poll(async()=>(await document()).observation.url).toBe(origin+'/b');
   await address(origin+'/flaky');await expect.poll(async()=>(await document()).observation.load.kind).toBe('failed');
   expect((await document()).observation.load.message).toContain('500');
-  failing=false;await page.mouse.click(325,56);await expect.poll(async()=>(await document()).observation.load.kind).toBe('ready');
+  failing=false;await page.mouse.click(325,44);await expect.poll(async()=>(await document()).observation.load.kind).toBe('ready');
   expect(await engine('document.body.textContent')).toContain('Recovered');
   await address('file:///tmp/not-a-web-document');await expect.poll(async()=>(await state()).error).toBeTruthy();
   expect((await state()).webDocuments.length).toBe(1);

@@ -186,6 +186,13 @@ try {
     .toBe(Buffer.byteLength(source));
   await expect.poll(async () => (await reader()).foldable).toBe(true);
   await page.screenshot({ scale: 'css', path: resolve(out, 'source.png') });
+  const foldBounds = (await reader()).bounds;
+  await page.mouse.click(foldBounds.x + 49, foldBounds.y + 52);
+  await expect.poll(async () => (await reader()).folds).toBe(1);
+  await page.screenshot({scale:'css',path:resolve(out,'structural-fold.png')});
+  await page.mouse.click(foldBounds.x + 49, foldBounds.y + 52);
+  await expect.poll(async () => (await reader()).folds).toBe(0);
+
   for (
     let cycle = 0;
     cycle < (process.argv.includes('--benchmark') ? 30 : 1);
@@ -463,6 +470,9 @@ try {
   expect(analysis.requests).toBeGreaterThan(0);
   await expect.poll(async () => (await page.evaluate(() => window.peroContentAnalysisStats)).completed).toBe(analysis.requests);
   expect((await page.evaluate(() => window.peroContentAnalysisStats)).failures).toBe(0);
+  expect(analysis.previewRequests).toBeGreaterThan(0);
+  await expect.poll(async () => (await page.evaluate(() => window.peroContentAnalysisStats)).previewCompleted).toBe(analysis.previewRequests);
+  expect((await page.evaluate(() => window.peroContentAnalysisStats)).previewFailures).toBe(0);
   const longTasks = await page.evaluate(() => window.__contentLongTasks);
   const measuredTasks = longTasks.filter((task) =>
     Object.values(samples)
@@ -524,6 +534,7 @@ try {
   // Performance is recorded; functional equivalence is this probe's acceptance gate.
 } catch (error) {
   if (page) {
+    await writeFile(resolve(out, 'analysis-failure.json'), JSON.stringify(await page.evaluate(() => window.peroContentAnalysisStats),null,2));
     await page.screenshot({ scale: 'css', path: resolve(out, 'failure.png') });
     await writeFile(
       resolve(out, 'failure.json'),

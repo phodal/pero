@@ -1,13 +1,13 @@
 // Real Host checkpoints and Desktop restart; only native file selection is stubbed.
 import {expect} from '@playwright/test';
 import {electron} from './electron.mjs';
-import {mkdtemp,mkdir,writeFile,readFile} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,readFile,realpath} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {once} from 'node:events';
 const root=resolve(process.env.PERO_CONTENT_TEST_ROOT||resolve(import.meta.dirname,'../..'));
 const out=resolve(root,'test-results/workspace-recovery');await mkdir(out,{recursive:true});
-const temp=await mkdtemp(resolve(tmpdir(),'pero-workspace-recovery-'));
+const temp=await realpath(await mkdtemp(resolve(tmpdir(),'pero-workspace-recovery-')));
 const file=resolve(temp,'guide.md'),second=resolve(temp,'data.json');
 const original='# Recovery source\n\nOriginal 中文 source.\n',draft='# Unsaved draft\n\nKeep exact 中文 and 9007199254740993.\n';
 await writeFile(file,original);await writeFile(second,'[{"n":9007199254740993}]');await writeFile(resolve(temp,'agents.json'),'[]');
