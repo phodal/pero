@@ -1,4 +1,5 @@
 //! Retained reading state; an editor is mounted only when source is requested.
+mod preview;
 mod search;
 mod state;
 use gpui_kit::component::Disableable;
@@ -58,6 +59,8 @@ pub struct ContentReader {
     file_error: Option<String>,
     discard: Option<DiscardAction>,
     preview: Result<Arc<StructuredPreview>, String>,
+    preview_loading: bool,
+    preview_task: Option<Task<()>>,
     table: Option<Entity<crate::content_table::ContentTable>>,
     table_subscription: Option<Subscription>,
     preview_document: ContentDocument,
@@ -92,7 +95,6 @@ impl ContentReader {
             KeyBinding::new("cmd-s", SaveDocument, None),
             KeyBinding::new("ctrl-s", SaveDocument, None),
         ]);
-        let preview = document.shared_preview();
         let source = !matches!(
             document.format,
             ContentFormat::Json | ContentFormat::JsonLines | ContentFormat::Markdown
@@ -123,7 +125,9 @@ impl ContentReader {
             saving: false,
             file_error: None,
             discard: None,
-            preview,
+            preview: Err(String::new()),
+            preview_loading: false,
+            preview_task: None,
             table: None,
             table_subscription: None,
             markdown,
@@ -143,7 +147,7 @@ impl ContentReader {
             bounds: Default::default(),
             focus_handle: cx.focus_handle(),
         };
-        this.sync_table(window, cx);
+        this.refresh_projection(false, window, cx);
         if source {
             this.open_source(None, window, cx);
         }
@@ -185,7 +189,7 @@ impl ContentReader {
         serde_json::json!({"bounds":self.bounds.snapshot(),"id":self.document.id,"revision":self.document.revision,"bytes":self.document.bytes,
             "dirty":self.dirty,"saving":self.saving,"fileError":self.file_error,"confirmClose":self.discard.is_some(),"editable":self.editable(),"markdown":self.markdown.is_some(),"workspace":self.placement==ReaderPlacement::Workspace,"source":self.source,"editor":self.editor.is_some(),"rows":self.preview.as_ref().map(|p|p.rows.len()).ok(),
             "table":self.table.as_ref().map(|table|table.read(cx).snapshot(cx)),
-            "columns":self.preview.as_ref().map(|p|p.columns.len()).ok(),"error":self.preview.as_ref().err(),
+            "columns":self.preview.as_ref().map(|p|p.columns.len()).ok(),"previewLoading":self.preview_loading,"error":self.preview.as_ref().err().filter(|_|!self.preview_loading),
             "selection":self.editor.as_ref().map(|e|e.read(cx).selected_range()),
             "searchError":self.search_error,"searchOptions":self.search_options,"markdownSelection":self.markdown.as_ref().and_then(|markdown|markdown.read(cx).selected_source_range(&self.preview_document,cx)),"markdownReveal":self.markdown.as_ref().and_then(|markdown|markdown.read(cx).source_reveal()),
             "previewScroll":[f32::from(preview_offset.x),f32::from(preview_offset.y)],
@@ -326,9 +330,8 @@ impl ContentReader {
         });
         let document = draft.unwrap_or_else(|| self.document.clone());
         self.preview_document = document.clone();
-        self.preview = self.preview_document.shared_preview();
-        self.sync_table(window, cx);
         self.path.clear();
+        self.refresh_projection(false, window, cx);
         self.markdown_index = None;
         if let Some(markdown) = &self.markdown {
             markdown.update(cx, |view, cx| view.replace(document.source(), cx));
@@ -467,8 +470,6 @@ impl ContentReader {
                         return;
                     }
                     this.preview_document = this.document.clone();
-                    this.preview = this.preview_document.shared_preview();
-                    this.sync_table(window, cx);
                     if matches!(this.document.format, ContentFormat::Markdown) {
                         if let Some(view) = &this.markdown {
                             view.update(cx, |view, cx| view.replace(this.document.source(), cx));
@@ -483,6 +484,7 @@ impl ContentReader {
                     }
                     this.observe_links(window, cx);
                     this.path.clear();
+                    this.refresh_projection(true, window, cx);
                     this.markdown_index = None;
                     this.pending_anchor = None;
                     this.copied = false;
@@ -625,11 +627,7 @@ impl Render for ContentReader {
                         .label(self.t("content.back"))
                         .on_click(cx.listener(|this, _, window, cx| {
                             this.path.pop();
-                            this.preview = this.path.last().map_or_else(
-                                || this.preview_document.shared_preview(),
-                                |range| this.preview_document.shared_project(range.clone()),
-                            );
-                            this.sync_table(window, cx);
+                            this.refresh_projection(false, window, cx);
                             cx.notify();
                         })),
                 )
@@ -816,6 +814,8 @@ impl Render for ContentReader {
                     })
                     .child(markdown.clone()),
             );
+        } else if self.preview_loading {
+            view = view.child(div().p(px(12.)).child(self.t("content.preparing_preview")));
         } else {
             match &self.preview {
                 Err(error) => {

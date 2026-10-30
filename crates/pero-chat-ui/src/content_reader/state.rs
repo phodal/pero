@@ -54,11 +54,7 @@ impl ContentReader {
             input.set_value(state.query.clone(), window, cx)
         });
         self.path = state.path.clone();
-        self.preview = self.path.last().map_or_else(
-            || self.preview_document.shared_preview(),
-            |range| self.preview_document.shared_project(range.clone()),
-        );
-        self.sync_table(window, cx);
+        self.refresh_projection(false, window, cx);
         self.preview_scroll.set_offset(point(
             px(state.preview_scroll[0]),
             px(state.preview_scroll[1]),
