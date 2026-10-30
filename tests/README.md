@@ -12,6 +12,11 @@ preload/IPC、GPUI、Host 和各套件原有的 Agent/App 后端继续运行；�
 运行，键盘与组字通过 CDP 页面焦点接入。启动器会检查窗口是否隐藏，旧 Desktop
 或 Product 构建会报错，需先重新构建。
 
+macOS 的隐藏窗口仍需要桌面会话服务。启动器在运行 Electron 前用 Python 3
+检查当前进程能否访问窗口服务和应用注册服务；检查失败时直接退出并提示使用
+有桌面访问权限的会话，不会尝试启动 Electron 或自动重复崩溃。此检查不保证
+Electron 启动后的渲染、输入或系统弹窗一定正常。
+
 ```sh
 npm run build
 npm run test:e2e

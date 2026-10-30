@@ -77,6 +77,8 @@ if (operation === 'prepare') {
   writeFileSync(join(packageDir, `${asset}.SHA256SUMS`), [archive, releasedMetadata].map(path => `${sha256(path)}  ${basename(path)}\n`).join(''));
 } else if (operation === 'smoke') {
   if (standalone) throw new Error('Use test:product:e2e for the standalone product.');
+  const { assertDesktopAccess } = await import('../../tests/e2e/electron.mjs');
+  assertDesktopAccess();
   const { _electron: electron, expect } = await import('@playwright/test');
   const scratch = mkdtempSync(join(tmpdir(), 'pero-release-'));
   const env = { ...process.env, PERO_DESKTOP_DATA_DIR: join(scratch, 'profile'), PERO_SETTINGS_PATH: join(scratch, 'settings.json'), PERO_HISTORY_PATH: join(scratch, 'history'), PERO_LOCALE: 'en' };
