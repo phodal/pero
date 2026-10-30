@@ -56,3 +56,20 @@ diff --git a/crates/base/src/input/base/mode.rs b/crates/base/src/input/base/mod
 -
          matches!(self, LayoutMode::CodeEditor { folding: true, .. })
      }
+diff --git a/crates/base/src/text/state.rs b/crates/base/src/text/state.rs
+--- a/crates/base/src/text/state.rs
++++ b/crates/base/src/text/state.rs
+@@ -728,6 +728,13 @@
+         );
+         cx.notify();
+         Ok(())
++    }
++
++    /// Cancel a requested reveal before restoring an enclosing scroll position.
++    pub fn cancel_reveal(&mut self, cx: &mut Context<Self>) {
++        if self.pending_reveal.take().is_some() {
++            cx.notify();
++        }
+     }
+
+     /// Remove all range highlights.

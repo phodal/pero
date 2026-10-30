@@ -194,9 +194,11 @@ impl StreamText {
     pub fn source_reveal(&self) -> Option<std::ops::Range<usize>> {
         self.last_source_reveal.clone()
     }
-    pub fn forget_source_reveal(&mut self) {
+    pub fn forget_source_reveal(&mut self, cx: &mut Context<Self>) {
         self.last_source_reveal = None;
         self.pending_source_reveal = None;
+        self.document
+            .update(cx, |document, cx| document.cancel_reveal(cx));
     }
     pub fn restore_source_reveal(
         &mut self,
@@ -204,7 +206,7 @@ impl StreamText {
         range: Option<std::ops::Range<usize>>,
         cx: &mut Context<Self>,
     ) {
-        self.forget_source_reveal();
+        self.forget_source_reveal(cx);
         self.observed_selection = None;
         self.document.update(cx, |document, cx| {
             document.clear_selection(cx);
@@ -308,6 +310,7 @@ impl StreamText {
     /// Tool updates may replace prior output. TextViewState recognizes prefix
     /// growth itself and uses its append path instead of replacing that source.
     pub fn replace(&mut self, text: &str, cx: &mut Context<Self>) {
+        self.forget_source_reveal(cx);
         self.observed_selection = None;
         self.pending.clear();
         self.pending_source_reveal = None;

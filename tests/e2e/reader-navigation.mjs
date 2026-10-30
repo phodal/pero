@@ -78,6 +78,7 @@ try {
   await expect.poll(async () => (await reader()).previewScroll[1]).toBeLessThan(-500);
   expect((await state()).workspaceNavigation.back.length).toBe(anchorHistory);
   bounds = (await reader()).bounds;
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(await page.evaluate(() => innerHeight) + 1);
   await screen('restored-heading-history');
   await page.mouse.click(bounds.x + 100, bounds.y + 16);
   await expect.poll(async () => (await reader()).source).toBe(true);

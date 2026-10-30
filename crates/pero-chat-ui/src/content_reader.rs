@@ -750,7 +750,7 @@ impl Render for ContentReader {
             .on_scroll_wheel(cx.listener(|this, _, _, cx| {
                 if !this.source {
                     if let Some(markdown) = &this.markdown {
-                        markdown.update(cx, |view, _| view.forget_source_reveal());
+                        markdown.update(cx, |view, cx| view.forget_source_reveal(cx));
                     }
                 }
                 cx.notify();
@@ -759,7 +759,7 @@ impl Render for ContentReader {
             .flex()
             .flex_col()
             .h(px(height))
-            .when(workspace, |el| el.flex_1().h_full())
+            .when(workspace, |el| el.flex_1().h_full().min_h_0())
             .w_full()
             .min_w_0()
             .border_1()
