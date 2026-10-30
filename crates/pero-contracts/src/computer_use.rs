@@ -105,6 +105,35 @@ impl From<ComputerClickCount> for u8 {
     }
 }
 
+macro_rules! computer_millis {
+    ($name:ident, $min:expr, $max:expr, $message:expr) => {
+        #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+        #[serde(try_from = "u16", into = "u16")]
+        pub struct $name(u16);
+        impl TryFrom<u16> for $name {
+            type Error = &'static str;
+            fn try_from(value: u16) -> Result<Self, Self::Error> {
+                if !($min..=$max).contains(&value) {
+                    return Err($message);
+                }
+                Ok(Self(value))
+            }
+        }
+        impl From<$name> for u16 {
+            fn from(value: $name) -> Self {
+                value.0
+            }
+        }
+        impl $name {
+            pub fn duration(self) -> std::time::Duration {
+                std::time::Duration::from_millis(u64::from(self.0))
+            }
+        }
+    };
+}
+computer_millis!(ComputerDwellMs, 0, 5000, "A hover dwell is 0–5000 ms");
+computer_millis!(ComputerHoldMs, 1, 10000, "A hold lasts 1–10000 ms");
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum ComputerProtocol {
     #[serde(rename = "pero.computer-use.v1")]
@@ -118,6 +147,9 @@ pub enum ComputerActionKind {
     PressKey,
     Scroll,
     Drag,
+    Move,
+    Hover,
+    Hold,
 }
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -286,8 +318,33 @@ pub enum ComputerInput {
         from: ComputerPoint,
         to: ComputerPoint,
     },
+    Move {
+        anchor: ComputerAnchor,
+    },
+    Hover {
+        anchor: ComputerAnchor,
+        dwell_ms: ComputerDwellMs,
+    },
+    Hold {
+        anchor: ComputerAnchor,
+        button: ComputerMouseButton,
+        hold_ms: ComputerHoldMs,
+    },
 }
 impl ComputerInput {
+    /// The anchor of a single-point input; drag carries two pixel endpoints instead.
+    pub fn anchor(&self) -> Option<&ComputerAnchor> {
+        match self {
+            Self::Click { anchor, .. }
+            | Self::TypeText { anchor, .. }
+            | Self::PressKey { anchor, .. }
+            | Self::Scroll { anchor, .. }
+            | Self::Move { anchor }
+            | Self::Hover { anchor, .. }
+            | Self::Hold { anchor, .. } => Some(anchor),
+            Self::Drag { .. } => None,
+        }
+    }
     pub fn kind(&self) -> ComputerActionKind {
         match self {
             Self::Click { .. } => ComputerActionKind::Click,
@@ -295,6 +352,9 @@ impl ComputerInput {
             Self::PressKey { .. } => ComputerActionKind::PressKey,
             Self::Scroll { .. } => ComputerActionKind::Scroll,
             Self::Drag { .. } => ComputerActionKind::Drag,
+            Self::Move { .. } => ComputerActionKind::Move,
+            Self::Hover { .. } => ComputerActionKind::Hover,
+            Self::Hold { .. } => ComputerActionKind::Hold,
         }
     }
 }
@@ -348,22 +408,21 @@ impl ComputerAction {
                 "The requested action, delivery and addressing combination is not supported",
             ));
         }
-        match &self.input {
-            ComputerInput::Click { anchor, .. }
-            | ComputerInput::TypeText { anchor, .. }
-            | ComputerInput::PressKey { anchor, .. }
-            | ComputerInput::Scroll { anchor, .. } => {
-                observation.check_anchor(anchor, kind, capabilities)?
-            }
-            ComputerInput::Drag {
-                screenshot_id,
-                from,
-                to,
-            } => {
+        match (&self.input, self.input.anchor()) {
+            (_, Some(anchor)) => observation.check_anchor(anchor, kind, capabilities)?,
+            (
+                ComputerInput::Drag {
+                    screenshot_id,
+                    from,
+                    to,
+                },
+                None,
+            ) => {
                 for point in [from, to] {
                     observation.check_pixel(screenshot_id, *point, capabilities)?;
                 }
             }
+            (_, None) => unreachable!("only drag has no single anchor"),
         }
         if matches!(
             &self.input,
@@ -383,15 +442,9 @@ impl ComputerAction {
 }
 impl ComputerInput {
     pub fn addressing(&self) -> ComputerAddressing {
-        match self {
-            Self::Click { anchor, .. }
-            | Self::TypeText { anchor, .. }
-            | Self::PressKey { anchor, .. }
-            | Self::Scroll { anchor, .. } => match anchor {
-                ComputerAnchor::Element { .. } => ComputerAddressing::Element,
-                ComputerAnchor::Pixel { .. } => ComputerAddressing::Pixel,
-            },
-            Self::Drag { .. } => ComputerAddressing::Pixel,
+        match self.anchor() {
+            Some(ComputerAnchor::Element { .. }) => ComputerAddressing::Element,
+            Some(ComputerAnchor::Pixel { .. }) | None => ComputerAddressing::Pixel,
         }
     }
 }
@@ -662,6 +715,40 @@ mod tests {
                 Some(InvalidRequest),
             ),
             (
+                "hover needs an element that advertises hover",
+                "request-11",
+                |action, _, _| {
+                    if let ComputerInput::Hover { anchor, .. } = &mut action.input {
+                        *anchor = ComputerAnchor::Element {
+                            element_id: "editor".to_owned().try_into().unwrap(),
+                        };
+                    }
+                },
+                Some(Unsupported),
+            ),
+            (
+                "hold is not implied by click support",
+                "request-12",
+                |_, _, caps| {
+                    caps.actions
+                        .retain(|support| support.action != ComputerActionKind::Hold)
+                },
+                Some(Unsupported),
+            ),
+            (
+                "move point is outside the image",
+                "request-10",
+                |action, _, _| {
+                    if let ComputerInput::Move {
+                        anchor: ComputerAnchor::Pixel { point, .. },
+                    } = &mut action.input
+                    {
+                        point.y = 200;
+                    }
+                },
+                Some(InvalidRequest),
+            ),
+            (
                 "zero scroll has no effect",
                 "request-4",
                 |action, _, _| {
@@ -694,6 +781,34 @@ mod tests {
                 .map(|error| error.code);
             assert_eq!(error, *expected, "{name}");
         }
+    }
+
+    #[test]
+    fn pointer_durations_round_trip_within_bounds() {
+        for (value, ok) in [(0, true), (5000, true), (5001, false)] {
+            assert_eq!(
+                ComputerDwellMs::try_from(value).is_ok(),
+                ok,
+                "dwell {value}"
+            );
+        }
+        for (value, ok) in [(0, false), (1, true), (10000, true), (10001, false)] {
+            assert_eq!(ComputerHoldMs::try_from(value).is_ok(), ok, "hold {value}");
+        }
+        let input: ComputerInput = serde_json::from_value(serde_json::json!({
+            "kind": "hold",
+            "anchor": { "kind": "element", "element_id": "increment" },
+            "button": "right",
+            "hold_ms": 750
+        }))
+        .unwrap();
+        assert_eq!(input.kind(), ComputerActionKind::Hold);
+        assert_eq!(input.addressing(), ComputerAddressing::Element);
+        let ComputerInput::Hold { hold_ms, .. } = &input else {
+            unreachable!()
+        };
+        assert_eq!(hold_ms.duration(), std::time::Duration::from_millis(750));
+        assert_eq!(serde_json::to_value(&input).unwrap()["hold_ms"], 750);
     }
 
     #[test]

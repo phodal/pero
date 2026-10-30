@@ -9,10 +9,14 @@ model ComputerClosed { ...Record<never>; }
 scalar ComputerRef extends string;
 @minValue(1) scalar ComputerDimension extends uint32;
 @minValue(1) @maxValue(3) scalar ComputerClickCount extends uint8;
+/** Pointer pause after reaching the anchor, in milliseconds. */
+@minValue(0) @maxValue(5000) scalar ComputerDwellMs extends uint16;
+/** Button press duration before release, in milliseconds. */
+@minValue(1) @maxValue(10000) scalar ComputerHoldMs extends uint16;
 @minLength(1) @maxLength(10000) scalar ComputerText extends string;
 @minLength(1) @maxLength(64) scalar ComputerKey extends string;
 
-enum ComputerActionKind { click, type_text, press_key, scroll, drag }
+enum ComputerActionKind { click, type_text, press_key, scroll, drag, move, hover, hold }
 enum ComputerDelivery { background, foreground }
 enum ComputerAddressing { element, pixel }
 enum ComputerObservationKind { accessibility, screenshot }
@@ -122,7 +126,27 @@ model ComputerDrag {
   to: ComputerPoint;
   ...ComputerClosed;
 }
-@oneOf union ComputerInput { ComputerClick, ComputerTypeText, ComputerPressKey, ComputerScroll, ComputerDrag }
+/** Moves the pointer to the anchor without button or key events. */
+model ComputerMove { kind: "move"; anchor: ComputerAnchor; ...ComputerClosed; }
+/** Moves the pointer to the anchor, then waits `dwell_ms` without button or key events. */
+model ComputerHover {
+  kind: "hover";
+  anchor: ComputerAnchor;
+  dwell_ms: ComputerDwellMs;
+  ...ComputerClosed;
+}
+/** Presses one button at the anchor, keeps it down for `hold_ms`, then releases it. */
+model ComputerHold {
+  kind: "hold";
+  anchor: ComputerAnchor;
+  button: ComputerMouseButton;
+  hold_ms: ComputerHoldMs;
+  ...ComputerClosed;
+}
+@oneOf union ComputerInput {
+  ComputerClick, ComputerTypeText, ComputerPressKey, ComputerScroll, ComputerDrag,
+  ComputerMove, ComputerHover, ComputerHold
+}
 model ComputerAction {
   request_id: ComputerRef;
   target: ComputerTargetRef;

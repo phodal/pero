@@ -160,6 +160,13 @@
       ],
       "additionalProperties": false
     },
+    "ComputerDwellMs": {
+      "title": "ComputerDwellMs",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5000,
+      "description": "Pointer pause after reaching the anchor, in milliseconds."
+    },
     "ComputerElementAnchor": {
       "title": "ComputerElementAnchor",
       "type": "object",
@@ -224,6 +231,63 @@
       "additionalProperties": false,
       "description": "Execution acknowledgement only; it does not assert a verified task outcome."
     },
+    "ComputerHold": {
+      "title": "ComputerHold",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "hold"
+        },
+        "anchor": {
+          "$ref": "#/$defs/ComputerAnchor"
+        },
+        "button": {
+          "$ref": "#/$defs/ComputerMouseButton"
+        },
+        "hold_ms": {
+          "$ref": "#/$defs/ComputerHoldMs"
+        }
+      },
+      "required": [
+        "kind",
+        "anchor",
+        "button",
+        "hold_ms"
+      ],
+      "additionalProperties": false,
+      "description": "Presses one button at the anchor, keeps it down for `hold_ms`, then releases it."
+    },
+    "ComputerHoldMs": {
+      "title": "ComputerHoldMs",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "description": "Button press duration before release, in milliseconds."
+    },
+    "ComputerHover": {
+      "title": "ComputerHover",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "hover"
+        },
+        "anchor": {
+          "$ref": "#/$defs/ComputerAnchor"
+        },
+        "dwell_ms": {
+          "$ref": "#/$defs/ComputerDwellMs"
+        }
+      },
+      "required": [
+        "kind",
+        "anchor",
+        "dwell_ms"
+      ],
+      "additionalProperties": false,
+      "description": "Moves the pointer to the anchor, then waits `dwell_ms` without button or key events."
+    },
     "ComputerInput": {
       "title": "ComputerInput",
       "oneOf": [
@@ -241,6 +305,15 @@
         },
         {
           "$ref": "#/$defs/ComputerDrag"
+        },
+        {
+          "$ref": "#/$defs/ComputerMove"
+        },
+        {
+          "$ref": "#/$defs/ComputerHover"
+        },
+        {
+          "$ref": "#/$defs/ComputerHold"
         }
       ]
     },
@@ -258,6 +331,25 @@
         "right",
         "middle"
       ]
+    },
+    "ComputerMove": {
+      "title": "ComputerMove",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "move"
+        },
+        "anchor": {
+          "$ref": "#/$defs/ComputerAnchor"
+        }
+      },
+      "required": [
+        "kind",
+        "anchor"
+      ],
+      "additionalProperties": false,
+      "description": "Moves the pointer to the anchor without button or key events."
     },
     "ComputerPixelAnchor": {
       "title": "ComputerPixelAnchor",

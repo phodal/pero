@@ -45,6 +45,30 @@
         "addressing": [
           "pixel"
         ]
+      },
+      {
+        "action": "move",
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
+      },
+      {
+        "action": "hover",
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
+      },
+      {
+        "action": "hold",
+        "delivery": "background",
+        "addressing": [
+          "element",
+          "pixel"
+        ]
       }
     ],
     "environment": {
@@ -74,7 +98,10 @@
         "label": "Increment",
         "depth": 1,
         "actions": [
-          "click"
+          "click",
+          "move",
+          "hover",
+          "hold"
         ]
       },
       {
@@ -286,6 +313,65 @@
         },
         "delta_x": 0,
         "delta_y": 120
+      }
+    },
+    {
+      "request_id": "request-10",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "move",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        }
+      }
+    },
+    {
+      "request_id": "request-11",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "hover",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        },
+        "dwell_ms": 5000
+      }
+    },
+    {
+      "request_id": "request-12",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "hold",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        },
+        "button": "left",
+        "hold_ms": 800
       }
     }
   ],
@@ -767,6 +853,97 @@
           "platform": "macos",
           "display": "sway"
         }
+      }
+    },
+    {
+      "name": "hover dwell is bounded",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "hover",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        },
+        "dwell_ms": 5001
+      }
+    },
+    {
+      "name": "hover requires an explicit dwell",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "hover",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        }
+      }
+    },
+    {
+      "name": "hold requires a positive duration",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "hold",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        },
+        "button": "left",
+        "hold_ms": 0
+      }
+    },
+    {
+      "name": "hold duration is bounded",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "hold",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        },
+        "button": "left",
+        "hold_ms": 10001
+      }
+    },
+    {
+      "name": "move carries no button",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "move",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        },
+        "button": "left"
+      }
+    },
+    {
+      "name": "click does not carry a hold duration",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "click",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        },
+        "button": "left",
+        "count": 1,
+        "hold_ms": 500
       }
     }
   ]

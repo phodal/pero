@@ -23,7 +23,10 @@
         "type_text",
         "press_key",
         "scroll",
-        "drag"
+        "drag",
+        "move",
+        "hover",
+        "hold"
       ]
     },
     "ComputerActionSupport": {

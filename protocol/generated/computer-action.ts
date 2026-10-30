@@ -9,12 +9,28 @@ export type ComputerActionContract = ComputerAction | ComputerActionReceipt | Co
  */
 export type ComputerRef = string;
 export type ComputerDelivery = "background" | "foreground";
-export type ComputerInput = ComputerClick | ComputerTypeText | ComputerPressKey | ComputerScroll | ComputerDrag;
+export type ComputerInput =
+  | ComputerClick
+  | ComputerTypeText
+  | ComputerPressKey
+  | ComputerScroll
+  | ComputerDrag
+  | ComputerMove
+  | ComputerHover
+  | ComputerHold;
 export type ComputerAnchor = ComputerElementAnchor | ComputerPixelAnchor;
 export type ComputerMouseButton = "left" | "right" | "middle";
 export type ComputerClickCount = number;
 export type ComputerText = string;
 export type ComputerKey = string;
+/**
+ * Pointer pause after reaching the anchor, in milliseconds.
+ */
+export type ComputerDwellMs = number;
+/**
+ * Button press duration before release, in milliseconds.
+ */
+export type ComputerHoldMs = number;
 export type ComputerActionOutcome = ComputerExecuted | ComputerRejected | ComputerUnknown;
 export type ComputerErrorCode =
   | "unsupported"
@@ -98,6 +114,30 @@ export interface ComputerDrag {
   screenshot_id: ComputerRef;
   from: ComputerPoint;
   to: ComputerPoint;
+}
+/**
+ * Moves the pointer to the anchor without button or key events.
+ */
+export interface ComputerMove {
+  kind: "move";
+  anchor: ComputerAnchor;
+}
+/**
+ * Moves the pointer to the anchor, then waits `dwell_ms` without button or key events.
+ */
+export interface ComputerHover {
+  kind: "hover";
+  anchor: ComputerAnchor;
+  dwell_ms: ComputerDwellMs;
+}
+/**
+ * Presses one button at the anchor, keeps it down for `hold_ms`, then releases it.
+ */
+export interface ComputerHold {
+  kind: "hold";
+  anchor: ComputerAnchor;
+  button: ComputerMouseButton;
+  hold_ms: ComputerHoldMs;
 }
 export interface ComputerActionReceipt {
   request_id: ComputerRef;
