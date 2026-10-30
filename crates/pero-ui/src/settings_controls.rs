@@ -1,4 +1,6 @@
-//! Shared presentation and keyboard behavior for Settings fields.
+//! Settings controls follow the IntelliJ Kotlin UI DSL row factories:
+//! `row`, `checkBox`, `textField`, `comment`, and `group`.
+//! Help text that repeats a label is dropped by those factories.
 use gpui_kit::{
     component::{
         button::*,
@@ -27,50 +29,16 @@ pub(crate) fn setting_row(
     description: &str,
     accessory: Option<AnyElement>,
     control: AnyElement,
-    divider: bool,
     cx: &App,
 ) -> Div {
-    let chrome = pero_theme::Chrome::from_app(cx);
-    div()
-        .min_w_0()
-        .min_h(chrome.geo(pero_theme::ROW_NAV))
-        .px(chrome.geo(pero_theme::SPACE_16))
-        .py(chrome.geo(pero_theme::SPACE_8))
-        .flex()
-        .items_center()
-        .gap(chrome.geo(pero_theme::ICON_GAP))
-        .when(divider, |el| {
-            el.border_b_1().border_color(chrome.palette.border)
-        })
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .flex()
-                .flex_col()
-                .gap(chrome.geo(pero_theme::SPACE_4))
-                .child(
-                    div()
-                        .flex()
-                        .flex_wrap()
-                        .items_center()
-                        .gap(chrome.geo(pero_theme::SPACE_8))
-                        .text_size(chrome.text(pero_theme::TYPE_BODY))
-                        .text_color(chrome.palette.text)
-                        .child(label.to_owned())
-                        .children(accessory),
-                )
-                .when(!description.is_empty(), |el| {
-                    el.child(
-                        div()
-                            .text_size(chrome.text(pero_theme::TYPE_CAPTION))
-                            .text_color(chrome.palette.text_muted)
-                            .whitespace_normal()
-                            .child(description.to_owned()),
-                    )
-                }),
-        )
-        .child(div().flex_shrink_0().child(control))
+    let caption = (!description.is_empty()).then(|| SharedString::from(description.to_owned()));
+    pero_theme::settings_row(
+        label.to_owned(),
+        caption,
+        accessory,
+        control,
+        pero_theme::Chrome::from_app(cx),
+    )
 }
 
 /// One editor owns focus; step buttons and keys request the same domain action.

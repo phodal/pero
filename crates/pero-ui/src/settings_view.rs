@@ -324,7 +324,6 @@ impl SettingsPanel {
             }),
             accessory,
             control.into_any_element(),
-            false,
             cx,
         )
         .into_any_element()
@@ -393,7 +392,6 @@ impl SettingsPanel {
                 "",
                 None,
                 mode.into_any_element(),
-                true,
                 cx,
             ))
             .child(setting_row(
@@ -401,10 +399,9 @@ impl SettingsPanel {
                 "",
                 None,
                 accent.into_any_element(),
-                false,
                 cx,
             ))
-            .child(setting_row(self.t("icons.title"),"",None,crate::icon_themes::controls(&self.locale,cx),false,cx))
+            .child(setting_row(self.t("icons.title"),"",None,crate::icon_themes::controls(&self.locale,cx),cx))
             .into_any_element()
     }
 
@@ -442,7 +439,6 @@ impl SettingsPanel {
             "",
             None,
             control.into_any_element(),
-            false,
             cx,
         )
         .into_any_element()
@@ -512,6 +508,13 @@ impl SettingsPanel {
         let appearance = UiAppearance::global(cx).clone();
         let p = appearance.palette.clone();
         let query = self.search.read(cx).value().to_lowercase();
+        let page_title = self.t(if !query.is_empty() {
+            "settings.search_results"
+        } else if self.section.is_appearance() {
+            "settings.appearance"
+        } else {
+            self.section.key()
+        });
         let sections = self.matching_sections(cx);
         let visible = sections
             .iter()
@@ -538,24 +541,16 @@ impl SettingsPanel {
                 SettingsSection::Agents | SettingsSection::Workers | SettingsSection::Connections => self.category_page(section, cx),
                 _ => self.font_settings(section, window, cx),
             };
+            let heading = self.t(section.key());
             content = content.child(
                 div()
                     .id(("settings-page", section as usize))
                     .mb(px(W::SECTION))
-                    .child(
-                        div()
-                            .id("section-heading")
-                            .role(Role::Heading)
-                            .aria_level(2)
-                            .aria_label(self.t(section.key()))
-                            .pb(px(6.))
-                            .border_b(px(0.5))
-                            .border_color(p.border)
-                            .text_size(appearance.text(TextRole::Caption))
-                            .text_color(p.text_muted)
-                            .child(self.t(section.key())),
-                    )
-                    .child(pero_theme::settings_panel(body, pero_theme::Chrome::from_app(cx))),
+                    .child(pero_theme::settings_group(
+                        (heading != page_title).then(|| SharedString::from(heading)),
+                        std::iter::once(body),
+                        pero_theme::Chrome::from_app(cx),
+                    )),
             );
         }
         if visible.is_empty() {
@@ -681,11 +676,14 @@ impl SettingsPanel {
                             .flex()
                             .items_center()
                             .gap(px(12.))
-                            .child(div().font_weight(FontWeight::MEDIUM).child(self.t(if !query.is_empty() {
-                                "settings.search_results"
-                            } else if self.section.is_appearance() {
-                                "settings.appearance"
-                            } else { self.section.key() })))
+                            .child(
+                                div()
+                                    .id("settings-page-title")
+                                    .role(Role::Heading)
+                                    .aria_level(1)
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .child(page_title),
+                            )
                             .child(div().flex_1())
                             .when(self.preferences_status != PreferenceSaveState::Idle, |el| {
                                 el.child(

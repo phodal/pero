@@ -2,7 +2,7 @@
 //! come from `design_tokens`; accent overrides still flow through the resolved palette.
 use crate::design_tokens::{
     ACTION_BUTTON_HEIGHT, ACTION_BUTTON_PADDING, GHOST_ICON_BUTTON, ICON_GAP, LEAD_BOX,
-    LIBRARY_HEADER, LIST_DARK, LIST_LIGHT, MENU_ROW, RADIUS_BADGE, RADIUS_BUTTON, RADIUS_PANEL,
+    LIBRARY_HEADER, LIST_DARK, LIST_LIGHT, MENU_ROW, RADIUS_BADGE, RADIUS_BUTTON,
     RADIUS_SELECTION, READER_MAX_WIDTH, ROW_NAV, ROW_SUB, SEARCH_FIELD_HEIGHT, SPACE_12, SPACE_16,
     SPACE_24, SPACE_4, SPACE_8, SUB_INDENT, TYPE_BODY, TYPE_CAPTION, TYPE_HEADING, TYPE_LABEL,
     TYPE_TITLE, WEIGHT_BODY, WEIGHT_HEADING, WEIGHT_LIST_TITLE, WEIGHT_TITLE,
@@ -374,41 +374,59 @@ pub fn empty_state(
         }))
 }
 
+/// Help under a control. JetBrains inline help: do not repeat the setting name.
+fn setting_help(label: &str, text: Option<SharedString>) -> Option<SharedString> {
+    text.filter(|text| {
+        let text = text.as_ref().trim();
+        !text.is_empty() && text != label.trim()
+    })
+}
+
+fn setting_caption(text: SharedString, chrome: Chrome) -> Div {
+    div()
+        .text_size(chrome.text(TYPE_CAPTION))
+        .text_color(chrome.palette.text_muted)
+        .whitespace_normal()
+        .child(text)
+}
+
+/// `group(title)`. Related rows stack under the title. The page background is
+/// the surface; a group does not draw a card or a rule.
 pub fn settings_group(
     label: Option<SharedString>,
     rows: impl IntoIterator<Item = AnyElement>,
     chrome: Chrome,
 ) -> Div {
-    let border = chrome.palette.border;
     div()
         .flex()
         .flex_col()
-        .gap(chrome.geo(SPACE_8))
+        .gap(chrome.geo(SPACE_4))
         .children(label.filter(|text| !text.is_empty()).map(|label| {
+            let id = SharedString::from(format!("settings-group-{label}"));
             div()
+                .id(id)
+                .role(Role::Heading)
+                .aria_level(2)
+                .px(chrome.geo(SPACE_16))
+                .pt(chrome.geo(SPACE_8))
                 .text_size(chrome.text(TYPE_LABEL))
                 .font_weight(weight(WEIGHT_LIST_TITLE))
                 .text_color(chrome.palette.text_muted)
                 .child(label)
         }))
-        .child(hairline_panel(
-            rows.into_iter().enumerate().map(|(index, row)| {
-                div()
-                    .w_full()
-                    .when(index > 0, |row| row.border_t_1().border_color(border))
-                    .child(row)
-                    .into_any_element()
-            }),
-            chrome,
-        ))
+        .children(rows)
 }
 
+/// `row(label) { control }.rowComment(comment)`.
 pub fn settings_row(
     label: impl Into<SharedString>,
     caption: Option<SharedString>,
+    accessory: Option<AnyElement>,
     actions: AnyElement,
     chrome: Chrome,
 ) -> Div {
+    let label = label.into();
+    let caption = setting_help(&label, caption);
     div()
         .min_h(chrome.geo(ROW_NAV))
         .px(chrome.geo(SPACE_16))
@@ -425,35 +443,142 @@ pub fn settings_row(
                 .gap(chrome.geo(SPACE_4))
                 .child(
                     div()
+                        .flex()
+                        .flex_wrap()
+                        .items_center()
+                        .gap(chrome.geo(SPACE_8))
                         .text_size(chrome.text(TYPE_BODY))
                         .font_weight(weight(WEIGHT_BODY))
                         .text_color(chrome.palette.text)
-                        .child(label.into()),
+                        .child(label)
+                        .children(accessory),
                 )
-                .children(caption.filter(|text| !text.is_empty()).map(|caption| {
-                    div()
-                        .text_size(chrome.text(TYPE_CAPTION))
-                        .text_color(chrome.palette.text_muted)
-                        .whitespace_normal()
-                        .child(caption)
-                })),
+                .children(caption.map(|caption| setting_caption(caption, chrome))),
         )
         .child(div().flex_shrink_0().child(actions))
 }
 
-/// One reading-surface panel. The caller already drew hairlines between rows.
-pub fn settings_panel(child: AnyElement, chrome: Chrome) -> Div {
-    hairline_panel(std::iter::once(child), chrome)
+/// `checkBox(label).comment(help)`.
+pub fn settings_check(
+    label: impl Into<SharedString>,
+    comment: Option<SharedString>,
+    control: AnyElement,
+    chrome: Chrome,
+) -> Div {
+    let label = label.into();
+    let comment = setting_help(&label, comment);
+    div()
+        .px(chrome.geo(SPACE_16))
+        .py(chrome.geo(SPACE_8))
+        .flex()
+        .flex_col()
+        .gap(chrome.geo(SPACE_4))
+        .child(control)
+        .children(comment.map(|comment| setting_caption(comment, chrome).pl(chrome.geo(SPACE_24))))
 }
 
-fn hairline_panel(rows: impl IntoIterator<Item = AnyElement>, chrome: Chrome) -> Div {
+/// `textField().label(text, TOP)` for a field that fills the row.
+pub fn settings_field(
+    label: impl Into<SharedString>,
+    comment: Option<SharedString>,
+    control: AnyElement,
+    chrome: Chrome,
+) -> Div {
+    let label = label.into();
+    let comment = setting_help(&label, comment);
     div()
-        .rounded(chrome.geo(RADIUS_PANEL))
-        .overflow_hidden()
-        .bg(chrome.palette.surface)
-        .border_1()
-        .border_color(chrome.palette.border)
-        .children(rows)
+        .min_w_0()
+        .px(chrome.geo(SPACE_16))
+        .py(chrome.geo(SPACE_8))
+        .flex()
+        .flex_col()
+        .gap(chrome.geo(SPACE_4))
+        .child(
+            div()
+                .text_size(chrome.text(TYPE_BODY))
+                .text_color(chrome.palette.text)
+                .child(label),
+        )
+        .child(control)
+        .children(comment.map(|comment| setting_caption(comment, chrome)))
+}
+
+/// Label and a trailing value. A value that repeats the label is omitted.
+pub fn settings_status(
+    label: impl Into<SharedString>,
+    value: impl Into<SharedString>,
+    chrome: Chrome,
+) -> Div {
+    let label = label.into();
+    let value = setting_help(&label, Some(value.into()));
+    div()
+        .min_h(chrome.geo(ROW_NAV))
+        .px(chrome.geo(SPACE_16))
+        .py(chrome.geo(SPACE_8))
+        .flex()
+        .items_center()
+        .justify_between()
+        .gap(chrome.geo(SPACE_12))
+        .child(
+            div()
+                .min_w_0()
+                .text_size(chrome.text(TYPE_BODY))
+                .text_color(chrome.palette.text)
+                .child(label),
+        )
+        .children(value.map(|value| {
+            div()
+                .flex_shrink_0()
+                .text_size(chrome.text(TYPE_CAPTION))
+                .text_color(chrome.palette.text_muted)
+                .child(value)
+        }))
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum SettingMessage {
+    Help,
+    Status,
+    Success,
+    Error,
+}
+
+/// `comment()` for help that belongs to the group or the row above it.
+pub fn settings_message(
+    text: impl Into<SharedString>,
+    kind: SettingMessage,
+    chrome: Chrome,
+) -> Div {
+    let (color, size) = match kind {
+        SettingMessage::Help => (chrome.palette.text_muted, TYPE_CAPTION),
+        SettingMessage::Status => (chrome.palette.text, TYPE_BODY),
+        SettingMessage::Success => (chrome.palette.success, TYPE_BODY),
+        SettingMessage::Error => (chrome.palette.error, TYPE_BODY),
+    };
+    div()
+        .px(chrome.geo(SPACE_16))
+        .pb(chrome.geo(SPACE_8))
+        .text_size(chrome.text(size))
+        .text_color(color)
+        .whitespace_normal()
+        .child(text.into())
+}
+
+/// Button row. Related actions share one row and do not draw a rule.
+pub fn settings_actions(actions: impl IntoIterator<Item = AnyElement>, chrome: Chrome) -> Div {
+    div()
+        .px(chrome.geo(SPACE_16))
+        .py(chrome.geo(SPACE_8))
+        .flex()
+        .flex_wrap()
+        .items_center()
+        .gap(chrome.geo(SPACE_8))
+        .children(actions)
+}
+
+/// Flat settings body. Rows supply their own inset.
+pub fn settings_panel(child: AnyElement, _chrome: Chrome) -> Div {
+    div().flex().flex_col().child(child)
 }
 
 fn ghost_colors(chrome: Chrome, cx: &App, active: Hsla) -> ButtonCustomVariant {

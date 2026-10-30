@@ -53,6 +53,8 @@ pub fn canonical(name: &str) -> Option<&'static str> {
         "chevron-left" => Some("chevron-left"),
         "panel-right-open" => Some("panel-right-open"),
         "panel-right-close" => Some("panel-right-close"),
+        "panel-left-open" => Some("panel-left-open"),
+        "panel-left-close" => Some("panel-left-close"),
         "minus" => Some("minus"),
         "maximize" => Some("maximize"),
         "fit" => Some("maximize"),
@@ -73,6 +75,7 @@ pub fn canonical(name: &str) -> Option<&'static str> {
         "code-xml" => Some("code-xml"),
         "hash" => Some("hash"),
         "notebook" => Some("notebook"),
+        "dots" => Some("dots"),
         _ => None,
     }
 }

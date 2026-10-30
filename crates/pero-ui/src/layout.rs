@@ -65,11 +65,7 @@ impl WorkspaceLayout {
             Self::chat_placement(route, tab, preferences)
         };
         let chat_width = if chat == ChatPlacement::Dock {
-            if narrow {
-                available
-            } else {
-                preferences.chat_width().min(available * 0.55)
-            }
+            Self::dock_width(available, narrow, preferences)
         } else {
             0.
         };
@@ -94,6 +90,27 @@ impl WorkspaceLayout {
             content_visible,
             embedded_surface_visible,
         }
+    }
+
+    fn dock_width(available: f32, narrow: bool, preferences: &LayoutPreferences) -> f32 {
+        if narrow {
+            available
+        } else {
+            preferences.chat_width().min(available * 0.55)
+        }
+    }
+
+    /// Release the sidebar column. Saved dock width and the narrow breakpoint stay.
+    pub(crate) fn hide_sidebar(
+        mut self,
+        viewport_width: f32,
+        preferences: &LayoutPreferences,
+    ) -> Self {
+        self.sidebar_width = 0.;
+        if self.chat == ChatPlacement::Dock {
+            self.chat_width = Self::dock_width(viewport_width.max(0.), self.narrow, preferences);
+        }
+        self
     }
 }
 
@@ -370,5 +387,50 @@ mod tests {
             );
             assert_eq!(preferences.chat_width(), preferred_width, "{name}");
         }
+    }
+
+    #[test]
+    fn collapsing_the_sidebar_releases_its_width_and_keeps_the_saved_dock_width() {
+        use ChatPlacement::{Dock, Main};
+        use ConversationTab::Chat;
+        use WorkbenchPage::Conversation;
+        use WorkspaceRoute::{Content, Page};
+        let app = Content(WorkspaceItem::App {
+            name: "paper-agent".into(),
+            panel: "main".into(),
+        });
+        let mut preferences = LayoutPreferences::default();
+        preferences.chat_open = true;
+        preferences.resize_chat(420.);
+        let open = WorkspaceLayout::resolve(1488., &app, Chat, &preferences, false, None);
+        let hidden = open.hide_sidebar(1488., &preferences);
+        assert_eq!(open.sidebar_width, 260.);
+        assert_eq!(hidden.sidebar_width, 0.);
+        assert_eq!(hidden.chat, Dock);
+        assert_eq!(hidden.chat_width, 420.);
+        assert!(hidden.content_visible);
+        assert_eq!(preferences.chat_width(), 420.);
+
+        let narrow = WorkspaceLayout::resolve(1000., &app, Chat, &preferences, false, None);
+        let narrow_hidden = narrow.hide_sidebar(1000., &preferences);
+        assert_eq!(narrow.chat_width, 760.);
+        assert_eq!(narrow_hidden.sidebar_width, 0.);
+        assert_eq!(narrow_hidden.chat_width, 1000.);
+        assert!(narrow_hidden.narrow);
+        assert!(!narrow_hidden.content_visible);
+
+        let conversation = WorkspaceLayout::resolve(
+            1488.,
+            &Page(Conversation),
+            Chat,
+            &LayoutPreferences::default(),
+            false,
+            None,
+        );
+        let conversation_hidden = conversation.hide_sidebar(1488., &LayoutPreferences::default());
+        assert_eq!(conversation.chat, Main);
+        assert_eq!(conversation_hidden.sidebar_width, 0.);
+        assert_eq!(conversation_hidden.chat, Main);
+        assert_eq!(conversation_hidden.chat_width, 0.);
     }
 }

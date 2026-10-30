@@ -113,190 +113,165 @@ impl Workbench {
         let storage = self.remote.data["connection"]["persistence_available"]
             .as_bool()
             .unwrap_or(true);
-        let caption = pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption);
-        div()
+        let height = px(pero_theme::UiAppearance::global(cx).typography.control_height());
+        let url = pero_theme::WorkbenchStyle::input(Input::new(&self.remote.connection.url), cx)
+            .id("connector-url")
+            .aria_label(self.t("connector.url"))
+            .w_full()
+            .disabled(busy)
+            .into_any_element();
+        let token = Input::new(&self.remote.connection.token)
+            .id("connector-token")
+            .aria_label(self.t("connector.token"))
+            .w_full()
+            .content_type(gpui_kit::component::input::InputContentType::Password)
+            .disabled(busy)
+            .into_any_element();
+        let mut login = vec![Button::new("connector-github-login")
+            .primary()
+            .small()
+            .h(height)
+            .label(self.t(if authenticating {
+                "connector.login_waiting"
+            } else {
+                "connector.login"
+            }))
+            .disabled(busy || !storage || authenticating)
+            .on_click(cx.listener(|this, _, _, cx| {
+                let url = this.remote.connection.url.read(cx).value().trim().to_string();
+                this.command(json!({"action":"remote_login","url":url}), cx);
+            }))
+            .into_any_element()];
+        if authenticating {
+            login.push(
+                Button::new("connector-login-cancel")
+                    .outline()
+                    .label(self.t("connector.login_cancel"))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.command(json!({"action":"remote_login_cancel"}), cx)
+                    }))
+                    .into_any_element(),
+            );
+        }
+        let modes = ["connector.client", "connector.operator"]
+            .into_iter()
+            .enumerate()
+            .map(|(mode, key)| {
+                Button::new(("connector-mode", mode))
+                    .outline()
+                    .small()
+                    .label(self.t(key))
+                    .toggled(self.remote.connection.mode == mode)
+                    .disabled(busy)
+                    .bg(p.color(if self.remote.connection.mode == mode {
+                        "accent-soft"
+                    } else {
+                        "surface"
+                    }))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.remote.connection.mode = mode;
+                        cx.notify();
+                    }))
+                    .into_any_element()
+            })
+            .collect::<Vec<_>>();
+        let mut save = vec![Button::new("connector-save")
+            .primary()
+            .small()
+            .h(height)
+            .label(self.t(if busy {
+                "connector.connecting"
+            } else {
+                "connector.connect"
+            }))
+            .disabled(busy || !storage)
+            .on_click(cx.listener(|this, _, window, cx| this.save_remote_connection(window, cx)))
+            .into_any_element()];
+        if configured && self.remote.connection.editing {
+            save.push(
+                Button::new("connector-cancel")
+                    .outline()
+                    .label(self.t("connector.cancel"))
+                    .disabled(busy)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.remote.connection.editing = false;
+                        cx.notify();
+                    }))
+                    .into_any_element(),
+            );
+        }
+        if configured {
+            save.push(
+                Button::new("connector-disconnect")
+                    .outline()
+                    .label(self.t("connector.disconnect"))
+                    .disabled(busy)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.remote.connection.editing = false;
+                        this.command(json!({"action":"remote_disconnect"}), cx);
+                    }))
+                    .into_any_element(),
+            );
+        }
+        let mut form = div()
             .id("connector-form")
             .flex()
             .flex_col()
-            .gap(px(12.))
-            .px(px(16.))
-            .pt(px(12.))
-            .pb(px(12.))
-            .child(
-                div()
-                    .whitespace_normal()
-                    .text_size(caption)
-                    .text_color(p.text_muted)
-                    .child(self.t("connector.description")),
-            )
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap(px(6.))
-                            .child(self.t("connector.url"))
-                            .child(
-                                pero_theme::WorkbenchStyle::input(Input::new(&self.remote.connection.url), cx)
-                                    .id("connector-url")
-                                    .aria_label(self.t("connector.url"))
-                                    .w_full()
-                                    .disabled(busy),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap(px(6.))
-                            .child(
-                                Button::new("connector-github-login")
-                                    .primary()
-                                    .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
-                                    .self_start()
-                                    .label(self.t(if authenticating {
-                                        "connector.login_waiting"
-                                    } else {
-                                        "connector.login"
-                                    }))
-                                    .disabled(busy || !storage || authenticating)
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        let url = this
-                                            .remote
-                                            .connection
-                                            .url
-                                            .read(cx)
-                                            .value()
-                                            .trim()
-                                            .to_string();
-                                        this.command(
-                                            json!({"action":"remote_login","url":url}),
-                                            cx,
-                                        );
-                                    })),
-                            )
-                            .when(authenticating, |el| {
-                                el.child(
-                                    Button::new("connector-login-cancel")
-                                        .outline()
-                                        .label(self.t("connector.login_cancel"))
-                                        .on_click(cx.listener(|this, _, _, cx| {
-                                            this.command(
-                                                json!({"action":"remote_login_cancel"}),
-                                                cx,
-                                            )
-                                        })),
-                                )
-                            })
-                            .child(
-                                div()
-                                    .text_color(p.text_muted)
-                                    .child(self.t("connector.manual")),
-                            )
-                            .child(self.t("connector.token"))
-                            .child(
-                                Input::new(&self.remote.connection.token)
-                                    .id("connector-token")
-                                    .aria_label(self.t("connector.token"))
-                                    .w_full()
-                                    .content_type(
-                                        gpui_kit::component::input::InputContentType::Password,
-                                    )
-                                    .disabled(busy),
-                            )
-                            .child(
-                                div()
-                                    .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
-                                    .text_color(p.text_muted)
-                                    .child(self.t("connector.token_help")),
-                            ),
-                    )
-                    .child(
-                        div().flex().items_center().gap(px(8.)).children(
-                            ["connector.client", "connector.operator"]
-                                .into_iter()
-                                .enumerate()
-                                .map(|(mode, key)| {
-                                    Button::new(("connector-mode", mode))
-                                        .outline()
-                                        .small()
-                                        .label(self.t(key))
-                                        .toggled(self.remote.connection.mode == mode)
-                                        .disabled(busy)
-                                        .bg(p.color(if self.remote.connection.mode == mode {
-                                            "accent-soft"
-                                        } else {
-                                            "surface"
-                                        }))
-                                        .on_click(cx.listener(move |this, _, _, cx| {
-                                            this.remote.connection.mode = mode;
-                                            cx.notify();
-                                        }))
-                                }),
-                        ),
-                    )
-                    .when(self.remote.connection.error, |el| {
-                        el.child(
-                            div()
-                                .id("connector-required")
-                                .role(Role::Alert)
-                                .text_color(p.error)
-                                .child(self.t("connector.required")),
-                        )
-                    })
-                    .when(!storage, |el| {
-                        el.child(
-                            div()
-                                .id("connector-storage-error")
-                                .role(Role::Alert)
-                                .text_color(p.error)
-                                .whitespace_normal()
-                                .child(self.t("connector.storage_unavailable")),
-                        )
-                    })
-                    .child(
-                        div()
-                            .flex()
-                            .flex_wrap()
-                            .gap(px(8.))
-                            .self_start()
-                            .child(
-                                Button::new("connector-save")
-                                    .primary()
-                                    .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
-                                    .label(self.t(if busy {
-                                        "connector.connecting"
-                                    } else {
-                                        "connector.connect"
-                                    }))
-                                    .disabled(busy || !storage)
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.save_remote_connection(window, cx)
-                                    })),
-                            )
-                            .when(configured && self.remote.connection.editing, |el| {
-                                el.child(
-                                    Button::new("connector-cancel")
-                                        .outline()
-                                        .label(self.t("connector.cancel"))
-                                        .disabled(busy)
-                                        .on_click(cx.listener(|this, _, _, cx| {
-                                            this.remote.connection.editing = false;
-                                            cx.notify();
-                                        })),
-                                )
-                            })
-                            .when(configured, |el| {
-                                el.child(
-                                    Button::new("connector-disconnect")
-                                        .outline()
-                                        .label(self.t("connector.disconnect"))
-                                        .disabled(busy)
-                                        .on_click(cx.listener(|this, _, _, cx| {
-                                            this.remote.connection.editing = false;
-                                            this.command(json!({"action":"remote_disconnect"}), cx);
-                                        })),
-                                )
-                            })
-                    )
+            .child(pero_theme::settings_message(
+                self.t("connector.description"),
+                pero_theme::SettingMessage::Help,
+                pero_theme::Chrome::from_app(cx),
+            ))
+            .child(pero_theme::settings_field(
+                self.t("connector.url"),
+                None,
+                url,
+                pero_theme::Chrome::from_app(cx),
+            ))
+            .child(pero_theme::settings_actions(
+                login,
+                pero_theme::Chrome::from_app(cx),
+            ))
+            .child(pero_theme::settings_message(
+                self.t("connector.manual"),
+                pero_theme::SettingMessage::Help,
+                pero_theme::Chrome::from_app(cx),
+            ))
+            .child(pero_theme::settings_field(
+                self.t("connector.token"),
+                Some(self.t("connector.token_help").into()),
+                token,
+                pero_theme::Chrome::from_app(cx),
+            ))
+            .child(pero_theme::settings_actions(
+                modes,
+                pero_theme::Chrome::from_app(cx),
+            ));
+        if self.remote.connection.error {
+            form = form.child(
+                pero_theme::settings_message(
+                    self.t("connector.required"),
+                    pero_theme::SettingMessage::Error,
+                    pero_theme::Chrome::from_app(cx),
+                )
+                .id("connector-required")
+                .role(Role::Alert),
+            );
+        }
+        if !storage {
+            form = form.child(
+                pero_theme::settings_message(
+                    self.t("connector.storage_unavailable"),
+                    pero_theme::SettingMessage::Error,
+                    pero_theme::Chrome::from_app(cx),
+                )
+                .id("connector-storage-error")
+                .role(Role::Alert),
+            );
+        }
+        form.child(pero_theme::settings_actions(
+            save,
+            pero_theme::Chrome::from_app(cx),
+        ))
     }
 }

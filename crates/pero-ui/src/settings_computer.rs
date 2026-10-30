@@ -12,7 +12,7 @@ use pero_contracts::{
     HostEvent,
     computer_runtime::{ComputerControl, ComputerPermissionState, ComputerUseState},
 };
-use pero_theme::{TextRole, UiAppearance};
+use pero_theme::SettingMessage;
 
 impl Workbench {
     pub(crate) fn receive_computer(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
@@ -35,7 +35,6 @@ impl SettingsPanel {
         cx.notify();
     }
     pub(crate) fn computer_settings(&self, cx: &mut Context<Self>) -> AnyElement {
-        let p = UiAppearance::global(cx);
         let state = self.computer.as_ref();
         let unavailable = state.is_none_or(|state| !state.status.available);
         let enabled = state.is_some_and(|state| state.enabled);
@@ -47,114 +46,105 @@ impl SettingsPanel {
                 ComputerPermissionState::Unsupported => "computer.unsupported",
             })
         };
-        let mut body = div()
-            .flex()
-            .flex_col()
-            .gap(px(12.))
-            .pt(px(12.))
-            .child(
+        let mut body = div().id("computer-settings").flex().flex_col().child(
+            pero_theme::settings_check(
+                self.t("computer.enable"),
+                Some(self.t("computer.hint").into()),
                 Checkbox::new("computer-enable")
                     .label(self.t("computer.enable"))
                     .checked(enabled)
                     .disabled((unavailable && !enabled) || self.computer_pending)
                     .on_click(cx.listener(|this, enabled: &bool, _, cx| {
                         this.computer_control(ComputerControl::Set { enabled: *enabled }, cx)
-                    })),
-            )
-            .child(
-                div()
-                    .text_color(p.palette.text_muted)
-                    .text_size(p.text(TextRole::Caption))
-                    .whitespace_normal()
-                    .child(self.t("computer.hint")),
-            );
+                    }))
+                    .into_any_element(),
+                pero_theme::Chrome::from_app(cx),
+            ),
+        );
         if let Some(state) = state {
             for (label, value) in [
                 ("computer.accessibility", state.status.accessibility),
                 ("computer.screen_recording", state.status.screen_recording),
             ] {
-                body = body.child(
-                    div()
-                        .flex()
-                        .justify_between()
-                        .gap(px(12.))
-                        .child(self.t(label))
-                        .child(permission(value)),
-                );
+                body = body.child(pero_theme::settings_status(
+                    self.t(label),
+                    permission(value),
+                    pero_theme::Chrome::from_app(cx),
+                ));
             }
-            body = body.child(div().child(self.t(if unavailable {
-                "computer.unsupported"
-            } else if running {
-                "computer.running"
-            } else if enabled {
-                "computer.ready"
-            } else {
-                "computer.disabled"
-            })));
+            body = body.child(pero_theme::settings_message(
+                self.t(if unavailable {
+                    "computer.unsupported"
+                } else if running {
+                    "computer.running"
+                } else if enabled {
+                    "computer.ready"
+                } else {
+                    "computer.disabled"
+                }),
+                SettingMessage::Status,
+                pero_theme::Chrome::from_app(cx),
+            ));
             if let Some(error) = &state.error {
                 body = body.child(
-                    div()
+                    pero_theme::settings_message(error.clone(), SettingMessage::Error, pero_theme::Chrome::from_app(cx))
                         .id("computer-error")
-                        .role(Role::Alert)
-                        .whitespace_normal()
-                        .text_color(p.palette.error)
-                        .child(error.clone()),
+                        .role(Role::Alert),
                 );
             }
         } else {
-            body = body.child(self.t("computer.loading"));
+            body = body.child(pero_theme::settings_message(
+                self.t("computer.loading"),
+                SettingMessage::Status,
+                pero_theme::Chrome::from_app(cx),
+            ));
         }
-        body.child(
-            div()
-                .flex()
-                .flex_wrap()
-                .gap(px(8.))
-                .child(
-                    pero_theme::action_button(
-                        "computer-permissions",
-                        self.t("computer.permissions"),
-                        pero_theme::ActionKind::Ghost,
-                        pero_theme::Chrome::from_app(cx),
-                        cx,
-                    )
-                        .disabled(unavailable || self.computer_pending || state.is_some_and(|s| s.status.accessibility == ComputerPermissionState::Unsupported && s.status.screen_recording == ComputerPermissionState::Unsupported))
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.computer_control(ComputerControl::Permissions {}, cx)
-                        })),
+        body.child(pero_theme::settings_actions(
+            [
+                pero_theme::action_button(
+                    "computer-permissions",
+                    self.t("computer.permissions"),
+                    pero_theme::ActionKind::Ghost,
+                    pero_theme::Chrome::from_app(cx),
+                    cx,
                 )
-                .child(
-                    pero_theme::action_button(
-                        "computer-refresh",
-                        self.t("computer.refresh"),
-                        pero_theme::ActionKind::Ghost,
-                        pero_theme::Chrome::from_app(cx),
-                        cx,
-                    )
-                        .disabled(self.computer_pending)
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.computer_control(ComputerControl::Get {}, cx)
-                        })),
+                .disabled(unavailable || self.computer_pending || state.is_some_and(|s| s.status.accessibility == ComputerPermissionState::Unsupported && s.status.screen_recording == ComputerPermissionState::Unsupported))
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.computer_control(ComputerControl::Permissions {}, cx)
+                }))
+                .into_any_element(),
+                pero_theme::action_button(
+                    "computer-refresh",
+                    self.t("computer.refresh"),
+                    pero_theme::ActionKind::Ghost,
+                    pero_theme::Chrome::from_app(cx),
+                    cx,
                 )
-                .child(
-                    pero_theme::action_button(
-                        "computer-stop",
-                        self.t("computer.stop"),
-                        pero_theme::ActionKind::Ghost,
-                        pero_theme::Chrome::from_app(cx),
-                        cx,
-                    )
-                        .disabled(!enabled && !running)
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.computer_control(ComputerControl::Stop {}, cx)
-                        })),
-                ),
-        )
-        .child(
-            div()
-                .text_size(p.text(TextRole::Caption))
-                .text_color(p.palette.text_muted)
-                .child(self.t("computer.stop_hint")),
-        )
+                .disabled(self.computer_pending)
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.computer_control(ComputerControl::Get {}, cx)
+                }))
+                .into_any_element(),
+                pero_theme::action_button(
+                    "computer-stop",
+                    self.t("computer.stop"),
+                    pero_theme::ActionKind::Ghost,
+                    pero_theme::Chrome::from_app(cx),
+                    cx,
+                )
+                .disabled(!enabled && !running)
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.computer_control(ComputerControl::Stop {}, cx)
+                }))
+                .into_any_element(),
+            ],
+            pero_theme::Chrome::from_app(cx),
+        ))
+        .child(pero_theme::settings_message(
+            self.t("computer.stop_hint"),
+            SettingMessage::Help,
+            pero_theme::Chrome::from_app(cx),
+        ))
         .into_any_element()
     }
 }

@@ -11,6 +11,8 @@ gpui_kit::assets::icon_assets!(
         ChevronLeft,
         PanelRightOpen,
         PanelRightClose,
+        PanelLeftOpen,
+        PanelLeftClose,
         Minus,
         Maximize,
         Network,
@@ -79,6 +81,8 @@ pub enum UiIcon {
     ChevronLeft,
     PanelRightOpen,
     PanelRightClose,
+    PanelLeftOpen,
+    PanelLeftClose,
     Minus,
     Maximize,
     Network,
@@ -96,6 +100,7 @@ pub enum UiIcon {
     CodeXml,
     Hash,
     Notebook,
+    Dots,
 }
 
 impl UiIcon {
@@ -150,6 +155,8 @@ impl UiIcon {
             "chevron-left" => Some(Self::ChevronLeft),
             "panel-right-open" => Some(Self::PanelRightOpen),
             "panel-right-close" => Some(Self::PanelRightClose),
+            "panel-left-open" => Some(Self::PanelLeftOpen),
+            "panel-left-close" => Some(Self::PanelLeftClose),
             "minus" => Some(Self::Minus),
             "maximize" | "fit" => Some(Self::Maximize),
             "network" | "nodes" => Some(Self::Network),
@@ -167,6 +174,7 @@ impl UiIcon {
             "code-xml" => Some(Self::CodeXml),
             "hash" => Some(Self::Hash),
             "notebook" => Some(Self::Notebook),
+            "dots" => Some(Self::Dots),
             _ => None,
         }
     }
@@ -218,6 +226,8 @@ impl UiIcon {
             Self::ChevronLeft => "chevron-left",
             Self::PanelRightOpen => "panel-right-open",
             Self::PanelRightClose => "panel-right-close",
+            Self::PanelLeftOpen => "panel-left-open",
+            Self::PanelLeftClose => "panel-left-close",
             Self::Minus => "minus",
             Self::Maximize => "maximize",
             Self::Network => "network",
@@ -235,6 +245,7 @@ impl UiIcon {
             Self::CodeXml => "code-xml",
             Self::Hash => "hash",
             Self::Notebook => "notebook",
+            Self::Dots => "dots",
         }
     }
 
@@ -317,6 +328,8 @@ impl UiIcon {
             Self::ChevronLeft => "icons/chevron-left.svg",
             Self::PanelRightOpen => "icons/panel-right-open.svg",
             Self::PanelRightClose => "icons/panel-right-close.svg",
+            Self::PanelLeftOpen => "icons/panel-left-open.svg",
+            Self::PanelLeftClose => "icons/panel-left-close.svg",
             Self::Minus => "icons/minus.svg",
             Self::Maximize => "icons/maximize.svg",
             Self::Network => "icons/network.svg",
@@ -334,6 +347,7 @@ impl UiIcon {
             Self::CodeXml => "icons/code-xml.svg",
             Self::Hash => "icons/hash.svg",
             Self::Notebook => "icons/notebook.svg",
+            Self::Dots => "icons/dots.svg",
         }
     }
 
@@ -481,6 +495,8 @@ impl AssetSource for UiAssets {
             Some(UiIcon::PanelRightClose) => {
                 SelectedKitIcons.load("icons/panel-right-close.svg")?
             }
+            Some(UiIcon::PanelLeftOpen) => SelectedKitIcons.load("icons/panel-left-open.svg")?,
+            Some(UiIcon::PanelLeftClose) => SelectedKitIcons.load("icons/panel-left-close.svg")?,
             Some(UiIcon::Minus) => SelectedKitIcons.load("icons/minus.svg")?,
             Some(UiIcon::Maximize) => SelectedKitIcons.load("icons/maximize.svg")?,
             Some(UiIcon::Network) => SelectedKitIcons.load("icons/network.svg")?,
@@ -498,6 +514,9 @@ impl AssetSource for UiAssets {
             Some(UiIcon::CodeXml) => SelectedKitIcons.load("icons/code-xml.svg")?,
             Some(UiIcon::Hash) => SelectedKitIcons.load("icons/hash.svg")?,
             Some(UiIcon::Notebook) => SelectedKitIcons.load("icons/notebook.svg")?,
+            Some(UiIcon::Dots) => Some(Cow::Borrowed(include_bytes!(
+                "../../../web/public/icons/dots.svg"
+            ))),
             None => None,
         })
     }
@@ -549,6 +568,8 @@ impl AssetSource for UiAssets {
             UiIcon::ChevronLeft,
             UiIcon::PanelRightOpen,
             UiIcon::PanelRightClose,
+            UiIcon::PanelLeftOpen,
+            UiIcon::PanelLeftClose,
             UiIcon::Minus,
             UiIcon::Maximize,
             UiIcon::Network,
@@ -566,6 +587,7 @@ impl AssetSource for UiAssets {
             UiIcon::CodeXml,
             UiIcon::Hash,
             UiIcon::Notebook,
+            UiIcon::Dots,
         ]
         .into_iter()
         .map(UiIcon::path)

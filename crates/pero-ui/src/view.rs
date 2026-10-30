@@ -11,7 +11,11 @@ use crate::{
     layout::{ChatPlacement, WorkspaceLayout},
     workspace::{ConversationTab, WorkbenchPage, WorkspaceItem},
 };
-use gpui_kit::{component::WindowExt, prelude::*, *};
+use gpui_kit::{
+    component::{Icon, WindowExt},
+    prelude::*,
+    *,
+};
 use std::rc::Rc;
 
 const INITIAL_VISIBLE_SESSIONS: usize = 5;
@@ -54,6 +58,7 @@ impl Workbench {
                     SidebarAction::CancelDelete => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
                     }
+                    SidebarAction::ToggleSidebar => this.toggle_sidebar(cx),
                     SidebarAction::NewChat => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
                         this.new_chat(cx);
@@ -78,6 +83,10 @@ impl Workbench {
                         if *index == WorkbenchPage::Apps {
                             this.refresh_apps(cx);
                         }
+                    }
+                    SidebarAction::OpenProject(key) => {
+                        this.chat.update(cx, |panel, _| panel.deleting_chat = None);
+                        this.open_project(key.clone(), window, cx);
                     }
                     SidebarAction::ToggleProject(key) => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
@@ -228,6 +237,30 @@ impl Workbench {
         )
     }
 
+    fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
+        self.sidebar_collapsed = !self.sidebar_collapsed;
+        cx.notify();
+    }
+
+    fn sidebar_reveal(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let ui = self.ui(cx);
+        div()
+            .id("sidebar-reveal")
+            .w_full()
+            .h(px(pero_theme::GHOST_ICON_BUTTON + pero_theme::SPACE_8))
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .px(px(pero_theme::SPACE_8))
+            .child(
+                pero_theme::ghost_icon_button("sidebar-expand", ui.chrome(), cx)
+                    .icon(Icon::default().path("icons/panel-left-open.svg"))
+                    .tooltip(self.t("sidebar.show"))
+                    .accessibility_label(self.t("sidebar.show"))
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_sidebar(cx))),
+            )
+    }
+
     fn detail(&self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         if self.tab == ConversationTab::Chat {
             return self.chat.clone().into_any_element();
@@ -326,6 +359,9 @@ impl Render for Workbench {
             layout.embedded_surface_visible = !(self.settings_menu_open || self.resizing_chat || self.settings_panel.is_some() || self.pane_tabs.switching() || window.has_active_dialog(cx) || gpui_kit::component::GlobalState::is_in_deferred_context(cx));
         }
         if !floating && slot.is_none() { Self::publish_app_chat_overlay(None); }
+        if self.sidebar_collapsed {
+            layout = layout.hide_sidebar(width, &self.preferences.layout);
+        }
         self.layout = layout;
         let sidebar_width = layout.sidebar_width;
         let chat_width = layout.chat_width;
@@ -408,7 +444,7 @@ impl Render for Workbench {
             .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
             .font_weight(FontWeight::NORMAL)
             .line_height(relative(1.3))
-            .child(self.sidebar(sidebar_width, cx))
+            .when(!self.sidebar_collapsed, |el| el.child(self.sidebar(sidebar_width, cx)))
             .child(
                 div()
                     .flex_1()
@@ -416,6 +452,7 @@ impl Render for Workbench {
                     .h_full()
                     .flex()
                     .flex_col()
+                    .when(self.sidebar_collapsed, |el| el.child(self.sidebar_reveal(cx)))
                     .when(has_tabs, |el| el.child(self.content_tabs(cx)))
                     .when(self.web_entry_open || self.navigation.page()==WorkbenchPage::Web,|el|el.child(self.web_toolbar(cx)))
                     .children(self.recovery_controls(cx))

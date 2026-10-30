@@ -12,7 +12,7 @@ use pero_contracts::{
     HostEvent,
     harness_settings::{HarnessControl, HarnessState},
 };
-use pero_theme::{TextRole, UiAppearance};
+use pero_theme::SettingMessage;
 
 impl Workbench {
     pub(crate) fn receive_harness(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
@@ -57,75 +57,61 @@ impl SettingsPanel {
         }
     }
     pub(crate) fn harness_settings(&self, cx: &mut Context<Self>) -> AnyElement {
-        let p = UiAppearance::global(cx);
         let state = self.harness.as_ref();
         let saving = state.is_some_and(|s| s.status == "saving");
         let disabled = state.is_none() || saving;
-        let mut body = div().flex().flex_col().gap(px(12.));
+        let mut body = div().id("harness-settings").flex().flex_col();
         for (index, label) in ["harness.endpoint", "harness.model", "harness.api_key"]
             .into_iter()
             .enumerate()
         {
-            body = body.child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(4.))
-                    .child(self.t(label))
-                    .child(
-                        Input::new(&self.harness_inputs[index])
-                            .small()
-                            .disabled(disabled),
-                    ),
-            );
+            body = body.child(pero_theme::settings_field(
+                self.t(label),
+                None,
+                Input::new(&self.harness_inputs[index])
+                    .small()
+                    .w_full()
+                    .disabled(disabled)
+                    .into_any_element(),
+                pero_theme::Chrome::from_app(cx),
+            ));
         }
         if let Some(state) = state {
-            body = body.child(
-                div()
-                    .text_color(p.palette.text_muted)
-                    .text_size(p.text(TextRole::Caption))
-                    .child(self.t(if state.source == "settings" {
-                        "harness.source_settings"
-                    } else {
-                        "harness.source_env"
-                    })),
-            );
+            body = body.child(pero_theme::settings_message(
+                self.t(if state.source == "settings" {
+                    "harness.source_settings"
+                } else {
+                    "harness.source_env"
+                }),
+                SettingMessage::Help,
+                pero_theme::Chrome::from_app(cx),
+            ));
             if let Some(error) = &state.error {
                 body = body.child(
-                    div()
+                    pero_theme::settings_message(self.t(error), SettingMessage::Error, pero_theme::Chrome::from_app(cx))
                         .id("harness-error")
-                        .role(Role::Alert)
-                        .text_color(p.palette.error)
-                        .whitespace_normal()
-                        .child(self.t(error)),
+                        .role(Role::Alert),
                 );
             } else if state.status == "saved" {
                 body = body.child(
-                    div()
+                    pero_theme::settings_message(self.t("harness.saved"), SettingMessage::Success, pero_theme::Chrome::from_app(cx))
                         .id("harness-status")
-                        .role(Role::Status)
-                        .text_color(p.palette.success)
-                        .child(self.t("harness.saved")),
+                        .role(Role::Status),
                 );
             }
-            body = body.child(
-                div()
-                    .flex()
-                    .flex_wrap()
-                    .items_center()
-                    .gap(px(8.))
-                    .child(
-                        pero_theme::action_button(
-                            "harness-save",
-                            self.t(if saving {
-                                "harness.saving"
-                            } else {
-                                "harness.save"
-                            }),
-                            pero_theme::ActionKind::Primary,
-                            pero_theme::Chrome::from_app(cx),
-                            cx,
-                        )
+            body = body.child(pero_theme::settings_actions(
+                [
+                    pero_theme::action_button(
+                        "harness-save",
+                        self.t(if saving {
+                            "harness.saving"
+                        } else {
+                            "harness.save"
+                        }),
+                        pero_theme::ActionKind::Primary,
+                        pero_theme::Chrome::from_app(cx),
+                        cx,
+                    )
                             .disabled(disabled || !state.persistence_available)
                             .on_click(cx.listener(|this, _, _, cx| {
                                 let values = this
@@ -143,20 +129,19 @@ impl SettingsPanel {
                                     clear_key: false,
                                 }));
                                 cx.notify();
-                            })),
+                            }))
+                    .into_any_element(),
+                    pero_theme::action_button(
+                        "harness-clear-key",
+                        self.t(if self.harness_remove_confirm {
+                            "harness.confirm_remove"
+                        } else {
+                            "harness.clear_key"
+                        }),
+                        pero_theme::ActionKind::Ghost,
+                        pero_theme::Chrome::from_app(cx),
+                        cx,
                     )
-                    .child(
-                        pero_theme::action_button(
-                            "harness-clear-key",
-                            self.t(if self.harness_remove_confirm {
-                                "harness.confirm_remove"
-                            } else {
-                                "harness.clear_key"
-                            }),
-                            pero_theme::ActionKind::Ghost,
-                            pero_theme::Chrome::from_app(cx),
-                            cx,
-                        )
                             .disabled(
                                 disabled
                                     || !state.credential_configured
@@ -180,29 +165,34 @@ impl SettingsPanel {
                                     clear_key: true,
                                 }));
                                 cx.notify();
-                            })),
-                    ),
-            );
+                            }))
+                    .into_any_element(),
+                ],
+                pero_theme::Chrome::from_app(cx),
+            ));
             if !state.persistence_available {
                 body = body.child(
-                    div()
-                        .id("harness-error")
-                        .role(Role::Alert)
-                        .text_color(p.palette.error)
-                        .whitespace_normal()
-                        .child(self.t("harness.storage_error")),
+                    pero_theme::settings_message(
+                        self.t("harness.storage_error"),
+                        SettingMessage::Error,
+                        pero_theme::Chrome::from_app(cx),
+                    )
+                    .id("harness-storage-error")
+                    .role(Role::Alert),
                 );
             }
         } else {
-            body = body.child(self.t("harness.loading"));
+            body = body.child(pero_theme::settings_message(
+                self.t("harness.loading"),
+                SettingMessage::Status,
+                pero_theme::Chrome::from_app(cx),
+            ));
         }
-        body.child(
-            div()
-                .text_size(p.text(TextRole::Caption))
-                .text_color(p.palette.text_muted)
-                .whitespace_normal()
-                .child(self.t("harness.new_sessions")),
-        )
+        body.child(pero_theme::settings_message(
+            self.t("harness.new_sessions"),
+            SettingMessage::Help,
+            pero_theme::Chrome::from_app(cx),
+        ))
         .into_any_element()
     }
 }

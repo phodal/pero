@@ -42,6 +42,7 @@ export const designContract = {
     "ghostIconButton": 28,
     "searchFieldHeight": 32,
     "readerMaxWidth": 720,
+    "composerMax": 800,
     "sidebarWidth": 224,
     "listColumn": 336
   },
