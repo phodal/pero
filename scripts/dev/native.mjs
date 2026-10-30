@@ -41,7 +41,7 @@ function openPreview() {
   const child = spawn(binary, [], {
     cwd: root,
     stdio: 'inherit',
-    env: { ...process.env, PERO_NATIVE_HOST: host },
+    env: { ...process.env, PERO_NATIVE_HOST: host, PERO_NATIVE_EPHEMERAL_SECRETS: '1' },
   });
   preview = child;
   child.on('exit', (code, signal) => {
@@ -88,7 +88,7 @@ watch(sources, { recursive: true }, (_event, filename) => {
   }, 300);
 });
 
-console.log('Building the debug Host and native preview.');
+console.log('Building the debug Host and native preview. Secrets stay in this process; the login keychain is not opened.');
 await ensureGpuiLock();
 await run('cargo', cargoArgs(['build', '--locked', '-p', 'pero-host', '-p', 'pero-worker']));
 await cycle();

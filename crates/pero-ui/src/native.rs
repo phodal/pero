@@ -81,6 +81,10 @@ pub fn run() -> anyhow::Result<()> {
             PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".pero/native-preview")
         });
     std::fs::create_dir_all(&data)?;
+    // dev:native sets this. The preview is ad-hoc signed on every rebuild, so a
+    // login-keychain read prompts on every launch. Local preview keeps secrets
+    // in this process instead.
+    let ephemeral_secrets = std::env::var_os("PERO_NATIVE_EPHEMERAL_SECRETS").is_some();
     let executable = std::env::var_os("PERO_NATIVE_HOST")
         .map(PathBuf::from)
         .unwrap_or_else(|| root.join("target/release/pero-host"));
@@ -167,8 +171,8 @@ pub fn run() -> anyhow::Result<()> {
     });
     let reply = commands.clone();
     std::thread::spawn(move || {
-        let mut cloud = CloudSession::with_store(&data);
-        let mut device = NativeDevice::new(&data, cloud.has_connection());
+        let mut cloud = CloudSession::with_store(&data, ephemeral_secrets);
+        let mut device = NativeDevice::new(&data, cloud.has_connection(), ephemeral_secrets);
         loop {
             let json = match incoming.recv_timeout(std::time::Duration::from_secs(5)) {
                 Ok(json) => json,
