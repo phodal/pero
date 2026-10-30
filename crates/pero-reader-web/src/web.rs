@@ -32,7 +32,7 @@ struct Reading {
 
 struct ReaderWindow {
     reader: Option<Entity<ContentReader>>,
-    chart: Option<crate::chart::Chart>,
+    chart: Option<pero_chat_ui::chart::Chart>,
     subscriptions: Vec<Subscription>,
     locale: String,
     palettes: Palettes,
@@ -158,7 +158,7 @@ pub fn receive_document(value: &str) -> Result<(), JsValue> {
 
 #[wasm_bindgen]
 pub fn receive_chart(value: &str) -> Result<(), JsValue> {
-    let chart = crate::chart::Chart::parse(value).map_err(|error| JsValue::from_str(&error))?;
+    let chart = pero_chat_ui::chart::Chart::parse(value).map_err(|error| JsValue::from_str(&error))?;
     update(|ui, cx| {
         ui.reader = None;
         ui.chart = Some(chart);

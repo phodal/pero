@@ -48,7 +48,9 @@ struct Point {
     close: f64,
 }
 
+#[derive(Clone)]
 pub struct Chart {
+    id: ElementId,
     kind: String,
     points: Vec<Point>,
     nodes: Vec<String>,
@@ -179,6 +181,7 @@ impl Chart {
             }
         }
         Ok(Self {
+            id: "chart".into(),
             kind: spec.kind,
             points,
             nodes,
@@ -190,6 +193,8 @@ impl Chart {
             },
         })
     }
+
+    pub fn with_id(mut self, id: impl Into<ElementId>) -> Self { self.id = id.into(); self }
 
     pub fn render(&self, cx: &App) -> AnyElement {
         let theme = cx.theme();
@@ -206,21 +211,25 @@ impl Chart {
         }
         match self.kind.as_str() {
             "line" => LineChart::new(points)
+                .id(self.id.clone())
                 .x(|p: &Point| p.x.clone())
                 .y(|p| p.y)
                 .y_axis(true)
                 .into_any_element(),
             "bar" => BarChart::new(points)
+                .id(self.id.clone())
                 .band(|p: &Point| p.x.clone())
                 .value(|p| p.y)
                 .value_axis(true)
                 .into_any_element(),
             "area" => AreaChart::new(points)
+                .id(self.id.clone())
                 .x(|p: &Point| p.x.clone())
                 .y(|p| p.y)
                 .y_axis(true)
                 .into_any_element(),
             "pie" => PieChart::new(points)
+                .id(self.id.clone())
                 .value(|p: &Point| p.y as f32)
                 .color(move |p| colors[p.index % colors.len()])
                 .pad_angle(0.01)
@@ -228,10 +237,12 @@ impl Chart {
                 .tooltip_name(|p| p.x.clone().into())
                 .into_any_element(),
             "radar" => RadarChart::new(points)
+                .id(self.id.clone())
                 .label(|p: &Point| p.x.clone())
                 .value(|p| p.y)
                 .into_any_element(),
             "candlestick" => CandlestickChart::new(points)
+                .id(self.id.clone())
                 .x(|p: &Point| p.x.clone())
                 .open(|p| p.open)
                 .high(|p| p.high)
@@ -239,6 +250,7 @@ impl Chart {
                 .close(|p| p.close)
                 .into_any_element(),
             "sankey" => SankeyChart::new(self.nodes.clone(), self.links.clone())
+                .id(self.id.clone())
                 .node_label(|n: &String| n.clone().into())
                 .tooltip_name(|n| n.clone().into())
                 .into_any_element(),
