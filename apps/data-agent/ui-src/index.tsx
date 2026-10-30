@@ -3,6 +3,7 @@ import {AppConversation, downloadFile, openDocument, useAppApi, useAppChat, useA
 import {Button, Checkbox, EmptyState, Feedback, FilePicker, Input, LibraryHeader, Select, Toolbar} from '@pero/app-sdk/ui';
 import {emptyView, fieldRule, querySchema, summary, type Dataset, type Export, type Result, type ViewSpec} from './model';
 import {messages} from './i18n';
+import {ChartPanel} from './chart-panel';
 import './styles.css';
 
 export default function DataAgent() {
@@ -96,7 +97,7 @@ export default function DataAgent() {
     </>}/>
     {error&&<Feedback kind="error"><span>{error}</span><Button onClick={()=>{void reload();}}>{t('retry')}</Button></Feedback>}
     {busy&&<p className="data-status" role="status">{t('loading')}</p>}
-    {!data?<EmptyState heading={t('empty')}/>:<>
+    {!data?<div className="data-empty"><EmptyState heading={t('empty')}/><section className="data-chart"><h2>{t('chart')}</h2><ChartPanel data={null} busy={busy}/></section></div>:<>
       <Toolbar className="data-toolbar" actions={<><Button disabled={busy} onClick={()=>act(()=>source())}>{t('source')}</Button><Button disabled={busy} onClick={()=>act(()=>exportRows())}>{t('export')}</Button><Button disabled={busy||window.parent===window} onClick={()=>act(()=>chat.compose(t('prompt'),{attachments:[chat.objectReference('dataset-view',{dataset:data.dataset.id,sourceRevision:data.dataset.revision,viewId:data.viewId,selectedCount:data.selected})]}))}>{t('ask')}</Button></>}>
         <Select label={t('dataset')} value={data.dataset.id} options={catalog.map(item=>({value:item.id,label:item.name}))} disabled={busy} onChange={id=>{const found=catalog.find(item=>item.id===id);if(found)act(()=>choose(found));}}/>
         <span>{data.dataset.rowCount.toLocaleString()} {t('rows')} · {data.matching.toLocaleString()} {t('matching')}{view.selection.length?` · ${view.selection.length} ${t('selected')}`:''}</span>
@@ -118,7 +119,8 @@ export default function DataAgent() {
       </section><section className="data-chart"><h2>{t('chart')}</h2><p>{t('allMatching')}</p>
         <Select label={t('category')} value={view.chart?.category||''} options={[{value:'',label:t('category')},...fieldOptions]} disabled={busy} onChange={category=>update({...view,chart:category?{category,measure:view.chart?.measure||fields[0].name,aggregation:view.chart?.aggregation||'count'}:null})}/>
         {view.chart&&<><Select label={t('measure')} value={view.chart.measure} options={fieldOptions} disabled={busy} onChange={measure=>update({...view,chart:{...view.chart!,measure}})}/><Select label={t('aggregation')} value={view.chart.aggregation} options={[{value:'sum',label:t('sum')},{value:'count',label:t('count')}]} disabled={busy} onChange={aggregation=>update({...view,chart:{...view.chart!,aggregation}})}/></>}
-        {data.chart?<figure><figcaption>{t(view.chart?.aggregation==='count'?'count':'sum')} · {view.chart?.measure} · {data.selected.toLocaleString()} {t('rows')}</figcaption><table aria-label={t('chart')}><tbody>{data.chart.points.map((point,index)=><tr key={index}><th scope="row">{point.label??'—'}</th><td><span className="data-bar" style={{width:`${Math.abs(point.ratio)*100}%`}} aria-hidden="true"/><span title={point.exact}>{point.exact}</span></td></tr>)}</tbody></table>{data.chart.excludedValues>0&&<p>{t('excluded')}: {data.chart.excludedValues}</p>}{data.chart.omittedGroups>0&&<p>{t('omitted')}: {data.chart.omittedGroups}</p>}</figure>:<p>{t('noChart')}</p>}
+        <ChartPanel data={data} busy={busy}/>
+        {!data.chart&&<p>{t('noChart')}</p>}
       </section></div>{showChat&&<AppConversation className="data-chat" fallback={<p role="status">{t('chatUnavailable')}</p>}/>}</div><footer className="data-provenance"><span>{t('provenance')}: <code title={data.dataset.id}>{data.dataset.id}</code></span><span>{data.dataset.bytes.toLocaleString()} bytes</span></footer>
     </>}
   </main>;

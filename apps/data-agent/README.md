@@ -22,6 +22,26 @@ point; exported number tokens and sums retain precision. Exports contain every
 field and a manifest with the source digest, query, selection and record pointers
 (line numbers for JSON Lines).
 
+The chart panel uses GPUI Kit in the managed reader surface. Choose an
+aggregation or map record fields to line, bar, area, pie, radar, candlestick,
+or Sankey. Candlestick needs category and open/high/low/close fields; Sankey
+needs source, target, and value fields. Chart data and source sections expose
+plotted values, dataset digest, view identity, record pointers, exclusions,
+and the original source. Plot coordinates use floating point; exact aggregate
+values and source records remain available. Charts currently accept up to
+2,000 selected or matching records. Unsupported or ambiguous inputs are
+reported instead of silently filling, aggregating, or changing the chart type.
+Line charts support up to five series and preserve explicit nulls as gaps;
+their multi-series view exposes values in the data table instead of hover
+tooltips. Other chart families currently reject series and null values.
+
+Open a Point-inspired version 1 chart document with **Open chart JSON**, or
+export a generated document. Charts are saved by content digest and can be
+reopened from **Saved charts**. A dataset-generated chart keeps its local
+provenance when reopened; an external document's source is a claim, not
+independent verification. A dataset-linked export can be imported again when
+its complete content matches a chart saved in this App's local data.
+
 Ask Agent freezes a revision of the existing App object and fills the owning
 chat's draft. The user sends the prompt through the normal ACP session. App Use
 exposes query, chart, complete source, and export actions; these return bounded
@@ -31,6 +51,10 @@ up to 64 KiB of explicit JSON text; larger inputs use the App's file picker.
 This is Pero's managed Data Agent App. It does not claim compatibility or account
 access for the separate OpenAI Data plugin. A loopback/fixture Agent test does
 not certify a real model, connector, or analytical conclusion.
+
+The Composer skill picker can discover and attach the built-in `data` skill.
+It guides use of the existing App Use actions; it does not install arbitrary
+Codex plugins or enter every conversation automatically.
 
 Run `npm test` and `npm run typecheck` in this directory. Build with
 `node scripts/build/apps.mjs --app data-agent` from the repository root.
