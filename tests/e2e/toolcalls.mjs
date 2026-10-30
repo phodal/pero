@@ -29,7 +29,7 @@ try{
  await page.mouse.click(await page.evaluate(()=>innerWidth-154),await page.evaluate(()=>innerHeight-20));
  await page.keyboard.press('ArrowUp');
  await page.keyboard.press('Enter');
- await expect.poll(async()=>(await state()).chats?.[0]?.agent).toBe('fixture');
+ await expect.poll(async()=>(await state()).chats?.[0]?.agent).toBe('pero');
  await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},context);
  await page.evaluate(()=>window.pero.chooseContext());
  await expect.poll(async()=>(await state()).attachments).toEqual(['context.txt']);
