@@ -690,5 +690,11 @@
   "workspace.open_left": "在左侧打开",
   "workspace.open_right": "在右侧打开",
   "workspace.open_up": "在上方打开",
-  "workspace.open_down": "在下方打开"
+  "workspace.open_down": "在下方打开",
+  "workspace.pin_tab": "固定标签",
+  "workspace.unpin_tab": "取消固定",
+  "workspace.keep_tab": "保留标签",
+  "workspace.switch_tabs": "切换标签",
+  "workspace.close_dont_save": "不保存",
+  "workspace.close_cancel": "取消"
 }

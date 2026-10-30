@@ -690,5 +690,11 @@
   "workspace.open_left": "Open to the left",
   "workspace.open_right": "Open to the right",
   "workspace.open_up": "Open upward",
-  "workspace.open_down": "Open downward"
+  "workspace.open_down": "Open downward",
+  "workspace.pin_tab": "Pin tab",
+  "workspace.unpin_tab": "Unpin tab",
+  "workspace.keep_tab": "Keep tab",
+  "workspace.switch_tabs": "Switch tabs",
+  "workspace.close_dont_save": "Don’t Save",
+  "workspace.close_cancel": "Cancel"
 }
