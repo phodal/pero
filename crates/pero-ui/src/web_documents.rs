@@ -15,15 +15,26 @@ gpui_kit::actions!(web_document, [OpenWeb]);
 #[cfg(not(target_family = "wasm"))]
 pub(crate) struct WorkspaceNativeWeb {
     pub view: Entity<crate::native_web::NativeWebPage>,
-    _subscription: Subscription,
+    _subscriptions: Vec<Subscription>,
 }
 #[cfg(not(target_family = "wasm"))]
 #[derive(serde::Deserialize)]
 #[serde(tag = "action", deny_unknown_fields)]
 enum NativeWebIntent {
+    #[serde(rename = "web_html")]
+    Html {
+        source: pero_contracts::web_document::InlineHtml,
+    },
     #[serde(rename = "web_open")]
     Open {
         url: pero_contracts::web_document::WebAddress,
+    },
+    #[serde(rename = "web_restore")]
+    Restore {
+        id: String,
+        url: pero_contracts::web_document::WebLocation,
+        #[serde(default)]
+        html: Option<pero_contracts::web_document::InlineHtml>,
     },
     #[serde(rename = "web_navigate")]
     Navigate {
@@ -63,12 +74,25 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> bool {
         match event.kind.as_str() {
+            "mcp_choose" => self.choose_mcp(cx),
+            "mcp_sources" => {
+                if let Some(url) = event.data["url"].as_str() {
+                    self.web_command(json!({"action":"web_open","url":url}), window, cx);
+                }
+            }
+            "mcp_error" => self.error = Some(event.text.clone()),
             "web_choose" => self.choose_web(window, cx),
             "web_opened" | "web_state" => {
                 match serde_json::from_value::<WebDocument>(event.data.clone()) {
                     Ok(page) => self.observe_web(page, event.kind == "web_opened", window, cx),
                     Err(_) => self.error = Some(self.t("web.unavailable").into()),
                 }
+            }
+            "pane_focus" => {
+                if let Some(id)=event.data["id"].as_u64() { self.focus_surface_pane(pero_contracts::workspace_panes::PaneId(id),window,cx); }
+            }
+            "web_focused" => {
+                if let Some(id)=event.data["id"].as_str() {self.focus_surface_item(&WorkspaceItem::Web(id.into()),window,cx);}
             }
             "web_closed" => {
                 if let Some(id) = event.data["id"].as_str() {
@@ -110,12 +134,14 @@ impl Workbench {
             self.sync_follow(cx);
         }
         self.sync_web_address(open, window, cx);
+        self.queue_workspace_checkpoint(cx);
         cx.notify();
     }
     fn close_web(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
         #[cfg(not(target_family = "wasm"))]
         self.native_web_pages.remove(id);
         self.web_documents.retain(|page| page.id != id);
+        self.queue_workspace_checkpoint(cx);
         if let Some(route) = self.navigation.close(&WorkspaceItem::Web(id.into())) {
             self.activate_route(route, window, cx);
         }
@@ -144,8 +170,35 @@ impl Workbench {
                 }
             };
             match intent {
-                Open { url } => {
-                    let document = WebDocument::open(url);
+                open @ (Open { .. } | Html { .. } | Restore { .. }) => {
+                    let (document, select) = match open {
+                        Open { url } => (WebDocument::open(url), true),
+                        Html { source } => (WebDocument::inline(source), true),
+                        Restore { id, url, html } => {
+                            let mut document = if let Some(source) = html {
+                                WebDocument::inline(source)
+                            } else {
+                                match pero_contracts::web_document::WebAddress::try_from(id.clone())
+                                {
+                                    Ok(address) => WebDocument::open(address),
+                                    Err(error) => {
+                                        self.error = Some(error);
+                                        cx.notify();
+                                        return;
+                                    }
+                                }
+                            };
+                            if document.id != id {
+                                self.error = Some("HTML source identity changed".into());
+                                cx.notify();
+                                return;
+                            }
+                            document.observation.url = url;
+                            document.observation.notice = Some("Native restored this source. Browser history and form recovery are unavailable in this engine.".into());
+                            (document, false)
+                        }
+                        _ => unreachable!(),
+                    };
                     let id = document.id.clone();
                     let document = if let Some(open) = self.native_web_pages.get(&id) {
                         open.view.read(cx).document.clone()
@@ -160,16 +213,29 @@ impl Workbench {
                                 this.observe_web(event.0.clone(), false, window, cx)
                             },
                         );
+                        let popup = cx.subscribe_in(
+                            &view,
+                            window,
+                            |this, _, event: &crate::native_web::NativeWebPopup, window, cx| {
+                                this.web_command(
+                                    json!({"action":"web_open","url":event.0}),
+                                    window,
+                                    cx,
+                                )
+                            },
+                        );
+                        let focused_id=id.clone();
+                        let focus=cx.subscribe_in(&view,window,move|this,_,_:&crate::native_web::NativeWebFocused,window,cx|this.focus_surface_item(&WorkspaceItem::Web(focused_id.clone()),window,cx));
                         self.native_web_pages.insert(
                             id,
                             WorkspaceNativeWeb {
                                 view,
-                                _subscription: subscription,
+                                _subscriptions: vec![subscription, popup, focus],
                             },
                         );
                         document
                     };
-                    self.observe_web(document, true, window, cx);
+                    self.observe_web(document, select, window, cx);
                 }
                 Navigate { id, url } => {
                     if let Some(open) = self.native_web_pages.get(&id) {
@@ -218,6 +284,11 @@ impl Workbench {
             }
         }
     }
+    #[cfg(target_family="wasm")]
+    pub(crate) fn publish_web_surfaces(&mut self,payload:serde_json::Value,cx:&mut Context<Self>) {
+        let encoded=payload.to_string();
+        if self.web_surface!=encoded {self.web_surface=encoded;self.command(payload,cx);}
+    }
     pub(crate) fn sync_web_surface(
         &mut self,
         bounds: Option<Bounds<Pixels>>,
@@ -225,6 +296,7 @@ impl Workbench {
     ) {
         #[cfg(target_family = "wasm")]
         {
+            if self.navigation.pane_layout_visible() {self.sync_pane_surfaces(cx);return;}
             let bounds = bounds.filter(|_| self.layout.embedded_surface_visible);
             let payload = match (self.navigation.current(), bounds) {
                 (Some(WorkspaceItem::Web(id)), Some(bounds)) => {
@@ -232,23 +304,20 @@ impl Workbench {
                 }
                 _ => json!({"action":"web_surface","id":null}),
             };
-            let encoded = payload.to_string();
-            if self.web_surface != encoded {
-                self.web_surface = encoded;
-                self.command(payload, cx);
-            }
+            self.publish_web_surfaces(payload,cx);
         }
         #[cfg(not(target_family = "wasm"))]
         {
             let _ = bounds; // Kit measures the selected native view during prepaint.
-            let selected = self
-                .navigation
-                .current()
-                .filter(|_| self.layout.embedded_surface_visible);
+            let visible = if self.layout.embedded_surface_visible {
+                if self.navigation.pane_layout_visible() {self.navigation.pane_layout().map(|layout|layout.active_items().into_iter().filter_map(|leaf|if let crate::workspace::WorkspaceRoute::Content(WorkspaceItem::Web(id))=&leaf.route {Some(id.clone())}else{None}).collect::<Vec<_>>()).unwrap_or_default()}
+                else {self.navigation.current().and_then(|item|if let WorkspaceItem::Web(id)=item {Some(id.clone())}else{None}).into_iter().collect()}
+            } else {vec![]};
             for (id, open) in &self.native_web_pages {
-                if selected != Some(&WorkspaceItem::Web(id.clone())) {
-                    open.view.update(cx, |view, cx| view.hide(cx));
-                }
+                open.view.update(cx,|view,cx| {
+                    view.set_active(self.navigation.current()==Some(&WorkspaceItem::Web(id.clone())));
+                    if !visible.contains(id) {view.hide(cx);}
+                });
             }
         }
     }
@@ -306,6 +375,8 @@ impl Workbench {
                 .small()
                 .flex_1(),
         );
+        toolbar = toolbar.child(Button::new("mcp-sources").ghost().small().label("MCP Apps")
+            .on_click(cx.listener(|this, _, _, cx| this.choose_mcp(cx))));
         if let Some(page) = current {
             match &page.observation.load {
                 WebLoad::Loading => {
@@ -319,7 +390,16 @@ impl Workbench {
                             .child(message.clone()),
                     )
                 }
-                WebLoad::Ready => {}
+                WebLoad::Ready => {
+                    if let Some(notice) = &page.observation.notice {
+                        toolbar = toolbar.child(
+                            div()
+                                .max_w(px(280.))
+                                .text_size(px(12.))
+                                .child(notice.clone()),
+                        );
+                    }
+                }
             }
         } else {
             toolbar = toolbar.child(
@@ -336,6 +416,11 @@ impl Workbench {
             );
         }
         toolbar.into_any_element()
+    }
+    fn choose_mcp(&mut self, cx: &mut Context<Self>) {
+        let chat = self.chat.read(cx);
+        let thread = chat.active_chat.and_then(|index| chat.chats.get(index)).map(|chat|chat.id.clone());
+        self.command(json!({"method":"mcp","action":"open","request_id":"mcp-sources","thread_id":thread}),cx);
     }
     pub(crate) fn web_content(&self, cx: &mut Context<Self>) -> AnyElement {
         #[cfg(target_family = "wasm")]

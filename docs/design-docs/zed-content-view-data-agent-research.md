@@ -425,3 +425,44 @@ Pero 现有 App iframe、主题/语言和 Host 生命周期是可复用的基础
 对 Data Agent，优先采用“模型获摘要与 dataset 引用，View 通过 app 可见工具分页读取数据，用户选中范围时才更新模型上下文”的路径。`structuredContent` 的存在本身不能证明数据不会进入模型上下文；Host 必须明确控制结果路由和上下文选择。完整行集、图表状态和每次滚动操作不应自动变成新的模型输入。
 
 当前 `content_read` 是普通 MCP 工具的文件读取基础，不等于 MCP Apps 支持。当前先以完整来源阅读和用户操作的功能等价为验收门槛，再优化性能与输出体积；MCP Apps Host 属于后续明确的兼容能力，实施时直接评估官方 SDK 的 `AppBridge`/`App`，不另造一套相似的 RPC 协议。
+
+## 2026-10-30 parity scope audit
+
+The local reference still resolves to the fixed Zed commit above. The content
+implementation now includes typed/durable ReaderState, regex/whole-word search,
+Markdown heading/source mapping, root JSON folds, shared content icons,
+workspace checkpoints, two different document panes and real Worker syntax/root
+preview parsing. Observable receipts live in the fitness documents; source
+implementation alone does not close their runtime gates.
+
+The reference table is not a range-selection target: `table_view.rs:279` creates
+`single_cell` and `renderer/table_cell.rs:10` copies a cell. Its keyboard cursor
+is restricted to test/debug at `table_view.rs:242`. Multi-cell ranges and
+transformed export are Pero/Data extensions. Likewise the fixed source has no
+MCP Apps `AppBridge`/`ui/initialize` resource lifecycle. Those remain explicitly
+separate product extensions.
+
+The initial audit identified background sort/filter (`table_view.rs:214`),
+same-document position history (`workspace/pane.rs:507`, `editor/items.rs:653`)
+and Save As; their implemented/accepted closure is recorded below. Wider panes
+(`workspace/pane.rs:240`) remain outside the current scope of two distinct open
+documents. Same-buffer clones and a general pane/dock tree are not implemented. Source restore is eager even though editor creation
+is lazy. The root preview Worker follows Zed's parser/background/cooldown shape
+(`tabular_data_preview/parser.rs:18,149`); large nested projections still need
+that treatment. Compact nested display preserves original source tokens.
+
+Full native selection remains real and can still exceed the interaction budget.
+The 8k-row release-Wasm probe and 100k-row pure Worker test are different lanes;
+neither certifies 100k-row UI latency, physical IME or installed OS packages.
+
+### Final content-flow closure
+
+Save As now migrates File views to the chosen destination and preserves immutable
+producer views when copying their source. Source-location history restores exact
+positions through workspace reload; incompatible revision/identity geometry is
+cleared rather than applied to different content. Table transformations now use
+the same pure exact-value core in a retained Worker source. Actual acceptance
+includes these three paths, with 100k-row UI functionality/performance recorded
+separately from the 8k fixture. General panes, live-edit anchors, lazy source I/O,
+MCP Apps and Data Agent workflow remain distinct work. The large native selection
+incident stays open; functional equivalence is not an absolute performance claim.

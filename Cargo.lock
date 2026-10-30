@@ -2574,7 +2574,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "raw-window-handle",
  "regex",
- "ropey",
+ "ropey 2.0.0-beta.1",
  "schemars 1.2.3",
  "serde",
  "serde_json",
@@ -2616,7 +2616,7 @@ dependencies = [
  "raw-window-handle",
  "regex",
  "resvg 0.45.1",
- "ropey",
+ "ropey 2.0.0-beta.1",
  "rust-i18n",
  "schemars 1.2.3",
  "serde",
@@ -5415,6 +5415,8 @@ dependencies = [
  "pero-theme",
  "serde",
  "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -5431,10 +5433,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pero-content-worker"
+version = "0.1.0"
+dependencies = [
+ "pero-contracts",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "pero-contracts"
 version = "0.1.0"
 dependencies = [
+ "markdown",
  "num-bigint",
+ "percent-encoding",
+ "regex",
+ "ropey 1.6.1",
+ "roxmltree 0.21.2",
  "serde",
  "serde_json",
  "url",
@@ -5448,6 +5463,20 @@ dependencies = [
  "pero-runtime",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "pero-reader-web"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "gpui-kit",
+ "pero-chat-ui",
+ "pero-contracts",
+ "pero-theme",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -6514,6 +6543,16 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "ropey"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93411e420bcd1a75ddd1dc3caf18c23155eda2c090631a85af21ba19e97093b5"
+dependencies = [
+ "smallvec",
+ "str_indices",
 ]
 
 [[package]]

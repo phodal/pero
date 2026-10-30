@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('product', {
   readContent: (request: object) => ipcRenderer.invoke('product:content-read', request),
   appUseCommand: (command: object) => ipcRenderer.invoke('product:app-use', command),
   sessionCommand: (command: object) => ipcRenderer.invoke('product:session', command),
+  openExternal: (url: string) => ipcRenderer.invoke('product:open-external', url),
   onEvent: (receive: (event: unknown) => void) => ipcRenderer.on('product:event', (_event, value) => receive(value)),
   onContext: (receive: (context: unknown) => void) => ipcRenderer.on('product:context', (_event, value) => receive(value)),
 });

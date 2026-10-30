@@ -4,12 +4,13 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { resolve, sep, delimiter } from 'node:path';
+import { resolve, sep, delimiter, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { normalizeLocale, translate, type Locale, type MessageKey } from '../../../locales';
 import { RemoteAdapter, type StoredRemoteConnection } from './remote';
 import { DesktopApps } from './apps';
 import {WebPages} from './web-pages';
+import {McpHost} from './mcp-host.ts';
 import { DesktopContributions } from './contributions';
 import { LocalExecutionController } from './local-execution';
 import { DesktopAppUse } from './app-use-mcp';
@@ -32,7 +33,7 @@ app.on('second-instance', (_event, argv) => {
   const url = argv.find(deepLink);
   if (url && acceptDeepLink) acceptDeepLink(url);
 });
-protocol.registerSchemesAsPrivileged(['pero', 'pero-app'].map(scheme => ({ scheme, privileges: { standard: true, secure: true, supportFetchAPI: true } })));
+protocol.registerSchemesAsPrivileged(['pero', 'pero-app', 'pero-html'].map(scheme => ({ scheme, privileges: { standard: true, secure: true, supportFetchAPI: true } })));
 if (process.env.PERO_DESKTOP_DATA_DIR) {
   mkdirSync(process.env.PERO_DESKTOP_DATA_DIR, { recursive: true });
   app.setPath('userData', process.env.PERO_DESKTOP_DATA_DIR);
@@ -40,10 +41,14 @@ if (process.env.PERO_DESKTOP_DATA_DIR) {
 if (app.isPackaged && !app.requestSingleInstanceLock()) app.quit();
 const root = resolve(__dirname, '../..');
 let window: BrowserWindow;
+let closeWorkspaceForQuit: (() => Promise<void>) | undefined;
 let host: ChildProcessWithoutNullStreams;
 let ready = false;
 let appUse: DesktopAppUse | undefined;
 let webPages:WebPages|undefined;
+let mcpHost:McpHost|undefined;
+let mcpReady:Promise<void>|undefined;
+const mcpRequests=new Map<string,string|undefined>();
 let computer: DesktopComputer | undefined;
 let locale: Locale = 'en';
 const t = (key: MessageKey) => translate(locale, key);
@@ -118,7 +123,7 @@ function updateMenus() {
       { role: 'cut', label: t('menu.cut') }, { role: 'copy', label: t('menu.copy') },
       { role: 'paste', label: t('menu.paste') }, { role: 'selectAll', label: t('menu.select_all') },
     ] },
-    { label: t('menu.workbench'), submenu: [{id:'open-url',label:t('web.open_url'),click:()=>send({version:1,kind:'web_choose',request_id:null,text:''})}, { id:'open-file',label:t('content.open_file'),accelerator:'CmdOrCtrl+O',click:()=>send({version:1,kind:'document_choose',request_id:null,text:''}) }, { id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
+    { label: t('menu.workbench'), submenu: [{id:'open-url',label:t('web.open_url'),click:()=>send({version:1,kind:'web_choose',request_id:null,text:''})}, {id:'save-as',label:t('content.save_as'),accelerator:'CmdOrCtrl+Shift+S',click:()=>send({version:1,kind:'document_save_choose',request_id:null,text:''})}, { id:'open-file',label:t('content.open_file'),accelerator:'CmdOrCtrl+O',click:()=>send({version:1,kind:'document_choose',request_id:null,text:''}) }, { id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
     { label: t('menu.language'), submenu: [
       { id: 'locale-zh-CN', label: '简体中文', type: 'radio', checked: locale === 'zh-CN', click: () => changeLocale('zh-CN') },
       { id: 'locale-en', label: 'English', type: 'radio', checked: locale === 'en', click: () => changeLocale('en') },
@@ -138,7 +143,7 @@ app.whenReady().then(async () => {
     if (!['workbench', 'chat'].includes(url.host) || !file.startsWith(directory + sep)) return new Response('Not found', { status: 404 });
     return net.fetch(pathToFileURL(file).href).then((response) => {
       const headers = new Headers(response.headers);
-      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src pero-app: pero://chat; object-src 'none'");
+      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; frame-src pero-app: pero://chat; object-src 'none'");
       return new Response(response.body, { status: response.status, headers });
     });
   });
@@ -163,6 +168,7 @@ app.whenReady().then(async () => {
     ...(app.isPackaged ? { PERO_ADAPTER_NODE: process.execPath } : {}),
     ...(process.env.PERO_AGENTS_FILE ? { PERO_AGENTS_FILE: process.env.PERO_AGENTS_FILE } : {}),
     PERO_SETTINGS_PATH: runtimeSettingsPath,
+    PERO_MCP_EXTERNAL:'1',
     PERO_APPS_ROOT: process.env.PERO_APPS_ROOT || resolve(app.getPath('userData'), 'apps'),
     PERO_BUILTIN_APPS_ROOT: resolve(root, 'apps'),
     ...(process.env.PERO_APP_NODE ? { PERO_APP_NODE: process.env.PERO_APP_NODE } : {}),
@@ -172,6 +178,19 @@ app.whenReady().then(async () => {
   createInterface({ input: host.stdout }).on('line', (line) => {
     try {
       const message = JSON.parse(line);
+      if(message.kind==='mcp_permitted'||message.kind==='mcp_error'){
+        const request=mcpRequests.get(message.request_id);
+        if(!mcpRequests.has(message.request_id))return;
+        mcpRequests.delete(message.request_id);
+        if(message.kind==='mcp_error'){send(message);return;}
+        if((message.thread_id||undefined)!==request)return;
+        void (async()=>{
+          if(!mcpHost)throw new Error('MCP Apps provider is unavailable');
+          mcpReady ||= mcpHost.start();await mcpReady;
+          send({version:1,kind:'mcp_sources',request_id:message.request_id,thread_id:request,text:'',data:{url:mcpHost.open(request,locale)}});
+        })().catch(error=>{mcpReady=undefined;send({version:1,kind:'mcp_error',request_id:message.request_id,text:error instanceof Error?error.message:String(error)});});return;
+      }
+      if(message.kind==='session_deleted'&&message.thread_id)mcpHost?.forgetThread(message.thread_id);
       if(message.kind==='computer_settings'||message.kind==='computer_settings_error'){
         const pending=preferenceWrites.get(message.request_id);
         if(pending){clearTimeout(pending.timer);preferenceWrites.delete(message.request_id);}
@@ -191,6 +210,10 @@ app.whenReady().then(async () => {
           else pending.reject(new Error('The runtime could not save the connection. Check the settings location and retry.'));
         }
         return; // Internal acknowledgement; never publish stored credential envelopes.
+      }
+      if(message.kind==='workspace_saved'||message.kind==='workspace_error') {
+        const pending=preferenceWrites.get(message.request_id);
+        if(pending){clearTimeout(pending.timer);preferenceWrites.delete(message.request_id);if(message.kind==='workspace_saved')pending.resolve();else pending.reject(new Error(message.text||t('workspace.save_failed')));}
       }
       if (message.kind === 'settings') { locale = normalizeLocale(message.text); updateMenus(); }
       if (message.kind === 'ready') ready = true;
@@ -240,9 +263,9 @@ app.whenReady().then(async () => {
     if (!r || typeof r.id !== 'string' || r.id.length > 128 || typeof r.text !== 'string' || Array.from(r.text).length > 4096 || !ready) throw new Error('Invalid probe');
     host.stdin.write(JSON.stringify({ id: r.id, text: r.text }) + '\n');
   });
-  ipcMain.handle('pero:web',(sender,command:unknown)=>{
+  ipcMain.handle('pero:web',async(sender,command:unknown)=>{
     trusted(sender);
-    try {if(!webPages)throw new Error('Web views are unavailable');webPages.command(command);}
+    try {if(!webPages)throw new Error('Web views are unavailable');await webPages.command(command);}
     catch(error){send({version:1,kind:'web_error',request_id:null,text:error instanceof Error?error.message:String(error)});}
   });
   ipcMain.handle('pero:session', async (sender, command: unknown) => {
@@ -250,6 +273,13 @@ app.whenReady().then(async () => {
     if (!ready || !command || typeof command !== 'object') throw new Error('Invalid session command');
     const action = (command as { action?: string }).action;
     const method = (command as { method?: string }).method;
+    if(method==='mcp'){
+      const request=command as {action?:unknown;thread_id?:unknown};
+      if(request.action!=='open'||request.thread_id!==null&&request.thread_id!==undefined&&typeof request.thread_id!=='string')throw new Error('Invalid MCP source intent');
+      const id=randomUUID(),thread=typeof request.thread_id==='string'?request.thread_id:undefined;
+      mcpRequests.set(id,thread);
+      host.stdin.write(JSON.stringify({method:'mcp',action:'open',request_id:id,thread_id:thread})+'\n');return;
+    }
     if (action?.startsWith('local_worker_')) {
       if (!['local_worker_init','local_worker_enroll','local_worker_resume','local_worker_disable','local_worker_skip'].includes(action)) throw new Error('Invalid local execution action');
       await localExecution!.command(command);return;
@@ -259,12 +289,37 @@ app.whenReady().then(async () => {
       if (!selected.canceled && selected.filePaths[0]) send({version:1,kind:'local_worker_workspace',request_id:null,text:'',data:{path:realpathSync(selected.filePaths[0])}});
       return;
     }
+    if(action==='choose_document_save') {
+      const request=command as {request_id?:unknown;suggested?:unknown};
+      if(typeof request.request_id!=='string'||typeof request.suggested!=='string')throw new Error('Invalid save picker intent');
+      try {
+        const selected=await dialog.showSaveDialog(window,{title:t('content.save_as'),defaultPath:request.suggested,properties:['showOverwriteConfirmation','createDirectory']});
+        send({version:1,kind:selected.canceled||!selected.filePath?'document_save_cancelled':'document_save_path',request_id:request.request_id,text:'',...(selected.filePath&&!selected.canceled?{data:{path:selected.filePath}}:{})});
+      } catch {send({version:1,kind:'document_error',request_id:request.request_id,text:'',data:{source:'',reason:'read_write'}});}
+      return;
+    }
     if (action === 'choose_document') {
       const selected=await dialog.showOpenDialog(window,{properties:['openFile']});
       if(!selected.canceled && selected.filePaths[0]) host.stdin!.write(JSON.stringify({method:'documents',action:'open',request_id:'open-file',path:selected.filePaths[0]})+'\n');
       return;
     }
-    if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'documents'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
+    if(action==='choose_icon_theme'){
+      const selected=await dialog.showOpenDialog(window,{title:t('icons.install'),properties:['openFile'],filters:[{name:'Icon theme JSON',extensions:['json']}]});
+      host.stdin.write(JSON.stringify(selected.canceled||!selected.filePaths[0]?{method:'icons',action:'get',request_id:'icons'}:
+        {method:'icons',action:'install',request_id:'icons',path:realpathSync(selected.filePaths[0])})+'\n');return;
+    }
+    if(method==='workspace') {
+      if(['get','read','reset','source_begin','source_chunk','store_draft'].includes(action||'')){host.stdin.write(JSON.stringify(command)+'\n');return;}
+      const request=command as {request_id?:unknown};
+      if(action!=='save'||typeof request.request_id!=='string'||!request.request_id||request.request_id.length>128||JSON.stringify(command).length>16_000_000)throw new Error('Invalid workspace checkpoint');
+      const id=request.request_id;
+      await new Promise<void>((resolveWrite,rejectWrite)=>{
+        const timer=setTimeout(()=>{preferenceWrites.delete(id);rejectWrite(new Error(t('workspace.save_failed')));},10000);
+        preferenceWrites.set(id,{resolve:resolveWrite,reject:rejectWrite,timer});
+        host.stdin.write(JSON.stringify(command)+'\n',error=>{if(error){clearTimeout(timer);preferenceWrites.delete(id);rejectWrite(error);}});
+      });return;
+    }
+    if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'documents','icons'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
     appUse?.authority.command(command as {action?:string;thread_id?:string});
     host.stdin.write(JSON.stringify(command) + '\n');
   });
@@ -291,14 +346,32 @@ app.whenReady().then(async () => {
   window = new BrowserWindow({ ...testWindowOptions, width: 1488, height: 1086, minWidth: 1000, minHeight: 680,
     title: t('window.title'), backgroundColor: '#F7F9FC',
     webPreferences: { ...testWindowOptions.webPreferences, preload: resolve(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
-  webPages=new WebPages(window,send);
+  webPages=new WebPages(window,send,resolve(app.getPath('userData'),'web-sessions.json'),url=>!!mcpHost?.ownsPanel(url));
+  mcpHost=new McpHost(resolve(dirname(runtimeSettingsPath),'mcp-servers.json'),__dirname,url=>shell.openExternal(url),binding=>send({version:1,kind:'mcp_app_opened',request_id:null,thread_id:binding.thread_id,text:'',data:binding}));
   window.on('closed',()=>webPages?.dispose());
   window.webContents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main) appUse?.reset(); });
   window.webContents.on('render-process-gone', () => appUse?.reset());
-  window.webContents.on('will-prevent-unload',event=>{
-    const answer=dialog.showMessageBoxSync(window,{type:'warning',message:t('content.unsaved'),detail:t('content.unsaved_window'),buttons:[t('content.keep_editing'),t('content.discard_window')],defaultId:0,cancelId:0});
-    if(answer===1)event.preventDefault();
-  });
+  let workspaceWindowPending=false;
+  const finishWorkspaceWindow=async(reload:boolean)=>{
+    if(workspaceWindowPending)return;workspaceWindowPending=true;
+    const finish=async()=>{if(reload){await window.webContents.executeJavaScript('window.peroAllowUnloadOnce=true');window.webContents.reload();}else window.destroy();};
+    try {
+      const ready=await window.webContents.executeJavaScript('window.peroPrepareWindowClose ? window.peroPrepareWindowClose() : true');
+      if(!ready)return;
+      await webPages?.checkpoint();
+      if(mcpHost)await webPages?.prepareClose(url=>mcpHost!.ownsPanel(url));
+      await window.webContents.executeJavaScript('window.peroWorkspaceCheckpoint?.(true)');
+      await finish();
+    } catch(error) {
+      if(window.isDestroyed())return;
+      const answer=dialog.showMessageBoxSync(window,{type:'error',message:t('workspace.save_failed'),detail:error instanceof Error?error.message:String(error),buttons:[t('content.keep_editing'),t('workspace.recovery_close')],defaultId:0,cancelId:0});
+      if(answer===1)await finish();
+    } finally {workspaceWindowPending=false;}
+  };
+  closeWorkspaceForQuit=()=>finishWorkspaceWindow(false);
+  window.on('close',event=>{event.preventDefault();void finishWorkspaceWindow(false);});
+  // The renderer blocks a reload until the latest reading state/draft decision is durable.
+  window.webContents.on('will-prevent-unload',()=>{void finishWorkspaceWindow(true);});
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
@@ -328,7 +401,12 @@ app.on('before-quit', quit => {
   quit.preventDefault();
   if (shuttingDown) return;
   shuttingDown = true;
-  const computerClosed=appUse?.close()||Promise.resolve(); globalShortcut.unregisterAll(); localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();
+  void (async()=>{
+    if(window&&!window.isDestroyed()) {
+      await closeWorkspaceForQuit?.();
+      if(!window.isDestroyed()){shuttingDown=false;return;}
+    }
+  const computerClosed=Promise.all([appUse?.close(),mcpHost?.close()]); globalShortcut.unregisterAll(); localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();mcpRequests.clear();
   if (!host?.pid || host.exitCode !== null || host.signalCode !== null) {
     void computerClosed.catch(error=>console.error(error)).finally(()=>{shutdownComplete = true; app.quit();}); return;
   }
@@ -349,4 +427,5 @@ app.on('before-quit', quit => {
     timer = setTimeout(() => { host.kill('SIGKILL'); finish(); },2000);
   },10000);
   void computerClosed.catch(error=>console.error(error)).finally(()=>host.stdin.end());
+  })();
 });

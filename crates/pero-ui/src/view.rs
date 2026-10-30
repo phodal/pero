@@ -11,7 +11,7 @@ use crate::{
     layout::{ChatPlacement, WorkspaceLayout},
     workspace::{ConversationTab, WorkbenchPage, WorkspaceItem},
 };
-use gpui_kit::{prelude::*, *};
+use gpui_kit::{component::WindowExt, prelude::*, *};
 use std::rc::Rc;
 
 impl Workbench {
@@ -24,7 +24,7 @@ impl Workbench {
     }
 
     pub fn icon(&self, name: &str) -> Svg {
-        pero_chat_ui::assets::UiIcon::named(name).element().size(px(pero_theme::WorkbenchStyle::ICON)).flex_shrink_0()
+        svg().path(pero_chat_ui::icon_theme::asset_path(name)).size(px(pero_theme::WorkbenchStyle::ICON)).flex_shrink_0()
     }
 
     fn sidebar(&self, width: f32, cx: &mut Context<Self>) -> Stateful<Div> {
@@ -267,8 +267,8 @@ impl Render for Workbench {
             });
         }
         let viewport_width = window.viewport_size().width;
-        let tab = self.navigation.current().and_then(|item| {
-            self.navigation.items().iter().position(|candidate| candidate == item)
+        let tab = self.navigation.current().filter(|item|matches!(item,WorkspaceItem::Project(_)|WorkspaceItem::Task(_))).and_then(|item| {
+            self.navigation.items().iter().filter(|item|matches!(item,WorkspaceItem::Project(_)|WorkspaceItem::Task(_))).position(|candidate| candidate == item)
                 .map(|index| (item.clone(), index, viewport_width))
         });
         if tab != self.revealed_tab {
@@ -280,12 +280,14 @@ impl Render for Workbench {
             self.revealed_tab = tab;
         }
         let width: f32 = viewport_width.into();
+        let pane_tree=self.navigation.pane_layout_visible()&&!(self.navigation.page()==WorkbenchPage::Conversation&&self.tab!=ConversationTab::Chat);
         let layout = WorkspaceLayout::resolve(
             width,
             self.navigation.route(),
             self.tab,
             &self.preferences.layout,
-            self.settings_menu_open || self.resizing_chat || self.settings_panel.is_some(),
+            self.settings_menu_open || self.resizing_chat || self.settings_panel.is_some() || self.pane_tabs.switching() || window.has_active_dialog(cx) || gpui_kit::component::GlobalState::is_in_deferred_context(cx),
+            self.navigation.pane_layout().filter(|_|pane_tree),
         );
         self.layout = layout;
         let sidebar_width = layout.sidebar_width;
@@ -304,11 +306,45 @@ impl Render for Workbench {
         div()
             .id("workbench")
             .track_focus(&self.workspace_focus)
+            .when(self.pane_tabs.switching(),|el|el.key_context("PaneTabSwitcher"))
+            .on_modifiers_changed(cx.listener(|this,event,window,cx|this.pane_tab_modifiers(event,window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_tabs::NextPaneTabMru,window,cx|{this.cycle_pane_tab_mru(false,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_tabs::PreviousPaneTabMru,window,cx|{this.cycle_pane_tab_mru(true,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_tabs::ConfirmPaneTabSwitch,window,cx|{this.confirm_pane_tab_switch(window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_tabs::CancelPaneTabSwitch,window,cx|{this.cancel_pane_tab_switch(window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_tab_actions::ClosePaneTab,window,cx|this.close_keyboard_tab(window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_tab_actions::ReopenClosedPaneTab,window,cx|this.reopen_closed_tab(window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_tab_actions::OpenPreviewToSide,window,cx|this.preview_to_side(window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_tab_actions::FocusPane1,window,cx|this.focus_numbered_pane(0,window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_tab_actions::FocusPane2,window,cx|this.focus_numbered_pane(1,window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_tab_actions::FocusPane3,window,cx|this.focus_numbered_pane(2,window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_tab_actions::FocusPane4,window,cx|this.focus_numbered_pane(3,window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_tab_actions::FocusPane5,window,cx|this.focus_numbered_pane(4,window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_tab_actions::FocusPane6,window,cx|this.focus_numbered_pane(5,window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_tab_actions::FocusPane7,window,cx|this.focus_numbered_pane(6,window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_tab_actions::FocusPane8,window,cx|this.focus_numbered_pane(7,window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_tab_actions::FocusPane9,window,cx|this.focus_numbered_pane(8,window,cx)))
+
+            .capture_action(cx.listener(|this,_:&crate::workspace_recent::OpenRecentContent,window,cx|{this.open_recent_content(window,cx);cx.stop_propagation();}))
             .capture_action(cx.listener(|this,_:&crate::web_documents::OpenWeb,window,cx| {this.choose_web(window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::document_save_as::SaveDocumentAs,_,cx| {this.choose_document_save_as(cx);cx.stop_propagation();}))
             .capture_action(cx.listener(|this,_:&crate::workspace_view::OpenDocument,_,cx| {this.choose_document(cx);cx.stop_propagation();}))
             .capture_action(cx.listener(|this, _: &crate::workspace_view::NextContent, window, cx| this.cycle_content(false, window, cx)))
             .capture_action(cx.listener(|this, _: &crate::workspace_view::PreviousContent, window, cx| this.cycle_content(true, window, cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_view::WorkspaceBack,window,cx|this.navigate_history(false,window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_view::WorkspaceForward,window,cx|this.navigate_history(true,window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_view::SplitDocument,window,cx|this.toggle_document_split(window,cx)))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::SplitPaneLeft,window,cx|{this.split_document_pane(pero_contracts::workspace_panes::SplitDirection::Left,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::FocusPaneLeft,window,cx|{this.focus_document_pane_direction(pero_contracts::workspace_panes::SplitDirection::Left,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::SplitPaneRight,window,cx|{this.split_document_pane(pero_contracts::workspace_panes::SplitDirection::Right,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::FocusPaneRight,window,cx|{this.focus_document_pane_direction(pero_contracts::workspace_panes::SplitDirection::Right,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::SplitPaneUp,window,cx|{this.split_document_pane(pero_contracts::workspace_panes::SplitDirection::Up,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::FocusPaneUp,window,cx|{this.focus_document_pane_direction(pero_contracts::workspace_panes::SplitDirection::Up,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::SplitPaneDown,window,cx|{this.split_document_pane(pero_contracts::workspace_panes::SplitDirection::Down,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::FocusPaneDown,window,cx|{this.focus_document_pane_direction(pero_contracts::workspace_panes::SplitDirection::Down,window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_pane_views::ClosePane,window,cx|{this.close_active_document_pane(window,cx);cx.stop_propagation();}))
             .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, window, cx| {
+                this.resize_document_pane(event.position,cx);
                 if this.resizing_chat {
                     let width: f32 = window.viewport_size().width.into();
                     let x: f32 = event.position.x.into();
@@ -319,6 +355,7 @@ impl Render for Workbench {
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(|this, _, _, cx| {
+                    if this.pane_resize.take().is_some() {this.queue_workspace_checkpoint(cx);cx.notify();}
                     if this.resizing_chat {
                         this.resizing_chat = false;
                         this.save_preferences(this.preferences.clone(), cx);
@@ -344,6 +381,7 @@ impl Render for Workbench {
                     .flex_col()
                     .when(has_tabs, |el| el.child(self.content_tabs(cx)))
                     .when(self.web_entry_open || self.navigation.page()==WorkbenchPage::Web,|el|el.child(self.web_toolbar(cx)))
+                    .children(self.recovery_controls(cx))
                     .when(self.error.is_some(), |el| {
                         el.child(
                             div()
@@ -382,8 +420,9 @@ impl Render for Workbench {
                                         .h_full()
                                         .flex()
                                         .flex_col()
-                                        .when(self.navigation.page()==WorkbenchPage::Web,|el|el.child(self.web_content(cx)))
-                                        .when(self.navigation.page()==WorkbenchPage::Document,|el|el.child(self.document_content(cx)))
+                                        .when(pane_tree,|el|el.child(self.render_pane_tree(self.navigation.pane_layout().unwrap().root.as_ref().unwrap(),cx)))
+                                        .when(!pane_tree&&self.navigation.page()==WorkbenchPage::Web,|el|el.child(self.web_content(cx)))
+                                        .when(!pane_tree&&self.navigation.page()==WorkbenchPage::Document,|el|el.child(self.document_content(cx)))
                                         .when(
                                             self.navigation.page() == WorkbenchPage::Tasks,
                                             |el| {
@@ -391,7 +430,7 @@ impl Render for Workbench {
                                             },
                                         )
                                         .when(
-                                            self.navigation.page() == WorkbenchPage::Conversation,
+                                            !pane_tree&&self.navigation.page() == WorkbenchPage::Conversation,
                                             |el| el.child(self.detail(window, cx)),
                                         )
                                         .when(
@@ -419,7 +458,7 @@ impl Render for Workbench {
                                             self.navigation.page() == WorkbenchPage::Agents,
                                             |el| el.child(self.environments(cx)),
                                         )
-                                        .when(self.navigation.page() == WorkbenchPage::Apps, |el| {
+                                        .when(!pane_tree&&self.navigation.page() == WorkbenchPage::Apps, |el| {
                                             el.child(self.apps_view(cx))
                                         })
                                         .when(

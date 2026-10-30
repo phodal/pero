@@ -4,7 +4,48 @@ status: active
 date: 2026-10-30
 ---
 
-# Complete content-view coverage and end-to-end acceptance
+# ACP content flow: integration evidence and scope cleanup
+
+## Corrected scope and integration order
+
+The user clarified that the target is Zed's ACP flow: conversations, streaming
+messages, tool calls, permissions, and readable code/JSON results. A general file
+editor is outside that goal. Data Agent and MCP Apps remain deferred.
+
+This branch expanded into file editing and general editor/workspace behavior.
+The user requested pushing and merging the current code first so others can
+test, then cleaning up that excess scope. The infrastructure and File receipts
+below describe current code; they do not establish ACP flow completion. Next work
+must compare actual ACP workflows and separate or remove the general editing
+surface without discarding useful read-only result rendering or lazy artifact IO.
+
+The live comparison uses `/Applications/Zed.app` 1.26.2 (build
+`20261028.143738`), separately from source baseline
+`37faef81f74fc1bb08be9939c4cffc8ede6ced2f`. A new restricted-mode window and
+disposable files preserve the user's existing project and settings.
+
+Observed in the actual app, with captures in `test-results/zed-reference/`:
+
+- Cmd-P opens in the focused pane. Cmd-Backslash clones the source view; opening
+  two more files in that pane leaves the other pane's tab set unchanged (`05`–`08`).
+- Markdown's side preview has its own view and tab, while editing focus remains
+  in the source pane (`09`–`10`).
+- Editing in one clone updates both texts and dirty indicators. Undo from the
+  other clone reverses the shared edit (`11`–`12`).
+- Closing a dirty clone collapses the empty pane without a save prompt. Closing
+  the last view offers Save / Don't Save / Cancel; Cancel preserves the view
+  and draft (`13`–`15`).
+- Cmd-Shift-T reopens from the current pane's independent closed-item history
+  (`16`). Back/forward and ordered tab cycling are different actions.
+
+`PaneTabSet` now owns items, active/preview identities, pinned prefix, MRU,
+located navigation and closed-item history. `ViewId` identifies an editor view;
+the source owns its buffer and Undo. The pure model covers preview promotion,
+history preview restoration, drag across the pinned boundary, keyboard close
+protection, background-tab reopening, and location clearing after discarded edits.
+The full contracts suite passes. Actual Desktop acceptance now passes all eight
+pane/editor workflows, the separate recent-content keyboard workflow, six close
+workflows, OS window close/reload, and 100k-row File checkpoint/restart/save.
 
 The scope is the content workflow in the Zed research: sources enter a workspace,
 render in the right view, retain identity and interaction state, and integrate
@@ -32,7 +73,7 @@ simulated result alone.
 | Data Agent | No dataset workflow | Dataset schema/grain/provenance and table/chart/selection context | Real dataset -> view -> selected context -> source verification |
 | Cross-platform/accessibility | macOS background fixture proof | Keyboard/focus, light/dark, minimum width, accessibility and platform builds | Separate OS/package receipts; physical IME and screen-reader proof identified explicitly |
 
-## Implementation order
+## Original implementation order (extensions now deferred)
 
 1. Complete typed source admission and Markdown/file/document lifecycle across GPUI and Web.
 2. Build Web and MCP resource hosts against the same workspace lifecycle; use the official MCP Apps SDK.
@@ -72,43 +113,90 @@ simulated result alone.
   The 1 MiB probe still records a roughly 300 ms main-thread task. Performance
   remains open, and this is release Wasm functional proof, not release-Oz or a
   downloaded package receipt.
-- File close/reopen is covered within one session. Restart recovery, split
-  panes, Markdown anchors/range mapping, Save As and native runtime UI proof
-  remain incomplete; therefore the broader lifecycle/Markdown rows stay open.
+- The early file receipt covered close/reopen within one session. The final
+  receipts below add restart, distinct-document panes, Markdown anchors/source
+  mapping and Save As. Physical native UI acceptance remains separate.
 - Generic HTTP(S) Web sources now have separate retained workspace identities,
   Electron WebContentsView and native GPUI Kit/Wry engines. Actual Electron
   and hidden macOS WebKit receipts are in [Web view acceptance](../fitness/web-documents.md).
   Two-page visibility, overlays and teardown are covered. This does not supply
-  MCP Apps, inline HTML admission, restart recovery or full browser parity.
+  MCP Apps, inline HTML admission or full browser parity. Last-URL restart
+  recovery is recorded in the later acceptance receipt.
 - Table sorting/filtering, column resizing, keyboard cell copy and source mapping
   are implemented with Kit DataTable; details are in [reader acceptance](../fitness/content-reader.md).
-  Cell ranges, advanced editor operations, MCP Apps, unified extensible content
-  icons and the Data Agent workflow remain incomplete. Cross-platform package,
+  Cell ranges, advanced editor operations, MCP Apps and the Data Agent workflow
+  remain separate work; the shared icon registry is covered by this closure. Cross-platform package,
   physical native UI and assistive-technology proof is pending.
 
-## Current delivery status
+## Current implementation before ACP scope cleanup
 
 | Capability | Current implementation and verified boundary | Remaining gate |
 | --- | --- | --- |
-| Source admission | Typed metadata and conversation/file/App revision ownership | Real MCP resource authority and metadata |
-| Markdown | Retained rendered/source views and file-relative links in actual Desktop | Heading anchors and rendered/source range mapping |
-| Files | Host-owned open/edit/save, conflict preservation, discard and unload guard | Save As, restart/draft recovery and physical native dialogs |
-| Workspace lifecycle | Stable tabs and reading state within a process | Restart, workspace back/forward and split panes |
-| Web | Actual Electron and macOS Wry page engines, history, retention and release | Inline HTML, restart, popup/native navigation limits and other OS receipts |
-| MCP Apps | Origin namespace only | Real server/resource connection, metadata, AppBridge and acceptance |
-| App SDK | Actual Virtual Cell result opens completely and returns to retained App | Rich standalone Web reader and other source kinds |
-| Icons | Existing shared action catalog plus Web tab/control icons | Unified content/language mappings and extension admission |
-| Editor | Existing exact copy/search/selection and source editor | Regex/whole-word search, structural folds and source navigation |
-| Data projections | Kit virtualized table, exact sort/filter, column resize, single-cell keyboard copy and original ranges | Cell ranges, transformed export and dataset/Agent consumption |
-| Performance | Per-reader preview reuse and thirty-switch 1 MiB measurements; all operation long tasks recorded | Cross-reader indexes, worker work and cold-start/selection interaction budgets |
-| Data Agent | Virtual Cell computation and source handoff are verified separately | Dataset schema/grain/provenance, selection context and real Agent consumption |
-| Platform/accessibility | macOS hidden Electron, native engine and native compilation | Physical focus/IME, screen reader and installed Windows/Linux/macOS evidence |
+| Source admission | Typed metadata and conversation/file/App revision ownership | MCP resource work is deferred |
+| Markdown | Source and rendered preview have separate ViewIds/item kinds; side preview retains source focus; exact anchors/ranges, regex and whole-word navigation | Arbitrary HTML/plugin anchors and assistive-technology receipts |
+| Files | Host open/edit/save/Save As, disk conflicts, acknowledged close/reload, bounded source/draft references and real 100k-row crash recovery | Physical native dialog interaction |
+| Workspace lifecycle | General pane tree, pane-local tabs/preview/pins/MRU/closed history; same-buffer clones share Undo; lazy source restore, edit-anchor rebasing, bounded history and legacy snapshot migration | Cmd-P searches known recent descriptors; full project filesystem indexing is outside this implementation |
+| Web | Electron and macOS Wry engines; stable ID and last URL restoration | Inline HTML, restored engine history/form/scroll and other OS receipts |
+| MCP Apps | Separate Pero compatibility extension | Deferred by the user; no AppBridge compatibility claim |
+| App SDK | Actual Virtual Cell source handoff, shared Kit Web reader and themed ContentIcon | Real provider/platform acceptance stays separate |
+| Icons | 62 bundled glyphs, shared Rust/TS associations and admitted local SVG theme packages; install/select/remove and restart persistence | Final actual Settings workflow receipt is recorded below |
+| Editor | Regex/whole-word, JSON folds, exact native selection, shared Undo and per-view cursor/search/scroll; shared runtime macOS keymap | Physical IME and wider IDE operations |
+| Data projections | Two-dimensional Kit virtualization, Worker sort/filter and nested analysis, resize, cell copy, exact original source ranges | Ranges/export and dataset context are Pero extensions |
+| Performance | Retained source indexes, actual Workers, complete 100k native EditContext selection; old whole-selection textarea Layout removed | Cold distributions and residual 58–71 ms tasks remain open; no universal frame-budget pass |
+| Data Agent | Development preview and local fixtures preserved in separate commits; absent from the default product | Deferred: dataset/Agent end-to-end acceptance |
+| Platform/accessibility | macOS hidden Electron and native compilation lanes | Physical focus/IME, screen reader and installed OS-package evidence |
 
-## Next implementation boundary
+## Integration evidence and remaining boundaries
 
-Supply a real Host-owned MCP server/resource connection and preserve
-`_meta.ui.resourceUri`; current ACP configuration forwards servers to external
-Agents and is not a Pero MCP resource transport. Then use the official
-AppBridge and its sandbox/CSP lifecycle. A generic Web page does not receive
-MCP or installed-App authority. Continue restart/reading/data capabilities
-against their gates above; output budget expansion remains secondary.
+The isolated build records every copied runtime input in
+`test-results/content-reader/source-fingerprints.json`. The local Desktop gates
+use real keyboard/pointer input and real temporary files/Host persistence. Only
+native file-picker return values select the explicit fixture paths.
+
+- `zed-content-parity.mjs`: eight workflows pass, including shared Undo, pane-local
+  tabs, drag/pinning, same-pane source/rendered kinds, restart, light/dark and the
+  configured 1000-pixel minimum width. Captures were visually inspected.
+- `recent-content.mjs`: all five keyboard workflows pass after preventing late
+  source materialization from stealing the active picker's focus.
+- `workspace-close.mjs` and `workspace-window-close.mjs`: earlier snapshot
+  `T4HKhB` passes six and seven close/reload workflows, including Cancel followed
+  immediately by another close and changed-disk conflict behavior. On the final
+  `SPnOdn` snapshot, the close fixture reads a newly opened Reader's null layout
+  bounds before pointer input (`workspace-close.mjs:20`); that latest batch stops
+  there. This is an outstanding fixture-readiness failure, not a passing final gate.
+- `workspace-file-references.mjs`: 100,000 rows / 13,688,892 bytes pass actual edit,
+  acknowledged checkpoint, forced process loss, restored draft, Save and Save As.
+  Session metadata is 3,144 bytes, journal 653 bytes, and every observed reference
+  command is below 4 KiB. A real optional App catalog error does not block this.
+- `icon-themes.mjs`: all five actual Settings workflows pass on `SPnOdn`, including
+  real restart and removal; three tabs restore icons with only one source loaded.
+- `wide-content.mjs`: 2,001 columns, exact end-column/nested source spans, one real
+  4,000-row Worker analysis and cached reopening pass on `UWtLMd`.
+
+The final `SPnOdn` batch repeats and passes `zed-content-parity.mjs` and
+`recent-content.mjs` before the close fixture failure. The remaining batch gates
+were not rerun after that failure. Per-suite receipts retain their own build
+boundaries; this document does not claim a fully green final aggregate.
+
+Before publishing the test integration, `origin/master` at `b2970d3b` merges
+without conflicts (`9592bd11`). Merged TypeScript/codegen checks, native compile
+and release-Wasm build pass with 421 fingerprinted runtime inputs. The real
+8k-row ACP content-reader workflow reaches exact copy, readonly protection,
+search, folding, table operations and theme captures, then fails its fourteen-chat
+Ctrl-Shift-Tab assertion at `content-reader.mjs:464`: the active conversation
+does not change. That navigation regression and the File-close fixture readiness
+failure are known remaining gates; ACP end-to-end acceptance is not complete.
+The user requested publishing this state for shared testing before scope cleanup.
+
+Contracts (44 tests), pure UI (14 tests), native compilation, release-Wasm build,
+TypeScript/codegen/locales/icons and the focused File/source tests pass. Host
+protocol conformance exercises 39 of 78 event kinds; this is not all-event coverage.
+Data preview typechecking and five Python tests pass separately.
+
+These are source and local-runtime receipts, not Binaryen-Oz, downloaded-package,
+production, physical IME or screen-reader acceptance. The canonical large-source
+performance incident remains open for residual long tasks and cold distributions.
+General Zed editor/IDE parity is not the product goal. MCP Apps and Data Agent are
+deferred. The ACP comparison and removal/separation of excess File editing are the
+next work after the requested test integration. Source location/authority must be
+retained without reconstructing Agent output.

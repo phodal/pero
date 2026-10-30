@@ -44,21 +44,31 @@ pub(crate) fn request_locale(locale: &str) -> Result<(), String> {
     session_command(&serde_json::json!({"method":"settings.locale","locale":locale}).to_string())
 }
 
-pub(crate) fn native_application()->Application {
-    #[cfg(target_os="linux")]
-    {gpui_kit::platform::linux(WindowingModes::X11)}
-    #[cfg(not(target_os="linux"))]
-    {gpui_kit::application()}
+pub(crate) fn native_application() -> Application {
+    #[cfg(target_os = "linux")]
+    {
+        gpui_kit::platform::linux(WindowingModes::X11)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        gpui_kit::application()
+    }
 }
 
 pub fn run() -> anyhow::Result<()> {
-    #[cfg(target_os="windows")]
-    unsafe {std::env::set_var("GPUI_DISABLE_DIRECT_COMPOSITION","true");}
-    if std::env::args().nth(1).as_deref()==Some("--verify-webview") {
-        #[cfg(feature="native-probe")]
-        {return crate::native_web_probe::run();}
-        #[cfg(not(feature="native-probe"))]
-        {anyhow::bail!("Build with native-probe to run Web view acceptance");}
+    #[cfg(target_os = "windows")]
+    unsafe {
+        std::env::set_var("GPUI_DISABLE_DIRECT_COMPOSITION", "true");
+    }
+    if std::env::args().nth(1).as_deref() == Some("--verify-webview") {
+        #[cfg(feature = "native-probe")]
+        {
+            return crate::native_web_probe::run();
+        }
+        #[cfg(not(feature = "native-probe"))]
+        {
+            anyhow::bail!("Build with native-probe to run Web view acceptance");
+        }
     }
     #[cfg(target_os = "macos")]
     relaunch_in_bundle();
@@ -223,7 +233,12 @@ pub fn run() -> anyhow::Result<()> {
                 let _ = events.send_blocking(outcome.event);
             } else if matches!(
                 action,
-                "choose_workspace" | "choose_context" | "choose_worker_workspace" | "choose_document"
+                "choose_workspace"
+                    | "choose_context"
+                    | "choose_worker_workspace"
+                    | "choose_document"
+                    | "choose_document_save"
+                    | "choose_icon_theme"
             ) {
                 let mut event = HostEvent::new(&format!("native_{action}"), None, String::new());
                 event.data = value;
@@ -239,8 +254,8 @@ pub fn run() -> anyhow::Result<()> {
     let palettes: Palettes =
         serde_json::from_str(include_str!("../../../web/src/theme.generated.json"))?;
     let urls = commands.clone();
-    let app=native_application();
-    let app=app.with_assets(crate::assets::UiAssets);
+    let app = native_application();
+    let app = app.with_assets(crate::assets::UiAssets);
     app.on_open_urls(move |opened| {
         for url in opened {
             let _ = urls
@@ -286,7 +301,6 @@ pub fn run() -> anyhow::Result<()> {
             window.set_window_title("Pero Native Preview — local sessions");
             cx.new(|cx| {
                 let mut view = Workbench::new(palettes, system_dark, locale, window, cx);
-                view.navigation.show(WorkbenchPage::Conversation);
                 view._subscriptions.push(cx.observe_window_appearance(window, |view, window, cx| {
                     view.system_dark = matches!(window.appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
                     view.install_appearance(cx);
@@ -299,9 +313,7 @@ pub fn run() -> anyhow::Result<()> {
         let _=window.update(cx,|_,window,cx| {
             window.on_window_should_close(cx,move|window,cx| {
                 close_view.update(cx,|view,cx| {
-                    if !view.has_unsaved_documents(cx) {return true;}
-                    let answer=window.prompt(PromptLevel::Warning,view.t("content.unsaved"),Some(view.t("content.unsaved_window")),&[view.t("content.keep_editing"),view.t("content.discard_window")],cx);
-                    cx.spawn_in(window,async move|_,cx| {if answer.await==Ok(1) {let _=cx.update(|window,_|window.remove_window());}}).detach();
+                    view.request_workspace_window_close(window,cx);
                     false
                 }).unwrap_or(true)
             });
@@ -309,10 +321,25 @@ pub fn run() -> anyhow::Result<()> {
         let view = view.downgrade();
         cx.spawn(async move |cx| {
             while let Ok(event) = received.recv().await {
+                if event.kind=="native_choose_document_save" {
+                    let suggested=std::path::Path::new(event.data["suggested"].as_str().unwrap_or("untitled.txt"));
+                    let directory=suggested.parent().filter(|path|!path.as_os_str().is_empty()).map(std::path::Path::to_path_buf).unwrap_or_else(||std::path::PathBuf::from("."));
+                    let name=suggested.file_name().map(|name|name.to_string_lossy().into_owned());
+                    let picker=cx.update(|cx|cx.prompt_for_new_path(&directory,name.as_deref()));
+                    let mut selected=HostEvent::new("document_save_cancelled",event.data["request_id"].as_str().map(str::to_owned),String::new());
+                    match picker.await {
+                        Ok(Ok(Some(path)))=>{selected.kind="document_save_path".into();selected.data=serde_json::json!({"path":path});}
+                        Ok(Ok(None))=>{}
+                        _=>{selected.kind="document_error".into();selected.data=serde_json::json!({"source":"","reason":"read_write"});}
+                    }
+                    let _=window.update(cx,|_,window,cx|view.update(cx,|view,cx|view.receive(selected,window,cx))).and_then(|result|result);
+                    continue;
+                }
                 if matches!(
                     event.kind.as_str(),
-                    "native_choose_workspace" | "native_choose_context" | "native_choose_worker_workspace" | "native_choose_document"
+                    "native_choose_workspace" | "native_choose_context" | "native_choose_worker_workspace" | "native_choose_document" | "native_choose_icon_theme"
                 ) {
+                    let icon_theme=event.kind=="native_choose_icon_theme";
                     let file_document=event.kind=="native_choose_document";
                     let worker_workspace=event.kind=="native_choose_worker_workspace";
                     let workspace = event.kind == "native_choose_workspace" || worker_workspace;
@@ -323,13 +350,14 @@ pub fn run() -> anyhow::Result<()> {
                         cx.prompt_for_paths(PathPromptOptions {
                             files: !directory,
                             directories: directory,
-                            multiple: !directory && !typed_context && !file_document,
-                            prompt: (typed_context && context_kind == "image").then(|| "Image (PNG, JPEG, GIF, WebP)".into()),
+                            multiple: !directory && !typed_context && !file_document && !icon_theme,
+                            prompt: if icon_theme {Some("Icon theme JSON".into())}else{(typed_context && context_kind == "image").then(|| "Image (PNG, JPEG, GIF, WebP)".into())},
                         })
                     });
                     let paths = match paths.await {
                         Ok(Ok(paths)) => paths,
                         _ => {
+                            if icon_theme {let _=session_command(r#"{"method":"icons","action":"get","request_id":"icons"}"#);}
                             if typed_context {
                                 let failure = HostEvent::new("context_error", event.data["request_id"].as_str().map(str::to_string), "Could not open the file picker. Retry or use context search.".into());
                                 let _ = window.update(cx, |_, window, cx| {
@@ -339,6 +367,7 @@ pub fn run() -> anyhow::Result<()> {
                             continue;
                         }
                     };
+                    if icon_theme && paths.is_none(){let _=session_command(r#"{"method":"icons","action":"get","request_id":"icons"}"#);}
                     if let Some(paths) = paths {
                         if let Some(path) = paths.first() {
                             if worker_workspace {
@@ -348,7 +377,9 @@ pub fn run() -> anyhow::Result<()> {
                                 }).and_then(|result| result);
                                 continue;
                             }
-                            let command = if file_document {
+                            let command = if icon_theme {
+                                serde_json::json!({"method":"icons","action":"install","request_id":"icons","path":path})
+                            } else if file_document {
                                 serde_json::json!({"method":"documents","action":"open","request_id":"open-file","path":path})
                             } else if workspace {
                                 serde_json::json!({"action":"workspace","path":path})

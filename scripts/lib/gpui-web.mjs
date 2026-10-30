@@ -1,18 +1,19 @@
 // Keep the registry cache immutable; prepare the pinned Web backend under target/.
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { root } from './paths.mjs';
 import { run } from './run.mjs';
 
-const target=resolve(root,'target');
+const target=resolve(root,process.env.CARGO_TARGET_DIR || 'target');
 mkdirSync(target,{recursive:true});
-export const webBackend = resolve(realpathSync(target), 'patched-dependencies/gpui-pre-web-0.3.10');
+const patch = resolve(root, 'patches/gpui-pre-web-0.3.10-ime.patch');
+const conduits=['js','rs'].map(extension=>resolve(root,`patches/gpui-pre-web-input-conduit.${extension}`));
+const digest = createHash('sha256').update(readFileSync(patch)).update(readFileSync(conduits[0])).update(readFileSync(conduits[1])).digest('hex');
+export const webBackend = resolve(realpathSync(target), `patched-dependencies/gpui-pre-web-0.3.10-${digest.slice(0,12)}`);
 
 export async function prepareWebBackend() {
-  const patch = resolve(root, 'patches/gpui-pre-web-0.3.10-ime.patch');
-  const digest = createHash('sha256').update(readFileSync(patch)).digest('hex');
   const stamp = resolve(webBackend, '.pero-patch');
   if (existsSync(stamp) && readFileSync(stamp, 'utf8') === digest) return;
 
@@ -37,5 +38,6 @@ export async function prepareWebBackend() {
   // A Windows drive letter in -f is interpreted as a remote host by GNU tar.
   await run('tar', ['-xzf', name, '--strip-components=1'], { cwd: webBackend });
   await run('git', ['apply', '--unsafe-paths', `--directory=${webBackend}`, patch]);
+  for(let i=0;i<conduits.length;i++)copyFileSync(conduits[i],resolve(webBackend,`src/input_conduit.${i===0?'js':'rs'}`));
   writeFileSync(stamp, digest);
 }

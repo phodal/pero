@@ -128,6 +128,9 @@ impl Manager {
     fn visible_history(&self) -> Vec<HostEvent> {
         HostEvent::without_deleted_threads(&self.history.lock().unwrap())
     }
+    pub fn has_thread(&self, thread: &str) -> bool {
+        self.sessions.contains_key(thread) || self.visible_history().iter().any(|event| event.thread_id.as_deref() == Some(thread))
+    }
     fn send(&self, kind: &str, text: impl Into<String>, data: serde_json::Value) {
         let mut event = HostEvent::new(kind, None, text.into());
         event.data = data;

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "name": "data-agent",
+  "version": "0.1.0",
+  "displayName": "Data Agent",
+  "description": "JSON 数据的来源核对、筛选、图表和 Agent 分析。",
+  "contributes": {
+    "panels": [{ "id": "main", "title": "Data Agent", "entry": "dist/index.html" }],
+    "writes": [{
+      "name": "import-dataset",
+      "description": "Import explicitly supplied JSON records or JSON Lines. Large sources stay in immutable App files; query and source actions read them on demand.",
+      "path": "/api/import",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "content": { "type": "string", "minLength": 1, "maxLength": 65536 },
+          "format": { "type": "string", "enum": ["json", "json_lines"] }
+        },
+        "required": ["name", "content", "format"],
+        "additionalProperties": false
+      }
+    }]
+  },
+  "backend": { "type": "python", "entry": "backend/server.py" }
+}

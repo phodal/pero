@@ -50,11 +50,18 @@ impl WorkspaceLayout {
         tab: ConversationTab,
         preferences: &LayoutPreferences,
         covered: bool,
+        panes: Option<&pero_contracts::workspace_panes::PaneLayout>,
     ) -> Self {
         let sidebar_width = if viewport_width < 1150. { 240. } else { 260. };
         let narrow = viewport_width < 1050.;
         let available = (viewport_width - sidebar_width).max(0.);
-        let chat = Self::chat_placement(route, tab, preferences);
+        let panes = panes.filter(|layout| layout.is_active(route));
+        let chat_in_pane = panes.is_some_and(|layout| layout.conversation().is_some());
+        let chat = if chat_in_pane {
+            ChatPlacement::Hidden
+        } else {
+            Self::chat_placement(route, tab, preferences)
+        };
         let chat_width = if chat == ChatPlacement::Dock {
             if narrow {
                 available
@@ -65,10 +72,17 @@ impl WorkspaceLayout {
             0.
         };
         let content_visible = chat != ChatPlacement::Dock || !narrow;
-        let embedded_surface_visible = matches!(
+        let embedded_surface_visible = (matches!(
             route,
             WorkspaceRoute::Content(WorkspaceItem::App { .. } | WorkspaceItem::Web(_))
-        ) && content_visible
+        ) || panes.is_some_and(|layout| {
+            layout.leaves().iter().any(|leaf| {
+                matches!(
+                    leaf.route(),
+                    Some(WorkspaceRoute::Content(WorkspaceItem::App { .. } | WorkspaceItem::Web(_)))
+                )
+            })
+        })) && content_visible
             && !covered;
         Self {
             sidebar_width,
@@ -84,6 +98,41 @@ impl WorkspaceLayout {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shared_chat_mount_disables_the_dock_and_keeps_other_pane_surfaces_visible() {
+        use pero_contracts::workspace_panes::{PaneLayout, SplitDirection};
+        let app = WorkspaceRoute::Content(WorkspaceItem::App {
+            name: "fixture".into(),
+            panel: "main".into(),
+        });
+        let mut panes = PaneLayout::new(app.clone(), None);
+        let first = panes.focused.unwrap();
+        let chat = WorkspaceRoute::Content(WorkspaceItem::Conversation("thread".into()));
+        panes
+            .split(first, SplitDirection::Right, chat, None)
+            .unwrap();
+        panes.focus(first);
+        let mut preferences = LayoutPreferences::default();
+        preferences.chat_open = true;
+        for (width, covered, visible) in [
+            (800., false, true),
+            (1488., false, true),
+            (1488., true, false),
+        ] {
+            let layout = WorkspaceLayout::resolve(
+                width,
+                &app,
+                ConversationTab::Chat,
+                &preferences,
+                covered,
+                Some(&panes),
+            );
+            assert_eq!(layout.chat, ChatPlacement::Hidden);
+            assert!(layout.content_visible);
+            assert_eq!(layout.embedded_surface_visible, visible);
+        }
+    }
 
     #[test]
     fn workspace_layout_follows_content_and_available_space_without_changing_preferences() {
@@ -303,7 +352,8 @@ mod tests {
             let mut preferences = LayoutPreferences::default();
             preferences.resize_chat(preferred_width);
             preferences.chat_open = open;
-            let layout = WorkspaceLayout::resolve(viewport, &route, tab, &preferences, covered);
+            let layout =
+                WorkspaceLayout::resolve(viewport, &route, tab, &preferences, covered, None);
             assert_eq!(
                 (
                     layout.sidebar_width,

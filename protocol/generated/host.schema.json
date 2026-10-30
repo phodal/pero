@@ -459,6 +459,33 @@
       "additionalProperties": {},
       "description": "Public catalog: no local paths or backend credentials."
     },
+    "AppendWorkspaceSource": {
+      "title": "AppendWorkspaceSource",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace"
+        },
+        "action": {
+          "type": "string",
+          "const": "source_chunk"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "chunk": {
+          "$ref": "#/$defs/SourceChunk"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "chunk"
+      ],
+      "additionalProperties": false
+    },
     "AppFailure": {
       "title": "AppFailure",
       "type": "object",
@@ -959,6 +986,37 @@
       "additionalProperties": false,
       "description": "Host-to-main-process descriptor. Never forwarded to App or Workbench renderers."
     },
+    "BeginWorkspaceSource": {
+      "title": "BeginWorkspaceSource",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace"
+        },
+        "action": {
+          "type": "string",
+          "const": "source_begin"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/DocumentHeader"
+        },
+        "total_bytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "header",
+        "total_bytes"
+      ],
+      "additionalProperties": false
+    },
     "CancelCommand": {
       "title": "CancelCommand",
       "type": "object",
@@ -974,6 +1032,28 @@
       "required": [
         "action",
         "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "ChooseDocumentSave": {
+      "title": "ChooseDocumentSave",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "choose_document_save"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "suggested": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "request_id",
+        "suggested"
       ],
       "additionalProperties": false
     },
@@ -2141,7 +2221,129 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/DocumentHeader"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DocumentHeader"
+            },
+            {
+              "$ref": "#/$defs/LocatedDocumentHeader"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentSaveCancelledEvent": {
+      "title": "DocumentSaveCancelledEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "document_save_cancelled"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentSaveChooseEvent": {
+      "title": "DocumentSaveChooseEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "document_save_choose"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentSavePathEvent": {
+      "title": "DocumentSavePathEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "document_save_path"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -2171,6 +2373,78 @@
         "id",
         "title",
         "origin"
+      ],
+      "additionalProperties": false
+    },
+    "DraftEdit": {
+      "title": "DraftEdit",
+      "type": "object",
+      "properties": {
+        "old": {
+          "$ref": "#/$defs/ReaderRange"
+        },
+        "inserted": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "old",
+        "inserted"
+      ],
+      "additionalProperties": false
+    },
+    "DraftRef": {
+      "title": "DraftRef",
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/SourceKey"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "DraftStoredEvent": {
+      "title": "DraftStoredEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "draft_stored"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/DraftRef"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
       ],
       "additionalProperties": false
     },
@@ -2323,6 +2597,30 @@
       ],
       "additionalProperties": false
     },
+    "FileCopy": {
+      "title": "FileCopy",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "protected_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "path",
+        "text",
+        "protected_sources"
+      ],
+      "additionalProperties": false
+    },
     "FileDocumentErrorEvent": {
       "title": "FileDocumentErrorEvent",
       "type": "object",
@@ -2442,6 +2740,15 @@
           "$ref": "#/$defs/SaveFileDocument"
         },
         {
+          "$ref": "#/$defs/SaveAsFileDocument"
+        },
+        {
+          "$ref": "#/$defs/SaveDraftFileDocument"
+        },
+        {
+          "$ref": "#/$defs/SaveAsReferenceFileDocument"
+        },
+        {
           "$ref": "#/$defs/ReleaseFileDocument"
         }
       ]
@@ -2495,6 +2802,29 @@
       ],
       "additionalProperties": false
     },
+    "GetIconThemes": {
+      "title": "GetIconThemes",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "icons"
+        },
+        "action": {
+          "type": "string",
+          "const": "get"
+        },
+        "request_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id"
+      ],
+      "additionalProperties": false
+    },
     "GetWorkbenchSettingsRequest": {
       "title": "GetWorkbenchSettingsRequest",
       "type": "object",
@@ -2506,6 +2836,54 @@
       },
       "required": [
         "method"
+      ],
+      "additionalProperties": false
+    },
+    "GetWorkspaceSession": {
+      "title": "GetWorkspaceSession",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace"
+        },
+        "action": {
+          "type": "string",
+          "const": "get"
+        }
+      },
+      "required": [
+        "method",
+        "action"
+      ],
+      "additionalProperties": false
+    },
+    "HistoryEntry": {
+      "title": "HistoryEntry",
+      "type": "object",
+      "properties": {
+        "route": {
+          "$ref": "#/$defs/WorkspaceRoute"
+        },
+        "reading": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "preview": {
+          "type": "boolean"
+        },
+        "view_kind": {
+          "$ref": "#/$defs/PaneItemKind"
+        }
+      },
+      "required": [
+        "route"
       ],
       "additionalProperties": false
     },
@@ -2563,6 +2941,39 @@
       "title": "HostEvent",
       "oneOf": [
         {
+          "$ref": "#/$defs/DocumentSaveChooseEvent"
+        },
+        {
+          "$ref": "#/$defs/DocumentSavePathEvent"
+        },
+        {
+          "$ref": "#/$defs/DocumentSaveCancelledEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceRestoredEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceSavedEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceSourceEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceSourceErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceResetEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceSourceStoredEvent"
+        },
+        {
+          "$ref": "#/$defs/DraftStoredEvent"
+        },
+        {
           "$ref": "#/$defs/WebOpenedEvent"
         },
         {
@@ -2578,7 +2989,25 @@
           "$ref": "#/$defs/WebChooseEvent"
         },
         {
+          "$ref": "#/$defs/WebFocusedEvent"
+        },
+        {
+          "$ref": "#/$defs/IconThemesEvent"
+        },
+        {
           "$ref": "#/$defs/DocumentOpenEvent"
+        },
+        {
+          "$ref": "#/$defs/McpPermittedEvent"
+        },
+        {
+          "$ref": "#/$defs/McpSourcesEvent"
+        },
+        {
+          "$ref": "#/$defs/McpErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/McpAppOpenedEvent"
         },
         {
           "$ref": "#/$defs/DocumentChooseEvent"
@@ -2709,6 +3138,15 @@
       "title": "HostInput",
       "oneOf": [
         {
+          "$ref": "#/$defs/IconThemeRequest"
+        },
+        {
+          "$ref": "#/$defs/McpSourceRequest"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceSessionRequest"
+        },
+        {
           "$ref": "#/$defs/FileDocumentRequest"
         },
         {
@@ -2739,6 +3177,208 @@
           "$ref": "#/$defs/ContributionRequest"
         }
       ]
+    },
+    "IconAssociationMap": {
+      "title": "IconAssociationMap",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "IconGlyphMap": {
+      "title": "IconGlyphMap",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {
+        "$ref": "#/$defs/IconVariants"
+      }
+    },
+    "IconThemeAssociations": {
+      "title": "IconThemeAssociations",
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "$ref": "#/$defs/IconAssociationMap"
+        },
+        "languages": {
+          "$ref": "#/$defs/IconAssociationMap"
+        },
+        "filenames": {
+          "$ref": "#/$defs/IconAssociationMap"
+        },
+        "extensions": {
+          "$ref": "#/$defs/IconAssociationMap"
+        },
+        "apps": {
+          "$ref": "#/$defs/IconAssociationMap"
+        }
+      },
+      "additionalProperties": false
+    },
+    "IconThemeInfo": {
+      "title": "IconThemeInfo",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "IconThemePackage": {
+      "title": "IconThemePackage",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "icons": {
+          "$ref": "#/$defs/IconGlyphMap"
+        },
+        "associations": {
+          "$ref": "#/$defs/IconThemeAssociations"
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "name",
+        "icons",
+        "associations"
+      ],
+      "additionalProperties": false
+    },
+    "IconThemeRequest": {
+      "title": "IconThemeRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GetIconThemes"
+        },
+        {
+          "$ref": "#/$defs/InstallIconTheme"
+        },
+        {
+          "$ref": "#/$defs/SelectIconTheme"
+        },
+        {
+          "$ref": "#/$defs/RemoveIconTheme"
+        }
+      ]
+    },
+    "IconThemesEvent": {
+      "title": "IconThemesEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "icon_themes"
+            },
+            {
+              "type": "string",
+              "const": "icon_themes_error"
+            }
+          ]
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/IconThemeState"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "IconThemeState": {
+      "title": "IconThemeState",
+      "type": "object",
+      "properties": {
+        "installed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IconThemeInfo"
+          }
+        },
+        "selected": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "theme": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IconThemePackage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "installed",
+        "selected",
+        "theme"
+      ],
+      "additionalProperties": false
+    },
+    "IconVariants": {
+      "title": "IconVariants",
+      "type": "object",
+      "properties": {
+        "light": {
+          "type": "string"
+        },
+        "dark": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "light"
+      ],
+      "additionalProperties": false
     },
     "ImageContextContent": {
       "title": "ImageContextContent",
@@ -2779,6 +3419,27 @@
       ],
       "additionalProperties": false
     },
+    "InlineHtml": {
+      "title": "InlineHtml",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "html": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "html"
+      ],
+      "additionalProperties": false
+    },
     "InstallApp": {
       "title": "InstallApp",
       "type": "object",
@@ -2803,6 +3464,33 @@
         "path",
         "method",
         "id"
+      ],
+      "additionalProperties": false
+    },
+    "InstallIconTheme": {
+      "title": "InstallIconTheme",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "icons"
+        },
+        "action": {
+          "type": "string",
+          "const": "install"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "path"
       ],
       "additionalProperties": false
     },
@@ -3248,6 +3936,132 @@
       ],
       "additionalProperties": false
     },
+    "LocatedDocumentHeader": {
+      "title": "LocatedDocumentHeader",
+      "type": "object",
+      "properties": {
+        "header": {
+          "$ref": "#/$defs/DocumentHeader"
+        },
+        "location": {
+          "$ref": "#/$defs/ReaderLocation"
+        }
+      },
+      "required": [
+        "header",
+        "location"
+      ],
+      "additionalProperties": false
+    },
+    "McpAppBinding": {
+      "title": "McpAppBinding",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "server": {
+          "type": "string"
+        },
+        "resource_uri": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "tool_call": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "server",
+        "resource_uri",
+        "tool",
+        "tool_call",
+        "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "McpAppOpenedEvent": {
+      "title": "McpAppOpenedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_app_opened"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/McpAppBinding"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "McpErrorEvent": {
+      "title": "McpErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
     "McpOrigin": {
       "title": "McpOrigin",
       "type": "object",
@@ -3267,6 +4081,139 @@
         "kind",
         "server",
         "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "McpPermittedEvent": {
+      "title": "McpPermittedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_permitted"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "locale": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "locale"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "McpSourceRequest": {
+      "title": "McpSourceRequest",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "mcp"
+        },
+        "action": {
+          "type": "string",
+          "const": "open"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "thread_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id"
+      ],
+      "additionalProperties": false
+    },
+    "McpSourcesEvent": {
+      "title": "McpSourcesEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_sources"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
       ],
       "additionalProperties": false
     },
@@ -3427,6 +4374,237 @@
         "action",
         "request_id",
         "path"
+      ],
+      "additionalProperties": false
+    },
+    "PaneItem": {
+      "title": "PaneItem",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "route": {
+          "$ref": "#/$defs/WorkspaceRoute"
+        },
+        "kind": {
+          "$ref": "#/$defs/PaneItemKind"
+        },
+        "reading": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "route"
+      ],
+      "additionalProperties": false
+    },
+    "PaneItemKind": {
+      "title": "PaneItemKind",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "primary"
+        },
+        {
+          "type": "string",
+          "const": "rendered_preview"
+        }
+      ]
+    },
+    "PaneLayout": {
+      "title": "PaneLayout",
+      "type": "object",
+      "properties": {
+        "root": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaneNode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "focused": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "next_id": {
+          "type": "integer"
+        },
+        "next_view_id": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "root",
+        "focused",
+        "next_id",
+        "next_view_id"
+      ],
+      "additionalProperties": false
+    },
+    "PaneLeaf": {
+      "title": "PaneLeaf",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "tabs": {
+          "$ref": "#/$defs/PaneTabSet"
+        }
+      },
+      "required": [
+        "id",
+        "tabs"
+      ],
+      "additionalProperties": false
+    },
+    "PaneLeafNode": {
+      "title": "PaneLeafNode",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "leaf"
+        },
+        "view": {
+          "$ref": "#/$defs/PaneLeaf"
+        }
+      },
+      "required": [
+        "kind",
+        "view"
+      ],
+      "additionalProperties": false
+    },
+    "PaneNode": {
+      "title": "PaneNode",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PaneLeafNode"
+        },
+        {
+          "$ref": "#/$defs/PaneSplitNode"
+        }
+      ]
+    },
+    "PaneSplitNode": {
+      "title": "PaneSplitNode",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "split"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "axis": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "horizontal"
+            },
+            {
+              "type": "string",
+              "const": "vertical"
+            }
+          ]
+        },
+        "ratio": {
+          "type": "number"
+        },
+        "first": {
+          "$ref": "#/$defs/PaneNode"
+        },
+        "second": {
+          "$ref": "#/$defs/PaneNode"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "axis",
+        "ratio",
+        "first",
+        "second"
+      ],
+      "additionalProperties": false
+    },
+    "PaneTabSet": {
+      "title": "PaneTabSet",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PaneItem"
+          }
+        },
+        "active": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "preview": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pinned_count": {
+          "type": "integer"
+        },
+        "activation_history": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "history": {
+          "$ref": "#/$defs/WorkspaceHistory"
+        },
+        "closed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HistoryEntry"
+          }
+        }
+      },
+      "required": [
+        "items",
+        "active",
+        "preview",
+        "pinned_count",
+        "activation_history",
+        "history",
+        "closed"
       ],
       "additionalProperties": false
     },
@@ -3651,6 +4829,177 @@
         "text",
         "thread_id",
         "data"
+      ],
+      "additionalProperties": false
+    },
+    "ReaderLocation": {
+      "title": "ReaderLocation",
+      "type": "object",
+      "properties": {
+        "record": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "record"
+      ],
+      "additionalProperties": false
+    },
+    "ReaderRange": {
+      "title": "ReaderRange",
+      "type": "object",
+      "properties": {
+        "start": {
+          "type": "integer"
+        },
+        "end": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "additionalProperties": false
+    },
+    "ReaderSearch": {
+      "title": "ReaderSearch",
+      "type": "object",
+      "properties": {
+        "case_insensitive": {
+          "type": "boolean"
+        },
+        "regex": {
+          "type": "boolean"
+        },
+        "whole_word": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "case_insensitive",
+        "regex",
+        "whole_word"
+      ],
+      "additionalProperties": false
+    },
+    "ReaderState": {
+      "title": "ReaderState",
+      "type": "object",
+      "properties": {
+        "source_revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "type": "boolean"
+        },
+        "selection": {
+          "$ref": "#/$defs/ReaderRange"
+        },
+        "scroll": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "preview_scroll": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "preview_reveal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "query": {
+          "type": "string"
+        },
+        "search_open": {
+          "type": "boolean"
+        },
+        "search": {
+          "$ref": "#/$defs/ReaderSearch"
+        },
+        "folded_lines": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "path": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReaderRange"
+          }
+        }
+      },
+      "required": [
+        "source",
+        "selection",
+        "scroll",
+        "preview_scroll",
+        "query",
+        "search_open",
+        "search",
+        "folded_lines",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "ReadWorkspaceSource": {
+      "title": "ReadWorkspaceSource",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace"
+        },
+        "action": {
+          "type": "string",
+          "const": "read"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "key": {
+          "$ref": "#/$defs/SourceKey"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "key"
       ],
       "additionalProperties": false
     },
@@ -3898,6 +5247,33 @@
       ],
       "additionalProperties": false
     },
+    "RemoveIconTheme": {
+      "title": "RemoveIconTheme",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "icons"
+        },
+        "action": {
+          "type": "string",
+          "const": "remove"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "ReplayData": {
       "title": "ReplayData",
       "type": "object",
@@ -4004,6 +5380,29 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 128
+    },
+    "ResetWorkspaceSession": {
+      "title": "ResetWorkspaceSession",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace"
+        },
+        "action": {
+          "type": "string",
+          "const": "reset"
+        },
+        "request_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id"
+      ],
+      "additionalProperties": false
     },
     "ResolveApp": {
       "title": "ResolveApp",
@@ -4129,6 +5528,170 @@
       ],
       "additionalProperties": false
     },
+    "SaveAsFileDocument": {
+      "title": "SaveAsFileDocument",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "documents"
+        },
+        "action": {
+          "type": "string",
+          "const": "save_as"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "copy": {
+          "$ref": "#/$defs/FileCopy"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "copy"
+      ],
+      "additionalProperties": false
+    },
+    "SaveAsReferenceFileDocument": {
+      "title": "SaveAsReferenceFileDocument",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "documents"
+        },
+        "action": {
+          "type": "string",
+          "const": "save_as_reference"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceKey"
+        },
+        "draft": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DraftRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "protected_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "path",
+        "source",
+        "draft",
+        "protected_sources"
+      ],
+      "additionalProperties": false
+    },
+    "SavedDocument": {
+      "title": "SavedDocument",
+      "type": "object",
+      "properties": {
+        "header": {
+          "$ref": "#/$defs/DocumentHeader"
+        },
+        "reading": {
+          "$ref": "#/$defs/ReaderState"
+        },
+        "draft": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "draft_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DraftRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "legacy_draft": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "header",
+        "reading",
+        "draft"
+      ],
+      "additionalProperties": false
+    },
+    "SaveDraftFileDocument": {
+      "title": "SaveDraftFileDocument",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "documents"
+        },
+        "action": {
+          "type": "string",
+          "const": "save_draft"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "draft": {
+          "$ref": "#/$defs/DraftRef"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "draft"
+      ],
+      "additionalProperties": false
+    },
+    "SavedWeb": {
+      "title": "SavedWeb",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "html": {
+          "$ref": "#/$defs/InlineHtml"
+        }
+      },
+      "required": [
+        "id",
+        "url"
+      ],
+      "additionalProperties": false
+    },
     "SaveFileDocument": {
       "title": "SaveFileDocument",
       "type": "object",
@@ -4164,6 +5727,47 @@
       ],
       "additionalProperties": false
     },
+    "SaveWorkspaceSession": {
+      "title": "SaveWorkspaceSession",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace"
+        },
+        "action": {
+          "type": "string",
+          "const": "save"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "refresh": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceKey"
+          }
+        },
+        "session": {
+          "$ref": "#/$defs/WorkspaceSession"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkspaceSource"
+          }
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "refresh",
+        "session",
+        "sources"
+      ],
+      "additionalProperties": false
+    },
     "SearchContextCommand": {
       "title": "SearchContextCommand",
       "type": "object",
@@ -4187,6 +5791,40 @@
         "request_id",
         "kind",
         "query"
+      ],
+      "additionalProperties": false
+    },
+    "SelectIconTheme": {
+      "title": "SelectIconTheme",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "icons"
+        },
+        "action": {
+          "type": "string",
+          "const": "select"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "id"
       ],
       "additionalProperties": false
     },
@@ -4879,6 +6517,93 @@
       ],
       "additionalProperties": false
     },
+    "SourceChunk": {
+      "title": "SourceChunk",
+      "type": "object",
+      "properties": {
+        "offset": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "done": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "offset",
+        "text",
+        "done"
+      ],
+      "additionalProperties": false
+    },
+    "SourceKey": {
+      "title": "SourceKey",
+      "type": "object",
+      "properties": {
+        "origin": {
+          "$ref": "#/$defs/ContentOrigin"
+        },
+        "source": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "origin",
+        "source",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "StoreWorkspaceDraft": {
+      "title": "StoreWorkspaceDraft",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace"
+        },
+        "action": {
+          "type": "string",
+          "const": "store_draft"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DraftRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "draft": {
+          "$ref": "#/$defs/DraftRef"
+        },
+        "edits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DraftEdit"
+          }
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "base",
+        "draft",
+        "edits"
+      ],
+      "additionalProperties": false
+    },
     "SurfaceBounds": {
       "title": "SurfaceBounds",
       "type": "object",
@@ -5348,6 +7073,12 @@
           "$ref": "#/$defs/WebOpenCommand"
         },
         {
+          "$ref": "#/$defs/WebHtmlCommand"
+        },
+        {
+          "$ref": "#/$defs/WebRestoreCommand"
+        },
+        {
           "$ref": "#/$defs/WebNavigateCommand"
         },
         {
@@ -5355,6 +7086,9 @@
         },
         {
           "$ref": "#/$defs/WebSurfaceCommand"
+        },
+        {
+          "$ref": "#/$defs/WebSurfacesCommand"
         }
       ],
       "description": "Private Desktop/native browser-engine commands, not Host stdin."
@@ -5402,6 +7136,9 @@
         },
         "observation": {
           "$ref": "#/$defs/WebObservation"
+        },
+        "html": {
+          "$ref": "#/$defs/InlineHtml"
         }
       },
       "required": [
@@ -5459,6 +7196,71 @@
       "required": [
         "kind",
         "message"
+      ],
+      "additionalProperties": false
+    },
+    "WebFocusedEvent": {
+      "title": "WebFocusedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "web_focused"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WebHtmlCommand": {
+      "title": "WebHtmlCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "web_html"
+        },
+        "source": {
+          "$ref": "#/$defs/InlineHtml"
+        }
+      },
+      "required": [
+        "action",
+        "source"
       ],
       "additionalProperties": false
     },
@@ -5530,6 +7332,9 @@
         },
         "can_forward": {
           "type": "boolean"
+        },
+        "notice": {
+          "type": "string"
         }
       },
       "required": [
@@ -5611,6 +7416,38 @@
       ],
       "additionalProperties": false
     },
+    "WebRestoreCommand": {
+      "title": "WebRestoreCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "web_restore"
+        },
+        "id": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "html": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InlineHtml"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "action",
+        "id",
+        "url"
+      ],
+      "additionalProperties": false
+    },
     "WebStateEvent": {
       "title": "WebStateEvent",
       "type": "object",
@@ -5676,6 +7513,52 @@
         "id"
       ],
       "additionalProperties": false
+    },
+    "WebSurfacesCommand": {
+      "title": "WebSurfacesCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "web_surfaces"
+        },
+        "surfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WebSurfaceSlot"
+          }
+        }
+      },
+      "required": [
+        "action",
+        "surfaces"
+      ],
+      "additionalProperties": false
+    },
+    "WebSurfaceSlot": {
+      "title": "WebSurfaceSlot",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "bounds": {
+          "$ref": "#/$defs/SurfaceBounds"
+        },
+        "focused": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "bounds",
+        "focused"
+      ],
+      "additionalProperties": false
+    },
+    "WorkbenchPage": {
+      "title": "WorkbenchPage",
+      "type": "string"
     },
     "WorkbenchPreferences": {
       "title": "WorkbenchPreferences",
@@ -5771,6 +7654,37 @@
       ],
       "additionalProperties": false
     },
+    "WorkspaceAppItem": {
+      "title": "WorkspaceAppItem",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "app"
+        },
+        "value": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "panel": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "panel"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "additionalProperties": false
+    },
     "WorkspaceCommand": {
       "title": "WorkspaceCommand",
       "type": "object",
@@ -5786,6 +7700,89 @@
       "required": [
         "action",
         "path"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceContentRoute": {
+      "title": "WorkspaceContentRoute",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "content"
+        },
+        "value": {
+          "$ref": "#/$defs/WorkspaceItem"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceDocumentItem": {
+      "title": "WorkspaceDocumentItem",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "document"
+        },
+        "value": {
+          "type": "object",
+          "properties": {
+            "origin": {
+              "$ref": "#/$defs/ContentOrigin"
+            },
+            "source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "origin",
+            "source"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceErrorEvent": {
+      "title": "WorkspaceErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
       ],
       "additionalProperties": false
     },
@@ -5826,6 +7823,46 @@
       ],
       "additionalProperties": false
     },
+    "WorkspaceHistory": {
+      "title": "WorkspaceHistory",
+      "type": "object",
+      "properties": {
+        "reading": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "preview": {
+          "type": "boolean"
+        },
+        "view_kind": {
+          "$ref": "#/$defs/PaneItemKind"
+        },
+        "back": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HistoryEntry"
+          }
+        },
+        "forward": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HistoryEntry"
+          }
+        }
+      },
+      "required": [
+        "reading",
+        "back",
+        "forward"
+      ],
+      "additionalProperties": false
+    },
     "WorkspaceIdentity": {
       "title": "WorkspaceIdentity",
       "type": "object",
@@ -5843,6 +7880,581 @@
       },
       "required": [
         "repository"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceItem": {
+      "title": "WorkspaceItem",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/WorkspaceSimpleItem"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceDocumentItem"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceAppItem"
+        }
+      ]
+    },
+    "WorkspacePageRoute": {
+      "title": "WorkspacePageRoute",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "page"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "conversation"
+            },
+            {
+              "type": "string",
+              "const": "document"
+            },
+            {
+              "type": "string",
+              "const": "web"
+            },
+            {
+              "type": "string",
+              "const": "projects"
+            },
+            {
+              "type": "string",
+              "const": "agents"
+            },
+            {
+              "type": "string",
+              "const": "tasks"
+            },
+            {
+              "type": "string",
+              "const": "workers"
+            },
+            {
+              "type": "string",
+              "const": "apps"
+            },
+            {
+              "type": "string",
+              "const": "insights"
+            },
+            {
+              "type": "string",
+              "const": "connections"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceResetEvent": {
+      "title": "WorkspaceResetEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_reset"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceRestore": {
+      "title": "WorkspaceRestore",
+      "type": "object",
+      "properties": {
+        "session": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkspaceSession"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkspaceSource"
+          }
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unavailable": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceKey"
+          }
+        }
+      },
+      "required": [
+        "session",
+        "sources",
+        "conflicts",
+        "unavailable"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceRestoredEvent": {
+      "title": "WorkspaceRestoredEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_restored"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/WorkspaceRestore"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceRoute": {
+      "title": "WorkspaceRoute",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/WorkspacePageRoute"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceContentRoute"
+        }
+      ]
+    },
+    "WorkspaceSavedEvent": {
+      "title": "WorkspaceSavedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_saved"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceSession": {
+      "title": "WorkspaceSession",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "workspace": {
+          "type": "string"
+        },
+        "navigation": {
+          "$ref": "#/$defs/WorkspaceSnapshot"
+        },
+        "documents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SavedDocument"
+          }
+        },
+        "web": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SavedWeb"
+          }
+        }
+      },
+      "required": [
+        "version",
+        "workspace",
+        "navigation",
+        "documents",
+        "web"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceSessionRequest": {
+      "title": "WorkspaceSessionRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GetWorkspaceSession"
+        },
+        {
+          "$ref": "#/$defs/SaveWorkspaceSession"
+        },
+        {
+          "$ref": "#/$defs/ReadWorkspaceSource"
+        },
+        {
+          "$ref": "#/$defs/ResetWorkspaceSession"
+        },
+        {
+          "$ref": "#/$defs/BeginWorkspaceSource"
+        },
+        {
+          "$ref": "#/$defs/AppendWorkspaceSource"
+        },
+        {
+          "$ref": "#/$defs/StoreWorkspaceDraft"
+        }
+      ]
+    },
+    "WorkspaceSimpleItem": {
+      "title": "WorkspaceSimpleItem",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "conversation"
+            },
+            {
+              "type": "string",
+              "const": "web"
+            },
+            {
+              "type": "string",
+              "const": "project"
+            },
+            {
+              "type": "string",
+              "const": "task"
+            }
+          ]
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceSnapshot": {
+      "title": "WorkspaceSnapshot",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkspaceItem"
+          }
+        },
+        "route": {
+          "$ref": "#/$defs/WorkspaceRoute"
+        },
+        "other": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkspaceRoute"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "focused": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "left"
+            },
+            {
+              "type": "string",
+              "const": "right"
+            }
+          ]
+        },
+        "panes": {
+          "$ref": "#/$defs/PaneLayout"
+        },
+        "reading": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "preview": {
+          "type": "boolean"
+        },
+        "view_kind": {
+          "$ref": "#/$defs/PaneItemKind"
+        },
+        "back": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HistoryEntry"
+          }
+        },
+        "forward": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HistoryEntry"
+          }
+        }
+      },
+      "required": [
+        "items",
+        "route",
+        "other",
+        "focused",
+        "panes",
+        "reading",
+        "back",
+        "forward"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceSource": {
+      "title": "WorkspaceSource",
+      "type": "object",
+      "properties": {
+        "header": {
+          "$ref": "#/$defs/DocumentHeader"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "header",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceSourceErrorEvent": {
+      "title": "WorkspaceSourceErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_source_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "$ref": "#/$defs/SourceKey"
+            },
+            "draft": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "key"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceSourceEvent": {
+      "title": "WorkspaceSourceEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_source"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/WorkspaceSource"
+            },
+            "conflict": {
+              "type": "boolean"
+            },
+            "draft": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "source",
+            "conflict"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceSourceStoredEvent": {
+      "title": "WorkspaceSourceStoredEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_source_stored"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
       ],
       "additionalProperties": false
     }

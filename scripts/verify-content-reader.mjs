@@ -6,9 +6,10 @@ import {
   readFile,
   writeFile,
   symlink,
+  lstat,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve, join } from 'node:path';
+import { resolve, join, relative, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import { build } from 'esbuild';
 import { run } from './lib/run.mjs';
@@ -18,40 +19,7 @@ const isolated = join(parent, 'pero');
 await mkdir(isolated, { recursive: true });
 const out = resolve(root, 'test-results/content-reader');
 await mkdir(out, { recursive: true });
-const sources = [
-  'patches/gpui-pre-web-0.3.10-ime.patch',
-  'scripts/lib/gpui-web.mjs',
-  'crates/pero-contracts/src/web_document.rs',
-  'crates/pero-contracts/src/table_projection.rs',
-  'crates/pero-chat-ui/src/content_table.rs',
-  'crates/pero-theme/src/appearance.rs',
-  'crates/pero-ui/src/web_documents.rs',
-  'desktop/src/main/web-pages.ts',
-  'packages/content-source/web-address.ts',
-  'crates/pero-contracts/src/file_document.rs',
-  'crates/pero-runtime/src/file_documents.rs',
-  'crates/pero-host/src/documents.rs',
-  'crates/pero-chat-ui/src/artifact_read.rs',
-  'crates/pero-contracts/src/content_document.rs',
-  'crates/pero-ui/src/documents.rs',
-  'crates/pero-ui/src/workspace.rs',
-  'crates/pero-chat-ui/src/content_reader.rs',
-  'crates/pero-chat-ui/src/conversation.rs',
-  'crates/pero-chat-ui/src/tool_ui.rs',
-  'crates/pero-chat-ui/src/panel.rs',
-  'crates/pero-ui/src/app.rs',
-  'crates/pero-ui/src/view.rs',
-  'crates/pero-ui/src/workspace_view.rs',
-  'packages/content-source/app-document.ts',
-  'packages/app-sdk/src/document.ts',
-  'packages/app-sdk/src/ui.tsx',
-  'apps/virtual-cell/ui-src/components.tsx',
-  'web/src/apps.ts',
-  'web/src/bootstrap.ts',
-  'desktop/src/main/index.ts',
-  'locales/en.json',
-  'locales/zh-CN.json',
-];
+const sources = [];
 const fingerprints = async (base) =>
   Object.fromEntries(
     await Promise.all(
@@ -69,6 +37,7 @@ for (const path of [
   'crates',
   'scripts/cargo.mjs',
   'scripts/build/apps.mjs',
+  'scripts/build/reader.mjs',
   'scripts/lib',
   'patches',
   'desktop/src',
@@ -77,21 +46,28 @@ for (const path of [
   'web/public',
   'web/index.html',
   'web/chat.html',
+  'web/reader.html',
   'web/vite.config.ts',
   'locales',
   'protocol/generated',
   'packages/product',
   'packages/content-source',
+  'packages/icons',
   'packages/app-sdk/src',
   'apps/virtual-cell',
   'tests/fixtures/acp-agent.mjs',
 ]) {
   await cp(resolve(root, path), resolve(isolated, path), {
     recursive: true,
-    filter: (path) =>
-      !/[\\/](node_modules|__pycache__)([\\/]|$)/.test(path) && !/[\\/]web[\\/]src[\\/](wasm|chat-wasm)([\\/]|$)/.test(path),
+    filter: async (path) => {
+      if (/[\\/](node_modules|__pycache__|dist)([\\/]|$)/.test(path) ||
+          /[\\/]web[\\/]src[\\/](wasm|chat-wasm|reader-wasm|content-wasm)([\\/]|$)/.test(path)) return false;
+      if ((await lstat(path)).isFile()) sources.push(relative(root, path).split(sep).join('/'));
+      return true;
+    },
   });
 }
+sources.sort();
 await symlink(
   resolve(root, 'node_modules'),
   join(isolated, 'node_modules'),
@@ -101,10 +77,7 @@ await mkdir(join(isolated,'target/debug'),{recursive:true});
 await run(process.execPath,[resolve(isolated,'scripts/cargo.mjs'),'build','--locked','-p','pero-host'],{cwd:isolated,env:{...process.env,CARGO_TARGET_DIR:resolve(root,'target'),PERO_GPUI_KIT_PATH:process.env.PERO_GPUI_KIT_PATH||resolve(root,'../../test/gpui-kit')}});
 await cp(resolve(root,'target/debug/pero-host'),join(isolated,'target/debug/pero-host'));
 const before = await fingerprints(isolated);
-if(process.argv.includes('--app-documents')) {
-  await symlink(resolve(root,'apps/virtual-cell/node_modules'),join(isolated,'apps/virtual-cell/node_modules'),'dir');
-  await run(process.execPath,[resolve(isolated,'scripts/build/apps.mjs'),'--app','virtual-cell'],{cwd:isolated});
-}
+
 await run(
   process.execPath,
   [
@@ -117,6 +90,10 @@ await run(
     'pero-ui',
     '-p',
     'pero-chat-web',
+    '-p',
+    'pero-reader-web',
+    '-p',
+    'pero-content-worker',
     '--target',
     'wasm32-unknown-unknown',
   ],
@@ -133,6 +110,8 @@ await Promise.all(
   [
     ['pero_ui', 'wasm'],
     ['pero_chat_web', 'chat-wasm'],
+    ['pero_reader_web', 'reader-wasm'],
+    ['pero_content_worker', 'content-wasm'],
   ].map(async ([artifact, folder]) => {
     const directory = join(isolated, 'web/src', folder);
     await mkdir(directory, { recursive: true });
@@ -168,6 +147,10 @@ await run(resolve(root, 'node_modules/.bin/vite'), [
   '--config',
   join(isolated, 'web/vite.config.ts'),
 ]);
+if(process.argv.includes('--app-documents')) {
+  await symlink(resolve(root,'apps/virtual-cell/node_modules'),join(isolated,'apps/virtual-cell/node_modules'),'dir');
+  await run(process.execPath,[resolve(isolated,'scripts/build/apps.mjs'),'--app','virtual-cell','--reader-dist',join(isolated,'web/dist')],{cwd:isolated});
+}
 await build({
   entryPoints: {
     main: join(isolated, 'desktop/src/main/index.ts'),
@@ -190,6 +173,7 @@ await writeFile(
   JSON.stringify({ isolated, files: after }, null, 2),
 );
 await writeFile(join(out, 'release-root.txt'), isolated + '\n');
+if (!process.argv.includes('--build-only')) {
 await run(
   process.execPath,
   [
@@ -211,3 +195,4 @@ await run(
     },
   },
 );
+}

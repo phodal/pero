@@ -1,5 +1,5 @@
 import {ConversationContentRead} from '../../../packages/content-source/index.ts';
-import { app, BrowserWindow, ipcMain, Menu, protocol, nativeTheme, net, dialog, globalShortcut } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, protocol, nativeTheme, net, dialog, globalShortcut, shell } from 'electron';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { readFileSync } from 'node:fs';
@@ -66,18 +66,18 @@ app.whenReady().then(async () => {
   // Only the product shell has a preload; App documents retain their separate origin.
   protocol.handle('pero', async request => {
     const url = new URL(request.url);
-    if (product.chat && url.host === 'chat') {
-      const directory = resolve(root, 'web/chat');
+    if (url.host === 'reader' || product.chat && url.host === 'chat') {
+      const directory = resolve(root, 'web', url.host);
       const file = resolve(directory, '.' + decodeURIComponent(url.pathname));
       if (!file.startsWith(directory + sep)) return new Response('Not found', { status: 404 });
       const response = await net.fetch(pathToFileURL(file).href);
       const headers = new Headers(response.headers);
-      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'");
+      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; object-src 'none'");
       return new Response(response.body, { status: response.status, headers });
     }
     if (url.host !== 'workbench' || url.pathname !== '/') return new Response('Not found', { status: 404 });
     return new Response(readFileSync(resolve(root, 'desktop/dist/product.html')), {
-      headers: { 'Content-Type': 'text/html', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; frame-src pero-app: pero://chat" },
+      headers: { 'Content-Type': 'text/html', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; frame-src pero-app: pero://chat pero://reader" },
     });
   });
   if (product.chat) {
@@ -151,6 +151,13 @@ app.whenReady().then(async () => {
     if(command?.action==='select'){appUse?.authority.select(command.thread_id||undefined);return;}
     if(command?.action!=='revoke'||typeof command.thread_id!=='string')throw new Error('Invalid App Use command');
     appUse?.authority.revoke(command.thread_id,command.scope);
+  });
+  ipcMain.handle('product:open-external', async (event, value: unknown) => {
+    trusted(event);
+    if(typeof value!=='string'||value.length>4096)throw new Error('Invalid link');
+    const url=new URL(value);
+    if(!['http:','https:'].includes(url.protocol))throw new Error('Unsupported link');
+    await shell.openExternal(url.href);
   });
   ipcMain.handle('product:session', async (event, command: unknown) => {
     trusted(event);

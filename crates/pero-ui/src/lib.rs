@@ -14,6 +14,8 @@ mod view;
 mod documents;
 #[cfg(any(target_family="wasm",feature="native"))]
 mod web_documents;
+#[cfg(any(target_family="wasm",feature="native"))]
+mod icon_themes;
 
 // Rendered only by the wasm Workbench; native builds compile it for its tests.
 #[cfg_attr(not(target_family = "wasm"), allow(dead_code))]
@@ -72,3 +74,32 @@ mod workspace_view;
 
 #[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
 mod layout;
+
+#[cfg(any(target_family="wasm",feature="native"))]
+mod workspace_restore;
+
+#[cfg(any(target_family="wasm",feature="native"))]
+mod document_save_as;
+
+#[cfg(any(target_family="wasm",feature="native"))]
+mod workspace_sources;
+
+#[cfg(any(target_family="wasm",feature="native"))]
+mod workspace_pane_views;
+
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod workspace_surface_views;
+
+#[cfg(any(target_family="wasm",feature="native"))]
+mod workspace_draft_upload;
+
+#[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
+mod workspace_close;
+
+#[cfg(any(target_family="wasm",feature="native"))]
+mod workspace_pane_tabs;
+#[cfg(any(target_family="wasm",feature="native"))]
+mod workspace_tab_actions;
+
+#[cfg(any(target_family="wasm",feature="native"))]
+mod workspace_recent;

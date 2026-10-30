@@ -1,17 +1,120 @@
+--- a/src/gpui_web.rs
++++ b/src/gpui_web.rs
+@@ -21,6 +21,7 @@
+ mod http_client;
+ #[cfg(target_family = "wasm")]
+ mod ime_mirror;
++mod input_conduit;
+ #[cfg(target_family = "wasm")]
+ mod keyboard;
+ #[cfg(target_family = "wasm")]
+--- a/src/ime_mirror.rs
++++ b/src/ime_mirror.rs
+@@ -18,6 +18,7 @@
+ use std::rc::Rc;
+
+ use gpui::{Autocapitalize, TextInputAction, TextInputConfiguration};
++use crate::input_conduit::InputConduit;
+ use wasm_bindgen::JsCast;
+
+ use crate::window::WebWindowInner;
+@@ -54,7 +55,7 @@
+ /// module; other code interacts through read accessors, focus and
+ /// virtual-keyboard control, and [`ImeMirror::schedule_sync`].
+ pub(crate) struct ImeMirror {
+-    element: web_sys::HtmlTextAreaElement,
++    element: InputConduit,
+     /// The mirror text most recently synced to (or observed in) the hidden
+     /// element. `input` events diff the element's new value against this to
+     /// recover what edit the IME performed.
+@@ -92,17 +93,20 @@
+         // A textarea rather than an input: single-line inputs silently strip
+         // newlines from assigned values, which would make the mirror text
+         // disagree with what was written into it.
+-        let element: web_sys::HtmlTextAreaElement = document
+-            .create_element("textarea")
+-            .map_err(|e| anyhow::anyhow!("Failed to create textarea element: {e:?}"))?
+-            .dyn_into()
+-            .map_err(|e| anyhow::anyhow!("Created element is not a textarea: {e:?}"))?;
++        let element = InputConduit::new(document, touch_input)
++            .map_err(|error| anyhow::anyhow!("Failed to create input conduit: {error:?}"))?;
+         let style = element.style();
+         style.set_property("position", "fixed").ok();
+         style.set_property("top", "0").ok();
+         style.set_property("left", "0").ok();
+         style.set_property("width", "1px").ok();
+         style.set_property("height", "1px").ok();
++        // This conduit is never displayed. Soft-wrapping its full native
++        // selection at one pixel creates a layout line per character.
++        // Keep real text/selection/IME context, but no hidden soft wraps.
++        element.set_wrap("off");
++        style.set_property("white-space", "pre").ok();
++        style.set_property("contain", "strict").ok();
+         style.set_property("opacity", "0").ok();
+         // Android Chrome zooms the visual viewport onto a focused text input
+         // whose font is smaller than 16px; with page zoom disabled the user
+@@ -186,7 +190,7 @@
+         Self::focus_element(&self.element);
+     }
+
+-    fn focus_element(element: &web_sys::HtmlTextAreaElement) {
++    fn focus_element(element: &InputConduit) {
+         // The hidden mirror is not a scroll target: revealing its caret can
+         // pan Android Chrome's visual viewport when the keyboard opens.
+         let options = web_sys::FocusOptions::new();
+@@ -226,8 +230,30 @@
+     }
+
+     pub(crate) fn remove(&self) {
++        self.element.dispose();
+         let element: &web_sys::Element = self.element.as_ref();
+         element.remove();
++    }
++
++    pub(crate) fn update_bounds(&self, bounds: gpui::Bounds<gpui::Pixels>) {
++        self.element.update_control_bounds(
++            f64::from(f32::from(bounds.origin.x)), f64::from(f32::from(bounds.origin.y)),
++            f64::from(f32::from(bounds.size.width)), f64::from(f32::from(bounds.size.height)),
++        );
++    }
++
++    pub(crate) fn update_character_bounds(&self, window: &WebWindowInner, start: u32, end: u32) {
++        let bounds = js_sys::Array::new();
++        for offset in start..end {
++            let range = self.window_hint.get() + offset as usize .. self.window_hint.get() + offset as usize + 1;
++            let rect = window.with_input_handler(|handler| handler.bounds_for_range(range)).flatten();
++            let Some(rect) = rect else { break; };
++            if let Ok(rect) = web_sys::DomRect::new_with_x_and_y_and_width_and_height(
++                f64::from(f32::from(rect.origin.x)), f64::from(f32::from(rect.origin.y)),
++                f64::from(f32::from(rect.size.width)), f64::from(f32::from(rect.size.height)),
++            ) { bounds.push(rect.as_ref()); }
++        }
++        self.element.update_character_bounds(start, &bounds);
+     }
+
+     pub(crate) fn value(&self) -> String {
 --- a/src/events.rs
 +++ b/src/events.rs
-@@ -713,6 +713,10 @@
-                     modifiers,
-                     capslock,
+@@ -161,6 +161,7 @@
+             self.register_before_input(),
+             self.register_input(),
+             self.register_paste(),
++            self.register_character_bounds(),
+             self.register_composition_start(),
+             self.register_composition_update(),
+             self.register_composition_end(),
+@@ -715,6 +716,10 @@
                  }));
-+            }
-+
-+            if is_ime_key(this.is_composing.get(), &event) {
-+                return;
              }
 
++            if is_ime_key(this.is_composing.get(), &event) {
++                return;
++            }
++
              let key = dom_key_to_gpui_key(&event);
-@@ -758,11 +762,6 @@
+
+             if is_modifier_only_key(&key) {
+@@ -758,11 +763,6 @@
                  }
              }
 
@@ -23,18 +126,18 @@
              if keystroke_inserts_text(&modifiers, this.is_mac)
                  && let Some(text) = key_char
              {
-@@ -794,6 +793,10 @@
+@@ -792,6 +792,10 @@
+                     modifiers,
+                     capslock,
                  }));
-             }
-
-+            if is_ime_key(this.is_composing.get(), &event) {
-+                return;
 +            }
 +
-             let key = dom_key_to_gpui_key(&event);
++            if is_ime_key(this.is_composing.get(), &event) {
++                return;
+             }
 
-             if is_modifier_only_key(&key) {
-@@ -854,6 +857,8 @@
+             let key = dom_key_to_gpui_key(&event);
+@@ -854,6 +858,8 @@
                  return;
              }
 
@@ -43,7 +146,7 @@
              let old_units: Vec<u16> = old_value.encode_utf16().collect();
              let new_units: Vec<u16> = new_value.encode_utf16().collect();
 
-@@ -883,12 +888,14 @@
+@@ -883,12 +889,14 @@
                      .zip(new_units.iter().rev())
                      .take_while(|(old_unit, new_unit)| old_unit == new_unit)
                      .count()
@@ -59,7 +162,7 @@
                  .min(old_units.len() - suffix_length)
                  .min(new_units.len() - suffix_length);
 
-@@ -900,8 +907,7 @@
+@@ -900,8 +908,7 @@
              // The edit's shape relative to the element's pre-edit selection.
              // The element is private to the IME and these syncs, so the
              // stored selection is exact.
@@ -69,17 +172,61 @@
              let removed_before_selection =
                  (element_selection_start as usize).saturating_sub(prefix_length);
              let removed_after_selection =
-@@ -1364,6 +1370,13 @@
+@@ -1127,6 +1134,18 @@
+         })
      }
- }
 
++    fn register_character_bounds(self: &Rc<Self>) -> EventListenerHandle {
++        let this = Rc::clone(self);
++        self.listen_input("gpui-characterboundsupdate", move |event: JsValue| {
++            let detail = js_sys::Reflect::get(&event, &JsValue::from_str("detail")).unwrap_or(JsValue::NULL);
++            let start = js_sys::Reflect::get(&detail, &JsValue::from_str("start")).ok().and_then(|v|v.as_f64());
++            let end = js_sys::Reflect::get(&detail, &JsValue::from_str("end")).ok().and_then(|v|v.as_f64());
++            if let (Some(start),Some(end)) = (start,end) {
++                this.ime_mirror.update_character_bounds(&this,start as u32,end as u32);
++            }
++        })
++    }
++
+     fn register_composition_start(self: &Rc<Self>) -> EventListenerHandle {
+         let this = Rc::clone(self);
+         self.listen_input("compositionstart", move |_event: JsValue| {
+@@ -1140,8 +1159,11 @@
+             let event: web_sys::CompositionEvent = event.unchecked_into();
+             let data = event.data().unwrap_or_default();
+             this.is_composing.set(true);
++            let start = js_sys::Reflect::get(event.as_ref(), &JsValue::from_str("gpuiSelectionStart")).ok().and_then(|v|v.as_f64());
++            let end = js_sys::Reflect::get(event.as_ref(), &JsValue::from_str("gpuiSelectionEnd")).ok().and_then(|v|v.as_f64());
++            let selected = start.zip(end).map(|(start,end)| start as usize..end as usize);
+             this.with_input_handler(|handler| {
+-                handler.replace_and_mark_text_in_range(None, &data, None);
++                handler.replace_and_mark_text_in_range(None, &data, selected);
+             });
+         })
+     }
+@@ -1362,6 +1384,13 @@
+     } else {
+         modifiers.is_subset_of(&Modifiers::shift()) || (modifiers.control && modifiers.alt)
+     }
++}
++
 +// Composition can start after keydown or end before keyup. In either case
 +// 229 still identifies a key owned by the browser's IME. Its default action
 +// must proceed without dispatching application bindings or inserting text.
 +fn is_ime_key(is_composing: bool, event: &web_sys::KeyboardEvent) -> bool {
 +    is_composing || event.is_composing() || event.key_code() == 229
-+}
-+
+ }
+
  fn compute_key_char(
-     event: &web_sys::KeyboardEvent,
-     gpui_key: &str,
+--- a/src/window.rs
++++ b/src/window.rs
+@@ -1025,6 +1025,8 @@
+         self.inner.state.borrow().renderer.gpu_specs()
+     }
+
+-    fn update_ime_position(&self, _bounds: Bounds<Pixels>) {}
++    fn update_ime_position(&self, bounds: Bounds<Pixels>) {
++        self.inner.ime_mirror.update_bounds(bounds);
++    }
+
+     fn request_decorations(&self, _decorations: WindowDecorations) {}

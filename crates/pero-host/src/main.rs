@@ -6,7 +6,10 @@ mod agents;
 mod apps;
 mod contributions;
 mod documents;
+mod workspace;
 mod local_worker;
+mod mcp;
+mod icons;
 
 fn emit(event: HostEvent) -> io::Result<()> {
     let mut stdout = io::stdout().lock();
@@ -23,8 +26,11 @@ fn main() -> io::Result<()> {
     let mut agents = agents::Manager::new(std::env::current_dir()?);
     let settings_path = std::env::var_os("PERO_SETTINGS_PATH").map(std::path::PathBuf::from);
     let mut apps = apps::Apps::new(settings_path.as_deref());
+    let mut workspace_store=settings_path.as_deref().map(pero_runtime::workspace_store::WorkspaceStore::new);
     let mut documents=pero_runtime::file_documents::FileDocuments::default();
     let workers = local_worker::LocalWorkers::new(settings_path.as_deref());
+    let mut mcp = mcp::Mcp::new(settings_path.as_deref());
+    let mut icons = icons::Icons::new(settings_path.as_deref());
     let locale = settings_path
         .as_deref()
         .and_then(pero_runtime::settings::load_locale)
@@ -34,14 +40,21 @@ fn main() -> io::Result<()> {
             )
             .into()
         });
-    emit(HostEvent::new("settings", None, locale))?;
+    emit(HostEvent::new("settings", None, locale.clone()))?;
     emit(HostEvent::message("ready", None, "status.host_ready"))?;
     let mut computer = HostEvent::new("computer_settings", None, String::new());
     computer.data = serde_json::json!({"enabled":settings_path.as_deref().is_some_and(pero_runtime::settings::load_computer_enabled)});
     emit(computer)?;
+    emit(icons.snapshot(None))?;
     for line in io::stdin().lock().lines() {
         let line = line?;
         let value: serde_json::Value = serde_json::from_str(&line).unwrap_or_default();
+        if value.get("method").and_then(|value|value.as_str())==Some("icons") {
+            emit(icons.dispatch(value))?;continue;
+        }
+        if value.get("method").and_then(|value|value.as_str())==Some("mcp") {
+            emit(mcp.dispatch(value,&agents,&locale))?;continue;
+        }
         if value.get("method").and_then(|value| value.as_str()).is_some_and(|method| method.starts_with("settings.computer")) {
             use pero_contracts::computer_runtime::ComputerSettingsRequest;
             let mut event = HostEvent::new("computer_settings_error", value.get("id").and_then(|id|id.as_str()).map(str::to_owned), String::new());
@@ -84,12 +97,15 @@ fn main() -> io::Result<()> {
             emit(event)?;
             continue;
         }
+        if value.get("method").and_then(|v|v.as_str())==Some("workspace") {
+            emit(workspace::dispatch(workspace_store.as_mut(),&mut documents,value))?;continue;
+        }
         if value.get("method").and_then(|v| v.as_str()) == Some("contribution") {
             contributions::dispatch(value);
             continue;
         }
         if value.get("method").and_then(|v|v.as_str())==Some("documents") {
-            if let Some(event)=documents::dispatch(&mut documents,value) {emit(event)?;}
+            if let Some(event)=documents::dispatch(&mut documents,workspace_store.as_mut(),value) {emit(event)?;}
             continue;
         }
         if value.get("method").and_then(|v| v.as_str()) == Some("apps") {

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "id": "source-shapes",
+  "name": "Source Shapes",
+  "icons": {
+    "rust": {
+      "light": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M12 2L22 21H2Z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/></svg>",
+      "dark": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M12 2L22 12L12 22L2 12Z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/></svg>"
+    },
+    "json": {
+      "light": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M8 3H5V10L2 12L5 14V21H8M16 3H19V10L22 12L19 14V21H16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/></svg>"
+    }
+  },
+  "associations": {
+    "languages": {
+      "rust": "rust"
+    },
+    "kinds": {
+      "json": "json",
+      "json_lines": "json"
+    }
+  }
+}

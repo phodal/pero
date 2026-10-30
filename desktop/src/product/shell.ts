@@ -8,6 +8,8 @@ import themes from '../../../web/src/theme.generated.json';
 import { mountChatSurface, type ChatSurface } from '../../../web/src/chat-surface';
 import { translate } from '../../../locales';
 import { applyAppearance, type AppearanceSnapshot } from '../../../packages/app-sdk/src/appearance';
+import { mountReaderSurface } from '../../../packages/app-sdk/src/reader-surface';
+import type { DocumentHeader } from '../../../protocol/generated/host';
 let appearance: AppearanceSnapshot | undefined;
 type Context = { product: ProductFields; locale: string; dark: boolean; connected: boolean };
 const bridge = (window as unknown as { product: {
@@ -15,6 +17,7 @@ const bridge = (window as unknown as { product: {
   connect(): Promise<Context>; open(name?: string): Promise<void>;
   sessionCommand(command: object): Promise<void>;
   appUseCommand(command: object): Promise<unknown>;
+  openExternal(url: string): Promise<void>;
   onEvent(receive: (value: HostEvent) => void): void;
   onContext(receive: (value: Context) => void): void;
 } }).product;
@@ -29,7 +32,24 @@ const launchAppChat=appChatLauncher({
   command:value=>bridge.appUseCommand(value),
   deliver:(thread_id,contexts,text,replace)=>chat?.event({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}}),
 });
-const surface = mountAppSurfaces(async () => bridge.open(selected.app).catch(report),launchAppChat);
+const surface = mountAppSurfaces(async () => bridge.open(selected.app).catch(report),launchAppChat,openReading);
+const readingPanel=document.createElement('section'); readingPanel.id='product-document'; readingPanel.hidden=true;
+const readingHeader=document.createElement('header');
+const readingTitle=document.createElement('strong'); readingTitle.id='product-document-title';
+const closeReading=document.createElement('button'); closeReading.type='button';
+readingHeader.append(readingTitle,closeReading);
+const readingBody=document.createElement('div'); readingBody.className='product-document-reader';
+readingPanel.setAttribute('aria-labelledby',readingTitle.id);readingPanel.append(readingHeader,readingBody);document.body.append(readingPanel);
+let reader:ReturnType<typeof mountReaderSurface>|undefined;
+let readingOpener:HTMLElement|undefined;
+function openReading(source:{header:DocumentHeader;text:string}) {
+  readingOpener=document.activeElement instanceof HTMLElement?document.activeElement:undefined;
+  readingTitle.textContent=source.header.source.title;
+  if(reader)reader.source(source);
+  else reader=mountReaderSurface(readingBody,{source,context:{locale:context.locale,dark:context.dark,appearance},url:'pero://reader/reader.html',link:url=>{void bridge.openExternal(url);}});
+  update();
+}
+closeReading.onclick=()=>{reader?.dispose();reader=undefined;update();readingOpener?.focus();};
 const navigation = document.createElement('nav');
 navigation.hidden = true;
 const selector = document.createElement('select');
@@ -72,14 +92,19 @@ function update() {
   const top = navigation.hidden ? 0 : navigation.getBoundingClientRect().height;
   const narrow = innerWidth < 1000;
   const chatWidth = context.product.chat && chatOpen ? narrow ? innerWidth : Math.round(Math.max(360, innerWidth * .36)) : 0;
-  surface.surface({ visible: !(narrow && chatWidth), name: selected.app, panel: selected.panel, top,
+  surface.surface({ visible: !reader && !(narrow && chatWidth), name: selected.app, panel: selected.panel, top,
     dark: appearance?.dark ?? context.dark, appearance, locale: context.locale, width: innerWidth - chatWidth, height: innerHeight - top });
   chatPanel.hidden = !context.product.chat || !chatOpen;
   chatPanel.style.cssText = `left:${innerWidth - chatWidth}px;top:${top}px;width:${chatWidth}px;height:${innerHeight - top}px`;
   chat?.context({ dark: context.dark, appearance, locale: context.locale, active: chatOpen, scope: { app: selected.app, panel: selected.panel || 'main' } });
+  readingPanel.hidden=!reader || narrow && Boolean(chatWidth);
+  readingPanel.style.cssText=`left:0;top:${top}px;width:${innerWidth-chatWidth}px;height:${innerHeight-top}px`;
+  closeReading.textContent=translate(context.locale,'workspace.close_tab');
+  reader?.context({dark:context.dark,appearance,locale:context.locale});
 }
 toggle.onclick = () => { chatOpen = !chatOpen; update(); };
 selector.onchange = () => {
+  reader?.dispose();reader=undefined;
   selected = { app: selector.value };
   update();
   void bridge.open(selected.app).catch(report);

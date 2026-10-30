@@ -1,17 +1,23 @@
+import {installContentAnalysis} from './content-analysis';
 import { loadContentResult, cancelContentResult } from './content-results';
 import type { ContentChunk, ConversationReadParameters } from '../../packages/content-source/index';
-import init, { run, receive_host_event, snapshot, has_unsaved_documents, paste_image, set_system_theme } from './wasm/pero_ui';
+import init, { run, receive_host_event, snapshot, has_unsaved_documents, checkpoint_workspace, request_window_close, paste_image, set_system_theme } from './wasm/pero_ui';
 import { appChatLauncher } from './app-chat';
 import { previewContext } from './context-preview';
 import themes from './theme.generated.json';
 import './shell.css';
 import { applyAppearance } from '../../packages/app-sdk/src/appearance';
 import { normalizeLocale, translate } from '../../locales';
-import { mountAppSurfaces, type AppSurface } from './apps';
+import { mountAppSurfaces, type AppSurface, type AppSurfaceBatch } from './apps';
 
 export interface HostEvent { version: number; kind: string; request_id: string | null; text: string; message_key?: string; thread_id?: string; data?: unknown }
 declare global {
   interface Window {
+    peroHasUnsavedDocuments():boolean;
+    peroWorkspaceCheckpoint(discard?:boolean):Promise<void>;
+    peroPrepareWindowClose():Promise<boolean>;
+    peroWindowCloseResult(ready:boolean):void;
+    peroAllowUnloadOnce?:boolean;
     pero?: { webCommand(command:object):Promise<void>; readContent(request:ConversationReadParameters):Promise<ContentChunk>; connect(): Promise<HostEvent>; getLocale(): Promise<string>; setLocale(locale: string): Promise<void>; sendProbe(request: { id: string; text: string }): Promise<void>; onEvent(callback: (event: HostEvent) => void): () => void; sessionCommand(command: object): Promise<void>; remoteCommand(command: object): Promise<void>; computerCommand(command: object): Promise<unknown>; appsCommand(command: object): Promise<void>; appUseCommand(command: object): Promise<unknown>; chooseWorkspace(): Promise<void>; chooseContext(command?: object): Promise<void> };
     peroSendProbe(json: string): void;
     peroSetLocale(locale: string): void;
@@ -34,16 +40,33 @@ try {
     document.documentElement.style.setProperty(`--pero-${key}`, value);
   }
   await init();
-  window.addEventListener('beforeunload',event=>{if(has_unsaved_documents()){event.preventDefault();event.returnValue='';}});
+  installContentAnalysis();
+  let closeDecision:((ready:boolean)=>void)|undefined;
+  window.peroWindowCloseResult=ready=>{const decide=closeDecision;closeDecision=undefined;decide?.(ready);};
+  window.peroPrepareWindowClose=()=>new Promise(resolve=>{
+    if(closeDecision){resolve(false);return;}
+    closeDecision=resolve;
+    request_window_close();
+  });
+  window.peroHasUnsavedDocuments=has_unsaved_documents;
+  window.peroWorkspaceCheckpoint=async(discard=false)=>{
+    const json=checkpoint_workspace(discard);
+    if(!json||!window.pero)throw new Error(t('workspace.save_failed'));
+    await window.pero.sessionCommand(JSON.parse(json));
+  };
+  window.addEventListener('beforeunload',event=>{
+    if(window.peroAllowUnloadOnce){window.peroAllowUnloadOnce=false;return;}
+    if(window.pero||has_unsaved_documents()){event.preventDefault();event.returnValue='';}
+  });
   const launchAppChat=appChatLauncher({
     open:scope=>receive_host_event(JSON.stringify({version:1,kind:'app_scope',request_id:null,text:'',data:scope})),
     draft:async()=>{const state=JSON.parse(snapshot());return {threadId:state.chats?.[state.activeChat]?.id,scope:state.scope};},
     command:value=>{if(!window.pero)throw new Error(t('error.browser'));return window.pero.appUseCommand(value);},
     deliver:(thread_id,contexts,text,replace)=>receive_host_event(JSON.stringify({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}})),
   });
-  const apps = mountAppSurfaces(value=>window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser'))),launchAppChat,({header,text})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:header})));
+  const apps = mountAppSurfaces(value=>window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser'))),launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})),pane=>receive_host_event(JSON.stringify({version:1,kind:'pane_focus',request_id:null,text:'',data:{id:pane}})));
   window.peroAppUseRevoke = async(thread,scope) => {await window.pero!.appUseCommand({action:'revoke',thread_id:thread,scope});};
-  window.peroAppSurface = json => apps.surface(JSON.parse(json) as AppSurface);
+  window.peroAppSurface = json => apps.surface(JSON.parse(json) as AppSurface|AppSurfaceBatch);
   window.peroSendProbe = (json) => {
     const request = JSON.parse(json);
     if (!window.pero) {
@@ -110,6 +133,7 @@ try {
     window.pero.onEvent(onEvent);
     if (connection) onEvent(connection);
     await window.pero.sessionCommand({method:'settings.workbench.get'});
+    await window.pero.sessionCommand({method:'icons',action:'get',request_id:'icon-themes-startup'});
     await window.pero.sessionCommand({action:'list_agents'});
     // The local workbench is ready even while Cloud refresh/enrollment waits.
     void window.pero.remoteCommand({action:'remote_refresh'}).catch(() => {});

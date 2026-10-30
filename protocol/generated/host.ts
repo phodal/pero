@@ -5,6 +5,9 @@
  */
 export type HostProtocol = HostInput | HostEvent | WebCommand;
 export type HostInput =
+  | IconThemeRequest
+  | McpSourceRequest
+  | WorkspaceSessionRequest
   | FileDocumentRequest
   | LocalWorkerRequest
   | EchoRequest
@@ -15,7 +18,29 @@ export type HostInput =
   | HostCommand
   | AppRequest
   | ContributionRequest;
-export type FileDocumentRequest = OpenFileDocument | FollowFileDocument | SaveFileDocument | ReleaseFileDocument;
+export type IconThemeRequest = GetIconThemes | InstallIconTheme | SelectIconTheme | RemoveIconTheme;
+export type WorkspaceSessionRequest =
+  | GetWorkspaceSession
+  | SaveWorkspaceSession
+  | ReadWorkspaceSource
+  | ResetWorkspaceSession
+  | BeginWorkspaceSource
+  | AppendWorkspaceSource
+  | StoreWorkspaceDraft;
+export type ContentOrigin = ConversationOrigin | FileOrigin | AppOrigin | McpOrigin;
+export type WorkspaceItem = WorkspaceSimpleItem | WorkspaceDocumentItem | WorkspaceAppItem;
+export type WorkspaceRoute = WorkspacePageRoute | WorkspaceContentRoute;
+export type PaneNode = PaneLeafNode | PaneSplitNode;
+export type PaneItemKind = "primary" | "rendered_preview";
+export type ContentFormat = PlainContentFormat | CodeContentFormat;
+export type FileDocumentRequest =
+  | OpenFileDocument
+  | FollowFileDocument
+  | SaveFileDocument
+  | SaveAsFileDocument
+  | SaveDraftFileDocument
+  | SaveAsReferenceFileDocument
+  | ReleaseFileDocument;
 export type LocalWorkerRequest = LocalWorkerStartCommand | LocalWorkerStopCommand | LocalWorkerGetCommand;
 export type HostCommand =
   | ListAgentsCommand
@@ -43,12 +68,29 @@ export type AppName = string;
 export type AgentRequest = AgentInfoRequest | AgentStartRequest | AgentEventsRequest | AgentCancelRequest;
 export type ContributionRequest = ContributionPrepare | ContributionReview | ContributionPublish;
 export type HostEvent =
+  | DocumentSaveChooseEvent
+  | DocumentSavePathEvent
+  | DocumentSaveCancelledEvent
+  | WorkspaceRestoredEvent
+  | WorkspaceSavedEvent
+  | WorkspaceErrorEvent
+  | WorkspaceSourceEvent
+  | WorkspaceSourceErrorEvent
+  | WorkspaceResetEvent
+  | WorkspaceSourceStoredEvent
+  | DraftStoredEvent
   | WebOpenedEvent
   | WebStateEvent
   | WebClosedEvent
   | WebErrorEvent
   | WebChooseEvent
+  | WebFocusedEvent
+  | IconThemesEvent
   | DocumentOpenEvent
+  | McpPermittedEvent
+  | McpSourcesEvent
+  | McpErrorEvent
+  | McpAppOpenedEvent
   | DocumentChooseEvent
   | FileDocumentEvent
   | FileDocumentErrorEvent
@@ -91,8 +133,6 @@ export type HostEvent =
   | PromptQueuedEvent
   | CommandRejectedEvent;
 export type WebLoad = WebLoading | WebReady | WebFailed;
-export type ContentOrigin = ConversationOrigin | FileOrigin | AppOrigin | McpOrigin;
-export type ContentFormat = PlainContentFormat | CodeContentFormat;
 /**
  * Catalog key resolved by the UI from locales/*.json.
  */
@@ -118,8 +158,297 @@ export type AppAgentStatus = "running" | "text" | "needs_input" | "completed" | 
 /**
  * Private Desktop/native browser-engine commands, not Host stdin.
  */
-export type WebCommand = WebOpenCommand | WebNavigateCommand | WebControlCommand | WebSurfaceCommand;
+export type WebCommand =
+  | WebOpenCommand
+  | WebHtmlCommand
+  | WebRestoreCommand
+  | WebNavigateCommand
+  | WebControlCommand
+  | WebSurfaceCommand
+  | WebSurfacesCommand;
 
+export interface GetIconThemes {
+  method: "icons";
+  action: "get";
+  request_id: string;
+}
+export interface InstallIconTheme {
+  method: "icons";
+  action: "install";
+  request_id: string;
+  path: string;
+}
+export interface SelectIconTheme {
+  method: "icons";
+  action: "select";
+  request_id: string;
+  id: string | null;
+}
+export interface RemoveIconTheme {
+  method: "icons";
+  action: "remove";
+  request_id: string;
+  id: string;
+}
+export interface McpSourceRequest {
+  method: "mcp";
+  action: "open";
+  request_id: string;
+  thread_id?: string | null;
+}
+export interface GetWorkspaceSession {
+  method: "workspace";
+  action: "get";
+}
+export interface SaveWorkspaceSession {
+  method: "workspace";
+  action: "save";
+  request_id: string;
+  refresh: SourceKey[];
+  session: WorkspaceSession;
+  sources: WorkspaceSource[];
+}
+export interface SourceKey {
+  origin: ContentOrigin;
+  source: string;
+  revision: number;
+}
+export interface ConversationOrigin {
+  kind: "conversation";
+  thread_id: string;
+}
+export interface FileOrigin {
+  kind: "file";
+  path: string;
+}
+export interface AppOrigin {
+  kind: "app";
+  app: string;
+  panel: string;
+}
+export interface McpOrigin {
+  kind: "mcp";
+  server: string;
+  thread_id: string;
+}
+export interface WorkspaceSession {
+  version: 1;
+  workspace: string;
+  navigation: WorkspaceSnapshot;
+  documents: SavedDocument[];
+  web: SavedWeb[];
+}
+export interface WorkspaceSnapshot {
+  items: WorkspaceItem[];
+  route: WorkspaceRoute;
+  other: WorkspaceRoute | null;
+  focused: "left" | "right";
+  panes: PaneLayout;
+  reading: ReaderState | null;
+  preview?: boolean;
+  view_kind?: PaneItemKind;
+  back: HistoryEntry[];
+  forward: HistoryEntry[];
+}
+export interface WorkspaceSimpleItem {
+  kind: "conversation" | "web" | "project" | "task";
+  value: string;
+}
+export interface WorkspaceDocumentItem {
+  kind: "document";
+  value: {
+    origin: ContentOrigin;
+    source: string;
+  };
+}
+export interface WorkspaceAppItem {
+  kind: "app";
+  value: {
+    name: string;
+    panel: string;
+  };
+}
+export interface WorkspacePageRoute {
+  kind: "page";
+  value:
+    | "conversation"
+    | "document"
+    | "web"
+    | "projects"
+    | "agents"
+    | "tasks"
+    | "workers"
+    | "apps"
+    | "insights"
+    | "connections";
+}
+export interface WorkspaceContentRoute {
+  kind: "content";
+  value: WorkspaceItem;
+}
+export interface PaneLayout {
+  root: PaneNode | null;
+  focused: number | null;
+  next_id: number;
+  next_view_id: number;
+}
+export interface PaneLeafNode {
+  kind: "leaf";
+  view: PaneLeaf;
+}
+export interface PaneLeaf {
+  id: number;
+  tabs: PaneTabSet;
+}
+export interface PaneTabSet {
+  items: PaneItem[];
+  active: number | null;
+  preview: number | null;
+  pinned_count: number;
+  activation_history: number[];
+  history: WorkspaceHistory;
+  closed: HistoryEntry[];
+}
+export interface PaneItem {
+  id: number;
+  route: WorkspaceRoute;
+  kind?: PaneItemKind;
+  reading?: ReaderState | null;
+}
+export interface ReaderState {
+  source_revision?: number | null;
+  source: boolean;
+  selection: ReaderRange;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  scroll: [unknown, unknown];
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  preview_scroll: [unknown, unknown];
+  preview_reveal?: ReaderRange | null;
+  query: string;
+  search_open: boolean;
+  search: ReaderSearch;
+  folded_lines: number[];
+  path: ReaderRange[];
+}
+export interface ReaderRange {
+  start: number;
+  end: number;
+}
+export interface ReaderSearch {
+  case_insensitive: boolean;
+  regex: boolean;
+  whole_word: boolean;
+}
+export interface WorkspaceHistory {
+  reading: ReaderState | null;
+  preview?: boolean;
+  view_kind?: PaneItemKind;
+  back: HistoryEntry[];
+  forward: HistoryEntry[];
+}
+export interface HistoryEntry {
+  route: WorkspaceRoute;
+  reading?: ReaderState | null;
+  preview?: boolean;
+  view_kind?: PaneItemKind;
+}
+export interface PaneSplitNode {
+  kind: "split";
+  id: number;
+  axis: "horizontal" | "vertical";
+  ratio: number;
+  first: PaneNode;
+  second: PaneNode;
+}
+export interface SavedDocument {
+  header: DocumentHeader;
+  reading: ReaderState;
+  draft: string | null;
+  draft_ref?: DraftRef | null;
+  legacy_draft?: boolean;
+}
+export interface DocumentHeader {
+  source: DocumentSource;
+  revision: number;
+  format: ContentFormat;
+}
+export interface DocumentSource {
+  id: string;
+  title: string;
+  origin: ContentOrigin;
+}
+export interface PlainContentFormat {
+  kind: "json" | "json_lines" | "text" | "markdown";
+}
+export interface CodeContentFormat {
+  kind: "code";
+  language: string;
+}
+export interface DraftRef {
+  source: SourceKey;
+  version: number;
+}
+export interface SavedWeb {
+  id: string;
+  url: string;
+  html?: InlineHtml;
+}
+export interface InlineHtml {
+  id: string;
+  title: string;
+  html: string;
+}
+export interface WorkspaceSource {
+  header: DocumentHeader;
+  text: string;
+}
+export interface ReadWorkspaceSource {
+  method: "workspace";
+  action: "read";
+  request_id: string;
+  key: SourceKey;
+}
+export interface ResetWorkspaceSession {
+  method: "workspace";
+  action: "reset";
+  request_id: string;
+}
+export interface BeginWorkspaceSource {
+  method: "workspace";
+  action: "source_begin";
+  request_id: string;
+  header: DocumentHeader;
+  total_bytes: number;
+}
+export interface AppendWorkspaceSource {
+  method: "workspace";
+  action: "source_chunk";
+  request_id: string;
+  chunk: SourceChunk;
+}
+export interface SourceChunk {
+  offset: number;
+  text: string;
+  done: boolean;
+}
+export interface StoreWorkspaceDraft {
+  method: "workspace";
+  action: "store_draft";
+  request_id: string;
+  base: DraftRef | null;
+  draft: DraftRef;
+  edits: DraftEdit[];
+}
+export interface DraftEdit {
+  old: ReaderRange;
+  inserted: string;
+}
 export interface OpenFileDocument {
   method: "documents";
   action: "open";
@@ -140,6 +469,32 @@ export interface SaveFileDocument {
   source: string;
   revision: number;
   text: string;
+}
+export interface SaveAsFileDocument {
+  method: "documents";
+  action: "save_as";
+  request_id: string;
+  copy: FileCopy;
+}
+export interface FileCopy {
+  path: string;
+  text: string;
+  protected_sources: string[];
+}
+export interface SaveDraftFileDocument {
+  method: "documents";
+  action: "save_draft";
+  request_id: string;
+  draft: DraftRef;
+}
+export interface SaveAsReferenceFileDocument {
+  method: "documents";
+  action: "save_as_reference";
+  request_id: string;
+  path: string;
+  source: SourceKey;
+  draft: DraftRef | null;
+  protected_sources: string[];
 }
 export interface ReleaseFileDocument {
   method: "documents";
@@ -406,6 +761,92 @@ export interface ContributionPublish {
   workspace: string;
   review_token: string;
 }
+export interface DocumentSaveChooseEvent {
+  kind: "document_save_choose";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface DocumentSavePathEvent {
+  kind: "document_save_path";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: {
+    path: string;
+  };
+}
+export interface DocumentSaveCancelledEvent {
+  kind: "document_save_cancelled";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface WorkspaceRestoredEvent {
+  kind: "workspace_restored";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: WorkspaceRestore;
+}
+export interface WorkspaceRestore {
+  session: WorkspaceSession | null;
+  sources: WorkspaceSource[];
+  conflicts: string[];
+  unavailable: SourceKey[];
+}
+export interface WorkspaceSavedEvent {
+  kind: "workspace_saved";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface WorkspaceErrorEvent {
+  kind: "workspace_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface WorkspaceSourceEvent {
+  kind: "workspace_source";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: {
+    source: WorkspaceSource;
+    conflict: boolean;
+    draft?: string | null;
+  };
+}
+export interface WorkspaceSourceErrorEvent {
+  kind: "workspace_source_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: {
+    key: SourceKey;
+    draft?: string | null;
+  };
+}
+export interface WorkspaceResetEvent {
+  kind: "workspace_reset";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface WorkspaceSourceStoredEvent {
+  kind: "workspace_source_stored";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface DraftStoredEvent {
+  kind: "draft_stored";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: DraftRef;
+}
 export interface WebOpenedEvent {
   kind: "web_opened";
   version: 1;
@@ -416,6 +857,7 @@ export interface WebOpenedEvent {
 export interface WebDocument {
   id: string;
   observation: WebObservation;
+  html?: InlineHtml;
 }
 export interface WebObservation {
   url: string;
@@ -423,6 +865,7 @@ export interface WebObservation {
   load: WebLoad;
   can_back: boolean;
   can_forward: boolean;
+  notice?: string;
 }
 export interface WebLoading {
   kind: "loading";
@@ -462,47 +905,110 @@ export interface WebChooseEvent {
   request_id: string | null;
   text: string;
 }
+export interface WebFocusedEvent {
+  kind: "web_focused";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: {
+    id: string;
+  };
+}
+export interface IconThemesEvent {
+  kind: "icon_themes" | "icon_themes_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: IconThemeState;
+}
+export interface IconThemeState {
+  installed: IconThemeInfo[];
+  selected: string | null;
+  theme: IconThemePackage | null;
+}
+export interface IconThemeInfo {
+  id: string;
+  name: string;
+}
+export interface IconThemePackage {
+  version: 1;
+  id: string;
+  name: string;
+  icons: IconGlyphMap;
+  associations: IconThemeAssociations;
+}
+export interface IconGlyphMap {
+  [k: string]: IconVariants | undefined;
+}
+export interface IconVariants {
+  light: string;
+  dark?: string;
+}
+export interface IconThemeAssociations {
+  kinds?: IconAssociationMap;
+  languages?: IconAssociationMap;
+  filenames?: IconAssociationMap;
+  extensions?: IconAssociationMap;
+  apps?: IconAssociationMap;
+}
+export interface IconAssociationMap {
+  [k: string]: string | undefined;
+}
 export interface DocumentOpenEvent {
   kind: "document_open";
   version: 1;
   request_id: string | null;
   text: string;
-  data: DocumentHeader;
+  data: DocumentHeader | LocatedDocumentHeader;
 }
-export interface DocumentHeader {
-  source: DocumentSource;
-  revision: number;
-  format: ContentFormat;
+export interface LocatedDocumentHeader {
+  header: DocumentHeader;
+  location: ReaderLocation;
 }
-export interface DocumentSource {
+export interface ReaderLocation {
+  record: number;
+}
+export interface McpPermittedEvent {
+  kind: "mcp_permitted";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id?: string;
+  data: {
+    locale: string;
+  };
+}
+export interface McpSourcesEvent {
+  kind: "mcp_sources";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id?: string;
+  data: {
+    url: string;
+  };
+}
+export interface McpErrorEvent {
+  kind: "mcp_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface McpAppOpenedEvent {
+  kind: "mcp_app_opened";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: McpAppBinding;
+}
+export interface McpAppBinding {
   id: string;
-  title: string;
-  origin: ContentOrigin;
-}
-export interface ConversationOrigin {
-  kind: "conversation";
-  thread_id: string;
-}
-export interface FileOrigin {
-  kind: "file";
-  path: string;
-}
-export interface AppOrigin {
-  kind: "app";
-  app: string;
-  panel: string;
-}
-export interface McpOrigin {
-  kind: "mcp";
   server: string;
+  resource_uri: string;
+  tool: string;
+  tool_call: string;
   thread_id: string;
-}
-export interface PlainContentFormat {
-  kind: "json" | "json_lines" | "text" | "markdown";
-}
-export interface CodeContentFormat {
-  kind: "code";
-  language: string;
 }
 export interface DocumentChooseEvent {
   kind: "document_choose";
@@ -1175,6 +1681,16 @@ export interface WebOpenCommand {
   action: "web_open";
   url: string;
 }
+export interface WebHtmlCommand {
+  action: "web_html";
+  source: InlineHtml;
+}
+export interface WebRestoreCommand {
+  action: "web_restore";
+  id: string;
+  url: string;
+  html?: InlineHtml | null;
+}
 export interface WebNavigateCommand {
   action: "web_navigate";
   id: string;
@@ -1194,4 +1710,13 @@ export interface SurfaceBounds {
   y: number;
   width: number;
   height: number;
+}
+export interface WebSurfacesCommand {
+  action: "web_surfaces";
+  surfaces: WebSurfaceSlot[];
+}
+export interface WebSurfaceSlot {
+  id: string;
+  bounds: SurfaceBounds;
+  focused: boolean;
 }

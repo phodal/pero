@@ -252,6 +252,7 @@ impl Probe {
                         root.tab,
                         &root.preferences.layout,
                         false,
+                        None,
                     );
                     root.sync_web_surface(None, cx);
                     let original = root.native_web_pages[&self.uri].view.read(cx).visible(cx);
@@ -268,6 +269,7 @@ impl Probe {
                         root.tab,
                         &root.preferences.layout,
                         true,
+                        None,
                     );
                     root.sync_web_surface(None, cx);
                     root.native_web_pages

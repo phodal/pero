@@ -133,7 +133,7 @@ try {
   await expect.poll(async () => (await document()).search.open).toBe(true);
   await page.waitForFunction(
     () =>
-      document.activeElement?.tagName === 'TEXTAREA' &&
+      document.activeElement?.hasAttribute('data-gpui-input') &&
       document.activeElement.value === '',
   );
   await page.keyboard.type('helper_42', { delay: 20 });

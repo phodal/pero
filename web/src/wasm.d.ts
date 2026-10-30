@@ -6,6 +6,8 @@ declare module '*wasm/pero_ui' {
   export function receive_host_event(json: string): void;
   export function snapshot(): string;
   export function has_unsaved_documents(): boolean;
+  export function checkpoint_workspace(discard: boolean): string;
+  export function request_window_close(): void;
   export function paste_image(data: string, mime_type: string): void;
   export function set_system_theme(dark: boolean): void;
 }
@@ -18,4 +20,16 @@ declare module '*chat-wasm/pero_chat_web' {
   export function set_system_theme(dark: boolean): void;
   export function set_appearance(json: string): void;
   export function compose(text: string): void;
+}
+
+declare module '*content-wasm/pero_content_worker' {
+  export default function init(): Promise<unknown>;
+  export function analyze_json(text:string):Uint32Array;
+  export function analyze_node(text:string,start:number,end:number,revision:bigint):Uint32Array;
+  export function analyze_preview(text:string,json_lines:boolean,revision:bigint):Uint32Array;
+  export class ProjectionSource {
+    constructor(source:string,tape:Uint32Array);
+    project(filter:string,column:number,descending:boolean):Uint32Array;
+    free():void;
+  }
 }

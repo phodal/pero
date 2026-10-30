@@ -1,11 +1,13 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { contentIconData } from './lib/content-icons.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const kit = resolve(process.env.PERO_GPUI_KIT_PATH || resolve(root, '../../test/gpui-kit'));
 const catalog = JSON.parse(await readFile(resolve(root, 'packages/icons/catalog.json'), 'utf8'));
 const entries = Object.entries(catalog);
+const content = contentIconData(catalog, JSON.parse(await readFile(resolve(root,'packages/icons/content.json'),'utf8')));
 const variant = name => name.split('-').map(part => part[0].toUpperCase() + part.slice(1)).join('');
 const names = (name, icon) => [name, ...(icon.aliases || [])];
 const kitNames = entries.filter(([, icon]) => icon.kit).map(([, icon]) => icon.kit);
@@ -34,6 +36,28 @@ ${entries.map(([name, icon]) => `            ${names(name, icon).map(value => JS
         }
     }
 
+    pub fn name(self) -> &'static str {
+        match self {
+${entries.map(([name]) => `            Self::${variant(name)} => "${name}",`).join('\n')}
+        }
+    }
+
+    pub fn from_content(icon: pero_contracts::content_icon::ContentIcon) -> Self {
+        // The source registry admits only catalog glyphs; this converts to the renderer asset.
+        Self::lookup(icon.name()).expect("content icon is bundled")
+    }
+
+    pub fn for_document(document: &pero_contracts::content_document::ContentDocument, dark: bool) -> Self {
+        let input = pero_contracts::content_icon::ContentIconInput::document(&document.format, &document.title, dark);
+        Self::from_content(pero_contracts::content_icon::ContentIconRegistry::default().resolve(input))
+    }
+
+    pub fn for_app(name: &str, dark: bool) -> Self {
+        Self::from_content(pero_contracts::content_icon::ContentIconRegistry::default().resolve(
+            pero_contracts::content_icon::ContentIconInput {kind:pero_contracts::content_icon::ContentIconKind::App,app:Some(name),dark,..Default::default()}
+        ))
+    }
+
     pub fn path(self) -> &'static str {
         match self {
 ${entries.map(([name]) => `            Self::${variant(name)} => "icons/${name}.svg",`).join('\n')}
@@ -48,6 +72,8 @@ ${entries.map(([name]) => `            Self::${variant(name)} => "icons/${name}.
 pub struct UiAssets;
 impl AssetSource for UiAssets {
     fn load(&self, path: &str) -> anyhow::Result<Option<Cow<'static, [u8]>>> {
+        if let Some(svg) = crate::icon_theme::load(path) { return Ok(Some(Cow::Owned(svg))); }
+        if path.starts_with("icon-themes/") { return self.load(UiIcon::File.path()); }
         let icon = path.strip_prefix("icons/").and_then(|name| name.strip_suffix(".svg")).and_then(UiIcon::lookup);
         Ok(match icon {
 ${entries.map(([name, icon]) => icon.kit
@@ -107,6 +133,9 @@ export function iconArtwork(name: string) {
 for (const [path, contents] of [
   ['crates/pero-chat-ui/src/assets.rs', execFileSync('rustfmt', ['--edition', '2024', '--emit', 'stdout', '--config', 'newline_style=Unix'], { input: rust, encoding: 'utf8' })],
   ['packages/app-sdk/src/icons.generated.tsx', tsx],
+  ['packages/icons/content-data.generated.js', content.javascript],
+  ['packages/icons/content-data.generated.d.ts', content.declarations],
+  ['crates/pero-contracts/src/content_icon_data.rs', execFileSync('rustfmt',['--edition','2024','--emit','stdout'],{input:content.rust,encoding:'utf8'})],
 ]) {
   const file = resolve(root, path);
   if (process.argv.includes('--check')) {
