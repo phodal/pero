@@ -286,8 +286,9 @@ try {
     await writeFile(path, `Source ${index}\n`);
     await open(path);
   }
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(840, 1035));
-  await expect.poll(() => page.evaluate(() => innerWidth)).toBe(840);
+  // Electron's supported minimum window width is 1000 logical pixels.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1000, 1035));
+  await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1000);
   await expect.poll(async () => {
     const current = await state();
     const active = current.activeTabBounds;
@@ -298,7 +299,7 @@ try {
       ? active.right > active.stripLeft && active.left < active.stripRight
       : active.left >= active.stripLeft - 2 && active.right <= active.stripRight + 2;
   }).toBe(true);
-  await capture('07-light-840-active-reveal');
+  await capture('07-light-1000-active-reveal');
   checks.push('dark/light and narrow viewport keep the active overflowed tab revealed');
 
   phase = 'restart-restore';
@@ -319,7 +320,7 @@ try {
   checks.push('Host restart restores pane tree, view identities, tab order, pins, active view, and per-view Markdown mode');
   await capture('08-restored');
   expect(errors).toEqual([]);
-  await writeFile(resolve(out, 'result.json'), JSON.stringify({ status: 'passed', checks, viewport: [1508, 1035], narrow: [840, 1035], profile, reference: 'test-results/zed-reference/05–16.jpg', errors }, null, 2));
+  await writeFile(resolve(out, 'result.json'), JSON.stringify({ status: 'passed', checks, viewport: [1508, 1035], narrow: [1000, 1035], profile, reference: 'test-results/zed-reference/05–16.jpg', errors }, null, 2));
   console.log(`Verified ${checks.length} Zed core content workflows using real Desktop input.`);
 } catch (error) {
   failed = true;
