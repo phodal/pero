@@ -44,21 +44,31 @@ pub(crate) fn request_locale(locale: &str) -> Result<(), String> {
     session_command(&serde_json::json!({"method":"settings.locale","locale":locale}).to_string())
 }
 
-pub(crate) fn native_application()->Application {
-    #[cfg(target_os="linux")]
-    {gpui_kit::platform::linux(WindowingModes::X11)}
-    #[cfg(not(target_os="linux"))]
-    {gpui_kit::application()}
+pub(crate) fn native_application() -> Application {
+    #[cfg(target_os = "linux")]
+    {
+        gpui_kit::platform::linux(WindowingModes::X11)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        gpui_kit::application()
+    }
 }
 
 pub fn run() -> anyhow::Result<()> {
-    #[cfg(target_os="windows")]
-    unsafe {std::env::set_var("GPUI_DISABLE_DIRECT_COMPOSITION","true");}
-    if std::env::args().nth(1).as_deref()==Some("--verify-webview") {
-        #[cfg(feature="native-probe")]
-        {return crate::native_web_probe::run();}
-        #[cfg(not(feature="native-probe"))]
-        {anyhow::bail!("Build with native-probe to run Web view acceptance");}
+    #[cfg(target_os = "windows")]
+    unsafe {
+        std::env::set_var("GPUI_DISABLE_DIRECT_COMPOSITION", "true");
+    }
+    if std::env::args().nth(1).as_deref() == Some("--verify-webview") {
+        #[cfg(feature = "native-probe")]
+        {
+            return crate::native_web_probe::run();
+        }
+        #[cfg(not(feature = "native-probe"))]
+        {
+            anyhow::bail!("Build with native-probe to run Web view acceptance");
+        }
     }
     #[cfg(target_os = "macos")]
     relaunch_in_bundle();
@@ -223,7 +233,11 @@ pub fn run() -> anyhow::Result<()> {
                 let _ = events.send_blocking(outcome.event);
             } else if matches!(
                 action,
-                "choose_workspace" | "choose_context" | "choose_worker_workspace" | "choose_document"
+                "choose_workspace"
+                    | "choose_context"
+                    | "choose_worker_workspace"
+                    | "choose_document"
+                    | "choose_document_save"
             ) {
                 let mut event = HostEvent::new(&format!("native_{action}"), None, String::new());
                 event.data = value;
@@ -239,8 +253,8 @@ pub fn run() -> anyhow::Result<()> {
     let palettes: Palettes =
         serde_json::from_str(include_str!("../../../web/src/theme.generated.json"))?;
     let urls = commands.clone();
-    let app=native_application();
-    let app=app.with_assets(crate::assets::UiAssets);
+    let app = native_application();
+    let app = app.with_assets(crate::assets::UiAssets);
     app.on_open_urls(move |opened| {
         for url in opened {
             let _ = urls
@@ -308,6 +322,20 @@ pub fn run() -> anyhow::Result<()> {
         let view = view.downgrade();
         cx.spawn(async move |cx| {
             while let Ok(event) = received.recv().await {
+                if event.kind=="native_choose_document_save" {
+                    let suggested=std::path::Path::new(event.data["suggested"].as_str().unwrap_or("untitled.txt"));
+                    let directory=suggested.parent().filter(|path|!path.as_os_str().is_empty()).map(std::path::Path::to_path_buf).unwrap_or_else(||std::path::PathBuf::from("."));
+                    let name=suggested.file_name().map(|name|name.to_string_lossy().into_owned());
+                    let picker=cx.update(|cx|cx.prompt_for_new_path(&directory,name.as_deref()));
+                    let mut selected=HostEvent::new("document_save_cancelled",event.data["request_id"].as_str().map(str::to_owned),String::new());
+                    match picker.await {
+                        Ok(Ok(Some(path)))=>{selected.kind="document_save_path".into();selected.data=serde_json::json!({"path":path});}
+                        Ok(Ok(None))=>{}
+                        _=>{selected.kind="document_error".into();selected.data=serde_json::json!({"source":"","reason":"read_write"});}
+                    }
+                    let _=window.update(cx,|_,window,cx|view.update(cx,|view,cx|view.receive(selected,window,cx))).and_then(|result|result);
+                    continue;
+                }
                 if matches!(
                     event.kind.as_str(),
                     "native_choose_workspace" | "native_choose_context" | "native_choose_worker_workspace" | "native_choose_document"

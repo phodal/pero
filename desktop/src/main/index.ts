@@ -119,7 +119,7 @@ function updateMenus() {
       { role: 'cut', label: t('menu.cut') }, { role: 'copy', label: t('menu.copy') },
       { role: 'paste', label: t('menu.paste') }, { role: 'selectAll', label: t('menu.select_all') },
     ] },
-    { label: t('menu.workbench'), submenu: [{id:'open-url',label:t('web.open_url'),click:()=>send({version:1,kind:'web_choose',request_id:null,text:''})}, { id:'open-file',label:t('content.open_file'),accelerator:'CmdOrCtrl+O',click:()=>send({version:1,kind:'document_choose',request_id:null,text:''}) }, { id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
+    { label: t('menu.workbench'), submenu: [{id:'open-url',label:t('web.open_url'),click:()=>send({version:1,kind:'web_choose',request_id:null,text:''})}, {id:'save-as',label:t('content.save_as'),accelerator:'CmdOrCtrl+Shift+S',click:()=>send({version:1,kind:'document_save_choose',request_id:null,text:''})}, { id:'open-file',label:t('content.open_file'),accelerator:'CmdOrCtrl+O',click:()=>send({version:1,kind:'document_choose',request_id:null,text:''}) }, { id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
     { label: t('menu.language'), submenu: [
       { id: 'locale-zh-CN', label: '简体中文', type: 'radio', checked: locale === 'zh-CN', click: () => changeLocale('zh-CN') },
       { id: 'locale-en', label: 'English', type: 'radio', checked: locale === 'en', click: () => changeLocale('en') },
@@ -262,6 +262,15 @@ app.whenReady().then(async () => {
     if (action === 'choose_worker_workspace') {
       const selected=await dialog.showOpenDialog(window,{properties:['openDirectory']});
       if (!selected.canceled && selected.filePaths[0]) send({version:1,kind:'local_worker_workspace',request_id:null,text:'',data:{path:realpathSync(selected.filePaths[0])}});
+      return;
+    }
+    if(action==='choose_document_save') {
+      const request=command as {request_id?:unknown;suggested?:unknown};
+      if(typeof request.request_id!=='string'||typeof request.suggested!=='string')throw new Error('Invalid save picker intent');
+      try {
+        const selected=await dialog.showSaveDialog(window,{title:t('content.save_as'),defaultPath:request.suggested,properties:['showOverwriteConfirmation','createDirectory']});
+        send({version:1,kind:selected.canceled||!selected.filePath?'document_save_cancelled':'document_save_path',request_id:request.request_id,text:'',...(selected.filePath&&!selected.canceled?{data:{path:selected.filePath}}:{})});
+      } catch {send({version:1,kind:'document_error',request_id:request.request_id,text:'',data:{source:'',reason:'read_write'}});}
       return;
     }
     if (action === 'choose_document') {
