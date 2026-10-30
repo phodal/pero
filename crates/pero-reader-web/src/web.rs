@@ -26,6 +26,8 @@ extern "C" {
 struct Reading {
     header: DocumentHeader,
     text: String,
+    #[serde(default)]
+    location: Option<pero_contracts::content_location::ReaderLocation>,
 }
 
 struct ReaderWindow {
@@ -115,6 +117,7 @@ pub fn receive_document(value: &str) -> Result<(), JsValue> {
         ));
     }
     let document = reading.header.into_document(reading.text);
+    let location = reading.location;
     update(|ui, cx| {
         let view = cx.entity().downgrade();
         let locale = ui.locale.clone();
@@ -122,7 +125,12 @@ pub fn receive_document(value: &str) -> Result<(), JsValue> {
         cx.defer(move |cx| {
             let _ = window.update(cx, |_, window, cx| {
                 let reader = cx.new(|cx| {
-                    ContentReader::new(document, locale, window, cx).workspace(window, cx)
+                    let mut reader =
+                        ContentReader::new(document, locale, window, cx).workspace(window, cx);
+                    if let Some(location) = location {
+                        reader.reveal_record(location.record as usize, window, cx);
+                    }
+                    reader
                 });
                 let _ = view.update(cx, |ui, cx| {
                     ui.subscriptions = vec![

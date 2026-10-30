@@ -51,7 +51,7 @@ try {
     command:value=>{if(!window.pero)throw new Error(t('error.browser'));return window.pero.appUseCommand(value);},
     deliver:(thread_id,contexts,text,replace)=>receive_host_event(JSON.stringify({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}})),
   });
-  const apps = mountAppSurfaces(value=>window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser'))),launchAppChat,({header,text})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:header})));
+  const apps = mountAppSurfaces(value=>window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser'))),launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})));
   window.peroAppUseRevoke = async(thread,scope) => {await window.pero!.appUseCommand({action:'revoke',thread_id:thread,scope});};
   window.peroAppSurface = json => apps.surface(JSON.parse(json) as AppSurface);
   window.peroSendProbe = (json) => {

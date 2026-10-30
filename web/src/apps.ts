@@ -11,7 +11,7 @@ type Frame = { documents:AppDocuments; element: HTMLIFrameElement; name: string;
 type AppUsePresence = { scope: { app: string; panel: string }; title?: string; standing: string[]; tasks: { id: string; actions: string[]; expiresAt: number }[] };
 
 /** Retains App documents across navigation; GPUI owns selection and layout. */
-export function mountAppSurfaces(command: (value: object) => Promise<void>, onChat?: (context: { name: string; panel: string; text?: string;options?:unknown }) => void|Promise<unknown>, onDocument?:(value:{header:DocumentHeader;text:string})=>void) {
+export function mountAppSurfaces(command: (value: object) => Promise<void>, onChat?: (context: { name: string; panel: string; text?: string;options?:unknown }) => void|Promise<unknown>, onDocument?:(value:ReturnType<AppDocuments['admit']>)=>void) {
   const frames = new Map<string, Frame>();
   const appUse = mountAppUseFrames();
   const presence = new Map<string, AppUsePresence & { thread: string }>();
