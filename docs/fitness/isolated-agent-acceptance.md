@@ -10,6 +10,14 @@ This is a **Draft, not a production-readiness certificate**. The
 [trusted Worker pool](agent-sandbox-runtime.md). No production deployment or
 existing cluster is part of this verification.
 
+## Historical evidence correction (2026-10-30)
+
+The original isolated CI archives referenced below were deleted after generated
+Cilium TLS Secret fields were found in their full Helm manifests. The recorded
+functional results are historical; those archives are no longer downloadable.
+See the [incident and verified replacement evidence](../issues/2026-10-30-isolated-evidence-secret-manifest.md).
+CI run logs remain available.
+
 ## Local real-provider proof
 
 Test source: `e6014040951c4b786b54dbcb72da438a56770570`. Actual Rust Worker,

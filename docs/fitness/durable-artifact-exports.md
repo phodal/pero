@@ -9,6 +9,14 @@ This is separate from durable Run events/stdout/completion in PostgreSQL. The
 older trusted Worker-in-Pod profile does not gain file durability or hostile-code
 isolation merely because these components exist.
 
+## Historical evidence correction (2026-10-30)
+
+The original isolated CI archives referenced below were deleted after generated
+Cilium TLS Secret fields were found in their full Helm manifests. The recorded
+functional results are historical; those archives are no longer downloadable.
+See the [incident and verified replacement evidence](../issues/2026-10-30-isolated-evidence-secret-manifest.md).
+CI run logs remain available.
+
 ## Bounded production design
 
 - One cold Sandbox per Run; its independently owned PVC has **no Sandbox/Pod
