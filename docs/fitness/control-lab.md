@@ -43,6 +43,18 @@ single-goal acceptance until Host binding and bypass rejection are verified.
 The authorized DeepSeek budget for this continuation is six provider HTTP
 attempts total, at most 8192 output tokens per request; none was used here.
 
+On 2026-10-30, the narrowed Agent route and its negative cases passed the strict
+science suite on Darwin 27: 21 tests, zero skips, with Python 3.12.11,
+python-control 0.10.2 and ngspice 46. The locked SciPy 1.15.3 macOS 12 ARM
+wheel was needed because the macOS 14 wheel failed to load on that host.
+The frontend typecheck, six UI/schema tests and read-only Skill catalog tests
+also passed. These results do not establish a real-model run.
+The headed Desktop → scripted ACP → Host MCP → python-control fixture also
+passed with `realModel: false`: its independent persisted report was FAIL,
+the four invalid proposals or budget requests were rejected, and all owned
+processes exited without recovery. The local receipt is
+`test-results/control-lab-app-use/result.json` (an ignored test artifact).
+
 The remaining binding must use trusted Host state tied to the actual submitted
 context and session, verify the ID and hash against the backend's frozen Spec,
 and reject unbound or mismatched requests as well as generic UI and computer
