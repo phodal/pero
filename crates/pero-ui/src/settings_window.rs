@@ -76,7 +76,15 @@ impl Workbench {
             });
         }
         #[cfg(target_family = "wasm")]
-        window.close_dialog(cx);
+        {
+            window.close_dialog(cx);
+            // Settings may have opened from a dropdown whose focus handle is gone.
+            if let Some(view) = self.navigation.current().and_then(|item| self.active_document_view(item)) {
+                view.update(cx, |view, cx| view.focus(window, cx));
+            } else {
+                self.workspace_focus.focus(window, cx);
+            }
+        }
         let _ = window;
         cx.notify();
     }
@@ -160,6 +168,7 @@ impl Workbench {
         window.open_dialog(cx, move |dialog, window, _| {
             let viewport = window.viewport_size();
             let owner = owner.clone();
+            let cancel_owner = owner.clone();
             let cancel_panel = panel.clone();
             dialog
                 .w((viewport.width - px(48.)).min(px(900.)))
@@ -169,7 +178,13 @@ impl Workbench {
                 .overlay_closable(false)
                 .on_ok(|_, _, _| false)
                 .on_cancel(move |_, window, cx| {
-                    !cancel_panel.update(cx, |panel, cx| panel.clear_search(window, cx))
+                    if !cancel_panel.update(cx, |panel, cx| panel.clear_search(window, cx)) {
+                        let owner = cancel_owner.clone();
+                        window.defer(cx, move |window, cx| {
+                            let _ = owner.update(cx, |this, cx| this.close_settings(window, cx));
+                        });
+                    }
+                    false
                 })
                 .content({
                     let panel = panel.clone();
