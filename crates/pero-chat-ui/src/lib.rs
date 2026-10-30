@@ -19,6 +19,8 @@ mod panel;
 mod session_controls;
 pub mod stream;
 pub mod artifact_read;
+#[cfg(target_family = "wasm")]
+pub mod web_platform;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub mod content_reader;
 #[cfg(any(target_family = "wasm", feature = "native"))]
