@@ -44,9 +44,34 @@ impl ComputerAction {
             ComputerInput::Click { anchor, .. }
             | ComputerInput::TypeText { anchor, .. }
             | ComputerInput::PressKey { anchor, .. }
-            | ComputerInput::Scroll { anchor, .. } => {
+            | ComputerInput::Scroll { anchor, .. }
+            | ComputerInput::Move { anchor, .. }
+            | ComputerInput::LongPress { anchor, .. } => {
                 observation.check_anchor(anchor, kind, capabilities)?
             }
+            ComputerInput::SetValue { element_id, .. }
+            | ComputerInput::PerformAction { element_id, .. } => {
+                observation.check_anchor(
+                    &ComputerAnchor::Element {
+                        element_id: element_id.clone(),
+                    },
+                    kind,
+                    capabilities,
+                )?;
+                if let ComputerInput::PerformAction { action, .. } = &self.input {
+                    if !observation
+                        .elements
+                        .iter()
+                        .any(|e| &e.id == element_id && e.semantic_actions.contains(action))
+                    {
+                        return Err(ComputerError::new(
+                            Unsupported,
+                            "The element does not advertise this semantic action",
+                        ));
+                    }
+                }
+            }
+            ComputerInput::FocusWindow {} => {}
             ComputerInput::Drag {
                 screenshot_id,
                 from,
@@ -79,10 +104,14 @@ impl ComputerInput {
             Self::Click { anchor, .. }
             | Self::TypeText { anchor, .. }
             | Self::PressKey { anchor, .. }
-            | Self::Scroll { anchor, .. } => match anchor {
+            | Self::Scroll { anchor, .. }
+            | Self::Move { anchor, .. }
+            | Self::LongPress { anchor, .. } => match anchor {
                 ComputerAnchor::Element { .. } => ComputerAddressing::Element,
                 ComputerAnchor::Pixel { .. } => ComputerAddressing::Pixel,
             },
+            Self::SetValue { .. } | Self::PerformAction { .. } => ComputerAddressing::Element,
+            Self::FocusWindow {} => ComputerAddressing::Target,
             Self::Drag { .. } => ComputerAddressing::Pixel,
         }
     }
@@ -120,6 +149,16 @@ impl ComputerObservation {
                     return Err(ComputerError::new(
                         InvalidRequest,
                         "The observation contains an ambiguous element reference",
+                    ));
+                }
+                if element.state.as_ref().is_some_and(|s| {
+                    s.secure
+                        || !s.enabled
+                        || (kind == ComputerActionKind::SetValue && !s.value_settable)
+                }) {
+                    return Err(ComputerError::new(
+                        Unsupported,
+                        "The observed control is secure, disabled, or read-only",
                     ));
                 }
                 if !element.actions.contains(&kind) {

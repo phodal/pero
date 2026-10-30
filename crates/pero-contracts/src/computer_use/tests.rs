@@ -156,6 +156,34 @@ fn action_admission_uses_the_current_observation_and_explicit_delivery() {
             |_, obs, _| obs.truncated = true,
             None,
         ),
+        (
+            "read-only replacement",
+            "request-replace",
+            |_, obs, _| obs.elements[1].state.as_mut().unwrap().value_settable = false,
+            Some(Unsupported),
+        ),
+        (
+            "secure replacement",
+            "request-replace",
+            |_, obs, _| obs.elements[1].state.as_mut().unwrap().secure = true,
+            Some(Unsupported),
+        ),
+        (
+            "disabled semantic target",
+            "request-semantic",
+            |_, obs, _| obs.elements[0].state.as_mut().unwrap().enabled = false,
+            Some(Unsupported),
+        ),
+        (
+            "unadvertised semantic operation",
+            "request-semantic",
+            |action, _, _| {
+                if let ComputerInput::PerformAction { action, .. } = &mut action.input {
+                    *action = ComputerSemanticAction::Decrement;
+                }
+            },
+            Some(Unsupported),
+        ),
     ];
     for (name, request_id, change, expected) in cases {
         let mut action = data

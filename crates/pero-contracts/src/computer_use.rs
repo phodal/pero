@@ -118,6 +118,11 @@ pub enum ComputerActionKind {
     PressKey,
     Scroll,
     Drag,
+    SetValue,
+    PerformAction,
+    Move,
+    LongPress,
+    FocusWindow,
 }
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -130,6 +135,7 @@ pub enum ComputerDelivery {
 pub enum ComputerAddressing {
     Element,
     Pixel,
+    Target,
 }
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -197,6 +203,8 @@ pub struct ComputerTarget {
     pub title: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub application: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub application_id: Option<String>,
 }
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -224,6 +232,10 @@ pub struct ComputerElement {
     pub value: Option<String>,
     pub depth: u16,
     pub actions: Vec<ComputerActionKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<ComputerElementState>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub semantic_actions: Vec<ComputerSemanticAction>,
 }
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -263,6 +275,23 @@ pub enum ComputerAnchor {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ComputerInput {
+    LongPress {
+        anchor: ComputerAnchor,
+        button: ComputerMouseButton,
+        hold_ms: ComputerHoldMillis,
+    },
+    FocusWindow {},
+    SetValue {
+        element_id: ComputerRef,
+        value: ComputerValue,
+    },
+    PerformAction {
+        element_id: ComputerRef,
+        action: ComputerSemanticAction,
+    },
+    Move {
+        anchor: ComputerAnchor,
+    },
     Click {
         anchor: ComputerAnchor,
         button: ComputerMouseButton,
@@ -295,6 +324,11 @@ impl ComputerInput {
             Self::PressKey { .. } => ComputerActionKind::PressKey,
             Self::Scroll { .. } => ComputerActionKind::Scroll,
             Self::Drag { .. } => ComputerActionKind::Drag,
+            Self::SetValue { .. } => ComputerActionKind::SetValue,
+            Self::PerformAction { .. } => ComputerActionKind::PerformAction,
+            Self::Move { .. } => ComputerActionKind::Move,
+            Self::LongPress { .. } => ComputerActionKind::LongPress,
+            Self::FocusWindow { .. } => ComputerActionKind::FocusWindow,
         }
     }
 }
@@ -327,7 +361,7 @@ pub struct ComputerError {
     pub message: String,
 }
 impl ComputerError {
-    fn new(code: ComputerErrorCode, message: &str) -> Self {
+    pub(super) fn new(code: ComputerErrorCode, message: &str) -> Self {
         Self {
             code,
             message: message.into(),
@@ -337,9 +371,16 @@ impl ComputerError {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ComputerActionOutcome {
-    Executed {},
-    Rejected { error: ComputerError },
-    Unknown { error: ComputerError },
+    Executed {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        execution: Option<ComputerExecution>,
+    },
+    Rejected {
+        error: ComputerError,
+    },
+    Unknown {
+        error: ComputerError,
+    },
 }
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -352,5 +393,7 @@ pub struct ComputerActionReceipt {
 
 mod admission;
 pub use admission::PreparedComputerAction;
+mod features;
+pub use features::*;
 #[cfg(test)]
 mod tests;
