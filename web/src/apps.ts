@@ -4,50 +4,56 @@ import themes from './theme.generated.json';
 import { applyAppearance, type AppearanceSnapshot } from '../../packages/app-sdk/src/appearance';
 import { mountAppUseFrames } from './app-use';
 import { AppDocuments } from '../../packages/content-source/app-document';
+import type { IconThemePackage } from '../../packages/icons/theme';
 import type { DocumentHeader } from '../../protocol/generated/host';
 
-export type AppSurface = { visible: boolean; name?: string; panel?: string; left?: number; top?: number; width?: number; height?: number; dark: boolean; locale: string; appearance?: AppearanceSnapshot };
+export type AppSurface = { visible: boolean; name?: string; panel?: string; left?: number; top?: number; width?: number; height?: number; dark: boolean; locale: string; appearance?: AppearanceSnapshot; pane?:number; focused?:boolean; open?:{name:string;panel:string}[] };
+export type AppSurfaceSlot=Omit<AppSurface,'dark'|'locale'|'appearance'|'open'>;
+export type AppSurfaceBatch = {surfaces:AppSurfaceSlot[];dark:boolean;locale:string;appearance?:AppearanceSnapshot;open?:{name:string;panel:string}[]};
+type Mount = {region:HTMLElement;status:HTMLDivElement;useStatus:HTMLDivElement;surface:AppSurface;error:string;presenceExpiry?:ReturnType<typeof setTimeout>};
 type Frame = { documents:AppDocuments; element: HTMLIFrameElement; name: string; panel: string; ready: boolean; failed: boolean; timer: ReturnType<typeof setTimeout>; dispose(): void };
 type AppUsePresence = { scope: { app: string; panel: string }; title?: string; standing: string[]; tasks: { id: string; actions: string[]; expiresAt: number }[] };
 
 /** Retains App documents across navigation; GPUI owns selection and layout. */
-export function mountAppSurfaces(command: (value: object) => Promise<void>, onChat?: (context: { name: string; panel: string; text?: string;options?:unknown }) => void|Promise<unknown>, onDocument?:(value:ReturnType<AppDocuments['admit']>)=>void) {
+export function mountAppSurfaces(command: (value: object) => Promise<void>, onChat?: (context: { name: string; panel: string; text?: string;options?:unknown }) => void|Promise<unknown>, onDocument?:(value:ReturnType<AppDocuments['admit']>)=>void,onFocus?:(pane:number)=>void) {
   const frames = new Map<string, Frame>();
   const appUse = mountAppUseFrames();
   const presence = new Map<string, AppUsePresence & { thread: string }>();
-  let presenceExpiry: ReturnType<typeof setTimeout> | undefined;
+  const mounts=new Map<string,Mount>();
+  let iconTheme:IconThemePackage|null=null;
   const region = document.createElement('section');
   region.id = 'pero-app-surface';
   region.setAttribute('aria-label', 'App');
   region.hidden = true;
-  const status = document.createElement('div');
-  status.className = 'app-panel-status';
-  status.setAttribute('role', 'status');
-  region.append(status);
-  const useStatus = document.createElement('div');
-  useStatus.hidden = true;
-  useStatus.setAttribute('aria-label', 'App Use');
-  useStatus.style.cssText = 'position:absolute;bottom:0;left:0;right:0;display:none;flex-wrap:wrap;gap:6px 12px;padding:5px 10px;box-sizing:border-box;border-top:1px solid var(--pero-border);background:var(--pero-surface);color:var(--pero-text);font:12px system-ui';
-  region.append(useStatus);
   document.body.append(region);
   let surface: AppSurface = { visible: false, dark: false, locale: 'en' };
-  let error = '';
   const key = (name?: string, panel?: string) => `${name}:${panel}`;
-  const active = () => frames.get(key(surface.name, surface.panel));
-  const context = (frame: Frame) => frame.element.contentWindow?.postMessage({ type: 'pero:app:context', context: {
-    appearance: surface.appearance, dark: surface.dark, locale: normalizeLocale(surface.locale), active: surface.visible && frame === active(),
-  } }, '*');
-  const renderPresence = () => {
-    clearTimeout(presenceExpiry);
+  const mount=(name:string,panel:string)=>{
+    const identity=key(name,panel);let slot=mounts.get(identity);if(slot)return slot;
+    const element=document.createElement('section');element.className='app-panel-surface';element.setAttribute('aria-label',name);
+    const status=document.createElement('div');status.className='app-panel-status';status.setAttribute('role','status');
+    const useStatus=document.createElement('div');useStatus.hidden=true;useStatus.setAttribute('aria-label','App Use');
+    useStatus.style.cssText='position:absolute;bottom:0;left:0;right:0;display:none;flex-wrap:wrap;gap:6px 12px;padding:5px 10px;box-sizing:border-box;border-top:1px solid var(--pero-border);background:var(--pero-surface);color:var(--pero-text);font:12px system-ui';
+    element.append(status,useStatus);region.append(element);
+    slot={region:element,status,useStatus,surface:{...surface,name,panel,visible:false},error:''};mounts.set(identity,slot);return slot;
+  };
+  const active = (slot:Mount) => frames.get(key(slot.surface.name,slot.surface.panel));
+  const context = (frame:Frame) => {
+    const value=mounts.get(key(frame.name,frame.panel))?.surface||surface;
+    frame.element.contentWindow?.postMessage({type:'pero:app:context',context:{appearance:value.appearance,dark:value.dark,locale:normalizeLocale(value.locale),active:value.visible}},'*');
+  };
+  const renderPresence = (slot:Mount) => {
+    const {surface,useStatus}=slot;
+    clearTimeout(slot.presenceExpiry);
     const now = Date.now();
     let nextExpiry = Infinity;
     const chinese = normalizeLocale(surface.locale) === 'zh-CN';
     const reading = new Set(['observe', 'capture', 'verify', 'geometry', 'annotation', 'semantic']);
     useStatus.replaceChildren();
-    if(onChat && active()?.ready){
+    if(onChat && active(slot)?.ready){
       const capture=document.createElement('button');capture.type='button';capture.textContent=chinese?'截图到对话':'Capture to chat';
       capture.style.cssText='font:inherit;border:1px solid var(--pero-border);border-radius:3px;padding:2px 7px;color:var(--pero-text);background:var(--pero-surface);cursor:pointer';
-      capture.onclick=()=>{capture.disabled=true;const frame=active();if(!frame)return;void Promise.resolve(onChat({name:frame.name,panel:frame.panel,options:{capture:true}})).then(()=>{capture.disabled=false;},error=>{capture.disabled=false;const message=document.createElement('span');message.setAttribute('role','alert');message.textContent=error instanceof Error?error.message:String(error);useStatus.append(message);});};
+      capture.onclick=()=>{capture.disabled=true;const frame=active(slot);if(!frame)return;void Promise.resolve(onChat({name:frame.name,panel:frame.panel,options:{capture:true}})).then(()=>{capture.disabled=false;},error=>{capture.disabled=false;const message=document.createElement('span');message.setAttribute('role','alert');message.textContent=error instanceof Error?error.message:String(error);useStatus.append(message);});};
       useStatus.append(capture);
     }
     for (const value of presence.values()) {
@@ -77,12 +83,13 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
     useStatus.hidden = !useStatus.childElementCount;
     useStatus.style.display = useStatus.hidden ? 'none' : 'flex';
     const height = useStatus.hidden ? 0 : useStatus.getBoundingClientRect().height;
-    for (const frame of frames.values()) frame.element.style.height = height ? `calc(100% - ${height}px)` : '100%';
-    if (Number.isFinite(nextExpiry)) presenceExpiry = setTimeout(renderPresence, Math.max(1, nextExpiry - now));
+    const frame=active(slot);if(frame)frame.element.style.height=height?`calc(100% - ${height}px)`:'100%';
+    if(Number.isFinite(nextExpiry))slot.presenceExpiry=setTimeout(()=>renderPresence(slot),Math.max(1,nextExpiry-now));
   };
-  const renderStatus = () => {
-    const frame = active();
-    const message = error || (frame?.failed ? translate(normalizeLocale(surface.locale), 'apps.panel_timeout') : '');
+  const renderStatus = (slot:Mount) => {
+    const {surface,status}=slot;
+    const frame = active(slot);
+    const message = slot.error || (frame?.failed ? translate(normalizeLocale(surface.locale), 'apps.panel_timeout') : '');
     status.replaceChildren();
     status.hidden = !!frame?.ready && !message;
     if (status.hidden) return;
@@ -95,24 +102,37 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
       retry.onclick = () => {
         if (!surface.name) return;
         if (frame) { clearTimeout(frame.timer); frame.dispose(); frame.element.remove(); frames.delete(key(frame.name, frame.panel)); }
-        error = ''; renderStatus();
+        slot.error = ''; renderStatus(slot);
         void command({ action: 'apps_open', name: surface.name, panel: surface.panel });
       };
       status.append(retry);
     }
   };
-  const update = () => {
-    region.hidden = !surface.visible;
-    region.style.cssText = `left:${surface.left || 0}px;top:${surface.top || 0}px;width:${surface.width || 0}px;height:${surface.height || 0}px;color-scheme:${surface.dark ? 'dark' : 'light'}`;
-    for (const [name, value] of Object.entries(surface.dark ? themes.dark : themes.light)) region.style.setProperty(`--pero-${name}`, value);
-    if (surface.appearance) applyAppearance(surface.appearance, region);
-    for (const frame of frames.values()) {
-      frame.element.hidden = !surface.visible || frame !== active();
+  const update=()=>{
+    const visible=[...mounts.values()].filter(slot=>slot.surface.visible);
+    region.hidden=!visible.length;
+    const left=visible.length?Math.min(...visible.map(slot=>slot.surface.left||0)):0,top=visible.length?Math.min(...visible.map(slot=>slot.surface.top||0)):0;
+    const right=Math.max(...visible.map(slot=>(slot.surface.left||0)+(slot.surface.width||0))),bottom=Math.max(...visible.map(slot=>(slot.surface.top||0)+(slot.surface.height||0)));
+    region.style.cssText=visible.length?`left:${left}px;top:${top}px;width:${right-left}px;height:${bottom-top}px;pointer-events:none;overflow:visible;background:transparent`:'';
+    for(const [name,value] of Object.entries(surface.dark?themes.dark:themes.light))region.style.setProperty(`--pero-${name}`,value);
+    if(surface.appearance)applyAppearance(surface.appearance,region);
+    for(const slot of mounts.values()) {
+      const value=slot.surface;slot.region.hidden=!value.visible;
+      slot.region.style.cssText=`position:absolute;left:${(value.left||0)-left}px;top:${(value.top||0)-top}px;width:${value.width||0}px;height:${value.height||0}px;overflow:hidden;pointer-events:auto;color-scheme:${value.dark?'dark':'light'};background:var(--pero-surface)`;
+      renderStatus(slot);renderPresence(slot);
+    }
+    for(const frame of frames.values()) {
+      frame.element.hidden=!mounts.get(key(frame.name,frame.panel))?.surface.visible;
       context(frame);
     }
-    renderStatus();
-    renderPresence();
   };
+  const focus=()=>{
+    const frame=[...frames.values()].find(frame=>frame.element===document.activeElement);
+    const value=frame&&mounts.get(key(frame.name,frame.panel))?.surface;
+    if(value?.visible&&value.pane!==undefined&&!value.focused)onFocus?.(value.pane);
+  };
+  window.addEventListener('blur',()=>queueMicrotask(focus));
+  window.addEventListener('focus',focus);
   window.addEventListener('message', event => {
     const frame = [...frames.values()].find(frame => frame.element.contentWindow === event.source);
     if (!frame) return;
@@ -136,19 +156,35 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
     }
     if (event.data?.type !== 'pero:app:ready') return;
     clearTimeout(frame.timer); frame.ready = true;
-    context(frame); renderStatus();renderPresence();
+    frame.element.contentWindow?.postMessage({type:'pero:app:icon-theme',theme:iconTheme},'*');
+    const slot=mounts.get(key(frame.name,frame.panel));if(slot?.surface.visible&&slot.surface.pane!==undefined&&slot.surface.focused)frame.element.contentWindow?.focus();
+    context(frame);update();
   });
   return {
-    surface(value: AppSurface) {
-      if (key(surface.name, surface.panel) !== key(value.name, value.panel)) error = '';
-      surface = value;
+    surface(value: AppSurface|AppSurfaceBatch) {
+      surface={visible:false,dark:value.dark,locale:value.locale,appearance:value.appearance};
+      const previous=new Map([...mounts].map(([id,slot])=>[id,slot.surface]));
+      for(const slot of mounts.values())slot.surface={...slot.surface,...surface};
+      const values='surfaces' in value?value.surfaces:[value];
+      for(const item of values)if(item.name&&item.panel) {
+        const slot=mount(item.name,item.panel);const before=previous.get(key(item.name,item.panel));
+        slot.surface={...surface,...item};
+        if(item.pane!==undefined&&item.focused&&(!before?.focused||!before?.visible)&&item.visible)active(slot)?.element.contentWindow?.focus();
+      }
+      if(value.open)for(const [identity,slot] of mounts) {
+        if(value.open.some(item=>key(item.name,item.panel)===identity))continue;
+        const frame=frames.get(identity);if(frame){clearTimeout(frame.timer);frame.dispose();frame.element.remove();frames.delete(identity);}
+        clearTimeout(slot.presenceExpiry);slot.region.remove();mounts.delete(identity);
+      }
       update();
     },
     event(event: HostEvent) {
+      if(event.kind==='icon_themes'||event.kind==='icon_themes_error'){iconTheme=(event.data as {theme:IconThemePackage|null}).theme;for(const frame of frames.values())frame.element.contentWindow?.postMessage({type:'pero:app:icon-theme',theme:iconTheme},'*');}
       if(event.kind==='app_written'){for(const frame of frames.values())if(frame.name===(event.data as {app:string}).app)frame.element.contentWindow?.postMessage({type:'pero:app:data-changed'},'*');}
       if (event.kind === 'apps_opened') {
         const value = event.data as { name: string; panel: string; url: string };
         const identity = key(value.name, value.panel);
+        const slot=mount(value.name,value.panel);
         if (!frames.has(identity)) {
           const element = document.createElement('iframe');
           element.title = value.name;
@@ -156,16 +192,16 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
           element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-downloads', 'allow-popups');
           const frame: Frame = { documents:new AppDocuments(value.name,value.panel),element, name: value.name, panel: value.panel, ready: false, failed: false, dispose: () => {}, timer: setTimeout(() => {
             frame.failed = true;
-            if (frame === active()) renderStatus();
+            renderStatus(slot);
           }, 15000) };
           frames.set(identity, frame);
           element.src = value.url;
-          frame.dispose = appUse.register(element, frame.name, frame.panel, () => frame.ready && surface.visible && frame === active());
-          region.prepend(element);
+          frame.dispose = appUse.register(element, frame.name, frame.panel, () => frame.ready && slot.surface.visible);
+          slot.region.prepend(element);
         }
-        error = ''; update();
-      } else if (event.kind === 'apps_error' && surface.visible) {
-        error = event.text; renderStatus();
+        slot.error = ''; update();
+      } else if (event.kind === 'apps_error') {
+        const slot=[...mounts.values()].find(slot=>slot.surface.visible&&slot.surface.focused)||[...mounts.values()].find(slot=>slot.surface.visible);if(slot){slot.error=event.text;renderStatus(slot);}
       } else if (event.kind === 'apps_catalog') {
         const catalog = event.data as { name: string; enabled: boolean }[];
         for (const [identity, frame] of frames) {
@@ -176,12 +212,12 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
         update();
       } else if (event.kind === 'app_use_presence' && event.thread_id) {
         const value = event.data as AppUsePresence;
-        presence.set(JSON.stringify([event.thread_id, value.scope.app, value.scope.panel]), { ...value, thread: event.thread_id }); renderPresence();
+        presence.set(JSON.stringify([event.thread_id, value.scope.app, value.scope.panel]), { ...value, thread: event.thread_id }); for(const slot of mounts.values())renderPresence(slot);
       } else if (event.kind === 'disconnected') {
         for (const frame of frames.values()) { clearTimeout(frame.timer); frame.dispose(); frame.element.remove(); }
         frames.clear();
-        presence.clear(); renderPresence();
-        if (surface.visible) { error = translate(normalizeLocale(surface.locale), 'error.connection'); renderStatus(); }
+        presence.clear(); for(const slot of mounts.values())renderPresence(slot);
+        for(const slot of mounts.values())if(slot.surface.visible){slot.error=translate(normalizeLocale(surface.locale),'error.connection');renderStatus(slot);}
       }
     },
   };

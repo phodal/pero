@@ -109,6 +109,9 @@ mod surface {
                     self.apps.error = Some(event.text.clone());
                 }
                 "apps_opened" => {
+                    // Re-publish current ownership after a potentially slow open.
+                    // A tab closed meanwhile must release the late iframe too.
+                    self.app_surface.clear();
                     if let Ok(selection) =
                         serde_json::from_value::<AppSelection>(event.data.clone())
                     {
@@ -131,7 +134,17 @@ mod surface {
         }
 
         /// The Web surface uses the content slot's actual GPUI layout bounds.
-        pub(crate) fn sync_app_surface(&mut self, bounds: Option<Bounds<Pixels>>, cx: &App) {
+        pub(crate) fn publish_app_surfaces(&mut self, mut payload: serde_json::Value, cx: &App) {
+            #[cfg(target_family="wasm")]
+            {
+                payload["open"] = json!(self.navigation.items().iter().filter_map(|item|match item {WorkspaceItem::App{name,panel}=>Some(json!({"name":name,"panel":panel})),_=>None}).collect::<Vec<_>>());
+                let payload=payload.to_string();
+                if self.app_surface!=payload {self.app_surface=payload;let _=app_surface(&self.app_surface);}
+            }
+            let _=(&mut payload,cx);
+        }
+        pub(crate) fn sync_app_surface(&mut self, bounds: Option<Bounds<Pixels>>, cx: &mut Context<Self>) {
+            if self.navigation.pane_layout_visible() {self.sync_pane_surfaces(cx);return;}
             #[cfg(target_family = "wasm")]
             {
                 let bounds = bounds.filter(|_| self.layout.embedded_surface_visible);
@@ -143,12 +156,8 @@ mod surface {
                         "dark":pero_theme::UiAppearance::global(cx).dark,"appearance":pero_theme::UiAppearance::global(cx),"locale":self.locale})
                     }
                     _ => json!({"visible":false,"dark":pero_theme::UiAppearance::global(cx).dark,"appearance":pero_theme::UiAppearance::global(cx),"locale":self.locale}),
-                }
-                .to_string();
-                if self.app_surface != payload {
-                    self.app_surface = payload;
-                    let _ = app_surface(&self.app_surface);
-                }
+                };
+                self.publish_app_surfaces(payload,cx);
             }
             #[cfg(not(target_family = "wasm"))]
             let _ = (bounds, cx);

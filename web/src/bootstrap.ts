@@ -8,7 +8,7 @@ import themes from './theme.generated.json';
 import './shell.css';
 import { applyAppearance } from '../../packages/app-sdk/src/appearance';
 import { normalizeLocale, translate } from '../../locales';
-import { mountAppSurfaces, type AppSurface } from './apps';
+import { mountAppSurfaces, type AppSurface, type AppSurfaceBatch } from './apps';
 
 export interface HostEvent { version: number; kind: string; request_id: string | null; text: string; message_key?: string; thread_id?: string; data?: unknown }
 declare global {
@@ -51,9 +51,9 @@ try {
     command:value=>{if(!window.pero)throw new Error(t('error.browser'));return window.pero.appUseCommand(value);},
     deliver:(thread_id,contexts,text,replace)=>receive_host_event(JSON.stringify({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}})),
   });
-  const apps = mountAppSurfaces(value=>window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser'))),launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})));
+  const apps = mountAppSurfaces(value=>window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser'))),launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})),pane=>receive_host_event(JSON.stringify({version:1,kind:'pane_focus',request_id:null,text:'',data:{id:pane}})));
   window.peroAppUseRevoke = async(thread,scope) => {await window.pero!.appUseCommand({action:'revoke',thread_id:thread,scope});};
-  window.peroAppSurface = json => apps.surface(JSON.parse(json) as AppSurface);
+  window.peroAppSurface = json => apps.surface(JSON.parse(json) as AppSurface|AppSurfaceBatch);
   window.peroSendProbe = (json) => {
     const request = JSON.parse(json);
     if (!window.pero) {
