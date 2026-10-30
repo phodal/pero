@@ -1,7 +1,7 @@
 # 0019: Grok-style Computer Use isolated Linux desktop
 
-
 This ADR follows the Grok-style cloud isolated desktop plus human handoff pattern; it is a separate track from the Cursor-based documents in #44 and #45.
+
 Status: proposed (design only, no implementation), 2026-10-30.
 
 Builds on [0016: Computer Use v1 contract](0016-computer-use-contract.md).
