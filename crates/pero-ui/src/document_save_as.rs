@@ -194,11 +194,9 @@ impl Workbench {
             source: document.id.clone(),
         };
         let source = self
-            .documents
-            .iter()
-            .find(|open| open.item == item)
-            .map(|open| {
-                let view = open.view.read(cx);
+            .active_document_view(&item)
+            .map(|view| {
+                let view = view.read(cx);
                 (
                     view.reading_state(cx),
                     view.draft(cx)
@@ -234,6 +232,12 @@ impl Workbench {
                 ..
             }
         );
+        let pane_readings = self
+            .pane_views
+            .iter()
+            .filter(|pane| pane.item == item)
+            .map(|pane| (pane.id, pane.view.read(cx).reading_state(cx)))
+            .collect::<Vec<_>>();
         if file_source {
             self.navigation.replace_identity(&item, target.clone());
             self.documents.retain(|open| open.item != item);
@@ -249,12 +253,30 @@ impl Workbench {
         let saved = document.source().to_string();
         self.open_document(document, window, cx);
         if let Some((reading, current)) = source {
-            if let Some(open) = self.documents.iter().find(|open| open.item == target) {
-                open.view.update(cx, |view, cx| {
-                    let mut reading = reading;
+            let mut targets = self
+                .documents
+                .iter()
+                .filter(|open| open.item == target)
+                .map(|open| open.view.clone())
+                .collect::<Vec<_>>();
+            for pane in &self.pane_views {
+                if pane.item == target && !targets.contains(&pane.view) {
+                    targets.push(pane.view.clone());
+                }
+            }
+            for view in targets {
+                let pane_reading = self
+                    .pane_views
+                    .iter()
+                    .find(|pane| pane.view == view)
+                    .and_then(|pane| pane_readings.iter().find(|(id, _)| *id == pane.id))
+                    .map(|(_, reading)| reading.clone())
+                    .unwrap_or_else(|| reading.clone());
+                view.update(cx, |view, cx| {
+                    let mut reading = pane_reading;
                     if file_source && current != saved {
                         // Restore newer edits before bounding their selection against the target text.
-                        view.restore_draft(current, window, cx);
+                        view.restore_draft(current.clone(), window, cx);
                     } else if current != saved {
                         // A producer changed after copying: its newer geometry does not describe this file.
                         reading = reading.without_location();

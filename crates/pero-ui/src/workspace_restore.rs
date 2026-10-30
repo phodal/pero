@@ -250,9 +250,9 @@ impl Workbench {
         let Some(item) = self.navigation.current().cloned() else {
             return;
         };
-        if let Some(open) = self.documents.iter().find(|open| open.item == item) {
+        if let Some(view) = self.active_document_view(&item) {
             self.navigation
-                .observe_reading(&item, open.view.read(cx).reading_state(cx));
+                .observe_reading(&item, view.read(cx).reading_state(cx));
         }
     }
     pub(crate) fn record_document_jump(
@@ -277,6 +277,10 @@ impl Workbench {
     ) -> Option<serde_json::Value> {
         if !self.recovery.ready || self.recovery.applying {
             return None;
+        }
+        for view in &self.pane_views {
+            self.navigation
+                .observe_pane_reading(view.id, view.view.read(cx).reading_state(cx));
         }
         self.remember_current_location(cx);
         let navigation = self.navigation.snapshot();
@@ -408,9 +412,8 @@ impl Workbench {
                 {
                     document.saved.reading = state.clone();
                 }
-                if let Some(open) = self.documents.iter().find(|open| &open.item == item) {
-                    open.view
-                        .update(cx, |view, cx| view.restore_reading_state(state, window, cx));
+                if let Some(view) = self.active_document_view(item) {
+                    view.update(cx, |view, cx| view.restore_reading_state(state, window, cx));
                 }
             }
             self.activate_route(entry.route, window, cx);
@@ -418,25 +421,10 @@ impl Workbench {
         self.queue_workspace_checkpoint(cx);
     }
     pub(crate) fn toggle_document_split(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.navigation.panes().is_some() {
-            if let Some(route) = self.navigation.collapse_panes() {
-                self.activate_route(route, window, cx);
-            }
-        } else {
-            let item = self
-                .navigation
-                .items()
-                .iter()
-                .find(|item| {
-                    matches!(item, WorkspaceItem::Document { .. })
-                        && self.navigation.current() != Some(item)
-                })
-                .cloned();
-            if let Some(item) = item {
-                self.navigation.split_document(&item);
-            }
-        }
-        self.queue_workspace_checkpoint(cx);
-        cx.notify();
+        self.split_document_pane(
+            pero_contracts::workspace_panes::SplitDirection::Right,
+            window,
+            cx,
+        );
     }
 }

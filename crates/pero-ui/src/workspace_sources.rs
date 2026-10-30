@@ -89,7 +89,10 @@ impl Workbench {
             });
         }
         self.recovery.applying = applying;
-        if self.navigation.current() == Some(&item) {
+        if !applying {
+            self.ensure_document_panes(window, cx);
+        }
+        if !applying && self.navigation.current() == Some(&item) {
             self.activate_route(crate::workspace::WorkspaceRoute::Content(item), window, cx);
         }
         cx.notify();
