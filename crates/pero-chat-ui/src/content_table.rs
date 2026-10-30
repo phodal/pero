@@ -427,6 +427,7 @@ impl ContentTable {
         let rows = table.delegate();
         serde_json::json!({"bounds":self.bounds.snapshot(),"gridBounds":self.grid_bounds.snapshot(),"filter":rows.projection.filter,"sort":rows.projection.sort,"visibleRows":rows.projection.rows.len(),
             "firstRows":rows.projection.rows.iter().take(8).map(|&i|rows.preview.rows[i].line).collect::<Vec<_>>(),"selectedCell":table.selected_cell(),"sourceRange":self.selected(cx),
+            "renderedColumns":{"start":table.visible_range().cols().start,"end":table.visible_range().cols().end},
             "widths":(0..rows.columns_count(cx)).map(|i|table.col_width(i).map(f32::from)).collect::<Vec<_>>(),
             "loading":rows.loading,"error":rows.error,"requested":rows.requested})
     }

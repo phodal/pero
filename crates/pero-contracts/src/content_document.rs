@@ -436,9 +436,6 @@ impl ContentDocument {
                     columns.push(name);
                     index
                 });
-                if columns.len() > 128 {
-                    return Err("Preview limit: 128 columns. Open source for all fields.".into());
-                }
                 cells.resize(columns.len(), None);
                 cells[index] = Some(self.span(value));
             }
@@ -471,6 +468,39 @@ mod tests {
             },
         }
     }
+    #[test]
+    fn wide_records_retain_every_column_exact_value_and_sparse_cell() {
+        let fields = (0..2000)
+            .map(|index| format!("\"列_{index}\":900719925474099{index:04}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let document = ContentDocument::new(
+            reference("wide"),
+            u64::MAX,
+            format!("[{{{fields}}},{{\"列_1999\":1.0000000000000000001}}]"),
+            ContentFormat::Json,
+        );
+        let preview = document.parse_preview().unwrap();
+        assert_eq!(preview.columns.len(), 2000);
+        for (column, name) in preview.columns.iter().enumerate() {
+            assert_eq!(name, &format!("列_{column}"));
+            assert_eq!(
+                document.text(preview.rows[0].cells[column].as_ref().unwrap()),
+                format!("900719925474099{column:04}")
+            );
+        }
+        assert!(preview.rows[1].cells[0].is_none());
+        assert_eq!(
+            document.text(preview.rows[1].cells[1999].as_ref().unwrap()),
+            "1.0000000000000000001"
+        );
+        assert_eq!(preview.rows[1].source.revision, u64::MAX);
+        assert_eq!(
+            StructuredPreview::from_tape(&preview.to_tape()).unwrap(),
+            preview
+        );
+    }
+
     #[test]
     fn background_node_cache_is_shared_by_range_and_revision() {
         let document = ContentDocument::new(
