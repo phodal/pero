@@ -1,31 +1,40 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Agent, Api, Intent, Report } from './types';
+import type { Agent, Api, Intent, Report, ResearchStudy } from './types';
 import type { Translator } from './i18n';
 
 export type ResearchRequest = { question: string; paperIds: string[]; verifyCode: boolean; verificationPlan: string; fullText?: boolean; parentIntentId?: string };
-type ResearchStage = { stage: 'plan' | 'select' | 'answer'; id: string; requestId: string; prompt: string; question: string; round?: number; intent?: Intent };
+type ResearchStage = { stage: 'research' | 'answer'; requestId: string; prompt: string; question: string; studyId?: string; intent?: Intent };
 
 export function useResearch(api: Api, agent: Agent, active: boolean, refresh: () => Promise<void>, onError: (error: unknown) => void, t: Translator) {
   const [plannedQuestion, setPlannedQuestion] = useState(''), [phase, setPhase] = useState<ResearchStage['stage']>('answer');
-  const stage = useRef<ResearchStage | null>(null), selectedAgent = useRef('');
-  const [intent, setIntent] = useState<Intent | null>(null);
-  const [report, setReport] = useState<Report | null>(null);
-  const [sessionId, setSessionId] = useState('');
-  const [status, setStatus] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [raw, setRaw] = useState('');
-  const [repair, setRepair] = useState(false);
-  const [pollRevision, setPollRevision] = useState(0);
-  const mounted = useRef(true), gate = useRef(false), generation = useRef(0), cursor = useRef(0);
-  const pollIdentity = useRef(0);
+  const stage = useRef<ResearchStage | null>(null), selectedAgent = useRef(''), savedReport = useRef('');
+  const [intent, setIntent] = useState<Intent | null>(null), [report, setReport] = useState<Report | null>(null);
+  const [study, setStudy] = useState<ResearchStudy | null>(null);
+  const [sessionId, setSessionId] = useState(''), [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false), [pending, setPending] = useState(false);
+  const [raw, setRaw] = useState(''), [repair, setRepair] = useState(false), [pollRevision, setPollRevision] = useState(0);
+  const mounted = useRef(true), gate = useRef(false), generation = useRef(0), cursor = useRef(0), pollIdentity = useRef(0);
   const working = ['running', 'needs_input', 'cancelling'].includes(status);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; generation.current++; }; }, []);
   const current = (id: number) => mounted.current && generation.current === id;
 
+  async function readStudy(studyId: string, version = generation.current) {
+    const next = await api.get<ResearchStudy>(`/api/studies/${studyId}`);
+    if (!current(version)) return next;
+    setStudy(next);
+    if (next.reportId && next.intentId && savedReport.current !== next.reportId) {
+      const [answer, frozen] = await Promise.all([api.get<Report>(`/api/reports/${next.reportId}`), api.get<Intent>(`/api/intents/${next.intentId}`)]);
+      if (current(version)) { savedReport.current = answer.id; setReport(answer); setIntent(frozen); setRepair(false); await refresh(); }
+    }
+    return next;
+  }
   async function save(text: string, frozen = intent, session = sessionId) {
-    if (!frozen) return;
     const id = generation.current;
+    if (stage.current?.studyId) {
+      await api.post('/api/studies/step', { studyId: stage.current.studyId, action: 'finalize', report: JSON.parse(text) });
+      return readStudy(stage.current.studyId, id);
+    }
+    if (!frozen) return;
     const saved = await api.post<Report>('/api/reports', { intentId: frozen.id, text, ...(session ? { sessionId: session } : {}) });
     const full = saved.sections ? saved : await api.get<Report>(`/api/reports/${saved.id}`);
     if (current(id)) { setReport(full); setRepair(false); await refresh(); }
@@ -48,18 +57,19 @@ export function useResearch(api: Api, agent: Agent, active: boolean, refresh: ()
       if (pending && stage.current) { await launchStage(stage.current, selectedAgent.current); return true; }
       if (input.fullText) await Promise.all(input.paperIds.map(paperId => api.post('/api/pdf', { paperId })));
       const request = { ...input, requestId: crypto.randomUUID() };
+      setIntent(null); setReport(null); setStudy(null); setRepair(false); savedReport.current = '';
       if (execute && input.fullText) {
-        const planned = await api.post<ResearchStage>('/api/research/plan', request);
+        const planned = await api.post<ResearchStudy>('/api/studies', request);
         if (!current(id)) return;
-        setIntent(null); setReport(null); setRepair(false);
-        await launchStage(planned, agentId);
+        setStudy(planned); await refresh();
+        await launchStage({ stage: 'research', studyId: planned.id, requestId: planned.requestId, prompt: planned.prompt, question: planned.question }, agentId);
       } else {
         const frozen = await api.post<Intent>('/api/intents', request);
         if (!current(id)) return;
-        setIntent(frozen); setReport(null); setRaw(''); setRepair(false); setSessionId(''); setStatus(''); setPlannedQuestion('');
+        setIntent(frozen); setRaw(''); setSessionId(''); setStatus(''); setPlannedQuestion('');
         await refresh();
         if (!current(id) || !execute) return true;
-        await launchStage({ stage: 'answer', id: frozen.id, requestId: frozen.requestId, prompt: frozen.prompt, question: frozen.question, intent: frozen }, agentId);
+        await launchStage({ stage: 'answer', requestId: frozen.requestId, prompt: frozen.prompt, question: frozen.question, intent: frozen }, agentId);
       }
       return true;
     } catch (error) { if (current(id)) onError(error); }
@@ -75,19 +85,19 @@ export function useResearch(api: Api, agent: Agent, active: boolean, refresh: ()
         if (stopped || !current(id) || identity !== pollIdentity.current) return;
         cursor.current = reply.cursor; setStatus(reply.status);
         if (reply.text) setRaw(reply.text);
+        const studyId = stage.current?.studyId;
+        const next = studyId ? await readStudy(studyId, id) : null;
+        if (stopped || !current(id) || identity !== pollIdentity.current) return;
         if (reply.status === 'failed') onError(new Error(reply.text || t('failed')));
         if (reply.status === 'completed') {
-          if (!reply.text?.trim()) throw new Error(t('noFinal'));
-          try {
-            const currentStage = stage.current;
-            if (currentStage && currentStage.stage !== 'answer') {
-              setBusy(true);
-              const next = await api.post<ResearchStage>(currentStage.stage === 'plan' ? '/api/research/search' : '/api/research/select', { id: currentStage.id, text: reply.text });
-              if (!stopped && current(id)) { await launchStage(next, selectedAgent.current); await refresh(); }
-            } else { await save(reply.text, intent, sessionId); }
-          } catch (error) {
-            if (!stopped && current(id)) { setBusy(false); setStatus('failed'); setRepair(stage.current?.stage === 'answer'); onError(error); }
+          if (next) {
+            if (!next.reportId) { setStatus('failed'); onError(new Error(t('studyIncomplete'))); }
+          } else {
+            if (!reply.text?.trim()) throw new Error(t('noFinal'));
+            try { await save(reply.text, intent, sessionId); }
+            catch (error) { if (!stopped && current(id)) { setStatus('failed'); setRepair(true); onError(error); } }
           }
+          await refresh();
         } else if (['running', 'needs_input', 'cancelling'].includes(reply.status)) timer = setTimeout(poll, 1000);
       } catch (error) {
         if (!stopped && current(id)) { onError(error); setStatus('failed'); }
@@ -95,7 +105,7 @@ export function useResearch(api: Api, agent: Agent, active: boolean, refresh: ()
     }
     void poll();
     return () => { stopped = true; clearTimeout(timer); };
-  }, [active, agent, sessionId, intent?.id, pollRevision]);
+  }, [active, agent, sessionId, pollRevision]);
 
   async function cancel() {
     if (!sessionId || busy) return;
@@ -104,13 +114,40 @@ export function useResearch(api: Api, agent: Agent, active: boolean, refresh: ()
     catch (error) { onError(error); }
     finally { if (mounted.current) setBusy(false); }
   }
+  async function openStudy(studyId: string) {
+    if (gate.current || working || pending) return;
+    gate.current = true; setBusy(true); const id = ++generation.current;
+    try {
+      setReport(null); setIntent(null); setRaw(''); setRepair(false); savedReport.current = '';
+      const next = await readStudy(studyId, id);
+      if (!current(id)) return;
+      stage.current = { stage: 'research', studyId: next.id, requestId: next.requestId, prompt: next.prompt, question: next.question };
+      setPhase('research'); setPlannedQuestion(next.question);
+      const session = next.sessionId || `app:paper-agent:${next.requestId}`;
+      setSessionId(session); cursor.current = 0;
+      try {
+        const reply = await agent.events({ sessionId: session, after: 0 });
+        if (current(id)) { setRaw(reply.text); setStatus(reply.status === 'completed' && !next.reportId ? 'failed' : reply.status); setPollRevision(value => value + 1); }
+      } catch (error) { if (current(id)) { setStatus('failed'); onError(error); } }
+    } catch (error) { if (current(id)) onError(error); }
+    finally { gate.current = false; if (current(id)) setBusy(false); }
+  }
+  async function continueStudy(agentId: string) {
+    if (!study || gate.current || working || pending) return;
+    gate.current = true; setBusy(true); const version = ++generation.current;
+    try {
+      const next = await api.post<ResearchStudy>('/api/studies/continue', { id: study.id, requestId: crypto.randomUUID() });
+      if (!current(version)) return;
+      setStudy(next); await launchStage({ stage: 'research', studyId: next.id, requestId: next.requestId, prompt: next.prompt, question: next.question }, agentId);
+    } catch (error) { if (current(version)) onError(error); }
+    finally { gate.current = false; if (current(version)) setBusy(false); }
+  }
   async function openReport(id: string) {
     if (gate.current || working || pending) return;
     gate.current = true; setBusy(true); const version = ++generation.current;
     try {
-      const full = await api.get<Report>(`/api/reports/${id}`);
-      const frozen = await api.get<Intent>(`/api/intents/${full.intentId}`);
-      if (current(version)) { setReport(full); setIntent(frozen); setSessionId(''); setRaw(''); setRepair(false); setStatus(''); setPlannedQuestion(''); stage.current = null; }
+      const full = await api.get<Report>(`/api/reports/${id}`), frozen = await api.get<Intent>(`/api/intents/${full.intentId}`);
+      if (current(version)) { setReport(full); setIntent(frozen); setStudy(null); setSessionId(''); setRaw(''); setRepair(false); setStatus(''); setPlannedQuestion(''); stage.current = null; }
     } catch (error) { if (current(version)) onError(error); }
     finally { gate.current = false; if (current(version)) setBusy(false); }
   }
@@ -119,12 +156,12 @@ export function useResearch(api: Api, agent: Agent, active: boolean, refresh: ()
     gate.current = true; setBusy(true); const version = ++generation.current;
     try {
       const frozen = await api.get<Intent>(`/api/intents/${id}`);
-      if (current(version)) { setIntent(frozen); setReport(null); setSessionId(''); setRaw(''); setRepair(false); setStatus(''); setPlannedQuestion(''); stage.current = null; }
+      if (current(version)) { setIntent(frozen); setReport(null); setStudy(null); setSessionId(''); setRaw(''); setRepair(false); setStatus(''); setPlannedQuestion(''); stage.current = null; }
     } catch (error) { if (current(version)) onError(error); }
     finally { gate.current = false; if (current(version)) setBusy(false); }
   }
   async function saveRaw() {
-    if (gate.current || !intent || !raw.trim() || working) return;
+    if (gate.current || (!intent && !study) || !raw.trim() || working) return;
     gate.current = true; setBusy(true);
     try { await save(raw); }
     catch (error) { setRepair(true); onError(error); }
@@ -132,7 +169,7 @@ export function useResearch(api: Api, agent: Agent, active: boolean, refresh: ()
   }
   function reset() {
     if (working || pending || busy) return;
-    generation.current++; stage.current = null; setPlannedQuestion(''); setIntent(null); setReport(null); setSessionId(''); setStatus(''); setRaw(''); setRepair(false);
+    generation.current++; stage.current = null; savedReport.current = ''; setStudy(null); setPlannedQuestion(''); setIntent(null); setReport(null); setSessionId(''); setStatus(''); setRaw(''); setRepair(false);
   }
-  return { retryPoll: () => { setStatus('running'); setPollRevision(value => value + 1); }, plannedQuestion, phase, intent, report, sessionId, status, busy, pending, working, raw, setRaw, repair, begin, cancel, openReport, openIntent, saveRaw, reset };
+  return { retryPoll: () => { setStatus('running'); setPollRevision(value => value + 1); }, plannedQuestion, phase, intent, report, study, sessionId, status, busy, pending, working, raw, setRaw, repair, begin, cancel, openReport, openIntent, openStudy, continueStudy, saveRaw, reset };
 }

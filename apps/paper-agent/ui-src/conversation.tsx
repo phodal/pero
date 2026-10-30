@@ -5,11 +5,22 @@ import { EvidencePanel, Experiments, ReportView, type Citation } from './documen
 import { PaperList } from './library';
 import { ReadingMatrix } from './reading-matrix';
 import type { useResearch } from './use-research';
-import type { Agent, Api, EvidenceLocation, Intent, Library, Paper, PdfAnnotation, Report } from './types';
+import type { Agent, Api, EvidenceLocation, Intent, Library, Paper, PdfAnnotation, Report, ResearchStudy } from './types';
 import type { Translator } from './i18n';
 
 export type QuestionDraft = { question: string; fullText: boolean; verifyCode: boolean; verificationPlan: string; selected: string[]; context: string; parentIntentId?: string };
 type Task = ReturnType<typeof useResearch>;
+
+function StudyRecord({ study, complete, t }: { study: ResearchStudy; complete: boolean; t: Translator }) {
+  const labels = { read: 'readingSource', search: 'searchingSource', note: 'recordingFinding', finalize: 'submittingReport' } as const;
+  return <div className="pa-study-record" data-study-id={study.id}>
+    <details open={complete ? undefined : true}><summary>{t('researchProgress')} {study.budget.used} / {study.budget.limit} {t('researchSteps')}</summary>
+      <ol>{study.steps.map((step, index) => <li key={index}>{t(labels[step.action])}{step.page ? ` — ${t('pdfPage')} ${step.page}` : ''}{step.query ? `: ${step.query}` : ''}</li>)}</ol>
+      {!!study.findings.length && <><h3>{t('researchFindings')}</h3><ul>{study.findings.map((finding, index) => <li key={index}>{finding.text}</li>)}</ul></>}
+    </details>
+    {!complete && !!study.gaps.length && <div role="note"><h3>{t('researchGaps')}</h3><ul>{study.gaps.map((gap, index) => <li key={index}>{gap}</li>)}</ul></div>}
+  </div>;
+}
 
 function Answer({ report, intent, api, onCite, t }: { report: Report; intent: Intent; api: Api; onCite(citation: Citation, intent: Intent): void; t: Translator }) {
   const [error, setError] = useState('');
@@ -55,7 +66,7 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
   const current = task.intent && (!paper || task.intent.papers.some(p => p.id === paper.id)) ? task.intent : null;
   const history = library.intents.filter(intent => (!paper || intent.paperIds?.includes(paper.id)) && intent.id !== current?.id).sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''));
   useEffect(() => { panel.current?.querySelector<HTMLTextAreaElement>('#paper-question')?.focus(); }, []);
-  useEffect(() => { bottom.current?.scrollIntoView({ block: 'nearest' }); }, [task.report?.id, task.intent?.id]);
+  useEffect(() => { bottom.current?.scrollIntoView({ block: 'nearest' }); }, [task.report?.id, task.intent?.id, task.study?.id]);
   function close() { onClose(); }
   return <aside className="pa-conversation" aria-label={t('ask')} ref={panel} onKeyDown={event => {
     if (event.key === 'Escape') { event.stopPropagation(); if (citation) onCloseEvidence(); else if (settings) setSettings(false); else close(); }
@@ -68,12 +79,15 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
   }}>
     <header className="pa-conversation-header"><h2>{t('ask')}</h2><Button variant="ghost" aria-label={t('researchOptions')} aria-expanded={settings} onClick={() => setSettings(value => !value)}><Icon name="settings"/></Button><Button variant="ghost" aria-label={t('closeAgent')} onClick={close}>×</Button></header>
     <div className="pa-conversation-scroll">
+      {library.studies?.filter(study => !study.reportId && study.id !== task.study?.id && (!paper || study.paperIds.includes(paper.id))).map(study => <section className="pa-turn-history" data-saved-study-id={study.id} key={study.id}><p>{study.question}</p><Button disabled={locked} onClick={() => void task.openStudy(study.id)}>{t('savedStudy')}</Button></section>)}
       {history.map(intent => <SavedTurn key={intent.id} entry={intent} reports={library.reports.filter(report => report.intentId === intent.id)} api={api} onCite={onCite} disabled={locked} onResume={() => { void task.openIntent(intent.id).then(() => onDraft({ question: intent.question, parentIntentId: intent.id })); }} t={t}/>)}
       {(current || task.plannedQuestion) && <section className="pa-turn" data-turn-id={current?.id}><p className="pa-user-message">{current?.question ?? task.plannedQuestion}</p>
         {task.report && current && <Answer report={task.report} intent={current} api={api} onCite={onCite} t={t}/>}
-        {task.working && <p role="status" className="pa-run-status">{t(task.status === 'needs_input' ? 'needsInput' : task.phase === 'plan' ? 'planningQuery' : task.phase === 'select' ? 'selectingEvidence' : 'running')}{task.status === 'needs_input' && <Button onClick={onOpenChat}>{t('openChat')}</Button>}</p>}
-        {task.status === 'failed' && !task.repair && <Feedback kind="error">{t('failed')}<Button onClick={task.retryPoll}>{t('retry')}</Button></Feedback>}
+        {task.working && <p role="status" className="pa-run-status">{t(task.status === 'needs_input' ? 'needsInput' : task.phase === 'research' ? 'researching' : 'running')}{task.status === 'needs_input' && <Button onClick={onOpenChat}>{t('openChat')}</Button>}</p>}
+        {task.study && <StudyRecord study={task.study} complete={!!task.report} t={t}/>}
+        {task.status === 'failed' && !task.repair && <Feedback kind="error">{t('failed')}{!task.study && <Button onClick={task.retryPoll}>{t('retry')}</Button>}</Feedback>}
         {task.status === 'cancelled' && <p role="status">{t('cancelled')}</p>}
+        {task.study && !task.report && !locked && <Button disabled={!agent.available || !agentId} onClick={() => void task.continueStudy(agentId)}>{t('continueStudy')}</Button>}
         {task.repair && <Feedback kind="error">{t('invalidReport')}</Feedback>}
       </section>}
       {citation && <EvidencePanel citation={citation} location={evidence} paper={citation.intent.papers.find(p => p.id === citation.paperId)} busy={evidenceBusy} onClose={onCloseEvidence} onRead={onReadEvidence} t={t}/>}
@@ -86,7 +100,7 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
         <details><summary>{t('chooseSources')}</summary><PaperList selecting papers={library.papers} selected={draft.selected} readingId={paper?.id ?? ''} locked={locked} onRead={p => onDraft({ selected: [p.id] })} onSelect={(id, checked) => onDraft({ selected: checked ? [...draft.selected, id] : draft.selected.filter(value => value !== id) })} t={t}/></details>
         {!task.working && !task.pending && <Button disabled={!draft.question.trim() || !draft.selected.length || locked} onClick={() => onSend(false)}>{t('prepare')}</Button>}
         {current && <><Button onClick={() => downloadFile('research-prompt.txt', current.prompt, 'text/plain;charset=utf-8')}>{t('prompt')}</Button>
-          {current.retrieval && <details><summary>{t('retrievalDetails')}</summary><p>{current.passages?.length} / {current.retrieval.totalMatches} {t('localPassages')}</p><p>{t('localScope')}</p>{!!current.retrieval.unmatchedPaperIds.length && <Feedback>{t('unmatchedSources')} {current.retrieval.unmatchedPaperIds.map(id => current.papers.find(p => p.id === id)?.title).join(', ')}</Feedback>}</details>}
+          {current.retrieval && <details><summary>{t('retrievalDetails')}</summary><p>{t('observedPassages')}: {current.passages?.length} / {t('searchMatches')}: {current.retrieval.totalMatches}</p><p>{t(current.retrieval.method === 'pero.paper-study.agent-tools.v1' ? 'studyScope' : 'localScope')}</p>{!!current.retrieval.unmatchedPaperIds.length && <Feedback>{t('unmatchedSources')} {current.retrieval.unmatchedPaperIds.map(id => current.papers.find(p => p.id === id)?.title).join(', ')}</Feedback>}</details>}
           <details className="pa-output" open={task.repair}><summary>{t('importReport')}</summary><Field label={t('rawOutput')}>{props => <Textarea {...props} rows={6} value={task.raw} disabled={task.working || task.busy} maxLength={500000} onChange={event => task.setRaw(event.target.value)}/>}</Field><Button disabled={locked || !task.raw.trim()} onClick={() => void task.saveRaw()}>{t('saveReport')}</Button></details>
         </>}
       </div>}

@@ -59,7 +59,7 @@ export function ReportView({ report, intent, onCite, t, api }: { report: Report 
       <ScientificContent content={section.content} evidence={section.evidence} onCite={onCite} citationLabel={t('evidence')}/><PrintedEvidence evidence={section.evidence} paperIds={section.paperIds} intent={intent}/><Citations paperIds={section.paperIds} evidence={section.evidence} intent={intent} onCite={onCite} t={t}/>
     </section>)}
     <EvidenceMatrix api={api} reportId={report.id} matrix={report.matrix} intent={intent} onCite={onCite} t={t}/>
-    <footer className="pa-report-limitations"><h2>{t('limitations')}</h2><p className="pa-prose">{report.limitations}</p>{!!report.experiments?.length && <small>{t('reported')}</small>}</footer>
+    <footer className="pa-report-limitations"><h2>{t('limitations')}</h2><p className="pa-prose">{report.limitations}</p>{!!intent.retrieval?.gaps?.length && <><h3>{t('researchGaps')}</h3><ul>{intent.retrieval.gaps.map((gap, index) => <li key={index}>{gap}</li>)}</ul></>}{!!report.experiments?.length && <small>{t('reported')}</small>}</footer>
     <section className="pa-print-only pa-print-appendix">
       {!!report.experiments?.length && <><h2>{t('experiments')}</h2>{report.experiments.map((experiment, index) => <section key={index}>
         <h3>{experiment.title} / {t(experiment.status === 'passed' ? 'passed' : experiment.status === 'failed' ? 'experimentFailed' : experiment.status === 'blocked' ? 'blocked' : 'notRun')}</h3>
