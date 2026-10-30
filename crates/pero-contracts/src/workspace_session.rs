@@ -75,6 +75,8 @@ pub struct WorkspaceSnapshot {
     pub other: Option<WorkspaceRoute>,
     #[serde(default)]
     pub focused: PaneSide,
+    #[serde(default)]
+    pub panes: Option<crate::workspace_panes::PaneLayout>,
     #[serde(flatten)]
     pub history: WorkspaceHistory,
 }
@@ -85,6 +87,7 @@ impl Default for WorkspaceSnapshot {
             route: WorkspaceRoute::Page(WorkbenchPage::Projects),
             other: None,
             focused: PaneSide::Left,
+            panes: None,
             history: WorkspaceHistory::default(),
         }
     }
@@ -99,6 +102,9 @@ impl WorkspaceSnapshot {
             .iter()
             .enumerate()
             .all(|(i, item)| !self.items[..i].contains(item))
+            && self.panes.as_ref().is_none_or(|panes| {
+                panes.valid() && panes.leaves().iter().all(|view| admitted(&view.route))
+            })
             && admitted(&self.route)
             && self.other.as_ref().is_none_or(|other| {
                 admitted(other)
@@ -199,11 +205,12 @@ impl WorkspaceSession {
             && self.web.iter().enumerate().all(|(i, page)| {
                 (if let Some(html) = &page.html {
                     !html.id.is_empty() && page.id == format!("html:{}", html.id)
-                } else { WebAddress::try_from(page.id.clone()).is_ok() })
-                    && self
-                        .navigation
-                        .items
-                        .contains(&WorkspaceItem::Web(page.id.clone()))
+                } else {
+                    WebAddress::try_from(page.id.clone()).is_ok()
+                }) && self
+                    .navigation
+                    .items
+                    .contains(&WorkspaceItem::Web(page.id.clone()))
                     && !self.web[..i].iter().any(|other| other.id == page.id)
             })
     }
@@ -335,6 +342,7 @@ mod tests {
                     route,
                     other,
                     focused,
+                    panes: None,
                     history: WorkspaceHistory {
                         back: back
                             .into_iter()

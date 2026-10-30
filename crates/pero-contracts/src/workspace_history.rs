@@ -131,6 +131,26 @@ impl WorkspaceHistory {
         self.back.retain(|entry| admitted(&entry.route));
         self.forward.retain(|entry| admitted(&entry.route));
     }
+    pub fn rebase_edit(&mut self, item: &WorkspaceItem, edit: &crate::text_edit_anchor::TextEdit) {
+        let route = WorkspaceRoute::Content(item.clone());
+        for entry in self.back.iter_mut().chain(&mut self.forward) {
+            if entry.route == route {
+                if let Some(reading) = &mut entry.reading {
+                    edit.rebase(reading);
+                }
+            }
+        }
+    }
+    pub fn bind_revision(&mut self, item: &WorkspaceItem, revision: u64) {
+        let route = WorkspaceRoute::Content(item.clone());
+        for entry in self.back.iter_mut().chain(&mut self.forward) {
+            if entry.route == route {
+                if let Some(reading) = &mut entry.reading {
+                    reading.source_revision = Some(revision);
+                }
+            }
+        }
+    }
     pub fn replace_identity(&mut self, old: &WorkspaceItem, new: &WorkspaceItem) {
         for entry in self.back.iter_mut().chain(&mut self.forward) {
             if entry.route == WorkspaceRoute::Content(old.clone()) {

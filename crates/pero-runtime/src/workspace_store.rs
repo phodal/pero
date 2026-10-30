@@ -56,13 +56,31 @@ impl WorkspaceStore {
         };
         for document in &saved.session.documents {
             let item = document.item();
-            if saved.session.navigation.route
+            let visible = saved.session.navigation.route
                 == pero_contracts::workspace_session::WorkspaceRoute::Content(item.clone())
                 || saved.session.navigation.other.as_ref()
                     == Some(&pero_contracts::workspace_session::WorkspaceRoute::Content(
-                        item,
+                        item.clone(),
                     ))
-            {
+                || matches!(
+                    saved.session.navigation.route,
+                    pero_contracts::workspace_session::WorkspaceRoute::Content(
+                        pero_contracts::workspace_session::WorkspaceItem::Document { .. }
+                    )
+                ) && saved
+                    .session
+                    .navigation
+                    .panes
+                    .as_ref()
+                    .is_some_and(|panes| {
+                        panes.leaves().iter().any(|view| {
+                            view.route
+                                == pero_contracts::workspace_session::WorkspaceRoute::Content(
+                                    item.clone(),
+                                )
+                        })
+                    });
+            if visible {
                 let key = SourceKey::of(&document.header);
                 match self.read_source(&key) {
                     Ok(source) => restored.sources.push(source),

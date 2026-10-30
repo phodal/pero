@@ -1,5 +1,7 @@
 use pero_contracts::content_origin::ContentOrigin;
 use pero_contracts::reader_state::ReaderState;
+#[path = "workspace_panes.rs"]
+mod pane_navigation;
 pub(crate) use pero_contracts::workspace_session::{
     HistoryEntry, PaneSide, WorkbenchPage, WorkspaceHistory, WorkspaceItem, WorkspaceRoute,
     WorkspaceSnapshot,
@@ -54,6 +56,7 @@ pub(crate) struct WorkspaceNavigation {
     other: Option<WorkspaceRoute>,
     focused: PaneSide,
     history: WorkspaceHistory,
+    pane_layout: Option<pero_contracts::workspace_panes::PaneLayout>,
 }
 
 impl Default for WorkspaceNavigation {
@@ -64,6 +67,7 @@ impl Default for WorkspaceNavigation {
             other: None,
             focused: PaneSide::Left,
             history: WorkspaceHistory::default(),
+            pane_layout: None,
         }
     }
 }
@@ -91,6 +95,11 @@ impl WorkspaceNavigation {
     /// A route is returned only when it changes, so the shell can carry out
     /// activation once rather than repeating it while rendering.
     fn set_route(&mut self, route: WorkspaceRoute) {
+        if self.select_pane_route(&route) {
+            self.route = route;
+            self.sync_legacy_panes();
+            return;
+        }
         if self.other.as_ref() == Some(&route) {
             self.other = Some(std::mem::replace(&mut self.route, route));
             self.focused = if self.focused == PaneSide::Left {
@@ -124,9 +133,11 @@ impl WorkspaceNavigation {
             other: self.other.clone(),
             focused: self.focused,
             history: self.history.clone(),
+            panes: self.pane_layout.clone(),
         }
     }
     pub(crate) fn restore(&mut self, snapshot: WorkspaceSnapshot) {
+        self.restore_panes(&snapshot);
         self.items = snapshot.items;
         self.route = snapshot.route;
         self.other = snapshot.other;
@@ -155,6 +166,7 @@ impl WorkspaceNavigation {
         }
     }
     fn prune_history(&mut self) {
+        self.prune_panes();
         let available = |route: &WorkspaceRoute| match route {
             WorkspaceRoute::Page(_) => true,
             WorkspaceRoute::Content(item) => self.items.contains(item),
@@ -226,6 +238,19 @@ impl WorkspaceNavigation {
     pub(crate) fn replace_identity(&mut self, old: &WorkspaceItem, new: WorkspaceItem) -> bool {
         if old == &new || !self.items.contains(old) {
             return false;
+        }
+        if let Some(layout) = &mut self.pane_layout {
+            for id in layout
+                .leaves()
+                .iter()
+                .filter(|view| view.route == WorkspaceRoute::Content(old.clone()))
+                .map(|view| view.id)
+                .collect::<Vec<_>>()
+            {
+                let view = layout.leaf_mut(id).unwrap();
+                view.route = WorkspaceRoute::Content(new.clone());
+                view.reading = None;
+            }
         }
         let mut items = Vec::with_capacity(self.items.len());
         for item in &self.items {
