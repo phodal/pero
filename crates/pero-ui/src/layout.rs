@@ -7,6 +7,8 @@ pub(crate) enum ChatPlacement {
     Hidden,
     Main,
     Dock,
+    Float,
+    Slot,
 }
 
 /// Effective layout for one viewport. Saved preferences remain unchanged when

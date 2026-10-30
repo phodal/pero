@@ -11,6 +11,13 @@ use gpui_kit::{
 };
 use pero_chat_ui::theme::WorkbenchStyle as W;
 use serde_json::json;
+
+#[cfg(target_family = "wasm")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen::prelude::wasm_bindgen(js_namespace = window, js_name = peroAppChatOverlay, catch)]
+    fn app_chat_overlay(json: &str) -> Result<(), wasm_bindgen::JsValue>;
+}
 gpui_kit::actions!(
     workspace,
     [
@@ -23,6 +30,47 @@ gpui_kit::actions!(
 );
 
 impl Workbench {
+    pub(crate) fn active_app_chat_slot(&self) -> Option<&crate::apps::AppChatSlot> {
+        self.app_chat_slot.as_ref().filter(|slot| {
+            self.navigation.current() == Some(&WorkspaceItem::App { name: slot.scope.app.clone(), panel: slot.scope.panel.clone() })
+                && self.navigation.pane_layout().is_none_or(|layout| layout.leaves().len() <= 1)
+        })
+    }
+
+    pub(crate) fn embedded_app_chat(&self, slot: &crate::apps::AppChatSlot, cx: &App) -> impl IntoElement {
+        let rect = &slot.rect;
+        let palette = &pero_theme::UiAppearance::global(cx).palette;
+        div().id("embedded-app-chat").absolute().left(px(rect.x)).top(px(rect.y)).w(px(rect.width)).h(px(rect.height))
+            .on_prepaint(|bounds, _, _| Self::publish_app_chat_overlay(Some(bounds)))
+            .flex().flex_col().bg(palette.surface).border_1().border_color(palette.border)
+            .child(self.chat.clone())
+    }
+    pub(crate) fn publish_app_chat_overlay(bounds: Option<Bounds<Pixels>>) {
+        #[cfg(target_family = "wasm")]
+        {
+            let value = bounds.map(|bounds| json!({"x":f32::from(bounds.origin.x),"y":f32::from(bounds.origin.y),"width":f32::from(bounds.size.width),"height":f32::from(bounds.size.height)}));
+            let _ = app_chat_overlay(&json!(value).to_string());
+        }
+        #[cfg(not(target_family = "wasm"))]
+        let _ = bounds;
+    }
+
+    pub(crate) fn floating_app_chat(&self, viewport_width: f32, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+        let width = (viewport_width - self.layout.sidebar_width - 24.).clamp(100., 420.);
+        let height = (f32::from(window.viewport_size().height) - 100.).max(160.).min(if self.floating_chat_expanded { 560. } else { 250. });
+        let expanded = self.floating_chat_expanded;
+        div().id("floating-app-chat").absolute().right(px(12.)).bottom(px(12.)).w(px(width)).h(px(height))
+            .on_prepaint(|bounds, _, _| Self::publish_app_chat_overlay(Some(bounds)))
+            .flex().flex_col().bg(p.surface).border_1().border_color(p.border)
+            .child(div().flex().items_center().px(px(8.)).border_b_1().border_color(p.border)
+                .child(div().flex_1().child(self.t("chat.panel_title")))
+                .child(Button::new("float-chat-expand").ghost().small().label(self.t(if expanded {"chat.hide_messages"} else {"chat.show_messages"})).on_click(cx.listener(|this, _, _, cx| { this.floating_chat_expanded = !this.floating_chat_expanded; this.sync_follow(cx); cx.notify(); })))
+                .child(Button::new("float-chat-dock").ghost().small().label(self.t("chat.dock")).on_click(cx.listener(|this, _, _, cx| { this.floating_chat = false; this.sync_follow(cx); cx.notify(); })))
+                .child(Button::new("float-chat-close").ghost().small().label(self.t("chat.close_panel")).on_click(cx.listener(|this, _, _, cx| this.set_chat_dock(false, cx)))))
+            .child(div().px(px(8.)).text_color(p.text_muted).child(self.t("chat.float_covered")))
+            .child(self.chat.clone())
+    }
     pub(crate) fn record_task_selection(&mut self, task: Option<String>) {
         match task {
             Some(id) => {
@@ -205,11 +253,11 @@ impl Workbench {
     }
 
     pub(crate) fn chat_visible(&self) -> bool {
-        self.layout.chat != ChatPlacement::Hidden || self.navigation.pane_layout().filter(|_|self.navigation.pane_layout_visible()).is_some_and(|layout|layout.conversation().is_some())
+        self.active_app_chat_slot().is_some() || self.layout.chat != ChatPlacement::Hidden || self.navigation.pane_layout().filter(|_|self.navigation.pane_layout_visible()).is_some_and(|layout|layout.conversation().is_some())
     }
 
     pub(crate) fn chat_dock_visible(&self) -> bool {
-        self.layout.chat == ChatPlacement::Dock
+        matches!(self.layout.chat, ChatPlacement::Dock | ChatPlacement::Float)
     }
 
     pub(crate) fn set_chat_dock(&mut self, open: bool, cx: &mut Context<Self>) {
@@ -275,6 +323,16 @@ impl Workbench {
     pub(crate) fn content_tabs(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let current = self.navigation.current();
+        let chat = self.chat.read(cx);
+        let attention = chat.active_chat.and_then(|index| chat.chats.get(index)).and_then(|chat| {
+            if chat.permission.is_some() { Some("chat.permission") }
+            else if chat.error.is_some() { Some("chat.failed") }
+            else if chat.state == pero_chat_ui::session_state::SessionState::AuthRequired { Some("chat.signin") }
+            else if chat.busy() { Some("chat.thinking") } else { None }
+        });
+        let chat_label = if self.chat_dock_visible() { self.t("chat.close_panel").to_string() }
+            else if let Some(attention) = attention { format!("{} · {}", self.t("chat.open_panel"), self.t(attention)) }
+            else { self.t("chat.open_panel").to_string() };
         div()
             .id("workspace-tabs")
             .h(px(W::TAB.max(
@@ -427,9 +485,9 @@ impl Workbench {
                 },
             )
             .when(
-                self.navigation.page() == WorkbenchPage::Tasks
+                self.layout.chat != ChatPlacement::Slot && (self.navigation.page() == WorkbenchPage::Tasks
                     || self.navigation.page() == WorkbenchPage::Web
-                    || matches!(self.navigation.current(), Some(WorkspaceItem::App { .. })),
+                    || matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }))),
                 |el| {
                     el.child(
                         Button::new("workspace-chat-toggle")
@@ -444,11 +502,7 @@ impl Workbench {
                             } else {
                                 "icons/panel-right-open.svg"
                             }))
-                            .label(self.t(if self.chat_dock_visible() {
-                                "chat.close_panel"
-                            } else {
-                                "chat.open_panel"
-                            }))
+                            .label(chat_label)
                             .toggled(self.chat_dock_visible())
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.set_chat_dock(!this.preferences.layout.chat_open, cx)
@@ -456,6 +510,10 @@ impl Workbench {
                     )
                 },
             )
+            .when(self.chat_dock_visible() && self.navigation.pane_layout().is_none_or(|layout| layout.leaves().len() <= 1) && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. })), |el| {
+                el.child(Button::new("workspace-chat-floating").ghost().small().label(self.t(if self.floating_chat { "chat.dock" } else { "chat.float" }))
+                    .on_click(cx.listener(|this, _, _, cx| { this.floating_chat = !this.floating_chat; this.floating_chat_expanded = false; this.sync_follow(cx); cx.notify(); })))
+            })
     }
 
     pub(crate) fn chat_dock(
