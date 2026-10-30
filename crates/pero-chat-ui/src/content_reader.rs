@@ -75,6 +75,7 @@ pub struct ContentReader {
     search_error: Option<String>,
     markdown_index: Option<MarkdownSource>,
     pending_anchor: Option<Range<usize>>,
+    source_pointer_selection: Option<Range<usize>>,
     path: Vec<Range<usize>>,
     copied: bool,
     window: AnyWindowHandle,
@@ -141,6 +142,7 @@ impl ContentReader {
             search_error: None,
             markdown_index: None,
             pending_anchor: None,
+            source_pointer_selection: None,
             path: vec![],
             copied: false,
             window: window.window_handle(),
@@ -193,7 +195,7 @@ impl ContentReader {
             "selection":self.editor.as_ref().map(|e|e.read(cx).selected_range()),
             "searchError":self.search_error,"searchOptions":self.search_options,"markdownSelection":self.markdown.as_ref().and_then(|markdown|markdown.read(cx).selected_source_range(&self.preview_document,cx)),"markdownReveal":self.markdown.as_ref().and_then(|markdown|markdown.read(cx).source_reveal()),
             "previewScroll":[f32::from(preview_offset.x),f32::from(preview_offset.y)],
-            "search":self.editor.as_ref().map(|e| {let s=e.read(cx).search_session();serde_json::json!({"open":self.search_open,"query":s.query,"matches":s.matcher.len(),"current":s.matcher.current()})}),
+            "search":self.editor.as_ref().map(|e| {let s=e.read(cx).search_session();serde_json::json!({"open":self.search_open,"query":self.search_input.read(cx).value().as_ref(),"matches":s.matcher.len(),"current":s.matcher.current()})}),
             "foldable":self.editor.as_ref().map(|e|e.read(cx).display_map().is_fold_candidate(0)),
             "cursor":self.editor.as_ref().map(|e|e.read(cx).cursor_position()),
             "folds":self.editor.as_ref().map(|e|e.read(cx).display_map().folded_ranges().len()),
@@ -599,13 +601,33 @@ impl Render for ContentReader {
                 )
             })
             .child(
-                Button::new("content-source")
-                    .ghost()
-                    .small()
-                    .label(self.t("content.source"))
-                    .toggled(self.source)
-                    .on_click(
-                        cx.listener(|this, _, window, cx| this.open_source(None, window, cx)),
+                div()
+                    .capture_any_mouse_down(cx.listener(|this, event: &MouseDownEvent, _, cx| {
+                        // Kit clears window selection later in this capture phase.
+                        // Preserve this gesture's range before the button takes it.
+                        this.source_pointer_selection =
+                            if event.button == MouseButton::Left && !this.source {
+                                this.markdown.as_ref().and_then(|view| {
+                                    view.read(cx)
+                                        .selected_source_range(&this.preview_document, cx)
+                                })
+                            } else {
+                                None
+                            };
+                    }))
+                    .child(
+                        Button::new("content-source")
+                            .ghost()
+                            .small()
+                            .label(self.t("content.source"))
+                            .toggled(self.source)
+                            .on_click(cx.listener(|this, event, window, cx| {
+                                let captured = this.source_pointer_selection.take();
+                                let range = matches!(event, ClickEvent::Mouse(_))
+                                    .then_some(captured)
+                                    .flatten();
+                                this.open_source(range, window, cx);
+                            })),
                     ),
             )
             .when(self.source, |el| {
