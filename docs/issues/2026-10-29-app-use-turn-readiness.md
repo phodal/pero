@@ -228,3 +228,29 @@ extensionless imports. All 10 bundled unit tests, 34 fixture tests, full
 old selection implementation in a temporary test bundle makes the deterministic
 delayed-read case fail with the original `APP_DRAFT_CHANGED`; the new path passes.
 Real Electron acceptance for this change remains pending.
+
+## Computer Use transport fixture after merge (2026-10-30)
+
+Post-merge acceptance of #51 at `45667a1` failed the authenticated Computer Use
+status request in `tests/e2e/computer-transport.mjs`. The fake BrowserWindow
+provided only `webContents.executeJavaScript`; the fresh trusted-frame selector
+introduced by #47 also reads `webContents.mainFrame.frames`. Missing that real
+port property threw before authority admission, so the success case returned
+an MCP error. The production selection guard is correct and remains unchanged.
+
+Update the existing fake to represent a Workbench window with no child Chat
+frames. Keep both foreign-caller and changed-selection refusal checks. Add this
+loopback transport suite to the ordinary three-OS CI so future shared-adapter
+changes exercise Computer Use admission as well as App Use.
+
+The new Windows transport CI job then failed before executing the assertions:
+Node rejected `import(D:\...)` as an unsupported `d:` URL scheme. Convert both
+temporary bundle paths with `pathToFileURL` before dynamic import. Move the
+standalone loopback check directly after npm installation; it depends on npm
+packages and committed schemas, not on the native Desktop build. This keeps the
+same test on every OS and exposes loader/fixture failures before the long build.
+
+Moving the gate before build exposed another fixture precondition on fresh CI
+checkouts: `target/` did not exist for mkdtemp. Use the OS temporary directory
+instead, keeping both file URLs and the existing finally cleanup. The suite
+must run with npm dependencies alone, without relying on native build artifacts.
