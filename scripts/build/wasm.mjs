@@ -12,6 +12,7 @@ const chatOnly = process.argv.includes('--chat-only');
 for (const [pkg, artifact, folder] of [
   ...(!chatOnly ? [['pero-ui', 'pero_ui', 'wasm']] : []),
   ['pero-chat-web', 'pero_chat_web', 'chat-wasm'],
+  ['pero-content-worker', 'pero_content_worker', 'content-wasm'],
 ]) {
   await run('cargo', cargoArgs(['+nightly-2026-10-28', 'build', '--locked', ...(release ? ['--release'] : []), '-p', pkg, '--target', 'wasm32-unknown-unknown']));
   const output = `${root}/web/src/${folder}`;

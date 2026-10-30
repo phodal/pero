@@ -173,3 +173,5 @@ fonts/*.ttf
 /web/src/chat-wasm/
 
 /web/dist-chat/
+
+/web/src/content-wasm/

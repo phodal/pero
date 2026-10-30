@@ -5415,6 +5415,8 @@ dependencies = [
  "pero-theme",
  "serde",
  "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -5427,6 +5429,14 @@ dependencies = [
  "pero-contracts",
  "pero-theme",
  "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "pero-content-worker"
+version = "0.1.0"
+dependencies = [
+ "pero-contracts",
  "wasm-bindgen",
 ]
 
