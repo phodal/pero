@@ -1,7 +1,7 @@
 //! Retained document items. Navigation owns selection; each item owns its view.
 use crate::{app::Workbench, workspace::WorkspaceItem};
 use gpui_kit::{
-    component::{ActiveTheme, Sizable, button::ButtonVariants as _},
+    component::{ActiveTheme, Disableable, Sizable, button::ButtonVariants as _},
     prelude::*,
     *,
 };
@@ -24,6 +24,7 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.remember_current_location(cx);
         let item = WorkspaceItem::Document {
             origin: document.origin.clone(),
             source: document.id.clone(),
@@ -53,6 +54,7 @@ impl Workbench {
             let subscription=cx.subscribe_in(&view,window,move |this,_,action,window,cx| {
                 match action {
                     ReaderAction::Save {source,revision,text}=>this.command(serde_json::json!({"method":"documents","action":"save","request_id":format!("save:{source}"),"source":source,"revision":revision,"text":text}),cx),
+                    ReaderAction::Navigate {before,after}=>this.record_document_jump(&close_item,before.clone(),after.clone(),cx),
                     ReaderAction::Reload {path}=>this.command(serde_json::json!({"method":"documents","action":"open","request_id":"reload","path":path}),cx),
                     ReaderAction::DiscardAndClose=>this.discard_document(&close_item,window,cx),
                     ReaderAction::Link(href)=> {
@@ -68,7 +70,10 @@ impl Workbench {
                     }
                 }
             });
-            let observer = cx.observe(&view, |this, _, cx| {
+            let observed_item = item.clone();
+            let observer = cx.observe(&view, move |this, view, cx| {
+                this.navigation
+                    .observe_reading(&observed_item, view.read(cx).reading_state(cx));
                 this.queue_workspace_checkpoint(cx);
                 cx.notify();
             });

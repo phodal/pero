@@ -55,6 +55,7 @@ impl Workbench {
             item: item.clone(),
         });
         self.save_as_feedback = None;
+        self.error = None;
         self.command(serde_json::json!({"action":"choose_document_save","request_id":request,"suggested":suggested}),cx);
     }
     pub(crate) fn save_as_pending(&self, item: &WorkspaceItem) -> bool {
