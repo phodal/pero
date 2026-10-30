@@ -1,12 +1,12 @@
 // Recent source previews use real Kit list keyboard input and ordinary pane tabs.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, realpath, mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 const root = resolve(process.env.PERO_CONTENT_TEST_ROOT || resolve(import.meta.dirname, '../..'));
 const out = resolve(root, 'test-results/recent-content');
-const profile = await mkdtemp(resolve(tmpdir(), 'pero-recent-content-'));
+const profile = await realpath(await mkdtemp(resolve(tmpdir(), 'pero-recent-content-')));
 await mkdir(out, { recursive: true });
 await writeFile(resolve(profile, 'agents.json'), '[]');
 const files = ['first.txt', 'second.txt', 'third.txt'].map(name => resolve(profile, name));
