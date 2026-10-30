@@ -49,7 +49,11 @@ try {
     request_window_close();
   });
   window.peroHasUnsavedDocuments=has_unsaved_documents;
-  window.peroWorkspaceCheckpoint=async(discard=false)=>{const json=checkpoint_workspace(discard);if(json&&window.pero)await window.pero.sessionCommand(JSON.parse(json));};
+  window.peroWorkspaceCheckpoint=async(discard=false)=>{
+    const json=checkpoint_workspace(discard);
+    if(!json||!window.pero)throw new Error(t('workspace.save_failed'));
+    await window.pero.sessionCommand(JSON.parse(json));
+  };
   window.addEventListener('beforeunload',event=>{
     if(window.peroAllowUnloadOnce){window.peroAllowUnloadOnce=false;return;}
     if(window.pero||has_unsaved_documents()){event.preventDefault();event.returnValue='';}

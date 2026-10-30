@@ -271,7 +271,7 @@ impl Workbench {
                 WorkspaceItem::Document {
                     origin: ContentOrigin::App { app, panel },
                     ..
-                } => self.apps.contains_panel(app, panel),
+                } => self.apps.retains_panel(app, panel),
                 WorkspaceItem::Document { origin, .. } => origin
                     .thread_id()
                     .is_none_or(|owner| chats.iter().any(|chat| chat.id == owner)),

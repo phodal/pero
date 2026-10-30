@@ -61,7 +61,7 @@ impl Workbench {
                 self.recovery.replayed = true;
                 false
             }
-            "apps_catalog" => {
+            "apps_catalog" | "apps_error" => {
                 self.recovery.catalog = true;
                 false
             }

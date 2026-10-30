@@ -11,6 +11,8 @@ const temp=await realpath(await mkdtemp(resolve(tmpdir(),'pero-file-references-'
 const file=resolve(temp,'100k.json'),copy=resolve(temp,'saved-as.json');
 const source='[\n'+Array.from({length:100000},(_,i)=>`{"id":${9007199254740993n+BigInt(i)},"label":"中文 row ${i}","amount":1.0000000000000000001,"data":{"ok":true,"text":"${'x'.repeat(25)}"}}`).join(',\n')+'\n]';
 await writeFile(file,source);await writeFile(resolve(temp,'agents.json'),'[]');
+// A real unavailable optional App store must not block File recovery/checkpoints.
+await writeFile(resolve(temp,'apps'),'unavailable App catalog fixture');
 const settings=resolve(temp,'settings.json'),recovery=resolve(temp,'settings.workspace');
 const env={...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'desktop'),PERO_LOCALE:'en',PERO_APPS_ROOT:resolve(temp,'apps'),PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_AGENTS_FILE:resolve(temp,'agents.json')};delete env.ELECTRON_RUN_AS_NODE;
 let app,page;const modifier=process.platform==='darwin'?'Meta':'Control';
@@ -24,7 +26,7 @@ async function launch(){
   await page.evaluate(()=>{window.__fileReferenceFrames=[];const send=window.peroSessionCommand;window.peroSessionCommand=json=>{const command=JSON.parse(json);window.__fileReferenceFrames.push({method:command.method,action:command.action,bytes:new TextEncoder().encode(json).length});return send(json);};});
 }
 try {
-  await launch();await paint();await page.mouse.click(500,300);
+  await launch();await expect.poll(async()=>(await state()).appError).toBeTruthy();await paint();await page.mouse.click(500,300);
   await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},file);
   await page.keyboard.press(`${modifier}+o`);await expect.poll(async()=>(await reader())?.bytes,{timeout:30000}).toBe(Buffer.byteLength(source));
   let bounds=(await reader()).bounds;await page.mouse.click(bounds.x+100,bounds.y+16);
@@ -56,7 +58,7 @@ try {
   expect((await page.evaluate(()=>window.__fileReferenceFrames)).some(frame=>frame.action==='save_as_reference'&&frame.bytes<4096)).toBe(true);
   expect((await state()).documents.length).toBe(1);expect((await reader()).dirty).toBe(false);
   await page.screenshot({scale:'css',path:resolve(out,'reference-save-as.png')});
-  await writeFile(resolve(out,'result.json'),JSON.stringify({sourceBytes:Buffer.byteLength(source),rows:100000,checkpointMs,journalBytes,metadataBytes:(await stat(resolve(recovery,'session.json'))).size,checks:['actual 100k-row edit','bounded incremental draft IPC','reference-only checkpoint metadata','actual Host crash/restart draft recovery','save by reference writes exact disk contents','Save As by reference migrates the File view']},null,2));
+  await writeFile(resolve(out,'result.json'),JSON.stringify({sourceBytes:Buffer.byteLength(source),rows:100000,checkpointMs,journalBytes,metadataBytes:(await stat(resolve(recovery,'session.json'))).size,checks:['optional App catalog failure does not block acknowledged File checkpoints','actual 100k-row edit','bounded incremental draft IPC','reference-only checkpoint metadata','actual Host crash/restart draft recovery','save by reference writes exact disk contents','Save As by reference migrates the File view']},null,2));
   console.log('Verified actual 100k-row draft checkpoint/restart/Save/Save As with small reference frames.');
 } catch(error){if(page&&!page.isClosed()){await page.screenshot({scale:'css',path:resolve(out,'failure.png')});await writeFile(resolve(out,'failure.json'),await page.evaluate(()=>window.peroDiagnostics.snapshot()));}throw error;}
 finally {if(app){await app.evaluate(({BrowserWindow})=>{for(const window of BrowserWindow.getAllWindows())window.destroy();}).catch(()=>{});await app.close();}}

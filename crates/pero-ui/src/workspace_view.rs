@@ -81,7 +81,7 @@ impl Workbench {
                 }
                 // The current task page is only a partial observation of source availability.
                 WorkspaceItem::Task(_) => true,
-                WorkspaceItem::App { name, panel } => self.apps.contains_panel(name, panel),
+                WorkspaceItem::App { name, panel } => self.apps.retains_panel(name, panel),
             })
             .cloned()
             .collect::<Vec<_>>();

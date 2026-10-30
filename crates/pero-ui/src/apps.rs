@@ -42,6 +42,11 @@ impl AppCatalog {
         self.removing = None;
     }
 
+    /// A failed observation cannot establish that a previously saved source was removed.
+    pub fn retains_panel(&self, name: &str, panel: &str) -> bool {
+        self.error.is_some() || self.contains_panel(name, panel)
+    }
+
     pub fn contains_panel(&self, name: &str, panel: &str) -> bool {
         self.entries.iter().any(|app| {
             app.name == name && app.enabled && app.panels.iter().any(|entry| entry.id == panel)
@@ -267,10 +272,11 @@ mod tests {
 
     #[test]
     fn installed_panel_availability_follows_catalog() {
-        for (enabled, panel_exists, expected) in [
-            (true, true, true),
-            (false, true, false),
-            (true, false, false),
+        for (enabled, panel_exists, failed, expected, retained) in [
+            (true, true, false, true, true),
+            (false, true, false, false, false),
+            (true, false, false, false, false),
+            (true, false, true, false, true),
         ] {
             let app = |enabled, exists| InstalledApp {
                 name: "cell".into(),
@@ -292,9 +298,12 @@ mod tests {
             workspace.replace_catalog(vec![app(true, true)]);
             assert!(workspace.contains_panel("cell", "main"));
             workspace.replace_catalog(vec![app(enabled, panel_exists)]);
+            workspace.error = failed.then(|| "Catalog unavailable".into());
             assert_eq!(workspace.contains_panel("cell", "main"), expected);
+            assert_eq!(workspace.retains_panel("cell", "main"), retained);
             workspace.replace_catalog(vec![]);
             assert!(!workspace.contains_panel("cell", "main"));
+            assert!(!workspace.retains_panel("cell", "main"));
         }
     }
 }
