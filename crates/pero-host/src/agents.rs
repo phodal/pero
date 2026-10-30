@@ -125,6 +125,16 @@ impl Manager {
             settings_path,
         }
     }
+    pub fn configure_harness(&mut self, settings: &pero_contracts::harness_settings::HarnessSettings, api_key: String) {
+        if let Some(agent) = self.agents.iter_mut().find(|agent| agent.id == "pero") {
+            for (flag, value) in [("--endpoint", &settings.endpoint), ("--model", &settings.model)] {
+                if let Some(index) = agent.args.iter().position(|arg| arg == flag) {
+                    if let Some(argument) = agent.args.get_mut(index + 1) { *argument = value.clone(); }
+                }
+            }
+            agent.env.insert("DEEPSEEK_API_KEY".into(), api_key);
+        }
+    }
     fn visible_history(&self) -> Vec<HostEvent> {
         HostEvent::without_deleted_threads(&self.history.lock().unwrap())
     }

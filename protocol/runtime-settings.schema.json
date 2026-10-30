@@ -4,34 +4,117 @@
   "oneOf": [
     {
       "type": "object",
-      "required": ["method", "locale"],
+      "required": [
+        "method",
+        "locale"
+      ],
       "additionalProperties": false,
       "properties": {
-        "method": { "const": "settings.locale" },
-        "locale": { "enum": ["en", "zh-CN"] }
+        "method": {
+          "const": "settings.locale"
+        },
+        "locale": {
+          "enum": [
+            "en",
+            "zh-CN"
+          ]
+        }
       }
     },
     {
       "type": "object",
-      "required": ["method", "id", "connection"],
+      "required": [
+        "method",
+        "id",
+        "connection"
+      ],
       "additionalProperties": false,
       "properties": {
-        "method": { "const": "settings.remote" },
-        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "method": {
+          "const": "settings.remote"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
         "connection": {
           "oneOf": [
-            { "type": "null" },
+            {
+              "type": "null"
+            },
             {
               "type": "object",
-              "required": ["url", "mode", "encrypted_token"],
+              "required": [
+                "url",
+                "mode",
+                "encrypted_token"
+              ],
               "additionalProperties": false,
               "properties": {
-                "url": { "type": "string", "minLength": 1, "maxLength": 2048 },
-                "mode": { "enum": ["client", "operator"] },
-                "encrypted_token": { "type": "string", "minLength": 1, "maxLength": 4096 }
+                "url": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2048
+                },
+                "mode": {
+                  "enum": [
+                    "client",
+                    "operator"
+                  ]
+                },
+                "encrypted_token": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                }
               }
             }
           ]
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "method",
+        "id",
+        "settings",
+        "api_key"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "const": "settings.harness"
+        },
+        "id": {
+          "type": "string"
+        },
+        "settings": {
+          "type": "object",
+          "required": [
+            "endpoint",
+            "model",
+            "encrypted_api_key"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "endpoint": {
+              "type": "string"
+            },
+            "model": {
+              "type": "string"
+            },
+            "encrypted_api_key": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "api_key": {
+          "type": "string"
         }
       }
     }
