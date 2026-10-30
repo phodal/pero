@@ -91,9 +91,9 @@ simulated result alone.
 | Capability | Current implementation and verified boundary | Remaining gate |
 | --- | --- | --- |
 | Source admission | Typed metadata and conversation/file/App revision ownership | Real MCP resource authority and metadata |
-| Markdown | Heading anchors, Unicode/duplicate slugs and rendered/source range mapping implemented | Actual navigation regression receipt; arbitrary HTML/plugin anchors excluded |
+| Markdown | Actual Desktop anchors, exact rendered/source ranges, regex and whole-word navigation pass | Arbitrary HTML/plugin anchors and assistive-technology receipts |
 | Files | Host open/edit/save, conflict preservation, persisted draft and unload checkpoints | Save As and physical native dialogs |
-| Workspace lifecycle | Host snapshots, reading state, tab back/forward and two distinct document panes | Actual crash/normal quit regression; source-position history, general pane tree and lazy inactive-source restore |
+| Workspace lifecycle | Host snapshots, reading state, tab back/forward and two distinct document panes | Source-position history, general pane tree and lazy inactive-source restore |
 | Web | Electron and macOS Wry engines; stable ID and last URL restoration | Inline HTML, restored engine history/form/scroll and other OS receipts |
 | MCP Apps | Origin namespace only; a Pero compatibility extension | Real server/resource connection, metadata, AppBridge and acceptance |
 | App SDK | Actual Virtual Cell source handoff plus themed ContentIcon | Standalone Web reader still uses textarea |
@@ -106,9 +106,9 @@ simulated result alone.
 
 ## Next implementation boundary
 
-Complete the actual regression receipts before claiming the implemented rows.
-Then close Save As, source-position navigation history and background table
-transformations. Two different documents side by side are not Zed's arbitrary
+The actual reader-navigation and crash/normal-quit recovery regressions now
+pass. Continue with Save As, source-position navigation history and background
+table transformations. Two different documents side by side are not Zed's arbitrary
 pane tree or same-buffer clones. Workspace restore currently reads all saved
 sources at startup; editors are lazy, source I/O is not yet lazy.
 

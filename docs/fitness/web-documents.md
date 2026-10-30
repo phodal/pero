@@ -82,10 +82,19 @@ file edit/save/conflict, real Virtual Cell computation/source handoff, retained
 code document, 1 MiB source/JSON reading and Web IME suites. No Agent/model,
 remote deployment or installed-package acceptance is implied.
 
+## 2026-10-30 restart receipt
+
+The final background Electron Web suite also closes Desktop normally after
+navigating `/a` to `/b`, restarts the same profile while the loopback server
+remains available, and observes a fresh engine at `/b` under the original `/a`
+source identity. Its form is empty, as expected for a new engine. Browser history,
+form values and scroll are not workspace checkpoints. This actual Desktop receipt
+does not certify the native Wry restore path or installed OS packages.
+
 ## Open boundaries
 
 This does not implement MCP Apps, a standalone HTML source, browser popups,
-download UI, permission prompts, workspace restart restoration or App authority
+download UI, permission prompts, restored browser-session internals or App authority
 inside a generic page. Native Wry Finished reports rendering completion rather
 than an HTTP 2xx result; cross-platform HTTP failure callbacks are unavailable.
 The native HTTP(S) navigation policy also applies to subframes, so pages that

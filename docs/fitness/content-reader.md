@@ -112,11 +112,27 @@ exact copying. Color, search, read-only protection and table operations remain.
 Across three functional release-Wasm runs of the same 1,086,892-byte, 8,000-row
 source, thirty retained switches had median about 30 ms, p95 30.6–31.3 ms and
 maximum 31.5–33 ms. None of those timed samples contains a long task. The full
-interaction trace still includes a roughly 61 ms Select All task; the previous
+interaction trace still includes a 57–61 ms Select All task; the previous
 trace had 21 long tasks with a 776 ms maximum. Keep the performance incident
 open. Single preview/source opening samples are not a cold-start distribution.
 Receipts and actual light/dark/narrow/fold screenshots remain under
 `test-results/content-reader/`.
+
+## Actual Markdown/search navigation
+
+`tests/e2e/reader-navigation.mjs` passes on the real hidden Desktop: a heading
+link scrolls to its target, opening Source selects that heading, and an actual
+rendered drag hands its exact 3..11 byte range to Source and back. Canceling a
+Source gesture then clearing selection cannot resurrect the old range. Kit
+clears global selection before a button click, so the source button consumes
+the observed selection from that pointer gesture. The observer always records
+None too; it is not a last-nonempty selection cache.
+
+Regex and Unicode whole-word matching use the typed source engine and Kit's
+match painting/navigation. One Enter advances once and Shift+Enter reverses;
+the reader consumes its focused search action so browser beforeinput cannot
+cause a second navigation. Invalid regex is recoverable. Dark and narrow search/
+error screenshots are in `test-results/reader-navigation/`; page errors are empty.
 
 ## Current boundaries
 
@@ -134,3 +150,16 @@ Receipts and actual light/dark/narrow/fold screenshots remain under
   Pointer reads scan the stored source; external ACP Agents own their model context.
 - MCP Apps transport/resource/official bridge and Data Agent dataset lifecycle
   remain unimplemented; generic Web embedding does not establish compatibility.
+
+## Final combined verification
+
+The final source snapshot matches 47 recorded source fingerprints, including the
+Reader, StreamText and source table. Sequential hidden Desktop suites pass for
+content/structural folds, Markdown navigation, crash recovery, Web IME, actual file
+save/conflict, Web restart, retained workspace documents and real Virtual Cell
+computation/source handoff. The App bundle was rebuilt from the merged SDK source;
+its complete result is about 20 kB and retains App provenance. No actual model,
+scientific conclusion or installed package is accepted by those local workflows.
+Native shipping-feature compilation, 106 core tests, TypeScript/codegen/locales/
+icons checks and Virtual Cell typechecking pass separately. The tested narrow
+Workbench is 1000 px, its configured minimum; 800 px is not claimed.

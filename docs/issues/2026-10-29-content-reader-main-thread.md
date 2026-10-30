@@ -91,7 +91,7 @@ views. Actual Desktop asserts both Worker completions and no Worker errors,
 structural gutter fold/unfold, precise clipboard and the existing table/search
 operations. Three release-Wasm functional runs of the same 1,086,892-byte/8,000-row
 source recorded thirty-switch p95 30.6–31.3 ms, maximum 31.5–33 ms and no long task
-inside timed open/switch samples. The full trace still has a roughly 61 ms
+inside timed open/switch samples. The full trace still has a 57–61 ms
 Select All task. Screenshots/receipts remain in `test-results/content-reader/`.
 
 The incident stays open: this improves the main-thread path without disabling
