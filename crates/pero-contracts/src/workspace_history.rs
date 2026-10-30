@@ -40,9 +40,12 @@ impl HistoryEntry {
             }
     }
     pub fn valid(&self) -> bool {
-        self.reading.is_none()
+        Self::valid_location(&self.route, self.reading.as_ref())
+    }
+    pub fn valid_location(route: &WorkspaceRoute, reading: Option<&ReaderState>) -> bool {
+        reading.is_none()
             || matches!(
-                self.route,
+                route,
                 WorkspaceRoute::Content(WorkspaceItem::Document { .. })
             )
     }
@@ -101,6 +104,13 @@ impl WorkspaceHistory {
         true
     }
     pub fn can_step(&self, route: &WorkspaceRoute, forward: bool) -> bool {
+        self.can_step_optional(Some(route), forward)
+    }
+    pub fn can_step_optional(&self, route: Option<&WorkspaceRoute>, forward: bool) -> bool {
+        let entries = if forward { &self.forward } else { &self.back };
+        let Some(route) = route else {
+            return !entries.is_empty();
+        };
         let current = HistoryEntry {
             route: route.clone(),
             reading: self.reading.clone(),
@@ -109,6 +119,23 @@ impl WorkspaceHistory {
         entries.iter().any(|entry| !entry.same_location(&current))
     }
     pub fn step(&mut self, route: &WorkspaceRoute, forward: bool) -> Option<HistoryEntry> {
+        self.step_optional(Some(route), forward)
+    }
+    pub fn step_optional(
+        &mut self,
+        route: Option<&WorkspaceRoute>,
+        forward: bool,
+    ) -> Option<HistoryEntry> {
+        let Some(route) = route else {
+            let entries = if forward {
+                &mut self.forward
+            } else {
+                &mut self.back
+            };
+            let entry = entries.pop()?;
+            self.reading = entry.reading.clone();
+            return Some(entry);
+        };
         let current = HistoryEntry {
             route: route.clone(),
             reading: self.reading.clone(),
