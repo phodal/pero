@@ -28,6 +28,7 @@ pub(crate) struct McpEditor {
     request: Option<String>,
     serial: u64,
     saving: bool,
+    needs_reload: bool,
     error: Option<String>,
     saved: bool,
     editing: bool,
@@ -48,6 +49,7 @@ impl McpEditor {
             request: None,
             serial: 0,
             saving: false,
+            needs_reload: false,
             error: None,
             saved: false,
             editing: false,
@@ -75,7 +77,7 @@ impl McpEditor {
     }
     #[cfg(target_family = "wasm")]
     pub fn snapshot(&self, cx: &App) -> serde_json::Value {
-        json!({"controls":self.controls.borrow().iter().map(|(key,b)| (key.clone(),json!({"x":f32::from(b.origin.x),"y":f32::from(b.origin.y),"width":f32::from(b.size.width),"height":f32::from(b.size.height)}))).collect::<std::collections::BTreeMap<_,_>>(),"agent":self.agent,"config":self.config,"pending":self.request.is_some(),"saving":self.saving,
+        json!({"controls":self.controls.borrow().iter().map(|(key,b)| (key.clone(),json!({"x":f32::from(b.origin.x),"y":f32::from(b.origin.y),"width":f32::from(b.size.width),"height":f32::from(b.size.height)}))).collect::<std::collections::BTreeMap<_,_>>(),"agent":self.agent,"config":self.config,"pending":self.request.is_some(),"request_id":self.request,"saving":self.saving,"needs_reload":self.needs_reload,
             "error":self.error,"saved":self.saved,"editing":self.editing,"selected":self.selected,"http":self.http,"confirm":self.confirm,
             "importing":self.importing,"inputs":self.inputs.iter().map(|input| {let input=input.read(cx);let b=input.input_bounds();json!({"value":input.value().as_ref(),"x":f32::from(b.origin.x),"y":f32::from(b.origin.y),"width":f32::from(b.size.width),"height":f32::from(b.size.height)})}).chain(std::iter::once({let input=self.import.read(cx);let b=input.input_bounds();json!({"value":input.value().as_ref(),"x":f32::from(b.origin.x),"y":f32::from(b.origin.y),"width":f32::from(b.size.width),"height":f32::from(b.size.height)})})).collect::<Vec<_>>()})
     }
@@ -104,13 +106,42 @@ impl Workbench {
                 });
             }
         }
+        if matches!(event.kind.as_str(), "error" | "disconnected") {
+            if let Some(panel) = &self.settings_panel {
+                panel.update(cx, |panel, cx| {
+                    let state = &mut panel.mcp;
+                    let interrupted = if event.kind == "disconnected" {
+                        state.agent.is_some()
+                    } else {
+                        state.request.is_some() && state.request == event.request_id
+                    };
+                    if interrupted {
+                        // A transport error does not establish whether a write committed.
+                        // Keep the draft, but require an explicit reload before another write.
+                        state.error = Some(if state.saving
+                            || state.error.as_deref() == Some("mcp.error.interrupted_save")
+                        {
+                            "mcp.error.interrupted_save"
+                        } else {
+                            "mcp.error.interrupted"
+                        }.into());
+                        state.request = None;
+                        state.saving = false;
+                        state.saved = false;
+                        state.needs_reload = true;
+                        cx.notify();
+                    }
+                });
+            }
+        }
         if !matches!(event.kind.as_str(), "mcp_settings" | "mcp_settings_error") {
             return false;
         }
         if let Some(panel) = &self.settings_panel {
             panel.update(cx, |panel, cx| {
                 let state = &mut panel.mcp;
-                if state.agent.as_deref() != event.data["agent_id"].as_str()
+                if state.request.is_none()
+                    || state.agent.as_deref() != event.data["agent_id"].as_str()
                     || state.request.as_deref() != event.request_id.as_deref()
                 {
                     return;
@@ -129,6 +160,7 @@ impl Workbench {
                                 servers: config.servers,
                             });
                             state.error = None;
+                            state.needs_reload = false;
                             state.saved = state.saving;
                             if state.saving {
                                 state.editing = false;
@@ -171,6 +203,9 @@ impl SettingsPanel {
         cx.notify();
     }
     fn mcp_save(&mut self, servers: Vec<McpServerConfig>, cx: &mut Context<Self>) {
+        if self.mcp.needs_reload {
+            return;
+        }
         let Some(config) = &self.mcp.config else {
             return;
         };
@@ -304,7 +339,7 @@ impl SettingsPanel {
                                 .small()
                                 .outline()
                                 .label(self.t("mcp.add"))
-                                .disabled(busy)
+                                .disabled(busy || self.mcp.needs_reload)
                                 .on_click(cx.listener(|this, _, window, cx| {
                                     this.mcp_edit(None, window, cx)
                                 })),
@@ -317,7 +352,7 @@ impl SettingsPanel {
                                 .small()
                                 .ghost()
                                 .label(self.t("mcp.import"))
-                                .disabled(busy)
+                                .disabled(busy || self.mcp.needs_reload)
                                 .on_click(cx.listener(|this, _, window, cx| {
                                     this.mcp.importing = true;
                                     this.mcp.confirm = None;
@@ -443,7 +478,7 @@ impl SettingsPanel {
                         .small()
                         .ghost()
                         .label(self.t("mcp.edit"))
-                        .disabled(busy || self.mcp.editing || self.mcp.importing)
+                        .disabled(busy || self.mcp.needs_reload || self.mcp.editing || self.mcp.importing)
                         .on_click(cx.listener(move |this, _, window, cx| {
                             this.mcp_edit(Some(index), window, cx)
                         })),
@@ -460,7 +495,7 @@ impl SettingsPanel {
                         } else {
                             "mcp.enable"
                         }))
-                        .disabled(busy || self.mcp.editing || self.mcp.importing)
+                        .disabled(busy || self.mcp.needs_reload || self.mcp.editing || self.mcp.importing)
                         .on_click(cx.listener(move |this, _, _, cx| {
                             let mut servers = this.mcp.config.as_ref().unwrap().servers.clone();
                             if servers[index].enabled {
@@ -480,7 +515,7 @@ impl SettingsPanel {
                         .small()
                         .ghost()
                         .label(self.t("mcp.remove"))
-                        .disabled(busy || self.mcp.editing || self.mcp.importing)
+                        .disabled(busy || self.mcp.needs_reload || self.mcp.editing || self.mcp.importing)
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.mcp.confirm = Some((index, false));
                             cx.notify();
@@ -517,7 +552,7 @@ impl SettingsPanel {
                                 } else {
                                     "mcp.remove"
                                 }))
-                                .disabled(busy)
+                                .disabled(busy || self.mcp.needs_reload)
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     let mut servers =
                                         this.mcp.config.as_ref().unwrap().servers.clone();
@@ -567,7 +602,7 @@ impl SettingsPanel {
                         .small()
                         .primary()
                         .label(self.t("mcp.import_save"))
-                        .disabled(busy)
+                        .disabled(busy || self.mcp.needs_reload)
                         .on_click(cx.listener(|this, _, _, cx| {
                             match serde_json::from_str::<Vec<McpServerConfig>>(
                                 this.mcp.import.read(cx).value().as_ref(),
@@ -692,7 +727,7 @@ impl SettingsPanel {
                                 .small()
                                 .primary()
                                 .label(self.t("mcp.save_disabled"))
-                                .disabled(busy)
+                                .disabled(busy || self.mcp.needs_reload)
                                 .on_click(cx.listener(|this, _, _, cx| this.mcp_submit(cx))),
                         ),
                     )
@@ -706,7 +741,9 @@ impl SettingsPanel {
                                 .disabled(busy)
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.mcp.editing = false;
-                                    this.mcp.error = None;
+                                    if !this.mcp.needs_reload {
+                                        this.mcp.error = None;
+                                    }
                                     cx.notify();
                                 })),
                         ),

@@ -33,6 +33,8 @@
   "mcp.error.args": "参数必须为 JSON 字符串数组，例如 [\"--port\", \"8080\"]。",
   "mcp.error.invalid": "请检查名称、命令绝对路径或 HTTP 地址，然后重新保存。",
   "mcp.error.conflict": "配置已在其他位置更改。请先取消本次更改，再重新加载并检查最新配置。",
+  "mcp.error.interrupted": "连接中断。请取消当前更改，重新加载后再编辑。",
+  "mcp.error.interrupted_save": "无法确认保存结果。请取消当前更改，重新加载并检查已保存的配置后再试。",
   "mcp.error.unavailable": "无法加载此 Agent 的连接器。请重新加载以重试。",
   "mcp.error.read_write": "无法读取或保存配置。草稿已保留，请重试。",
   "content.open_workspace": "在工作区打开",

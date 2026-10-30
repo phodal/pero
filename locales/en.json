@@ -33,6 +33,8 @@
   "mcp.error.args": "Arguments must be a JSON array of strings, for example [\"--port\", \"8080\"].",
   "mcp.error.invalid": "Check the name, absolute command path or HTTP URL, then save again.",
   "mcp.error.conflict": "Configuration changed elsewhere. Cancel this change, then reload and review the latest values.",
+  "mcp.error.interrupted": "Connection interrupted. Cancel any open change, then reload before editing.",
+  "mcp.error.interrupted_save": "The save result could not be confirmed. Cancel this change, then reload and review the saved configuration before trying again.",
   "mcp.error.unavailable": "Could not load this Agent’s connectors. Reload to retry.",
   "mcp.error.read_write": "Could not read or save configuration. Your draft is kept; try again.",
   "content.open_workspace": "Open in workspace",
