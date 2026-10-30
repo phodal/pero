@@ -9,14 +9,14 @@ use std::{
     collections::{HashMap, HashSet},
     fmt,
     ops::Range,
-    sync::Arc,
+    sync::{Arc, Mutex, OnceLock},
 };
 
 /// Bound the first synchronous preview on the Wasm UI thread. The complete
 /// source remains available in the editor; no bytes are silently removed.
 pub const PREVIEW_BYTES: usize = 2 * 1024 * 1024;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "language", rename_all = "snake_case")]
 pub enum ContentFormat {
     Json,
@@ -26,7 +26,7 @@ pub enum ContentFormat {
     Markdown,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DocumentSource {
     pub id: String,
@@ -34,7 +34,7 @@ pub struct DocumentSource {
     pub origin: ContentOrigin,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DocumentHeader {
     pub source: DocumentSource,
@@ -55,7 +55,18 @@ pub struct ContentDocument {
     pub format: ContentFormat,
     pub bytes: usize,
     #[serde(skip)]
-    source: Arc<str>,
+    source: Arc<SourceSnapshot>,
+}
+#[derive(Debug)]
+struct SourceSnapshot {
+    text: String,
+    projections: Mutex<HashMap<ProjectionKey, Result<Arc<StructuredPreview>, String>>>,
+    syntax: OnceLock<Arc<crate::content_syntax::ContentSyntax>>,
+}
+#[derive(Debug, PartialEq, Eq, Hash)]
+enum ProjectionKey {
+    Document(ContentFormat, u64),
+    Node(usize, usize, u64),
 }
 impl std::ops::Deref for ContentDocument {
     type Target = DocumentSource;
@@ -128,7 +139,11 @@ impl ContentDocument {
             reference,
             revision,
             bytes: source.len(),
-            source: source.into(),
+            source: Arc::new(SourceSnapshot {
+                text: source,
+                projections: Mutex::default(),
+                syntax: OnceLock::new(),
+            }),
             format,
         }
     }
@@ -143,8 +158,11 @@ impl ContentDocument {
             .strip_prefix("```")
             .and_then(|fenced| fenced.split_once('\n'))
             .and_then(|(language, body)| body.strip_suffix("```").map(|body| (language, body)))
-            .filter(|(_,body)| !body.lines().any(|line|line.trim_start().starts_with("```")))
-        {
+            .filter(|(_, body)| {
+                !body
+                    .lines()
+                    .any(|line| line.trim_start().starts_with("```"))
+            }) {
             let format = match language.trim().to_ascii_lowercase().as_str() {
                 "json" => ContentFormat::Json,
                 "jsonl" | "ndjson" => ContentFormat::JsonLines,
@@ -171,15 +189,26 @@ impl ContentDocument {
     }
 
     pub fn source(&self) -> &str {
-        &self.source
+        &self.source.text
     }
 
     pub fn shares_source(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.source, &other.source)
     }
 
+    pub fn cached_syntax(&self) -> Option<Arc<crate::content_syntax::ContentSyntax>> {
+        self.source.syntax.get().cloned()
+    }
+
+    pub fn share_syntax(
+        &self,
+        syntax: crate::content_syntax::ContentSyntax,
+    ) -> Arc<crate::content_syntax::ContentSyntax> {
+        self.source.syntax.get_or_init(|| Arc::new(syntax)).clone()
+    }
+
     pub fn text(&self, range: &Range<usize>) -> &str {
-        &self.source[range.clone()]
+        &self.source.text[range.clone()]
     }
 
     pub fn language(&self) -> &str {
@@ -191,6 +220,32 @@ impl ContentDocument {
         }
     }
 
+    /// Views of this immutable snapshot share parsing and source indexes.
+    pub fn shared_preview(&self) -> Result<Arc<StructuredPreview>, String> {
+        let key = ProjectionKey::Document(self.format.clone(), self.revision);
+        self.source
+            .projections
+            .lock()
+            .expect("source projection cache")
+            .entry(key)
+            .or_insert_with(|| self.preview().map(Arc::new))
+            .clone()
+    }
+
+    pub fn shared_project(&self, range: Range<usize>) -> Result<Arc<StructuredPreview>, String> {
+        if self.format == ContentFormat::Json && range == (0..self.bytes) {
+            return self.shared_preview();
+        }
+        let key = ProjectionKey::Node(range.start, range.end, self.revision);
+        self.source
+            .projections
+            .lock()
+            .expect("source projection cache")
+            .entry(key)
+            .or_insert_with(|| self.project(range).map(Arc::new))
+            .clone()
+    }
+
     pub fn preview(&self) -> Result<StructuredPreview, String> {
         if self.bytes > PREVIEW_BYTES {
             return Err(format!(
@@ -199,13 +254,13 @@ impl ContentDocument {
                 self.bytes
             ));
         }
-        let range = 0..self.source.len();
+        let range = 0..self.source.text.len();
         match self.format {
             ContentFormat::Json => self.project(range),
             ContentFormat::JsonLines => {
                 let mut records = Vec::new();
                 let mut offset = 0;
-                for (line, text) in self.source.split_inclusive('\n').enumerate() {
+                for (line, text) in self.source.text.split_inclusive('\n').enumerate() {
                     if !text.trim().is_empty() {
                         let object: Object = serde_json::from_str(text)
                             .map_err(|e| format!("Line {}: {e}", line + 1))?;
@@ -301,7 +356,7 @@ impl ContentDocument {
     }
 
     fn span(&self, value: &RawValue) -> Range<usize> {
-        let start = value.get().as_ptr() as usize - self.source.as_ptr() as usize;
+        let start = value.get().as_ptr() as usize - self.source.text.as_ptr() as usize;
         start..start + value.get().len()
     }
 
@@ -356,10 +411,53 @@ mod tests {
         }
     }
     #[test]
+    fn shared_projection_lifetime_follows_source_and_revision() {
+        let document = ContentDocument::new(
+            reference("cached"),
+            1,
+            "[{\"n\":9007199254740993}]".into(),
+            ContentFormat::Json,
+        );
+        let preview = document.shared_preview().unwrap();
+        let retained = Arc::downgrade(&preview);
+        let other_view = document.clone();
+        assert!(Arc::ptr_eq(
+            &preview,
+            &other_view.shared_project(0..document.bytes).unwrap()
+        ));
+        drop(preview);
+        assert!(
+            retained.upgrade().is_some(),
+            "closing one view does not discard the source index"
+        );
+        let mut next_revision = document.clone();
+        next_revision.revision = 2;
+        assert_eq!(
+            next_revision.shared_preview().unwrap().rows[0]
+                .source
+                .revision,
+            2
+        );
+        assert_eq!(
+            other_view.shared_preview().unwrap().rows[0].source.revision,
+            1
+        );
+        next_revision.format = ContentFormat::JsonLines;
+        assert!(
+            next_revision.shared_preview().is_err(),
+            "a changed projection format is not an old cached value"
+        );
+    }
+
+    #[test]
     fn tool_text_has_an_explicit_format_through_streaming_transitions() {
         for (text, expected, source) in [
             ("brief text", Some(ContentFormat::Markdown), "brief text"),
-            ("```rust\na\n```\ntext\n```python\nb\n```",Some(ContentFormat::Markdown),"```rust\na\n```\ntext\n```python\nb\n```"),
+            (
+                "```rust\na\n```\ntext\n```python\nb\n```",
+                Some(ContentFormat::Markdown),
+                "```rust\na\n```\ntext\n```python\nb\n```",
+            ),
             (
                 "[guide](guide.md)",
                 Some(ContentFormat::Markdown),

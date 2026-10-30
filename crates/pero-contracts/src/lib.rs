@@ -291,3 +291,5 @@ pub mod content_search;
 pub mod markdown_source;
 
 pub mod content_icon;
+
+pub mod content_syntax;
