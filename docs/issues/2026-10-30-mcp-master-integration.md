@@ -158,3 +158,23 @@ that handoff. Workbench's compact floating default also invalidated the old
 now docks Chat through the existing UI and observes actual submission before
 waiting on the unchanged tool-progress guard. Native effects still require a
 fresh passing CI run; no timeout or tool-effect assertion is relaxed.
+
+## Shared design integration and generated cache
+
+Run `41042643601` tested `a6e0faf5` against newer master `23f0bc4`.
+Its new package scripts invalidated rules_js's whole-file input hash; dependency
+versions and both lockfiles were unchanged. Standard `bazel run @npm//:sync`
+ran successfully in an authorized isolated desktop checkout, generating only the
+cache entry for `package.json`. Both desktop and cloud frozen `//:checks` passed
+7/7 after transferring that generated file; the cloud integrated tree exactly
+matched the desktop tree `f6bce41`. The user's existing worktree was untouched.
+
+Native MCP18, Host12, ownership7 and toolcalls passed again. The design's 32px
+sidebar controls moved the restored history row below the project header, and
+the new 88px App-library header displaced the old card coordinate. The tests
+now target those actual controls and retain their exact route/content assertions.
+Product reached the final covered-surface case with both refusals and no runtime
+error. Its extra no-effect check incorrectly expected the early atlas input even
+though the preceding real file import intentionally selected perturbation mode;
+the check now preserves that actual imported input/view. The original full-flow
+MS4A1 effect checks remain. Fresh complete native CI is still required.

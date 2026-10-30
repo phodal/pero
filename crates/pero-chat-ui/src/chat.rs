@@ -643,9 +643,10 @@ impl ChatPanel {
                         cx.emit(crate::ChatAction::ReturnToReview);
                     })))))
             .when(!self.compact, |el| el.child(div().id("messages").flex_1().min_h_0().overflow_y_scroll().track_scroll(&self.chat_scroll).px(px(12.)).py(px(8.))
-                .when(chat.is_none_or(|c|c.messages.is_empty()),|el|el.child(div().py(px(12.)).flex().flex_col().gap(px(6.))
-                    .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading)).font_weight(FontWeight::MEDIUM).child(self.t("chat.welcome")))
-                    .child(div().text_color(p.text_muted).child(self.t(if self.connected && !self.agents.iter().any(|agent|agent.available){"chat.install_agent"}else{"chat.description"})))))
+                .when(chat.is_none_or(|c|c.messages.is_empty()),|el|el.child(pero_theme::empty_state(
+                    self.t("chat.welcome"),
+                    Some(self.t(if self.connected && !self.agents.iter().any(|agent|agent.available){"chat.install_agent"}else{"chat.description"}).into()),
+                    pero_theme::Chrome::from_app(cx))))
                 .children(chat.into_iter().flat_map(render_items).enumerate().filter_map(|(i,item)|{
                     let conversation=chat?;
                     match item {

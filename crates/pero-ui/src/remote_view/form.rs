@@ -24,7 +24,7 @@ impl Workbench {
             .py(px(6.))
             .child(
                 div()
-                    .max_w(px(720.))
+                    .max_w(px(pero_theme::READER_MAX_WIDTH))
                     .flex()
                     .flex_col()
                     .gap(px(pero_theme::WorkbenchStyle::SECTION))

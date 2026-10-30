@@ -1,6 +1,17 @@
 import { _electron } from '@playwright/test';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 export const headed = process.env.PERO_TEST_HEADED === '1';
+
+export function assertDesktopAccess() {
+  if (process.platform !== 'darwin') return;
+  const check = spawnSync('python3', [fileURLToPath(new URL('./macos-desktop-access.py', import.meta.url))], { encoding: 'utf8' });
+  if (check.error || check.status !== 0) {
+    const detail = check.error?.message || check.stderr.trim() || `check exited with status ${check.status}`;
+    throw new Error(`Cannot start Electron: macOS desktop access check failed (${detail}). Run this suite in a desktop session with access to macOS window and application services; the hidden test window still requires them. Python 3 is required for this check.`);
+  }
+}
 
 // Renderer focus is enough for CDP keyboard/IME events; it must not activate macOS.
 export async function focusPage(page) {
@@ -16,6 +27,7 @@ export const electron = {
     if (requiresNativeWindow && !headed) {
       throw new Error('This suite verifies native window visibility. Run with PERO_TEST_HEADED=1 in an isolated desktop (Linux: xvfb-run -a), so it does not interrupt your desktop.');
     }
+    assertDesktopAccess();
     const env = { ...(launchOptions.env ?? process.env), PERO_TEST_BACKGROUND: headed ? '0' : '1' };
     delete env.ELECTRON_RUN_AS_NODE;
     const args = [...(launchOptions.args ?? [])];

@@ -29,8 +29,8 @@ try{
  await expect.poll(async()=>(await state()).appsLoading).toBe(false);
  const catalog=await state();
  const row=catalog.apps.findIndex(a=>a.name==='virtual-cell');
- // Match the compact catalog geometry used by workspace.mjs.
- await page.mouse.click(1305,76+(catalog.contentTabs.length?30:0)+58*row);
+ // The 88px library header precedes the unchanged 58px App rows.
+ await page.mouse.click(1305,130+(catalog.contentTabs.length?30:0)+58*row);
  await expect.poll(async()=>(await state()).activeContent).toEqual({kind:'app',value:{name:'virtual-cell',panel:'main'}});
  const frame=page.frameLocator('iframe[title="virtual-cell"]');
  await expect(frame.getByLabel('Find gene',{exact:true})).toBeVisible({timeout:20000});

@@ -17,8 +17,16 @@ pub(super) struct Ui<'a> {
     pub palette: &'a Palette,
     pub locale: &'a str,
     pub typography: pero_theme::ResolvedTypography,
+    pub dark: bool,
 }
-impl Ui<'_> {
+impl<'a> Ui<'a> {
+    pub fn chrome(self) -> pero_theme::Chrome<'a> {
+        pero_theme::Chrome {
+            palette: self.palette,
+            dark: self.dark,
+            ui: self.typography.ui,
+        }
+    }
     pub fn t(self, key: &str) -> &'static str {
         pero_contracts::i18n::text(self.locale, key)
     }

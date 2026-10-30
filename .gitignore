@@ -1,4 +1,5 @@
 # Dependencies
+spec/pero-design/tsp-output/
 node_modules/
 /bazel-*
 /.pnp

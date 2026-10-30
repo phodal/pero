@@ -221,26 +221,32 @@ mod surface {
                     })
                     .into_any_element();
             }
-            div().id("apps-library").flex_1().min_w_0().h_full().overflow_y_scroll().p(px(pero_theme::WorkbenchStyle::PAGE))
-                .child(div().flex().items_center().gap(px(10.)).mb(px(pero_theme::WorkbenchStyle::SECTION))
-                    .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading)).font_weight(FontWeight::SEMIBOLD).child(self.t("nav.apps")))
-                    .child(div().flex_1())
-                    .child(Button::new("apps-refresh").outline().small().label(self.t("apps.refresh")).disabled(busy || !cfg!(target_family = "wasm"))
-                        .on_click(cx.listener(|this, _, _, cx| this.refresh_apps(cx))))
-                    .child(Button::new("apps-install").primary().small().label(self.t("apps.install"))
-                        .disabled(busy || !cfg!(target_family = "wasm"))
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.apps.error = None;
-                            this.command(json!({"action":"apps_install"}), cx);
-                        }))))
+            let chrome = pero_theme::Chrome::from_app(cx);
+            div().id("apps-library").flex_1().min_w_0().h_full().overflow_y_scroll().bg(chrome.list()).p(px(pero_theme::WorkbenchStyle::PAGE))
+                .child(pero_theme::library_header(
+                    "apps-library-header",
+                    self.t("nav.apps"),
+                    None,
+                    Some(div().flex().items_center().gap(px(pero_theme::ICON_GAP))
+                        .child(pero_theme::action_button("apps-refresh", self.t("apps.refresh"), pero_theme::ActionKind::Ghost, chrome)
+                            .disabled(busy || !cfg!(target_family = "wasm"))
+                            .on_click(cx.listener(|this, _, _, cx| this.refresh_apps(cx))))
+                        .child(pero_theme::action_button("apps-install", self.t("apps.install"), pero_theme::ActionKind::Primary, chrome)
+                            .disabled(busy || !cfg!(target_family = "wasm"))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.apps.error = None;
+                                this.command(json!({"action":"apps_install"}), cx);
+                            })))
+                        .into_any_element()),
+                    chrome,
+                ))
                 .when(!cfg!(target_family = "wasm"), |el| el.child(div().mb(px(12.)).text_color(p.text_muted)
                     .child(self.t("apps.native_unavailable"))))
                 .when_some(self.apps.error.as_ref(), |el, error| el.child(div().mb(px(12.)).p(px(10.))
                     .bg(p.error_bg).text_color(p.error).child(error.clone())))
                 .when(busy, |el| el.child(div().py(px(12.)).text_color(p.text_muted).child(self.t("apps.loading"))))
-                .when(cfg!(target_family = "wasm") && !busy && self.apps.entries.is_empty(), |el| el.child(div().py(px(16.)).flex().flex_col().gap(px(8.))
-                    .child(div().font_weight(FontWeight::SEMIBOLD).child(self.t("apps.empty")))
-                    .child(div().text_color(p.text_muted).child(self.t("apps.empty_hint")))))
+                .when(cfg!(target_family = "wasm") && !busy && self.apps.entries.is_empty(), |el| el.child(
+                    pero_theme::empty_state(self.t("apps.empty"), Some(self.t("apps.empty_hint").into()), chrome)))
                 .children(self.apps.entries.iter().enumerate().map(|(index, app)| {
                     let name = app.name.clone();
                     let toggle_name = name.clone();

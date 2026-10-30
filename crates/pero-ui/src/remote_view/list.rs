@@ -165,16 +165,17 @@ impl Workbench {
             .when(visible.is_empty(), |el| {
                 el.child(
                     div()
-                        .py(px(32.))
-                        .text_color(p.text_muted)
-                        .whitespace_normal()
-                        .child(self.t(if loading {
-                            "remote.loading"
-                        } else if unbound {
-                            "project.no_binding"
-                        } else {
-                            "remote.no_matching_tasks"
-                        }))
+                        .child(pero_theme::empty_state(
+                            self.t(if loading {
+                                "remote.loading"
+                            } else if unbound {
+                                "project.no_binding"
+                            } else {
+                                "remote.no_matching_tasks"
+                            }),
+                            None,
+                            pero_theme::Chrome::from_app(cx),
+                        ))
                         .when(unbound, |el| {
                             el.child(
                                 div().mt(px(12.)).child(
@@ -228,6 +229,7 @@ impl Workbench {
             .min_h_0()
             .flex()
             .flex_col()
+            .bg(pero_theme::Chrome::from_app(cx).list())
             .child(toolbar)
             .child(filters)
             .when(

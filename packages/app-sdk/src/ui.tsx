@@ -10,6 +10,7 @@ export { Input, Textarea, FilePicker, type FilePickerProps } from './components/
 export { Feedback } from './components/feedback';
 export { Field, type FieldProps, type FieldControlProps } from './components/field';
 export { Toolbar, PageHeader } from './components/layout';
+export { ActionButton, Badge, EmptyState, Kbd, LibraryHeader, ListRow, OutlineBadge, ReaderFrame, SearchField, SettingsGroup, SettingsRow, SidebarRow } from '../../pero-design/src/components';
 
 export type { IconName } from './icons.generated';
 
@@ -34,9 +35,6 @@ export function Checkbox({ checked, onCheckedChange, ...props }: Omit<React.Inpu
 }
 export function Select({ options, label, onChange, ...props }: Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'onChange'> & { options: { value: string; label: string }[]; label: string; onChange(value: string): void }) {
   return <select {...props} aria-label={label} onChange={event => onChange(event.target.value)} className={`pero-ui-select ${props.className ?? ''}`}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
-}
-export function EmptyState({ heading, description }: { heading: string; description: string }) {
-  return <div className="pero-ui-empty"><strong>{heading}</strong><p>{description}</p></div>;
 }
 export function Card({ asChild, className = '', children }: { asChild?: boolean; className?: string; children: React.ReactNode }) {
   if (asChild && React.isValidElement<{ className?: string }>(children)) return React.cloneElement(children, { className: `pero-ui-card ${className} ${children.props.className ?? ''}` });

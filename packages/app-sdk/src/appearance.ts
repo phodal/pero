@@ -1,3 +1,4 @@
+import { colorRoles } from '../../pero-design/src/tokens.generated';
 import themes from '../../../web/src/theme.generated.json';
 
 export type AppearanceSnapshot = {
@@ -30,6 +31,7 @@ export function applyAppearance(appearance: AppearanceSnapshot, element: HTMLEle
   element.style.setProperty('--pero-font-caption', `${Math.max(12,appearance.typography.ui*12/14)}px`);
   element.style.setProperty('--pero-font-scale', String(appearance.typography.ui/14));
   element.style.fontSize = `${appearance.typography.ui}px`;
+  element.style.setProperty('--pero-role-list', appearance.dark ? colorRoles.list.dark : colorRoles.list.light);
   element.style.setProperty('--pero-text-secondary', appearance.palette['text-muted']);
   element.style.setProperty('--pero-border-subtle', appearance.palette.border);
 }

@@ -1,6 +1,7 @@
 // Actual Electron, Virtual Cell and ACP -> MCP -> App Use. No model login.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { productShellStyle } from '../../scripts/build/shell-style.mjs';
 import { requestAppChat } from '../fixtures/app-chat-launch.mjs';
 import { waitForFullAppUse } from '../fixtures/app-use-progress.mjs';
 import { build } from 'esbuild';
@@ -29,7 +30,7 @@ await cp(resolve(root, 'web/dist'), join(distribution, 'web/chat'), { recursive:
 await build({ entryPoints: { product: resolve(root, 'desktop/src/main/product.ts'), 'product-preload': resolve(root, 'desktop/src/product/preload.ts') },
   outdir: join(distribution, 'desktop/dist'), outExtension: { '.js': '.cjs' }, bundle: true, platform: 'node', format: 'cjs', external: ['electron'] });
 const script = await build({ entryPoints: [resolve(root, 'desktop/src/product/shell.ts')], bundle: true, platform: 'browser', format: 'iife', write: false });
-const style = await readFile(resolve(root, 'desktop/src/product/shell.css'), 'utf8');
+const style = productShellStyle(root);
 await writeFile(join(distribution, 'desktop/dist/product.html'), `<!doctype html><html><head><meta charset="utf-8"><style>${style}</style></head><body><script>${script.outputFiles[0].text}</script></body></html>`);
 await writeFile(join(distribution, 'package.json'), JSON.stringify({ main: 'desktop/dist/product.cjs' }));
 await writeFile(join(distribution, 'product.json'), JSON.stringify({ schemaVersion: 1, id: 'com.openpero.appusefixture', name: 'App Use Fixture', version: '1.0.0', shell: 'app',
@@ -283,11 +284,17 @@ try {
   await expect(page.locator('#pero-app-surface')).toBeVisible();
   await expect.poll(async () => (await state()).dark).toBe(false);
   await expect.poll(appStatus).toMatchObject({ visible: true, active: true, capturable: false, operable: false });
+  const selectedInput = async () => ({
+    mode: await frame.getByRole('combobox', { name: 'Data view', exact: true }).inputValue(),
+    revision: await frame.getByRole('combobox', { name: 'Input revision', exact: true }).inputValue(),
+  });
+  const beforeCovered = await selectedInput();
+  expect(beforeCovered).toEqual({ mode: 'perturbation', revision: imported.inputId });
   await submit('app-use:covered', false);
   const covered = await result();
   expect(covered.error).toBeUndefined();
   expect(covered.steps.filter(step => step.error === 'APP_SURFACE_HIDDEN')).toHaveLength(2);
-  await expect(frame.getByLabel('Find gene', { exact: true })).toHaveValue('MS4A1');
+  await expect.poll(selectedInput).toEqual(beforeCovered);
   await page.screenshot({ path: join(output, 'covered-narrow.png') });
   await closeChat();
   await expect.poll(appStatus).toMatchObject({ visible: true, active: true, capturable: true, operable: true });
@@ -316,7 +323,7 @@ try {
   const permissionIds=await page.evaluate(()=>window.approvalEvents);expect(permissionIds).toHaveLength(2);expect(permissionIds.every(id=>id.startsWith('permission-'))).toBe(true);checks.push('All App operations, captures, file transfers and writes finish without an additional Desktop approval; only explicit Agent policy questions appear');
   expect(errors).toEqual([]);
   for(const file of ['failure-state.json','failure-bootstrap.json','failure.png','runtime.log'])await rm(join(output,file),{force:true});
-  await writeFile(join(output, 'result.json'), JSON.stringify({ checks, errors, denied, fullProgress, full, frozen, imported, written, writeDenied, standing, revoked, covered, state: await state() }, null, 2));
+  await writeFile(join(output, 'result.json'), JSON.stringify({ checks, errors, denied, fullProgress, full, frozen, imported, written, writeDenied, standing, revoked, beforeCovered, covered, state: await state() }, null, 2));
 } catch (error) {
   await writeFile(join(output,'runtime.log'),runtimeLog.join(''));
   if (app) {

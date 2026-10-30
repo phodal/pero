@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Checkbox, EmptyState, Feedback, Field, FilePicker, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, Toolbar } from '@pero/app-sdk/ui';
+import { Button, Checkbox, EmptyState, Feedback, Field, FilePicker, Input, ListRow, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, Toolbar } from '@pero/app-sdk/ui';
 import type { Api, Paper, SearchItem } from './types';
 import type { Translator } from './i18n';
 
@@ -97,11 +97,10 @@ export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImpor
 
 export function PaperList({ papers, selecting, selected, readingId, locked, onSelect, onRead, onDiscover, t }: { papers: Paper[]; selecting: boolean; selected: string[]; readingId: string; locked: boolean; onSelect(id: string, checked: boolean): void; onRead(paper: Paper): void; onDiscover?(paper: Paper): void; t: Translator }) {
   return <>
-    <ul className="pa-library-list">{papers.map(paper => <li key={paper.id} data-current={readingId === paper.id}>
+    <ul className="pa-library-list">{papers.map(paper => <li key={paper.id}>
       {selecting && <Checkbox checked={selected.includes(paper.id)} disabled={locked || selected.length >= 5 && !selected.includes(paper.id)} aria-label={`${t('usePaper')}: ${paper.title}`} onCheckedChange={checked => onSelect(paper.id, checked)}/>}
-      <div><Button variant="ghost" onClick={() => onRead(paper)} aria-current={readingId === paper.id ? 'true' : undefined}><span>{paper.title}</span></Button>
-        <small>{t(paper.contentKind === 'abstract' ? 'abstract' : paper.contentKind === 'report' ? 'sourceReport' : 'fullText')}</small></div>
-      {onDiscover && <Button variant="ghost" onClick={() => onDiscover(paper)}>{t('discover')}</Button>}
+      <ListRow title={paper.title} meta={t(paper.contentKind === 'abstract' ? 'abstract' : paper.contentKind === 'report' ? 'sourceReport' : 'fullText')} current={readingId === paper.id} onOpen={() => onRead(paper)}
+        trailing={onDiscover && <Button variant="ghost" onClick={() => onDiscover(paper)}>{t('discover')}</Button>}/>
     </li>)}</ul>
   </>;
 }

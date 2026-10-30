@@ -16,10 +16,12 @@ use std::rc::Rc;
 
 impl Workbench {
     fn ui<'a>(&'a self, cx: &'a App) -> Ui<'a> {
+        let appearance = pero_theme::UiAppearance::global(cx);
         Ui {
-            palette: &pero_theme::UiAppearance::global(cx).palette,
-            typography: pero_theme::UiAppearance::global(cx).typography,
+            palette: &appearance.palette,
+            typography: appearance.typography,
             locale: &self.locale,
+            dark: appearance.dark,
         }
     }
 
@@ -382,7 +384,7 @@ impl Render for Workbench {
             .when_some(slot, |el, slot| el.child(self.embedded_app_chat(&slot, cx)))
             .size_full()
             .flex()
-            .bg(p.surface)
+            .bg(p.bg)
             .text_color(p.text)
 
             .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))

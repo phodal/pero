@@ -237,8 +237,8 @@ impl ResolvedAppearance {
             theme.font_family = ".SystemUIFont".into();
             theme.font_size = px(self.typography.ui);
             theme.mono_font_size = px(self.typography.code);
-            theme.radius = px(WorkbenchStyle::RADIUS);
-            theme.radius_lg = px(WorkbenchStyle::INSET);
+            theme.radius = px(crate::RADIUS_BUTTON);
+            theme.radius_lg = px(crate::RADIUS_PANEL);
             theme.mono_font_family = "JetBrains Mono".into();
             let c = &mut theme.colors;
             c.background = p.surface;
@@ -261,7 +261,7 @@ impl ResolvedAppearance {
             c.ring = p.focus;
             c.selection = p.accent_soft;
             c.list_active = p.accent_soft;
-            c.list_hover = p.surface_muted;
+            c.list_hover = p.text.opacity(0.08);
             c.table = p.surface;
             c.table_head = p.surface_muted;
             c.table_head_foreground = p.text;
@@ -273,7 +273,7 @@ impl ResolvedAppearance {
             c.table_active = Hsla { a:0.18, ..p.focus };
             c.table_active_border = p.focus;
             c.table_row_border = p.border;
-            c.sidebar = p.bg;
+            c.sidebar = p.surface_muted;
             c.sidebar_foreground = p.text;
             c.sidebar_border = p.border;
             c.sidebar_accent = p.accent_soft;

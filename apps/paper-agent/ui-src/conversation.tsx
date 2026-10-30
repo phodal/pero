@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { downloadFile } from '@pero/app-sdk';
-import { Button, Checkbox, Feedback, Field, Icon, Select, Textarea } from '@pero/app-sdk/ui';
+import { Button, Checkbox, Feedback, Field, Icon, Select, SettingsGroup, Textarea } from '@pero/app-sdk/ui';
 import { EvidencePanel, Experiments, ReportView, type Citation } from './documents';
 import { PaperList } from './library';
 import { ReadingMatrix } from './reading-matrix';
@@ -95,7 +95,7 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
       </section>}
       {citation && <EvidencePanel citation={citation} location={evidence} paper={citation.intent.papers.find(p => p.id === citation.paperId)} busy={evidenceBusy} onClose={onCloseEvidence} onRead={onReadEvidence} t={t}/>}
       {!!library.matrixCount && <details className="pa-output-matrix" open={matrixOpen} onToggle={event => onMatrixOpen(event.currentTarget.open)}><summary>{t('matrix')}</summary><ReadingMatrix api={api} active={matrixOpen} count={library.matrixCount} papers={library.papers} onOpen={onAnnotation} t={t}/></details>}
-      {(settings || task.repair) && <div className="pa-conversation-settings" aria-label={t('researchOptions')}>
+      {(settings || task.repair) && <SettingsGroup className="pa-conversation-settings" aria-label={t('researchOptions')}>
         <label className="pa-checkbox-label"><Checkbox checked={draft.fullText} disabled={locked || draft.verifyCode} onCheckedChange={fullText => onDraft({ fullText })}/>{t('fullTextQuestion')}</label>
         <label className="pa-checkbox-label"><Checkbox checked={draft.verifyCode} disabled={locked || draft.fullText} onCheckedChange={verifyCode => onDraft({ verifyCode })}/>{t('verifyCode')}</label>
         {draft.verifyCode && <Field label={t('boundary')}>{props => <Textarea {...props} rows={3} value={draft.verificationPlan} maxLength={4000} disabled={locked} onChange={event => onDraft({ verificationPlan: event.target.value })}/>}</Field>}
@@ -106,7 +106,7 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
           {current.retrieval && <details><summary>{t('retrievalDetails')}</summary><p>{t('observedPassages')}: {current.passages?.length} / {t('searchMatches')}: {current.retrieval.totalMatches}</p><p>{t(current.retrieval.method === 'pero.paper-study.agent-tools.v1' ? 'studyScope' : 'localScope')}</p>{!!current.retrieval.unmatchedPaperIds.length && <Feedback>{t('unmatchedSources')} {current.retrieval.unmatchedPaperIds.map(id => current.papers.find(p => p.id === id)?.title).join(', ')}</Feedback>}</details>}
           <details className="pa-output" open={task.repair}><summary>{t('importReport')}</summary><Field label={t('rawOutput')}>{props => <Textarea {...props} rows={6} value={task.raw} disabled={task.working || task.busy} maxLength={500000} onChange={event => task.setRaw(event.target.value)}/>}</Field><Button disabled={locked || !task.raw.trim()} onClick={() => void task.saveRaw()}>{t('saveReport')}</Button></details>
         </>}
-      </div>}
+      </SettingsGroup>}
       <div ref={bottom}/>
     </div>
     <div className="pa-composer" role="group" aria-label={t('question')}>

@@ -1,0 +1,49 @@
+/* Generated from spec/pero-design/design.tsp. Do not edit. */
+:root {
+  --pero-space-1: 4px;
+  --pero-space-2: 8px;
+  --pero-space-3: 12px;
+  --pero-space-4: 16px;
+  --pero-space-5: 20px;
+  --pero-space-6: 24px;
+  --pero-icon-gap: 6px;
+  --pero-font-title: calc(22px * var(--pero-font-scale, 1));
+  --pero-font-heading: calc(16px * var(--pero-font-scale, 1));
+  --pero-font-body: calc(14px * var(--pero-font-scale, 1));
+  --pero-font-caption: calc(12px * var(--pero-font-scale, 1));
+  --pero-font-label: calc(11px * var(--pero-font-scale, 1));
+  --pero-radius-panel: 12px;
+  --pero-radius-selection: 8px;
+  --pero-radius-button: 6px;
+  --pero-radius-kbd: 5px;
+  --pero-radius-badge: 4px;
+  --pero-radius-cell: 2px;
+  --pero-lead: 18px;
+  --pero-row-nav: 32px;
+  --pero-row-sub: 26px;
+  --pero-sub-indent: 12px;
+  --pero-library-header: 88px;
+  --pero-action-button-height: 32px;
+  --pero-action-button-padding: 12px;
+  --pero-ghost-icon-button: 28px;
+  --pero-search-height: 32px;
+  --pero-reading-width: 720px;
+  --pero-sidebar-width: 224px;
+  --pero-list-column: 336px;
+  --pero-role-page: var(--pero-bg);
+  --pero-role-sidebar: var(--pero-surface-muted);
+  --pero-role-reading: var(--pero-surface);
+  --pero-role-text: var(--pero-text);
+  --pero-role-text-muted: var(--pero-text-muted);
+  --pero-role-action: var(--pero-action);
+  --pero-role-action-hover: var(--pero-action-hover);
+  --pero-role-on-action: var(--pero-on-action);
+  --pero-role-accent-soft: var(--pero-accent-soft);
+  --pero-role-border: var(--pero-border);
+  --pero-role-danger: var(--pero-error);
+  --pero-role-focus: var(--pero-focus);
+  --pero-role-list: #F1F5F9;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --pero-role-list: #3D4C5B; }
+}

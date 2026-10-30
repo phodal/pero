@@ -112,8 +112,10 @@ try{
  expect((await state()).activeContent).toEqual(draftItem);
  await page.screenshot({path:resolve(out,'history-retained-draft.png')});
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
- // The compact sidebar places the first restored session at y=130.
- await page.mouse.click(100,130);
+ // Shared sidebar geometry: 8px inset + three 32px controls and 4px gaps,
+ // then the 32px project header. Select the first 26px session row, not its project.
+ const firstHistoryRowY=8+3*(32+4)+32+26/2;
+ await page.mouse.click(100,firstHistoryRowY);
  // Selecting retained long history schedules real GPUI layout/paint before observations.
  const historyPaintStarted=performance.now();
  let historyPaintTimer;
