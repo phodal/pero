@@ -324,8 +324,6 @@ impl Workbench {
             .pane_layout()
             .and_then(|layout| layout.leaf(id))
             .is_some_and(|view|view.route().is_some_and(WorkspaceRoute::can_clone_pane));
-        let active_document=self.navigation.pane_layout().and_then(|layout|layout.leaf(id)).and_then(|leaf|leaf.active()).and_then(|item|if let WorkspaceRoute::Content(source@WorkspaceItem::Document{..})=&item.route {Some(source.clone())}else{None});
-        let save_busy=self.pending_save_as.is_some()||active_document.as_ref().and_then(|item|self.documents.iter().find(|open|&open.item==item)).is_some_and(|open|self.workspace_file_busy(&pero_contracts::workspace_session::SourceKey::of(&open.view.read(cx).document.header())));
         let movable = [
             SplitDirection::Left,
             SplitDirection::Right,
@@ -406,10 +404,6 @@ impl Workbench {
                                 });
                             }),
                     );
-                }
-                if let Some(item)=&active_document {
-                    let item=item.clone();let target=owner.clone();
-                    menu=menu.item(PopupMenuItem::new(pero_contracts::i18n::text(&locale,"content.save_as")).disabled(save_busy).on_click(move|_,window,cx| {let _=target.update(cx,|this,cx| {this.focus_pane(id,window,cx);this.choose_document_copy(&item,cx);});}));
                 }
                 let target=owner.clone();
                 menu=menu.item(PopupMenuItem::new(pero_contracts::i18n::text(&locale,"workspace.close_split")).on_click(move|_,window,cx| {let _=target.update(cx,|this,cx|this.request_close_pane(id,window,cx));}));
