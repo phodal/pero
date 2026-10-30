@@ -977,6 +977,28 @@
       ],
       "additionalProperties": false
     },
+    "ChooseDocumentSave": {
+      "title": "ChooseDocumentSave",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "choose_document_save"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "suggested": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "request_id",
+        "suggested"
+      ],
+      "additionalProperties": false
+    },
     "CloseCommand": {
       "title": "CloseCommand",
       "type": "object",
@@ -2153,6 +2175,121 @@
       ],
       "additionalProperties": false
     },
+    "DocumentSaveCancelledEvent": {
+      "title": "DocumentSaveCancelledEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "document_save_cancelled"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentSaveChooseEvent": {
+      "title": "DocumentSaveChooseEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "document_save_choose"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentSavePathEvent": {
+      "title": "DocumentSavePathEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "document_save_path"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
     "DocumentSource": {
       "title": "DocumentSource",
       "type": "object",
@@ -2323,6 +2460,30 @@
       ],
       "additionalProperties": false
     },
+    "FileCopy": {
+      "title": "FileCopy",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "protected_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "path",
+        "text",
+        "protected_sources"
+      ],
+      "additionalProperties": false
+    },
     "FileDocumentErrorEvent": {
       "title": "FileDocumentErrorEvent",
       "type": "object",
@@ -2440,6 +2601,9 @@
         },
         {
           "$ref": "#/$defs/SaveFileDocument"
+        },
+        {
+          "$ref": "#/$defs/SaveAsFileDocument"
         },
         {
           "$ref": "#/$defs/ReleaseFileDocument"
@@ -2581,6 +2745,15 @@
     "HostEvent": {
       "title": "HostEvent",
       "oneOf": [
+        {
+          "$ref": "#/$defs/DocumentSaveChooseEvent"
+        },
+        {
+          "$ref": "#/$defs/DocumentSavePathEvent"
+        },
+        {
+          "$ref": "#/$defs/DocumentSaveCancelledEvent"
+        },
         {
           "$ref": "#/$defs/WorkspaceRestoredEvent"
         },
@@ -4266,6 +4439,33 @@
         "text",
         "checked",
         "headings"
+      ],
+      "additionalProperties": false
+    },
+    "SaveAsFileDocument": {
+      "title": "SaveAsFileDocument",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "documents"
+        },
+        "action": {
+          "type": "string",
+          "const": "save_as"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "copy": {
+          "$ref": "#/$defs/FileCopy"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "copy"
       ],
       "additionalProperties": false
     },

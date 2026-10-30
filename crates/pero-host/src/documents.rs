@@ -33,6 +33,13 @@ pub fn dispatch(files: &mut FileDocuments, value: serde_json::Value) -> Option<H
             let result = files.save(&source, revision, text);
             (request_id, source, result)
         }
+        FileCommand::SaveAs {
+            request_id, copy, ..
+        } => {
+            let path = copy.path.clone();
+            let result = files.save_as(copy);
+            (request_id, path, result)
+        }
         FileCommand::Release { source, .. } => {
             files.release(&source);
             return None;

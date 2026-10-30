@@ -44,8 +44,14 @@ model DocumentHeader {source:DocumentSource;revision:safeint;format:ContentForma
 model OpenFileDocument {method:"documents";action:"open";request_id:string;path:string;...Closed}
 model FollowFileDocument {method:"documents";action:"follow";request_id:string;source:string;href:string;...Closed}
 model SaveFileDocument {method:"documents";action:"save";request_id:string;source:string;revision:safeint;text:string;...Closed}
+model FileCopy {path:string;text:string;protected_sources:string[];...Closed}
+model SaveAsFileDocument {method:"documents";action:"save_as";request_id:string;copy:FileCopy;...Closed}
+model ChooseDocumentSave {action:"choose_document_save";request_id:string;suggested:string;...Closed}
 model ReleaseFileDocument {method:"documents";action:"release";source:string;...Closed}
-@oneOf union FileDocumentRequest {OpenFileDocument,FollowFileDocument,SaveFileDocument,ReleaseFileDocument}
+@oneOf union FileDocumentRequest {OpenFileDocument,FollowFileDocument,SaveFileDocument,SaveAsFileDocument,ReleaseFileDocument}
+model DocumentSaveChooseEvent {kind:"document_save_choose";...EventBase}
+model DocumentSavePathEvent {kind:"document_save_path";...EventBase;data:{path:string;...Closed}}
+model DocumentSaveCancelledEvent {kind:"document_save_cancelled";...EventBase}
 model DocumentChooseEvent {kind:"document_choose";...EventBase}
 model DocumentOpenEvent {kind:"document_open";...EventBase;data:DocumentHeader}
 model FileDocumentEvent {kind:"document_file";...EventBase;data:DocumentHeader}
@@ -355,6 +361,7 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 
 @oneOf
 union HostEvent {
+  DocumentSaveChooseEvent,DocumentSavePathEvent,DocumentSaveCancelledEvent,
   WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,
   WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,
   DocumentOpenEvent,

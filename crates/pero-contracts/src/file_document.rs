@@ -105,6 +105,15 @@ mod tests {
     }
 }
 
+/// A user-selected copy target. Dirty workspace buffers cannot be overwritten by another source.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FileCopy {
+    pub path: String,
+    pub text: String,
+    pub protected_sources: Vec<String>,
+}
+
 /// File commands arrive from the trusted Workbench, never from an App frame.
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -131,6 +140,11 @@ pub enum FileCommand {
         source: String,
         revision: u64,
         text: String,
+    },
+    SaveAs {
+        method: DocumentMethod,
+        request_id: String,
+        copy: FileCopy,
     },
     Release {
         method: DocumentMethod,

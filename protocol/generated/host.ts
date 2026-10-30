@@ -21,7 +21,8 @@ export type ContentOrigin = ConversationOrigin | FileOrigin | AppOrigin | McpOri
 export type WorkspaceItem = WorkspaceSimpleItem | WorkspaceDocumentItem | WorkspaceAppItem;
 export type WorkspaceRoute = WorkspacePageRoute | WorkspaceContentRoute;
 export type ContentFormat = PlainContentFormat | CodeContentFormat;
-export type FileDocumentRequest = OpenFileDocument | FollowFileDocument | SaveFileDocument | ReleaseFileDocument;
+export type FileDocumentRequest =
+  OpenFileDocument | FollowFileDocument | SaveFileDocument | SaveAsFileDocument | ReleaseFileDocument;
 export type LocalWorkerRequest = LocalWorkerStartCommand | LocalWorkerStopCommand | LocalWorkerGetCommand;
 export type HostCommand =
   | ListAgentsCommand
@@ -49,6 +50,9 @@ export type AppName = string;
 export type AgentRequest = AgentInfoRequest | AgentStartRequest | AgentEventsRequest | AgentCancelRequest;
 export type ContributionRequest = ContributionPrepare | ContributionReview | ContributionPublish;
 export type HostEvent =
+  | DocumentSaveChooseEvent
+  | DocumentSavePathEvent
+  | DocumentSaveCancelledEvent
   | WorkspaceRestoredEvent
   | WorkspaceSavedEvent
   | WorkspaceErrorEvent
@@ -292,6 +296,17 @@ export interface SaveFileDocument {
   source: string;
   revision: number;
   text: string;
+}
+export interface SaveAsFileDocument {
+  method: "documents";
+  action: "save_as";
+  request_id: string;
+  copy: FileCopy;
+}
+export interface FileCopy {
+  path: string;
+  text: string;
+  protected_sources: string[];
 }
 export interface ReleaseFileDocument {
   method: "documents";
@@ -557,6 +572,27 @@ export interface ContributionPublish {
   operation: "publish";
   workspace: string;
   review_token: string;
+}
+export interface DocumentSaveChooseEvent {
+  kind: "document_save_choose";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface DocumentSavePathEvent {
+  kind: "document_save_path";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: {
+    path: string;
+  };
+}
+export interface DocumentSaveCancelledEvent {
+  kind: "document_save_cancelled";
+  version: 1;
+  request_id: string | null;
+  text: string;
 }
 export interface WorkspaceRestoredEvent {
   kind: "workspace_restored";

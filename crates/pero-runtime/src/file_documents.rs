@@ -1,7 +1,7 @@
 //! Host-owned text files. Source validation and actual filesystem I/O live here.
 use pero_contracts::{
     content_document::{ContentDocument, ContentFormat},
-    file_document::{FileDocument, FileSave, SaveError},
+    file_document::{FileCopy, FileDocument, FileSave, SaveError},
 };
 use std::{collections::BTreeMap, path::Path};
 #[derive(Default)]
@@ -99,6 +99,29 @@ impl FileDocuments {
         }
         Ok(self.files[id].snapshot().clone())
     }
+    /// Copying never changes the producer. An opened target retains its normal disk conflict rule.
+    pub fn save_as(&mut self, copy: FileCopy) -> Result<ContentDocument, FileError> {
+        if copy.text.contains('\0') {
+            return Err(FileError::Unsupported);
+        }
+        let requested = Path::new(&copy.path);
+        let path = if requested.exists() {
+            std::fs::canonicalize(requested)?
+        } else {
+            let parent = requested.parent().ok_or(FileError::Unsupported)?;
+            std::fs::canonicalize(parent)?
+                .join(requested.file_name().ok_or(FileError::Unsupported)?)
+        };
+        let id = path.to_string_lossy().into_owned();
+        if copy.protected_sources.contains(&id) {
+            return Err(FileError::Conflict);
+        }
+        if let Some(previous) = self.files.get(&id) {
+            return self.save(&id, previous.snapshot().revision, copy.text);
+        }
+        std::fs::write(&path, copy.text)?;
+        self.open(&path)
+    }
     pub fn recovery_source(&self, id: &str, revision: u64) -> Option<ContentDocument> {
         self.files
             .get(id)
@@ -133,5 +156,54 @@ mod tests {
         files.release(&saved.id);
         assert_eq!(files.open(&path).unwrap().source(), "external edit");
         std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn save_as_copies_sources_and_respects_open_target_conflicts() {
+        let directory = std::env::temp_dir().join(format!("pero-save-as-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let source = directory.join("source.md");
+        let target = directory.join("copy.json");
+        std::fs::write(&source, "source baseline").unwrap();
+        let mut files = FileDocuments::default();
+        let original = files.open(&source).unwrap();
+        let copy = |text: &str, protected_sources: Vec<String>| FileCopy {
+            path: target.to_string_lossy().into(),
+            text: text.into(),
+            protected_sources,
+        };
+        let opened = files
+            .save_as(copy("[{\"n\":9007199254740993,\"name\":\"中文\"}]", vec![]))
+            .unwrap();
+        assert_eq!(opened.format, ContentFormat::Json);
+        assert_eq!(std::fs::read_to_string(&source).unwrap(), "source baseline");
+        assert_eq!(
+            files
+                .recovery_source(&original.id, original.revision)
+                .unwrap()
+                .source(),
+            "source baseline"
+        );
+        for (disk, protected, expected) in [
+            (opened.source(), vec![opened.id.clone()], false),
+            ("external target edit", vec![], false),
+            (opened.source(), vec![], true),
+        ] {
+            std::fs::write(&target, disk).unwrap();
+            assert_eq!(
+                files.save_as(copy("replacement", protected)).is_ok(),
+                expected
+            );
+            assert_eq!(
+                std::fs::read_to_string(&target).unwrap(),
+                if expected { "replacement" } else { disk }
+            );
+        }
+        let missing = FileCopy {
+            path: directory.join("missing/out.txt").to_string_lossy().into(),
+            text: "draft".into(),
+            protected_sources: vec![],
+        };
+        assert!(matches!(files.save_as(missing), Err(FileError::Io(_))));
+        std::fs::remove_dir_all(directory).unwrap();
     }
 }
