@@ -77,6 +77,7 @@ pub(crate) struct Workbench {
     pub selected_project: Option<String>,
     pub project_binding: Entity<InputState>,
     pub collapsed_projects: std::collections::HashSet<String>,
+    pub revealed_sessions: std::collections::HashMap<String, usize>,
     pub project_tab: crate::projects::ProjectTab,
     pub(crate) local_roadmap: crate::local_roadmap::RoadmapState,
     pub task_status: crate::projects::TaskStatusFilter,
@@ -103,7 +104,8 @@ pub(crate) struct Workbench {
     pub error: Option<String>,
     pub events: Vec<HostEvent>,
     pub insights: std::collections::HashMap<String, crate::insights::Summary>,
-    insights_requested: std::collections::HashSet<String>,
+    pub insights_error: std::collections::HashMap<String, String>,
+    pub(crate) insights_requested: std::collections::HashSet<String>,
     pub chat: Entity<ChatPanel>,
     pub search: Entity<InputState>,
     pub workspace: String,
@@ -332,6 +334,7 @@ impl Workbench {
             selected_project: None,
             project_binding,
             collapsed_projects: Default::default(),
+            revealed_sessions: Default::default(),
             project_tab: Default::default(),
             local_roadmap: Default::default(),
             task_status: Default::default(),
@@ -347,6 +350,7 @@ impl Workbench {
             error: None,
             events: Vec::new(),
             insights: std::collections::HashMap::new(),
+            insights_error: std::collections::HashMap::new(),
             insights_requested: std::collections::HashSet::new(),
             chat,
             search,
@@ -406,11 +410,19 @@ impl Workbench {
     fn request_insights(&mut self, cx: &mut Context<Self>) {
         let ids: Vec<String> = self.chat.read(cx).chats.iter().map(|chat| chat.id.clone()).collect();
         for id in ids {
-            if self.insights.contains_key(&id) || !self.insights_requested.insert(id.clone()) {
+            if self.insights.contains_key(&id) || self.insights_error.contains_key(&id) || !self.insights_requested.insert(id.clone()) {
                 continue;
             }
             self.command(json!({"action": "insights", "thread_id": id}), cx);
         }
+    }
+
+    pub(crate) fn retry_insights(&mut self, id: String, cx: &mut Context<Self>) {
+        self.insights.remove(&id);
+        self.insights_error.remove(&id);
+        self.insights_requested.remove(&id);
+        self.insights_requested.insert(id.clone());
+        self.command(json!({"action": "insights", "thread_id": id}), cx);
     }
 
     pub fn focus_chat(
@@ -508,7 +520,16 @@ impl Workbench {
         let event_kind = event.kind.clone();
         if event.kind == "insights" {
             if let Some(id) = event.thread_id.clone() {
+                self.insights_error.remove(&id);
                 self.insights.insert(id, crate::insights::Summary::from_event(&event.data));
+            }
+            cx.notify();
+            return;
+        }
+        if event.kind == "error" && event.message_key.as_deref() == Some("insights.failed") {
+            if let Some(id) = event.thread_id.clone() {
+                self.insights_requested.remove(&id);
+                self.insights_error.insert(id, event.text.clone());
             }
             cx.notify();
             return;

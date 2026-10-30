@@ -514,4 +514,133 @@ mod tests {
         assert_eq!(continued.analysis.metrics.completed, 1);
         let _ = fs::remove_dir_all(&dir);
     }
+
+    /// Same hand count as the core fixture, expressed as host journal events.
+    /// Expected: turns 2, failed 1, stopped 1, tools 1, tool errors 1,
+    /// input 10, output 4. Thinking text and tool arguments stay out.
+    #[test]
+    fn hand_counted_journal_matches_the_mapping() {
+        let events = vec![
+            event(
+                "session_created",
+                "",
+                serde_json::json!({"agent":"pero","workspace":"/work/pero","git_branch":"main","repository":"github.com/org/pero"}),
+            ),
+            event(
+                "model_changed",
+                "",
+                serde_json::json!({"models":{"currentModelId":"deepseek-v4"}}),
+            ),
+            event("user_message", "Fix the parser", Value::Null),
+            event("turn_started", "", Value::Null),
+            event(
+                "session_update",
+                "",
+                serde_json::json!({"sessionUpdate":"tool_call","toolCallId":"t1","title":"Read","status":"completed","rawInput":{"path":"SECRET_ARG"}}),
+            ),
+            event(
+                "session_update",
+                "",
+                serde_json::json!({"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"HIDDEN_THOUGHT"}}),
+            ),
+            event(
+                "session_update",
+                "",
+                serde_json::json!({"sessionUpdate":"tool_call_update","toolCallId":"t1","status":"failed"}),
+            ),
+            event(
+                "session_update",
+                "",
+                serde_json::json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Parser updated"}}),
+            ),
+            event(
+                "session_usage",
+                "",
+                serde_json::json!({"input_tokens":10,"output_tokens":4,"cache_read_tokens":2}),
+            ),
+            event(
+                "turn_finished",
+                "",
+                serde_json::json!({"stopReason":"error"}),
+            ),
+            event("user_message", "Stop here", Value::Null),
+            event("turn_started", "", Value::Null),
+            event(
+                "turn_finished",
+                "",
+                serde_json::json!({"stopReason":"cancelled"}),
+            ),
+        ];
+        let dir =
+            std::env::temp_dir().join(format!("pero-insights-fixture-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let history = dir.join("sessions.jsonl");
+        let report = analyze_history(&events, "thread-1", &history, TimeMs::new(20), 8).unwrap();
+        let metrics = &report.analysis.metrics;
+        assert_eq!(
+            (
+                metrics.turns,
+                metrics.failed,
+                metrics.stopped,
+                metrics.tool_calls,
+                metrics.tool_errors
+            ),
+            (2, 1, 1, 1, 1)
+        );
+        assert_eq!(
+            (
+                metrics.tokens.input,
+                metrics.tokens.output,
+                metrics.tokens.cache_read
+            ),
+            (10, 4, 2)
+        );
+        assert_eq!(report.analysis.session.model.as_str(), "deepseek-v4");
+        assert_eq!(report.analysis.session.git_branch, "main");
+        assert_eq!(report.analysis.session.repository, "github.com/org/pero");
+        let body = serde_json::to_string(&report.to_json()).unwrap();
+        assert!(body.contains("Stop here"));
+        assert!(!body.contains("SECRET_ARG"));
+        assert!(!body.contains("HIDDEN_THOUGHT"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Optional check against a real journal. Set PERO_HISTORY_PATH and
+    /// PERO_INSIGHTS_SESSION. Expected counts are the manual reading of
+    /// chat-1793283309757-2 in ~/.pero/native-preview/sessions.jsonl:
+    /// 3 turns, 0 failed, 1 stopped, 5 tool calls, 0 failed tools.
+    #[test]
+    fn real_journal_matches_the_manual_count() {
+        let Some(path) = std::env::var_os("PERO_HISTORY_PATH") else {
+            return;
+        };
+        let Ok(session) = std::env::var("PERO_INSIGHTS_SESSION") else {
+            return;
+        };
+        let text = fs::read_to_string(&path).unwrap();
+        let events = text
+            .lines()
+            .filter_map(|line| serde_json::from_str::<HostEvent>(line).ok())
+            .collect::<Vec<_>>();
+        let dir = std::env::temp_dir().join(format!("pero-insights-real-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let report = analyze_history(
+            &events,
+            &session,
+            &dir.join("sessions.jsonl"),
+            TimeMs::new(1),
+            32,
+        )
+        .unwrap();
+        if session == "chat-1793283309757-2" {
+            assert_eq!(report.analysis.metrics.turns, 3, "turns");
+            assert_eq!(report.analysis.metrics.failed, 0, "failed turns");
+            assert_eq!(report.analysis.metrics.stopped, 1, "stopped turns");
+            assert_eq!(report.analysis.metrics.tool_calls, 5, "tools");
+            assert_eq!(report.analysis.metrics.tool_errors, 0, "failed tools");
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
 }
