@@ -50,12 +50,20 @@ test('icon generation retains exact bytes with Windows checkout defaults', t => 
   const generate = (...args) => spawnSync(process.execPath, ['scripts/generate-icons.mjs', ...args], {
     cwd: root, encoding: 'utf8',
   });
-  write('scripts/generate-icons.mjs', readFileSync(new URL('../generate-icons.mjs', import.meta.url)));
+  const scripts = ['scripts/generate-icons.mjs', 'scripts/lib/content-icons.mjs'];
+  for (const path of scripts) write(path, readFileSync(new URL(`../../${path}`, import.meta.url)));
   write('packages/icons/catalog.json', JSON.stringify({ 'layout-grid': {} }));
+  write('packages/icons/content.json', JSON.stringify({
+    kinds: { folder: 'layout-grid' }, languages: {}, filenames: {}, extensions: {}, apps: {},
+  }));
   write('web/public/icons/layout-grid.svg', '<svg viewBox="0 0 24 24">\n<path d="M0 0"/>\n</svg>\n');
   const licenses = ['web/public/icons/LICENSE.txt', 'packages/icons/LICENSE-LUCIDE'];
   for (const path of licenses) write(path, readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8').replaceAll('\r\n', '\n'));
-  const outputs = ['crates/pero-chat-ui/src/assets.rs', 'packages/app-sdk/src/icons.generated.tsx'];
+  const outputs = [
+    'crates/pero-chat-ui/src/assets.rs', 'packages/app-sdk/src/icons.generated.tsx',
+    'packages/icons/content-data.generated.js', 'packages/icons/content-data.generated.d.ts',
+    'crates/pero-contracts/src/content_icon_data.rs',
+  ];
   for (const path of outputs) write(path, '');
   const initial = generate();
   assert.equal(initial.status, 0, initial.stderr);
@@ -70,7 +78,7 @@ test('icon generation retains exact bytes with Windows checkout defaults', t => 
   git('config', '--local', 'core.attributesFile', emptyAttributes);
   git('add', '.');
   const checkout = () => {
-    for (const path of [...outputs, ...licenses, 'scripts/generate-icons.mjs']) rmSync(join(root, path));
+    for (const path of [...outputs, ...licenses, ...scripts]) rmSync(join(root, path));
     git('checkout', '--', '.');
   };
   checkout();
