@@ -81,6 +81,12 @@ impl FileDocuments {
             .insert(snapshot.id.clone(), FileDocument::recovered(snapshot));
         changed
     }
+    /// A lazy recovered tab must not replace an already open, newer disk baseline.
+    pub fn restore_if_closed(&mut self, snapshot: ContentDocument) {
+        if !self.files.contains_key(&snapshot.id) {
+            self.restore(snapshot);
+        }
+    }
     pub fn follow(&mut self, source: &str, href: &str) -> Result<ContentDocument, FileError> {
         let file = self.files.get(source).ok_or(FileError::Unavailable)?;
         let base =

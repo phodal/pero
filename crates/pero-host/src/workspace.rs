@@ -559,6 +559,10 @@ mod tests {
             reopened.data["session"]["documents"][0]["draft"],
             format!(" {dataset}")
         );
+        // A closed/lazy tab can save its durable draft without first mounting a Reader.
+        files = FileDocuments::default();
+        store = WorkspaceStore::new(&settings);
+        store.load().unwrap();
         let saved=crate::documents::dispatch(&mut files,Some(&mut store),serde_json::json!({"method":"documents","action":"save_draft","request_id":"save:dataset","draft":draft})).unwrap();
         assert_eq!(saved.kind, "document_file");
         assert_eq!(
