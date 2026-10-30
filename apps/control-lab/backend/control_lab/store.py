@@ -8,7 +8,7 @@ import threading
 import uuid
 import platform
 
-from .experiments import Attempt, Candidate, ExperimentSpec, Invalid, Trial, candidates, canonical, input_digest, proposal, template
+from .experiments import Attempt, Candidate, ExperimentSpec, Invalid, Trial, admit_attempts, candidates, canonical, input_digest, proposal, template
 from .verification import Observation, aggregate, verify_observation
 from . import engines
 
@@ -148,6 +148,8 @@ class ExperimentStore:
                     if phase == 'search' and any(t['candidateId']==candidate['id'] and t['scenarioId']==scenario.id and t['status']=='completed' for t in record['trials']):
                         continue
                     jobs.append((deepcopy(candidate), scenario))
+            existing_samples=sum(max((len(curve['x']) for curve in (trial.get('observation') or {}).get('series',[])),default=0) for trial in record['trials'])
+            admit_attempts(spec,existing_samples,len(jobs))
             if len(record['trials'])+len(jobs)>80:
                 raise Invalid('This ledger has reached its 80-attempt evidence limit; export it and create a new experiment')
             if not jobs:

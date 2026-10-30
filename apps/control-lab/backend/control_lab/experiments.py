@@ -5,6 +5,9 @@ import json
 import math
 
 
+MAX_EVIDENCE_SAMPLES = 40000
+
+
 class Invalid(ValueError):
     pass
 
@@ -164,8 +167,11 @@ class ExperimentSpec:
             raise Invalid('Candidate budget must be an integer from 1 to 30')
         parameters = values(item.parameters, data.get('parameters', {}))
         parsed = dict(parameters)
-        if budget*parsed['samples'] > 40000:
-            raise Invalid('Frozen candidate budget × samples must not exceed 40000; reduce either value')
+        search_count=sum(s.role=='search' for s in item.scenarios)
+        final_count=sum(s.role=='verification' for s in item.scenarios)
+        effective_budget=1 if item.id in ('p-golden','pi-golden') else budget
+        if (effective_budget*search_count+final_count)*parsed['samples'] > MAX_EVIDENCE_SAMPLES:
+            raise Invalid('The frozen search and final-verification plan exceeds 40000 evidence sample-points; reduce candidate budget or samples (shorten horizon to retain 0.01 s control resolution)')
         if item.engine == 'python-control' and parsed['horizon']/(parsed['samples']-1) > .010000001:
             raise Invalid('Control responses require a sample interval at most 0.01 s; increase samples or shorten the horizon')
         names={'kp','ki','kd'} if item.id=='robust-pid' else {'r','c','gain'} if item.id=='active-filter' else set()
@@ -254,3 +260,9 @@ def proposal(spec, supplied):
         parameters[name]=Parameter(name,name,parameters[name],low,high,0).parse(value)
     identity='proposal-'+digest(parameters)[:16]
     return Candidate(identity,'Agent/user proposal',tuple(parameters.items()))
+
+
+def admit_attempts(spec, existing_samples, new_attempts):
+    required=existing_samples+new_attempts*dict(spec.parameters)['samples']
+    if required>MAX_EVIDENCE_SAMPLES:
+        raise Invalid('This experiment has reached its 40000 evidence sample-point budget; export it and create a new experiment rather than growing an unreadable ledger')

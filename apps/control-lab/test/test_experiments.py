@@ -2,7 +2,7 @@ import pathlib
 import sys
 import unittest
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'backend'))
-from control_lab.experiments import ExperimentSpec, Invalid, candidates
+from control_lab.experiments import ExperimentSpec, Invalid, admit_attempts, candidates
 
 
 class ExperimentsTest(unittest.TestCase):
@@ -12,8 +12,11 @@ class ExperimentsTest(unittest.TestCase):
                        {'candidateBudget':30,'parameters':{'samples':5001}}):
             with self.subTest(change=change),self.assertRaises(Invalid):
                 ExperimentSpec.parse(dict(templateId='robust-pid',**change))
-        spec=ExperimentSpec.parse({'templateId':'robust-pid','candidateBudget':30})
+        spec=ExperimentSpec.parse({'templateId':'robust-pid','candidateBudget':30,'parameters':{'horizon':6,'samples':601}})
         self.assertEqual(len(candidates(spec,30)),30)
+        admit_attempts(spec,0,64)
+        with self.assertRaises(Invalid):admit_attempts(spec,39000,2)
+        with self.assertRaises(Invalid):ExperimentSpec.parse({'templateId':'robust-pid','candidateBudget':30})
         self.assertEqual(candidates(spec,30),candidates(spec,30))
         saved=spec.to_dict()
         restored=ExperimentSpec.restore(saved)
@@ -21,7 +24,7 @@ class ExperimentsTest(unittest.TestCase):
         saved['scenarios'][0]['parameters']['gain']=1.2345
         self.assertEqual(dict(ExperimentSpec.restore(saved).scenarios[0].parameters)['gain'],1.2345)
         self.assertNotEqual(ExperimentSpec.restore(saved).hash,spec.hash)
-        self.assertNotEqual(spec.hash,ExperimentSpec.parse({'templateId':'robust-pid','candidateBudget':29}).hash)
+        self.assertNotEqual(spec.hash,ExperimentSpec.parse({'templateId':'robust-pid','candidateBudget':29,'parameters':{'horizon':6,'samples':601}}).hash)
 
 
 if __name__=='__main__':unittest.main()
