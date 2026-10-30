@@ -6,6 +6,7 @@ import { Product } from '../../packages/product/product.ts';
 import { readAppBundle, stageAppBundle } from './app-bundle.mjs';
 import { stageAgentAdapters } from './agent-adapters.mjs';
 import { buildReader } from './reader.mjs';
+import { productShellStyle } from './shell-style.mjs';
 const root = resolve(import.meta.dirname, '../..');
 const args = process.argv.slice(2);
 const option = flag => {
@@ -69,7 +70,7 @@ mkdirSync(join(output, 'desktop/dist'), { recursive: true });
 mkdirSync(join(output, 'bin'), { recursive: true });
 await build({ entryPoints: { product: resolve(root, 'desktop/src/main/product.ts'), 'product-preload': resolve(root, 'desktop/src/product/preload.ts') }, outdir: join(output, 'desktop/dist'), outExtension: { '.js': '.cjs' }, bundle: true, platform: 'node', format: 'cjs', external: ['electron'] });
 const script = await build({ entryPoints: [resolve(root, 'desktop/src/product/shell.ts')], bundle: true, platform: 'browser', format: 'iife', write: false, minify: true });
-const style = readFileSync(resolve(root, 'desktop/src/product/shell.css'), 'utf8');
+const style = productShellStyle(root);
 writeFileSync(join(output, 'desktop/dist/product.html'), `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${style}</style></head><body><script>${script.outputFiles[0].text}</script></body></html>`);
 if (icon) {
   mkdirSync(dirname(join(output, product.icon)), { recursive: true });

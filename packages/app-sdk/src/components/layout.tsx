@@ -1,5 +1,6 @@
 // Toolbar adapted from Point App SDK components/toolbar.tsx.
 import React, { forwardRef } from 'react';
+import { LibraryHeader } from '../../../pero-design/src/components';
 
 export type ToolbarProps = React.ComponentPropsWithoutRef<'div'> & { actions?: React.ReactNode };
 
@@ -10,6 +11,6 @@ export const Toolbar = forwardRef<HTMLDivElement, ToolbarProps>(function Toolbar
   </div>;
 });
 
-export function PageHeader({ title, navigation, actions }: { title: React.ReactNode; navigation?: React.ReactNode; actions?: React.ReactNode }) {
-  return <header className="pero-ui-page-header">{navigation}<h1>{title}</h1>{actions && <Toolbar>{actions}</Toolbar>}</header>;
+export function PageHeader({ title, subtitle, navigation, actions }: { title: React.ReactNode; subtitle?: React.ReactNode; navigation?: React.ReactNode; actions?: React.ReactNode }) {
+  return <LibraryHeader className="pero-ui-page-header" title={title} subtitle={subtitle} navigation={navigation} actions={actions && <Toolbar>{actions}</Toolbar>}/>;
 }

@@ -9,7 +9,7 @@ export type TextareaProps = React.ComponentPropsWithoutRef<'textarea'>;
 
 /** Text-like native inputs; checkbox, radio and other control families keep their own semantics. */
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ className, ...props }, ref) {
-  return <input {...props} className={['pero-ui-input', className].filter(Boolean).join(' ')}
+  return <input {...props} className={['pero-ui-input', props.type === 'search' ? 'pero-search' : '', className].filter(Boolean).join(' ')}
     ref={ref} />;
 });
 

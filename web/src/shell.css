@@ -1,7 +1,13 @@
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--pero-bg)}#loading{position:fixed;inset:0;display:grid;place-items:center;font:14px system-ui;color:var(--pero-text-muted)}canvas{display:block}body>input,body>textarea{font-size:16px}
-#pero-app-surface{position:fixed;z-index:2;background:var(--pero-surface);overflow:hidden}
-#pero-app-surface[hidden],#pero-app-surface .app-panel-surface[hidden],#pero-app-surface iframe[hidden],.app-panel-status[hidden]{display:none}
-#pero-app-surface iframe{display:block;width:100%;height:100%;border:0}
-.app-panel-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:12px;background:var(--pero-surface);color:var(--pero-text);font:14px system-ui;padding:24px}
-.app-panel-status button{padding:8px 12px;border:1px solid var(--pero-border);border-radius:6px;color:inherit;background:var(--pero-surface-muted);cursor:pointer}
-.app-panel-status button:focus-visible{outline:2px solid var(--pero-focus);outline-offset:3px}
+@import "../../packages/pero-design/src/tokens.css";
+
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--pero-material-chrome); color: var(--pero-text); font: var(--pero-font-body)/1.4 system-ui, sans-serif; }
+#loading { position: fixed; inset: 0; display: grid; place-items: center; font: var(--pero-font-body) system-ui, sans-serif; color: var(--pero-text-muted); background: var(--pero-material-chrome); }
+canvas { display: block; }
+body > input, body > textarea { font-size: var(--pero-font-body); }
+#pero-app-surface { position: fixed; z-index: 2; background: var(--pero-material-chrome); overflow: hidden; }
+#pero-app-surface[hidden], #pero-app-surface .app-panel-surface[hidden], #pero-app-surface iframe[hidden], .app-panel-status[hidden] { display: none; }
+#pero-app-surface iframe { display: block; width: 100%; height: 100%; border: 0; }
+.app-panel-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: var(--pero-space-3); background: var(--pero-material-chrome); color: var(--pero-text); font: var(--pero-font-body) system-ui, sans-serif; padding: var(--pero-space-6); }
+.app-panel-status button { box-sizing: border-box; min-height: var(--pero-control-height); padding: 0 var(--pero-space-3); border: 0; border-radius: var(--pero-radius-button); color: var(--pero-on-action); background: var(--pero-action); cursor: pointer; }
+.app-panel-status button:hover { background: var(--pero-action-hover); }
+.app-panel-status button:focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }

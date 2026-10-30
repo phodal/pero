@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {AppConversation, downloadFile, openDocument, useAppApi, useAppChat, useAppI18n, useAppObject, useAppDataChanged} from '@pero/app-sdk';
-import {Button, Checkbox, Feedback, FilePicker, Input, Select, Toolbar} from '@pero/app-sdk/ui';
+import {Button, Checkbox, EmptyState, Feedback, FilePicker, Input, LibraryHeader, Select, Toolbar} from '@pero/app-sdk/ui';
 import {emptyView, fieldRule, querySchema, summary, type Dataset, type Export, type Result, type ViewSpec} from './model';
 import {messages} from './i18n';
 import './styles.css';
@@ -86,17 +86,17 @@ export default function DataAgent() {
   const fields=data?.dataset.fields||[],fieldOptions=fields.map(field=>({value:field.name,label:field.name}));
   const selected=new Set(view.selection);
   return <main className="data-agent" aria-busy={busy}>
-    <header className="data-header"><h1>{t('title')}</h1>
+    <LibraryHeader className="data-header" title={t('title')} actions={<>
       <FilePicker label={t('import')} emptyLabel={t('noFile')} accept=".json,.jsonl,.ndjson,application/json" disabled={busy} busy={busy} onFile={file=>act(async()=>{
         if(file.size>16*1024*1024)throw new Error(t('noFile'));
         await importSource(file.name,await file.text(),/\.(jsonl|ndjson)$/i.test(file.name)?'json_lines':'json');
       })}/>
       <Button disabled={busy} onClick={()=>act(async()=>{const value=await api.get<{content:string}>('/api/example');await importSource('observations.json',value.content,'json');})}>{t('example')}</Button>
       {data&&window.parent!==window&&<Button onClick={()=>setShowChat(value=>!value)} aria-expanded={showChat}>{t(showChat?'closeChat':'openChat')}</Button>}
-    </header>
+    </>}/>
     {error&&<Feedback kind="error"><span>{error}</span><Button onClick={()=>{void reload();}}>{t('retry')}</Button></Feedback>}
     {busy&&<p className="data-status" role="status">{t('loading')}</p>}
-    {!data?<p className="data-empty">{t('empty')}</p>:<>
+    {!data?<EmptyState heading={t('empty')}/>:<>
       <Toolbar className="data-toolbar" actions={<><Button disabled={busy} onClick={()=>act(()=>source())}>{t('source')}</Button><Button disabled={busy} onClick={()=>act(()=>exportRows())}>{t('export')}</Button><Button disabled={busy||window.parent===window} onClick={()=>act(()=>chat.compose(t('prompt'),{attachments:[chat.objectReference('dataset-view',{dataset:data.dataset.id,sourceRevision:data.dataset.revision,viewId:data.viewId,selectedCount:data.selected})]}))}>{t('ask')}</Button></>}>
         <Select label={t('dataset')} value={data.dataset.id} options={catalog.map(item=>({value:item.id,label:item.name}))} disabled={busy} onChange={id=>{const found=catalog.find(item=>item.id===id);if(found)act(()=>choose(found));}}/>
         <span>{data.dataset.rowCount.toLocaleString()} {t('rows')} · {data.matching.toLocaleString()} {t('matching')}{view.selection.length?` · ${view.selection.length} ${t('selected')}`:''}</span>
@@ -113,7 +113,7 @@ export default function DataAgent() {
         <p>{t('displayLimit')}</p><ul>{fields.filter(field=>field.name.toLowerCase().includes(fieldSearch.toLowerCase())).map(field=><li key={field.name}><label><Checkbox checked={view.columns.includes(field.name)} disabled={busy||!view.columns.includes(field.name)&&view.columns.length===32} onCheckedChange={checked=>update({...view,columns:checked?[...view.columns,field.name]:view.columns.filter(name=>name!==field.name)},data.offset)}/><span>{field.name}</span></label><small>{field.kinds.join(' / ')}{field.nulls?` · ${field.nulls} ${t('nulls')}`:''}{field.missing?` · ${field.missing} ${t('missingCount')}`:''}</small></li>)}</ul>
       </aside><section className="data-records"><div className="data-grid" tabIndex={0} role="region" aria-label={t('rows')}><table><thead><tr><th scope="col">#</th>{view.columns.map(name=><th key={name} scope="col" aria-sort={view.sort?.field===name?(view.sort.descending?'descending':'ascending'):'none'}><button disabled={busy} onClick={()=>update({...view,sort:{field:name,descending:view.sort?.field===name?!view.sort.descending:false}})}>{name}</button></th>)}<th scope="col">{t('source')}</th></tr></thead>
         <tbody>{data.rows.map(row=><tr key={row.ordinal} aria-selected={selected.has(row.ordinal)}><th scope="row"><label><Checkbox aria-label={`${t('select')} ${row.ordinal+1}`} checked={selected.has(row.ordinal)} disabled={busy||!selected.has(row.ordinal)&&selected.size===1000} onCheckedChange={checked=>update({...view,selection:checked?[...view.selection,row.ordinal]:view.selection.filter(index=>index!==row.ordinal)},data.offset)}/>{row.ordinal+1}</label></th>{view.columns.map(name=><td key={name} data-kind={row.cells[name]?.kind||'missing'} title={row.cells[name]?.truncated?t('showRecord'):undefined}>{row.cells[name]?.display??'—'}{row.cells[name]?.truncated?'…':''}</td>)}<td><Button variant="ghost" disabled={busy} aria-label={`${t('showRecord')} ${row.ordinal+1}`} onClick={()=>act(()=>source(row.ordinal))}>↗</Button></td></tr>)}</tbody></table>
-        {!data.rows.length&&<p>{t('noResults')}</p>}</div>
+        {!data.rows.length&&<EmptyState heading={t('noResults')}/>}</div>
         <footer className="data-pagination"><span>{data.rows.length?data.offset+1:0}–{data.offset+data.rows.length} / {data.matching.toLocaleString()}</span><Button disabled={busy||data.offset===0} onClick={()=>update(view,Math.max(0,data.offset-50))}>{t('previous')}</Button><Button disabled={busy||data.offset+50>=data.matching} onClick={()=>update(view,data.offset+50)}>{t('next')}</Button>{view.selection.length>0&&<Button disabled={busy} onClick={()=>update({...view,selection:[]},data.offset)}>{t('clearSelection')}</Button>}</footer>
       </section><section className="data-chart"><h2>{t('chart')}</h2><p>{t('allMatching')}</p>
         <Select label={t('category')} value={view.chart?.category||''} options={[{value:'',label:t('category')},...fieldOptions]} disabled={busy} onChange={category=>update({...view,chart:category?{category,measure:view.chart?.measure||fields[0].name,aggregation:view.chart?.aggregation||'count'}:null})}/>

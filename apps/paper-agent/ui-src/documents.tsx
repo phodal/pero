@@ -21,7 +21,7 @@ export function Reader({ paper, busy, api, pdfFocus, onFull, onDiscuss, onMatrix
   }
   return <article className="pa-document pa-reading-document" data-paper-id={paper.id} aria-label={paper.title}>
     <PdfReader key={paper.id} chrome={chrome} paper={paper} api={api} focus={pdfFocus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}>
-      <div className="pa-text-reading">
+      <div className="pa-text-reading pero-reader-body"><div className="pero-reader-content">
         {paper.contentKind !== 'full-text' && <p className="pa-document-meta">{t(paper.contentKind === 'abstract' ? 'abstract' : 'sourceReport')}</p>}
         <div className="pa-source-text" ref={source} onMouseUp={capture} onKeyUp={capture}>{paper.content ? <ScientificContent content={paper.content}/> : t('loading')}</div>
         {!!excerpt && <div className="pa-reader-actions"><Button onClick={() => onDiscuss(excerpt)}>{t('discussSelection')}</Button></div>}
@@ -31,7 +31,7 @@ export function Reader({ paper, busy, api, pdfFocus, onFull, onDiscuss, onMatrix
           <dl className="pa-details"><dt>SHA-256</dt><dd>{paper.contentDigest}</dd><dt>{t('frozenInput')}</dt><dd>{paper.fetchedAt}</dd></dl>
           <Disclosure summary={t('rawSource')}><pre className="pa-raw-source">{paper.content}</pre></Disclosure>
         </Disclosure>
-      </div>
+      </div></div>
     </PdfReader>
   </article>;
 }

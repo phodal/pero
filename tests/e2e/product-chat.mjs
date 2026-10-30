@@ -1,6 +1,7 @@
 // Real Electron, the standalone Chat Wasm and a bounded ACP fixture; no model login.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { productShellStyle } from '../../scripts/build/shell-style.mjs';
 import { build } from 'esbuild';
 import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
@@ -20,7 +21,7 @@ await cp(resolve(root, 'web/dist'), join(distribution, 'web/chat'), { recursive:
 await build({ entryPoints: { product: resolve(root, 'desktop/src/main/product.ts'), 'product-preload': resolve(root, 'desktop/src/product/preload.ts') },
   outdir: join(distribution, 'desktop/dist'), outExtension: { '.js': '.cjs' }, bundle: true, platform: 'node', format: 'cjs', external: ['electron'] });
 const script = await build({ entryPoints: [resolve(root, 'desktop/src/product/shell.ts')], bundle: true, platform: 'browser', format: 'iife', write: false });
-const style = await readFile(resolve(root, 'desktop/src/product/shell.css'), 'utf8');
+const style = productShellStyle(root);
 await writeFile(join(distribution, 'desktop/dist/product.html'), `<!doctype html><html><head><meta charset="utf-8"><style>${style}</style></head><body><script>${script.outputFiles[0].text}</script></body></html>`);
 await writeFile(join(distribution, 'package.json'), JSON.stringify({ main: 'desktop/dist/product.cjs' }));
 await writeFile(join(distribution, 'product.json'), JSON.stringify({ schemaVersion: 1, id: 'com.openpero.chatfixture', name: 'Chat Fixture', version: '1.0.0', shell: 'app',
