@@ -48,6 +48,14 @@ parent-owned App/panel instance, one fixed action set and a maximum five-minute
 lease. The Rust Host continues to own ACP execution, cancellation and history;
 Desktop owns authorization and effects against its live UI surfaces.
 
+For declared `app_describe` / `app_write` data routes, a trusted Host-created
+`appBinding` permits an App-owned running turn to access its own App/panel while
+another conversation is selected. A plain chat scope grants no such access.
+Cancellation, completion, close and disconnect revoke pending calls; changing
+the visible conversation preserves these App-owned data calls. UI operations and
+captures still require the selected session and visible surface. The bounded
+Paper use case is defined in [the research design](../design-docs/paper-research-agent.md).
+
 The calling Agent owns approval policy. Codex/Claude apply their advertised
 session settings to tool calls; an auto-approved authenticated MCP call proceeds
 without a second Desktop question. If the Agent emits `session/request_permission`,

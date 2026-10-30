@@ -13,7 +13,8 @@ Pero 面向研究者、Agent 与计算环境，围绕 Project 组织上下文、
 HTML iframe。`apps/virtual-cell` 是首个接入实例，`apps/paper-agent` 提供 Python
 论文快照、引用校验和报告工作流。`packages/app-sdk` 提供主题、语言、活动状态、
 本 App 后端接口，以及声明 `agent` 权限后的有界 Host 会话接入。会话和审批仍由
-Host 管理；Task/Run、领域 Agent 工具和远程 App 部署尚未与此机制连接。
+Host 管理；Paper 的领域读取与研究台账经声明路由接入 Agent。
+Task/Run 与远程 App 部署尚未与此机制连接。
 
 ## 可组合应用与产品
 
@@ -86,6 +87,14 @@ Host 内置 `/app-use` 工作流，完整回执保存会话、任务、实例、
 具体证据和剩余平台边界见
 [App Use 验证](fitness/app-use.md)。
 
+Paper App 的全文研究通过同一 Host Agent 会话调用声明的 `research-step`
+数据路由，逐步读取冻结 PDF、检索、回读已观察片段、保存发现与缺口并提交报告。
+Python `ResearchStudy` 保存领域台账，执行、取消和授权仍由 Host 拥有；
+它不增加研究调度器。Host 创建的 App 绑定会话可在后台访问本 App 的声明
+数据路由，UI 操作与截图继续受选中会话和可见性约束。范围及验证分别见
+[研究设计](design-docs/paper-research-agent.md) 与
+[研究验收](fitness/paper-research-agent.md)。
+
 系统桌面操作的值契约由 [ADR 0016](adr/0016-computer-use-contract.md) 定义：
 `protocol/computer-use.tsp` 生成观察与动作 Schema/TypeScript，`pero-contracts`
 持有 Rust 类型和纯函数操作准入。契约绑定运行实例、目标、观察和截图坐标，
@@ -105,8 +114,8 @@ macOS AppKit 与 Linux X11 窗口已有实际输入效果验证，Windows 已通
 | --- | --- | --- |
 | App 界面与领域计算 | Virtual Cell 的本地界面与 Python 后端已接入 | 按具体领域需求扩展方法 |
 | 产品交付 | 工作台与独立 App 壳；Virtual Cell macOS arm64 开发包已有验证记录 | 更新、迁移与其他平台打包需分别实现和验证 |
-| Agent 协作 | 工作台 App 侧栏和可选独立产品聊天复用共享 GPUI ChatPanel、Host ACP 会话、取消与审批 | App 领域工具与结构化上下文需分别接线和验收 |
-| 方法、任务与验收组合 | App 尚未接入 Task/Run、Agent 工具或产物登记 | 明确输入、输出、方法版本与验证规则，再接已有执行与复核边界 |
+| Agent 协作 | 共享 GPUI ChatPanel、Host ACP 会话、取消与审批；Paper 通过 App 工具保存研究与精确证据 | 其他领域工具与结构化上下文需分别接线和验收 |
+| 方法、任务与验收组合 | Paper 有本地研究台账；App 尚未接入 Task/Run 或控制面产物登记 | 明确输入、输出、方法版本与验证规则，再接已有执行与复核边界 |
 
 领域包可逐步组合界面、方法、上下文、工具和验证规则；当前 `app.json` 与 Product 配置只承载已实现的范围。Product 负责选择交付内容，Host 负责本机进程、凭据和执行，控制面负责共享任务及协调。独立产品继续调用这些所有者，领域 App 不另建通用调度、审批或任务状态机。
 

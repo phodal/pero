@@ -25,7 +25,9 @@ navigation, zoom and **Ask**. Opening the App never starts research.
 Existing profiles discover new bundled Apps at startup and when entering or
 refreshing Apps. External packages can be added through **Apps → Install from
 folder**, then enabled. Domain data lives in Host-managed `app-data/paper-agent` and survives
-disable, uninstall and reinstall. The App defaults to the shared Python
+disable, uninstall and reinstall. Rebuilding a bundled App does not replace an
+already-installed package; uninstall and reinstall the rebuilt folder through
+Apps to load its new version. The App defaults to the shared Python
 environment; see [Python environment settings](../README.md#python-environments)
 for a dedicated override when needed. Install this App's pinned PDF dependencies
 in that shared environment before using PDF reading:
@@ -59,24 +61,28 @@ offer each matching page rather than silently selecting one occurrence.
 Choose **Ask** to open a conversation beside the PDF; close it to return to
 full-width reading. Cmd/Ctrl+J toggles the panel. Page, zoom, scroll and selection
 are retained; on narrow screens the Agent overlays the document. Ask a question
-about the saved full text. The App
-splits PDF text into overlapping page-local passages, ranks them with local BM25,
-then asks the selected Host Agent to select and reorder relevant evidence. A
-source-language query is planned first; the selector can request one additional
-search, with at most two rounds. The App freezes up to 12 selected passages
-(19,200 characters), their PDF versions, queries, evidence gaps and the exact
-answer prompt. The existing Host Agent generates a sourced answer. Every
-PDF answer section needs an exact quotation and a valid passage ID; unmatched
-quotes are rejected and retained for repair. Clicking a citation opens the saved
+about the saved full text. One Host Agent session uses the declared
+`research-step` App tool to inspect the page catalog, read original pages,
+search frozen PDFs, save findings and update unresolved gaps. It can follow a
+missing method or table back to its page instead of stopping after two searches.
+The domain ledger saves observations with exact passage IDs; the last of its
+24 research steps is reserved for submitting the report. Existing observations
+can be recalled without consuming new research steps. Reading pages is bounded
+and returns an explicit continuation offset when text remains. Clicking a citation opens the saved
 PDF version, scrolls to the quotation and highlights its text rectangles.
 
 **Research settings** contains source selection, **Search full PDF text**,
 code verification and Agent selection. Full-text questions support 1–5 papers;
-their PDFs are saved before planning. Empty supporting evidence stops the
-answer with a recovery message. Retrieval uses local SQLite FTS5/BM25 with bounded
-model query rewriting and evidence selection. It adds no embedding runtime;
-lexical searches and model selection can still miss relevant material. Absence from the selected passages is not evidence of
-absence in the paper. OCR and automatic figure recognition are not included.
+their PDF versions and the exact initial prompt are frozen before execution.
+This mode requires an Agent with HTTP MCP support. Final citations must match
+passages observed in the study; returning JSON in chat alone does not save a
+report. Unfinished studies can be reopened; **Continue research** explicitly
+starts a new Host request with the saved evidence and gaps, using the selected
+Agent. A running Host request is reattached without replay. Unresolved gaps stay
+visible in saved reports and exports. Search uses local SQLite FTS5/BM25 and adds
+no embedding runtime. Missing hits do not prove absence from the paper. This
+mode studies selected saved PDFs; external literature discovery remains a
+separate library workflow. OCR and automatic figure recognition are not included.
 Existing abstract/text snapshots remain unchanged. Ordinary research still uses
 those snapshots unless full-text retrieval is selected.
 
