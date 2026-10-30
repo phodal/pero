@@ -20,10 +20,15 @@ try{
  const state=()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()));
  await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
  await expect.poll(async()=>(await state()).apps?.some(a=>a.name==='virtual-cell')).toBe(true);
- await page.mouse.click(80,await page.evaluate(()=>innerHeight-76));
+ // Apps is the second compact footer row, below Insights.
+ await page.mouse.click(80,await page.evaluate(()=>innerHeight-55));
  await expect.poll(async()=>(await state()).navigation).toBe(7);
  await expect.poll(async()=>(await state()).appsLoading).toBe(false);
- await page.mouse.click(1305,110+79*(await state()).apps.findIndex(a=>a.name==='virtual-cell'));
+ const catalog=await state();
+ const row=catalog.apps.findIndex(a=>a.name==='virtual-cell');
+ // Match the compact catalog geometry used by workspace.mjs.
+ await page.mouse.click(1305,76+(catalog.contentTabs.length?30:0)+58*row);
+ await expect.poll(async()=>(await state()).activeContent).toEqual({kind:'app',value:{name:'virtual-cell',panel:'main'}});
  const frame=page.frameLocator('iframe[title="virtual-cell"]');
  await expect(frame.getByLabel('Find gene',{exact:true})).toBeVisible({timeout:20000});
  await frame.locator('body').evaluate(()=>parent.postMessage({type:'pero:app:chat',text:'app-use:full'},'*'));

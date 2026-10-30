@@ -188,3 +188,46 @@ pointer click. Keep option-kind lookup and permission/result/effect assertions;
 there is no estimated-coordinate fallback. The existing Workbench permission
 click already passed using this diagnostic. Synthetic offset/index arithmetic
 checks and syntax checks pass, but are not a substitute for Product Electron CI.
+
+
+## Compact Apps entry and catalog (2026-10-30)
+
+Standard CI [40991115352](https://github.com/phodal/pero/actions/runs/40991115352)
+at head `4edd` finished 15 of 16 jobs successfully. Linux job `123853490510`
+completed Workbench, Toolcalls and Product App Use, then stopped in Workbench App
+Use at its initial Apps navigation assertion. The actual failure screenshot
+shows Insights selected; its state has `navigation: 8`, `activeContent: null`,
+`contentTabs: []` and `appsLoading: false`. This is not an enum change:
+`WorkbenchPage::legacy_index` still maps Conversation to 0, Apps to 7 and
+Insights to 8. Changing the expectation to 8 would accept the wrong page.
+
+The old `(80,height-76)` click hits the compact Insights row. Target the visible
+Apps row at `(80,height-55)` instead, retaining `navigation === 7`. The next
+catalog click is also pre-compact geometry (`110+79*row`). Reuse the existing
+current `workspace.mjs` formula `76+(contentTabs.length?30:0)+58*row`, matching
+master's compact catalog change `462abca`, and assert the exact Virtual Cell
+main-panel content identity before the existing iframe and DOM checks. The
+catalog adjustment is source-backed; this failure's screenshot does not show
+the catalog, and actual execution still needs the next run.
+
+Finite four-suite assertion audit:
+
+| Suite | Current evidence |
+| --- | --- |
+| Workbench | Complete result receipt with `errors: []`; Conversation=0 assertions agree with the current diagnostic mapping. |
+| Toolcalls | Complete result receipt with `errors: []`; Agent choice, context labels, nine tools, expansion counts and appearance assertions all executed successfully. |
+| Product App Use | Complete result receipt with `errors: []`; all 11 check groups executed, including real permission choice, ten verbs, frozen context/images, import/write denial and persistence, revoke, hidden panels and capture receipts. No numeric workbench navigation expectations. |
+| Workbench App Use | Apps=7 and Conversation=0 expectations remain correct. Exact App/content identity follows the current tagged `WorkspaceItem` schema. Existing fixture verb set, `MS4A1` DOM checks, original-conversation identity, attachment counts and hidden-surface refusal assertions are retained; this run did not reach them. |
+
+Both diagnostics still use the shared ChatPanel projection for active-chat,
+attachments, tools and permission bounds. The remaining Workbench App Use
+composer coordinates lie in the same shared compact editor already exercised
+by the first three suites; first-row New Chat coordinates are unchanged and
+executed by Workbench. No assertion is relaxed, no product code changes, and no
+new timeout, retry or diagnostic is introduced.
+
+Evidence: [Desktop artifact 12949323707](https://github.com/phodal/pero/actions/runs/40991115352/artifacts/12949323707),
+32 files; independently verified ZIP SHA-256
+`841da04fa2ad28fc9be71c19365e48690ed696cd80d9a75e0f18c8789788cc8f`.
+All four suite syntax checks and `git diff --check` pass locally. This workspace
+has no built Desktop/Xvfb; fourth-suite actual acceptance remains pending CI.
