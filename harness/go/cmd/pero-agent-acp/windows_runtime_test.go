@@ -82,8 +82,8 @@ func TestWindowsACLCLIProcessApprovalAndWriteBoundary(t *testing.T) {
 		for _, tool := range request.Tools {
 			names[tool.Function.Name] = tool.Function.Description
 		}
-		if len(names) != 5 || names["read_file"] == "" || names["list_directory"] == "" || names["search_files"] == "" || !strings.Contains(names["write_file"], "create-only") || !strings.Contains(names["shell"], "NOT isolated") {
-			t.Errorf("CLI must expose bounded files and the accurately labeled partial shell: %+v", request.Tools)
+		if len(names) != 6 || names["chart_render"] == "" || names["read_file"] == "" || names["list_directory"] == "" || names["search_files"] == "" || !strings.Contains(names["write_file"], "create-only") || !strings.Contains(names["shell"], "NOT isolated") {
+			t.Errorf("CLI must expose only charts, bounded files and the accurately labeled partial shell: %+v", request.Tools)
 		}
 		mu.Lock()
 		stage := calls
