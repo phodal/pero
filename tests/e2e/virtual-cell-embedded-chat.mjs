@@ -1,4 +1,4 @@
-// Managed Virtual Cell, the real App SDK slot and a scripted ACP Agent.
+// Managed Virtual Cell, the shared floating App Chat and a scripted ACP Agent.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -42,17 +42,13 @@ try {
   await frame.getByRole('tab', { name: 'Reactions & simulation', exact: true }).click();
   await frame.getByLabel('Duration (s)', { exact: true }).fill('12');
   const frameUrl = await page.locator('iframe[title="virtual-cell"]').getAttribute('src');
-  const dockInitiallyOpen = (await state()).appChatOpen;
   await frame.getByRole('button', { name: 'Open chat', exact: true }).click();
-  const slot = frame.locator('[data-pero-chat-slot]');
-  await expect(slot).toHaveAttribute('data-mounted', 'true', { timeout: 20000 });
+  await expect.poll(async () => (await state()).floatingChat).toBe(true);
+  await expect.poll(async () => (await state()).floatingChatExpanded).toBe(false);
   await expect.poll(async () => (await state()).scope).toEqual({ app: 'virtual-cell', panel: 'main' });
-  const box = await slot.boundingBox();
-  expect(box).not.toBeNull();
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height - 100);
   await expect.poll(async () => (await state()).composerFocused).toBe(true);
-  await page.keyboard.insertText('Review the current reaction setup');
-  await expect.poll(async () => (await state()).composer).toBe('Review the current reaction setup');
+  await page.keyboard.insertText('Review setup');
+  await expect.poll(async () => (await state()).composer).toBe('Review setup');
   const before = await state();
   const thread = before.chats[before.activeChat].id;
   const messages = before.chats[before.activeChat].messages.length;
@@ -65,22 +61,23 @@ try {
   await expect.poll(async () => (await state()).dark).toBe(true);
   await page.screenshot({ path: resolve(out, 'dark.png') });
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 788));
-  await expect(slot).toHaveAttribute('data-mounted', 'true');
-  await expect.poll(async () => (await state()).chats[(await state()).activeChat].id).toBe(thread);
+  await expect.poll(async () => (await state()).floatingChat).toBe(true);
+  await expect(frame.getByLabel('Duration (s)', { exact: true })).toHaveValue('12');
   await expect.poll(async () => (await state()).attachments.length).toBe(1);
   await page.screenshot({ path: resolve(out, 'narrow.png') });
-  await frame.getByRole('button', { name: 'Close chat', exact: true }).click();
-  await expect(slot).toHaveCount(0);
-  await expect.poll(async () => (await state()).appChatOpen).toBe(dockInitiallyOpen);
+  const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+  // The compact surface is bottom-right; its last header icon minimizes Chat.
+  await page.mouse.click(viewport.width - 30, viewport.height - 132);
+  await expect.poll(async () => (await state()).appChatOpen).toBe(false);
   await expect(frame.getByLabel('Duration (s)', { exact: true })).toHaveValue('12');
   expect(await page.locator('iframe[title="virtual-cell"]').getAttribute('src')).toBe(frameUrl);
   await frame.getByRole('button', { name: 'Open chat', exact: true }).click();
-  await expect(slot).toHaveAttribute('data-mounted', 'true');
+  await expect.poll(async () => (await state()).floatingChat).toBe(true);
   await expect.poll(async () => (await state()).chats[(await state()).activeChat].id).toBe(thread);
-  await expect.poll(async () => (await state()).composer).toContain('Review the current reaction setup');
+  await expect.poll(async () => (await state()).composer).toContain('Review setup');
   await expect.poll(async () => (await state()).attachments.length).toBe(1);
   expect((await state()).chats[(await state()).activeChat].messages.length).toBe(messages);
-  checks.push('real Virtual Cell SDK slot, frozen context without send, retained session and App state, dark and narrow');
+  checks.push('real Virtual Cell compact Chat, frozen context without send, retained session and App state, dark and narrow');
   expect(errors).toEqual([]);
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ checks, errors, realModel: false }, null, 2));
   console.log(JSON.stringify({ checks, errors, realModel: false }));

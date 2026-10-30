@@ -1,8 +1,5 @@
 export const messages = {
-  chat: { zh: '对话', en: 'Chat' },
   openChat: { zh: '打开对话', en: 'Open chat' },
-  closeChat: { zh: '关闭对话', en: 'Close chat' },
-  chatUnavailable: { zh: '此区域无法显示对话，请关闭后重新打开重试。', en: 'Chat is unavailable here. Close and reopen it to retry.' },
   openDocument:{zh:'在工作区查看完整结果',en:'Open complete result in workspace'},
   discussContext: { zh: '讨论上下文', en: 'Discuss context' },
   captureContext: { zh: '截图到对话', en: 'Capture to chat' },
