@@ -1,6 +1,6 @@
 //! Linux X11 window capture and explicit foreground XTest input.
 //! Like Cua's native dispatch, Wayland is a separate backend, never an X11 fallback.
-use crate::profile;
+use crate::{interrupt, profile};
 use computer_core::{Window, WindowBounds, WindowImage};
 use computer_runtime::{DesktopDriver, WindowObservation, error};
 use image::{ExtendedColorType, codecs::jpeg::JpegEncoder};
@@ -29,6 +29,7 @@ pub struct X11Snapshot {
 }
 impl Desktop {
     pub fn connect() -> Self {
+        interrupt::install();
         let connection = x11rb::connect(None);
         let environment = profile::environment(
             connection.is_ok(),
@@ -487,7 +488,12 @@ impl DesktopDriver for Desktop {
             } => {
                 aim(anchor(&a)?)?;
                 c.flush().map_err(failure)?;
-                std::thread::sleep(dwell_ms.duration());
+                if !interrupt::wait(dwell_ms.duration()) {
+                    return Err(error(
+                        ComputerErrorCode::Cancelled,
+                        "Stopped during the hover dwell",
+                    ));
+                }
             }
             ComputerInput::Hold {
                 anchor: a,
@@ -496,13 +502,27 @@ impl DesktopDriver for Desktop {
             } => {
                 let button = x11_button(button);
                 aim(anchor(&a)?)?;
-                fake(BUTTON_PRESS_EVENT, button, 0, 0)?;
-                // The press is dispatched: from here on always attempt the release,
-                // and report the first failure without replaying the press.
-                let held = c.flush().map_err(failure).map(|_| {
-                    std::thread::sleep(hold_ms.duration());
-                });
-                let released = fake(BUTTON_RELEASE_EVENT, button, 0, 0);
+                interrupt::set_held(button);
+                let pressed = fake(BUTTON_PRESS_EVENT, button, 0, 0);
+                // From here on always attempt the release, end the hold early on
+                // stop, and report the first failure without replaying the press.
+                let held = pressed
+                    .and_then(|_| c.flush().map_err(failure))
+                    .and_then(|_| {
+                        if interrupt::wait(hold_ms.duration()) {
+                            Ok(())
+                        } else {
+                            Err(error(
+                                ComputerErrorCode::Cancelled,
+                                "Stopped during the hold; the button was released early",
+                            ))
+                        }
+                    });
+                let released = fake(BUTTON_RELEASE_EVENT, button, 0, 0)
+                    .and_then(|_| c.flush().map_err(failure));
+                if released.is_ok() {
+                    interrupt::set_held(0);
+                }
                 held.and(released)?;
             }
             ComputerInput::Drag { from, to, .. } => {
