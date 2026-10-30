@@ -242,3 +242,10 @@ Update the existing fake to represent a Workbench window with no child Chat
 frames. Keep both foreign-caller and changed-selection refusal checks. Add this
 loopback transport suite to the ordinary three-OS CI so future shared-adapter
 changes exercise Computer Use admission as well as App Use.
+
+The new Windows transport CI job then failed before executing the assertions:
+Node rejected `import(D:\...)` as an unsupported `d:` URL scheme. Convert both
+temporary bundle paths with `pathToFileURL` before dynamic import. Move the
+standalone loopback check directly after npm installation; it depends on npm
+packages and committed schemas, not on the native Desktop build. This keeps the
+same test on every OS and exposes loader/fixture failures before the long build.
