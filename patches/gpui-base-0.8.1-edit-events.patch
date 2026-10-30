@@ -52,13 +52,13 @@ diff --git a/crates/base/src/input/base/state.rs b/crates/base/src/input/base/st
              self.mode.adjust_auto_closed_pair(range, new_text.len());
              self.text.replace(range.clone(), new_text);
 +            self.emit_source_edit(&old_text,range,new_text,cx);
- 
+
              M::adjust_annotations(self, range, new_text.len());
              recorded |= self.push_history(
 @@ -4785,6 +4818,7 @@
              }
          }
- 
+
 +        self.emit_source_edit(&old_text,&range,new_text,cx);
          M::adjust_annotations(self, &range, new_text.len());
          if let Some(diagnostics) = self.mode.diagnostics_mut() {
