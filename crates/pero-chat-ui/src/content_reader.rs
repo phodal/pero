@@ -1,4 +1,6 @@
 //! Retained reading state; an editor is mounted only when source is requested.
+mod edit;
+mod location;
 mod preview;
 mod search;
 mod state;
@@ -7,7 +9,9 @@ use gpui_kit::{
     component::{
         ActiveTheme, IconName, Sizable,
         button::*,
-        input::{Editor, EditorState, Enter, Input, InputEvent, InputState, RopeExt, Search},
+        input::{
+            Editor, EditorState, Enter, Input, InputEvent, InputState, Redo, RopeExt, Search, Undo,
+        },
     },
     prelude::*,
     *,
@@ -33,6 +37,17 @@ pub enum ReaderAction {
     Navigate {
         before: ReaderState,
         after: ReaderState,
+    },
+    Edit {
+        edit: pero_contracts::text_edit_anchor::TextEdit,
+        inserted: String,
+    },
+    Undo {
+        redo: bool,
+    },
+    Focus,
+    EditTransaction {
+        begin: bool,
     },
 }
 impl EventEmitter<ReaderAction> for ContentReader {}
@@ -80,6 +95,7 @@ pub struct ContentReader {
     markdown_index: Option<MarkdownSource>,
     pending_anchor: Option<Range<usize>>,
     source_pointer_selection: Option<Range<usize>>,
+    pending_record: Option<usize>,
     path: Vec<Range<usize>>,
     copied: bool,
     window: AnyWindowHandle,
@@ -146,6 +162,7 @@ impl ContentReader {
             markdown_index: None,
             pending_anchor: None,
             source_pointer_selection: None,
+            pending_record: None,
             path: vec![],
             copied: false,
             window: window.window_handle(),
@@ -257,10 +274,36 @@ impl ContentReader {
         cx.notify();
     }
     fn observe_edits(&mut self, cx: &mut Context<Self>) {
-        if self.editor_subscription.is_none() && self.editable() {
+        if self.editor_subscription.is_none() && self.placement == ReaderPlacement::Workspace {
             if let Some(editor) = &self.editor {
                 self.editor_subscription = Some(cx.subscribe(editor, |this, editor, event, cx| {
-                    if matches!(event, InputEvent::Change) {
+                    if matches!(event, InputEvent::Focus) {
+                        cx.emit(ReaderAction::Focus);
+                    }
+                    if let InputEvent::EditTransaction { begin } = event
+                        && this.editable()
+                    {
+                        cx.emit(ReaderAction::EditTransaction { begin: *begin });
+                    }
+                    if let InputEvent::Edit {
+                        old,
+                        inserted,
+                        old_lines,
+                        new_line_count,
+                    } = event
+                        && this.editable()
+                    {
+                        cx.emit(ReaderAction::Edit {
+                            edit: pero_contracts::text_edit_anchor::TextEdit {
+                                old: old.clone(),
+                                new_len: inserted.len(),
+                                old_lines: old_lines.clone(),
+                                new_line_count: *new_line_count,
+                            },
+                            inserted: inserted.clone(),
+                        });
+                    }
+                    if matches!(event, InputEvent::Change) && this.editable() {
                         let text = editor.read(cx).text();
                         this.dirty = text.len() != this.document.bytes
                             || !text.bytes().eq(this.document.source().bytes());
@@ -723,6 +766,12 @@ impl Render for ContentReader {
             .capture_action(cx.listener(|this, _: &Search, window, cx| {
                 this.search_source(window, cx);
                 cx.stop_propagation();
+            }))
+            .capture_action(cx.listener(|this, _: &Undo, window, cx| {
+                this.request_document_undo(false, window, cx)
+            }))
+            .capture_action(cx.listener(|this, _: &Redo, window, cx| {
+                this.request_document_undo(true, window, cx)
             }))
             .capture_action(cx.listener(|this, action: &Enter, window, cx| {
                 if this.search_open
