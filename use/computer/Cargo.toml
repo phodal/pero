@@ -7,6 +7,13 @@ publish = false
 # Native source stays in its own workspace; GPUI and native driver builds do not
 # alter each other's dependency resolution.
 [workspace]
+exclude = [
+    "vendor/point/crates/point-computer-core",
+    "vendor/point/crates/point-computer-backend",
+    "vendor/point/crates/point-computer-overlay",
+    "vendor/point/crates/point-computer-macos",
+    "vendor/point/crates/point-computer-windows",
+]
 
 [dependencies]
 pero-contracts = { path = "../../crates/pero-contracts" }
@@ -15,15 +22,15 @@ serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
 base64 = "0.22"
 
-point-computer-core = { path = "../../target/point-computer-source/computer/crates/point-computer-core" }
+point-computer-core = { path = "vendor/point/crates/point-computer-core" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-point-computer-backend = { path = "../../target/point-computer-source/computer/crates/point-computer-backend" }
-point-computer-macos = { path = "../../target/point-computer-source/computer/crates/point-computer-macos" }
+point-computer-backend = { path = "vendor/point/crates/point-computer-backend" }
+point-computer-macos = { path = "vendor/point/crates/point-computer-macos" }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-point-computer-backend = { path = "../../target/point-computer-source/computer/crates/point-computer-backend" }
-point-computer-windows = { path = "../../target/point-computer-source/computer/crates/point-computer-windows" }
+point-computer-backend = { path = "vendor/point/crates/point-computer-backend" }
+point-computer-windows = { path = "vendor/point/crates/point-computer-windows" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = { version = "0.13", features = ["xtest"] }

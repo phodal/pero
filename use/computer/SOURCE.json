@@ -3,11 +3,25 @@
   "revision": "a1b9150059a8858bac68497e6789e2b7cac8b08c",
   "subdirectory": "computer",
   "license": "MIT",
-  "usage": "Source-built platform driver behind the Pero Computer Use v1 contract; no Point application, policy, CLI or runtime configuration is shipped.",
+  "usage": "Vendored native dependency closure behind the Pero Computer Use v1 contract; no Point application, service, CLI or runtime configuration is shipped.",
   "design_reference": {
     "repository": "https://github.com/trycua/cua",
     "revision": "cbe3991f268c7e155bd028fbc9b449b40146cfe9",
     "subdirectory": "libs/cua-driver/rust/crates",
     "usage": "Platform separation and X11/XTest reference; Cua runtime, policy and transport are not shipped."
+  },
+  "vendored": {
+    "directory": "vendor/point",
+    "crates": [
+      "point-computer-core",
+      "point-computer-backend",
+      "point-computer-overlay",
+      "point-computer-macos",
+      "point-computer-windows"
+    ],
+    "adaptations": [
+      "Limit the workspace to the five local native dependencies and explicitly bind their manifests to it.",
+      "Split native records, macOS driver tests and macOS AX/input/image FFI into modules; preserve their APIs and behavior."
+    ]
   }
 }

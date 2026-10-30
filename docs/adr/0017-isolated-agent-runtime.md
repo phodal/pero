@@ -6,7 +6,7 @@ receipts, not inferred from this decision. See the [operator boundary](../../dep
 
 ## Decision and owners
 
-Keep ADR 0016's trusted warm-pool profile unchanged. Add `isolated-agent-v1` for a
+Keep ADR 0018's trusted warm-pool profile unchanged. Add `isolated-agent-v1` for a
 **trusted Worker outside an untrusted Agent Pod**. Reuse the pinned upstream Agent
 Sandbox **v1.0.2** core `Sandbox` API, not a new pool or second task scheduler.
 The upstream commit and bounded Point provenance remain in

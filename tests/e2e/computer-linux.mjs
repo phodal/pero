@@ -31,6 +31,7 @@ try{
  const old=(await call({operation:'act',action:{...original,request_id:'stale'}})).receipt;assert.equal(old.outcome.error.code,'stale_observation');
  await act(s=>({kind:'scroll',anchor:pixel(s,100,200),delta_x:0,delta_y:120}));await waitFor(async()=>(await effects()).scroll>0,'scroll effect');
  await act(s=>({kind:'drag',screenshot_id:s.id,from:{x:100,y:200},to:{x:180,y:230}}));await waitFor(async()=>(await effects()).drags>0,'drag effect');
+ const before=(await effects()).text;const unsupportedObservation=await observe();const unsupported=(await call({operation:'act',action:{request_id:'unmapped',target,observation_id:unsupportedObservation.id,delivery:'foreground',input:{kind:'type_text',anchor:pixel(unsupportedObservation.screenshot,230,40),text:'你好🌱'}}})).receipt;assert.equal(unsupported.outcome.error.code,'unsupported');assert.equal((await effects()).text,before,'Unmapped text must not type a partial prefix');
  await writeFile(resolve(out,'linux-result.json'),JSON.stringify({passed:true,scope:'actual Linux Xvfb/Tk/XTest, no real model or physical desktop',effects:await effects(),capabilities:listed.capabilities},null,2));
  console.log('Linux X11 native effects passed: screenshot, click, text, key, scroll, drag and stale observations.');
 }finally{fixture.kill();native.stdin.end();await rm(run,{recursive:true,force:true});}

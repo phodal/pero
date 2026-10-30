@@ -1,25 +1,28 @@
 # Computer Use native driver
 
-Pero builds the macOS window backend from the Point source revision recorded
-in `SOURCE.json` (distributed as `bin/computer-source.json`). Source:
-https://github.com/phodal/point/tree/a1b9150059a8858bac68497e6789e2b7cac8b08c/computer
+Pero includes the Point native dependency closure as tracked Rust source in
+`vendor/point/`. `SOURCE.json` records its exact upstream revision, selected
+crates and local adaptations, and is distributed as `bin/computer-source.json`.
+Source: https://github.com/phodal/point/tree/a1b9150059a8858bac68497e6789e2b7cac8b08c/computer
 
 Point's computer workspace declares the MIT license. Copyright belongs to
-Point's contributors. The build extracts only the pinned computer workspace;
-it does not include the Point application, configuration, or approval system.
-Pero owns its contracts, selected-conversation authority, settings, receipts,
-evidence storage, MCP transport, process lifecycle, and the in-process
+Point's contributors; the license text is reproduced below. The vendored copy
+retains upstream source comments and compatibility types. It does not include
+the Point application, service, CLI, or runtime configuration. Pero owns its
+public contracts, selected-conversation authority, settings, receipts, evidence
+storage, MCP transport, process lifecycle, Linux X11 adapter, and the in-process
 ScreenCaptureKit bridge used on macOS 14+.
 
-`npm run build:computer` fetches that exact revision into ignored `target/`.
-For offline development set `PERO_POINT_SOURCE` to a checkout containing that
-commit. No local machine path is required by a distribution. The only staging
-adaptation explicitly associates each upstream crate with its own workspace.
+`npm run build:computer` compiles the checked-in sources. It needs no Point
+credentials, checkout, Git fetch, or extracted-source cache. Cargo still obtains
+public registry dependencies using `use/computer/Cargo.lock`. Local source
+adaptations are documented in `vendor/point/README.md`.
 
-The native helper currently requires macOS 13 or newer. Other platforms return unsupported
-and disable input controls. Screen capture and Accessibility permissions belong
-to the application responsible for launching the helper. The app must be
-granted both permissions in macOS System Settings; refresh after changing them.
+The helper supports macOS 13+, Windows and Linux X11, with different observation
+and input capabilities; see `use/README.md`. Pure Wayland is unsupported.
+On macOS, Screen Recording and Accessibility permissions belong to the
+application responsible for launching the helper. Grant both in System
+Settings, then refresh after changing permissions.
 
 ## MIT license
 

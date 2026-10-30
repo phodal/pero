@@ -446,7 +446,7 @@ Operator `POST /api/v1/tasks/{id}/runtime-dispatch` (`{}` plus required
 `/release` POSTs take `{}` and use the original operation/UID. Client/Worker
 credentials cannot call these operator endpoints.
 
-See [ADR 0016](../docs/adr/0016-agent-sandbox-runtime.md), the
+See [ADR 0018](../docs/adr/0018-agent-sandbox-runtime.md), the
 [operator runbook](../deployment/agent-sandbox/README.md) and
 [verification limits](../docs/fitness/agent-sandbox-runtime.md). No Task may supply
 cluster configuration or executable paths. Default unattended permissions remain

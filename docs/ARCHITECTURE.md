@@ -80,6 +80,17 @@ Host 内置 `/app-use` 工作流，完整回执保存会话、任务、实例、
 具体证据和剩余平台边界见
 [App Use 验证](fitness/app-use.md)。
 
+系统桌面操作的值契约由 [ADR 0016](adr/0016-computer-use-contract.md) 定义：
+`protocol/computer-use.tsp` 生成观察与动作 Schema/TypeScript，`pero-contracts`
+持有 Rust 类型和纯函数操作准入。契约绑定运行实例、目标、观察和截图坐标，
+执行回执区分已执行、拒绝和结果未知。Electron Desktop 通过既有 MCP 和
+选中会话权限接入独立原生进程。`use/computer/` 的共享执行核心维护观察和回执，
+按 Cua 的平台分派方式接入 macOS、Windows、Linux X11 驱动；
+macOS/Windows 从固定 Point 源码构建，Linux 使用 X11/XTest。
+Host 保存设置开关，Desktop 保存输入回执与截图证据，停止时确认进程退出。
+macOS AppKit 与 Linux X11 窗口已有实际输入效果验证，Windows 已通过交叉编译；
+真实 Agent、安装包与平台剩余边界分别记录在 [验证记录](fitness/computer-use.md)。
+
 ### 从产品装配到领域组合
 
 可借鉴 Point 的[可组合交付](https://github.com/phodal/point/blob/main/docs/adr/0153-composable-delivery-and-harness-over-harness.md)原则：组合单元围绕领域目标，方法和结果契约保持稳定，执行实现可以替换。PBC 在此描述封装领域功能的设计方向，不新增一个同名运行时或注册中心。

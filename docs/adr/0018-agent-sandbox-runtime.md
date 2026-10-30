@@ -1,4 +1,4 @@
-# 0016: Trusted Worker runtime on Agent Sandbox
+# 0018: Trusted Worker runtime on Agent Sandbox
 
 Status: implemented behind explicit operator configuration; deployment acceptance
 is recorded separately in [the verification report](../fitness/agent-sandbox-runtime.md).

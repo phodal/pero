@@ -494,7 +494,8 @@ impl Desktop {
                         key(match ch {
                             '\n' => 0xff0d,
                             '\t' => 0xff09,
-                            c => u32::from(c),
+                            c if u32::from(c) <= 0xff => u32::from(c),
+                            c => 0x0100_0000 | u32::from(c),
                         })
                     })
                     .collect::<Result<Vec<_>, _>>()?;

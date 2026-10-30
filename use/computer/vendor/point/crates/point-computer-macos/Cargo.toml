@@ -1,0 +1,17 @@
+[package]
+workspace = "../.."
+name = "point-computer-macos"
+description = "macOS computer-use driver: the only crate that touches macOS native code (AX, CGEvent, CGWindowList, ImageIO, SkyLight)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+point-computer-core = { path = "../point-computer-core" }
+point-computer-backend = { path = "../point-computer-backend" }
+point-computer-overlay = { path = "../point-computer-overlay" }
+
+[lints]
+workspace = true

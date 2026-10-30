@@ -25,7 +25,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y xvfb xauth python3-tk x11-utils
-          xvfb-run -a node tests/e2e/computer-linux.mjs
+          xvfb-run -a node tests/build/computer-source.mjs --x11
       - if: always() && runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
