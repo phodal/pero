@@ -18,7 +18,7 @@ Goals:
   (secure) input, then resume safely with a fresh observation.
 - Let the user watch the isolated desktop live from inside Pero Desktop.
 - Reuse the v1 contract, admission function, receipts and the existing
-  `use/computer` X11 platform layer; the backend choice is invisible to the
+  `use/computer` X11 platform layer (`use/computer/crates/computer-linux`); the backend choice is invisible to the
   model except through capabilities.
 
 Non-goals:
@@ -42,7 +42,7 @@ Non-goals:
 ```mermaid
 flowchart LR
   Agent["Agent (model)"] -->|ACP| Host["Pero Host<br/>sessions, authorization, receipts"]
-  Host -->|MCP tools/call computer_use| MCP["Desktop MCP<br/>app-use-mcp.ts / computer.ts"]
+  Host -->|MCP tools/call computer_use| MCP["Desktop MCP<br/>desktop/src/main/app-use-mcp.ts / computer.ts"]
   MCP --> Router{"backend"}
   Router -->|local| Local["use/computer on the Linux desktop<br/>X11"]
   Router -->|isolated| Session["isolated-session.ts (new)<br/>container, VNC token, handoff state"]
@@ -79,7 +79,7 @@ What the client must not own is session lifecycle. A new
 `desktop/src/main/isolated-session.ts` owns container/VM start and stop, the
 profile volume, the VNC server and websockify one-time token, view-only versus
 write mode, and handoff state (pause admission, epoch invalidation, human
-interval receipt). `computer.ts` selects the local `ComputerClient` or the one
+interval receipt). `desktop/src/main/computer.ts` selects the local `ComputerClient` or the one
 held by the isolated session per backend. Folding lifecycle and VNC into
 `ComputerClient` would mix a transport with a stateful session and make the
 local path carry container code it never uses.
