@@ -29,7 +29,7 @@ try {
     const before = (await state()).composer;
     const result = await page.evaluate(({ preedit, committed }) => {
       const target = document.activeElement;
-      if (!(target instanceof HTMLTextAreaElement)) throw new Error('GPUI IME mirror is not focused');
+      if (!(target instanceof HTMLTextAreaElement) && !(target instanceof HTMLCanvasElement && target.editContext instanceof EditContext)) throw new Error('GPUI input conduit is not focused');
       const start = target.selectionStart;
       const prefix = target.value.slice(0, start);
       const suffix = target.value.slice(target.selectionEnd);

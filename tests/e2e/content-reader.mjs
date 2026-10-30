@@ -272,6 +272,12 @@ try {
     await selectionTrace.send('IO.close', {handle:stream});await selectionTrace.detach();
     await writeFile(resolve(out, 'selection-trace.json'), trace);
   }
+  const readonlyIme = await page.context().newCDPSession(page);
+  await readonlyIme.send('Input.imeSetComposition', {text:'ni',selectionStart:2,selectionEnd:2});
+  await readonlyIme.send('Input.insertText', {text:'你'});
+  await readonlyIme.detach();
+  await paint();
+  expect((await reader()).editorBytes).toBe(Buffer.byteLength(source));
   await phase('copy');
   await page.keyboard.press(`${modifier}+a`);
   await page.keyboard.press(`${modifier}+c`);
@@ -282,13 +288,25 @@ try {
         source,
     )
     .toBe(true);
+  const nativeSelection = await page.evaluate(expected => {
+    const input = document.activeElement;
+    return {
+      kind: input?.getAttribute('data-gpui-input'),
+      completeText: input?.value === expected,
+      utf16Length: input?.value?.length,
+      start: input?.selectionStart,
+      end: input?.selectionEnd,
+    };
+  }, source);
+  expect(nativeSelection).toEqual({kind: 'edit-context', completeText: true,
+    utf16Length: source.length, start: 0, end: source.length});
   await phase('find');
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press(`${modifier}+f`);
   await expect.poll(async () => (await reader()).search?.open).toBe(true);
   await page.waitForFunction(
     () =>
-      document.activeElement?.tagName === 'TEXTAREA' &&
+      document.activeElement?.hasAttribute('data-gpui-input') &&
       document.activeElement.value === '',
   );
   await page.keyboard.type('9007199254748992', { delay: 20 });
@@ -520,6 +538,8 @@ try {
       rows: rowCount,
       sha256: createHash('sha256').update(source).digest('hex'),
     },
+    nativeSelection,
+    physicalIme: false,
     instrumentation: process.env.PERO_CONTENT_TRACE ? 'CDP selection trace' : 'PerformanceObserver',
     environment: {
       platform: platform(),
