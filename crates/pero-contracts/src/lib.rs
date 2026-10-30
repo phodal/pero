@@ -8,6 +8,7 @@ pub mod context;
 pub mod content_document;
 pub mod content_origin;
 pub mod content_location;
+pub mod workspace_draft;
 pub mod content_link;
 pub mod file_document;
 pub mod i18n;
