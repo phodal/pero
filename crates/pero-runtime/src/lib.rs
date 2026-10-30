@@ -60,3 +60,4 @@ mod tests {
 }
 
 pub mod workspace_store;
+pub mod workspace_drafts;
