@@ -328,6 +328,9 @@ jobs:
       - name: Host contract tests
         run: npm run test:contracts
 
+      - name: Computer Use loopback transport contracts
+        run: node tests/e2e/computer-transport.mjs
+
       - name: Install virtual display dependencies
         if: runner.os == 'Linux'
         run: |

@@ -228,3 +228,17 @@ extensionless imports. All 10 bundled unit tests, 34 fixture tests, full
 old selection implementation in a temporary test bundle makes the deterministic
 delayed-read case fail with the original `APP_DRAFT_CHANGED`; the new path passes.
 Real Electron acceptance for this change remains pending.
+
+## Computer Use transport fixture after merge (2026-10-30)
+
+Post-merge acceptance of #51 at `45667a1` failed the authenticated Computer Use
+status request in `tests/e2e/computer-transport.mjs`. The fake BrowserWindow
+provided only `webContents.executeJavaScript`; the fresh trusted-frame selector
+introduced by #47 also reads `webContents.mainFrame.frames`. Missing that real
+port property threw before authority admission, so the success case returned
+an MCP error. The production selection guard is correct and remains unchanged.
+
+Update the existing fake to represent a Workbench window with no child Chat
+frames. Keep both foreign-caller and changed-selection refusal checks. Add this
+loopback transport suite to the ordinary three-OS CI so future shared-adapter
+changes exercise Computer Use admission as well as App Use.
