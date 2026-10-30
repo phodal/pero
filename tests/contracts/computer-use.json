@@ -165,7 +165,7 @@
           "kind": "element",
           "element_id": "editor"
         },
-        "text": "你好，Pero 🙂\n"
+        "text": "\u4f60\u597d\uff0cPero \ud83d\ude42\n"
       }
     },
     {
@@ -372,6 +372,27 @@
         },
         "button": "left",
         "hold_ms": 800
+      }
+    },
+    {
+      "request_id": "request-13",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "hover",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 10,
+            "y": 20
+          }
+        },
+        "dwell_ms": 0
       }
     }
   ],

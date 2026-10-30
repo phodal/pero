@@ -150,6 +150,60 @@
         "windows",
         "linux"
       ]
+    },
+    {
+      "name": "background pixel move",
+      "request_id": "request-10",
+      "delivery": "background",
+      "supported": []
+    },
+    {
+      "name": "foreground pixel move",
+      "request_id": "request-10",
+      "delivery": "foreground",
+      "supported": [
+        "linux"
+      ]
+    },
+    {
+      "name": "background pixel hover",
+      "request_id": "request-13",
+      "delivery": "background",
+      "supported": []
+    },
+    {
+      "name": "foreground pixel hover",
+      "request_id": "request-13",
+      "delivery": "foreground",
+      "supported": [
+        "linux"
+      ]
+    },
+    {
+      "name": "background pixel hold",
+      "request_id": "request-12",
+      "delivery": "background",
+      "supported": []
+    },
+    {
+      "name": "foreground pixel hold",
+      "request_id": "request-12",
+      "delivery": "foreground",
+      "supported": [
+        "linux"
+      ]
+    },
+    {
+      "name": "background element hover",
+      "request_id": "request-11",
+      "delivery": "background",
+      "supported": []
+    },
+    {
+      "name": "foreground element hover",
+      "request_id": "request-11",
+      "delivery": "foreground",
+      "supported": []
     }
   ]
 }
