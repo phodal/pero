@@ -27,6 +27,7 @@ test('App contexts freeze object revisions, selections and screenshot receipts i
     'foreign draft',
     'capture',
     'changed capture',
+    'switched before capture',
     'hidden',
   ] as const) {
     let selected = 'draft',
@@ -38,7 +39,10 @@ test('App contexts freeze object revisions, selections and screenshot receipts i
       now: () => 1000,
       selectedThread: async () => selected,
       page: async (_scope, request) => {
-        if (request.action === 'status') return { ...surface, operable: scenario !== 'hidden' };
+        if (request.action === 'status') {
+          if (scenario === 'switched before capture') selected = 'other';
+          return { ...surface, operable: scenario !== 'hidden' };
+        }
         if (request.action === 'semantic')
           return {
             objects: [{ id: 'object', revision, state: { count: 2 }, kind: 'research', label: 'Results' }],
@@ -58,7 +62,7 @@ test('App contexts freeze object revisions, selections and screenshot receipts i
     };
     const context = new AppChatContext(ports);
     if (scenario === 'foreign draft') selected = 'other';
-    const capture = ['capture', 'changed capture', 'hidden'].includes(scenario);
+    const capture = ['capture', 'changed capture', 'switched before capture', 'hidden'].includes(scenario);
     const freeze = () =>
       context.freeze(
         { app: 'demo', panel: 'main' },
@@ -76,7 +80,7 @@ test('App contexts freeze object revisions, selections and screenshot receipts i
               ],
             },
       );
-    if (['stale', 'foreign draft', 'changed capture', 'hidden'].includes(scenario)) {
+    if (['stale', 'foreign draft', 'changed capture', 'switched before capture', 'hidden'].includes(scenario)) {
       await assert.rejects(freeze);
       assert.equal(receipts.length, 0, scenario);
       assert.equal(captures, scenario === 'changed capture' ? 1 : 0, scenario);
@@ -180,4 +184,33 @@ test('Declared App writes freeze a validated document and the installed route be
     { app: 'demo', tool: 'import' },
   ])
     assert.throws(() => parseAppWrite(bad));
+});
+
+
+test('App chat launch keeps the original draft across asynchronous context and never replays rejection', async () => {
+  const { appChatLauncher } = await import('../../../web/src/app-chat.ts');
+  for (const reject of [false, true]) {
+    let selected = 'original', calls = 0;
+    let entered!: () => void, release!: () => void;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const blocked = new Promise<void>(resolve => { release = resolve; });
+    const deliveries: string[] = [];
+    const launch = appChatLauncher({
+      open: () => {},
+      draft: async () => ({ threadId: selected, scope: { app: 'demo', panel: 'main' } }),
+      command: async value => {
+        assert.equal((value as { thread_id: string }).thread_id, 'original');
+        calls++; entered(); await blocked;
+        if (reject) throw new Error('Selection unavailable');
+        return [];
+      },
+      deliver: thread => { deliveries.push(thread); },
+    })({ name: 'demo', panel: 'main', text: 'context' });
+    await started;
+    selected = 'other'; release();
+    if (reject) await assert.rejects(launch, /Selection unavailable/);
+    else assert.equal((await launch).threadId, 'original');
+    assert.deepEqual(deliveries, reject ? [] : ['original']);
+    assert.equal(calls, 1);
+  }
 });
