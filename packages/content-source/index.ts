@@ -1,6 +1,15 @@
+type JsonSpan = { start: number; end: number; startByte: number; endByte: number };
+type JsonEntry = { key: string; range: JsonSpan };
+
 /** A JSON source owns its spelling; projections refer to ranges, never decoded numbers. */
 export class JsonSource {
   readonly text: string;
+  private byteLength?: number;
+  private readonly containers = new Map<number, {
+    entries: Map<string, JsonSpan>;
+    scan: Generator<JsonEntry>;
+    done: boolean;
+  }>();
   private constructor(text: string) {
     this.text = text;
   }
@@ -15,13 +24,15 @@ export class JsonSource {
   }
 
   get bytes(): number {
-    return Buffer.byteLength(this.text);
+    return (this.byteLength ??= Buffer.byteLength(this.text));
   }
 
   pointer(pointer: string): { start: number; end: number } {
     if (pointer && !pointer.startsWith('/'))
       throw new Error('Use an RFC 6901 JSON Pointer');
-    let range = { start: 0, end: this.text.length };
+    let range: JsonSpan = {
+      start: 0, end: this.text.length, startByte: 0, endByte: this.bytes,
+    };
     const tokens = pointer
       ? pointer
           .slice(1)
@@ -33,23 +44,34 @@ export class JsonSource {
           })
       : [];
     for (const token of tokens) {
-      let found: typeof range | undefined;
-      for (const entry of this.children(range)) {
-        if (entry.key === token) {
-          found = entry.range;
+      let container = this.containers.get(range.start);
+      if (!container) {
+        container = { entries: new Map(), scan: this.children(range), done: false };
+        this.containers.set(range.start, container);
+      }
+      let found = container.entries.get(token);
+      // Keep the cursor alive: for-of with an early break closes a generator.
+      // Each sibling is scanned once, and adjacent reads reuse byte spans.
+      while (!found && !container.done) {
+        const next = container.scan.next();
+        if (next.done) {
+          container.done = true;
           break;
         }
+        if (!container.entries.has(next.value.key))
+          container.entries.set(next.value.key, next.value.range);
+        if (next.value.key === token) found = container.entries.get(token);
       }
       if (!found) throw new Error('JSON Pointer does not exist');
       range = found;
     }
     return {
-      start: Buffer.byteLength(this.text.slice(0, range.start)),
-      end: Buffer.byteLength(this.text.slice(0, range.end)),
+      start: range.startByte,
+      end: range.endByte,
     };
   }
 
-  private *children(range: { start: number; end: number }) {
+  private *children(range: JsonSpan): Generator<JsonEntry> {
     const text = this.text;
     let i = range.start;
     while (/\s/.test(text[i] || 'x')) i++;
@@ -57,6 +79,8 @@ export class JsonSource {
     if (!object && text[i] !== '[') return;
     i++;
     let index = 0;
+    let character = range.start;
+    let byte = range.startByte;
     while (i < range.end) {
       while (/[\s,]/.test(text[i] || 'x')) i++;
       if (text[i] === '}' || text[i] === ']') return;
@@ -71,7 +95,11 @@ export class JsonSource {
       }
       const start = i;
       i = this.valueEnd(i);
-      yield { key, range: { start, end: i } };
+      const startByte = byte + Buffer.byteLength(text.slice(character, start));
+      const endByte = startByte + Buffer.byteLength(text.slice(start, i));
+      character = i;
+      byte = endByte;
+      yield { key, range: { start, end: i, startByte, endByte } };
     }
   }
 
