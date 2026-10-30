@@ -134,7 +134,10 @@ the reader consumes its focused search action so browser beforeinput cannot
 cause a second navigation. Invalid regex is recoverable. Dark and narrow search/
 error screenshots are in `test-results/reader-navigation/`; page errors are empty.
 
-## Current boundaries
+## Earlier boundaries before the pane and EditContext pass
+
+These boundaries describe the earlier combined receipt. The final pass below
+supersedes the pane, nested projection, native selection and pointer-cache rows.
 
 - Large nested projections still run synchronously. Large-source sorting and
   filtering now use a retained Worker source; native/small-source work stays local.
@@ -152,7 +155,7 @@ error screenshots are in `test-results/reader-navigation/`; page errors are empt
 - MCP Apps transport/resource/official bridge and Data Agent dataset lifecycle
   remain unimplemented; generic Web embedding does not establish compatibility.
 
-## Final combined verification
+## Earlier combined verification
 
 The final source snapshot matches 47 recorded source fingerprints, including the
 Reader, StreamText and source table. Sequential hidden Desktop suites pass for
@@ -202,3 +205,46 @@ probe remains separate; receipts are `performance-completed-8k.json` and
 `performance-completed-100k.json`. `PERO_CONTENT_ROWS=100000` reproduces the large
 workflow; `PERO_CONTENT_TRACE=1` additionally writes a CDP selection trace and
 marks its instrumentation in the receipt.
+
+## Pane, native selection and nested-source closure
+
+The user clarified that the product target is the ACP conversation/tool-result
+flow, not a general file editor. These are current implementation receipts for
+the requested test integration. The excess editing surface will be cleaned up
+after merge; File/editor acceptance does not establish ACP parity.
+
+The [current content-flow closure](../exec-plans/2026-10-30-content-view-parity.md)
+records the actual installed Zed comparison and per-gate evidence. Pane-local
+tabs, preview/pin/MRU/closed history, arbitrary pane trees, lazy source restore,
+separate source/rendered item kinds, shared buffer Undo and edit-tracking anchors
+are implemented. Actual Desktop covers drag, same-buffer clones, independent
+view state, restart, light/dark and the configured 1000-pixel minimum width.
+
+The 13,688,892-byte/100k-row File workflow now uses bounded source and draft
+references. Actual edit, acknowledged checkpoint, process loss, draft recovery,
+Save and Save As pass with 3,144-byte metadata, a 653-byte journal and reference
+commands below 4 KiB. This also covers a real optional App catalog failure.
+
+Two-dimensional Kit virtualization displays all 2,001 source columns while
+rendering nine initially and seven near the end. Exact large-number copy and
+original byte ranges pass. Expanding a 4,000-row nested array completes one real
+Worker analysis; returning and reopening reuses it. The inline Reader height
+includes its toolbar, filter, header and rows, so one-row results remain visible.
+Receipt: `test-results/wide-content/result.json`.
+
+The preceding native EditContext profiling receipt preserves full source text
+and native selection, exact clipboard and readonly behavior. Its Select All trace
+has zero Layout events, replacing the earlier 845 ms textarea Layout. Warm
+switch p95 is 30.1 ms; a 71.219 ms FunctionCall and an earlier 58 ms task remain.
+This is measured progress, not a universal frame-budget pass. Physical IME,
+screen readers and installed packages remain separate gates.
+
+For immutable output artifacts, JSON Pointer reads retain their current source
+span index. The separate Node benchmark uses 8,177,790 bytes/100k rows: repeated
+read p95 changes from 28.58 ms to 0.008875 ms, while cold time changes from 47.14
+to 58.94 ms. This does not improve the first read or measure Desktop latency.
+Receipt: `test-results/content-artifacts/pointer-performance.json`.
+
+The large-source performance incident remains open for residual tasks and cold
+distributions. MCP Apps and Data Agent are deferred; their presence in an older
+plan does not establish compatibility or dataset/Agent acceptance.

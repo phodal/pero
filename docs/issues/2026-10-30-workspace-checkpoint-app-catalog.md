@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: verification_pending
+status: resolved
 ---
 
 # Optional App catalog failure blocks File checkpoints
@@ -31,5 +31,10 @@ now rejects, and a real command resolves only after the existing Host save ACK.
 The App availability behavior table includes an unavailable-catalog case.
 The existing actual 100k File suite creates a disposable unavailable App store,
 observes its error, then requires the normal checkpoint/crash/restart/save flow.
-TypeScript and pure UI tests pass. Fresh Desktop verification is pending; this
-record does not claim a persisted checkpoint from the failed snapshot.
+TypeScript and 14 pure UI tests pass. Fresh release-Wasm Desktop verification on
+`pero-content-release-tYZGeN` also passes: the optional catalog reports its real
+error, the Host acknowledges the File checkpoint, the process is killed, and a
+new Host restores the dirty 100k-row draft. Save and Save As write exact contents.
+Checkpoint metadata is 3,144 bytes and the edit journal 653 bytes. The receipt is
+`test-results/workspace-file-references/result.json`; the earlier failed snapshot
+is retained only as reproduction evidence.
