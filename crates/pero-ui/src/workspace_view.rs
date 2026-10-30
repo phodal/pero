@@ -16,7 +16,6 @@ gpui_kit::actions!(
     [
         NextContent,
         PreviousContent,
-        OpenDocument,
         WorkspaceBack,
         WorkspaceForward,
         SplitDocument
@@ -405,15 +404,6 @@ impl Workbench {
                     .tooltip(self.t("web.open_url"))
                     .accessibility_label(self.t("web.open_url"))
                     .on_click(cx.listener(|this, _, window, cx| this.choose_web(window, cx))),
-            )
-            .child(
-                Button::new("document-open")
-                    .ghost()
-                    .small()
-                    .icon(IconName::File)
-                    .tooltip(self.t("content.open_file"))
-                    .accessibility_label(self.t("content.open_file"))
-                    .on_click(cx.listener(|this, _, _, cx| this.choose_document(cx))),
             )
             .when(
                 matches!(self.navigation.current(), Some(WorkspaceItem::App { .. })),

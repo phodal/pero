@@ -132,8 +132,6 @@ impl Workbench {
             KeyBinding::new("ctrl-alt-down",crate::workspace_pane_views::FocusPaneDown,None),
             KeyBinding::new("cmd-shift-w",crate::workspace_pane_views::ClosePane,None),
             KeyBinding::new("ctrl-shift-w",crate::workspace_pane_views::ClosePane,None),
-            KeyBinding::new("cmd-shift-s",crate::document_save_as::SaveDocumentAs,None),
-            KeyBinding::new("ctrl-shift-s",crate::document_save_as::SaveDocumentAs,None),
             KeyBinding::new("alt-left",crate::workspace_view::WorkspaceBack,None),
             KeyBinding::new("alt-right",crate::workspace_view::WorkspaceForward,None),
             KeyBinding::new("cmd-alt-right",crate::workspace_view::NextContent,None),
@@ -153,8 +151,6 @@ impl Workbench {
             KeyBinding::new("ctrl-l",crate::web_documents::OpenWeb,None),
             KeyBinding::new("cmd-p",crate::workspace_recent::OpenRecentContent,None),
             KeyBinding::new("ctrl-p",crate::workspace_recent::OpenRecentContent,None),
-            KeyBinding::new("cmd-o",crate::workspace_view::OpenDocument,None),
-            KeyBinding::new("ctrl-o",crate::workspace_view::OpenDocument,None),
             KeyBinding::new("ctrl-tab", crate::workspace_pane_tabs::NextPaneTabMru, None),
             KeyBinding::new("ctrl-shift-tab", crate::workspace_pane_tabs::PreviousPaneTabMru, None),
         ]);

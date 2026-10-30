@@ -13,7 +13,7 @@ function tick() {
   if (phase === 2) {
     const rawInput = { query: '杭州天气' };
     update({ sessionUpdate: 'session_info_update', title: '杭州天气检索' });
-    update({ sessionUpdate: 'tool_call', toolCallId: 'search', title: 'Search 杭州天气', kind: 'search', rawInput, content: [text(JSON.stringify(rawInput))] });
+    update({ sessionUpdate: 'tool_call', toolCallId: 'search', title: 'Search 杭州天气', kind: 'search', rawInput });
   }
   if (phase === 3) {
     update({ sessionUpdate: 'tool_call_update', toolCallId: 'search', status: 'completed', content: [text('Weather sources:\n\n- [杭州天气](https://example.test/weather)\n- [本地预报](https://example.test/forecast)\n\nCloudy, 23°C.')], rawOutput: 'must not duplicate structured output' });
