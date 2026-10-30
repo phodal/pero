@@ -15,9 +15,21 @@ one shared Chat panel; it does not require another renderer or execution owner.
 ## Decision
 
 `WorkspaceItem` identifies content by its source object: `Conversation` by
-thread ID, `Project` by Project key, `Task` by Task ID, and `App` by App and panel
-names. Titles and icons are presentation derived from those source objects.
+thread ID, `Project` by Project key, `Task` by Task ID, `App` by App and panel
+names, and `Document` by its originating conversation and immutable source ID. Titles and icons are presentation derived from those source objects.
 An App item does not relax the current one-panel App manifest contract.
+
+A result document uses the shared `ContentDocument` contract and `ContentReader`
+component rather than a second editor implementation. Its workspace view fills
+the content slot and retains reading state while other items are selected.
+Inline and workspace presentations share source text but own independent
+selection and query state. Source revisions update retained views at the event
+boundary; rendering does not perform source reconciliation. Closing a document
+removes that presentation without deleting its conversation or result. Deleting
+the source conversation removes its unavailable document items. Document layout
+uses the existing shared Chat dock policy, and a document route hides retained
+App surfaces through the same layout rule. Actual code-result acceptance is in
+[Workspace document views](../fitness/workspace-documents.md).
 
 `WorkspaceNavigation` owns the open-item list and one `WorkspaceRoute`:
 `Page(WorkbenchPage)` for a page, or `Content(WorkspaceItem)` for a source object.

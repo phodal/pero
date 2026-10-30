@@ -167,6 +167,12 @@ const artwork = {
   "network": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><rect x="16" y="16" width="6" height="6" rx="1" /> <rect x="2" y="16" width="6" height="6" rx="1" /> <rect x="9" y="2" width="6" height="6" rx="1" /> <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" /> <path d="M12 12V8" /></> },
   // gpui-kit/assets/icons/box.svg (Lucide, LICENSE-LUCIDE)
   "box": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /> <path d="m3.3 7 8.7 5 8.7-5" /> <path d="M12 22V12" /></> },
+  // gpui-kit/assets/icons/sort-ascending.svg (Lucide, LICENSE-LUCIDE)
+  "sort-ascending": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"lucide lucide-chevrons-up-down"}, children: <><path opacity="0.2" d="m7 15 5 5 5-5" /> <path d="m7 9 5-5 5 5" /></> },
+  // gpui-kit/assets/icons/sort-descending.svg (Lucide, LICENSE-LUCIDE)
+  "sort-descending": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"lucide lucide-chevrons-up-down"}, children: <><path d="m7 15 5 5 5-5" /> <path opacity="0.2" d="m7 9 5-5 5 5" /></> },
+  // gpui-kit/assets/icons/chevrons-up-down.svg (Lucide, LICENSE-LUCIDE)
+  "chevrons-up-down": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="m7 15 5 5 5-5" /> <path d="m7 9 5-5 5 5" /></> },
 } satisfies Record<string, { props: React.SVGProps<SVGSVGElement>; children: React.ReactNode }>;
 
 const aliases = {

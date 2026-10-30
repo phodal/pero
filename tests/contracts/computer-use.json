@@ -1,0 +1,442 @@
+{
+  "capabilities": {
+    "protocol": "pero.computer-use.v1",
+    "runtime_id": "runtime-1",
+    "observations": [
+      "accessibility",
+      "screenshot"
+    ],
+    "actions": [
+      {
+        "action": "click",
+        "delivery": "background"
+      },
+      {
+        "action": "type_text",
+        "delivery": "background"
+      },
+      {
+        "action": "press_key",
+        "delivery": "background"
+      },
+      {
+        "action": "scroll",
+        "delivery": "background"
+      },
+      {
+        "action": "drag",
+        "delivery": "background"
+      }
+    ]
+  },
+  "target": {
+    "reference": {
+      "runtime_id": "runtime-1",
+      "target_id": "window-1"
+    },
+    "kind": "window",
+    "title": "Document",
+    "application": "Example Editor"
+  },
+  "observation": {
+    "id": "observation-1",
+    "target": {
+      "runtime_id": "runtime-1",
+      "target_id": "window-1"
+    },
+    "elements": [
+      {
+        "id": "increment",
+        "role": "button",
+        "label": "Increment",
+        "depth": 1,
+        "actions": [
+          "click"
+        ]
+      },
+      {
+        "id": "editor",
+        "role": "text_field",
+        "label": "Draft",
+        "depth": 1,
+        "actions": [
+          "type_text",
+          "press_key"
+        ]
+      },
+      {
+        "id": "scroller",
+        "role": "scroll_area",
+        "label": "Document",
+        "depth": 1,
+        "actions": [
+          "scroll"
+        ]
+      }
+    ],
+    "screenshot": {
+      "id": "image-1",
+      "media_type": "image/png",
+      "width": 320,
+      "height": 200
+    },
+    "truncated": false
+  },
+  "actions": [
+    {
+      "request_id": "request-1",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "click",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        },
+        "button": "left",
+        "count": 1
+      }
+    },
+    {
+      "request_id": "request-2",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "type_text",
+        "anchor": {
+          "kind": "element",
+          "element_id": "editor"
+        },
+        "text": "你好，Pero 🙂\n"
+      }
+    },
+    {
+      "request_id": "request-3",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "press_key",
+        "anchor": {
+          "kind": "element",
+          "element_id": "editor"
+        },
+        "keys": [
+          "Control",
+          "a"
+        ]
+      }
+    },
+    {
+      "request_id": "request-4",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "scroll",
+        "anchor": {
+          "kind": "element",
+          "element_id": "scroller"
+        },
+        "delta_x": 0,
+        "delta_y": 120
+      }
+    },
+    {
+      "request_id": "request-5",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "drag",
+        "screenshot_id": "image-1",
+        "from": {
+          "x": 0,
+          "y": 0
+        },
+        "to": {
+          "x": 319,
+          "y": 199
+        }
+      }
+    },
+    {
+      "request_id": "request-6",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "delivery": "background",
+      "input": {
+        "kind": "click",
+        "anchor": {
+          "kind": "pixel",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 319,
+            "y": 199
+          }
+        },
+        "button": "left",
+        "count": 2
+      }
+    }
+  ],
+  "receipts": [
+    {
+      "request_id": "request-1",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "outcome": {
+        "status": "executed"
+      }
+    },
+    {
+      "request_id": "request-1",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "outcome": {
+        "status": "rejected",
+        "error": {
+          "code": "permission_required",
+          "message": "Allow this application in the Host"
+        }
+      }
+    },
+    {
+      "request_id": "request-1",
+      "target": {
+        "runtime_id": "runtime-1",
+        "target_id": "window-1"
+      },
+      "observation_id": "observation-1",
+      "outcome": {
+        "status": "unknown",
+        "error": {
+          "code": "timeout",
+          "message": "The action may have happened; observe before continuing"
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "caller identity is not a model argument",
+      "type": "ComputerAction",
+      "value": {
+        "request_id": "request-1",
+        "target": {
+          "runtime_id": "runtime-1",
+          "target_id": "window-1"
+        },
+        "observation_id": "observation-1",
+        "delivery": "background",
+        "input": {
+          "kind": "click",
+          "anchor": {
+            "kind": "element",
+            "element_id": "increment"
+          },
+          "button": "left",
+          "count": 1
+        },
+        "session_id": "another-session"
+      }
+    },
+    {
+      "name": "element and pixel anchors cannot be combined",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "click",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment",
+          "screenshot_id": "image-1",
+          "point": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        "button": "left",
+        "count": 1
+      }
+    },
+    {
+      "name": "only the v1 protocol is admitted",
+      "type": "ComputerCapabilities",
+      "value": {
+        "protocol": "pero.computer-use.v2",
+        "runtime_id": "runtime-1",
+        "observations": [
+          "accessibility",
+          "screenshot"
+        ],
+        "actions": [
+          {
+            "action": "click",
+            "delivery": "background"
+          },
+          {
+            "action": "type_text",
+            "delivery": "background"
+          },
+          {
+            "action": "press_key",
+            "delivery": "background"
+          },
+          {
+            "action": "scroll",
+            "delivery": "background"
+          },
+          {
+            "action": "drag",
+            "delivery": "background"
+          }
+        ]
+      }
+    },
+    {
+      "name": "screenshots have positive dimensions",
+      "type": "ComputerObservation",
+      "value": {
+        "id": "observation-1",
+        "target": {
+          "runtime_id": "runtime-1",
+          "target_id": "window-1"
+        },
+        "elements": [
+          {
+            "id": "increment",
+            "role": "button",
+            "label": "Increment",
+            "depth": 1,
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "id": "editor",
+            "role": "text_field",
+            "label": "Draft",
+            "depth": 1,
+            "actions": [
+              "type_text",
+              "press_key"
+            ]
+          },
+          {
+            "id": "scroller",
+            "role": "scroll_area",
+            "label": "Document",
+            "depth": 1,
+            "actions": [
+              "scroll"
+            ]
+          }
+        ],
+        "screenshot": {
+          "id": "image-1",
+          "media_type": "image/png",
+          "width": 0,
+          "height": 200
+        },
+        "truncated": false
+      }
+    },
+    {
+      "name": "execution does not carry a failure or verification claim",
+      "type": "ComputerActionReceipt",
+      "value": {
+        "request_id": "request-1",
+        "target": {
+          "runtime_id": "runtime-1",
+          "target_id": "window-1"
+        },
+        "observation_id": "observation-1",
+        "outcome": {
+          "status": "executed",
+          "error": {
+            "code": "failed",
+            "message": "Conflicting result"
+          }
+        }
+      }
+    },
+    {
+      "name": "unknown effects require an explanation",
+      "type": "ComputerActionReceipt",
+      "value": {
+        "request_id": "request-1",
+        "target": {
+          "runtime_id": "runtime-1",
+          "target_id": "window-1"
+        },
+        "observation_id": "observation-1",
+        "outcome": {
+          "status": "unknown"
+        }
+      }
+    },
+    {
+      "name": "text input must contain text",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "type_text",
+        "anchor": {
+          "kind": "element",
+          "element_id": "editor"
+        },
+        "text": ""
+      }
+    },
+    {
+      "name": "key input must address at least one logical key",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "press_key",
+        "anchor": {
+          "kind": "element",
+          "element_id": "editor"
+        },
+        "keys": []
+      }
+    },
+    {
+      "name": "click count is bounded",
+      "type": "ComputerInput",
+      "value": {
+        "kind": "click",
+        "anchor": {
+          "kind": "element",
+          "element_id": "increment"
+        },
+        "button": "left",
+        "count": 4
+      }
+    }
+  ]
+}

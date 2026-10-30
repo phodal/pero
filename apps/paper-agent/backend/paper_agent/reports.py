@@ -15,7 +15,7 @@ class EvidenceReference:
     @classmethod
     def parse_many(cls, value, cited_ids, papers, passages=()):
         references = []
-        for item in sequence(value, 8, "evidence"):
+        for item in sequence(value, 8, "evidence list (maximum 8 references)"):
             item = mapping(item, "evidence reference")
             quote = item.get("quote")
             text(quote, 4000, "evidence quotation")

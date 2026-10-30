@@ -91,7 +91,13 @@ class PaperSnapshot:
             if heading:
                 title = text(heading[1], 1000, "title")
         authors = tuple(text(author, 300, "author") for author in sequence(value.get("authors", []), 100, "authors"))
-        base = dict(source=source, sourceId=source_id, title=title, url=https(value.get("url")),
+        url = value.get("url")
+        if source == 'local-pdf':
+            if not ID.fullmatch(source_id) or url != 'urn:sha256:' + source_id:
+                raise Invalid('Invalid local PDF identity')
+        else:
+            url = https(url)
+        base = dict(source=source, sourceId=source_id, title=title, url=url,
                     contentKind=kind, content=content, contentDigest=actual_digest, authors=list(authors))
         optional = {key: https(value[key]) for key in ("pdfUrl", "metadataUrl") if value.get(key)}
         base.update(optional)
@@ -148,6 +154,20 @@ class PdfPassage:
 
 
 @dataclass(frozen=True)
+class ConversationTurn:
+    intent_id: str
+    question: str
+    answer: str
+
+    def to_dict(self):
+        return dict(intentId=self.intent_id, question=self.question, answer=self.answer)
+
+    @classmethod
+    def from_record(cls, value):
+        return cls(value['intentId'], value['question'], value['answer'])
+
+
+@dataclass(frozen=True)
 class ResearchRequest:
     question: str
     paper_ids: tuple[str, ...]
@@ -155,6 +175,7 @@ class ResearchRequest:
     verify_code: bool
     verification_plan: str
     full_text: bool = False
+    parent_intent_id: str | None = None
 
     @classmethod
     def parse(cls, value):
@@ -173,7 +194,15 @@ class ResearchRequest:
         full_text = value.get('fullText', False)
         if type(full_text) is not bool or (full_text and verify):
             raise Invalid('PDF questions are reading-only')
-        return cls(question, tuple(selected), request_id, verify, plan, full_text)
+        parent = value.get('parentIntentId')
+        if parent is not None and (not isinstance(parent, str) or not ID.fullmatch(parent)):
+            raise Invalid('Invalid preceding research input')
+        return cls(question, tuple(selected), request_id, verify, plan, full_text, parent)
+
+    def to_dict(self):
+        return dict(question=self.question, paperIds=list(self.paper_ids), requestId=self.request_id,
+                    verifyCode=self.verify_code, verificationPlan=self.verification_plan, fullText=self.full_text,
+                    **(dict(parentIntentId=self.parent_intent_id) if self.parent_intent_id else {}))
 
 
 @dataclass(frozen=True)
@@ -185,16 +214,20 @@ class RetrievalSnapshot:
     unmatched_paper_ids: tuple[str, ...]
     query_terms: tuple[str, ...]
     query_truncated: bool
+    queries: tuple[str, ...] = ()
+    gaps: tuple[str, ...] = ()
 
     def to_dict(self):
         return dict(method=self.method, sourceIds=list(self.source_ids), passageIds=list(self.passage_ids),
                     totalMatches=self.total_matches, unmatchedPaperIds=list(self.unmatched_paper_ids),
-                    queryTerms=list(self.query_terms), queryTruncated=self.query_truncated)
+                    queryTerms=list(self.query_terms), queryTruncated=self.query_truncated,
+                    **(dict(queries=list(self.queries), gaps=list(self.gaps)) if self.queries else {}))
 
     @classmethod
     def from_record(cls, value):
         return cls(value['method'], tuple(value['sourceIds']), tuple(value['passageIds']), value['totalMatches'],
-                   tuple(value['unmatchedPaperIds']), tuple(value['queryTerms']), value['queryTruncated'])
+                   tuple(value['unmatchedPaperIds']), tuple(value['queryTerms']), value['queryTruncated'],
+                   tuple(value.get('queries', [])), tuple(value.get('gaps', [])))
 
 
 @dataclass(frozen=True)
@@ -209,9 +242,11 @@ class ResearchInput:
     passages: tuple[PdfPassage, ...] = ()
     frozen_prompt: str | None = None
     retrieval: RetrievalSnapshot | None = None
+    parent_intent_id: str | None = None
+    conversation: tuple[ConversationTurn, ...] = ()
 
     @classmethod
-    def prepare(cls, request, papers, now, passages=(), frozen_prompt=None, retrieval=None):
+    def prepare(cls, request, papers, now, passages=(), frozen_prompt=None, retrieval=None, conversation=()):
         if tuple(paper.id for paper in papers) != request.paper_ids:
             raise Invalid("Frozen papers do not match the selected research sources")
         if not request.full_text and sum(len(paper.content) for paper in papers) > 80000:
@@ -225,7 +260,8 @@ class ResearchInput:
                           or not set(retrieval.unmatched_paper_ids).issubset(request.paper_ids)):
             raise Invalid('Retrieval record does not match the frozen passages')
         result = cls(digest(request.request_id.encode("utf-8")), request.question, request.request_id,
-                     tuple(papers), request.verify_code, request.verification_plan, now, tuple(passages), retrieval=retrieval)
+                     tuple(papers), request.verify_code, request.verification_plan, now, tuple(passages), retrieval=retrieval,
+                     parent_intent_id=request.parent_intent_id, conversation=tuple(conversation))
         if passages:
             result = replace(result, frozen_prompt=frozen_prompt or result.prompt())
         if len(result.prompt().encode("utf-8")) > 128000:
@@ -236,7 +272,8 @@ class ResearchInput:
     def from_record(cls, value):
         request = ResearchRequest.parse({**value, "paperIds": [paper["id"] for paper in value["papers"]]})
         result = cls.prepare(request, tuple(PaperSnapshot.from_record(paper) for paper in value["papers"]), value["createdAt"], tuple(PdfPassage.from_record(p) for p in value.get("passages", [])), value.get("frozenPrompt"),
-                             RetrievalSnapshot.from_record(value['retrieval']) if value.get('retrieval') else None)
+                             RetrievalSnapshot.from_record(value['retrieval']) if value.get('retrieval') else None,
+                             tuple(ConversationTurn.from_record(turn) for turn in value.get('conversation', [])))
         if value.get("schema") != INPUT_SCHEMA or result.id != value.get("id"):
             raise Invalid("Stored research input integrity check failed")
         return result
@@ -245,6 +282,8 @@ class ResearchInput:
         value = dict(schema=INPUT_SCHEMA, id=self.id, question=self.question, requestId=self.request_id,
                      papers=[paper.to_dict() for paper in self.papers], verifyCode=self.verify_code,
                      verificationPlan=self.verification_plan, createdAt=self.created_at)
+        if self.parent_intent_id:
+            value.update(parentIntentId=self.parent_intent_id, conversation=[turn.to_dict() for turn in self.conversation])
         if self.passages:
             value.update(fullText=True, passages=[p.to_dict() for p in self.passages], frozenPrompt=self.frozen_prompt)
         if self.retrieval:
@@ -269,9 +308,12 @@ class ResearchInput:
              'content': '\n\n'.join(p.content for p in self.passages if p.paper_id == paper.id),
              'passages': [p.to_dict() for p in self.passages if p.paper_id == paper.id]}
             if self.passages else paper.to_dict() for paper in self.papers], ensure_ascii=False)
+        conversation_context = ('\nConversation context (user intent only, not source evidence):\n' +
+            json.dumps([turn.to_dict() for turn in self.conversation], ensure_ascii=False)) if self.conversation else ''
         retrieval_rules = (
             'Answer using ONLY the retrieved PDF passages. Each evidence reference MUST include passageId '
-            'from that source and an exact contiguous quote from its content. Cite every substantive answer section. '
+            'from that source and an exact contiguous quote from its content. Prefer short quotations within a single '
+            'source line; copy punctuation, hyphens and whitespace verbatim. Cite every substantive answer section. '
             'Treat retrieval scores as relevance, not truth. If evidence is insufficient, say what is missing; '
             'do not invent a supported answer. These are excerpts, not the complete document. '
             'Retrieval uses local SQLite FTS5 BM25. It is lexical, not semantic; no unrelated samples are substituted. '
@@ -285,23 +327,23 @@ class ResearchInput:
             "Do not upload papers, start another agent, publish results or promote knowledge. Cite only the exact "
             "paper IDs supplied below. Distinguish abstracts, third-party reports and full text. Do not invent "
             "quotations, page numbers or experimental results.\n" + boundary +
-            f"\nQuestion: {self.question}\nVerification boundary: {self.verification_plan or 'Reading only'}"
+            f"{conversation_context}\nQuestion: {self.question}\nVerification boundary: {self.verification_plan or 'Reading only'}"
             f"\nFrozen input: {self.id}\nSources:\n{sources}\n"
             f'Return ONLY JSON: {{"schema":"{REPORT_SCHEMA}","intentId":"{self.id}","title":string,'
             '"sections":[{"heading":string,"content":string,"paperIds":[exact IDs],"evidence":[{"paperId":string,"quote":string}]}],'
             '"experiments":[{"title":string,"paperIds":[exact IDs],"evidence":[],"status":"passed|failed|blocked|not-run",'
             '"files":[{"path":relative path,"language":string,"content":string}],"commands":[string],"expected":string,'
             '"observed":string,"limitations":string}],"limitations":string}. '
-            "Every section and experiment needs at least one source ID. Evidence quotes must be exact contiguous "
+            "Keep answers concise, usually 2–4 short sections. Every section and experiment needs at least one source ID. Each evidence array has at most 8 references. Evidence quotes must be exact contiguous "
             "source passages of at most 4000 characters. Omit evidence when no exact passage supports the claim. "
             "Use Markdown for section content, GFM tables, fenced code and $inline$ or $$block$$ math. "
             "Inline evidence links use [label](evidence:N), with N the 1-based index in that section's evidence array. "
-            "When the question compares papers, add optional matrix: {columns:[{id,label}], "
+            "When the user requests an evidence matrix or compares papers, include a structured matrix field (a Markdown table alone is not sufficient): {columns:[{id,label}], "
             "cells:[{paperId,columnId,value,status,evidence:[{paperId,quote}]}]}. "
             "Use up to 8 columns and 40 cells. status is supported, missing or conflict. "
             "Supported values need an exact quote from the cell's paper; conflict needs at least two passages "
             "from that paper. Missing cells have empty value and evidence. Omitted cells mean missing. "
-            "Do not infer matrix values without evidence. "
+            "Do not infer matrix values without evidence. Do not duplicate the structured matrix as a Markdown table in sections. "
             "Use the user's language. Acceptance stays unverified; Agent-reported results are not independent verification."
         )
         return prompt.replace('"paperId":string,"quote":string', '"paperId":string,"passageId":string,"quote":string').replace('evidence:[{paperId,quote}]', 'evidence:[{paperId,passageId,quote}]') if self.passages else prompt

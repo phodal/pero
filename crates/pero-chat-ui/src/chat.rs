@@ -78,6 +78,7 @@ impl ChatPanel {
             for (index, tool) in chat.tools.iter_mut().enumerate() {
                 let open = open_tools.contains(&index);
                 tool.set_body_open(open, cx);
+                if let Some(reader)=&tool.reader {reader.update(cx,|reader,cx|reader.set_scroll_handle(open.then(||self.chat_scroll.clone()),cx));}
                 if let Some(view) = &tool.view {
                     view.update(cx, |view, _| {
                         view.set_scroll_handle(open.then(|| self.chat_scroll.clone()))
@@ -637,13 +638,13 @@ impl ChatPanel {
             .unwrap_or_else(|| "codex".into());
         div().flex_1().min_h_0().flex().flex_col()
             .when(self.show_return_to_review,|el|el.child(
-                div().px(px(16.)).py(px(8.)).border_b_1().border_color(p.border).child(
+                div().px(px(12.)).py(px(8.)).border_b_1().border_color(p.border).child(
                     Button::new("contribution-return").outline().small().label(self.t("contribution.return_review")).on_click(cx.listener(|_,_,_,cx|{
                         cx.emit(crate::ChatAction::ReturnToReview);
                     })))))
-            .child(div().id("messages").flex_1().min_h_0().overflow_y_scroll().track_scroll(&self.chat_scroll).px(px(16.)).py(px(10.))
-                .when(chat.is_none_or(|c|c.messages.is_empty()),|el|el.child(div().py(px(24.)).flex().flex_col().gap(px(12.))
-                    .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading)).font_weight(FontWeight::BOLD).child(self.t("chat.welcome")))
+            .child(div().id("messages").flex_1().min_h_0().overflow_y_scroll().track_scroll(&self.chat_scroll).px(px(12.)).py(px(8.))
+                .when(chat.is_none_or(|c|c.messages.is_empty()),|el|el.child(div().py(px(12.)).flex().flex_col().gap(px(6.))
+                    .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading)).font_weight(FontWeight::MEDIUM).child(self.t("chat.welcome")))
                     .child(div().text_color(p.text_muted).child(self.t(if self.connected && !self.agents.iter().any(|agent|agent.available){"chat.install_agent"}else{"chat.description"})))))
                 .children(chat.into_iter().flat_map(render_items).enumerate().filter_map(|(i,item)|{
                     let conversation=chat?;
@@ -667,7 +668,7 @@ impl ChatPanel {
                                     .when(open,|el|el.child(div().pl(px(20.)).child(message.view.clone()))).into_any_element());
                             }
                             Some(div().id(("message",i)).mb(px(10.)).flex().flex_col().gap(px(3.))
-                                .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).font_weight(FontWeight::BOLD).text_color(p.text_muted).child(if message.role=="user"{self.t("chat.you").to_string()}else{agent.clone()}))
+                                .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).font_weight(FontWeight::MEDIUM).text_color(p.text_muted).child(if message.role=="user"{self.t("chat.you").to_string()}else{agent.clone()}))
                                 .child(message.view.clone())
                                 .when(!message.attached_files.is_empty(),|el|el.child(div().flex().flex_wrap().gap(px(8.)).text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted)
                                     .children(message.attached_files.iter().map(|name|div().flex().items_center().gap(px(4.)).child(self.icon("file").size(px(13.))).child(name.clone())))))
@@ -685,7 +686,7 @@ impl ChatPanel {
                 .when(chat.is_some_and(|c|c.error.is_some() && c.state!=SessionState::AuthRequired),|el|el.child(div().p(px(14.)).bg(p.error_bg).text_color(p.error).rounded(px(6.)).child(chat.and_then(|c|c.error.clone()).unwrap_or_default()))))
             .children(chat.filter(|c|c.state==SessionState::AuthRequired).into_iter().map(|chat|{
                 div().mx(px(16.)).mb(px(10.)).p(px(12.)).bg(p.warning_bg).rounded(px(4.))
-                    .child(div().font_weight(FontWeight::BOLD).child(self.t("chat.signin")))
+                    .child(div().font_weight(FontWeight::MEDIUM).child(self.t("chat.signin")))
                     .when_some(chat.error.clone(),|el,error|el.child(div().mt(px(4.)).text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).child(error)))
                     .child(div().mt(px(8.)).flex().gap(px(8.)).children(chat.auth_methods.iter().enumerate().map(|(i,method)|{
                         let method_id=method.id.clone();let thread=chat.id.clone();let interactive=method.kind.as_deref()==Some("terminal");
@@ -702,7 +703,6 @@ impl ChatPanel {
                     })))
             }))
             .children(self.approval(&id, None, cx))
-            .children(chat.and_then(|c| c.usage.as_ref()).map(|usage| crate::usage::render_usage(usage, &self.locale, p, cx)))
             .child(self.composer_view(window, cx))
     }
 }

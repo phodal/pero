@@ -30,6 +30,47 @@ model LocalWorkerStopCommand {action:"local_worker_stop"; request_id:string; ...
 model LocalWorkerGetCommand {action:"local_worker_get"; request_id:string; ...Closed}
 @oneOf union LocalWorkerRequest {LocalWorkerStartCommand,LocalWorkerStopCommand,LocalWorkerGetCommand}
 
+// Standalone workspace documents are UI content, outside Agent history.
+model ConversationOrigin {kind:"conversation";thread_id:string;...Closed}
+model FileOrigin {kind:"file";path:string;...Closed}
+model AppOrigin {kind:"app";app:string;panel:string;...Closed}
+model McpOrigin {kind:"mcp";server:string;thread_id:string;...Closed}
+@oneOf union ContentOrigin {ConversationOrigin,FileOrigin,AppOrigin,McpOrigin}
+model DocumentSource {id:string;title:string;origin:ContentOrigin;...Closed}
+model PlainContentFormat {kind:"json"|"json_lines"|"text"|"markdown";...Closed}
+model CodeContentFormat {kind:"code";language:string;...Closed}
+@oneOf union ContentFormat {PlainContentFormat,CodeContentFormat}
+model DocumentHeader {source:DocumentSource;revision:safeint;format:ContentFormat;...Closed}
+model OpenFileDocument {method:"documents";action:"open";request_id:string;path:string;...Closed}
+model FollowFileDocument {method:"documents";action:"follow";request_id:string;source:string;href:string;...Closed}
+model SaveFileDocument {method:"documents";action:"save";request_id:string;source:string;revision:safeint;text:string;...Closed}
+model ReleaseFileDocument {method:"documents";action:"release";source:string;...Closed}
+@oneOf union FileDocumentRequest {OpenFileDocument,FollowFileDocument,SaveFileDocument,ReleaseFileDocument}
+model DocumentChooseEvent {kind:"document_choose";...EventBase}
+model DocumentOpenEvent {kind:"document_open";...EventBase;data:DocumentHeader}
+model FileDocumentEvent {kind:"document_file";...EventBase;data:DocumentHeader}
+model FileDocumentErrorEvent {kind:"document_error";...EventBase;data:{source:string;reason:"conflict"|"unsupported"|"unavailable"|"read_write";...Closed}}
+
+// Browser engines supply navigation observations; workspace IDs remain stable.
+model WebLoading {kind:"loading";...Closed}
+model WebReady {kind:"ready";...Closed}
+model WebFailed {kind:"failed";message:string;...Closed}
+@oneOf union WebLoad {WebLoading,WebReady,WebFailed}
+model WebObservation {url:string;title:string;load:WebLoad;can_back:boolean;can_forward:boolean;...Closed}
+model WebDocument {id:string;observation:WebObservation;...Closed}
+model WebOpenedEvent {kind:"web_opened";...EventBase;data:WebDocument}
+model WebStateEvent {kind:"web_state";...EventBase;data:WebDocument}
+model WebClosedEvent {kind:"web_closed";...EventBase;data:{id:string;...Closed}}
+model WebErrorEvent {kind:"web_error";...EventBase}
+model WebChooseEvent {kind:"web_choose";...EventBase}
+model WebOpenCommand {action:"web_open";url:string;...Closed}
+model WebNavigateCommand {action:"web_navigate";id:string;url:string;...Closed}
+model WebControlCommand {action:"web_back"|"web_forward"|"web_reload"|"web_close";id:string;...Closed}
+model SurfaceBounds {x:float64;y:float64;width:float64;height:float64;...Closed}
+model WebSurfaceCommand {action:"web_surface";id:string|null;bounds?:SurfaceBounds;...Closed}
+/** Private Desktop/native browser-engine commands, not Host stdin. */
+@oneOf union WebCommand {WebOpenCommand,WebNavigateCommand,WebControlCommand,WebSurfaceCommand}
+
 // ---------- Host input: one JSON object per stdin line ----------
 
 /** Bootstrap transport probe. */
@@ -125,6 +166,7 @@ union HostCommand {
 
 @oneOf
 union HostInput {
+  FileDocumentRequest,
   LocalWorkerRequest,
   EchoRequest,
   SetLocaleRequest,
@@ -285,6 +327,11 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 
 @oneOf
 union HostEvent {
+  WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,
+  DocumentOpenEvent,
+  DocumentChooseEvent,
+  FileDocumentEvent,
+  FileDocumentErrorEvent,
   ContentDocumentEvent,
   LocalWorkerStateEvent,
   ContributorStateEvent,

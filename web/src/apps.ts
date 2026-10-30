@@ -3,13 +3,15 @@ import type { HostEvent } from './bootstrap';
 import themes from './theme.generated.json';
 import { applyAppearance, type AppearanceSnapshot } from '../../packages/app-sdk/src/appearance';
 import { mountAppUseFrames } from './app-use';
+import { AppDocuments } from '../../packages/content-source/app-document';
+import type { DocumentHeader } from '../../protocol/generated/host';
 
 export type AppSurface = { visible: boolean; name?: string; panel?: string; left?: number; top?: number; width?: number; height?: number; dark: boolean; locale: string; appearance?: AppearanceSnapshot };
-type Frame = { element: HTMLIFrameElement; name: string; panel: string; ready: boolean; failed: boolean; timer: ReturnType<typeof setTimeout>; dispose(): void };
+type Frame = { documents:AppDocuments; element: HTMLIFrameElement; name: string; panel: string; ready: boolean; failed: boolean; timer: ReturnType<typeof setTimeout>; dispose(): void };
 type AppUsePresence = { scope: { app: string; panel: string }; title?: string; standing: string[]; tasks: { id: string; actions: string[]; expiresAt: number }[] };
 
 /** Retains App documents across navigation; GPUI owns selection and layout. */
-export function mountAppSurfaces(command: (value: object) => Promise<void>, onChat?: (context: { name: string; panel: string; text?: string;options?:unknown }) => void|Promise<unknown>) {
+export function mountAppSurfaces(command: (value: object) => Promise<void>, onChat?: (context: { name: string; panel: string; text?: string;options?:unknown }) => void|Promise<unknown>, onDocument?:(value:{header:DocumentHeader;text:string})=>void) {
   const frames = new Map<string, Frame>();
   const appUse = mountAppUseFrames();
   const presence = new Map<string, AppUsePresence & { thread: string }>();
@@ -114,6 +116,18 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   window.addEventListener('message', event => {
     const frame = [...frames.values()].find(frame => frame.element.contentWindow === event.source);
     if (!frame) return;
+    if(event.data?.type==='pero:app:document' && typeof event.data.id==='string') {
+      const url=new URL(frame.element.src);
+      const origin=`${url.protocol}//${url.host}`;
+      if(event.origin!==origin || !onDocument)return;
+      try {
+        onDocument(frame.documents.admit(event.data.document));
+        frame.element.contentWindow?.postMessage({type:'pero:app:document-result',id:event.data.id,ok:true},origin);
+      } catch(error) {
+        frame.element.contentWindow?.postMessage({type:'pero:app:document-result',id:event.data.id,ok:false,error:error instanceof Error?error.message:String(error)},origin);
+      }
+      return;
+    }
     if (event.data?.type === 'pero:app:chat') {
       if (event.data.text !== undefined && (typeof event.data.text !== 'string' || event.data.text.length > 64000)) return;
       const request=event.data;
@@ -140,7 +154,7 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
           element.title = value.name;
           element.allow = 'clipboard-write';
           element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-downloads', 'allow-popups');
-          const frame: Frame = { element, name: value.name, panel: value.panel, ready: false, failed: false, dispose: () => {}, timer: setTimeout(() => {
+          const frame: Frame = { documents:new AppDocuments(value.name,value.panel),element, name: value.name, panel: value.panel, ready: false, failed: false, dispose: () => {}, timer: setTimeout(() => {
             frame.failed = true;
             if (frame === active()) renderStatus();
           }, 15000) };

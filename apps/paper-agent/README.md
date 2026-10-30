@@ -16,7 +16,9 @@ npm run dev:paper
 
 This builds and opens an isolated development profile at
 `target/apps-preview-paper-agent`. Open **Add papers** to search alphaXiv,
-OpenAlex, bioRxiv or PubMed, read a supported ID/URL, or import text/Markdown.
+OpenAlex, bioRxiv or PubMed, read a supported ID/URL, or import text/Markdown or a local PDF. A PDF can also
+be dropped into the App; importing opens the saved original in reading mode. Identical
+PDF bytes reuse the existing paper, regardless of filename.
 Open a paper to enter reading mode. The top bar contains Back, title, PDF
 navigation, zoom and **Ask**. Opening the App never starts research.
 
@@ -43,7 +45,7 @@ original (up to 16 MiB / 500 pages), saves its SHA-256 and renders the saved byt
 with EmbedPDF/PDFium. WASM is bundled locally and external font fallback is off.
 Select text to highlight or attach it to a question. The PDF context menu
 (right-click or Shift+F10) offers **Capture area**, **Annotations**, page text and
-text view. Annotations retain quotations, notes, images and copy/download.
+text view and download of the original PDF. Annotations retain quotations, notes, images and copy/download.
 **Add to matrix** places a saved annotation under a named comparison field.
 The matrix's page links return to the exact saved PDF and region after restart.
 
@@ -59,18 +61,21 @@ full-width reading. Cmd/Ctrl+J toggles the panel. Page, zoom, scroll and selecti
 are retained; on narrow screens the Agent overlays the document. Ask a question
 about the saved full text. The App
 splits PDF text into overlapping page-local passages, ranks them with local BM25,
-and freezes up to 12 passages (19,200 characters), their PDF versions and the
-exact answer prompt. The existing Host Agent generates a sourced answer. Every
+then asks the selected Host Agent to select and reorder relevant evidence. A
+source-language query is planned first; the selector can request one additional
+search, with at most two rounds. The App freezes up to 12 selected passages
+(19,200 characters), their PDF versions, queries, evidence gaps and the exact
+answer prompt. The existing Host Agent generates a sourced answer. Every
 PDF answer section needs an exact quotation and a valid passage ID; unmatched
 quotes are rejected and retained for repair. Clicking a citation opens the saved
 PDF version, scrolls to the quotation and highlights its text rectangles.
 
 **Research settings** contains source selection, **Search full PDF text**,
 code verification and Agent selection. Full-text questions support 1–5 papers;
-their PDFs are saved before the research input is frozen. If no query terms match, the App asks for source-language keywords;
-unrelated text is not substituted. Retrieval uses local SQLite FTS5/BM25, without
-embedding search or model query expansion; cross-language and low-recall queries
-can miss relevant material. Absence from the selected passages is not evidence of
+their PDFs are saved before planning. Empty supporting evidence stops the
+answer with a recovery message. Retrieval uses local SQLite FTS5/BM25 with bounded
+model query rewriting and evidence selection. It adds no embedding runtime;
+lexical searches and model selection can still miss relevant material. Absence from the selected passages is not evidence of
 absence in the paper. OCR and automatic figure recognition are not included.
 Existing abstract/text snapshots remain unchanged. Ordinary research still uses
 those snapshots unless full-text retrieval is selected.
@@ -107,8 +112,9 @@ even after an index rebuild or a newer PDF download. Legacy frozen inputs remain
 readable. JSON exports include this retrieval record, source metadata and exact
 passages; Markdown includes the method, coverage limitations and PDF digests.
 Abstract/report snapshots retain their original kinds when PDF passages are used.
-No-match questions ask for different source-language keywords instead of filling
-the context with unrelated text.
+No-evidence questions ask for a more specific question instead of filling
+the context with unrelated text. With multiple planned queries, `totalMatches`
+is the sum of lexical matches per query and may include overlapping chunks.
 
 Authenticated API: `POST /api/library/search` with `query`, optional stored
 `paperIds`, `limit`, and `pdfOnly`. Responses include exact chunks, versioned
@@ -202,8 +208,11 @@ eight columns, forty cells. Source matching establishes location, not scientific
 support. JSON and Markdown exports retain the matrix and its quotations. Old
 reports without a matrix retain their identity and remain readable. New comparison
 research prompts request matrices; existing reports are not automatically inferred
-or rewritten. Generated report cells remain read-only. PDF page anchors and the
-separate manually curated matrix are described above; OCR is not included.
+or rewritten. Click a report cell to correct its value, status and exact source evidence. Each
+correction is a separate version with an optional note; the original Agent report
+remains unchanged. JSON includes the original matrix, edited matrix and revisions;
+Markdown exports the corrected matrix with its revision history. PDF page anchors
+and the separate reading matrix are described above; OCR is not included.
 
 ## Continue discovery
 
@@ -249,8 +258,11 @@ has no permanent paper list, document tabs or settings panel. Ask contains
 previous questions and saved answers for the current paper, with matrices,
 experiments and exports inline when present. Opening history does not rerun an
 Agent. Advanced settings and invalid-output repair remain available on demand.
-Each submitted question is its own frozen research run; previous generated
-answers are not implicitly treated as new evidence.
+Each submitted question is its own frozen research run. Follow-ups resolve up to
+three saved prior questions/answers and the current matrix values for intent
+context, including manual corrections and pronouns; earlier
+answers never become supporting evidence. Each answer retrieves fresh passages
+and retains its own frozen prompt.
 
 The existing PDF renderer, annotations, research execution and exact citation
 resolver are reused. See [reading-first design](../../docs/design-docs/paper-reading-first.md).

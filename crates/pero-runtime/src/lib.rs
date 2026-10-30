@@ -1,5 +1,6 @@
 pub mod acp;
 pub mod context;
+pub mod file_documents;
 pub mod roadmap;
 pub mod apps;
 pub mod contribution;

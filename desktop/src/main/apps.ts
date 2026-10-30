@@ -131,7 +131,7 @@ export class DesktopApps {
         if (body && body.byteLength > 16 * 1024 * 1024) return new Response('Request too large', { status: 413 });
         const response = await net.fetch(`${access.backend.url}${url.pathname}${url.search}`, {
           method: request.method,
-          headers: { 'Content-Type': 'application/json', 'X-Pero-App-Token': access.backend.token },
+          headers: { 'Content-Type': request.headers.get('Content-Type') || 'application/json', 'X-Pero-App-Token': access.backend.token },
           body,
           redirect: 'error',
         });

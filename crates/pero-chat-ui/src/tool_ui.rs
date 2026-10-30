@@ -281,6 +281,11 @@ mod rendering {
                                                 cx.notify();
                                             })))
                                     })
+                                    .when_some(tool.document.as_ref().filter(|_|self.can_open_documents && tool.artifact.as_ref().is_none_or(|artifact|matches!(artifact.status,crate::artifact_read::ArtifactStatus::Loaded))), |el,document| {
+                                        let document=document.clone();
+                                        el.child(Button::new(("workspace-content",index)).ghost().small().label(self.t("content.open_workspace"))
+                                            .on_click(cx.listener(move |_,_,_,cx|cx.emit(crate::panel::ChatAction::OpenDocument(document.clone())))))
+                                    })
                                     .when_some(tool.reader.as_ref().filter(|_|tool.artifact.as_ref().is_none_or(|artifact|matches!(artifact.status,crate::artifact_read::ArtifactStatus::Loaded))), |el, reader| el.child(reader.clone()))
                                     .when_some(tool.view.as_ref(), |el, view| {
                                         el.child(view.clone())

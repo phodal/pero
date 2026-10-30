@@ -37,16 +37,17 @@ pub fn render_usage(usage: &SessionUsage, locale: &str, palette: &Palette, cx: &
     }
     div()
         .id("chat-usage-row")
-        .px(px(16.))
-        .pb(px(4.))
+        .flex_shrink_0()
         .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
         .text_color(palette.text_muted)
         .child(
             Popover::new("chat-usage")
+                .anchor(Anchor::BottomLeft)
                 .trigger(
                     Button::new("chat-usage-trigger")
                         .ghost()
                         .small()
+                        .h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
                         .label(summary)
                         .accessibility_label(text(locale, "chat.usage")),
                 )

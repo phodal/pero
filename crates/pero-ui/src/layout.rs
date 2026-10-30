@@ -18,7 +18,7 @@ pub(crate) struct WorkspaceLayout {
     pub chat: ChatPlacement,
     pub chat_width: f32,
     pub content_visible: bool,
-    pub app_surface_visible: bool,
+    pub embedded_surface_visible: bool,
 }
 
 impl WorkspaceLayout {
@@ -29,7 +29,11 @@ impl WorkspaceLayout {
     ) -> ChatPlacement {
         match route.page() {
             WorkbenchPage::Conversation if tab == ConversationTab::Chat => ChatPlacement::Main,
-            WorkbenchPage::Tasks if preferences.chat_open => ChatPlacement::Dock,
+            WorkbenchPage::Tasks | WorkbenchPage::Document | WorkbenchPage::Web
+                if preferences.chat_open =>
+            {
+                ChatPlacement::Dock
+            }
             WorkbenchPage::Apps
                 if preferences.chat_open
                     && matches!(route, WorkspaceRoute::Content(WorkspaceItem::App { .. })) =>
@@ -61,17 +65,18 @@ impl WorkspaceLayout {
             0.
         };
         let content_visible = chat != ChatPlacement::Dock || !narrow;
-        let app_surface_visible =
-            matches!(route, WorkspaceRoute::Content(WorkspaceItem::App { .. }))
-                && content_visible
-                && !covered;
+        let embedded_surface_visible = matches!(
+            route,
+            WorkspaceRoute::Content(WorkspaceItem::App { .. } | WorkspaceItem::Web(_))
+        ) && content_visible
+            && !covered;
         Self {
             sidebar_width,
             narrow,
             chat,
             chat_width,
             content_visible,
-            app_surface_visible,
+            embedded_surface_visible,
         }
     }
 }
@@ -92,8 +97,78 @@ mod tests {
         });
 
         // Expected columns: sidebar, narrow, chat placement, dock width,
-        // center content visible, App surface visible.
+        // center content visible, embedded surface visible.
         for (name, viewport, route, tab, open, preferred_width, covered, expected) in [
+            (
+                "documents share the content dock without an App surface",
+                1488.,
+                Content(WorkspaceItem::Document {
+                    origin: pero_contracts::content_origin::ContentOrigin::Conversation {
+                        thread_id: "conversation".into(),
+                    },
+                    source: "code".into(),
+                }),
+                Chat,
+                true,
+                420.,
+                false,
+                (260., false, Dock, 420., true, false),
+            ),
+            (
+                "narrow document content gives the shared dock the available width",
+                1000.,
+                Content(WorkspaceItem::Document {
+                    origin: pero_contracts::content_origin::ContentOrigin::Conversation {
+                        thread_id: "conversation".into(),
+                    },
+                    source: "code".into(),
+                }),
+                Chat,
+                true,
+                420.,
+                false,
+                (240., true, Dock, 760., false, false),
+            ),
+            (
+                "Web and dock share the available viewport",
+                1488.,
+                Content(WorkspaceItem::Web("https://example.com/".into())),
+                Chat,
+                true,
+                420.,
+                false,
+                (260., false, Dock, 420., true, true),
+            ),
+            (
+                "a narrow Web dock hides the child engine",
+                1000.,
+                Content(WorkspaceItem::Web("https://example.com/".into())),
+                Chat,
+                true,
+                420.,
+                false,
+                (240., true, Dock, 760., false, false),
+            ),
+            (
+                "closing the narrow dock reveals the retained Web engine",
+                1000.,
+                Content(WorkspaceItem::Web("https://example.com/".into())),
+                Chat,
+                false,
+                420.,
+                false,
+                (240., true, Hidden, 0., true, true),
+            ),
+            (
+                "an overlay hides the native Web child without hiding the dock",
+                1488.,
+                Content(WorkspaceItem::Web("https://example.com/".into())),
+                Chat,
+                true,
+                420.,
+                true,
+                (260., false, Dock, 420., true, false),
+            ),
             (
                 "conversation chat stays in the main content area",
                 1488.,
@@ -236,7 +311,7 @@ mod tests {
                     layout.chat,
                     layout.chat_width,
                     layout.content_visible,
-                    layout.app_surface_visible,
+                    layout.embedded_surface_visible,
                 ),
                 expected,
                 "{name}",

@@ -80,7 +80,7 @@ impl ChatPanel {
                         button.icon(Icon::default().path("icons/lightbulb.svg"))
                     })
                     .tooltip(option.name.clone())
-                    .dropdown_caret(true)
+                    .dropdown_caret(false)
                     .max_w(px(160.))
                     .loading(
                         chat.pending_setting

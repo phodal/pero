@@ -12,6 +12,8 @@ impl Workbench {
     pub(crate) fn sync_settings_panel(&self, cx: &mut Context<Self>) {
         if let Some(panel) = &self.settings_panel {
             panel.update(cx, |panel, cx| {
+                panel.computer = self.computer.clone();
+                panel.computer_pending = false;
                 panel.receive(
                     &self.preferences,
                     &self.locale,
@@ -51,6 +53,9 @@ impl Workbench {
                             this.sync_follow(cx);
                         }
                         SettingsAction::Close => this.close_settings(window, cx),
+                        SettingsAction::Computer(control) => {
+                            this.command(serde_json::to_value(control).expect("computer control"), cx);
+                        }
                     }
                     cx.notify();
                 }),
@@ -98,7 +103,7 @@ impl Workbench {
                 kind: WindowKind::Normal,
                 window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                     None,
-                    size(px(960.), px(720.)),
+                    size(px(900.), px(640.)),
                     cx,
                 ))),
                 window_min_size: Some(size(px(700.), px(480.))),
@@ -154,14 +159,27 @@ impl Workbench {
         window.open_dialog(cx, move |dialog, window, _| {
             let viewport = window.viewport_size();
             let owner = owner.clone();
+            let cancel_panel = panel.clone();
             dialog
-                .w((viewport.width - px(48.)).min(px(960.)))
-                .h((viewport.height - px(80.)).min(px(720.)))
+                .w((viewport.width - px(48.)).min(px(900.)))
+                .h((viewport.height - px(80.)).min(px(640.)))
                 .p_0()
                 .close_button(false)
                 .overlay_closable(false)
                 .on_ok(|_, _, _| false)
-                .child(panel.clone())
+                .on_cancel(move |_, window, cx| {
+                    !cancel_panel.update(cx, |panel, cx| panel.clear_search(window, cx))
+                })
+                .content({
+                    let panel = panel.clone();
+                    move |content, _, _| {
+                        content
+                            .size_full()
+                            .min_h_0()
+                            .overflow_hidden()
+                            .child(panel.clone())
+                    }
+                })
                 .on_close(move |_, _, cx| {
                     let owner = owner.clone();
                     cx.defer(move |cx| {

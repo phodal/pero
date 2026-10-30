@@ -80,3 +80,69 @@ occurred with the corrected Input composition. Current screenshots include
 light/dark, search, invalid-input and narrow-window captures in that directory's
 parent. Native Windows/Linux and full assistive-technology acceptance remain
 outside these macOS checks.
+
+## Settings interaction and density refinement
+
+The numeric field now has one shared frame, aligned values and step buttons;
+inheritance sits beside its label and wraps with the label at large text sizes.
+The field accepts direct edits and Up/Down (1px), with Shift using 4px steps.
+`FontSize` owns parsing and clamping. A step starts from the current valid draft,
+and the save-triggered blur cannot write the previous value over that step.
+
+Settings initially focuses search. Cmd/Ctrl-F selects its current query;
+Down enters the filtered navigation tree, and Cmd/Ctrl-Shift-E focuses the tree.
+The selected tree row shows a keyboard focus outline. Search includes labels,
+descriptions and enum values; Escape clears a query while keeping Settings open.
+Matching links to existing Workbench pages also render in the result area.
+
+Runtime inspection at 760px width and 24px UI text caught a dialog sizing defect:
+the generic dialog body grew to its content height while its outer surface
+clipped it, leaving the panel's scroll range at zero. Settings now uses the
+dialog's bounded content slot. The E2E check asserts viewport containment and an
+actual scroll range, then clicks, edits and saves the visible Code font field.
+Input bounds alone were insufficient because a clipped input could retain old
+coordinates. `03-largest-narrow.png` and its state capture show the corrected
+scroll and successful edit.
+
+The refreshed native/Wasm/Web/Desktop builds, `npm run check`, contracts tests
+and `tests/e2e/appearance.mjs` passed. Native search, query clearing, category
+focus, single/Shift steps and inheritance were checked in a new fixture-only
+data home and `com.openpero.settings-refine-qa` bundle. The earlier appearance
+preview profile had acquired a real session and was left untouched during this
+refinement. Native evidence is
+`test-results/appearance/native/settings-refined-dark.png`. Screenshots and
+per-capture JSON diagnostics are local verification output, not source assets.
+
+## Workbench density
+
+The follow-up applies compact geometry across the Workbench: sidebar sessions,
+content tabs, shared Chat toolbar/composer, Settings, project/task pages, App
+library, connection forms, Worker and Agent lists. The default row/control
+height changes from 30/28px to 24px, with a 30px tab strip replacing 38px.
+Controls grow by text line height plus fixed padding; UI/Chat/code preferences
+and the palette are preserved. General page padding is 12px, page titles use
+Heading rather than Title, and status labels have smaller insets. Settings
+rows use 6px vertical padding with 12px section gaps.
+The usage summary joins the composer toolbar, with its existing detail popover,
+instead of consuming a separate full-width row above the input.
+
+`WorkbenchStyle::input` supplies the same frame height and text size to search,
+settings and connection/task inputs. Native inspection confirmed the previous
+single-line `Input::h` calls did not control their frame height. Native screenshots
+are under `test-results/compact/`, captured from the fixture-only
+`com.openpero.compact-qa` bundle. These checks cover the GPUI workbench and shared
+Chat; App-owned HTML layouts and platform titlebar decoration are separate.
+
+Existing workspace and composer E2E pointer gestures were updated for the new
+geometry. Tab closing now uses measured active-tab bounds; the workspace test
+also explicitly seeds its fixture Agent so a separately installed CLI cannot
+be selected. The tests retain checks for separate drafts, retained App state,
+restart, resize, narrow/dark layout, real menu interaction and context insertion.
+
+Native/Wasm/Web/Desktop builds and `npm run check` passed. Contracts, Workbench
+and shared Chat Rust tests passed. `appearance.mjs`, `workspace.mjs` and
+`composer.mjs` passed sequentially with no browser errors. Native light/dark
+settings and the relocated usage popover were inspected separately; the final
+chat capture is `test-results/compact/native-chat-light.png`. Provider messages
+in that capture come from the ACP fixture; no real model or tool execution is
+claimed by this presentation check.

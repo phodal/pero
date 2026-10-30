@@ -134,7 +134,7 @@ mod surface {
         pub(crate) fn sync_app_surface(&mut self, bounds: Option<Bounds<Pixels>>, cx: &App) {
             #[cfg(target_family = "wasm")]
             {
-                let bounds = bounds.filter(|_| self.layout.app_surface_visible);
+                let bounds = bounds.filter(|_| self.layout.embedded_surface_visible);
                 let payload = match (self.navigation.current(), bounds) {
                     (Some(WorkspaceItem::App { name, panel }), Some(bounds)) => {
                         json!({"visible":true,"name":name,"panel":panel,
@@ -166,9 +166,9 @@ mod surface {
                     .flex_1()
                     .min_w_0()
                     .h_full()
-                    .p(px(20.))
+                    .p(px(pero_theme::WorkbenchStyle::PAGE))
                     .text_color(p.text_muted)
-                    .child(if !self.layout.app_surface_visible {
+                    .child(if !self.layout.embedded_surface_visible {
                         ""
                     } else {
                         self.t(if cfg!(target_family = "wasm") {
@@ -179,9 +179,9 @@ mod surface {
                     })
                     .into_any_element();
             }
-            div().id("apps-library").flex_1().min_w_0().h_full().overflow_y_scroll().p(px(20.))
-                .child(div().flex().items_center().gap(px(10.)).mb(px(16.))
-                    .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Title)).font_weight(FontWeight::SEMIBOLD).child(self.t("nav.apps")))
+            div().id("apps-library").flex_1().min_w_0().h_full().overflow_y_scroll().p(px(pero_theme::WorkbenchStyle::PAGE))
+                .child(div().flex().items_center().gap(px(10.)).mb(px(pero_theme::WorkbenchStyle::SECTION))
+                    .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading)).font_weight(FontWeight::SEMIBOLD).child(self.t("nav.apps")))
                     .child(div().flex_1())
                     .child(Button::new("apps-refresh").outline().small().label(self.t("apps.refresh")).disabled(busy || !cfg!(target_family = "wasm"))
                         .on_click(cx.listener(|this, _, _, cx| this.refresh_apps(cx))))
@@ -196,7 +196,7 @@ mod surface {
                 .when_some(self.apps.error.as_ref(), |el, error| el.child(div().mb(px(12.)).p(px(10.))
                     .bg(p.error_bg).text_color(p.error).child(error.clone())))
                 .when(busy, |el| el.child(div().py(px(12.)).text_color(p.text_muted).child(self.t("apps.loading"))))
-                .when(cfg!(target_family = "wasm") && !busy && self.apps.entries.is_empty(), |el| el.child(div().py(px(32.)).flex().flex_col().gap(px(8.))
+                .when(cfg!(target_family = "wasm") && !busy && self.apps.entries.is_empty(), |el| el.child(div().py(px(16.)).flex().flex_col().gap(px(8.))
                     .child(div().font_weight(FontWeight::SEMIBOLD).child(self.t("apps.empty")))
                     .child(div().text_color(p.text_muted).child(self.t("apps.empty_hint")))))
                 .children(self.apps.entries.iter().enumerate().map(|(index, app)| {
@@ -205,7 +205,7 @@ mod surface {
                     let remove_name = name.clone();
                     let confirming = self.apps.removing.as_deref() == Some(name.as_str());
                     let enabled = app.enabled;
-                    div().py(px(14.)).border_b_1().border_color(p.border)
+                    div().py(px(8.)).border_b_1().border_color(p.border)
                         .child(div().flex().items_center().gap(px(10.))
                             .child(div().flex_1().min_w_0().flex().flex_col().gap(px(5.))
                                 .child(div().flex().items_center().gap(px(8.))

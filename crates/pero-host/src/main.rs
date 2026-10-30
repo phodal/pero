@@ -5,6 +5,7 @@ use std::io::{self, BufRead, Write};
 mod agents;
 mod apps;
 mod contributions;
+mod documents;
 mod local_worker;
 
 fn emit(event: HostEvent) -> io::Result<()> {
@@ -22,6 +23,7 @@ fn main() -> io::Result<()> {
     let mut agents = agents::Manager::new(std::env::current_dir()?);
     let settings_path = std::env::var_os("PERO_SETTINGS_PATH").map(std::path::PathBuf::from);
     let mut apps = apps::Apps::new(settings_path.as_deref());
+    let mut documents=pero_runtime::file_documents::FileDocuments::default();
     let workers = local_worker::LocalWorkers::new(settings_path.as_deref());
     let locale = settings_path
         .as_deref()
@@ -34,9 +36,25 @@ fn main() -> io::Result<()> {
         });
     emit(HostEvent::new("settings", None, locale))?;
     emit(HostEvent::message("ready", None, "status.host_ready"))?;
+    let mut computer = HostEvent::new("computer_settings", None, String::new());
+    computer.data = serde_json::json!({"enabled":settings_path.as_deref().is_some_and(pero_runtime::settings::load_computer_enabled)});
+    emit(computer)?;
     for line in io::stdin().lock().lines() {
         let line = line?;
         let value: serde_json::Value = serde_json::from_str(&line).unwrap_or_default();
+        if value.get("method").and_then(|value| value.as_str()).is_some_and(|method| method.starts_with("settings.computer")) {
+            use pero_contracts::computer_runtime::ComputerSettingsRequest;
+            let mut event = HostEvent::new("computer_settings_error", value.get("id").and_then(|id|id.as_str()).map(str::to_owned), String::new());
+            if let Ok(request) = serde_json::from_value::<ComputerSettingsRequest>(value) {
+                let enabled = match request {
+                    ComputerSettingsRequest::Get {} => Some(settings_path.as_deref().is_some_and(pero_runtime::settings::load_computer_enabled)),
+                    ComputerSettingsRequest::Set { enabled, .. } => settings_path.as_deref().filter(|path| pero_runtime::settings::save_computer_enabled(path, enabled).is_ok()).map(|_|enabled),
+                };
+                if let Some(enabled) = enabled { event.kind = "computer_settings".into(); event.data = serde_json::json!({"enabled":enabled}); }
+            }
+            emit(event)?;
+            continue;
+        }
         if value
             .get("method")
             .and_then(|v| v.as_str())
@@ -68,6 +86,10 @@ fn main() -> io::Result<()> {
         }
         if value.get("method").and_then(|v| v.as_str()) == Some("contribution") {
             contributions::dispatch(value);
+            continue;
+        }
+        if value.get("method").and_then(|v|v.as_str())==Some("documents") {
+            if let Some(event)=documents::dispatch(&mut documents,value) {emit(event)?;}
             continue;
         }
         if value.get("method").and_then(|v| v.as_str()) == Some("apps") {

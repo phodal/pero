@@ -44,7 +44,22 @@ pub(crate) fn request_locale(locale: &str) -> Result<(), String> {
     session_command(&serde_json::json!({"method":"settings.locale","locale":locale}).to_string())
 }
 
+pub(crate) fn native_application()->Application {
+    #[cfg(target_os="linux")]
+    {gpui_kit::platform::linux(WindowingModes::X11)}
+    #[cfg(not(target_os="linux"))]
+    {gpui_kit::application()}
+}
+
 pub fn run() -> anyhow::Result<()> {
+    #[cfg(target_os="windows")]
+    unsafe {std::env::set_var("GPUI_DISABLE_DIRECT_COMPOSITION","true");}
+    if std::env::args().nth(1).as_deref()==Some("--verify-webview") {
+        #[cfg(feature="native-probe")]
+        {return crate::native_web_probe::run();}
+        #[cfg(not(feature="native-probe"))]
+        {anyhow::bail!("Build with native-probe to run Web view acceptance");}
+    }
     #[cfg(target_os = "macos")]
     relaunch_in_bundle();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -208,7 +223,7 @@ pub fn run() -> anyhow::Result<()> {
                 let _ = events.send_blocking(outcome.event);
             } else if matches!(
                 action,
-                "choose_workspace" | "choose_context" | "choose_worker_workspace"
+                "choose_workspace" | "choose_context" | "choose_worker_workspace" | "choose_document"
             ) {
                 let mut event = HostEvent::new(&format!("native_{action}"), None, String::new());
                 event.data = value;
@@ -224,7 +239,8 @@ pub fn run() -> anyhow::Result<()> {
     let palettes: Palettes =
         serde_json::from_str(include_str!("../../../web/src/theme.generated.json"))?;
     let urls = commands.clone();
-    let app = gpui_kit::application().with_assets(crate::assets::UiAssets);
+    let app=native_application();
+    let app=app.with_assets(crate::assets::UiAssets);
     app.on_open_urls(move |opened| {
         for url in opened {
             let _ = urls
@@ -279,13 +295,25 @@ pub fn run() -> anyhow::Result<()> {
             })
         })
         .expect("native workbench window");
+        let close_view=view.downgrade();
+        let _=window.update(cx,|_,window,cx| {
+            window.on_window_should_close(cx,move|window,cx| {
+                close_view.update(cx,|view,cx| {
+                    if !view.has_unsaved_documents(cx) {return true;}
+                    let answer=window.prompt(PromptLevel::Warning,view.t("content.unsaved"),Some(view.t("content.unsaved_window")),&[view.t("content.keep_editing"),view.t("content.discard_window")],cx);
+                    cx.spawn_in(window,async move|_,cx| {if answer.await==Ok(1) {let _=cx.update(|window,_|window.remove_window());}}).detach();
+                    false
+                }).unwrap_or(true)
+            });
+        });
         let view = view.downgrade();
         cx.spawn(async move |cx| {
             while let Ok(event) = received.recv().await {
                 if matches!(
                     event.kind.as_str(),
-                    "native_choose_workspace" | "native_choose_context" | "native_choose_worker_workspace"
+                    "native_choose_workspace" | "native_choose_context" | "native_choose_worker_workspace" | "native_choose_document"
                 ) {
+                    let file_document=event.kind=="native_choose_document";
                     let worker_workspace=event.kind=="native_choose_worker_workspace";
                     let workspace = event.kind == "native_choose_workspace" || worker_workspace;
                     let typed_context = !workspace && event.data["request_id"].is_string();
@@ -295,7 +323,7 @@ pub fn run() -> anyhow::Result<()> {
                         cx.prompt_for_paths(PathPromptOptions {
                             files: !directory,
                             directories: directory,
-                            multiple: !directory && !typed_context,
+                            multiple: !directory && !typed_context && !file_document,
                             prompt: (typed_context && context_kind == "image").then(|| "Image (PNG, JPEG, GIF, WebP)".into()),
                         })
                     });
@@ -320,7 +348,9 @@ pub fn run() -> anyhow::Result<()> {
                                 }).and_then(|result| result);
                                 continue;
                             }
-                            let command = if workspace {
+                            let command = if file_document {
+                                serde_json::json!({"method":"documents","action":"open","request_id":"open-file","path":path})
+                            } else if workspace {
                                 serde_json::json!({"action":"workspace","path":path})
                             } else if typed_context {
                                 serde_json::json!({"action":"resolve_context","request_id":event.data["request_id"],"kind":context_kind,"source":path})

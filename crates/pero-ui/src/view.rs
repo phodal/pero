@@ -24,7 +24,7 @@ impl Workbench {
     }
 
     pub fn icon(&self, name: &str) -> Svg {
-        pero_chat_ui::assets::UiIcon::named(name).element().size(px(19.)).flex_shrink_0()
+        pero_chat_ui::assets::UiIcon::named(name).element().size(px(pero_theme::WorkbenchStyle::ICON)).flex_shrink_0()
     }
 
     fn sidebar(&self, width: f32, cx: &mut Context<Self>) -> Stateful<Div> {
@@ -212,7 +212,7 @@ impl Workbench {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
-            .p(px(20.))
+            .p(px(pero_theme::WorkbenchStyle::PAGE))
             .children(self.events.iter().map(|event| {
                 div()
                     .py(px(8.))
@@ -293,12 +293,19 @@ impl Render for Workbench {
         let dock = layout.chat == ChatPlacement::Dock;
         let narrow = layout.narrow;
         let has_tabs = !self.navigation.items().is_empty();
-        if !layout.app_surface_visible {
+        if !layout.embedded_surface_visible || !matches!(self.navigation.current(),Some(WorkspaceItem::App {..})) {
             self.sync_app_surface(None, cx);
         }
+        #[cfg(target_family="wasm")]
+        if !layout.embedded_surface_visible || !matches!(self.navigation.current(),Some(WorkspaceItem::Web(_))) {self.sync_web_surface(None,cx);}
+        #[cfg(not(target_family="wasm"))]
+        self.sync_web_surface(None,cx);
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         div()
             .id("workbench")
+            .track_focus(&self.workspace_focus)
+            .capture_action(cx.listener(|this,_:&crate::web_documents::OpenWeb,window,cx| {this.choose_web(window,cx);cx.stop_propagation();}))
+            .capture_action(cx.listener(|this,_:&crate::workspace_view::OpenDocument,_,cx| {this.choose_document(cx);cx.stop_propagation();}))
             .capture_action(cx.listener(|this, _: &crate::workspace_view::NextContent, window, cx| this.cycle_content(false, window, cx)))
             .capture_action(cx.listener(|this, _: &crate::workspace_view::PreviousContent, window, cx| this.cycle_content(true, window, cx)))
             .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, window, cx| {
@@ -325,6 +332,8 @@ impl Render for Workbench {
             .text_color(p.text)
 
             .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
+            .font_weight(FontWeight::NORMAL)
+            .line_height(relative(1.3))
             .child(self.sidebar(sidebar_width, cx))
             .child(
                 div()
@@ -334,6 +343,7 @@ impl Render for Workbench {
                     .flex()
                     .flex_col()
                     .when(has_tabs, |el| el.child(self.content_tabs(cx)))
+                    .when(self.web_entry_open || self.navigation.page()==WorkbenchPage::Web,|el|el.child(self.web_toolbar(cx)))
                     .when(self.error.is_some(), |el| {
                         el.child(
                             div()
@@ -372,6 +382,8 @@ impl Render for Workbench {
                                         .h_full()
                                         .flex()
                                         .flex_col()
+                                        .when(self.navigation.page()==WorkbenchPage::Web,|el|el.child(self.web_content(cx)))
+                                        .when(self.navigation.page()==WorkbenchPage::Document,|el|el.child(self.document_content(cx)))
                                         .when(
                                             self.navigation.page() == WorkbenchPage::Tasks,
                                             |el| {

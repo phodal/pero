@@ -121,17 +121,17 @@ impl Workbench {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
-            .p(px(24.))
+            .p(px(pero_theme::WorkbenchStyle::PAGE))
             .child(
                 div()
                     .max_w(px(700.))
                     .flex()
                     .flex_col()
-                    .gap(px(16.))
+                    .gap(px(pero_theme::WorkbenchStyle::SECTION))
                     .child(
                         div()
                             .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading))
-                            .font_weight(FontWeight::BOLD)
+                            .font_weight(FontWeight::MEDIUM)
                             .child(self.t("connector.title")),
                     )
                     .child(
@@ -147,7 +147,7 @@ impl Workbench {
                             .gap(px(6.))
                             .child(self.t("connector.url"))
                             .child(
-                                Input::new(&self.remote.connection.url)
+                                pero_theme::WorkbenchStyle::input(Input::new(&self.remote.connection.url), cx)
                                     .id("connector-url")
                                     .aria_label(self.t("connector.url"))
                                     .w_full()
@@ -162,6 +162,7 @@ impl Workbench {
                             .child(
                                 Button::new("connector-github-login")
                                     .primary()
+                                    .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
                                     .label(self.t(if authenticating {
                                         "connector.login_waiting"
                                     } else {
@@ -270,6 +271,7 @@ impl Workbench {
                             .child(
                                 Button::new("connector-save")
                                     .primary()
+                                    .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
                                     .label(self.t(if busy {
                                         "connector.connecting"
                                     } else {

@@ -18,7 +18,7 @@ let app,page;
 const errors=[];
 const state=()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()));
 const frames=()=>page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));
-const capture=async name=>{await frames();await page.screenshot({path:resolve(out,name+'.png')});};
+const capture=async name=>{await frames();await page.screenshot({path:resolve(out,name+'.png')});await writeFile(resolve(out,name+'.state.json'),JSON.stringify(await state(),null,2));};
 async function launch(){
   const env={...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_AGENTS_FILE:agents,PERO_LOCALE:'zh-CN'};
   delete env.ELECTRON_RUN_AS_NODE;
@@ -69,6 +69,20 @@ try{
   await expect.poll(async()=>(await state()).settings.fontInputs[0].value).toBe('18');
   await page.keyboard.press('Enter');
   await expect.poll(async()=>(await state()).preferences.typography.ui_size).toBe(18);
+  for(const [key,size] of [['ArrowUp',19],['Shift+ArrowUp',23],['ArrowUp',24],['ArrowUp',24],['ArrowDown',23],['Shift+ArrowDown',19],['ArrowDown',18]]) {
+    await page.keyboard.press(key);await frames();
+    await expect.poll(async()=>(await state()).preferences.typography.ui_size).toBe(size);
+  }
+  await page.keyboard.press(process.platform==='darwin'?'Meta+A':'Control+A');
+  await frames();await page.keyboard.press('2');await frames();await page.keyboard.press('0');
+  await expect.poll(async()=>(await state()).settings.fontInputs[0].value).toBe('20');
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(async()=>(await state()).preferences.typography.ui_size).toBe(21);
+  font=(await state()).settings.fontInputs[0];
+  await page.mouse.click(font.x+font.width/2,font.y+font.height/2);await frames();
+  await page.keyboard.press(process.platform==='darwin'?'Meta+A':'Control+A');
+  await frames();await page.keyboard.press('1');await frames();await page.keyboard.press('8');await page.keyboard.press('Enter');
+  await expect.poll(async()=>(await state()).preferences.typography.ui_size).toBe(18);
   font=(await state()).settings.fontInputs[0];
   await page.mouse.click(font.x+font.width/2,font.y+font.height/2);await frames();
   await page.keyboard.press(process.platform==='darwin'?'Meta+A':'Control+A');
@@ -89,6 +103,18 @@ try{
   await page.keyboard.press('Enter');
   await expect.poll(async()=>(await state()).preferences.typography.ui_size).toBe(14);
   await expect.poll(async()=>(await state()).settings.error).toBe(null);
+
+  await page.keyboard.press(process.platform==='darwin'?'Meta+f':'Control+f');await frames();
+  await page.keyboard.insertText('回复');
+  await expect.poll(async()=>(await state()).settingsSearch).toBe('回复');
+  await expect.poll(async()=>(await state()).settings.matches).toEqual(['settings.chat_font']);
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(async()=>(await state()).settings.section).toBe('settings.chat_font');
+  await capture('01-search-keyboard');
+  await page.keyboard.press(process.platform==='darwin'?'Meta+f':'Control+f');await frames();
+  await page.keyboard.press('Escape');
+  await expect.poll(async()=>(await state()).settingsSearch).toBe('');
+  expect((await state()).settingsOpen).toBe(true);
 
   await save({appearance:'dark',accent:'blue',typography:{ui_size:18,chat_size:20,code_size:14}});
   expect((await state()).appearance).toMatchObject({dark:true,accent:'blue',typography:{ui:18,chat:20,code:14}});
@@ -112,6 +138,26 @@ try{
   await settingsPage();
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1000,760));
   await page.waitForFunction(()=>innerWidth===1000);await capture('03-large-narrow');
+  await save({typography:{ui_size:24,chat_size:null,code_size:null}});
+  await app.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.setMinimumSize(760,650);window.setSize(760,700);});
+  await page.waitForFunction(()=>innerWidth===760);
+  await page.keyboard.press(process.platform==='darwin'?'Meta+Shift+e':'Control+Shift+e');
+  await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');
+  await expect.poll(async()=>(await state()).settings.section).toBe('settings.code_font');
+  await frames();
+  const narrow=(await state()).settings;
+  const viewport=page.viewportSize() ?? await page.evaluate(()=>({width:innerWidth,height:innerHeight}));
+  expect(narrow.bounds.y+narrow.bounds.height).toBeLessThanOrEqual(viewport.height);
+  expect(narrow.scroll.maxY).toBeGreaterThan(0);
+  expect(narrow.scroll.offsetY).toBeLessThan(0);
+  expect(narrow.fontInputs[2].x+narrow.fontInputs[2].width).toBeLessThanOrEqual(narrow.bounds.x+narrow.bounds.width);
+  expect(narrow.fontInputs[2].y).toBeGreaterThanOrEqual(narrow.scroll.bounds.y);
+  expect(narrow.fontInputs[2].y+narrow.fontInputs[2].height).toBeLessThanOrEqual(narrow.scroll.bounds.y+narrow.scroll.bounds.height);
+  await page.mouse.click(narrow.fontInputs[2].x+narrow.fontInputs[2].width/2,narrow.fontInputs[2].y+narrow.fontInputs[2].height/2);
+  await page.keyboard.press(process.platform==='darwin'?'Meta+a':'Control+a');
+  await page.keyboard.type('23');await page.keyboard.press('Enter');
+  await expect.poll(async()=>(await state()).preferences.typography.code_size).toBe(23);
+  await capture('03-largest-narrow');
   const before=(await state()).preferences;
   await page.evaluate(preferences=>window.pero.sessionCommand({method:'settings.workbench',preferences}),{...before,typography:{ui_size:11,chat_size:null,code_size:14}});
   await expect.poll(async()=>(await state()).error).toBe('error.preferences');
@@ -126,9 +172,10 @@ try{
   await save({appearance:'light',accent:'neutral',typography:{ui_size:14,chat_size:16,code_size:null}});
   await expect.poll(async()=>(await state()).error).toBe(null);
   await capture('05-recovered');
-  bounds=(await state()).settings.bounds;
-  await page.mouse.click(bounds.x+70,bounds.y+60);
-  for(let i=0;i<8;i++) { await page.keyboard.press('ArrowDown');await frames(); }
+  await page.keyboard.press(process.platform==='darwin'?'Meta+f':'Control+f');
+  await page.keyboard.insertText('Models');
+  await expect.poll(async()=>(await state()).settingsSearch).toBe('Models');
+  await page.keyboard.press('ArrowDown');
   expect((await state()).settingsOpen).toBe(true);
   await page.keyboard.press('Enter');
   await expect.poll(async()=>(await state()).settingsOpen).toBe(false);

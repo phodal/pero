@@ -8,7 +8,7 @@ import type { useResearch } from './use-research';
 import type { Agent, Api, EvidenceLocation, Intent, Library, Paper, PdfAnnotation, Report } from './types';
 import type { Translator } from './i18n';
 
-export type QuestionDraft = { question: string; fullText: boolean; verifyCode: boolean; verificationPlan: string; selected: string[]; context: string };
+export type QuestionDraft = { question: string; fullText: boolean; verifyCode: boolean; verificationPlan: string; selected: string[]; context: string; parentIntentId?: string };
 type Task = ReturnType<typeof useResearch>;
 
 function Answer({ report, intent, api, onCite, t }: { report: Report; intent: Intent; api: Api; onCite(citation: Citation, intent: Intent): void; t: Translator }) {
@@ -18,7 +18,7 @@ function Answer({ report, intent, api, onCite, t }: { report: Report; intent: In
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   }
   return <div className="pa-answer">
-    <ReportView report={report} intent={intent} onCite={value => onCite(value, intent)} t={t}/>
+    <ReportView api={api} report={report} intent={intent} onCite={value => onCite(value, intent)} t={t}/>
     {!!report.experiments?.length && <details><summary>{t('experiments')}</summary><Experiments report={report} intent={intent} onCite={value => onCite(value, intent)} t={t}/></details>}
     <details className="pa-answer-actions"><summary>{t('reportActions')}</summary><div className="pa-actions"><Button onClick={() => void exportReport('markdown')}>{t('exportMarkdown')}</Button><Button onClick={() => void exportReport('json')}>{t('exportJson')}</Button><Button onClick={() => window.print()}>{t('print')}</Button></div></details>
     {error && <Feedback kind="error">{error}<Button onClick={() => setError('')}>{t('dismiss')}</Button></Feedback>}
@@ -68,11 +68,11 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
   }}>
     <header className="pa-conversation-header"><h2>{t('ask')}</h2><Button variant="ghost" aria-label={t('researchOptions')} aria-expanded={settings} onClick={() => setSettings(value => !value)}><Icon name="settings"/></Button><Button variant="ghost" aria-label={t('closeAgent')} onClick={close}>×</Button></header>
     <div className="pa-conversation-scroll">
-      {history.map(intent => <SavedTurn key={intent.id} entry={intent} reports={library.reports.filter(report => report.intentId === intent.id)} api={api} onCite={onCite} disabled={locked} onResume={() => { void task.openIntent(intent.id).then(() => onDraft({ question: intent.question })); }} t={t}/>)}
-      {current && <section className="pa-turn" data-turn-id={current.id}><p className="pa-user-message">{current.question}</p>
-        {task.report && <Answer report={task.report} intent={current} api={api} onCite={onCite} t={t}/>}
-        {task.working && <p role="status" className="pa-run-status">{t(task.status === 'needs_input' ? 'needsInput' : 'running')}{task.status === 'needs_input' && <Button onClick={onOpenChat}>{t('openChat')}</Button>}</p>}
-        {task.status === 'failed' && <Feedback kind="error">{t('failed')}<Button onClick={task.retryPoll}>{t('retry')}</Button></Feedback>}
+      {history.map(intent => <SavedTurn key={intent.id} entry={intent} reports={library.reports.filter(report => report.intentId === intent.id)} api={api} onCite={onCite} disabled={locked} onResume={() => { void task.openIntent(intent.id).then(() => onDraft({ question: intent.question, parentIntentId: intent.id })); }} t={t}/>)}
+      {(current || task.plannedQuestion) && <section className="pa-turn" data-turn-id={current?.id}><p className="pa-user-message">{current?.question ?? task.plannedQuestion}</p>
+        {task.report && current && <Answer report={task.report} intent={current} api={api} onCite={onCite} t={t}/>}
+        {task.working && <p role="status" className="pa-run-status">{t(task.status === 'needs_input' ? 'needsInput' : task.phase === 'plan' ? 'planningQuery' : task.phase === 'select' ? 'selectingEvidence' : 'running')}{task.status === 'needs_input' && <Button onClick={onOpenChat}>{t('openChat')}</Button>}</p>}
+        {task.status === 'failed' && !task.repair && <Feedback kind="error">{t('failed')}<Button onClick={task.retryPoll}>{t('retry')}</Button></Feedback>}
         {task.status === 'cancelled' && <p role="status">{t('cancelled')}</p>}
         {task.repair && <Feedback kind="error">{t('invalidReport')}</Feedback>}
       </section>}

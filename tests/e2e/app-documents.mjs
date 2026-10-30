@@ -1,0 +1,57 @@
+// Real installed Virtual Cell + Python result -> shared GPUI workspace reader.
+import {expect} from '@playwright/test';
+import {electron} from './electron.mjs';
+import {mkdtemp,mkdir,writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {tmpdir} from 'node:os';
+const root=resolve(process.env.PERO_CONTENT_TEST_ROOT||resolve(import.meta.dirname,'../..'));
+const out=resolve(import.meta.dirname,'../../test-results/app-documents');
+const temp=await mkdtemp(resolve(tmpdir(),'pero-app-document-'));
+await mkdir(out,{recursive:true});await writeFile(resolve(temp,'agents.json'),'[]');
+const app=await electron.launch({args:['--use-mock-keychain',resolve(root,'desktop')],cwd:root,env:{...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'desktop'),PERO_LOCALE:'en',PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_AGENTS_FILE:resolve(temp,'agents.json')}});
+let page;
+try {
+  page=await app.firstWindow();const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  const state=()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()));
+  const paint=()=>page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));
+  await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
+  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1488,1086));
+  await expect.poll(async()=>(await state()).apps?.some(a=>a.name==='virtual-cell')).toBe(true);
+  await page.mouse.click(80,await page.evaluate(()=>innerHeight-76));
+  await expect.poll(async()=>(await state()).navigation).toBe(7);
+  await expect.poll(async()=>(await state()).appsLoading).toBe(false);
+  await paint();
+  await page.mouse.click(1305,110+79*(await state()).apps.findIndex(a=>a.name==='virtual-cell'));
+  await expect.poll(async()=>(await state()).activeApp?.name).toBe('virtual-cell');
+  const frame=page.frameLocator('iframe[title="virtual-cell"]');
+  await expect(frame.getByRole('button',{name:'Load synthetic example',exact:true})).toBeVisible({timeout:20000});
+  await frame.getByRole('button',{name:'Load synthetic example',exact:true}).click();
+  const compare=frame.getByRole('button',{name:'Compare baselines and predictions',exact:true});await expect(compare).toBeEnabled();
+  const response=page.waitForResponse(r=>r.url().endsWith('/api/execute')&&r.request().method()==='POST');
+  await compare.click();const output=await (await response).json();const source=JSON.stringify(output.result,null,2);
+  await expect(frame.locator('.vc-models tbody tr')).toHaveCount(3);
+  const originalFrame=await page.locator('iframe[title="virtual-cell"]').getAttribute('src');
+  await frame.getByText('Contract details',{exact:true}).click();
+  await frame.getByRole('button',{name:'Open complete result in workspace',exact:true}).click();
+  await expect.poll(async()=>(await state()).documents.length).toBe(1);
+  let doc=(await state()).documents[0];expect(doc.item.value.origin).toEqual({kind:'app',app:'virtual-cell',panel:'main'});
+  expect(doc.reader.bytes).toBe(Buffer.byteLength(source));expect(doc.reader.editable).toBe(false);
+  await expect(page.locator('#pero-app-surface')).toBeHidden();
+  await page.screenshot({scale:'css',path:resolve(out,'app-result-workspace.png')});
+  const b=doc.reader.bounds;await page.mouse.click(b.x+b.width-55,b.y+16);
+  await expect.poll(async()=>(await app.evaluate(({clipboard})=>clipboard.readText()))===source).toBe(true);
+  await page.keyboard.press('Control+Shift+Tab');await paint();await expect(page.locator('#pero-app-surface')).toBeVisible();
+  expect(await page.locator('iframe[title="virtual-cell"]').getAttribute('src')).toBe(originalFrame);
+  await expect(frame.locator('.vc-models tbody tr')).toHaveCount(3);
+  await frame.getByRole('button',{name:'Open complete result in workspace',exact:true}).click();
+  await expect.poll(async()=>(await state()).activeContent.kind).toBe('document');
+  expect((await state()).documents.length).toBe(1);expect((await state()).documents[0].reader.revision).toBe(1);
+  await page.keyboard.press('Control+Shift+Tab');await paint();
+  await page.evaluate(()=>window.pero.appsCommand({action:'apps_disable',name:'virtual-cell'}));
+  await expect.poll(async()=>(await state()).documents.length).toBe(0);
+  expect(errors).toEqual([]);
+  await writeFile(resolve(out,'result.json'),JSON.stringify({bytes:Buffer.byteLength(source),checks:['actual Python computation','App-owned provenance','full exact source copy','retained App frame and result','idempotent reopen','disabled App releases owned documents'],errors},null,2));
+  console.log('Verified real App computation, complete workspace source, return, reopen and lifecycle.');
+} catch(error) {
+  if(page){await page.screenshot({scale:'css',path:resolve(out,'failure.png')});await writeFile(resolve(out,'failure.json'),await page.evaluate(()=>window.peroDiagnostics.snapshot()));}throw error;
+} finally {await app.close();}

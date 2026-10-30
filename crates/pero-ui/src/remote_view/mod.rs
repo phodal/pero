@@ -149,7 +149,7 @@ impl Workbench {
                 },
             )
             .when(editing, |el| el.child(self.remote_connection_view(cx)))
-            .when(!configured && !editing,|el|el.child(div().p(px(24.)).flex().flex_col().gap(px(12.))
+            .when(!configured && !editing,|el|el.child(div().p(px(pero_theme::WorkbenchStyle::PAGE)).flex().flex_col().gap(px(12.))
                 .child(div().text_color(p.text_muted).child(self.t("project.connect_tasks")))
                 .child(Button::new("project-connect").outline().label(self.t("settings.connections"))
                     .on_click(cx.listener(|this,_,window,cx|{this.navigate(WorkbenchPage::Connections,cx);this.open_remote_connection(window,cx);} )))))
@@ -175,7 +175,7 @@ impl Workbench {
                                         .min_w_0()
                                         .flex()
                                         .flex_col()
-                                        .child(div().px(px(24.)).py(px(8.)).child(Button::new("project-task-back").ghost().small().icon(IconName::ArrowLeft).label(self.t("project.back_tasks"))
+                                        .child(div().px(px(pero_theme::WorkbenchStyle::PAGE)).py(px(8.)).child(Button::new("project-task-back").ghost().small().icon(IconName::ArrowLeft).label(self.t("project.back_tasks"))
                                             .on_click(cx.listener(|this,_,_,cx|{this.remote.creating=false;this.command(json!({"action":"remote_select","task_id":null}),cx);}))))
                                         .when(self.remote.creating, |el| {
                                             el.child(self.remote_form(narrow, cx))

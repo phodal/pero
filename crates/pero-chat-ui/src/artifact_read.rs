@@ -136,7 +136,7 @@ mod tests {
             assert!(view.request("duplicate".into()).is_none());
             assert_eq!(view.cancel().as_deref(), Some("first"));
             assert!(view.request("retry".into()).is_some());
-            let document = || ContentDocument::new(id.clone(), 1, "[]".into(), ContentFormat::Json);
+            let document = || ContentDocument::new(pero_contracts::content_document::DocumentSource {id:id.clone(),title:"fixture".into(),origin:pero_contracts::content_origin::ContentOrigin::Conversation {thread_id:"fixture".into()}}, 1, "[]".into(), ContentFormat::Json);
             assert!(view.finish(&id, "first", Ok(document())).is_none());
             assert!(matches!(view.status, ArtifactStatus::Loading { .. }));
             if final_error {

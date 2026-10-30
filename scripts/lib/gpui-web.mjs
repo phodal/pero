@@ -1,12 +1,14 @@
 // Keep the registry cache immutable; prepare the pinned Web backend under target/.
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { root } from './paths.mjs';
 import { run } from './run.mjs';
 
-export const webBackend = resolve(root, 'target/patched-dependencies/gpui-pre-web-0.3.10');
+const target=resolve(root,'target');
+mkdirSync(target,{recursive:true});
+export const webBackend = resolve(realpathSync(target), 'patched-dependencies/gpui-pre-web-0.3.10');
 
 export async function prepareWebBackend() {
   const patch = resolve(root, 'patches/gpui-pre-web-0.3.10-ime.patch');

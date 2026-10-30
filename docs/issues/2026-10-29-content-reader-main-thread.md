@@ -51,3 +51,29 @@ full-featured implementation passes the interaction budget. A fast opening
 sample, disabling highlighter features, or replacing native selection does not
 close it. The [acceptance matrix](../fitness/content-reader.md) records the
 functional evidence and remaining boundaries.
+
+## 2026-10-30 regression receipt
+
+The retained-document/file/App work preserves the large reader's functional
+operations. A macOS background Electron release-Wasm run over 8,000 records
+and 1,086,892 bytes recorded preview 38 ms, source 55 ms and a retained
+switch 339.5 ms, including a 312 ms main-thread task. These are individual
+probe samples, not a throughput distribution or release-Oz claim. The issue
+remains open; no syntax/selection functionality was removed to improve the
+numbers. Receipt: `test-results/content-reader/performance.json`.
+
+## 2026-10-30 retained-table measurement
+
+The source-backed Kit table keeps its parsed preview, query, order and widths
+when an unchanged source switches modes. A release-Wasm macOS Electron probe
+ran thirty retained switches over the same 1,086,892 bytes: median 30.2 ms,
+p95 32.8 ms and maximum 369.8 ms. The timed switches included a 341 ms task;
+the complete interaction record included 21 long tasks, peaking at 776 ms
+around Select All. Opening preview/source had single samples of 44.1/54 ms.
+
+The table operations pass, including exact clipboard values and source
+navigation after filtering/sorting. None of the selection, syntax or source
+features were removed. This remains an open performance incident: a low warm
+p95 does not excuse a delayed highlighter or whole-selection stall. These are
+functional release-Wasm receipts, not release-Oz, cold-start distributions or
+installed-package results. `allLongTasks` contains the complete record.

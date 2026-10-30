@@ -7,3 +7,5 @@ publish.workspace = true
 [dependencies]
 serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
+url = "2"
+num-bigint = "=0.4.8"

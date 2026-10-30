@@ -2,7 +2,7 @@ import { exerciseLocalSearch } from './paper-search-flow.mjs';
 // Real Electron -> Rust Host -> Python App; Agent output is a labelled ACP fixture.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
@@ -13,7 +13,7 @@ const root = resolve(import.meta.dirname, '../..');
 const out = resolve(root, process.env.PERO_PAPER_TEST_OUTPUT || 'test-results/paper-agent');
 await mkdir(out, { recursive: true });
 await rm(resolve(out, 'failure.png'), { force: true });
-const profile = await mkdtemp(resolve(tmpdir(), 'pero-paper-e2e-'));
+const profile = await realpath(await mkdtemp(resolve(tmpdir(), 'pero-paper-e2e-')));
 const pdfPath = resolve(profile, 'source.pdf');
 const pdfFixture = JSON.parse(execFileSync(process.env.PERO_APP_PYTHON || 'python3', ['-c', `
 import runpy,sys,json
@@ -65,12 +65,14 @@ const observe = page => {
 
 async function openPaper(page) {
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
+  await page.evaluate(path => window.pero.sessionCommand({ action: 'workspace', path }), profile);
+  await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).workspace)).toBe(profile);
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(item => item.name === 'paper-agent') ?? false)).toBe(true);
-  await page.mouse.click(80, await page.evaluate(() => innerHeight - 76));
+  await page.mouse.click(80, await page.evaluate(() => innerHeight - 52));
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).navigation)).toBe(7);
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).appsLoading)).toBe(false);
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
-  await page.mouse.click(await page.evaluate(() => innerWidth - 183), 110);
+  await page.mouse.click(await page.evaluate(() => innerWidth - 172), 76);
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).activeApp?.name)).toBe('paper-agent');
   const frame = page.frameLocator('iframe[title="paper-agent"]');
   await expect(frame.getByRole('button', { name: 'Add papers', exact: true }).first()).toBeVisible({ timeout: 20000 });
@@ -98,7 +100,49 @@ try {
     // Synthetic content is explicit test input, imported through the real UI.
     const sample = await frame.locator('body').evaluate(async () => (await fetch('/api/example')).json());
     await frame.getByRole('button', { name: 'Add papers', exact: true }).click();
+    await page.screenshot({ path: resolve(out, 'import-search-light.png') });
+    await frame.getByRole('combobox', { name: 'Literature source', exact: true }).selectOption('openalex');
+    await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).fill('attention');
+    await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).press('Enter');
+    await expect(frame.locator('.pa-search-results>li').first()).toBeVisible();
+    await frame.getByRole('tab', { name: 'Search', exact: true }).focus();
+    await frame.getByRole('tab', { name: 'Search', exact: true }).press('ArrowRight');
+    await expect(frame.getByRole('tab', { name: 'PDF', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(frame.getByRole('button', { name: 'Import PDF', exact: true })).toBeVisible();
+    await page.screenshot({ path: resolve(out, 'import-pdf-light.png') });
+    await setAppearance(page, 'dark');
+    await expect.poll(async () => frame.locator('html').evaluate(element => element.style.colorScheme)).toBe('dark');
+    await page.screenshot({ path: resolve(out, 'import-pdf-dark.png') });
+    await setAppearance(page, 'light');
+    const preferences = await page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).preferences);
+    const windowSize = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getSize());
+    await page.evaluate(preferences => window.pero.sessionCommand({ method: 'settings.workbench', preferences: { ...preferences, accent: 'blue', typography: { ui_size: 24, chat_size: null, code_size: null } } }), preferences);
+    await app.evaluate(({ Menu, BrowserWindow }) => { Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click(); BrowserWindow.getAllWindows()[0].setSize(1000, 800); });
+    await expect(frame.getByRole('button', { name: '导入 PDF', exact: true })).toBeVisible();
+    await expect.poll(async () => frame.getByRole('button', { name: '导入 PDF', exact: true }).evaluate(element => getComputedStyle(element).fontSize)).toBe('24px');
+    await expect.poll(async () => frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    await page.screenshot({ path: resolve(out, 'import-pdf-zh-large-narrow.png') });
+    await frame.getByRole('tab', { name: '检索', exact: true }).click();
+    await frame.locator('.pa-library-screen').evaluate(element => element.scrollTop = 0);
+    await page.screenshot({ path: resolve(out, 'import-search-zh-large-narrow.png') });
+    await page.evaluate(preferences => window.pero.sessionCommand({ method: 'settings.workbench', preferences }), preferences);
+    await expect.poll(async () => frame.getByRole('button', { name: '搜索文献', exact: true }).evaluate(element => getComputedStyle(element).fontSize)).toBe('14px');
+    await frame.locator('.pa-library-screen').evaluate(element => element.scrollTop = 0);
+    await page.screenshot({ path: resolve(out, 'import-search-zh.png') });
+    await app.evaluate(({ Menu, BrowserWindow }, size) => { Menu.getApplicationMenu().getMenuItemById('locale-en').click(); BrowserWindow.getAllWindows()[0].setSize(...size); }, windowSize);
+    await expect(frame.getByRole('tab', { name: 'Import text', exact: true })).toBeVisible();
     await frame.getByRole('tab', { name: 'Import text', exact: true }).click();
+    const fileChoice = page.waitForEvent('filechooser');
+    await frame.getByRole('button', { name: 'Read text file', exact: true }).focus();
+    await frame.getByRole('button', { name: 'Read text file', exact: true }).press('Enter');
+    const chooser = await fileChoice;
+    await chooser.setFiles({ name: 'source.md', mimeType: 'text/markdown', buffer: Buffer.from('First source text') });
+    await expect(frame.getByLabel('Source text or abstract', { exact: true })).toHaveValue('First source text');
+    await frame.getByLabel('Read text file', { exact: true }).setInputFiles({ name: 'source.md', mimeType: 'text/markdown', buffer: Buffer.from(sample.content) });
+    await expect(frame.getByLabel('Source text or abstract', { exact: true })).toHaveValue(sample.content);
+    await expect(frame.locator('.pero-ui-file-name').filter({ hasText: 'source.md' })).toBeVisible();
+    checks.push('shared import tabs use arrow keys; translated file picker opens from keyboard and reselects the same filename');
+    checks.push('public search submits with Enter; shared controls inherit Host theme, accent and 24px UI text in a narrow Chinese window');
     await frame.getByLabel('Paper title', { exact: true }).fill(sample.title);
     await frame.getByLabel('Original URL (HTTPS)', { exact: true }).fill(sample.url);
     await frame.getByLabel('Source text or abstract', { exact: true }).fill(sample.content);

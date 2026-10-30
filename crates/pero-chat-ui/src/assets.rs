@@ -13,7 +13,10 @@ gpui_kit::assets::icon_assets!(
         Minus,
         Maximize,
         Network,
-        Box
+        Box,
+        SortAscending,
+        SortDescending,
+        ChevronsUpDown
     ]
 );
 
@@ -68,6 +71,9 @@ pub enum UiIcon {
     Maximize,
     Network,
     Box,
+    SortAscending,
+    SortDescending,
+    ChevronsUpDown,
 }
 
 impl UiIcon {
@@ -125,6 +131,9 @@ impl UiIcon {
             "maximize" | "fit" => Some(Self::Maximize),
             "network" | "nodes" => Some(Self::Network),
             "box" | "models" => Some(Self::Box),
+            "sort-ascending" => Some(Self::SortAscending),
+            "sort-descending" => Some(Self::SortDescending),
+            "chevrons-up-down" => Some(Self::ChevronsUpDown),
             _ => None,
         }
     }
@@ -179,6 +188,9 @@ impl UiIcon {
             Self::Maximize => "icons/maximize.svg",
             Self::Network => "icons/network.svg",
             Self::Box => "icons/box.svg",
+            Self::SortAscending => "icons/sort-ascending.svg",
+            Self::SortDescending => "icons/sort-descending.svg",
+            Self::ChevronsUpDown => "icons/chevrons-up-down.svg",
         }
     }
 
@@ -323,6 +335,9 @@ impl AssetSource for UiAssets {
             Some(UiIcon::Maximize) => SelectedKitIcons.load("icons/maximize.svg")?,
             Some(UiIcon::Network) => SelectedKitIcons.load("icons/network.svg")?,
             Some(UiIcon::Box) => SelectedKitIcons.load("icons/box.svg")?,
+            Some(UiIcon::SortAscending) => SelectedKitIcons.load("icons/sort-ascending.svg")?,
+            Some(UiIcon::SortDescending) => SelectedKitIcons.load("icons/sort-descending.svg")?,
+            Some(UiIcon::ChevronsUpDown) => SelectedKitIcons.load("icons/chevrons-up-down.svg")?,
             None => None,
         })
     }
@@ -377,6 +392,9 @@ impl AssetSource for UiAssets {
             UiIcon::Maximize,
             UiIcon::Network,
             UiIcon::Box,
+            UiIcon::SortAscending,
+            UiIcon::SortDescending,
+            UiIcon::ChevronsUpDown,
         ]
         .into_iter()
         .map(UiIcon::path)

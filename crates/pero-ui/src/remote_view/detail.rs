@@ -457,7 +457,7 @@ impl Workbench {
             .when(!active, |el| {
                 el.child(
                     div()
-                        .p(px(32.))
+                        .p(px(pero_theme::WorkbenchStyle::PAGE))
                         .flex()
                         .flex_col()
                         .gap(px(8.))
@@ -472,7 +472,7 @@ impl Workbench {
             .when(active, |el| {
                 el.child(
                     div()
-                        .px(px(24.))
+                        .px(px(pero_theme::WorkbenchStyle::PAGE))
                         .pt(px(20.))
                         .pb(px(28.))
                         .flex()
@@ -525,7 +525,7 @@ impl Workbench {
                                             div()
                                                 .flex_1()
                                                 .min_w_0()
-                                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Title))
+                                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading))
                                                 .font_weight(FontWeight::BOLD)
                                                 .child(string(task, "title").to_string()),
                                         )

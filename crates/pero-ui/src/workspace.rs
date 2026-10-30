@@ -1,18 +1,29 @@
+use pero_contracts::content_origin::ContentOrigin;
 /// A stable identity for content that can remain open in the workbench.
 /// Titles and other presentation metadata come from the current source object.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub(crate) enum WorkspaceItem {
     Conversation(String),
+    Web(String),
+    Document {
+        origin: ContentOrigin,
+        source: String,
+    },
     Project(String),
     Task(String),
-    App { name: String, panel: String },
+    App {
+        name: String,
+        panel: String,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum WorkbenchPage {
     Conversation,
+    Document,
+    Web,
     #[default]
     Projects,
     Agents,
@@ -29,6 +40,8 @@ impl WorkbenchPage {
     pub(crate) fn legacy_index(self) -> usize {
         match self {
             Self::Conversation => 0,
+            Self::Document => 10,
+            Self::Web => 11,
             Self::Projects => 1,
             Self::Agents => 2,
             Self::Tasks => 3,
@@ -70,6 +83,8 @@ impl WorkspaceRoute {
         match self {
             Self::Page(page) => *page,
             Self::Content(WorkspaceItem::Conversation(_)) => WorkbenchPage::Conversation,
+            Self::Content(WorkspaceItem::Document { .. }) => WorkbenchPage::Document,
+            Self::Content(WorkspaceItem::Web(_)) => WorkbenchPage::Web,
             Self::Content(WorkspaceItem::Project(_) | WorkspaceItem::Task(_)) => {
                 WorkbenchPage::Tasks
             }
@@ -234,6 +249,7 @@ impl WorkspaceNavigation {
 
 #[cfg(test)]
 mod tests {
+    use super::ContentOrigin;
     use super::{WorkbenchPage, WorkspaceItem, WorkspaceNavigation, WorkspaceRoute};
 
     #[derive(Clone)]
@@ -252,6 +268,18 @@ mod tests {
     fn workspace_tab_transitions() {
         use Action::*;
         let conversation = WorkspaceItem::Conversation("conversation".into());
+        let document = WorkspaceItem::Document {
+            origin: ContentOrigin::Conversation {
+                thread_id: "conversation".into(),
+            },
+            source: "output".into(),
+        };
+        let other_document = WorkspaceItem::Document {
+            origin: ContentOrigin::Conversation {
+                thread_id: "other".into(),
+            },
+            source: "output".into(),
+        };
         let project = WorkspaceItem::Project("project".into());
         let task = WorkspaceItem::Task("project".into());
         let shared_project = WorkspaceItem::Project("shared:pero".into());
@@ -273,6 +301,73 @@ mod tests {
         }
 
         let cases = [
+            Case {
+                name: "Web sources retain one tab across utility pages and reopen",
+                actions: vec![
+                    Open(WorkspaceItem::Web("https://example.com/".into())),
+                    Show(WorkbenchPage::Connections),
+                    Open(WorkspaceItem::Web("https://example.com/".into())),
+                ],
+                items: vec![WorkspaceItem::Web("https://example.com/".into())],
+                route: WorkspaceRoute::Content(WorkspaceItem::Web("https://example.com/".into())),
+            },
+            Case {
+                name: "closing the selected Web source returns to its surviving document",
+                actions: vec![
+                    Open(document.clone()),
+                    Open(WorkspaceItem::Web("https://example.com/".into())),
+                    Close(WorkspaceItem::Web("https://example.com/".into())),
+                ],
+                items: vec![document.clone()],
+                route: WorkspaceRoute::Content(document.clone()),
+            },
+            Case {
+                name: "documents with equal source ids remain distinct across authority namespaces",
+                actions: vec![
+                    Open(document.clone()),
+                    Open(WorkspaceItem::Document {
+                        origin: ContentOrigin::File {
+                            path: "/work/output".into(),
+                        },
+                        source: "output".into(),
+                    }),
+                ],
+                items: vec![
+                    document.clone(),
+                    WorkspaceItem::Document {
+                        origin: ContentOrigin::File {
+                            path: "/work/output".into(),
+                        },
+                        source: "output".into(),
+                    },
+                ],
+                route: WorkspaceRoute::Content(WorkspaceItem::Document {
+                    origin: ContentOrigin::File {
+                        path: "/work/output".into(),
+                    },
+                    source: "output".into(),
+                }),
+            },
+            Case {
+                name: "document identity includes its source owner and deduplicates reopen",
+                actions: vec![
+                    Open(document.clone()),
+                    Open(other_document.clone()),
+                    Open(document.clone()),
+                ],
+                items: vec![document.clone(), other_document.clone()],
+                route: WorkspaceRoute::Content(document.clone()),
+            },
+            Case {
+                name: "closing a document selects its retained conversation",
+                actions: vec![
+                    Open(conversation.clone()),
+                    Open(document.clone()),
+                    Close(document.clone()),
+                ],
+                items: vec![conversation.clone()],
+                route: WorkspaceRoute::Content(conversation.clone()),
+            },
             Case {
                 name: "missing selection and empty navigation do not open tabs",
                 actions: vec![

@@ -113,6 +113,7 @@ pub enum StreamAppearance { #[default] Answer, Thought, Tool }
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub struct StreamText {
+    pub capture_links:bool,
     pub appearance: StreamAppearance,
     document: Entity<TextViewState>,
     pending: PendingText,
@@ -120,6 +121,11 @@ pub struct StreamText {
     observed_bytes: usize,
     _document_observer: Subscription,
 }
+
+#[derive(Clone)]
+pub struct MarkdownLink(pub String);
+#[cfg(any(target_family="wasm",feature="native"))]
+impl EventEmitter<MarkdownLink> for StreamText {}
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
 impl StreamText {
@@ -135,6 +141,7 @@ impl StreamText {
             }
         });
         Self {
+            capture_links:false,
             appearance: StreamAppearance::Answer,
             document,
             pending: PendingText::default(),
@@ -228,10 +235,15 @@ impl Render for StreamText {
             .with_border(cx.theme().border).with_dark(cx.theme().is_dark())
             .with_paragraph_gap(rems(0.4))
             .with_code_block(StyleRefinement::default().font_family("JetBrains Mono").text_size(px(typography.code)));
+        let mut view=TextView::new(&self.document).selectable(true).style(style);
+        if self.capture_links {
+            let entity=cx.entity().downgrade();
+            view=view.on_link_click(move |url,_,_,cx| {let _=entity.update(cx,|_,cx|cx.emit(MarkdownLink(url.to_string())));});
+        }
         pero_theme::TypographyScope::new(px(size))
             .text_size(rems(1.))
             .text_color(color)
-            .child(TextView::new(&self.document).selectable(true).style(style))
+            .child(view)
     }
 }
 

@@ -7,10 +7,10 @@ from urllib.parse import urlsplit
 from urllib.request import Request, build_opener
 
 from .literature import ARXIV, _NoRedirect
-from .model import Invalid, digest
+from .model import Invalid, PaperSnapshot, digest
 from .pdf import PdfDocument, PdfPage, PdfRect
 
-MAX_PDF_BYTES = 16 * 1024 * 1024
+from .local_pdf import LocalPdf, MAX_PDF_BYTES
 # PDFium prohibits simultaneous calls even for different documents.
 PDFIUM_LOCK = threading.Lock()
 
@@ -41,6 +41,20 @@ class PdfFiles:
         return data
 
     def inspect(self, paper, data, now):
+        return PdfDocument.create(paper.id, digest(data), paper.pdf_url or paper.url, self.pages(data), now)
+
+    def import_local(self, upload: LocalPdf, now):
+        pages = self.pages(upload.data)
+        content = '\n\n'.join(page.text for page in pages)
+        if not content.strip():
+            raise Invalid('This PDF has no selectable text. OCR is not available.', 422)
+        paper = PaperSnapshot.from_reading(dict(source='local-pdf', sourceId=upload.file_digest,
+            title=upload.title, url='urn:sha256:' + upload.file_digest, contentKind='full-text',
+            content=content[:120000], authors=[],
+            **(dict(limitation='Text view is limited to 120,000 characters; full PDF page text remains searchable.') if len(content) > 120000 else {})), now)
+        return paper, PdfDocument.create(paper.id, upload.file_digest, paper.url, pages, now)
+
+    def pages(self, data):
         pdfium = self._engine()
         try:
             with PDFIUM_LOCK, closing(pdfium.PdfDocument(data)) as pdf:
@@ -57,7 +71,7 @@ class PdfFiles:
                         if len(content) > 120000:
                             raise Invalid('PDF page text exceeds 120,000 characters')
                         pages.append(PdfPage(i + 1, page.get_width(), page.get_height(), content))
-                return PdfDocument.create(paper.id, digest(data), paper.pdf_url, tuple(pages), now)
+                return tuple(pages)
         except pdfium.PdfiumError as error:
             raise Invalid('Cannot read this PDF. It may be encrypted or damaged.', 422) from error
 

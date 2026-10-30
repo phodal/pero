@@ -1,0 +1,93 @@
+import {openSettings} from './sidebar-controls.mjs';
+import {expect} from '@playwright/test';
+import {electron} from './electron.mjs';
+import {createServer} from 'node:http';
+import {mkdtemp,mkdir,writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {tmpdir} from 'node:os';
+const root=resolve(process.env.PERO_CONTENT_TEST_ROOT||resolve(import.meta.dirname,'../..'));
+const out=resolve(import.meta.dirname,'../../test-results/web-documents');
+const temp=await mkdtemp(resolve(tmpdir(),'pero-web-flow-'));
+await mkdir(out,{recursive:true});await writeFile(resolve(temp,'agents.json'),'[]');
+let failing=true;
+const server=createServer((request,response)=>{
+  response.setHeader('Content-Type','text/html; charset=utf-8');response.setHeader('X-Frame-Options','DENY');
+  if(request.url==='/flaky'&&failing){response.writeHead(500);response.end('<title>Temporary failure</title>Temporary failure');return;}
+  const second=request.url==='/b';
+  response.end(`<title>${second?'Page two':'Page one'}</title><h1>${second?'Page two':'Page one'}</h1><input id="draft" aria-label="Page draft"><a id="next" href="/b">Next page</a><p>${request.url==='/flaky'?'Recovered':'Cross-frame headers do not prevent an isolated browser view.'}</p>`);
+});
+await new Promise(done=>server.listen(0,'127.0.0.1',done));
+const origin=`http://127.0.0.1:${server.address().port}`;
+const app=await electron.launch({args:['--use-mock-keychain',resolve(root,'desktop')],cwd:root,env:{...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'desktop'),PERO_LOCALE:'en',PERO_APPS_ROOT:resolve(temp,'apps'),PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_AGENTS_FILE:resolve(temp,'agents.json')}});
+let page;
+try {
+  page=await app.firstWindow();const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  const state=()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()));
+  const document=()=>state().then(s=>s.webDocuments[0]);
+  const paint=()=>page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));
+  const modifier=process.platform==='darwin'?'Meta':'Control';
+  const visibleEngines=()=>app.evaluate(({BrowserWindow},{origin})=>BrowserWindow.getAllWindows()[0].contentView.children.filter(view=>view.webContents?.getURL().startsWith(origin)).map(view=>({id:view.webContents.id,visible:view.getVisible()})),{origin});
+  const engine=(script,userGesture=false)=>app.evaluate(({webContents},{origin,script,userGesture})=>{
+    const contents=webContents.getAllWebContents().find(contents=>contents.getURL().startsWith(origin));
+    if(!contents)throw new Error('The actual browser engine was not found');
+    return contents.executeJavaScript(script,userGesture);
+  },{origin,script,userGesture});
+  const address=async url=>{await page.keyboard.press(`${modifier}+l`);await expect.poll(async()=>(await state()).webEntryOpen).toBe(true);await page.keyboard.type(url);await page.keyboard.press('Enter');};
+  await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
+  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1488,1086));
+  await paint();await address(origin+'/a');
+  await expect.poll(async()=>(await document())?.observation.load.kind).toBe('ready');
+  expect((await state()).activeContent.kind).toBe('web');
+  expect(await engine('document.querySelector("h1").textContent')).toBe('Page one');
+  expect(await engine('typeof window.pero+":"+typeof require')).toBe('undefined:undefined');
+  const identity=await engine('window.retainedIdentity="page-state";document.querySelector("#draft").value="retained form";window.retainedIdentity');
+  const engineId=await app.evaluate(({webContents},origin)=>webContents.getAllWebContents().find(contents=>contents.getURL().startsWith(origin)).id,origin);
+  await page.screenshot({scale:'css',path:resolve(out,'workspace-chrome.png')});
+  const capture=await app.evaluate(async({webContents},origin)=>(await webContents.getAllWebContents().find(contents=>contents.getURL().startsWith(origin)).capturePage()).toPNG().toString('base64'),origin);
+  await writeFile(resolve(out,'embedded-page.png'),Buffer.from(capture,'base64'));
+  // Opening the source again from another workspace route retains the actual page.
+  await page.mouse.click(90,24);await expect.poll(async()=>(await state()).activeContent.kind).toBe('conversation');
+  await address(origin+'/a');await expect.poll(async()=>(await state()).activeContent.kind).toBe('web');
+  expect((await state()).webDocuments.length).toBe(1);
+  expect(await engine('window.retainedIdentity')).toBe(identity);
+  expect(await engine('document.querySelector("#draft").value')).toBe('retained form');
+  expect(await app.evaluate(({webContents},origin)=>webContents.getAllWebContents().find(contents=>contents.getURL().startsWith(origin)).id,origin)).toBe(engineId);
+  await engine('document.querySelector("#next").click()',true);
+  await expect.poll(async()=>(await document()).observation.title).toBe('Page two');
+  await expect.poll(async()=>(await document()).observation.can_back).toBe(true);
+  await page.mouse.click(278,56);await expect.poll(async()=>(await document()).observation.url).toBe(origin+'/a');
+  await expect.poll(async()=>(await document()).observation.can_forward).toBe(true);
+  await page.mouse.click(307,56);await expect.poll(async()=>(await document()).observation.url).toBe(origin+'/b');
+  await address(origin+'/flaky');await expect.poll(async()=>(await document()).observation.load.kind).toBe('failed');
+  expect((await document()).observation.load.message).toContain('500');
+  failing=false;await page.mouse.click(325,56);await expect.poll(async()=>(await document()).observation.load.kind).toBe('ready');
+  expect(await engine('document.body.textContent')).toContain('Recovered');
+  await address('file:///tmp/not-a-web-document');await expect.poll(async()=>(await state()).error).toBeTruthy();
+  expect((await state()).webDocuments.length).toBe(1);
+  // Failed address entry keeps the existing page and allows immediate recovery.
+  await address(origin+'/a');await expect.poll(async()=>(await document()).observation.load.kind).toBe('ready');
+  expect((await state()).webDocuments.length).toBe(1);
+  await page.mouse.click(90,24);await expect.poll(async()=>(await state()).activeContent.kind).toBe('conversation');
+  await address(origin+'/other');await expect.poll(async()=>(await state()).webDocuments.length).toBe(2);
+  await expect.poll(async()=>(await visibleEngines()).filter(view=>view.visible).length).toBe(1);
+  expect((await visibleEngines()).find(view=>view.id===engineId).visible).toBe(false);
+  let secondTab=(await state()).activeTabBounds;await page.mouse.click(secondTab.right-17,18);
+  await expect.poll(async()=>(await state()).webDocuments.length).toBe(1);
+  await address(origin+'/a');await expect.poll(async()=>(await state()).activeContent.kind).toBe('web');
+  await openSettings(page);await expect.poll(async()=>(await visibleEngines()).every(view=>!view.visible)).toBe(true);
+  for(let i=0;i<3;i++)await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
+  await expect.poll(async()=>(await state()).dark).toBe(true);
+  await expect.poll(async()=>(await visibleEngines()).find(view=>view.id===engineId).visible).toBe(true);
+  await page.screenshot({scale:'css',path:resolve(out,'dark-workspace-chrome.png')});
+  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1000,788));await paint();
+  expect(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().some(window=>window.isVisible()||window.isFocused()))).toBe(false);
+  const tab=(await state()).activeTabBounds;await page.mouse.click(tab.right-17,18);
+  await expect.poll(async()=>(await state()).webDocuments.length).toBe(0);
+  expect(await app.evaluate(({webContents},id)=>webContents.getAllWebContents().some(contents=>contents.id===id),engineId)).toBe(false);
+  expect(errors).toEqual([]);
+  await writeFile(resolve(out,'result.json'),JSON.stringify({checks:['actual isolated WebContentsView renders X-Frame-Options DENY page','no App/Electron bridge in remote page','retained identity and form state across workspace routes','engine-owned back/forward history','HTTP failure and retry','file URL cannot bypass document authority','multiple Web sources, overlay hiding and dark workspace','narrow workspace and teardown'],errors},null,2));
+  console.log('Verified isolated Web engine, retained page, history, failure/retry, authority and teardown.');
+} catch(error) {
+  if(page){await page.screenshot({scale:'css',path:resolve(out,'failure.png')});await writeFile(resolve(out,'failure.json'),await page.evaluate(()=>window.peroDiagnostics.snapshot()));}throw error;
+} finally {await app.close();await new Promise(done=>server.close(done));}

@@ -46,5 +46,8 @@
   "minus": { "kit": "Minus" },
   "maximize": { "kit": "Maximize", "aliases": ["fit"] },
   "network": { "kit": "Network", "aliases": ["nodes"] },
-  "box": { "kit": "Box", "aliases": ["models"] }
+  "box": { "kit": "Box", "aliases": ["models"] },
+  "sort-ascending": { "kit": "SortAscending" },
+  "sort-descending": { "kit": "SortDescending" },
+  "chevrons-up-down": { "kit": "ChevronsUpDown" }
 }

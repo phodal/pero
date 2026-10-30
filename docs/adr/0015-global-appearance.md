@@ -46,6 +46,13 @@ message documents follow Chat; code blocks and source editors follow code.
 Scope changes cover layout and painting. Font-dependent row/control heights
 grow with text; borders and workspace split widths are not text scaling.
 
+Workbench density uses the shared `WorkbenchStyle` geometry. At the default
+14px UI size, rows and controls are 24px and the content tab strip is 30px.
+Larger text increases height by its line box plus fixed padding, rather than
+multiplying the padding. Shared input presentation styles the single-line
+frame explicitly; Kit's inherent `Input::h` only sizes multiline editors.
+The same geometry applies to navigation, settings and shared Chat controls.
+
 Palette changes do not reset typography. Locale changes do not reinstall
 appearance. The default UI uses the platform system font, with registered CJK
 fallbacks retained; monospace is reserved for code.
@@ -98,7 +105,7 @@ The left side is a keyboard-accessible tree. Appearance children select a
 section anchor in one continuous page, rather than separate routes. Search
 filters both navigation and sections. Theme and accent use compact dropdown
 menus. Font sizes use editable inputs and domain-owned step actions, with
-inheritance beside the value. Large repeated previews and read-only font-family
+inheritance beside the field label. Large repeated previews and read-only font-family
 rows are omitted. Inputting an unchanged inherited value does not create an
 override; invalid input does not change active preferences, including on blur.
 Category/search state is transient UI state and does not introduce another

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppAgent, useAppApi, useAppI18n, useAppInfo, useAppChat, useAppObject, useAppDataChanged, appObjectProps } from '@pero/app-sdk';
-import { Button, Feedback, Icon } from '@pero/app-sdk/ui';
+import { Button, Feedback, Icon, PageHeader } from '@pero/app-sdk/ui';
 import { messages } from './i18n';
 import { ImportPanel, PaperList } from './library';
 import { LibrarySearch } from './library-search';
@@ -19,6 +19,7 @@ export default function PaperAgent() {
   const api = useAppApi(), agent = useAppAgent(), chat = useAppChat(), info = useAppInfo(), { t } = useAppI18n(messages);
   const [library, setLibrary] = useState<Library>({ papers: [], intents: [], reports: [] });
   const [screen, setScreen] = useState<WorkspaceScreen>('library'), [libraryScreen, setLibraryScreen] = useState<LibraryScreen>('papers');
+  const [importingPdf, setImportingPdf] = useState(false);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [reading, setReading] = useState<Paper | null>(null), [readingBusy, setReadingBusy] = useState(false);
   const [showResearch, setShowResearch] = useState(false), [draft, setDraft] = useState<QuestionDraft>(emptyDraft), [agentId, setAgentId] = useState('');
   const [discoveryOpening, setDiscoveryOpening] = useState<DiscoveryOpening | null>(null), [matrixOpen, setMatrixOpen] = useState(false);
@@ -71,7 +72,7 @@ export default function PaperAgent() {
   async function read(paper: Paper, keepAgent = false, propagate = false) {
     const version = ++readVersion.current; setReadingBusy(true); setScreen('reading'); setCitation(null); setError('');
     if (paper.id !== reading?.id) setPdfFocus(null);
-    if (!keepAgent) { setShowResearch(false); setDraft({ ...emptyDraft, selected: [paper.id], fullText: !!paper.pdfUrl }); }
+    if (!keepAgent) { setShowResearch(false); setDraft({ ...emptyDraft, selected: [paper.id], fullText: !!paper.pdfUrl || paper.source === 'local-pdf' }); }
     try {
       const full = paper.content ? paper : await api.get<Paper>(`/api/papers/${paper.id}`);
       if (mounted.current && version === readVersion.current) setReading(full);
@@ -81,6 +82,17 @@ export default function PaperAgent() {
   async function added(paper: Paper, focus: boolean | (() => boolean)) {
     await refresh();
     if (mounted.current && active.current && (typeof focus === 'function' ? focus() : focus)) await read(paper);
+  }
+  async function importPdf(file: File) {
+    if (importingPdf) return;
+    setImportingPdf(true); setError('');
+    try {
+      const response = await fetch(`/api/pdf/import?filename=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail ?? t('pdfLoadError'));
+      await added(result, true);
+    } catch (error) { onError(error); }
+    finally { if (mounted.current) setImportingPdf(false); }
   }
   function discover(paper: Paper) { setDiscoveryOpening({ seed: paper }); setScreen('library'); setLibraryScreen('discovery'); setShowResearch(false); }
   function addToComparison(paper: Paper, seedId: string) {
@@ -123,15 +135,16 @@ export default function PaperAgent() {
   function closeEvidence() { evidenceVersion.current++; setCitation(null); requestAnimationFrame(() => citationTrigger.current?.isConnected && citationTrigger.current.focus({ preventScroll: true })); }
   function selectedText(text: string, pdf?: PdfSource) {
     if (!text || !reading) return;
-    updateDraft({ context: text, selected: [reading.id], fullText: !!pdf || !!reading.pdfUrl, verifyCode: false }); openAgent();
+    updateDraft({ context: text, selected: [reading.id], fullText: !!pdf || !!reading.pdfUrl || reading.source === 'local-pdf', verifyCode: false }); openAgent();
   }
   async function send(execute = true) {
     if (task.busy || task.working) return;
     setError('');
     const question = draft.question.trim() + (draft.context ? `\n\n> ${draft.context}` : '');
     try {
-      const frozen = await task.begin({ question, paperIds: draft.selected, fullText: draft.fullText, verifyCode: draft.verifyCode, verificationPlan: draft.verificationPlan }, agentId, execute);
-      if (frozen && execute) updateDraft({ question: '', context: '' });
+      const previous = draft.parentIntentId ?? (task.report && task.intent?.papers.some(paper => draft.selected.includes(paper.id)) ? task.intent.id : [...library.intents].filter(intent => intent.paperIds?.some(id => draft.selected.includes(id)) && library.reports.some(report => report.intentId === intent.id)).sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0]?.id);
+      const frozen = await task.begin({ question, paperIds: draft.selected, fullText: draft.fullText, verifyCode: draft.verifyCode, verificationPlan: draft.verificationPlan, parentIntentId: previous }, agentId, execute);
+      if (frozen && execute) updateDraft({ question: '', context: '', parentIntentId: undefined });
     } catch (error) { onError(error); }
   }
   function annotation(annotation: PdfAnnotation) {
@@ -148,15 +161,18 @@ export default function PaperAgent() {
     open_paper:{description:'Read an existing source snapshot from the library',parameters:{type:'object',properties:{id:{type:'string'}},required:['id'],additionalProperties:false},run:async({id})=>{const paper=library.papers.find(paper=>paper.id===id);if(!paper)throw new Error('The paper is not in this library');await read(paper,false,true);}},
     refresh:{description:'Refresh the persisted source library',parameters:{type:'object',properties:{},additionalProperties:false},run:refresh},
   }});
-  return <div className="pa-workbench pa-reading-first" data-screen={screen} data-research={showResearch} {...appObjectProps('paper-agent')}>
+  return <div onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }} onDrop={event => { if (!event.dataTransfer.files.length) return; event.preventDefault(); void importPdf(event.dataTransfer.files[0]); }} className="pa-workbench pa-reading-first" data-screen={screen} data-research={showResearch} {...appObjectProps('paper-agent')}>
+    {importingPdf && <p className="pa-loading" role="status">{t('pdfImporting')}</p>}
     {error && <div className="pa-global-error"><Feedback kind="error"><span>{error}</span><Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback></div>}
     <section className="pa-library-screen" hidden={screen !== 'library'} aria-label={t('papers')}>
-      <header className="pa-library-header">{libraryScreen !== 'papers' && <Button variant="ghost" aria-label={t('backToLibrary')} onClick={() => setLibraryScreen('papers')}>‹</Button>}<h1>{t(libraryScreen === 'import' ? 'add' : libraryScreen === 'discovery' ? 'discover' : 'papers')}</h1>{libraryScreen === 'papers' && <Button variant="ghost" aria-label={t('refresh')} onClick={() => void refresh().catch(onError)}><Icon name="refresh"/></Button>}{libraryScreen === 'papers' && <Button onClick={() => setLibraryScreen('import')}><Icon name="plus"/>{t('add')}</Button>}</header>
+      <PageHeader title={t(libraryScreen === 'import' ? 'add' : libraryScreen === 'discovery' ? 'discover' : 'papers')}
+        navigation={libraryScreen !== 'papers' && <Button variant="ghost" aria-label={t('backToLibrary')} onClick={() => setLibraryScreen('papers')}><Icon name="chevron-left"/></Button>}
+        actions={libraryScreen === 'papers' && <><Button variant="ghost" aria-label={t('refresh')} onClick={() => void refresh().catch(onError)}><Icon name="refresh"/></Button><Button onClick={() => setLibraryScreen('import')}><Icon name="plus"/>{t('add')}</Button></>}/>
       <div className="pa-library-content" hidden={libraryScreen !== 'papers'}>
         {loading ? <p role="status">{t('loading')}</p> : !library.papers.length ? <p>{t('emptyLibrary')}</p> : <LibrarySearch api={api} t={t} onOpen={async hit => { const paper = library.papers.find(p => p.id === hit.source.paperId); if (paper) { await read(paper); if (hit.source.documentId && hit.page) setPdfFocus({ documentId: hit.source.documentId, page: hit.page }); } }}><PaperList selecting={false} papers={library.papers} selected={draft.selected} readingId={reading?.id ?? ''} locked={locked} onRead={paper => void read(paper)} onSelect={() => {}} onDiscover={discover} t={t}/></LibrarySearch>}
         {!!library.favorites?.length && <details className="pa-library-saved"><summary>{t('favorites')} {library.favorites.length}</summary><ul className="pa-report-list">{library.favorites.map(favorite => <li key={favorite.id} data-favorite-work={favorite.paper.id}><Button variant="ghost" disabled={!favorite.paper.abstract.trim()} onClick={() => void readFavorite(favorite)}>{favorite.paper.title}</Button><div className="pa-actions"><Button variant="ghost" disabled={locked || !favorite.paper.abstract.trim()} onClick={() => void readFavorite(favorite, true)}>{t('addToMatrix')}</Button><Button variant="ghost" onClick={() => { setDiscoveryOpening({ historyId: favorite.batchId }); setLibraryScreen('discovery'); }}>{t('viewDiscovery')}</Button><a href={favorite.paper.url} target="_blank" rel="noreferrer">{t('original')}</a></div></li>)}</ul></details>}
       </div>
-      <div hidden={libraryScreen !== 'import'}><ImportPanel api={api} t={t} active={screen === 'library' && libraryScreen === 'import' && info.active} onAdded={added} onError={onError} onClose={() => setLibraryScreen('papers')}/></div>
+      <div hidden={libraryScreen !== 'import'}><ImportPanel onImportPdf={importPdf} importingPdf={importingPdf} api={api} t={t} active={screen === 'library' && libraryScreen === 'import' && info.active} onAdded={added} onError={onError} onClose={() => setLibraryScreen('papers')}/></div>
       <div hidden={libraryScreen !== 'discovery'}><Discovery api={api} opening={discoveryOpening} library={library} locked={locked} selected={draft.selected} onRefresh={refresh} onRead={paper => read(paper)} onCompare={addToComparison} onReturn={id => { const paper = library.papers.find(p => p.id === id); if (paper) void read(paper); }} t={t}/></div>
     </section>
     <section className="pa-reading-screen" hidden={screen !== 'reading'} data-agent={showResearch}>

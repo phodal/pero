@@ -1,6 +1,7 @@
 # Protocol boundaries
 
-`host.tsp` describes the Electron ↔ Rust Host JSONL contract. Regenerate its JSON
+`host.tsp` describes the Electron ↔ Rust Host JSONL contract and the private
+renderer-to-browser-engine contract. Regenerate its JSON
 Schema and TypeScript types with `npm run gen:contracts`; `npm run check` detects
 generated-file drift. Rust types live in `pero-contracts`.
 
@@ -57,3 +58,19 @@ endpoints use bounded JSONL rather than these JSON DTOs. Interrupted channels
 cannot resume or replay a prompt. Independent `volume` and `compute_receipt`
 evidence separates retained workspace data from the compute lifetime; neither
 means the retained data has been exported or deleted.
+
+`WebCommand` is a separate generation root for private browser-engine commands.
+It is handled by Electron's `WebContentsView` registry or native GPUI/Wry;
+it is never written to Host stdin and is not part of `HostInput`. Browser pages
+receive no preload or Host bridge. Typed `web_*` observations return through the
+workspace event stream; their source identity stays stable during navigation.
+
+`computer-use.tsp` defines `pero.computer-use.v1`: runtime/target references,
+capabilities, observations, image coordinates, typed input and execution receipts.
+Generation emits `computer-observation` and `computer-action` Schema/TypeScript
+bundles. Rust values and pure action admission live in
+`pero-contracts::computer_use`; `npm run test:computer:contracts` checks the
+shared wire corpus and admission rules. `computer-runtime.tsp` adds independent
+request/response bundles for the model tool, private native stream, Desktop
+controls and `settings.computer` Host extension. The existing Desktop MCP and
+Host conversation authority admit the macOS source-built driver. See [ADR 0016](../docs/adr/0016-computer-use-contract.md).

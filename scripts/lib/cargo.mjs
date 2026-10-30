@@ -7,14 +7,14 @@ import { prepareWebBackend, webBackend } from './gpui-web.mjs';
 
 export const kit = resolve(process.env.PERO_GPUI_KIT_PATH || resolve(root, '../../test/gpui-kit'));
 
-const patchedCrates = ['gpui-kit', 'gpui-base', 'gpui-component', 'gpui-component-macros', 'gpui-kit-assets', 'gpui-pre-web'];
+const patchedCrates = ['gpui-kit', 'gpui-base', 'gpui-component', 'gpui-component-macros', 'gpui-kit-assets', 'gpui-webview', 'gpui-pre-web'];
 
 export function cargoArgs(args) {
   if (!existsSync(resolve(kit, 'crates/kit/Cargo.toml'))) {
     throw new Error('Set PERO_GPUI_KIT_PATH to your gpui-kit checkout (see desktop/README.md).');
   }
   const crates = { 'gpui-kit': 'kit', 'gpui-base': 'base', 'gpui-component': 'component',
-    'gpui-component-macros': 'component-macros', 'gpui-kit-assets': 'assets' };
+    'gpui-component-macros': 'component-macros', 'gpui-kit-assets': 'assets', 'gpui-webview':'webview' };
   const toolchain = args[0]?.startsWith('+') ? [args.shift()] : [];
   return [...toolchain, ...Object.entries(crates).flatMap(([name, path]) => [
     '--config', `patch.crates-io.${name}.path=${JSON.stringify(resolve(kit, 'crates', path))}`,

@@ -10,6 +10,10 @@ mod components;
 use pero_chat_ui::theme;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod view;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod documents;
+#[cfg(any(target_family="wasm",feature="native"))]
+mod web_documents;
 
 // Rendered only by the wasm Workbench; native builds compile it for its tests.
 #[cfg_attr(not(target_family = "wasm"), allow(dead_code))]
@@ -24,6 +28,10 @@ mod projects;
 mod settings_menu;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod settings_view;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod settings_controls;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod settings_computer;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod settings_window;
 
@@ -42,6 +50,10 @@ mod cloud_links;
 mod desktop_login;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
 pub mod native;
+#[cfg(all(feature="native",not(target_family="wasm")))]
+mod native_web;
+#[cfg(all(feature="native-probe",not(target_family="wasm")))]
+mod native_web_probe;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
 mod native_cloud;
 

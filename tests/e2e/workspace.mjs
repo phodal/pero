@@ -15,6 +15,7 @@ await mkdir(out, { recursive: true });
 await rm(resolve(out, 'failure.png'), { force: true });
 await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'Workspace ACP fixture',
   command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs'), '--composer', `--capture=${capture}`] }]));
+await writeFile(resolve(temp, 'settings.json'), JSON.stringify({ chat_agent: 'fixture' }));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(temp, 'desktop'), PERO_LOCALE: 'en',
   PERO_APPS_ROOT: resolve(temp, 'apps'), PERO_SETTINGS_PATH: resolve(temp, 'settings.json'),
   PERO_HISTORY_PATH: resolve(temp, 'sessions.jsonl'), PERO_AGENTS_FILE: agents };
@@ -65,9 +66,9 @@ async function openAppFromCatalog() {
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await paint();
   const snapshot = await state();
-  // Canvas catalog: the established row coordinates gain the global tab bar's 48px.
+  // Compact catalog rows start below the workspace tab strip.
   const row = snapshot.apps.findIndex(item => item.name === 'virtual-cell');
-  await page.mouse.click(1305, 110 + (snapshot.contentTabs.length ? 48 : 0) + 79 * row);
+  await page.mouse.click(1305, 76 + (snapshot.contentTabs.length ? 30 : 0) + 58 * row);
   await expect.poll(async () => (await state()).activeContent).toEqual(appItem);
   const frame = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(frame.getByRole('tab', { name: 'Reactions & simulation', exact: true })).toBeVisible({ timeout: 20000 });
@@ -83,9 +84,6 @@ try {
   await expect.poll(async () => (await state()).chats.length).toBe(1);
   await paint();
   const { width, height } = await viewport();
-  await page.mouse.click(1240, height - 20);
-  await page.keyboard.press('ArrowUp');
-  await page.keyboard.press('Enter');
   await expect.poll(async () => (await state()).chats[0].agent).toBe('fixture');
   // Establish a real Host-owned fixture session before testing that closing its
   // content tab leaves both the session and its unsent draft available.
@@ -100,7 +98,7 @@ try {
   await expect.poll(async () => (await state()).contentTabs).toEqual([conversationItem]);
   await screenshot('conversation-light');
 
-  await page.mouse.click(80, (await viewport()).height - 76);
+  await page.mouse.click(80, (await viewport()).height - 60);
   await expect.poll(async () => (await state()).navigation).toBe(7);
   let frame = await openAppFromCatalog();
   await expect.poll(async () => (await state()).contentTabs).toEqual([conversationItem, appItem]);
@@ -151,10 +149,10 @@ try {
   await expect(frame.getByLabel('Duration (s)', { exact: true })).toHaveValue('12');
   checks.push('dragging the chat divider changes the runtime-owned preference and preserves App state');
 
-  // The 200px content tabs have a 26px close button at their right edge.
+  // Close the active tab using its measured bounds rather than a fixed width.
   await page.mouse.click(310, 24);
   await expect.poll(async () => (await state()).activeContent).toEqual(conversationItem);
-  await page.mouse.click(260 + 200 - 16, 24);
+  await page.mouse.click((await state()).activeTabBounds.right - 13, 14);
   await expect.poll(async () => (await state()).contentTabs).toEqual([appItem]);
   await expect.poll(async () => (await state()).activeContent).toEqual(appItem);
   const retained = (await state()).chats.find(chat => chat.id === original.id);
@@ -162,16 +160,16 @@ try {
   expect(retained.messages).toEqual(original.messages);
   // Filtering makes the retained session the sole recent row, independent of
   // the new App-scoped draft's position. These are the existing sidebar coordinates.
-  await page.mouse.click(100, 110);
+  await page.mouse.click(100, 76);
   await page.keyboard.press(`${modifier}+a`);
   await page.keyboard.type(original.title);
   await expect.poll(async () => (await state()).sidebarSearch).toBe(original.title);
   await paint();
-  await page.mouse.click(100, 185);
+  await page.mouse.click(100, 130);
   await expect.poll(async () => (await state()).activeContent).toEqual(conversationItem);
   await expect.poll(async () => (await state()).composer).toBe(draft);
   await expect.poll(async () => (await state()).contentTabs).toEqual([appItem, conversationItem]);
-  await page.mouse.click(100, 110);
+  await page.mouse.click(100, 76);
   await page.keyboard.press(`${modifier}+a`);
   await page.keyboard.press('Backspace');
   await expect.poll(async () => (await state()).sidebarSearch).toBe('');
@@ -180,7 +178,7 @@ try {
   await expect(frame.getByLabel('Duration (s)', { exact: true })).toHaveValue('12');
   checks.push('closing a content tab retains its Host session; reopening from the sidebar restores its draft');
   await screenshot('retained-app-light');
-  await page.mouse.click(510, 24);
+  await page.keyboard.press('Control+Tab');
   await expect.poll(async () => (await state()).activeContent).toEqual(conversationItem);
   await page.evaluate(id => window.pero.sessionCommand({ action: 'delete', thread_id: id }), original.id);
   await expect.poll(async () => (await state()).chats.some(chat => chat.id === original.id)).toBe(false);
@@ -225,7 +223,7 @@ try {
   expect((await state()).preferences.layout.chat_open).toBe(true);
   expect((await state()).contentTabs).toEqual([]);
   expect((await state()).activeContent).toBeNull();
-  await page.mouse.click(80, (await viewport()).height - 76);
+  await page.mouse.click(80, (await viewport()).height - 60);
   await expect.poll(async () => (await state()).navigation).toBe(7);
   frame = await openAppFromCatalog();
   await expect(page.locator('#pero-app-surface')).toBeVisible();
@@ -249,10 +247,10 @@ try {
   checks.push('disabling an App removes its content tab; the visible enable error recovers after re-enabling');
   await frame.getByRole('tab', { name: 'Reactions & simulation', exact: true }).click();
   await frame.getByLabel('Duration (s)', { exact: true }).fill('22');
-  await page.mouse.click(444, 24);
+  await page.mouse.click((await state()).activeTabBounds.right - 13, 14);
   await expect.poll(async () => (await state()).contentTabs).toEqual([]);
   await expect.poll(async () => (await state()).activeApp).toBeNull();
-  await page.mouse.click(80, (await viewport()).height - 76);
+  await page.mouse.click(80, (await viewport()).height - 60);
   await expect.poll(async () => (await state()).activeContent).toBeNull();
   await expect(page.locator('#pero-app-surface')).toBeHidden();
   frame = await openAppFromCatalog();

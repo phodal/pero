@@ -321,17 +321,57 @@ try {
   }
   await page.waitForFunction(() => window.__contentFrameDone);
   await page.screenshot({ scale: 'css', path: resolve(out, 'scrolled.png') });
+  // Filter and sort the source-backed table, then use actual cell keyboard copy.
+  const filterRows=async query=>{
+    const bounds=(await reader()).table.bounds;
+    await page.mouse.click(bounds.x+100,bounds.y+15);
+    await page.keyboard.press(`${modifier}+a`);if(query)await page.keyboard.insertText(query);else await page.keyboard.press('Backspace');await paint();
+  };
+  const grid=async()=>(await reader()).table.gridBounds;
+  await phase('table-filter');await filterRows('中文 row 100');
+  await expect.poll(async()=>(await reader()).table.visibleRows).toBe(11);
+  expect((await reader()).table.firstRows[0]).toBe(101);
+  let tableBounds=await grid();await page.mouse.click(tableBounds.x+100,tableBounds.y+42);
+  await expect.poll(async()=>(await reader()).table.selectedCell).toEqual([0,1]);
+  await page.keyboard.press(`${modifier}+c`);
+  await expect.poll(async()=>app.evaluate(({clipboard})=>clipboard.readText())).toBe(String(9007199254740993n+100n));
+  await page.keyboard.press('ArrowRight');await page.keyboard.press(`${modifier}+c`);
+  await expect.poll(async()=>app.evaluate(({clipboard})=>clipboard.readText())).toBe('"中文 row 100"');
+  await phase('table-sort');await page.mouse.click(tableBounds.x+214,tableBounds.y+14);
+  await expect.poll(async()=>(await reader()).table.firstRows[0]).toBe(1010);
+  expect((await reader()).table.selectedCell).toBe(null);
+  tableBounds=await grid();await page.mouse.click(tableBounds.x+100,tableBounds.y+42);await page.keyboard.press('Enter');
+  await expect.poll(async()=>(await reader()).source).toBe(true);
+  expect((await reader()).cursor.line).toBe(1010);
+  await mode(false);expect((await reader()).table.firstRows[0]).toBe(1010);
+  await filterRows('no matching value');await expect.poll(async()=>(await reader()).table.visibleRows).toBe(0);
+  await page.screenshot({scale:'css',path:resolve(out,'filtered-empty.png')});
+  await filterRows('');await expect.poll(async()=>(await reader()).table.visibleRows).toBe(8000);
+  expect((await reader()).table.firstRows[0]).toBe(8000);
+  tableBounds=await grid();await page.mouse.click(tableBounds.x+214,tableBounds.y+14);
+  await expect.poll(async()=>(await reader()).table.sort).toEqual([0,'ascending']);
+  await page.mouse.click(tableBounds.x+214,tableBounds.y+14);
+  await expect.poll(async()=>(await reader()).table.sort).toBe(null);
+  await phase('table-resize');
+  await page.mouse.move(tableBounds.x+228,tableBounds.y+14);await page.mouse.down();
+  await page.mouse.move(tableBounds.x+288,tableBounds.y+14,{steps:6});await page.mouse.up();await paint();
+  await expect.poll(async()=>(await reader()).table.widths[1]).toBeGreaterThan(220);
+  const resized=(await reader()).table.widths[1];await mode(true);await mode(false);
+  expect((await reader()).table.widths[1]).toBe(resized);
+  await page.screenshot({scale:'css',path:resolve(out,'table-selection.png')});
   // Open a nested object, return to the record view, then locate a scalar.
-  const tableBounds = (await reader()).bounds;
-  await clickBounds(tableBounds, 678, 75);
+  tableBounds=await grid();
+  const widths=(await reader()).table.widths;
+  await page.mouse.dblclick(tableBounds.x+widths.slice(0,4).reduce((a,b)=>a+b,0)+40,tableBounds.y+42);
   await expect.poll(async () => (await reader()).rows).toBe(2);
   await page.screenshot({ scale: 'css', path: resolve(out, 'nested.png') });
   await clickBounds((await reader()).bounds, 150, 15);
   await expect.poll(async () => (await reader()).rows).toBe(8000);
-  await clickBounds((await reader()).bounds, 138, 75);
+  tableBounds=await grid();await page.mouse.dblclick(tableBounds.x+100,tableBounds.y+42);
   await expect.poll(async () => (await reader()).source).toBe(true);
   expect((await reader()).cursor.line).toBeGreaterThan(0);
   await setAppearance(page, 'dark');
+  await mode(false);
   await paint();
   await page.screenshot({ scale: 'css', path: resolve(out, 'dark.png') });
   await app.evaluate(({ BrowserWindow }) =>
@@ -379,8 +419,8 @@ try {
   await page.keyboard.press('Control+Tab');
   await paint();
   expect((await state()).activeContent).toEqual(lastTab);
-  // The captured fixture titles occupy 120px tabs; close the preceding visible tab.
-  await page.mouse.click((await page.evaluate(() => innerWidth)) - 137, 18);
+  // Close the preceding visible tab using the current tab's observed edge.
+  await page.mouse.click((await state()).activeTabBounds.left - 17, 18);
   await paint();
   expect((await state()).contentTabs.length).toBe(13);
   expect((await state()).activeContent).toEqual(lastTab);

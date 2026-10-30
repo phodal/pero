@@ -1,4 +1,5 @@
 //! Immutable source and source-backed projections. Display never owns the data.
+use crate::content_origin::ContentOrigin;
 use serde::{
     Deserialize, Serialize,
     de::{MapAccess, Visitor},
@@ -15,22 +16,52 @@ use std::{
 /// source remains available in the editor; no bytes are silently removed.
 pub const PREVIEW_BYTES: usize = 2 * 1024 * 1024;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "language", rename_all = "snake_case")]
 pub enum ContentFormat {
     Json,
     JsonLines,
     Code(String),
     Text,
+    Markdown,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentSource {
+    pub id: String,
+    pub title: String,
+    pub origin: ContentOrigin,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentHeader {
+    pub source: DocumentSource,
+    pub revision: u64,
+    pub format: ContentFormat,
+}
+impl DocumentHeader {
+    pub fn into_document(self, text: String) -> ContentDocument {
+        ContentDocument::new(self.source, self.revision, text, self.format)
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct ContentDocument {
-    pub id: String,
+    #[serde(flatten)]
+    reference: DocumentSource,
     pub revision: u64,
     pub format: ContentFormat,
     pub bytes: usize,
     #[serde(skip)]
     source: Arc<str>,
+}
+impl std::ops::Deref for ContentDocument {
+    type Target = DocumentSource;
+    fn deref(&self) -> &Self::Target {
+        &self.reference
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -87,9 +118,14 @@ impl<'de> Deserialize<'de> for Object<'de> {
 }
 
 impl ContentDocument {
-    pub fn new(id: String, revision: u64, source: String, format: ContentFormat) -> Self {
+    pub fn new(
+        reference: DocumentSource,
+        revision: u64,
+        source: String,
+        format: ContentFormat,
+    ) -> Self {
         Self {
-            id,
+            reference,
             revision,
             bytes: source.len(),
             source: source.into(),
@@ -98,30 +134,48 @@ impl ContentDocument {
     }
 
     /// Called once when a tool source changes, never from rendering.
-    pub fn from_tool(id: String, revision: u64, text: &str) -> Option<Self> {
+    pub fn from_tool(reference: DocumentSource, revision: u64, text: &str) -> Option<Self> {
         let trimmed = text.trim();
-        let (source, format) = if let Some(fenced) = trimmed.strip_prefix("```") {
-            let (language, body) = fenced.split_once('\n')?;
-            let body = body.strip_suffix("```")?.trim_end_matches('\n');
+        if trimmed.is_empty() {
+            return None;
+        }
+        let (source, format) = if let Some((language, body)) = trimmed
+            .strip_prefix("```")
+            .and_then(|fenced| fenced.split_once('\n'))
+            .and_then(|(language, body)| body.strip_suffix("```").map(|body| (language, body)))
+            .filter(|(_,body)| !body.lines().any(|line|line.trim_start().starts_with("```")))
+        {
             let format = match language.trim().to_ascii_lowercase().as_str() {
                 "json" => ContentFormat::Json,
                 "jsonl" | "ndjson" => ContentFormat::JsonLines,
+                "md" | "markdown" => ContentFormat::Markdown,
                 language => ContentFormat::Code(language.into()),
             };
-            (body, format)
-        } else if trimmed.starts_with(['{', '[']) {
-            // A format hint, not a claim that a streaming document is valid JSON.
+            (body.trim_end_matches('\n'), format)
+        } else if trimmed.starts_with('{')
+            || trimmed.starts_with('[') && serde_json::from_str::<&RawValue>(trimmed).is_ok()
+        {
             (text, ContentFormat::Json)
-        } else if text.len() >= 2048 {
-            (text, ContentFormat::Text)
         } else {
-            return None;
+            (text, ContentFormat::Markdown)
         };
-        Some(Self::new(id, revision, source.into(), format))
+        Some(Self::new(reference, revision, source.into(), format))
+    }
+
+    pub fn header(&self) -> DocumentHeader {
+        DocumentHeader {
+            source: self.reference.clone(),
+            revision: self.revision,
+            format: self.format.clone(),
+        }
     }
 
     pub fn source(&self) -> &str {
         &self.source
+    }
+
+    pub fn shares_source(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.source, &other.source)
     }
 
     pub fn text(&self, range: &Range<usize>) -> &str {
@@ -133,6 +187,7 @@ impl ContentDocument {
             ContentFormat::Json | ContentFormat::JsonLines => "json",
             ContentFormat::Code(language) => language,
             ContentFormat::Text => "plaintext",
+            ContentFormat::Markdown => "markdown",
         }
     }
 
@@ -291,6 +346,60 @@ impl ContentDocument {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn reference(id: &str) -> DocumentSource {
+        DocumentSource {
+            id: id.into(),
+            title: id.into(),
+            origin: ContentOrigin::Conversation {
+                thread_id: "fixture".into(),
+            },
+        }
+    }
+    #[test]
+    fn tool_text_has_an_explicit_format_through_streaming_transitions() {
+        for (text, expected, source) in [
+            ("brief text", Some(ContentFormat::Markdown), "brief text"),
+            ("```rust\na\n```\ntext\n```python\nb\n```",Some(ContentFormat::Markdown),"```rust\na\n```\ntext\n```python\nb\n```"),
+            (
+                "[guide](guide.md)",
+                Some(ContentFormat::Markdown),
+                "[guide](guide.md)",
+            ),
+            ("[1,2]", Some(ContentFormat::Json), "[1,2]"),
+            (
+                "# Heading\n\nA **document**",
+                Some(ContentFormat::Markdown),
+                "# Heading\n\nA **document**",
+            ),
+            (
+                "```rust\nfn example() {}",
+                Some(ContentFormat::Markdown),
+                "```rust\nfn example() {}",
+            ),
+            (
+                "```rust\nfn example() {}\n```",
+                Some(ContentFormat::Code("rust".into())),
+                "fn example() {}",
+            ),
+            (
+                "```markdown\n# Title\n```",
+                Some(ContentFormat::Markdown),
+                "# Title",
+            ),
+            (
+                "{\"n\":9007199254740993}",
+                Some(ContentFormat::Json),
+                "{\"n\":9007199254740993}",
+            ),
+            (" \n", None, ""),
+        ] {
+            let doc = ContentDocument::from_tool(reference("stream"), 9, text);
+            assert_eq!(doc.as_ref().map(|doc| doc.format.clone()), expected);
+            if let Some(doc) = doc {
+                assert_eq!(doc.source(), source);
+            }
+        }
+    }
     #[test]
     fn source_projections_preserve_values_positions_and_failures() {
         for (source, format, columns, expected) in [
@@ -307,7 +416,7 @@ mod tests {
                 vec![Some("\"a\\\"b\""), None],
             ),
         ] {
-            let doc = ContentDocument::new("test".into(), 7, source.into(), format);
+            let doc = ContentDocument::new(reference("test"), 7, source.into(), format);
             let preview = doc.preview().unwrap();
             assert_eq!(preview.columns, columns);
             assert_eq!(
@@ -333,13 +442,13 @@ mod tests {
             "{\"a\":NaN}",
         ] {
             assert!(
-                ContentDocument::new("bad".into(), 1, source.into(), ContentFormat::Json)
+                ContentDocument::new(reference("bad"), 1, source.into(), ContentFormat::Json)
                     .preview()
                     .is_err()
             );
         }
         let doc = ContentDocument::new(
-            "limit".into(),
+            reference("limit"),
             1,
             " ".repeat(PREVIEW_BYTES + 1),
             ContentFormat::Json,

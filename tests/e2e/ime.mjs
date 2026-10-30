@@ -5,8 +5,8 @@ import { mkdir, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 
-const root = resolve(import.meta.dirname, '../..');
-const output = resolve(root, 'test-results/ime');
+const root = resolve(process.env.PERO_CONTENT_TEST_ROOT || resolve(import.meta.dirname, '../..'));
+const output = resolve(import.meta.dirname, '../../test-results/ime');
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-ime-'));
 await mkdir(output, { recursive: true });
 const app = await electron.launch({
@@ -23,7 +23,6 @@ try {
   const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
   await page.mouse.click(100, 28);
   await expect.poll(async () => (await state()).chats.length).toBe(1);
-  await page.mouse.click(950, await page.evaluate(() => innerHeight - 55));
   await expect.poll(async () => (await state()).composerFocused).toBe(true);
 
   for (const [preedit, committed] of [['ni', '你'], ['hao', '好'], ['shijie', '世界']]) {

@@ -54,7 +54,7 @@ impl ChatWindow {
                     ChatAction::ChooseContext { kind, request_id } => {
                         json!({"action":"choose_context","kind":kind,"request_id":request_id})
                     }
-                    ChatAction::Activated | ChatAction::ReturnToReview => {
+                    ChatAction::OpenDocument(..) | ChatAction::Activated | ChatAction::ReturnToReview => {
                         cx.notify();
                         return;
                     }

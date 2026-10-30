@@ -176,7 +176,7 @@ impl Workbench {
             .min_w_0()
             .h_full()
             .overflow_y_scroll()
-            .p(px(24.))
+            .p(px(pero_theme::WorkbenchStyle::PAGE))
             .child(
                 div()
                     .flex()
@@ -185,8 +185,8 @@ impl Workbench {
                     .child(
                         div()
                             .flex_1()
-                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Title))
-                            .font_weight(FontWeight::BOLD)
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading))
+                            .font_weight(FontWeight::MEDIUM)
                             .child(self.t("nav.projects")),
                     )
                     .child(
@@ -200,14 +200,14 @@ impl Workbench {
             )
             .child(
                 div()
-                    .mt(px(20.))
+                    .mt(px(pero_theme::WorkbenchStyle::SECTION))
                     .border_t_1()
                     .border_color(p.border)
                     .child(
                         Button::new("all-project-tasks")
                             .ghost()
                             .w_full()
-                            .h(px(42.))
+                            .h(px(pero_theme::UiAppearance::global(cx).typography.row_height() + 8.))
                             .justify_start()
                             .label(self.t("project.all_tasks"))
                             .on_click(cx.listener(|this, _, _, cx| {
@@ -228,7 +228,7 @@ impl Workbench {
                                 .unwrap_or_else(|| project.shared_id.clone().unwrap_or_default());
                             let key = project.key;
                             div()
-                                .py(px(14.))
+                                .py(px(8.))
                                 .border_b_1()
                                 .border_color(p.border)
                                 .flex()
@@ -290,14 +290,14 @@ impl Workbench {
             .flex_col()
             .child(
                 div()
-                    .px(px(24.))
-                    .pt(px(20.))
+                    .px(px(pero_theme::WorkbenchStyle::PAGE))
+                    .pt(px(pero_theme::WorkbenchStyle::PAGE))
                     .pb(px(10.))
                     .flex_shrink_0()
                     .child(
                         div()
-                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Title))
-                            .font_weight(FontWeight::BOLD)
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading))
+                            .font_weight(FontWeight::MEDIUM)
                             .child(name),
                     )
                     .when(!path.is_empty(), |el| {
@@ -321,7 +321,7 @@ impl Workbench {
                                 Button::new(("project-tab", i))
                                     .ghost()
                                     .small()
-                                    .h(px(36.))
+                                    .h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
                                     .rounded_none()
                                     .label(self.t(tab.label_key()))
                                     .toggled(self.project_tab == tab)
@@ -370,7 +370,7 @@ impl Workbench {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
-            .p(px(24.))
+            .p(px(pero_theme::WorkbenchStyle::PAGE))
             .child(
                 div()
                     .flex()
@@ -401,14 +401,14 @@ impl Workbench {
             .when(repositories.is_empty(), |el| {
                 el.child(
                     div()
-                        .py(px(24.))
+                        .py(px(12.))
                         .text_color(p.text_muted)
                         .child(self.t("project.no_sources")),
                 )
             })
             .children(repositories.iter().map(|repo| {
                 div()
-                    .py(px(16.))
+                    .py(px(8.))
                     .border_b_1()
                     .border_color(p.border)
                     .child(format!(
@@ -425,7 +425,7 @@ impl Workbench {
                     )
             }))
             .child(
-                div().mt(px(20.)).child(
+                div().mt(px(pero_theme::WorkbenchStyle::SECTION)).child(
                     Button::new("project-source-connection")
                         .ghost()
                         .small()
@@ -460,7 +460,7 @@ impl Workbench {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
-            .p(px(24.))
+            .p(px(pero_theme::WorkbenchStyle::PAGE))
             .child(
                 div()
                     .font_weight(FontWeight::SEMIBOLD)
@@ -476,14 +476,14 @@ impl Workbench {
             )
             .child(
                 div()
-                    .mt(px(24.))
+                    .mt(px(pero_theme::WorkbenchStyle::SECTION))
                     .font_weight(FontWeight::SEMIBOLD)
                     .child(self.t("nav.workers")),
             )
             .when(workers.is_empty(), |el| {
                 el.child(
                     div()
-                        .py(px(16.))
+                        .py(px(8.))
                         .text_color(p.text_muted)
                         .child(self.t("project.no_workers")),
                 )
@@ -497,7 +497,7 @@ impl Workbench {
             }))
             .child(
                 div()
-                    .mt(px(24.))
+                    .mt(px(pero_theme::WorkbenchStyle::SECTION))
                     .text_color(p.text_muted)
                     .whitespace_normal()
                     .child(self.t("project.environment_limit")),
@@ -522,7 +522,7 @@ impl Workbench {
         div()
             .flex_1()
             .min_w_0()
-            .p(px(24.))
+            .p(px(pero_theme::WorkbenchStyle::PAGE))
             .flex()
             .flex_col()
             .items_start()
@@ -544,7 +544,7 @@ impl Workbench {
                     .is_some_and(|project| project.workspace.is_some()),
                 |el| {
                     el.child(
-                        Input::new(&self.project_binding)
+                        pero_theme::WorkbenchStyle::input(Input::new(&self.project_binding), cx)
                             .aria_label(self.t("project.binding"))
                             .accessibility_id("project.binding")
                             .w(px(320.))
@@ -643,17 +643,17 @@ impl Workbench {
             .min_w_0()
             .h_full()
             .overflow_y_scroll()
-            .p(px(24.))
+            .p(px(pero_theme::WorkbenchStyle::PAGE))
             .child(
                 div()
-                    .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Title))
-                    .font_weight(FontWeight::BOLD)
+                    .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading))
+                    .font_weight(FontWeight::MEDIUM)
                     .child(self.t("nav.insights")),
             )
             .when(sessions.is_empty() && tasks.is_empty(), |el| {
                 el.child(
                     div()
-                        .py(px(28.))
+                        .py(px(12.))
                         .text_color(p.text_muted)
                         .child(self.t("insights.empty")),
                 )
@@ -662,7 +662,7 @@ impl Workbench {
                 Button::new(("insight-session", i))
                     .ghost()
                     .w_full()
-                    .h(px(44.))
+                    .h(px(pero_theme::UiAppearance::global(cx).typography.row_height() + 8.))
                     .justify_start()
                     .label(format!("{} · {}", title, status))
                     .on_click(cx.listener(move |this, _, _, cx| {
@@ -675,7 +675,7 @@ impl Workbench {
                 Button::new(("insight-task", i))
                     .ghost()
                     .w_full()
-                    .h(px(44.))
+                    .h(px(pero_theme::UiAppearance::global(cx).typography.row_height() + 8.))
                     .justify_start()
                     .label(format!(
                         "{} · {}",

@@ -1,16 +1,16 @@
 --- a/src/events.rs
 +++ b/src/events.rs
-@@ -715,6 +715,10 @@
+@@ -713,6 +713,10 @@
+                     modifiers,
+                     capslock,
                  }));
-             }
-
-+            if is_ime_key(this.is_composing.get(), &event) {
-+                return;
 +            }
 +
-             let key = dom_key_to_gpui_key(&event);
++            if is_ime_key(this.is_composing.get(), &event) {
++                return;
+             }
 
-             if is_modifier_only_key(&key) {
+             let key = dom_key_to_gpui_key(&event);
 @@ -758,11 +762,6 @@
                  }
              }
@@ -23,18 +23,53 @@
              if keystroke_inserts_text(&modifiers, this.is_mac)
                  && let Some(text) = key_char
              {
-@@ -792,6 +791,10 @@
-                     modifiers,
-                     capslock,
+@@ -794,6 +793,10 @@
                  }));
-+            }
-+
-+            if is_ime_key(this.is_composing.get(), &event) {
-+                return;
              }
 
++            if is_ime_key(this.is_composing.get(), &event) {
++                return;
++            }
++
              let key = dom_key_to_gpui_key(&event);
-@@ -1364,6 +1367,13 @@
+
+             if is_modifier_only_key(&key) {
+@@ -854,6 +857,8 @@
+                 return;
+             }
+
++            let (element_selection_start, element_selection_end) =
++                this.ime_mirror.stored_selection();
+             let old_units: Vec<u16> = old_value.encode_utf16().collect();
+             let new_units: Vec<u16> = new_value.encode_utf16().collect();
+
+@@ -883,12 +888,14 @@
+                     .zip(new_units.iter().rev())
+                     .take_while(|(old_unit, new_unit)| old_unit == new_unit)
+                     .count()
+-            });
++            }).min(old_units.len().saturating_sub(element_selection_end as usize));
+             let prefix_length = old_units
+                 .iter()
+                 .zip(&new_units)
+                 .take_while(|(old_unit, new_unit)| old_unit == new_unit)
+                 .count()
++                // Matching text inside the replaced selection is inserted again.
++                .min(element_selection_start as usize)
+                 .min(old_units.len() - suffix_length)
+                 .min(new_units.len() - suffix_length);
+
+@@ -900,8 +907,7 @@
+             // The edit's shape relative to the element's pre-edit selection.
+             // The element is private to the IME and these syncs, so the
+             // stored selection is exact.
+-            let (element_selection_start, element_selection_end) =
+-                this.ime_mirror.stored_selection();
++
+             let removed_before_selection =
+                 (element_selection_start as usize).saturating_sub(prefix_length);
+             let removed_after_selection =
+@@ -1364,6 +1370,13 @@
      }
  }
 

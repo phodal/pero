@@ -8,7 +8,7 @@ pub struct FontSize(u8);
 impl TryFrom<u8> for FontSize {
     type Error = &'static str;
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if (12..=24).contains(&value) {
+        if (Self::MIN..=Self::MAX).contains(&value) {
             Ok(Self(value))
         } else {
             Err("Font size must be between 12 and 24")
@@ -26,8 +26,24 @@ impl Default for FontSize {
     }
 }
 impl FontSize {
+    const MIN: u8 = 12;
+    const MAX: u8 = 24;
+
     pub fn pixels(self) -> f32 {
         self.0.into()
+    }
+
+    pub fn adjusted(self, delta: i8) -> Self {
+        Self((self.0 as i16 + delta as i16).clamp(Self::MIN as i16, Self::MAX as i16) as u8)
+    }
+}
+impl std::str::FromStr for FontSize {
+    type Err = &'static str;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        value
+            .parse::<u8>()
+            .map_err(|_| "Font size must be an integer")
+            .and_then(Self::try_from)
     }
 }
 
@@ -121,9 +137,7 @@ impl TypographyPreferences {
         }
     }
     pub fn adjust(&mut self, scope: FontScope, delta: i8) {
-        let current = self.effective(scope).0 as i16;
-        let size = FontSize((current + delta as i16).clamp(12, 24) as u8);
-        self.set_size(scope, size);
+        self.set_size(scope, self.effective(scope).adjusted(delta));
     }
     pub fn inherit(&mut self, scope: FontScope, inherit: bool) {
         let next = if inherit {
@@ -158,10 +172,10 @@ impl TextRole {
 }
 impl ResolvedTypography {
     pub fn row_height(self) -> f32 {
-        30. * self.ui / 14.
+        (self.ui * 1.4).ceil().max(20.) + 4.
     }
     pub fn control_height(self) -> f32 {
-        28. * self.ui / 14.
+        self.row_height()
     }
 }
 
@@ -190,6 +204,21 @@ mod tests {
                 resolved.map(|p| (p.ui, p.chat, p.code)),
                 expected,
                 "{input}"
+            );
+        }
+        for (text, expected) in [
+            ("18", Some(18)),
+            ("12", Some(12)),
+            ("24", Some(24)),
+            ("11", None),
+            ("25", None),
+            ("14.5", None),
+            ("", None),
+        ] {
+            assert_eq!(
+                text.parse::<FontSize>().ok().map(u8::from),
+                expected,
+                "{text}"
             );
         }
         for (scope, delta, expected) in [

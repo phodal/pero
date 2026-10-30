@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Disclosure, ResultView } from '@pero/app-sdk/ui';
+import { Card, Disclosure, ResultView, ContentView } from '@pero/app-sdk/ui';
 import type { Output } from './use-workbench';
 import type { Translate } from './messages';
 
@@ -22,7 +22,7 @@ export function Results({ output, t }: { output: Output; t: Translate }) {
   return <Card className="vc-result">
     <ResultView className={r.models ? 'vc-models' : undefined} result={result} labels={{ source: t('inputs'), empty: t('empty'), provenance: { calculated: t('result'), illustrative: t('sample'), sourced: t('evidence'), 'user-provided': t('inputs') } }}/>
     {rows.length > 100 && <p>{t('truncated')}</p>}
-    <Disclosure summary={t('details')}><pre>{JSON.stringify(r.models ? { ...r, models: r.models.map(({ conditions, ...m }: any) => m) } : r, null, 2).slice(0, 24000)}</pre></Disclosure>
+    <Disclosure summary={t('details')}><ContentView document={{id:output.id||`result:${output.operation}`,title:result.title,format:{kind:'json'},text:JSON.stringify(r,null,2)}} labels={{open:t('openDocument'),source:t('details'),opening:t('busy')}}/></Disclosure>
     {output.id && <Disclosure summary={t('receipt')}><p>{output.id}</p><pre>{JSON.stringify({ inputId: output.inputId, sourceHashes: output.sourceHashes, environment: output.environment, scope: 'app_local', acceptance: 'not_reviewed' }, null, 2)}</pre></Disclosure>}
   </Card>;
 }

@@ -76,7 +76,7 @@ impl ChatPanel {
             let workbench = cx.entity().downgrade();
             let open_workbench = workbench.clone();
             Button::new("model-picker").ghost().small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
-                .label(label).max_w(px(220.)).dropdown_caret(true)
+                .label(label).max_w(px(220.)).dropdown_caret(false)
                 .loading(model_pending).loading_icon(Icon::default().path("icons/clock.svg"))
                 .disabled(busy || model_pending || chat.state != SessionState::Idle)
                 .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, _, _| {
@@ -114,7 +114,7 @@ impl ChatPanel {
             .border_t_1()
             .border_color(p.border)
             .bg(p.surface)
-            .px(px(12.))
+            .px(px(W::INSET))
             .pt(px(W::INSET))
             .pb(px(W::INSET))
             .capture_action(cx.listener(|this, action: &Enter, window, cx| {
@@ -200,7 +200,7 @@ impl ChatPanel {
                     .id("composer-field")
                     .border_1()
                     .border_color(if focused { p.focus } else { p.input_border })
-                    .rounded(px(W::INSET))
+                    .rounded(px(W::RADIUS))
                     .bg(p.surface)
                     .px(px(W::INSET))
                     .pt(px(W::GAP))
@@ -218,7 +218,7 @@ impl ChatPanel {
                             .update(cx, |this, cx| this.composer_paste(clipboard, window, cx))
                             .unwrap_or(false)
                     })
-                    .h(px(rows as f32 * pero_theme::UiAppearance::global(cx).typography.ui * 1.5 + 8.)),
+                    .h(px(rows as f32 * pero_theme::UiAppearance::global(cx).typography.ui * 1.4 + 4.)),
             )
             .child(
                 div()
@@ -284,6 +284,9 @@ impl ChatPanel {
                             }),
                     )
                     .children(self.session_extra_controls(cx))
+                    .children(chat.and_then(|chat| chat.usage.as_ref()).map(|usage| {
+                        crate::usage::render_usage(usage, &self.locale, p, cx)
+                    }))
                     .child(div().flex_1())
                     .child(
                         Button::new("agent-picker")
@@ -292,7 +295,7 @@ impl ChatPanel {
                             .icon(Icon::default().path("icons/terminal.svg"))
                             .label(agent.clone())
                             .tooltip(self.t("composer.acp"))
-                            .dropdown_caret(chat.is_none_or(|chat| chat.can_retarget()))
+                            .dropdown_caret(false)
                             .disabled(chat.is_some_and(|chat| !chat.can_retarget()))
                             .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, _, _| {
                                 agent_choices.iter().enumerate().fold(

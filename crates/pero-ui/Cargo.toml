@@ -5,7 +5,8 @@ edition.workspace = true
 publish.workspace = true
 
 [features]
-native = ["pero-theme/native", "pero-chat-ui/native", "dep:gpui-kit", "dep:anyhow", "dep:async-channel", "dep:chrono", "dep:sha2", "dep:getrandom", "dep:reqwest"]
+native-probe = ["native"]
+native = ["pero-theme/native", "pero-chat-ui/native", "dep:gpui-kit", "dep:anyhow", "dep:async-channel", "dep:chrono", "dep:sha2", "dep:getrandom", "dep:reqwest", "dep:gpui-webview", "dep:wry", "dep:webkit2gtk"]
 
 [[bin]]
 name = "pero-native"
@@ -36,7 +37,12 @@ async-channel = { version = "2", optional = true }
 chrono = { version = "0.4", optional = true }
 sha2 = { version = "0.10", optional = true }
 getrandom = { version = "0.2", optional = true }
+gpui-webview = {version="=0.8.1",optional=true}
+wry = {package="lb-wry",version="=0.53.3",optional=true}
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"], optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "3.7"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = {version="=2.0.1",optional=true}

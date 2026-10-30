@@ -11,7 +11,7 @@ use gpui_kit::{
 };
 use serde_json::json;
 use pero_chat_ui::theme::WorkbenchStyle as W;
-gpui_kit::actions!(workspace, [NextContent, PreviousContent]);
+gpui_kit::actions!(workspace, [NextContent, PreviousContent, OpenDocument]);
 
 impl Workbench {
     pub(crate) fn record_task_selection(&mut self, task: Option<String>) {
@@ -30,6 +30,7 @@ impl Workbench {
     }
 
     pub(crate) fn reconcile_content(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.reconcile_documents(cx);
         let projects = self.project_catalog(cx);
         let project_identities = self
             .navigation
@@ -60,6 +61,8 @@ impl Workbench {
                 WorkspaceItem::Conversation(id) => {
                     self.chat.read(cx).chats.iter().any(|chat| &chat.id == id)
                 }
+                WorkspaceItem::Web(id)=>self.web_documents.iter().any(|page|&page.id==id),
+                WorkspaceItem::Document {..} => self.documents.iter().any(|open|&open.item==*item),
                 WorkspaceItem::Project(key) => {
                     projects.iter().any(|project| project.matches_key(key))
                 }
@@ -86,7 +89,7 @@ impl Workbench {
         }
     }
 
-    fn activate_route(
+    pub(crate) fn activate_route(
         &mut self,
         route: WorkspaceRoute,
         window: &mut Window,
@@ -102,6 +105,10 @@ impl Workbench {
                     .iter()
                     .position(|chat| chat.id == id);
                 self.focus_chat(index, ConversationTab::Chat, cx);
+            }
+            WorkspaceRoute::Content(WorkspaceItem::Web(_))=>{self.sync_web_address(true,window,cx);self.workspace_focus.focus(window,cx);},
+            WorkspaceRoute::Content(item @ WorkspaceItem::Document {..}) => {
+                if let Some(open)=self.documents.iter().find(|open|open.item==item) {open.view.update(cx,|view,cx|view.focus(window,cx));}
             }
             WorkspaceRoute::Content(WorkspaceItem::Project(key)) => {
                 self.open_project(key, window, cx)
@@ -127,6 +134,14 @@ impl Workbench {
     }
 
     fn close_content(&mut self, item: &WorkspaceItem, window: &mut Window, cx: &mut Context<Self>) {
+        if let WorkspaceItem::Web(id)=item {self.web_command(json!({"action":"web_close","id":id}),window,cx);return;}
+        if let Some(open)=self.documents.iter().find(|open|&open.item==item) {
+            if open.view.read(cx).dirty() {
+                open.view.update(cx,|view,cx| {view.request_close(cx);});
+                self.navigation.select(item);cx.notify();return;
+            }
+            self.discard_document(item,window,cx);return;
+        }
         if let Some(route) = self.navigation.close(item) {
             self.activate_route(route, window, cx);
         }
@@ -161,6 +176,8 @@ impl Workbench {
                     .unwrap_or_else(|| self.t("chat.session").into()),
                 "message-circle",
             ),
+            WorkspaceItem::Web(id)=>(self.web_documents.iter().find(|page|&page.id==id).map(|page|page.observation.title.clone()).unwrap_or_else(||self.t("web.open_url").into()),"globe"),
+            item @ WorkspaceItem::Document {..} => self.document_label(item,cx),
             WorkspaceItem::Project(key) => (
                 self.project_catalog(cx)
                     .into_iter()
@@ -196,7 +213,7 @@ impl Workbench {
         let current = self.navigation.current();
         div()
             .id("workspace-tabs")
-            .h(px(W::TAB))
+            .h(px(W::TAB.max(pero_theme::UiAppearance::global(cx).typography.row_height() + 4.)))
             .flex_shrink_0()
             .flex()
             .items_center()
@@ -218,7 +235,7 @@ impl Workbench {
                         let select = item.clone();
                         let close = item.clone();
                         div()
-                            .min_w(px(120.))
+                            .min_w(px(100.))
                             .max_w(px(220.))
                             .h_full()
                             .bg(p.color(if current == Some(item) {
@@ -281,6 +298,9 @@ impl Workbench {
                             )
                     })),
             )
+            .child(Button::new("web-open").ghost().small().icon(Icon::default().path("icons/globe.svg")).tooltip(self.t("web.open_url")).accessibility_label(self.t("web.open_url")).on_click(cx.listener(|this,_,window,cx|this.choose_web(window,cx))))
+            .child(Button::new("document-open").ghost().small().icon(IconName::File).tooltip(self.t("content.open_file"))
+                .accessibility_label(self.t("content.open_file")).on_click(cx.listener(|this,_,_,cx|this.choose_document(cx))))
             .when(
                 matches!(self.navigation.current(), Some(WorkspaceItem::App { .. })),
                 |el| {
@@ -301,7 +321,7 @@ impl Workbench {
                 },
             )
             .when(
-                self.navigation.page() == WorkbenchPage::Tasks
+                self.navigation.page() == WorkbenchPage::Tasks || self.navigation.page()==WorkbenchPage::Web
                     || matches!(self.navigation.current(), Some(WorkspaceItem::App { .. })),
                 |el| {
                     el.child(

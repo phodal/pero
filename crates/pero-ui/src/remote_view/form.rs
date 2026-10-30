@@ -20,23 +20,23 @@ impl Workbench {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
-            .px(px(24.))
-            .py(px(20.))
+            .px(px(pero_theme::WorkbenchStyle::PAGE))
+            .py(px(6.))
             .child(
                 div()
                     .max_w(px(720.))
                     .flex()
                     .flex_col()
-                    .gap(px(14.))
+                    .gap(px(pero_theme::WorkbenchStyle::SECTION))
                     .child(
                         div()
-                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Title))
+                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading))
                             .font_weight(FontWeight::BOLD)
                             .child(self.t("remote.new")),
                     )
                     .child(field(
                         self.t("remote.title"),
-                        Input::new(&self.remote.title)
+                        pero_theme::WorkbenchStyle::input(Input::new(&self.remote.title), cx)
                             .aria_label(self.t("remote.title"))
                             .accessibility_id("remote.title")
                             .disabled(busy)
@@ -66,7 +66,7 @@ impl Workbench {
                             .child(
                                 div().flex_1().min_w_0().child(field(
                                     self.t("remote.project"),
-                                    Input::new(&self.remote.project)
+                                    pero_theme::WorkbenchStyle::input(Input::new(&self.remote.project), cx)
                                         .aria_label(self.t("remote.project"))
                                         .disabled(busy)
                                         .into_any_element(),
@@ -75,7 +75,7 @@ impl Workbench {
                             .child(
                                 div().flex_1().min_w_0().child(field(
                                     self.t("remote.workspace"),
-                                    Input::new(&self.remote.workspace)
+                                    pero_theme::WorkbenchStyle::input(Input::new(&self.remote.workspace), cx)
                                         .aria_label(self.t("remote.workspace"))
                                         .disabled(busy)
                                         .into_any_element(),

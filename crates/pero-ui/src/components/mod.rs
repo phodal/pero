@@ -25,7 +25,7 @@ impl Ui<'_> {
     pub fn icon(&self, name: &str) -> Svg {
         pero_chat_ui::assets::UiIcon::named(name)
             .element()
-            .size(px(19.))
+            .size(px(pero_theme::WorkbenchStyle::ICON))
             .flex_shrink_0()
             .text_color(self.palette.text_muted)
     }
@@ -38,11 +38,11 @@ impl Ui<'_> {
             _ => ("surface-muted", "text-muted"),
         };
         div()
-            .px(px(10.))
-            .py(px(3.))
-            .rounded(px(6.))
+            .px(px(6.))
+            .py(px(1.))
+            .rounded(px(3.))
             .text_size(px(pero_theme::TextRole::Caption.pixels(self.typography.ui)))
-            .font_weight(FontWeight::BOLD)
+            .font_weight(FontWeight::NORMAL)
             .bg(p.color(bg))
             .text_color(p.color(fg))
             .child(label.into())

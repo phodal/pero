@@ -8,18 +8,28 @@ import sqlite3
 from urllib.parse import parse_qs, urlsplit
 
 from .literature import LiteratureClient
-from .model import Invalid, PaperSnapshot, ResearchRequest, canonical, mapping
+from .model import Invalid, PaperSnapshot, ResearchInput, ResearchRequest, canonical, mapping
 from .reports import EvidenceReference
 from .discovery import DiscoveryQuery, DiscoveryBatch
 from .pdf import PdfAnnotation
 from .pdf_files import PdfFiles
 from .retrieval import SearchQuery
+from .local_pdf import LocalPdf, MAX_PDF_BYTES
+from .research import ResearchPlan
 
 MAX_BODY = 1024 * 1024
 
 
 def utc_now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def research_stage(record):
+    if isinstance(record, ResearchPlan):
+        return dict(stage='plan', id=record.id, requestId=record.request.request_id + '-p', question=record.request.question, prompt=record.prompt())
+    if isinstance(record, ResearchInput):
+        return dict(stage='answer', id=record.id, requestId=record.request_id, question=record.question, prompt=record.prompt(), intent=record.to_dict())
+    return dict(stage='select', id=record.id, requestId=record.plan.request.request_id + '-r' + str(len(record.queries)), question=record.plan.request.question, prompt=record.prompt(), round=len(record.queries))
 
 
 def handler(store, secret, literature=None, now=utc_now, pdf_files=None):
@@ -49,9 +59,12 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None):
             try:
                 if self.headers.get("Transfer-Encoding"):
                     raise Invalid("Transfer encoding is unsupported")
+                parsed = urlsplit(self.path)
+                path = parsed.path
+                local_pdf = self.command == "POST" and path == "/api/pdf/import"
                 length = int(self.headers.get("Content-Length", 0))
-                if not 0 <= length <= MAX_BODY:
-                    raise Invalid("Request exceeds 1 MiB", 413)
+                if not 0 <= length <= (MAX_PDF_BYTES if local_pdf else MAX_BODY):
+                    raise Invalid("Request exceeds the upload limit", 413)
                 if not secret or not hmac.compare_digest(secret, self.headers.get("X-Pero-App-Token", "")):
                     raise Invalid("Host proxy authentication required", 401)
                 self.connection.settimeout(15)
@@ -59,12 +72,19 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None):
                 if len(body) != length:
                     raise Invalid("Incomplete request body")
                 data = {}
+                if local_pdf:
+                    if not self.headers.get('Content-Type', '').startswith('application/pdf'):
+                        raise Invalid('PDF content type is required', 415)
+                    upload = LocalPdf.parse(body, parse_qs(parsed.query).get('filename', ['paper.pdf'])[0])
+                    return self.reply(201, store.import_pdf(upload, pdf_files, now()).to_dict())
                 if self.command == "POST":
                     if not self.headers.get("Content-Type", "").startswith("application/json"):
                         raise Invalid("JSON is required", 415)
                     data = mapping(json.loads(body), "request")
-                parsed = urlsplit(self.path)
-                path = parsed.path
+                matrix_match = re.fullmatch(r'/api/reports/([a-f0-9]{64})/matrix', path)
+                if matrix_match:
+                    if self.command == 'GET': return self.reply(200, store.report_matrix(matrix_match[1]))
+                    if self.command == 'POST': return self.reply(201, store.edit_matrix(matrix_match[1], data, now()))
                 if self.command == "GET":
                     if path == '/api/matrix':
                         return self.reply(200, dict(cells=store.reading_matrix()))
@@ -106,6 +126,12 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None):
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, record.to_dict())
                 if self.command == "POST":
+                    if path == '/api/research/plan':
+                        return self.reply(201, research_stage(store.research_plan(ResearchRequest.parse(data), now())))
+                    if path == '/api/research/search':
+                        return self.reply(201, research_stage(store.search_plan(data.get('id'), data.get('text'))))
+                    if path == '/api/research/select':
+                        return self.reply(201, research_stage(store.select_research(data.get('id'), data.get('text'))))
                     if path == '/api/matrix':
                         return self.reply(201, store.add_reading_cell(data.get('annotationId'), data.get('column'), now()).to_dict())
                     if path == '/api/pdf':

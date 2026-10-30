@@ -52,16 +52,56 @@ the ordinary verifier also optimizes Wasm with `-Oz`. `--benchmark` measures
 repeated retained view switches. A one-run functional receipt is not a p95
 performance certification or a cold-start benchmark.
 
+## Source-backed table interactions (2026-10-30)
+
+The reader now uses Kit's virtualized `DataTable` for record, value and property
+projections. `TableProjection` owns transformed row indices; it never rewrites
+source bytes or converts JSON numbers through floating point. Keys are built
+once per sorted row. Missing, null, booleans, exact decimals, strings and
+structured values have a defined type order, with stable ties and original
+source order when sorting is cleared. Filtering is case-insensitive, decodes
+JSON string escapes and also matches names in a property projection.
+
+The table supports filtering with a visible result count, ascending/descending/
+original order, column-width dragging, cell selection, keyboard movement and
+exact cell copying. A double click or Enter expands a nested value or opens
+its original source range. Sorting/filtering clear the old visual selection,
+so a shifted row cannot accidentally copy the previous value. Missing cells
+cannot claim an original value. Long display labels are shortened with an
+ellipsis; cell copy and Source retain the complete serialized token.
+
+A retained reader shares its preview metadata with the table and reuses it
+when an unchanged immutable source switches modes. Query, sort and column
+width survive those switches. This is a per-reader lifetime; a global parse
+cache and worker execution remain separate work.
+
+The existing actual Electron probe now checks filtering 8,000 rows down to 11,
+exact big-integer and Unicode cell clipboard values, ArrowRight, sort/reset,
+empty-filter recovery, column dragging, retained widths and source navigation
+from a transformed row. It also inspects nested values and light/dark/minimum
+width layouts. The shared appearance installer supplies Kit's table tokens,
+including a translucent selected-cell overlay that does not cover its text.
+Screenshots and performance receipts remain in `test-results/content-reader/`.
+Use `--benchmark` for thirty retained source/preview switches. Full operation
+long tasks are stored in `allLongTasks`, not only `measuredLongTasks`, which
+covers the timed opening/switch samples.
+
+The recorded thirty-switch release-Wasm run had median 30.2 ms, p95 32.8 ms
+and maximum 369.8 ms. The full interaction trace still recorded 21 long tasks,
+peaking at 776 ms around Select All. Keep the performance incident open; this
+is a functionality and retained-state receipt, not a frame-budget pass.
+
 ## Current boundaries
 
-- This is a Chat result reader, not the complete Zed editor/workspace. Code
-  editing, multi-buffer operations, regex search, persistent reading state,
-  App SDK migration and a global document cache remain separate work.
+- The shared reader now serves inline results and retained workspace file/App
+  documents. File editing and a real App handoff are recorded in
+  [workspace acceptance](workspace-documents.md). Multi-buffer operations,
+  regex search, restart recovery and a global document cache remain separate work.
 - Kit's selected Syntect backend folds multiline braces, but does not provide
   structural JSON array folding. Full JSON folding remains a functional gap;
   merely rendering an Editor does not complete that requirement.
-- Record previews do not yet provide sorting, filtering, cell-range selection,
-  column resizing or Data Agent dataset/chart integration.
+- Table selection currently covers one cell. Cell ranges, Data Agent dataset/
+  chart integration and exporting transformed datasets remain incomplete.
 - Preview parsing is explicitly bounded to 2 MiB and 128 columns. Complete
   source remains available. Malformed records and duplicate keys report errors;
   missing values, nulls, exact numeric spelling and source positions stay distinct.

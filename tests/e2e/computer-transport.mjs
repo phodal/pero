@@ -1,0 +1,67 @@
+import assert from 'node:assert/strict';
+import { build } from 'esbuild';
+import { mkdtemp, readFile, rm, mkdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
+const root=resolve(import.meta.dirname,'../..');
+const temp=await mkdtemp(resolve(root,'target/computer-transport-'));
+await build({entryPoints:[resolve(root,'desktop/src/main/computer.ts'),resolve(root,'desktop/src/main/app-use-mcp.ts')],outdir:temp,outExtension:{'.js':'.mjs'},bundle:true,platform:'node',format:'esm'});
+const { DesktopComputer }=await import(resolve(temp,'computer.mjs'));
+const { DesktopAppUse }=await import(resolve(temp,'app-use-mcp.mjs'));
+const corpus=JSON.parse(await readFile(resolve(root,'tests/contracts/computer-use.json'),'utf8'));
+const action=corpus.actions[0],effects=resolve(temp,'effects.jsonl');
+const create=(mode='normal')=>new DesktopComputer(process.execPath,resolve(temp,'journal'),()=>{}, {args:[resolve(root,'tests/fixtures/computer-worker.mjs'),effects,mode]});
+const signal=new AbortController().signal;
+let desktop=create();let bridge;
+const call=request=>desktop.call('thread',request,signal);
+try {
+ const missing=new DesktopComputer(resolve(temp,'missing-helper'),resolve(temp,'missing-evidence'),()=>{});
+ await missing.restore(true);
+ const unavailable=await missing.status();assert.equal(unavailable.status.available,false);assert.ok(unavailable.error);
+ await missing.stop();
+ await assert.rejects(call({operation:'targets'}),error=>error.detail.code==='permission_required');
+ await assert.rejects(call({operation:'targets',thread:'foreign'}),error=>error.detail.code==='invalid_request');
+ await desktop.restore(true);
+ const receipts=await Promise.all([call({operation:'act',action}),call({operation:'act',action})]);assert.deepEqual(receipts[0],receipts[1]);
+ assert.equal((await readFile(effects,'utf8')).trim().split('\n').length,1);
+ await call({operation:'stop'});
+ assert.equal((await call({operation:'targets'})).kind,'targets');
+ await desktop.command({action:'computer_stop'});
+ await assert.rejects(call({operation:'targets'}),error=>error.detail.code==='permission_required');
+ await desktop.restore(true);
+ await assert.rejects(call({operation:'act',action:{...action,input:{...action.input,count:2}}}),error=>error.detail.code==='invalid_request');
+ await desktop.stop();desktop=create();await desktop.restore(true);
+ assert.deepEqual(await call({operation:'receipt',request_id:action.request_id}),receipts[0]);
+ await assert.rejects(desktop.call('foreign',{operation:'receipt',request_id:action.request_id},signal),error=>error.detail.code==='invalid_request');
+ await desktop.stop();desktop=create('interrupt');await desktop.restore(true);
+ const interrupted={...action,request_id:'interrupted'};
+ const pending=call({operation:'act',action:interrupted});
+ let dispatched;
+ for(let i=0;i<100;i++){const lines=(await readFile(effects,'utf8')).trim().split('\n').map(JSON.parse);dispatched=lines.find(value=>value.action.request_id==='interrupted');if(dispatched)break;await delay(10);}
+ assert.ok(dispatched,'Wait for the actual fixture effect before cancelling');
+ await desktop.stop();
+ const unknown=await pending;assert.equal(unknown.receipt.outcome.status,'unknown');assert.equal(unknown.receipt.outcome.error.code,'cancelled');
+ assert.throws(()=>process.kill(dispatched.pid,0),error=>error.code==='ESRCH','Stop acknowledges actual child exit');
+ desktop=create();await desktop.restore(true);
+ assert.deepEqual(await call({operation:'act',action:interrupted}),unknown);
+ assert.equal((await readFile(effects,'utf8')).trim().split('\n').length,2);
+ // Real loopback MCP and its existing selected/running-conversation authority.
+ let selected='thread';
+ bridge=new DesktopAppUse(()=>({webContents:{executeJavaScript:async()=>selected}}),()=>{},resolve(temp,'mcp'),undefined,desktop);
+ const env=await bridge.start();
+ for(const id of ['thread','foreign'])bridge.accept({version:1,kind:'session_created',thread_id:id,data:{agent:'fixture'},text:'',request_id:null});
+ bridge.accept({version:1,kind:'turn_started',thread_id:'thread',text:'',request_id:null});
+ const rpc=async(method,params,thread='thread',token=env.PERO_APP_USE_TOKEN)=>{
+  const response=await fetch(env.PERO_APP_USE_URL,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token,'X-Pero-Thread':thread},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});
+  return {status:response.status,value:response.ok?await response.json():undefined};
+ };
+ assert.equal((await rpc('tools/list',{},'thread','bad')).status,403);
+ const tools=(await rpc('tools/list',{})).value.result.tools;assert.ok(tools.some(tool=>tool.name==='computer_use'));
+ const status=await rpc('tools/call',{name:'computer_use',arguments:{operation:'status'}});assert.equal(status.value.result.isError,false);
+ const foreign=await rpc('tools/call',{name:'computer_use',arguments:{operation:'targets'}},'foreign');assert.ok(foreign.value.error||foreign.value.result?.isError);
+ selected='foreign';const stale=await rpc('tools/call',{name:'computer_use',arguments:{operation:'targets'}});assert.ok(stale.value.error||stale.value.result?.isError);
+ await desktop.forget('thread');
+ await assert.rejects(call({operation:'receipt',request_id:action.request_id}),error=>error.detail.code==='invalid_request');
+ await mkdir(resolve(root,'test-results/computer'),{recursive:true});
+ console.log('Computer Use transport passed: validation, disabled input, concurrent duplicate, ID conflict, durable restart, uncertain effect, drained stop, MCP authentication and selected-session authority.');
+} finally {await bridge?.close();await desktop.stop();await rm(temp,{recursive:true,force:true});}

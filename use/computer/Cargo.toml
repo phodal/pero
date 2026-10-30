@@ -1,0 +1,37 @@
+[package]
+name = "pero-computer"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Native source stays in its own workspace; GPUI and native driver builds do not
+# alter each other's dependency resolution.
+[workspace]
+
+[dependencies]
+pero-contracts = { path = "../../crates/pero-contracts" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+base64 = "0.22"
+
+point-computer-core = { path = "../../target/point-computer-source/computer/crates/point-computer-core" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+point-computer-backend = { path = "../../target/point-computer-source/computer/crates/point-computer-backend" }
+point-computer-macos = { path = "../../target/point-computer-source/computer/crates/point-computer-macos" }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+point-computer-backend = { path = "../../target/point-computer-source/computer/crates/point-computer-backend" }
+point-computer-windows = { path = "../../target/point-computer-source/computer/crates/point-computer-windows" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = { version = "0.13", features = ["xtest"] }
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+
+[profile.dev]
+debug = 0
+
+[profile.release]
+opt-level = "s"
+lto = "thin"

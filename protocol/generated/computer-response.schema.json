@@ -1,0 +1,821 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openpero.com/protocol/computer-response.schema.json",
+  "title": "ComputerResponseContract",
+  "description": "Generated from protocol/computer-runtime.tsp. Do not edit.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/ComputerWorkerResponse"
+    },
+    {
+      "$ref": "#/$defs/ComputerUseState"
+    },
+    {
+      "$ref": "#/$defs/ComputerSettingsEvent"
+    },
+    {
+      "$ref": "#/$defs/ComputerSettingsErrorEvent"
+    },
+    {
+      "$ref": "#/$defs/ComputerStateEvent"
+    }
+  ],
+  "$defs": {
+    "ComputerActionKind": {
+      "title": "ComputerActionKind",
+      "type": "string",
+      "enum": [
+        "click",
+        "type_text",
+        "press_key",
+        "scroll",
+        "drag"
+      ]
+    },
+    "ComputerActionOutcome": {
+      "title": "ComputerActionOutcome",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ComputerExecuted"
+        },
+        {
+          "$ref": "#/$defs/ComputerRejected"
+        },
+        {
+          "$ref": "#/$defs/ComputerUnknown"
+        }
+      ]
+    },
+    "ComputerActionReceipt": {
+      "title": "ComputerActionReceipt",
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "target": {
+          "$ref": "#/$defs/ComputerTargetRef"
+        },
+        "observation_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "outcome": {
+          "$ref": "#/$defs/ComputerActionOutcome"
+        }
+      },
+      "required": [
+        "request_id",
+        "target",
+        "observation_id",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerActionSupport": {
+      "title": "ComputerActionSupport",
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/ComputerActionKind"
+        },
+        "delivery": {
+          "$ref": "#/$defs/ComputerDelivery"
+        }
+      },
+      "required": [
+        "action",
+        "delivery"
+      ],
+      "additionalProperties": false,
+      "description": "One supported action/delivery pair. Adapters may still refuse a particular target."
+    },
+    "ComputerCapabilities": {
+      "title": "ComputerCapabilities",
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "type": "string",
+          "const": "pero.computer-use.v1"
+        },
+        "runtime_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerObservationKind"
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerActionSupport"
+          }
+        }
+      },
+      "required": [
+        "protocol",
+        "runtime_id",
+        "observations",
+        "actions"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerDelivery": {
+      "title": "ComputerDelivery",
+      "type": "string",
+      "enum": [
+        "background",
+        "foreground"
+      ]
+    },
+    "ComputerDimension": {
+      "title": "ComputerDimension",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4294967295
+    },
+    "ComputerDriverStatus": {
+      "title": "ComputerDriverStatus",
+      "type": "object",
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "accessibility": {
+          "$ref": "#/$defs/ComputerPermissionState"
+        },
+        "screen_recording": {
+          "$ref": "#/$defs/ComputerPermissionState"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "available",
+        "accessibility",
+        "screen_recording",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerElement": {
+      "title": "ComputerElement",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "role": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerActionKind"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "label",
+        "depth",
+        "actions"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerError": {
+      "title": "ComputerError",
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ComputerErrorCode"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerErrorCode": {
+      "title": "ComputerErrorCode",
+      "type": "string",
+      "enum": [
+        "unsupported",
+        "permission_required",
+        "target_unavailable",
+        "stale_observation",
+        "invalid_request",
+        "cancelled",
+        "timeout",
+        "failed"
+      ]
+    },
+    "ComputerExecuted": {
+      "title": "ComputerExecuted",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "executed"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "Execution acknowledgement only; it does not assert a verified task outcome."
+    },
+    "ComputerImageContent": {
+      "title": "ComputerImageContent",
+      "type": "object",
+      "properties": {
+        "media_type": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "image/png"
+            },
+            {
+              "type": "string",
+              "const": "image/jpeg"
+            }
+          ]
+        },
+        "data": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "media_type",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerObservation": {
+      "title": "ComputerObservation",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "target": {
+          "$ref": "#/$defs/ComputerTargetRef"
+        },
+        "elements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerElement"
+          }
+        },
+        "screenshot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerScreenshot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "target",
+        "elements",
+        "truncated"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerObservationKind": {
+      "title": "ComputerObservationKind",
+      "type": "string",
+      "enum": [
+        "accessibility",
+        "screenshot"
+      ]
+    },
+    "ComputerObservationResponse": {
+      "title": "ComputerObservationResponse",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "observation"
+        },
+        "observation": {
+          "$ref": "#/$defs/ComputerObservation"
+        },
+        "image": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerImageContent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "observation"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerOpenedResponse": {
+      "title": "ComputerOpenedResponse",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "opened"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerTarget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerPermissionState": {
+      "title": "ComputerPermissionState",
+      "type": "string",
+      "enum": [
+        "granted",
+        "not_detected",
+        "unsupported"
+      ]
+    },
+    "ComputerReceiptResponse": {
+      "title": "ComputerReceiptResponse",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "receipt"
+        },
+        "receipt": {
+          "$ref": "#/$defs/ComputerActionReceipt"
+        }
+      },
+      "required": [
+        "kind",
+        "receipt"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerRef": {
+      "title": "ComputerRef",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "description": "Host-issued references, never OS handles, paths, credentials or caller identities."
+    },
+    "ComputerRejected": {
+      "title": "ComputerRejected",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "rejected"
+        },
+        "error": {
+          "$ref": "#/$defs/ComputerError"
+        }
+      },
+      "required": [
+        "status",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerResponse": {
+      "title": "ComputerResponse",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ComputerStatusResponse"
+        },
+        {
+          "$ref": "#/$defs/ComputerTargetsResponse"
+        },
+        {
+          "$ref": "#/$defs/ComputerOpenedResponse"
+        },
+        {
+          "$ref": "#/$defs/ComputerObservationResponse"
+        },
+        {
+          "$ref": "#/$defs/ComputerReceiptResponse"
+        },
+        {
+          "$ref": "#/$defs/ComputerStoppedResponse"
+        }
+      ]
+    },
+    "ComputerScreenshot": {
+      "title": "ComputerScreenshot",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "media_type": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "image/png"
+            },
+            {
+              "type": "string",
+              "const": "image/jpeg"
+            }
+          ]
+        },
+        "width": {
+          "$ref": "#/$defs/ComputerDimension"
+        },
+        "height": {
+          "$ref": "#/$defs/ComputerDimension"
+        }
+      },
+      "required": [
+        "id",
+        "media_type",
+        "width",
+        "height"
+      ],
+      "additionalProperties": false,
+      "description": "The Host resolves this immutable image reference to bytes; no local path is exposed."
+    },
+    "ComputerSettingsData": {
+      "title": "ComputerSettingsData",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerSettingsErrorEvent": {
+      "title": "ComputerSettingsErrorEvent",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "kind": {
+          "type": "string",
+          "const": "computer_settings_error"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string",
+          "const": ""
+        }
+      },
+      "required": [
+        "version",
+        "kind",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerSettingsEvent": {
+      "title": "ComputerSettingsEvent",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "kind": {
+          "type": "string",
+          "const": "computer_settings"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string",
+          "const": ""
+        },
+        "data": {
+          "$ref": "#/$defs/ComputerSettingsData"
+        }
+      },
+      "required": [
+        "version",
+        "kind",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerStateEvent": {
+      "title": "ComputerStateEvent",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "kind": {
+          "type": "string",
+          "const": "computer_state"
+        },
+        "request_id": {
+          "type": "null"
+        },
+        "text": {
+          "type": "string",
+          "const": ""
+        },
+        "data": {
+          "$ref": "#/$defs/ComputerUseState"
+        }
+      },
+      "required": [
+        "version",
+        "kind",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerStatusResponse": {
+      "title": "ComputerStatusResponse",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "status"
+        },
+        "status": {
+          "$ref": "#/$defs/ComputerDriverStatus"
+        }
+      },
+      "required": [
+        "kind",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerStoppedResponse": {
+      "title": "ComputerStoppedResponse",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "stopped"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerTarget": {
+      "title": "ComputerTarget",
+      "type": "object",
+      "properties": {
+        "reference": {
+          "$ref": "#/$defs/ComputerTargetRef"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "window"
+            },
+            {
+              "type": "string",
+              "const": "desktop"
+            }
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "application": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "reference",
+        "kind",
+        "title"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerTargetRef": {
+      "title": "ComputerTargetRef",
+      "type": "object",
+      "properties": {
+        "runtime_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "target_id": {
+          "$ref": "#/$defs/ComputerRef"
+        }
+      },
+      "required": [
+        "runtime_id",
+        "target_id"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerTargetsResponse": {
+      "title": "ComputerTargetsResponse",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "targets"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/ComputerCapabilities"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerTarget"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "capabilities",
+        "targets"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerUnknown": {
+      "title": "ComputerUnknown",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "unknown"
+        },
+        "error": {
+          "$ref": "#/$defs/ComputerError"
+        }
+      },
+      "required": [
+        "status",
+        "error"
+      ],
+      "additionalProperties": false,
+      "description": "Effects may have happened. Observe again; never silently replay the input."
+    },
+    "ComputerUseState": {
+      "title": "ComputerUseState",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "status": {
+          "$ref": "#/$defs/ComputerDriverStatus"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "enabled",
+        "running",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerWorkerFailure": {
+      "title": "ComputerWorkerFailure",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "error": {
+          "$ref": "#/$defs/ComputerError"
+        }
+      },
+      "required": [
+        "id",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerWorkerResponse": {
+      "title": "ComputerWorkerResponse",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ComputerWorkerSuccess"
+        },
+        {
+          "$ref": "#/$defs/ComputerWorkerFailure"
+        }
+      ]
+    },
+    "ComputerWorkerSuccess": {
+      "title": "ComputerWorkerSuccess",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "value": {
+          "$ref": "#/$defs/ComputerResponse"
+        }
+      },
+      "required": [
+        "id",
+        "value"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -27,14 +27,14 @@ impl Workbench {
             })
             .collect::<Vec<_>>();
         let toolbar = div()
-            .px(px(24.))
-            .py(px(12.))
+            .px(px(pero_theme::WorkbenchStyle::PAGE))
+            .py(px(6.))
             .flex()
             .items_center()
             .gap(px(8.))
             .child(
                 div().flex_1().min_w_0().child(
-                    Input::new(&self.remote.search)
+                    pero_theme::WorkbenchStyle::input(Input::new(&self.remote.search), cx)
                         .prefix(self.icon("search"))
                         .w_full(),
                 ),
@@ -67,7 +67,7 @@ impl Workbench {
                 )
             });
         let filters = div()
-            .px(px(24.))
+            .px(px(pero_theme::WorkbenchStyle::PAGE))
             .pb(px(12.))
             .flex()
             .flex_wrap()
@@ -89,7 +89,7 @@ impl Workbench {
                     }),
             );
         let sources = div()
-            .px(px(24.))
+            .px(px(pero_theme::WorkbenchStyle::PAGE))
             .pb(px(10.))
             .flex()
             .flex_wrap()
@@ -159,7 +159,7 @@ impl Workbench {
             .overflow_y_scroll()
             .track_scroll(&self.task_scroll)
             .on_scroll(cx.listener(|this, _, _, cx| this.request_more_tasks(cx)))
-            .px(px(24.))
+            .px(px(pero_theme::WorkbenchStyle::PAGE))
             .pb(px(16.))
             .child(header)
             .when(visible.is_empty(), |el| {
@@ -200,7 +200,7 @@ impl Workbench {
             )
             .when(self.remote.data["has_more"] == true, |el| {
                 el.child(
-                    div().py(px(12.)).child(
+                    div().py(px(6.)).child(
                         Button::new("remote-load-more")
                             .ghost()
                             .small()
@@ -236,7 +236,7 @@ impl Workbench {
             )
             .when(!string(&self.remote.data, "tag").is_empty(), |el| {
                 el.child(
-                    div().px(px(24.)).pb(px(8.)).child(
+                    div().px(px(pero_theme::WorkbenchStyle::PAGE)).pb(px(8.)).child(
                         Button::new("remote-clear-tag")
                             .outline()
                             .xsmall()

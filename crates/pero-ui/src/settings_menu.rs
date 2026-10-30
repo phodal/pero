@@ -115,7 +115,7 @@ impl Workbench {
             })
             .child(div().flex_1())
             .accessibility_label(t("settings.title"))
-            .dropdown_caret(true)
+            .dropdown_caret(false)
             .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, window, cx| {
                 let mut menu = menu.min_w(px(W::MENU_WIDTH)).check_side(Side::Right);
                 if !identity.is_empty() {

@@ -92,11 +92,11 @@ try {
     await expect.poll(async () => (await state()).chats[0].settings.options.find(option => option.id === id)?.current).toBe(expected);
     await expect.poll(async () => (await state()).chats[0].pending_setting).toBe(null);
   };
-  await setting('effort', 1360, 'high', 'effort-menu.png');
-  await setting('effort', 1360, 'none', 'thinking-off-menu.png', 4);
+  await setting('effort', 1388, 'high', 'effort-menu.png');
+  await setting('effort', 1388, 'none', 'thinking-off-menu.png', 4);
   await frame();
   await page.screenshot({ path: resolve(output, 'thinking-off.png'), clip: { x: 260, y: await height() - 130, width: await page.evaluate(() => innerWidth - 260), height: 130 } });
-  await setting('effort', 1360, 'high', 'effort-menu.png');
+  await setting('effort', 1388, 'high', 'effort-menu.png');
   await setting('approval', 322, 'read', 'permission-profile-menu.png');
   await setting('mode', 322, 'minimal', 'mode-menu.png');
   await frame();

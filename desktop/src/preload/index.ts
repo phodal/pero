@@ -6,9 +6,11 @@ contextBridge.exposeInMainWorld('pero', {
   sendProbe: (request: { id: string; text: string }) => ipcRenderer.invoke('pero:probe', request),
   readContent: (request: object) => ipcRenderer.invoke('pero:content-read', request),
   appUseCommand: (command: object) => ipcRenderer.invoke('pero:app-use', command),
+  webCommand: (command:object)=>ipcRenderer.invoke('pero:web',command),
   sessionCommand: (command: object) => ipcRenderer.invoke('pero:session', command),
   remoteCommand: (command: object) => ipcRenderer.invoke('pero:remote', command),
   appsCommand: (command: object) => ipcRenderer.invoke('pero:apps', command),
+  computerCommand: (command: object) => ipcRenderer.invoke('pero:computer', command),
   chooseWorkspace: () => ipcRenderer.invoke('pero:workspace'),
   chooseContext: (command?: object) => ipcRenderer.invoke('pero:context', command),
   onEvent: (callback: (event: unknown) => void) => {

@@ -6,7 +6,8 @@ export type Paper = {
 export type Intent = {
   id: string; createdAt?: string; question: string; requestId: string; paperIds?: string[]; papers: Paper[];
   retrieval?: { method: string; totalMatches: number; unmatchedPaperIds: string[] };
-  verifyCode: boolean; verificationPlan: string; prompt: string; fullText?: boolean; passages?: { id: string; page: number; content: string }[];
+  parentIntentId?: string; conversation?: { intentId: string; question: string; answer: string }[];
+  verifyCode: boolean; verificationPlan: string; prompt: string; fullText?: boolean; passages?: { id: string; paperId: string; page: number; content: string }[];
 };
 export type Evidence = { paperId: string; quote: string; passageId?: string };
 export type ReportSection = { heading: string; content: string; paperIds: string[]; evidence?: Evidence[] };

@@ -89,3 +89,6 @@ Reasoning, tool input/results and ACP session title replay:
 The opt-in trusted Kubernetes Worker runtime and its separate fake-API,
 PostgreSQL, process and cluster evidence are tracked in
 [Agent Sandbox verification](agent-sandbox-runtime.md).
+
+Retained generic HTTP(S) Web sources, isolated Electron and native Wry engine
+acceptance: [web-documents.md](web-documents.md).

@@ -77,6 +77,7 @@ class ResearchDocuments(unittest.TestCase):
             lambda item: item.update(intentId="0" * 64),
             lambda item: item.update(sections=[]),
             lambda item: item["sections"][0].update(paperIds=["0" * 64]),
+            lambda item: item["sections"][0].update(evidence=item["sections"][0]["evidence"] * 9),
             lambda item: item["sections"][0]["evidence"][0].update(quote="Invented evidence."),
             lambda item: item["sections"][0]["evidence"][0].update(paperId=other.id),
             lambda item: item["sections"][0].update(paperIds=[other.id]),

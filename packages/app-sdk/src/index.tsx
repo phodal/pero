@@ -9,6 +9,8 @@ export { AppSurface, appSurface } from './app-use';
 export type { AppObject, AppObjectAction, AppObjectSnapshot } from './app-use';
 export { appObjectProps } from './app-use';
 export { useAppAgent } from './agent';
+export { openDocument } from './document';
+export type { AppDocumentInput } from './document';
 
 export type AppContext = { locale: 'en' | 'zh-CN'; dark: boolean; active: boolean; appearance?: AppearanceSnapshot };
 const Context = createContext<AppContext>({ locale: 'en', dark: false, active: true });

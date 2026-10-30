@@ -18,14 +18,25 @@ date: 2026-10-29
 
 | 主线 | 当前状态 | 接下来的验收对象 |
 | --- | --- | --- |
-| 工作区 Item 与生命周期 | 已有会话/App 导航，补上活动标签显现与稳定身份 | 文档、代码、数据及嵌入内容的打开、切换、恢复、关闭与焦点路由 |
-| Editor 与 Markdown | Chat 有保留渲染和来源阅读器 | 普通代码/文档也能使用完整来源视图；查找、折叠、选择与来源定位逐项对齐 |
+| 工作区 Item 与生命周期 | 已有会话/App 导航及独立来源文档 Item；补上活动标签显现与稳定身份 | 文档、代码、数据及嵌入内容的打开、切换、恢复、关闭与焦点路由 |
+| Editor 与 Markdown | Chat 与工作区已复用保留的来源阅读器；代码结果可独立打开 | 普通代码/文档也能使用完整来源视图；查找、折叠、选择与来源定位逐项对齐 |
 | WebView 与嵌入式 App | 已有受管 iframe | App 内消费同一来源契约；MCP Apps 的资源发现、标准桥接和生命周期单独补齐 |
 | 图标与内容识别 | 已有共享图标资源 | 由内容类型和工作区操作使用统一图标入口，覆盖主题与交互状态 |
 | JSON 与数据投影 | Chat 中已有基础阅读与表格投影 | 作为上述视图系统的一种内容消费方式；数据集与图表不能只靠 JSON 字符串展示 |
 | 输出预算与文件读取 | Desktop 已有局部能力 | 随完整用户工作流验收，不继续作为视图重构的中心 |
 
+独立文档 Item 的第一阶段实现与代码场景验收见 [Workspace document views](../fitness/workspace-documents.md)。此阶段完成共享来源、独立标签及其阅读状态生命周期；Markdown/WebView/MCP Apps 的未完成部分仍按各自边界推进。
+
 实施优先级恢复为：工作区内容生命周期 → Editor/Markdown/WebView 使用链路 → App 消费验收 → 内容专用投影 → 输出预算与性能优化。当前阅读器验证仅证明已列出的局部操作，未完成的主线仍按下文步骤逐项交付。
+
+Implementation update (2026-10-30): file/Markdown and real Virtual Cell result
+workflows now pass through retained workspace documents. Current receipts and
+remaining gaps are tracked in [workspace document acceptance](../fitness/workspace-documents.md)
+and the [active implementation matrix](../exec-plans/2026-10-30-content-view-parity.md).
+Generic HTTP(S) Web views now run in isolated Electron and native GPUI Kit/Wry
+engines; [Web acceptance](../fitness/web-documents.md) separates actual engine
+proof from physical UI/platform limits. Restart recovery, MCP Apps and
+large-source performance remain incomplete.
 
 ## 1. 研究基线与已有能力
 

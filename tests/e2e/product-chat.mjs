@@ -7,13 +7,15 @@ import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 const root = resolve(import.meta.dirname, '../..');
 const temp = await realpath(await mkdtemp(join(tmpdir(), 'pero-product-chat-')));
-const output = resolve(root, 'test-results/product-chat');
+const output = process.env.PERO_PRODUCT_CHAT_RESULTS || resolve(root, 'test-results/product-chat');
 const distribution = join(temp, 'distribution');
 await mkdir(output, { recursive: true });
 await mkdir(join(distribution, 'desktop/dist'), { recursive: true });
 await mkdir(join(distribution, 'bin'), { recursive: true });
 const host = process.platform === 'win32' ? 'pero-host.exe' : 'pero-host';
-await cp(resolve(root, 'target/debug', host), join(distribution, 'bin', host));
+await cp(process.env.PERO_TEST_HOST_BINARY || resolve(root, 'target/debug', host), join(distribution, 'bin', host));
+const computer = process.platform === 'win32' ? 'pero-computer.exe' : 'pero-computer';
+await cp(resolve(root, 'target/debug', computer), join(distribution, 'bin', computer));
 await cp(resolve(root, 'web/dist'), join(distribution, 'web/chat'), { recursive: true });
 await build({ entryPoints: { product: resolve(root, 'desktop/src/main/product.ts'), 'product-preload': resolve(root, 'desktop/src/product/preload.ts') },
   outdir: join(distribution, 'desktop/dist'), outExtension: { '.js': '.cjs' }, bundle: true, platform: 'node', format: 'cjs', external: ['electron'] });
@@ -55,6 +57,16 @@ try {
   await chat.waitForFunction(() => window.peroChatDiagnostics && JSON.parse(window.peroChatDiagnostics.snapshot()).connected, undefined, { timeout: 60000 });
   const state = () => chat.evaluate(() => JSON.parse(window.peroChatDiagnostics.snapshot()));
   await expect.poll(async () => (await state()).agents?.length || 0).toBeGreaterThan(0);
+  if (process.platform === 'darwin') {
+    await expect.poll(() => app.evaluate(({Menu}) => Menu.getApplicationMenu().getMenuItemById('computer-enable').checked)).toBe(false);
+    await app.evaluate(({Menu}) => Menu.getApplicationMenu().getMenuItemById('computer-enable').click());
+    await expect.poll(async () => JSON.parse(await readFile(appearanceSettings,'utf8')).computer_use?.enabled).toBe(true);
+    await expect.poll(() => app.evaluate(({Menu}) => Menu.getApplicationMenu().getMenuItemById('computer-enable').checked)).toBe(true);
+    await app.evaluate(({Menu}) => Menu.getApplicationMenu().getMenuItemById('computer-stop').click());
+    await expect.poll(async () => JSON.parse(await readFile(appearanceSettings,'utf8')).computer_use?.enabled).toBe(false);
+    expect(JSON.parse(await readFile(appearanceSettings,'utf8')).chat_agent).toBe('codex');
+    checks.push('Computer Use menu persists enable/disable through Host and stops the staged native helper');
+  }
   expect(await chat.evaluate(() => typeof window.product)).toBe('undefined');
   expect(await domainFrame.locator('body').evaluate(() => typeof window.product)).toBe('undefined');
   expect(await chat.evaluate(() => { try { return typeof parent.product; } catch { return 'cross-origin'; } })).toBe('cross-origin');

@@ -1,6 +1,6 @@
 use super::{ActionHandler, Ui, click};
 use gpui_kit::{
-    component::{Disableable, button::*},
+    component::{Disableable, Sizable, button::*},
     prelude::*,
     *,
 };
@@ -19,12 +19,12 @@ pub(crate) fn environments(
 ) -> Div {
     let p = ui.palette;
     div()
-        .p(px(32.))
+        .p(px(pero_theme::WorkbenchStyle::PAGE))
         .flex_1()
         .child(
             div()
-                .text_size(px(pero_theme::TextRole::Title.pixels(ui.typography.ui)))
-                .font_weight(FontWeight::BOLD)
+                .text_size(px(pero_theme::TextRole::Heading.pixels(ui.typography.ui)))
+                .font_weight(FontWeight::MEDIUM)
                 .child(ui.t("settings.agents")),
         )
         .child(
@@ -35,12 +35,12 @@ pub(crate) fn environments(
         )
         .children(agents.iter().enumerate().map(|(i, a)| {
             div()
-                .py(px(24.))
-                .border_b_1()
+                .py(px(8.))
+                .border_b(px(0.5))
                 .border_color(p.border)
                 .flex()
                 .items_center()
-                .gap(px(16.))
+                .gap(px(8.))
                 .child(ui.icon("terminal"))
                 .child(a.name.clone())
                 .child(div().flex_1())
@@ -55,6 +55,8 @@ pub(crate) fn environments(
                 .child(
                     Button::new(("connect-agent", i))
                         .outline()
+                        .small()
+                        .h(px(ui.typography.control_height()))
                         .label(ui.t("chat.new"))
                         .disabled(!a.available)
                         .on_click(click(&on_action, WorkspaceAction::NewSession(i))),

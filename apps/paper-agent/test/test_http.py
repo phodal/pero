@@ -38,8 +38,8 @@ class ResearchHTTP(unittest.TestCase):
 
             def call(method, path, body=None, token="test-token", raw=False):
                 connection = HTTPConnection("127.0.0.1", server.server_port, timeout=3)
-                payload = json.dumps(body) if body is not None else None
-                connection.request(method, path, body=payload, headers={"Content-Type": "application/json", "X-Pero-App-Token": token})
+                payload = body if isinstance(body, bytes) else json.dumps(body) if body is not None else None
+                connection.request(method, path, body=payload, headers={"Content-Type": "application/pdf" if isinstance(body, bytes) else "application/json", "X-Pero-App-Token": token})
                 response = connection.getresponse()
                 content = response.read()
                 result = content if raw else json.loads(content)
@@ -106,6 +106,20 @@ class ResearchHTTP(unittest.TestCase):
                 located = call('POST', '/api/evidence', dict(intentId=full_input['id'], paperId=pdf_paper['id'], passageId=passage['id'], quote='Second page. Exact original evidence.'))[1]
                 self.assertEqual(located['pdf']['pages'], [2])
                 self.assertTrue(located['pdf']['rects'])
+                uploaded_bytes = pdf_fixture().replace(b'Second', b'Local!')
+                status, local = call('POST', '/api/pdf/import?filename=local.pdf', uploaded_bytes)
+                self.assertEqual(status, 201)
+                self.assertEqual(local['source'], 'local-pdf')
+                self.assertEqual(call('POST', '/api/pdf/import?filename=renamed.pdf', uploaded_bytes)[1]['id'], local['id'])
+                plan = call('POST', '/api/research/plan', dict(question='本地原文', paperIds=[local['id']], fullText=True, requestId='http-local-plan'))[1]
+                self.assertEqual(plan['stage'], 'plan')
+                batch = call('POST', '/api/research/search', dict(id=plan['id'], text='{ "query": "Local" }'))[1]
+                self.assertEqual(batch['stage'], 'select')
+                saved_batch = store.retrieval_batch(batch['id'])
+                result = call('POST', '/api/research/select', dict(id=batch['id'], text=json.dumps(dict(passageIds=[saved_batch.passages[0].id], followupQuery=None, gaps=[]))))[1]
+                self.assertEqual(result['stage'], 'answer')
+                self.assertEqual(result['intent']['retrieval']['queries'], ['Local'])
+
 
 
             finally:

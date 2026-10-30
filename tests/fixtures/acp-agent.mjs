@@ -88,7 +88,7 @@ readline.createInterface({input:process.stdin}).on('line',line=>{
   if(text.includes('contentview')){
    const path=process.argv.find(arg=>arg.startsWith('--content-file='))?.slice('--content-file='.length);
    const source=readFileSync(path,'utf8');
-   notify({sessionUpdate:'tool_call',toolCallId:`content-${turn}`,title:'Structured result',kind:'other',status:'completed',content:[{type:'content',content:{type:'text',text:source}}]});
+   notify({sessionUpdate:'tool_call',toolCallId:`content-${turn}`,title:process.argv.find(arg=>arg.startsWith('--content-title='))?.slice('--content-title='.length)||'Structured result',kind:'other',status:'completed',content:[{type:'content',content:{type:'text',text:source}}]});
    notify({sessionUpdate:'agent_message_chunk',content:{type:'text',text:'Result ready.'}});
    finish('end_turn');return;
   }

@@ -283,11 +283,11 @@ impl Workbench {
             LocalWorkerStatus::NeedsAttention => "worker.local.needs_attention",
             LocalWorkerStatus::Unavailable => "worker.local.unavailable",
         };
-        div().id("local-execution").flex().flex_col().gap(px(14.)).max_w(px(720.))
-            .when(first_run,|el|el.p(px(28.)).w_full())
+        div().id("local-execution").flex().flex_col().gap(px(pero_theme::WorkbenchStyle::SECTION)).max_w(px(720.))
+            .when(first_run,|el|el.p(px(pero_theme::WorkbenchStyle::PAGE)).w_full())
             .child(div().flex().items_center().gap(px(8.))
                 .child(Icon::default().path("icons/devices.svg"))
-                .child(div().flex_1().text_size(px(if first_run {24.}else{18.})).font_weight(FontWeight::SEMIBOLD)
+                .child(div().flex_1().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading)).font_weight(FontWeight::SEMIBOLD)
                     .child(self.t(if first_run {"worker.local.first_title"}else{"worker.local.title"})))
                 .when(!first_run,|el|el.child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted).child(self.t(status_key)))))
             .when(first_run,|el|el.child(div().whitespace_normal().text_color(p.text_muted).child(self.t("worker.local.first_hint"))))
@@ -318,7 +318,7 @@ impl Workbench {
                 } else {el}
             })
             .when(show_form,|el|el.child(div().flex().flex_col().gap(px(12.))
-                .child(field(self.t("worker.local.name"),Input::new(&local.name).accessibility_id("local-worker-name").aria_label(self.t("worker.local.name")).disabled(busy).into_any_element()))
+                .child(field(self.t("worker.local.name"),pero_theme::WorkbenchStyle::input(Input::new(&local.name), cx).accessibility_id("local-worker-name").aria_label(self.t("worker.local.name")).disabled(busy).into_any_element()))
                 .child(field(self.t("worker.local.project"),Button::new("local-worker-project").outline().w_full().justify_start().label(project_label)
                     .dropdown_caret(true).disabled(busy || project_ids.is_empty())
                     .dropdown_menu_with_anchor(Anchor::BottomLeft,move|menu,_,_|project_ids.iter().fold(menu.min_w(px(220.)),|menu,id|{
@@ -326,7 +326,7 @@ impl Workbench {
                         menu.item(PopupMenuItem::new(id.clone()).on_click(move|_,_,cx|{let _=workbench.update(cx,|this,cx|{this.local_execution.project_id=id.clone();cx.notify();});}))
                     })).into_any_element()))
                 .when(no_projects,|el|el.child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.warning).child(self.t("worker.local.no_projects"))))
-                .child(field(self.t("worker.local.workspace_key"),Input::new(&local.workspace_key).accessibility_id("local-worker-workspace-key").aria_label(self.t("worker.local.workspace_key")).disabled(busy).into_any_element()))
+                .child(field(self.t("worker.local.workspace_key"),pero_theme::WorkbenchStyle::input(Input::new(&local.workspace_key), cx).accessibility_id("local-worker-workspace-key").aria_label(self.t("worker.local.workspace_key")).disabled(busy).into_any_element()))
                 .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).whitespace_normal().text_color(p.text_muted).child(self.t("worker.local.workspace_hint")))
                 .child(field(self.t("worker.local.directory"),Button::new("local-worker-directory").outline().w_full().justify_start().icon(IconName::Folder)
                     .label(path_label).tooltip(local.path.clone()).disabled(busy).on_click(cx.listener(|this,_,_,cx|this.command(json!({"action":"choose_worker_workspace"}),cx))).into_any_element()))

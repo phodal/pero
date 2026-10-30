@@ -1,7 +1,8 @@
 use crate::artifact_read::ArtifactView;
 use crate::session_state::SessionState;
 use crate::{content_reader::ContentReader, stream::StreamText};
-use pero_contracts::content_document::ContentDocument;
+use pero_contracts::content_document::{ContentDocument,DocumentSource};
+use pero_contracts::content_origin::ContentOrigin;
 use gpui_kit::{App, AppContext as _, Entity};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -82,6 +83,7 @@ pub struct Tool {
     pub locations: Vec<String>,
     pub status: String,
     pub content: String,
+    pub source_revision:u64,
     /// Original ACP output, including diffs and terminal references. Arguments
     /// are intentionally kept out of the default tool presentation.
     pub output: Vec<Value>,
@@ -299,6 +301,7 @@ impl Conversation {
                             locations: vec![],
                             status: "pending".into(),
                             content: String::new(),
+                            source_revision:0,
                             output: vec![],
                             transcript: Default::default(),
                             input_open: false,
@@ -362,10 +365,11 @@ impl Conversation {
                     .collect::<Vec<_>>()
                     .join("\n");
                 if next != tool.content {
-                    let revision = tool.document.as_ref().map_or(1, |document| document.revision + 1);
+                    tool.source_revision+=1;
+                    let revision=tool.source_revision;
                     tool.artifact = ArtifactView::from_content(&next);
                     tool.document = ContentDocument::from_tool(
-                        format!("{}/{}", self.id, tool.id), revision, &next,
+                        DocumentSource {id:format!("{}/{}",self.id,tool.id),title:tool.title.clone(),origin:ContentOrigin::Conversation {thread_id:self.id.clone()}}, revision, &next,
                     );
                     if let Some(document) = &tool.document {
                         tool.view = None;

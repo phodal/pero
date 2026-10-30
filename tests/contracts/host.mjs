@@ -8,13 +8,14 @@ import { resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import Ajv2020 from 'ajv/dist/2020.js';
 import schema from '../../protocol/generated/host.schema.json' with { type: 'json' };
+import computerRequests from '../../protocol/generated/computer-request.schema.json' with { type: 'json' };
+import computerEvents from '../../protocol/generated/computer-response.schema.json' with { type: 'json' };
 
 const root = resolve(import.meta.dirname, '../..');
 const ajv = new Ajv2020({ allErrors: true, strict: true, strictTypes: false });
-ajv.addSchema(schema);
-const validator = (name) => ajv.getSchema(`${schema.$id}#/$defs/${name}`);
-const validInput = validator('HostInput');
-const validEvent = validator('HostEvent');
+ajv.addSchema(schema).addSchema(computerRequests).addSchema(computerEvents);
+const validator = (name) => { const source=[schema,computerRequests,computerEvents].find(source=>source.$defs[name]);return source&&ajv.getSchema(`${source.$id}#/$defs/${name}`); };
+const validInput = value => (value.method?.startsWith('settings.computer') ? validator('ComputerSettingsRequest') : validator('HostInput'))(value);
 // Map each discriminator value to its variant so failures report one branch, not every oneOf arm.
 const variants = (union, tag) => schema.$defs[union].oneOf.flatMap(function flatten({ $ref }) {
   const name = $ref.split('/').pop();
@@ -22,6 +23,7 @@ const variants = (union, tag) => schema.$defs[union].oneOf.flatMap(function flat
   return def.oneOf ? def.oneOf.flatMap(flatten) : [[def.properties[tag].const, name]];
 });
 const eventVariants = new Map(variants('HostEvent', 'kind'));
+for (const name of ['ComputerSettingsEvent','ComputerSettingsErrorEvent']) eventVariants.set(computerEvents.$defs[name].properties.kind.const,name);
 const commandVariants = new Map(variants('HostCommand', 'action'));
 const explain = (name, value) => {
   if (!name) return 'no matching variant';
@@ -50,7 +52,7 @@ function startHost() {
     let event;
     try { event = JSON.parse(line); } catch { failures.push(`non-JSON event: ${line}`); return; }
     seen.add(event.kind);
-    if (eventVariants.has(event.kind) && !validEvent(event)) failures.push(`event ${explain(eventVariants.get(event.kind), event)}\n    ${line.slice(0, 240)}`);
+    if (eventVariants.has(event.kind) && !validator(eventVariants.get(event.kind))(event)) failures.push(`event ${explain(eventVariants.get(event.kind), event)}\n    ${line.slice(0, 240)}`);
     // Replayed journal entries are validated by ReplayData; count their kinds too.
     for (const replayed of event.kind === 'replay' ? event.data?.events ?? [] : []) seen.add(`replay:${replayed.kind}`);
     events.push(event);
@@ -58,7 +60,7 @@ function startHost() {
   });
   const send = (input, { invalid = false } = {}) => {
     if (!invalid && !validInput(input)) {
-      const name = input.action ? commandVariants.get(input.action) : input.method === 'settings.remote' ? 'SetRemoteSettingsRequest' : input.method ? 'SetLocaleRequest' : 'EchoRequest';
+      const name = input.action ? commandVariants.get(input.action) : input.method === 'documents' ? 'FileDocumentRequest' : input.method === 'settings.remote' ? 'SetRemoteSettingsRequest' : input.method ? 'SetLocaleRequest' : 'EchoRequest';
       const preview = input.method === 'settings.remote' ? '[remote settings redacted]' : JSON.stringify(input);
       failures.push(`input ${preview}: ${explain(name, input)}`);
     }
@@ -81,6 +83,27 @@ try {
   let host = startHost();
   await host.next('settings');
   await host.next('ready');
+  if ((await host.next('computer_settings')).data.enabled !== false) failures.push('Computer Use must default to disabled');
+  host.send({method:'settings.computer',id:'computer-enable',enabled:true});
+  if (!(await host.next('computer_settings',event=>event.request_id==='computer-enable')).data.enabled) failures.push('Computer Use was not enabled');
+  host.send({method:'settings.computer',id:'computer-invalid',enabled:'true'},{invalid:true});
+  await host.next('computer_settings_error',event=>event.request_id==='computer-invalid');
+  host.send({method:'settings.computer.get'});
+  if (!(await host.next('computer_settings')).data.enabled) failures.push('Invalid Computer Use settings replaced the saved value');
+
+  const guide=resolve(temp,'guide.md');
+  writeFileSync(guide,'# File document\n');
+  writeFileSync(resolve(temp,'data set.json'),'[{"n":9007199254740993}]');
+  host.send({method:'documents',action:'open',request_id:'file-open',path:guide});
+  const openedFile=await host.next('document_file',e=>e.request_id==='file-open');
+  if(openedFile.text!=='# File document\n' || openedFile.data.format.kind!=='markdown')failures.push('File document source/format did not cross the Host boundary');
+  host.send({method:'documents',action:'save',request_id:'file-save',source:openedFile.data.source.id,revision:openedFile.data.revision,text:'# Saved\n'});
+  await host.next('document_file',e=>e.request_id==='file-save');
+  if(readFileSync(guide,'utf8')!=='# Saved\n')failures.push('File save did not reach disk');
+  host.send({method:'documents',action:'follow',request_id:'file-link',source:openedFile.data.source.id,href:'data%20set.json'});
+  const linkedFile=await host.next('document_file',e=>e.request_id==='file-link');
+  if(linkedFile.text!=='[{"n":9007199254740993}]')failures.push('Relative file link changed exact source');
+  host.send({method:'documents',action:'release',source:openedFile.data.source.id});
 
   host.send({ id: 'probe-1', text: '你好，Pero' });
   await host.next('echo', (e) => e.request_id === 'probe-1');
@@ -91,8 +114,9 @@ try {
   const legacyWorkbench = {appearance:'dark',projects:[{workspace:temp,project_id:'pero'}]};
   host.send({method:'settings.workbench',preferences:legacyWorkbench});
   const migrated = await host.next('workbench_settings');
-  if (!isDeepStrictEqual(migrated.data,{...legacyWorkbench,accent:'teal',typography:{ui_size:14,chat_size:16,code_size:null},layout:{chat_width:420,chat_open:false}})) failures.push('Legacy workbench preferences did not restore default layout');
-  const workbench = {...legacyWorkbench,accent:'blue',typography:{ui_size:18,chat_size:20,code_size:null},layout:{chat_width:512,chat_open:true}};
+  const expectedLegacy={...legacyWorkbench,accent:'teal',typography:{ui_size:14,chat_size:16,code_size:null},layout:{chat_width:420,chat_open:false}};
+  if (!isDeepStrictEqual(migrated.data,expectedLegacy)) failures.push('Legacy workbench preferences did not restore default layout');
+  const workbench = {...expectedLegacy,accent:'blue',typography:{ui_size:18,chat_size:20,code_size:null},layout:{chat_width:512,chat_open:true}};
   host.send({method:'settings.workbench',preferences:workbench});
   const applied = await host.next('workbench_settings');
   if (!isDeepStrictEqual(applied.data,workbench)) failures.push('Workbench preferences were not acknowledged');

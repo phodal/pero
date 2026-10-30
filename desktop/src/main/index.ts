@@ -1,5 +1,5 @@
 import {ConversationContentRead} from '../../../packages/content-source/index.ts';
-import { app, BrowserWindow, ipcMain, Menu, protocol, net, dialog, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, protocol, net, dialog, shell, globalShortcut } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
@@ -9,9 +9,12 @@ import { pathToFileURL } from 'node:url';
 import { normalizeLocale, translate, type Locale, type MessageKey } from '../../../locales';
 import { RemoteAdapter, type StoredRemoteConnection } from './remote';
 import { DesktopApps } from './apps';
+import {WebPages} from './web-pages';
 import { DesktopContributions } from './contributions';
 import { LocalExecutionController } from './local-execution';
 import { DesktopAppUse } from './app-use-mcp';
+import { DesktopComputer } from './computer';
+import { computerPermissions } from './computer-electron';
 import { backgroundTest, testWindowOptions } from './test-display';
 
 // Register before ready so macOS cannot deliver the callback before the listener.
@@ -40,6 +43,8 @@ let window: BrowserWindow;
 let host: ChildProcessWithoutNullStreams;
 let ready = false;
 let appUse: DesktopAppUse | undefined;
+let webPages:WebPages|undefined;
+let computer: DesktopComputer | undefined;
 let locale: Locale = 'en';
 const t = (key: MessageKey) => translate(locale, key);
 let localExecution: LocalExecutionController | undefined;
@@ -56,14 +61,14 @@ const apps = new DesktopApps(request => {
 },async(name,token)=>{if(!appUse)throw new Error('App input unavailable');return appUse.input(name,token);});
 let runtimeSettingsPath = '';
 const preferenceWrites = new Map<string, { resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
-async function saveRemotePreference(connection: StoredRemoteConnection | null): Promise<void> {
+async function savePreference(method: 'settings.remote' | 'settings.computer', fields: object): Promise<void> {
   for (let i = 0; i < 100 && !ready; i++) await new Promise(resolveWait => setTimeout(resolveWait, 20));
   if (!ready || !host?.stdin.writable) throw new Error('The local runtime is unavailable. Reopen Desktop and reconnect.');
-  const id = `remote-settings-${randomUUID()}`;
+  const id = `settings-${randomUUID()}`;
   return new Promise((resolveWrite, rejectWrite) => {
     const timer = setTimeout(() => { preferenceWrites.delete(id); rejectWrite(new Error('Saving the connection timed out. Retry after checking the local runtime.')); }, 5000);
     preferenceWrites.set(id, { resolve: resolveWrite, reject: rejectWrite, timer });
-    host.stdin.write(JSON.stringify({ method: 'settings.remote', id, connection }) + '\n', error => {
+    host.stdin.write(JSON.stringify({ method, id, ...fields }) + '\n', error => {
       if (!error) return;
       clearTimeout(timer); preferenceWrites.delete(id);
       rejectWrite(new Error('The local runtime could not save the connection. Retry connecting.'));
@@ -86,7 +91,7 @@ const remote = new RemoteAdapter(send, {
       return Object.hasOwn(value, 'remote_connection') ? value.remote_connection : undefined;
     } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined; throw error; }
   },
-  save: saveRemotePreference,
+  save: connection => savePreference('settings.remote', {connection}),
 });
 const contributions = new DesktopContributions(send, {
   request: (path, method, body) => remote.contributionRequest(path, method, body),
@@ -113,7 +118,7 @@ function updateMenus() {
       { role: 'cut', label: t('menu.cut') }, { role: 'copy', label: t('menu.copy') },
       { role: 'paste', label: t('menu.paste') }, { role: 'selectAll', label: t('menu.select_all') },
     ] },
-    { label: t('menu.workbench'), submenu: [{ id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
+    { label: t('menu.workbench'), submenu: [{id:'open-url',label:t('web.open_url'),click:()=>send({version:1,kind:'web_choose',request_id:null,text:''})}, { id:'open-file',label:t('content.open_file'),accelerator:'CmdOrCtrl+O',click:()=>send({version:1,kind:'document_choose',request_id:null,text:''}) }, { id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
     { label: t('menu.language'), submenu: [
       { id: 'locale-zh-CN', label: '简体中文', type: 'radio', checked: locale === 'zh-CN', click: () => changeLocale('zh-CN') },
       { id: 'locale-en', label: 'English', type: 'radio', checked: locale === 'en', click: () => changeLocale('en') },
@@ -145,7 +150,12 @@ app.whenReady().then(async () => {
   },send);
   // Local Agents must not inherit the Desktop's cloud operator/database credentials.
   const hostEnvironment = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PERO_')));
-  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal)=>apps.applyWrite(write,signal)});
+  computer = new DesktopComputer(resolve(root, `${app.isPackaged ? 'bin' : 'target/debug'}/pero-computer${process.platform === 'win32' ? '.exe' : ''}`), resolve(app.getPath('userData'),'computer-use'), send, {
+    save: enabled => savePreference('settings.computer',{enabled}),
+    permissions: computerPermissions,
+  });
+  globalShortcut.register('CommandOrControl+Shift+Escape',()=>{void computer?.command({action:'computer_stop'}).catch(error=>console.error(error));});
+  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal)=>apps.applyWrite(write,signal)},computer);
   const appUseEnvironment = await appUse.start();
   host = spawn(resolve(root, `${app.isPackaged ? 'bin' : 'target/debug'}/pero-host${process.platform === 'win32' ? '.exe' : ''}`), ['--stdio'], { cwd: app.isPackaged ? app.getPath('home') : root, stdio: 'pipe', env: {
     ...hostEnvironment, ...appUseEnvironment, PATH: [resolve(root,'bin'),resolve(root,'node_modules/.bin'),process.env.PATH,resolve(app.getPath('home'),'.opencode/bin'),'/opt/homebrew/bin',resolve(app.getPath('home'),'.local/bin')].filter(Boolean).join(delimiter), PERO_LOCALE: locale,
@@ -162,6 +172,13 @@ app.whenReady().then(async () => {
   createInterface({ input: host.stdout }).on('line', (line) => {
     try {
       const message = JSON.parse(line);
+      if(message.kind==='computer_settings'||message.kind==='computer_settings_error'){
+        const pending=preferenceWrites.get(message.request_id);
+        if(pending){clearTimeout(pending.timer);preferenceWrites.delete(message.request_id);}
+        if(message.kind==='computer_settings')void computer!.restore(message.data.enabled).then(()=>pending?.resolve(),error=>pending?.reject(error));
+        else pending?.reject(new Error('Could not save Computer Use settings'));
+        return;
+      }
       appUse?.accept(message);
       localExecution?.accept(message);
       if (apps.accept(message)) return;
@@ -182,8 +199,8 @@ app.whenReady().then(async () => {
     catch { console.error('Invalid Host event'); }
   });
   host.stderr.on('data', (data) => console.error(String(data)));
-  host.on('error', () => { ready = false; appUse?.reset(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_start')); });
-  host.on('exit', () => { ready = false; appUse?.reset(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_stopped')); });
+  host.on('error', () => { ready = false; appUse?.reset(); void computer?.stop(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_start')); });
+  host.on('exit', () => { ready = false; appUse?.reset(); void computer?.stop(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_stopped')); });
   void remote.initialize();
   const trusted = (sender: Electron.IpcMainInvokeEvent) => {
     if (sender.sender !== window.webContents || sender.senderFrame?.url !== 'pero://workbench/') throw new Error('Untrusted sender');
@@ -202,6 +219,7 @@ app.whenReady().then(async () => {
     await remote.command(command);
   });
   ipcMain.handle('pero:apps', (sender, command: unknown) => { trusted(sender); return apps.command(command); });
+  ipcMain.handle('pero:computer',(sender,command:unknown)=>{trusted(sender);return computer!.command(command);});
   ipcMain.handle('pero:content-read', (sender, value: unknown) => {
     trusted(sender);
     if(!appUse) throw new Error('Result files are unavailable');
@@ -222,6 +240,11 @@ app.whenReady().then(async () => {
     if (!r || typeof r.id !== 'string' || r.id.length > 128 || typeof r.text !== 'string' || Array.from(r.text).length > 4096 || !ready) throw new Error('Invalid probe');
     host.stdin.write(JSON.stringify({ id: r.id, text: r.text }) + '\n');
   });
+  ipcMain.handle('pero:web',(sender,command:unknown)=>{
+    trusted(sender);
+    try {if(!webPages)throw new Error('Web views are unavailable');webPages.command(command);}
+    catch(error){send({version:1,kind:'web_error',request_id:null,text:error instanceof Error?error.message:String(error)});}
+  });
   ipcMain.handle('pero:session', async (sender, command: unknown) => {
     trusted(sender);
     if (!ready || !command || typeof command !== 'object') throw new Error('Invalid session command');
@@ -236,7 +259,12 @@ app.whenReady().then(async () => {
       if (!selected.canceled && selected.filePaths[0]) send({version:1,kind:'local_worker_workspace',request_id:null,text:'',data:{path:realpathSync(selected.filePaths[0])}});
       return;
     }
-    if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
+    if (action === 'choose_document') {
+      const selected=await dialog.showOpenDialog(window,{properties:['openFile']});
+      if(!selected.canceled && selected.filePaths[0]) host.stdin!.write(JSON.stringify({method:'documents',action:'open',request_id:'open-file',path:selected.filePaths[0]})+'\n');
+      return;
+    }
+    if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'documents'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
     appUse?.authority.command(command as {action?:string;thread_id?:string});
     host.stdin.write(JSON.stringify(command) + '\n');
   });
@@ -263,8 +291,14 @@ app.whenReady().then(async () => {
   window = new BrowserWindow({ ...testWindowOptions, width: 1488, height: 1086, minWidth: 1000, minHeight: 680,
     title: t('window.title'), backgroundColor: '#F7F9FC',
     webPreferences: { ...testWindowOptions.webPreferences, preload: resolve(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  webPages=new WebPages(window,send);
+  window.on('closed',()=>webPages?.dispose());
   window.webContents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main) appUse?.reset(); });
   window.webContents.on('render-process-gone', () => appUse?.reset());
+  window.webContents.on('will-prevent-unload',event=>{
+    const answer=dialog.showMessageBoxSync(window,{type:'warning',message:t('content.unsaved'),detail:t('content.unsaved_window'),buttons:[t('content.keep_editing'),t('content.discard_window')],defaultId:0,cancelId:0});
+    if(answer===1)event.preventDefault();
+  });
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
@@ -294,15 +328,17 @@ app.on('before-quit', quit => {
   quit.preventDefault();
   if (shuttingDown) return;
   shuttingDown = true;
-  appUse?.close(); localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();
+  const computerClosed=appUse?.close()||Promise.resolve(); globalShortcut.unregisterAll(); localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();
   if (!host?.pid || host.exitCode !== null || host.signalCode !== null) {
-    shutdownComplete = true; app.quit(); return;
+    void computerClosed.catch(error=>console.error(error)).finally(()=>{shutdownComplete = true; app.quit();}); return;
   }
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let finishing = false;
   const finish = () => {
-    if (shutdownComplete) return;
-    clearTimeout(timer); shutdownComplete = true;
-    app.quit();
+    if (finishing) return;
+    finishing = true;
+    clearTimeout(timer);
+    void computerClosed.catch(error=>console.error(error)).finally(()=>{shutdownComplete = true; app.quit();});
   };
   // EOF tells the known Host to stop its supervised Worker and Agents. Wait
   // for observed process exit before permitting a replacement Desktop process
@@ -312,5 +348,5 @@ app.on('before-quit', quit => {
     host.kill('SIGTERM');
     timer = setTimeout(() => { host.kill('SIGKILL'); finish(); },2000);
   },10000);
-  host.stdin.end();
+  void computerClosed.catch(error=>console.error(error)).finally(()=>host.stdin.end());
 });

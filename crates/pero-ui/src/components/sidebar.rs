@@ -1,4 +1,3 @@
-use pero_chat_ui::theme::WorkbenchStyle as W;
 use super::{ActionHandler, Ui, click};
 use crate::workspace::WorkbenchPage;
 use gpui_kit::{
@@ -10,6 +9,7 @@ use gpui_kit::{
     prelude::*,
     *,
 };
+use pero_chat_ui::theme::WorkbenchStyle as W;
 
 pub(crate) struct RecentRow {
     pub label: String,
@@ -151,7 +151,6 @@ fn recent_row(
         .items_center()
         .overflow_hidden()
         .child(button)
-
         .children(delete)
 }
 
@@ -182,7 +181,7 @@ pub(crate) fn sidebar(
                 .ghost()
                 .small()
                 .w_full()
-                .h(px(34.))
+                .h(px(ui.typography.row_height()))
                 .justify_start()
                 .child(div().flex_1())
                 .icon(IconName::Plus)
@@ -199,7 +198,10 @@ pub(crate) fn sidebar(
                 .child(div().flex_1())
                 .icon(Icon::default().path("icons/folder.svg"))
                 .label(ui.t("nav.projects"))
-                .selected(matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks))
+                .selected(matches!(
+                    props.navigation,
+                    WorkbenchPage::Projects | WorkbenchPage::Tasks
+                ))
                 .toggled(matches!(
                     props.navigation,
                     WorkbenchPage::Projects | WorkbenchPage::Tasks
@@ -210,9 +212,15 @@ pub(crate) fn sidebar(
                 )),
         )
         .child(
-            div()
-                .py(px(6.))
-                .child(Input::new(props.search).h(px(ui.typography.control_height())).prefix(ui.icon("search").size(px(W::ICON))).w_full()),
+            div().py(px(2.)).child(
+                Styled::h(
+                    Input::new(props.search).small(),
+                    px(ui.typography.control_height()),
+                )
+                .text_size(px(ui.typography.ui))
+                .prefix(ui.icon("search").size(px(W::ICON)))
+                .w_full(),
+            ),
         )
         .child(
             div()
@@ -236,7 +244,7 @@ pub(crate) fn sidebar(
                                 })
                                 .collect::<Vec<_>>();
                             div()
-                                .mb(px(8.))
+                                .mb(px(4.))
                                 .child(
                                     div()
                                         .flex()
@@ -295,7 +303,10 @@ pub(crate) fn sidebar(
                                                     div()
                                                         .px(px(8.))
                                                         .py(px(8.))
-                                                        .text_size(px(pero_theme::TextRole::Caption.pixels(ui.typography.ui)))
+                                                        .text_size(px(
+                                                            pero_theme::TextRole::Caption
+                                                                .pixels(ui.typography.ui),
+                                                        ))
                                                         .text_color(p.text_muted)
                                                         .child(ui.t("project.no_recent")),
                                                 )
@@ -313,7 +324,9 @@ pub(crate) fn sidebar(
                                 div()
                                     .px(px(8.))
                                     .py(px(5.))
-                                    .text_size(px(pero_theme::TextRole::Caption.pixels(ui.typography.ui)))
+                                    .text_size(px(
+                                        pero_theme::TextRole::Caption.pixels(ui.typography.ui)
+                                    ))
                                     .text_color(p.text_muted)
                                     .child(ui.t("project.unassigned")),
                             )

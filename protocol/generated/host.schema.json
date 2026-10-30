@@ -9,6 +9,9 @@
     },
     {
       "$ref": "#/$defs/HostEvent"
+    },
+    {
+      "$ref": "#/$defs/WebCommand"
     }
   ],
   "$defs": {
@@ -502,6 +505,28 @@
       ],
       "additionalProperties": false
     },
+    "AppOrigin": {
+      "title": "AppOrigin",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "app"
+        },
+        "app": {
+          "type": "string"
+        },
+        "panel": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "app",
+        "panel"
+      ],
+      "additionalProperties": false
+    },
     "AppPanel": {
       "title": "AppPanel",
       "type": "object",
@@ -977,6 +1002,24 @@
       "additionalProperties": false,
       "description": "Spread into a model to reject unknown fields, matching serde `deny_unknown_fields`."
     },
+    "CodeContentFormat": {
+      "title": "CodeContentFormat",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "code"
+        },
+        "language": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "language"
+      ],
+      "additionalProperties": false
+    },
     "CommandRejectedData": {
       "title": "CommandRejectedData",
       "type": "object",
@@ -1169,6 +1212,34 @@
       ],
       "additionalProperties": false,
       "description": "Read-only Desktop result-file transport. It never starts an Agent turn."
+    },
+    "ContentFormat": {
+      "title": "ContentFormat",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PlainContentFormat"
+        },
+        {
+          "$ref": "#/$defs/CodeContentFormat"
+        }
+      ]
+    },
+    "ContentOrigin": {
+      "title": "ContentOrigin",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ConversationOrigin"
+        },
+        {
+          "$ref": "#/$defs/FileOrigin"
+        },
+        {
+          "$ref": "#/$defs/AppOrigin"
+        },
+        {
+          "$ref": "#/$defs/McpOrigin"
+        }
+      ]
     },
     "ContextCandidate": {
       "title": "ContextCandidate",
@@ -1888,6 +1959,24 @@
       ],
       "additionalProperties": false
     },
+    "ConversationOrigin": {
+      "title": "ConversationOrigin",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "conversation"
+        },
+        "thread_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "thread_id"
+      ],
+      "additionalProperties": false
+    },
     "DeleteCommand": {
       "title": "DeleteCommand",
       "type": "object",
@@ -1970,6 +2059,120 @@
       ],
       "additionalProperties": false,
       "description": "Emitted by Electron when the Host child cannot start or exits."
+    },
+    "DocumentChooseEvent": {
+      "title": "DocumentChooseEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "document_choose"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentHeader": {
+      "title": "DocumentHeader",
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/DocumentSource"
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "format": {
+          "$ref": "#/$defs/ContentFormat"
+        }
+      },
+      "required": [
+        "source",
+        "revision",
+        "format"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentOpenEvent": {
+      "title": "DocumentOpenEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "document_open"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/DocumentHeader"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentSource": {
+      "title": "DocumentSource",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/ContentOrigin"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "origin"
+      ],
+      "additionalProperties": false
     },
     "EchoEvent": {
       "title": "EchoEvent",
@@ -2120,6 +2323,178 @@
       ],
       "additionalProperties": false
     },
+    "FileDocumentErrorEvent": {
+      "title": "FileDocumentErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "document_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string"
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "conflict"
+                },
+                {
+                  "type": "string",
+                  "const": "unsupported"
+                },
+                {
+                  "type": "string",
+                  "const": "unavailable"
+                },
+                {
+                  "type": "string",
+                  "const": "read_write"
+                }
+              ]
+            }
+          },
+          "required": [
+            "source",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "FileDocumentEvent": {
+      "title": "FileDocumentEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "document_file"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/DocumentHeader"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "FileDocumentRequest": {
+      "title": "FileDocumentRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/OpenFileDocument"
+        },
+        {
+          "$ref": "#/$defs/FollowFileDocument"
+        },
+        {
+          "$ref": "#/$defs/SaveFileDocument"
+        },
+        {
+          "$ref": "#/$defs/ReleaseFileDocument"
+        }
+      ]
+    },
+    "FileOrigin": {
+      "title": "FileOrigin",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "file"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "FollowFileDocument": {
+      "title": "FollowFileDocument",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "documents"
+        },
+        "action": {
+          "type": "string",
+          "const": "follow"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "href": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "source",
+        "href"
+      ],
+      "additionalProperties": false
+    },
     "GetWorkbenchSettingsRequest": {
       "title": "GetWorkbenchSettingsRequest",
       "type": "object",
@@ -2187,6 +2562,33 @@
     "HostEvent": {
       "title": "HostEvent",
       "oneOf": [
+        {
+          "$ref": "#/$defs/WebOpenedEvent"
+        },
+        {
+          "$ref": "#/$defs/WebStateEvent"
+        },
+        {
+          "$ref": "#/$defs/WebClosedEvent"
+        },
+        {
+          "$ref": "#/$defs/WebErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/WebChooseEvent"
+        },
+        {
+          "$ref": "#/$defs/DocumentOpenEvent"
+        },
+        {
+          "$ref": "#/$defs/DocumentChooseEvent"
+        },
+        {
+          "$ref": "#/$defs/FileDocumentEvent"
+        },
+        {
+          "$ref": "#/$defs/FileDocumentErrorEvent"
+        },
         {
           "$ref": "#/$defs/ContentDocumentEvent"
         },
@@ -2306,6 +2708,9 @@
     "HostInput": {
       "title": "HostInput",
       "oneOf": [
+        {
+          "$ref": "#/$defs/FileDocumentRequest"
+        },
         {
           "$ref": "#/$defs/LocalWorkerRequest"
         },
@@ -2843,6 +3248,28 @@
       ],
       "additionalProperties": false
     },
+    "McpOrigin": {
+      "title": "McpOrigin",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp"
+        },
+        "server": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "server",
+        "thread_id"
+      ],
+      "additionalProperties": false
+    },
     "MessageKey": {
       "title": "MessageKey",
       "type": "string",
@@ -2976,6 +3403,33 @@
       "additionalProperties": false,
       "description": "Emitted by Electron from the Workbench menu."
     },
+    "OpenFileDocument": {
+      "title": "OpenFileDocument",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "documents"
+        },
+        "action": {
+          "type": "string",
+          "const": "open"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "path"
+      ],
+      "additionalProperties": false
+    },
     "PermissionCommand": {
       "title": "PermissionCommand",
       "type": "object",
@@ -3061,6 +3515,36 @@
         "text",
         "thread_id",
         "data"
+      ],
+      "additionalProperties": false
+    },
+    "PlainContentFormat": {
+      "title": "PlainContentFormat",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "json"
+            },
+            {
+              "type": "string",
+              "const": "json_lines"
+            },
+            {
+              "type": "string",
+              "const": "text"
+            },
+            {
+              "type": "string",
+              "const": "markdown"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind"
       ],
       "additionalProperties": false
     },
@@ -3204,6 +3688,29 @@
         "version",
         "request_id",
         "text"
+      ],
+      "additionalProperties": false
+    },
+    "ReleaseFileDocument": {
+      "title": "ReleaseFileDocument",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "documents"
+        },
+        "action": {
+          "type": "string",
+          "const": "release"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "source"
       ],
       "additionalProperties": false
     },
@@ -3619,6 +4126,41 @@
         "text",
         "checked",
         "headings"
+      ],
+      "additionalProperties": false
+    },
+    "SaveFileDocument": {
+      "title": "SaveFileDocument",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "documents"
+        },
+        "action": {
+          "type": "string",
+          "const": "save"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "source",
+        "revision",
+        "text"
       ],
       "additionalProperties": false
     },
@@ -4337,6 +4879,31 @@
       ],
       "additionalProperties": false
     },
+    "SurfaceBounds": {
+      "title": "SurfaceBounds",
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "additionalProperties": false
+    },
     "SystemEventBase": {
       "title": "SystemEventBase",
       "type": "object",
@@ -4690,6 +5257,423 @@
         "request_id",
         "text",
         "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "WebChooseEvent": {
+      "title": "WebChooseEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "web_choose"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "WebClosedEvent": {
+      "title": "WebClosedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "web_closed"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WebCommand": {
+      "title": "WebCommand",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/WebOpenCommand"
+        },
+        {
+          "$ref": "#/$defs/WebNavigateCommand"
+        },
+        {
+          "$ref": "#/$defs/WebControlCommand"
+        },
+        {
+          "$ref": "#/$defs/WebSurfaceCommand"
+        }
+      ],
+      "description": "Private Desktop/native browser-engine commands, not Host stdin."
+    },
+    "WebControlCommand": {
+      "title": "WebControlCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "web_back"
+            },
+            {
+              "type": "string",
+              "const": "web_forward"
+            },
+            {
+              "type": "string",
+              "const": "web_reload"
+            },
+            {
+              "type": "string",
+              "const": "web_close"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "WebDocument": {
+      "title": "WebDocument",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "observation": {
+          "$ref": "#/$defs/WebObservation"
+        }
+      },
+      "required": [
+        "id",
+        "observation"
+      ],
+      "additionalProperties": false
+    },
+    "WebErrorEvent": {
+      "title": "WebErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "web_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "WebFailed": {
+      "title": "WebFailed",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "failed"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "WebLoad": {
+      "title": "WebLoad",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/WebLoading"
+        },
+        {
+          "$ref": "#/$defs/WebReady"
+        },
+        {
+          "$ref": "#/$defs/WebFailed"
+        }
+      ]
+    },
+    "WebLoading": {
+      "title": "WebLoading",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "loading"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "WebNavigateCommand": {
+      "title": "WebNavigateCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "web_navigate"
+        },
+        "id": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "id",
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "WebObservation": {
+      "title": "WebObservation",
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "load": {
+          "$ref": "#/$defs/WebLoad"
+        },
+        "can_back": {
+          "type": "boolean"
+        },
+        "can_forward": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "url",
+        "title",
+        "load",
+        "can_back",
+        "can_forward"
+      ],
+      "additionalProperties": false
+    },
+    "WebOpenCommand": {
+      "title": "WebOpenCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "web_open"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "WebOpenedEvent": {
+      "title": "WebOpenedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "web_opened"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/WebDocument"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WebReady": {
+      "title": "WebReady",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "ready"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "WebStateEvent": {
+      "title": "WebStateEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "web_state"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/WebDocument"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WebSurfaceCommand": {
+      "title": "WebSurfaceCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "web_surface"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bounds": {
+          "$ref": "#/$defs/SurfaceBounds"
+        }
+      },
+      "required": [
+        "action",
+        "id"
       ],
       "additionalProperties": false
     },

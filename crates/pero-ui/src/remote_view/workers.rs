@@ -111,8 +111,8 @@ impl Workbench {
             .min_w_0()
             .h_full()
             .overflow_y_scroll()
-            .px(px(24.))
-            .py(px(20.))
+            .px(px(pero_theme::WorkbenchStyle::PAGE))
+            .py(px(12.))
             .child(
                 div()
                     .max_w(px(1000.))

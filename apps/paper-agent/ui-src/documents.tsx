@@ -26,7 +26,7 @@ export function Reader({ paper, busy, api, pdfFocus, onFull, onDiscuss, onMatrix
         <div className="pa-source-text" ref={source} onMouseUp={capture} onKeyUp={capture}>{paper.content ? <ScientificContent content={paper.content}/> : t('loading')}</div>
         {!!excerpt && <div className="pa-reader-actions"><Button onClick={() => onDiscuss(excerpt)}>{t('discussSelection')}</Button></div>}
         <Disclosure summary={t('sourceDetails')}>
-          <a href={paper.url} target="_blank" rel="noreferrer">{t('original')}</a>
+          {paper.source !== 'local-pdf' && <a href={paper.url} target="_blank" rel="noreferrer">{t('original')}</a>}
           {paper.contentKind !== 'full-text' && paper.source === 'alphaxiv' && <Button disabled={busy} onClick={onFull}>{t('fetchFull')}</Button>}
           <dl className="pa-details"><dt>SHA-256</dt><dd>{paper.contentDigest}</dd><dt>{t('frozenInput')}</dt><dd>{paper.fetchedAt}</dd></dl>
           <Disclosure summary={t('rawSource')}><pre className="pa-raw-source">{paper.content}</pre></Disclosure>
@@ -50,7 +50,7 @@ function PrintedEvidence({ evidence, paperIds, intent }: { evidence?: Evidence[]
     return <blockquote className="pa-printed-quote" key={index}><p className="pa-prose">{item.quote}</p><cite>[{number}] {intent.papers.find(paper => paper.id === item.paperId)?.title}</cite></blockquote>;
   })}</div>;
 }
-export function ReportView({ report, intent, onCite, t }: { report: Report | null; intent: Intent | null; onCite(value: Citation): void; t: Translator }) {
+export function ReportView({ report, intent, onCite, t, api }: { report: Report | null; intent: Intent | null; onCite(value: Citation): void; t: Translator; api?: Api }) {
   if (!report || !intent) return <EmptyState heading={t('noReport')} description={t('noReportCopy')}/>;
   return <article className="pa-document pa-report" data-report-id={report.id}>
     <header className="pa-document-heading"><h1>{report.title}</h1><p className="pa-document-meta">{t('unverified')}</p></header>
@@ -58,7 +58,7 @@ export function ReportView({ report, intent, onCite, t }: { report: Report | nul
       <h2>{section.heading}</h2>
       <ScientificContent content={section.content} evidence={section.evidence} onCite={onCite} citationLabel={t('evidence')}/><PrintedEvidence evidence={section.evidence} paperIds={section.paperIds} intent={intent}/><Citations paperIds={section.paperIds} evidence={section.evidence} intent={intent} onCite={onCite} t={t}/>
     </section>)}
-    <EvidenceMatrix matrix={report.matrix} intent={intent} onCite={onCite} t={t}/>
+    <EvidenceMatrix api={api} reportId={report.id} matrix={report.matrix} intent={intent} onCite={onCite} t={t}/>
     <footer className="pa-report-limitations"><h2>{t('limitations')}</h2><p className="pa-prose">{report.limitations}</p>{!!report.experiments?.length && <small>{t('reported')}</small>}</footer>
     <section className="pa-print-only pa-print-appendix">
       {!!report.experiments?.length && <><h2>{t('experiments')}</h2>{report.experiments.map((experiment, index) => <section key={index}>

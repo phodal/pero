@@ -37,7 +37,15 @@ extern "C" {
 }
 
 pub(crate) struct Workbench {
+    pub workspace_focus:FocusHandle,
     pub input: Entity<InputState>,
+    pub documents:Vec<crate::documents::WorkspaceDocument>,
+    #[cfg(not(target_family="wasm"))]
+    pub native_web_pages:std::collections::BTreeMap<String,crate::web_documents::WorkspaceNativeWeb>,
+    pub web_documents:Vec<pero_contracts::web_document::WebDocument>,
+    pub web_address:Entity<InputState>,
+    pub web_entry_open:bool,
+    pub web_surface:String,
     pub locale: String,
     pub input_locale: String,
     pub palettes: Palettes,
@@ -45,6 +53,7 @@ pub(crate) struct Workbench {
     pub preferences: pero_contracts::workbench::WorkbenchPreferences,
     pub preferences_status: crate::settings_menu::PreferenceSaveState,
     pub settings_menu_open: bool,
+    pub computer: Option<pero_contracts::computer_runtime::ComputerUseState>,
     pub settings_panel: Option<Entity<crate::settings_view::SettingsPanel>>,
     #[cfg(not(target_family = "wasm"))]
     pub settings_window: Option<AnyWindowHandle>,
@@ -95,9 +104,15 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> Self {
         cx.bind_keys([
+            KeyBinding::new("cmd-l",crate::web_documents::OpenWeb,None),
+            KeyBinding::new("ctrl-l",crate::web_documents::OpenWeb,None),
+            KeyBinding::new("cmd-o",crate::workspace_view::OpenDocument,None),
+            KeyBinding::new("ctrl-o",crate::workspace_view::OpenDocument,None),
             KeyBinding::new("ctrl-tab", crate::workspace_view::NextContent, None),
             KeyBinding::new("ctrl-shift-tab", crate::workspace_view::PreviousContent, None),
         ]);
+        let workspace_focus=cx.focus_handle();
+        workspace_focus.focus(window,cx);
         let input = cx.new(|cx| {
             InputState::new(window, cx)
                 .placeholder(pero_contracts::i18n::text(&locale, "input.placeholder"))
@@ -108,7 +123,7 @@ impl Workbench {
             }
             cx.notify();
         })];
-        let chat = cx.new(|cx| ChatPanel::new(locale.clone(), window, cx));
+        let chat = cx.new(|cx| {let mut panel=ChatPanel::new(locale.clone(),window,cx);panel.can_open_documents=true;panel});
         let search = cx.new(|cx| {
             InputState::new(window, cx)
                 .placeholder(pero_contracts::i18n::text(&locale, "sessions.search"))
@@ -119,12 +134,13 @@ impl Workbench {
             this.sync_follow(cx);
             cx.notify();
         }));
-        subscriptions.push(cx.subscribe(&chat, |this, _, event, cx| {
+        subscriptions.push(cx.subscribe_in(&chat, window, |this, _, event, window, cx| {
             match event {
                 ChatAction::Command(command) => this.command(
                     serde_json::to_value(command).expect("serializable command"),
                     cx,
                 ),
+                ChatAction::OpenDocument(document)=>this.open_document(document.clone(),window,cx),
                 ChatAction::Content(intent) => this.command(serde_json::to_value(intent).expect("content intent"), cx),
                 ChatAction::ChooseWorkspace => {
                     this.command(json!({"action":"choose_workspace"}), cx)
@@ -161,6 +177,18 @@ impl Workbench {
             cx.notify();
         }));
         subscriptions.push(cx.subscribe(&search, |_, _, _: &InputEvent, cx| cx.notify()));
+        let web_address=cx.new(|cx|InputState::new(window,cx).placeholder("https://"));
+        subscriptions.push(cx.subscribe_in(&web_address,window,|this,input,event:&InputEvent,window,cx| {
+            if matches!(event,InputEvent::PressEnter {..}) {
+                let url=input.read(cx).value().to_string();
+                let command=match this.navigation.current() {
+                    Some(WorkspaceItem::Web(id))=>json!({"action":"web_navigate","id":id,"url":url}),
+                    _=>json!({"action":"web_open","url":url}),
+                };
+                this.web_command(command,window,cx);
+                this.workspace_focus.focus(window,cx);
+            }
+        }));
         let project_binding = cx.new(|cx| InputState::new(window, cx));
         subscriptions.push(cx.subscribe(&project_binding, |this, _, event, cx| {
             if matches!(event, InputEvent::Change) {
@@ -180,6 +208,10 @@ impl Workbench {
             false,
         );
         Self {
+            workspace_focus,
+            #[cfg(not(target_family="wasm"))]
+            native_web_pages:Default::default(),
+            web_documents:vec![],web_address,web_entry_open:false,web_surface:String::new(),
             remote,
             local_execution,
             contribution: Default::default(),
@@ -189,6 +221,7 @@ impl Workbench {
             resizing_chat: false,
             chat_resize_focus: cx.focus_handle().tab_stop(true),
             input,
+            documents:vec![],
             input_locale: String::new(),
             locale,
             palettes,
@@ -196,6 +229,7 @@ impl Workbench {
             preferences,
             preferences_status: Default::default(),
             settings_menu_open: false,
+            computer: None,
             settings_panel: None,
             #[cfg(not(target_family = "wasm"))]
             settings_window: None,
@@ -230,20 +264,16 @@ impl Workbench {
     }
 
     pub fn sync_follow(&mut self, cx: &mut Context<Self>) {
-        let scope = match self.navigation.current() {
-            Some(WorkspaceItem::App { name, panel }) => Some(pero_contracts::AppChatScope {
-                app: name.clone(),
-                panel: panel.clone(),
-            }),
-            Some(WorkspaceItem::Conversation(id)) => self
-                .chat
-                .read(cx)
-                .chats
-                .iter()
-                .find(|chat| &chat.id == id)
-                .and_then(|chat| chat.scope.clone()),
-            _ => None,
+        let origin=match self.navigation.current() {
+            Some(WorkspaceItem::App {name,panel})=>Some(pero_contracts::content_origin::ContentOrigin::App {app:name.clone(),panel:panel.clone()}),
+            Some(WorkspaceItem::Conversation(id))=>Some(pero_contracts::content_origin::ContentOrigin::Conversation {thread_id:id.clone()}),
+            Some(WorkspaceItem::Document {origin,..})=>Some(origin.clone()),
+            _=>None,
         };
+        let scope=origin.and_then(|origin|match origin {
+            pero_contracts::content_origin::ContentOrigin::App {app,panel}=>Some(pero_contracts::AppChatScope {app,panel}),
+            origin=>origin.thread_id().and_then(|id|self.chat.read(cx).chats.iter().find(|chat|chat.id==id).and_then(|chat|chat.scope.clone())),
+        });
         let visible = self.chat_visible();
         let show_return = self
             .chat
@@ -360,7 +390,8 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) {
         let event_kind = event.kind.clone();
-        let feature_handled = self.receive_roadmap(&event, cx)
+        let feature_handled = self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
+            || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
             || self.receive_local_execution(&event, cx)
             || self.receive_contribution(&event, cx)
             || self.receive_apps(&event, cx)
@@ -421,6 +452,7 @@ impl Workbench {
                     }
                     "settings" => {
                         self.locale = pero_contracts::i18n::normalize(&event.text).into();
+                        for open in &self.documents {open.view.update(cx,|view,cx|{view.locale=self.locale.clone();cx.notify();});}
                         gpui_kit::component::set_locale(&self.locale);
                         self.chat
                             .update(cx, |chat, cx| chat.set_locale(&self.locale, cx));
@@ -626,6 +658,15 @@ fn update(f: impl FnOnce(&mut Workbench, &mut Window, &mut Context<Workbench>)) 
     });
 }
 
+/// Closing or reloading must not silently discard editable source buffers.
+#[cfg(target_family="wasm")]
+#[wasm_bindgen]
+pub fn has_unsaved_documents()->bool {
+    let mut dirty=false;
+    update(|ui,_,cx|dirty=ui.has_unsaved_documents(cx));
+    dirty
+}
+
 /// Read-only diagnostic state. Tests still enter text through Chromium input.
 #[cfg(target_family = "wasm")]
 #[wasm_bindgen]
@@ -643,6 +684,10 @@ pub fn snapshot() -> String {
             "tab": ui.tab.legacy_index(), "events": ui.events, "workspace": ui.workspace,
         });
         value["chatVisible"] = serde_json::json!(ui.chat_visible());
+        value["webDocuments"]=json!(ui.web_documents);
+        value["webAddress"]=json!(ui.web_address.read(cx).value().as_ref());
+        value["webEntryOpen"]=json!(ui.web_entry_open);
+        value["documents"]=json!(ui.documents.iter().map(|open|json!({"item":open.item,"title":open.view.read(cx).document.title,"reader":open.view.read(cx).snapshot(cx)})).collect::<Vec<_>>());
         value["contentTabs"] = serde_json::json!(ui.navigation.items());
         value["activeContent"] = serde_json::json!(ui.navigation.current());
         if let Some(index)=ui.navigation.current().and_then(|item|ui.navigation.items().iter().position(|candidate|candidate==item)) {

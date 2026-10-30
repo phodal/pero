@@ -2,19 +2,21 @@
 
 Behavior ported from Point Paper Agent (Apache-2.0, Point contributors).
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 import os
 from pathlib import Path
 import tempfile
 import threading
 
-from .model import ID, Invalid, PaperSnapshot, ResearchInput, canonical, digest, text
+from .model import ID, Invalid, PaperSnapshot, ResearchInput, ConversationTurn, RetrievalSnapshot, canonical, digest, text
 from .reports import ResearchReport
+from .matrix_edits import MatrixRevision
 from .discovery import DiscoveryBatch, SavedDiscovery
 from .pdf import PdfDocument, PdfAnnotation
 from .reading_matrix import ReadingCell
-from .retrieval import SearchQuery, SourceVersion, chunks
+from .retrieval import METHOD, SearchQuery, SourceVersion, chunks, terms
+from .research import ResearchPlan, RetrievalBatch, QueryProposal, EvidenceSelection
 from .search_index import SearchIndex
 
 
@@ -220,6 +222,17 @@ class ResearchStore:
             self._write('favorites', result.id, result.to_dict())
         return result
 
+    def import_pdf(self, upload, files, now):
+        with self.lock:
+            for identity in self._list('pdfs'):
+                document = self.pdf(identity)
+                if document.file_digest == upload.file_digest:
+                    return self.paper(document.paper_id)
+            paper, document = files.import_local(upload, now)
+            self.save_paper(paper)
+            self.save_pdf(document, upload.data)
+            return paper
+
     def save_paper(self, paper):
         with self.lock:
             try:
@@ -250,6 +263,81 @@ class ResearchStore:
                         index.replace(SourceVersion.of(paper, document), chunks(paper, document))
             return index.search(query)
 
+    def conversation(self, request):
+        turns, parent = [], request.parent_intent_id
+        reports = tuple(self.report(i) for i in self._list('reports')) if parent else ()
+        while parent and len(turns) < 3:
+            intent = self.intent(parent)
+            candidates = [r for r in reports if r.report.intent_id == parent]
+            latest = max(candidates, key=lambda r: (r.created_at, r.id)) if candidates else None
+            answer = '\n\n'.join(section.content for section in latest.report.sections)[:1500] if latest else ''
+            if latest and latest.report.matrix:
+                matrix = latest.report.matrix
+                revisions = self.matrix_revisions(latest.id)
+                for revision in revisions:
+                    matrix = revision.apply(matrix)
+                label = 'Matrix (manually corrected)' if revisions else 'Matrix (Agent output)'
+                values = [dict(column=c.column_id, value=c.value, status=c.status) for c in matrix.cells]
+                answer += '\n' + label + ': ' + json.dumps(values, ensure_ascii=False)[:1000]
+            turns.append(ConversationTurn(intent.id, intent.question[:1000], answer))
+            parent = intent.parent_intent_id
+        return tuple(reversed(turns))
+
+    def research_plan(self, request, now):
+        with self.lock:
+            papers = tuple(self.paper(i) for i in request.paper_ids)
+            documents = tuple(self.paper_pdf(p.id) for p in papers)
+            if not request.full_text or any(d is None for d in documents):
+                raise Invalid('Model-assisted retrieval needs saved PDFs for the selected papers')
+            plan = ResearchPlan(request, papers, self.conversation(request),
+                                tuple(SourceVersion.of(p, d) for p, d in zip(papers, documents)), now)
+            self._write('research-plans', plan.id, plan.to_dict())
+            return plan
+
+    def retrieval_batch(self, identity):
+        value = self._read('retrieval-batches', identity)
+        return RetrievalBatch.from_record(value, ResearchPlan.from_record(self._read('research-plans', value['planId'])))
+
+    def search_plan(self, identity, response):
+        plan = ResearchPlan.from_record(self._read('research-plans', identity))
+        proposal = QueryProposal.parse(response)
+        return self._retrieve(plan, (proposal.query,))
+
+    def _retrieve(self, plan, queries):
+        passages, total, used = {}, 0, 0
+        allowed = {s.document_id for s in plan.sources}
+        for query in queries:
+            found = self.search(SearchQuery(query, plan.request.paper_ids, pdf_only=True))
+            total += found.total_matches
+            for hit in found.hits:
+                p = hit.chunk.pdf_passage()
+                if p.document_id not in allowed:
+                    raise Invalid('A selected PDF version changed. Start a new question.')
+                if p.id not in passages and used + len(p.content) <= 24000:
+                    passages[p.id] = p; used += len(p.content)
+        batch = RetrievalBatch(plan, queries, tuple(passages.values()), total)
+        self._write('retrieval-batches', batch.id, batch.to_dict())
+        return batch
+
+    def select_research(self, identity, response):
+        with self.lock:
+            batch = self.retrieval_batch(identity)
+            selection = EvidenceSelection.parse(response, batch)
+            query = selection.next_query(batch)
+            if query:
+                return self._retrieve(batch.plan, (*batch.queries, query))
+            passages = selection.select(batch)
+            matched = {p.paper_id for p in passages}
+            gaps = selection.gaps + (('Search budget exhausted.',) if selection.followup_query else ())
+            retrieval = RetrievalSnapshot(METHOD + '+model-selection.v1', tuple(s.id for s in batch.plan.sources),
+                tuple(p.id for p in passages), batch.total_matches,
+                tuple(p.id for p in batch.plan.papers if p.id not in matched),
+                tuple(dict.fromkeys(t for q in batch.queries for t in terms(q)))[:64], False, batch.queries, gaps)
+            intent = ResearchInput.prepare(batch.plan.request, batch.plan.papers, batch.plan.created_at,
+                passages=passages, retrieval=retrieval, conversation=batch.plan.conversation)
+            self._write('intents', intent.id, intent.to_dict(False))
+            return intent
+
     def prepare(self, request, now):
         with self.lock:
             identity = digest(request.request_id.encode("utf-8"))
@@ -272,7 +360,8 @@ class ResearchStore:
                     raise Invalid('No matching PDF passages. Try keywords in the source language, or read the saved PDF directly.')
                 retrieval = found.freeze()
             result = ResearchInput.prepare(request, papers, existing.created_at if existing else now, passages,
-                                           existing.frozen_prompt if existing else None, retrieval)
+                                           existing.frozen_prompt if existing else None, retrieval,
+                                           existing.conversation if existing else self.conversation(request))
             self._write("intents", result.id, result.to_dict(False))
             return result
 
@@ -291,15 +380,50 @@ class ResearchStore:
             self._write("reports", result.id, result.to_dict())
             return result
 
+    def matrix_revisions(self, report_id):
+        saved = self.report(report_id)
+        intent = self.intent(saved.report.intent_id)
+        revisions = []
+        for identity in self._list('matrix-revisions'):
+            value = self._read('matrix-revisions', identity)
+            if value['reportId'] == report_id:
+                revisions.append(MatrixRevision.from_record(value, saved, intent))
+        return tuple(sorted(revisions, key=lambda r: r.version))
+
+    def report_matrix(self, report_id):
+        matrix = self.report(report_id).report.matrix
+        revisions = self.matrix_revisions(report_id)
+        for revision in revisions:
+            matrix = revision.apply(matrix)
+        return dict(matrix=matrix.to_dict() if matrix else None, revisions=[r.to_dict() for r in revisions])
+
+    def edit_matrix(self, report_id, value, now):
+        with self.lock:
+            saved = self.report(report_id)
+            intent = self.intent(saved.report.intent_id)
+            revision = MatrixRevision.create(value, saved, intent, len(self.matrix_revisions(report_id)) + 1, now)
+            self._write('matrix-revisions', revision.id, revision.to_dict())
+            return self.report_matrix(report_id)
+
     def export(self, identity, format):
         saved = self.report(identity)
         if format == "json":
             value = saved.to_dict()
+            revisions = self.matrix_revisions(identity)
+            if revisions:
+                value.update(editedMatrix=self.report_matrix(identity)['matrix'], matrixRevisions=[r.to_dict() for r in revisions])
             intent = self.intent(saved.report.intent_id)
             if intent.retrieval:
                 value.update(retrieval=intent.retrieval.to_dict(), sources=[p.to_dict(False) for p in intent.papers],
                              passages=[p.to_dict() for p in intent.passages])
             return dict(filename=f"research-{identity[:12]}.json", content=json.dumps(value, ensure_ascii=False, indent=2), mime="application/json")
         if format == "markdown":
-            return dict(filename=f"research-{identity[:12]}.md", content=saved.report.markdown(self.intent(saved.report.intent_id)), mime="text/markdown")
+            report = saved.report
+            revisions = self.matrix_revisions(identity)
+            for revision in revisions:
+                report = replace(report, matrix=revision.apply(report.matrix))
+            content = report.markdown(self.intent(saved.report.intent_id))
+            if revisions:
+                content += '\n\n## Manual matrix corrections\n' + '\n'.join(f'- Revision {r.version}: {r.reason or "Manual correction"} ({r.id})' for r in revisions)
+            return dict(filename=f"research-{identity[:12]}.md", content=content, mime="text/markdown")
         raise Invalid("Choose markdown or json export")
