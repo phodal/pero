@@ -48,6 +48,8 @@ class DatasetBehavior(unittest.TestCase):
         self.assertEqual(data.records[0].cell("x").token, '{"a/b":[1,true,null]}')
         nested = Dataset.parse('[{"x":[{"n":1}]}]', 'nested.json')
         self.assertEqual(nested.records[0].cell("x").token, '[{"n":1}]')
+        separator = Dataset.parse('{"s":"a\u2028b"}\n{"s":"c"}', 'unicode.jsonl', True)
+        self.assertEqual([row.line for row in separator.records], [1, 2])
         for source in ['{"a":1,"a":2}', '[NaN]', '[{"a":Infinity}]', '[1]', 'true']:
             with self.subTest(source=source), self.assertRaises(Invalid):
                 Dataset.parse(source, 'invalid.json')

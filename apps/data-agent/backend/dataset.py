@@ -99,7 +99,10 @@ class Dataset:
             return Cell.admit(value)
 
         def number(token):
-            value = Decimal(token)
+            try:
+                value = Decimal(token)
+            except ArithmeticError:
+                raise Invalid("The numeric exponent is too large") from None
             if not value.is_finite():
                 raise Invalid("Numbers must be finite")
             return Cell(Kind.NUMBER, token, token, value)
@@ -113,7 +116,7 @@ class Dataset:
 
         try:
             if json_lines:
-                entries = [(read(line), "", index + 1) for index, line in enumerate(source.splitlines()) if line.strip()]
+                entries = [(read(line), "", index + 1) for index, line in enumerate(source.split('\n')) if line.strip()]
             else:
                 root = read(source)
                 if isinstance(root, list):

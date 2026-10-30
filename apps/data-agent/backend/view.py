@@ -50,7 +50,7 @@ class DatasetView:
     def spec(self):
         filter = self.query.filter
         return {"filter": {"field": filter.field, "operator": filter.operator, "value": filter.value} if filter else None,
-                "sort": {"field": self.query.sort, "descending": self.query.descending} if self.query.sort else None,
+                "sort": {"field": self.query.sort, "descending": self.query.descending} if self.query.sort is not None else None,
                 "selection": list(self.selection.ordinals), "columns": list(self.columns),
                 "chart": {"category": self.chart.category, "measure": self.chart.measure, "aggregation": self.chart.aggregation} if self.chart else None}
 
@@ -60,11 +60,18 @@ class DatasetView:
         chart = Chart.calculate(selected, self.chart) if self.chart else None
         identity = sha256((dataset.id + json.dumps(self.spec(), sort_keys=True)).encode()).hexdigest()
         return {"dataset": metadata(dataset), "view": self.spec(), "viewId": identity, "matching": len(rows), "selected": len(selected), "offset": self.offset,
+                "sample": record_window(selected, self.columns[:8], 0, 10),
                 "rows": [{"ordinal": row.ordinal, "pointer": row.pointer, "line": row.line,
                           "cells": {name: {"kind": cell.kind.value, "display": cell.display[:240], "truncated": len(cell.display) > 240} for name, cell in row.cells if name in self.columns}}
                          for row in rows[self.offset:self.offset + self.limit]],
                 "chart": {"points": [{"label": point.label, "exact": point.exact, "ratio": point.ratio, "count": point.count} for point in chart.points],
                           "omittedGroups": chart.omitted_groups, "excludedValues": chart.excluded_values} if chart else None}
+
+    def read(self, dataset: Dataset):
+        if self.limit > 20 or len(self.columns) > 8:
+            raise Invalid("An Agent read contains at most 20 records and 8 fields")
+        rows = self.selection.apply(self.query.apply(dataset))
+        return {"dataset":dataset.id,"revision":1,**record_window(rows,self.columns,self.offset,self.limit)}
 
     def export(self, dataset: Dataset):
         rows = self.selection.apply(self.query.apply(dataset))
@@ -81,3 +88,19 @@ def metadata(dataset: Dataset):
     return {"id": dataset.id, "name": dataset.name, "revision": 1, "format": "json_lines" if dataset.json_lines else "json",
             "bytes": len(dataset.source.encode()), "rowCount": len(dataset.records),
             "fields": [{"name": field.name, "kinds": [kind.value for kind in field.kinds], "missing": field.missing, "nulls": field.nulls} for field in dataset.fields]}
+
+
+def record_window(rows, columns, offset, limit):
+    result, used = [], 0
+    for row in rows[offset:offset + limit]:
+        value = {"ordinal":row.ordinal,"pointer":row.pointer,"line":row.line,
+                 "cells":{name:{"kind":cell.kind.value,"display":cell.display[:240],"truncated":len(cell.display)>240} for name,cell in row.cells if name in columns}}
+        size = len(json.dumps(value,ensure_ascii=False).encode())
+        if size > 24 * 1024:
+            value = {"ordinal":row.ordinal,"pointer":row.pointer,"line":row.line,"cells":{},"needsSource":True}
+            size = len(json.dumps(value).encode())
+        if used + size > 24 * 1024:
+            break
+        result.append(value);used += size
+    end = offset + len(result)
+    return {"records":result,"total":len(rows),"offset":offset,"nextOffset":end if end < len(rows) else None}
