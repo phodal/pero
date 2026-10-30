@@ -102,16 +102,41 @@ pub fn dispatch(
             .ok_or_else(|| "Workspace recovery storage is unavailable".to_string())
             .and_then(|store| store.read_source(key).map_err(|error| error.to_string()));
         return match result {
-            Ok(source) => {
-                let conflict = matches!(
+            Ok(mut source) => {
+                let reference = store.as_ref().and_then(|store| store.saved_draft(key));
+                let legacy = store
+                    .as_ref()
+                    .and_then(|store| store.legacy_draft(key))
+                    .map(str::to_owned);
+                let conflict = if matches!(
                     source.header.source.origin,
                     pero_contracts::content_origin::ContentOrigin::File { .. }
-                ) && files
-                    .restore(source.header.clone().into_document(source.text.clone()));
-                let key = pero_contracts::workspace_session::SourceKey::of(&source.header);
-                let draft = if let Some(reference) =
-                    store.as_ref().and_then(|store| store.saved_draft(&key))
-                {
+                ) {
+                    match files.recover(
+                        source.header.clone().into_document(source.text.clone()),
+                        reference.is_some() || legacy.is_some(),
+                    ) {
+                        Ok(recovered) => {
+                            if source.header != recovered.document.header() {
+                                source.header = recovered.document.header();
+                                source.text = recovered.document.source().to_owned();
+                            }
+                            recovered.conflict
+                        }
+                        Err(error) => {
+                            let mut event = HostEvent::new(
+                                "workspace_source_error",
+                                request,
+                                format!("{error:?}"),
+                            );
+                            event.data = serde_json::json!({"key":key,"draft":legacy});
+                            return event;
+                        }
+                    }
+                } else {
+                    false
+                };
+                let draft = if let Some(reference) = reference {
                     match store.as_mut().unwrap().read_draft(&reference) {
                         Ok(text) => Some(text),
                         Err(error) => {
@@ -120,15 +145,12 @@ pub fn dispatch(
                                 request,
                                 error.to_string(),
                             );
-                            event.data = serde_json::json!({"key":key,"draft":store.as_ref().and_then(|store|store.legacy_draft(&key))});
+                            event.data = serde_json::json!({"key":key,"draft":legacy});
                             return event;
                         }
                     }
                 } else {
-                    store
-                        .as_ref()
-                        .and_then(|store| store.legacy_draft(&key))
-                        .map(str::to_owned)
+                    legacy
                 };
                 let mut event = HostEvent::new("workspace_source", request, String::new());
                 event.data =
@@ -176,15 +198,53 @@ pub fn dispatch(
                         }
                     }
                 }
-                for source in &restored.sources {
-                    if matches!(
+                for source in &mut restored.sources {
+                    if !matches!(
                         source.header.source.origin,
                         pero_contracts::content_origin::ContentOrigin::File { .. }
-                    ) && files.restore(source.header.clone().into_document(source.text.clone()))
-                    {
-                        restored.conflicts.push(source.header.source.id.clone());
+                    ) {
+                        continue;
+                    }
+                    let saved = restored.session.as_mut().and_then(|session| {
+                        session
+                            .documents
+                            .iter_mut()
+                            .find(|document| document.header == source.header)
+                    });
+                    let has_draft = saved.as_ref().is_some_and(|document| {
+                        document.draft.is_some()
+                            || document.draft_ref.is_some()
+                            || document.legacy_draft
+                    });
+                    match files.recover(
+                        source.header.clone().into_document(source.text.clone()),
+                        has_draft,
+                    ) {
+                        Ok(recovered) => {
+                            if recovered.conflict {
+                                restored.conflicts.push(source.header.source.id.clone());
+                            }
+                            if source.header != recovered.document.header() {
+                                source.header = recovered.document.header();
+                                source.text = recovered.document.source().to_owned();
+                            }
+                            if let Some(saved) = saved {
+                                if saved.header.revision != source.header.revision {
+                                    saved.reading = saved.reading.clone().without_location();
+                                }
+                                saved.header = source.header.clone();
+                            }
+                        }
+                        Err(_) => restored.unavailable.push(
+                            pero_contracts::workspace_session::SourceKey::of(&source.header),
+                        ),
                     }
                 }
+                restored.sources.retain(|source| {
+                    !restored.unavailable.contains(
+                        &pero_contracts::workspace_session::SourceKey::of(&source.header),
+                    )
+                });
                 if let Some(session) = &mut restored.session {
                     for document in &mut session.documents {
                         if restored
@@ -315,6 +375,7 @@ mod tests {
         let directory =
             std::env::temp_dir().join(format!("pero-lazy-workspace-{}", std::process::id()));
         std::fs::create_dir_all(&directory).unwrap();
+        let directory = std::fs::canonicalize(directory).unwrap();
         let settings = directory.join("settings.json");
         let mut store = WorkspaceStore::new(&settings);
         let mut files = FileDocuments::default();
@@ -413,6 +474,42 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&documents[2].id).unwrap(),
             "producer baseline"
+        );
+        // Don't Save removes the draft authority; both eager and lazy reopen now read disk.
+        let mut clean = session.clone();
+        for document in &mut clean.documents {
+            document.draft = None;
+            document.legacy_draft = false;
+        }
+        store.save(clean, vec![]).unwrap();
+        let reopened = dispatch(
+            Some(&mut store),
+            &mut files,
+            serde_json::json!({"method":"workspace","action":"get"}),
+        );
+        let reopened: WorkspaceRestore = serde_json::from_value(reopened.data).unwrap();
+        assert!(reopened.conflicts.is_empty());
+        let visible = reopened
+            .sources
+            .iter()
+            .find(|source| source.header.source.id == documents[0].id)
+            .unwrap();
+        assert_eq!(visible.text, "producer baseline");
+        assert!(visible.header.revision > documents[0].revision);
+        assert_eq!(
+            reopened.session.unwrap().documents[0].header,
+            visible.header
+        );
+        let read = serde_json::json!({"method":"workspace","action":"read","request_id":"clean","key":pero_contracts::workspace_session::SourceKey::of(&documents[2].header())});
+        let reopened = dispatch(Some(&mut store), &mut files, read);
+        assert_eq!(reopened.kind, "workspace_source");
+        assert_eq!(reopened.data["conflict"], false);
+        assert_eq!(reopened.data["source"]["text"], "producer baseline");
+        assert!(
+            reopened.data["source"]["header"]["revision"]
+                .as_u64()
+                .unwrap()
+                > documents[2].revision
         );
         std::fs::write(
             settings.with_extension("workspace").join("session.json"),

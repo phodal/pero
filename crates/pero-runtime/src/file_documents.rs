@@ -9,6 +9,10 @@ pub struct FileDocuments {
     files: BTreeMap<String, FileDocument>,
     revisions: BTreeMap<String, u64>,
 }
+pub struct FileRecovery {
+    pub document: ContentDocument,
+    pub conflict: bool,
+}
 #[derive(Debug)]
 pub enum FileError {
     Io(std::io::Error),
@@ -80,6 +84,36 @@ impl FileDocuments {
         self.files
             .insert(snapshot.id.clone(), FileDocument::recovered(snapshot));
         changed
+    }
+    /// Drafts retain their original baseline; clean tabs observe the current disk contents.
+    pub fn recover(
+        &mut self,
+        snapshot: ContentDocument,
+        has_draft: bool,
+    ) -> Result<FileRecovery, FileError> {
+        self.remember_revision(&snapshot.id, snapshot.revision);
+        let disk = match std::fs::read_to_string(&snapshot.id) {
+            Ok(disk) => Some(disk),
+            Err(error) if !has_draft => return Err(error.into()),
+            Err(_) => None,
+        };
+        let conflict = disk.as_ref().is_none_or(|disk| disk != snapshot.source());
+        let file = if let Some(disk) = disk.filter(|_| conflict && !has_draft) {
+            if disk.contains('\0') {
+                return Err(FileError::Unsupported);
+            }
+            let revision = self.revisions[&snapshot.id] + 1;
+            FileDocument::recovered(snapshot).refreshed(disk, revision)
+        } else {
+            FileDocument::recovered(snapshot)
+        };
+        let document = file.snapshot().clone();
+        self.remember_revision(&document.id, document.revision);
+        self.files.insert(document.id.clone(), file);
+        Ok(FileRecovery {
+            document,
+            conflict: conflict && has_draft,
+        })
     }
     /// A lazy recovered tab must not replace an already open, newer disk baseline.
     pub fn restore_if_closed(&mut self, snapshot: ContentDocument) {
@@ -218,6 +252,16 @@ mod tests {
             Err(FileError::Conflict)
         ));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "external edit");
+        for (has_draft, expected, conflict) in [
+            (true, saved.source(), true),
+            (false, "external edit", false),
+        ] {
+            let mut recovery = FileDocuments::default();
+            let restored = recovery.recover(saved.clone(), has_draft).unwrap();
+            assert_eq!(restored.document.source(), expected);
+            assert_eq!(restored.conflict, conflict);
+            assert_eq!(restored.document.revision > saved.revision, !has_draft);
+        }
         files.release(&saved.id);
         let reopened = files.open(&path).unwrap();
         assert_eq!(reopened.source(), "external edit");

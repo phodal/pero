@@ -88,15 +88,24 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) {
         let key = SourceKey::of(&source.header);
+        let incoming = WorkspaceItem::Document { origin: key.origin.clone(), source: key.source.clone() };
         let Some(index) = self
             .recovery
             .deferred
             .iter()
-            .position(|document| SourceKey::of(&document.saved.header) == key)
+            .position(|document| SourceKey::of(&document.saved.header) == key
+                || matches!(key.origin, ContentOrigin::File { .. }) && document.saved.item() == incoming
+                    && document.saved.draft.is_none() && document.saved.draft_ref.is_none() && !document.saved.legacy_draft)
         else {
             return;
         };
-        let deferred = self.recovery.deferred.remove(index);
+        let mut deferred = self.recovery.deferred.remove(index);
+        if deferred.saved.header.revision != source.header.revision {
+            deferred.saved.reading = deferred.saved.reading.without_location();
+            self.navigation.clear_document_locations(&incoming);
+            self.navigation.bind_document_revision(&incoming, source.header.revision);
+            deferred.saved.header = source.header.clone();
+        }
         self.restore_workspace_draft(
             key.clone(),
             deferred.saved.draft_ref.clone(),
