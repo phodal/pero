@@ -1,9 +1,11 @@
-# 0020: Computer Use input gaps
+# 0020: Grok-style Computer Use input gaps
 
+
+This ADR follows the Grok-style cloud isolated desktop plus human handoff pattern; it is a separate track from the Cursor-based documents in #44 and #45.
 Status: proposed (design only, no implementation), 2026-10-30.
 
 Builds on [0016: Computer Use v1 contract](0016-computer-use-contract.md).
-Independent of 0019 (isolated Linux desktop): everything here applies to the
+Independent of 0019 (Grok-style isolated Linux desktop): everything here applies to the
 local backend and to any later backend.
 
 Numbering: 0017 and 0018 are reserved by draft PR #20 (isolated Agent runtime

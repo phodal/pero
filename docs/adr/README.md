@@ -17,4 +17,4 @@
 - [0014: Agent App Use](0014-app-use.md)
 - [0015: Global appearance and scoped typography](0015-global-appearance.md)
 - [0016: Computer Use v1 contract](0016-computer-use-contract.md)
-- [0020: Computer Use input gaps](0020-computer-use-input-gaps.md)
+- [0020: Grok-style Computer Use input gaps](0020-grok-computer-use-input-gaps.md)
