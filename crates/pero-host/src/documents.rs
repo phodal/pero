@@ -2,7 +2,11 @@
 use pero_contracts::{HostEvent, file_document::FileCommand};
 use pero_runtime::file_documents::{FileDocuments, FileError};
 
-pub fn dispatch(files: &mut FileDocuments, value: serde_json::Value) -> Option<HostEvent> {
+pub fn dispatch(
+    files: &mut FileDocuments,
+    mut workspace: Option<&mut pero_runtime::workspace_store::WorkspaceStore>,
+    value: serde_json::Value,
+) -> Option<HostEvent> {
     let command = match serde_json::from_value::<FileCommand>(value) {
         Ok(command) => command,
         Err(_) => return Some(HostEvent::message("error", None, "error.invalid_request")),
@@ -32,6 +36,58 @@ pub fn dispatch(files: &mut FileDocuments, value: serde_json::Value) -> Option<H
         } => {
             let result = files.save(&source, revision, text);
             (request_id, source, result)
+        }
+        FileCommand::SaveDraft {
+            request_id, draft, ..
+        } => {
+            let source = draft.source.source.clone();
+            let result = (|| {
+                let store = workspace.as_mut().ok_or(FileError::Unavailable)?;
+                let baseline = if store.drafts.needs_source(&draft.source) {
+                    files.recovery_source(&source, draft.source.revision)
+                } else {
+                    None
+                };
+                let text = store
+                    .drafts
+                    .read(&draft, baseline.as_ref().map(|source| source.source()))?;
+                files.save(&source, draft.source.revision, text)
+            })();
+            (request_id, source, result)
+        }
+        FileCommand::SaveAsReference {
+            request_id,
+            path,
+            source,
+            draft,
+            protected_sources,
+            ..
+        } => {
+            let result = (|| {
+                let current = files.recovery_source(&source.source, source.revision);
+                let text = if let Some(draft) = draft {
+                    if draft.source != source {
+                        return Err(FileError::Conflict);
+                    }
+                    let store = workspace.as_mut().ok_or(FileError::Unavailable)?;
+                    store
+                        .drafts
+                        .read(&draft, current.as_ref().map(|source| source.source()))?
+                } else if let Some(current) = current {
+                    current.source().to_owned()
+                } else {
+                    workspace
+                        .as_ref()
+                        .ok_or(FileError::Unavailable)?
+                        .read_source_text(&source)?
+                };
+                files.save_as(pero_contracts::file_document::FileCopy {
+                    path: path.clone(),
+                    text,
+                    protected_sources,
+                })
+            })();
+            (request_id, path, result)
         }
         FileCommand::SaveAs {
             request_id, copy, ..

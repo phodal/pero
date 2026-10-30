@@ -17,7 +17,13 @@ pub enum SaveError {
     ChangedOnDisk,
 }
 impl FileDocument {
-    pub fn loaded(path: String, title: String, text: String, format: ContentFormat) -> Self {
+    pub fn loaded(
+        path: String,
+        title: String,
+        text: String,
+        format: ContentFormat,
+        revision: u64,
+    ) -> Self {
         Self {
             snapshot: ContentDocument::new(
                 DocumentSource {
@@ -25,7 +31,7 @@ impl FileDocument {
                     origin: ContentOrigin::File { path },
                     title,
                 },
-                1,
+                revision,
                 text,
                 format,
             ),
@@ -38,14 +44,14 @@ impl FileDocument {
     pub fn snapshot(&self) -> &ContentDocument {
         &self.snapshot
     }
-    pub fn refreshed(&self, text: String) -> Self {
+    pub fn refreshed(&self, text: String, revision: u64) -> Self {
         if text == self.snapshot.source() {
             return self.clone();
         }
         Self {
             snapshot: ContentDocument::new(
                 (*self.snapshot).clone(),
-                self.snapshot.revision + 1,
+                revision,
                 text,
                 self.snapshot.format.clone(),
             ),
@@ -56,6 +62,7 @@ impl FileDocument {
         expected_revision: u64,
         disk: &str,
         text: String,
+        next_revision: u64,
     ) -> Result<FileSave, SaveError> {
         if expected_revision != self.snapshot.revision {
             return Err(SaveError::StaleRevision);
@@ -66,7 +73,7 @@ impl FileDocument {
         if text == disk {
             Ok(FileSave::Unchanged)
         } else {
-            Ok(FileSave::Write(self.refreshed(text)))
+            Ok(FileSave::Write(self.refreshed(text, next_revision)))
         }
     }
 }
@@ -80,6 +87,7 @@ mod tests {
             "notes.md".into(),
             "original".into(),
             ContentFormat::Markdown,
+            1,
         );
         for (revision, disk, draft, expected) in [
             (1, "original", "edited", Ok(true)),
@@ -87,21 +95,21 @@ mod tests {
             (0, "original", "edited", Err(SaveError::StaleRevision)),
             (1, "external", "edited", Err(SaveError::ChangedOnDisk)),
         ] {
-            let actual =
-                file.prepare_save(revision, disk, draft.into())
-                    .map(|effect| match effect {
-                        FileSave::Unchanged => false,
-                        FileSave::Write(next) => {
-                            assert_eq!(next.snapshot.source(), draft);
-                            assert_eq!(next.snapshot.revision, 2);
-                            true
-                        }
-                    });
+            let actual = file
+                .prepare_save(revision, disk, draft.into(), 2)
+                .map(|effect| match effect {
+                    FileSave::Unchanged => false,
+                    FileSave::Write(next) => {
+                        assert_eq!(next.snapshot.source(), draft);
+                        assert_eq!(next.snapshot.revision, 2);
+                        true
+                    }
+                });
             assert_eq!(actual, expected);
             assert_eq!(file.snapshot.source(), "original");
         }
-        assert_eq!(file.refreshed("original".into()).snapshot.revision, 1);
-        assert_eq!(file.refreshed("external".into()).snapshot.revision, 2);
+        assert_eq!(file.refreshed("original".into(), 2).snapshot.revision, 1);
+        assert_eq!(file.refreshed("external".into(), 2).snapshot.revision, 2);
     }
 }
 
@@ -140,6 +148,19 @@ pub enum FileCommand {
         source: String,
         revision: u64,
         text: String,
+    },
+    SaveDraft {
+        method: DocumentMethod,
+        request_id: String,
+        draft: crate::workspace_draft::DraftRef,
+    },
+    SaveAsReference {
+        method: DocumentMethod,
+        request_id: String,
+        path: String,
+        source: crate::workspace_session::SourceKey,
+        draft: Option<crate::workspace_draft::DraftRef>,
+        protected_sources: Vec<String>,
     },
     SaveAs {
         method: DocumentMethod,

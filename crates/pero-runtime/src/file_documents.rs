@@ -7,6 +7,7 @@ use std::{collections::BTreeMap, path::Path};
 #[derive(Default)]
 pub struct FileDocuments {
     files: BTreeMap<String, FileDocument>,
+    revisions: BTreeMap<String, u64>,
 }
 #[derive(Debug)]
 pub enum FileError {
@@ -32,8 +33,9 @@ impl FileDocuments {
             return Err(FileError::Unsupported);
         }
         let id = path.to_string_lossy().into_owned();
+        let next_revision = self.revisions.get(&id).map_or(1, |revision| revision + 1);
         let file = if let Some(previous) = self.files.get(&id) {
-            previous.refreshed(text)
+            previous.refreshed(text, next_revision)
         } else {
             let title = path
                 .file_name()
@@ -58,13 +60,21 @@ impl FileDocuments {
                 | "cpp" | "java" => ContentFormat::Code(extension),
                 _ => ContentFormat::Text,
             };
-            FileDocument::loaded(id.clone(), title, text, format)
+            FileDocument::loaded(id.clone(), title, text, format, next_revision)
         };
         let snapshot = file.snapshot().clone();
+        self.revisions.insert(id.clone(), snapshot.revision);
         self.files.insert(id, file);
         Ok(snapshot)
     }
+    pub fn remember_revision(&mut self, id: &str, revision: u64) {
+        self.revisions
+            .entry(id.to_owned())
+            .and_modify(|current| *current = (*current).max(revision))
+            .or_insert(revision);
+    }
     pub fn restore(&mut self, snapshot: ContentDocument) -> bool {
+        self.remember_revision(&snapshot.id, snapshot.revision);
         let changed =
             std::fs::read_to_string(&snapshot.id).map_or(true, |disk| disk != snapshot.source());
         self.files
@@ -87,14 +97,19 @@ impl FileDocuments {
     ) -> Result<ContentDocument, FileError> {
         let previous = self.files.get(id).ok_or(FileError::Unavailable)?;
         let disk = std::fs::read_to_string(id)?;
-        let decision =
-            previous
-                .prepare_save(revision, &disk, text)
-                .map_err(|error| match error {
-                    SaveError::StaleRevision | SaveError::ChangedOnDisk => FileError::Conflict,
-                })?;
+        let decision = previous
+            .prepare_save(
+                revision,
+                &disk,
+                text,
+                self.revisions.get(id).copied().unwrap_or(revision) + 1,
+            )
+            .map_err(|error| match error {
+                SaveError::StaleRevision | SaveError::ChangedOnDisk => FileError::Conflict,
+            })?;
         if let FileSave::Write(next) = decision {
             std::fs::write(id, next.snapshot().source())?;
+            self.revisions.insert(id.into(), next.snapshot().revision);
             self.files.insert(id.into(), next);
         }
         Ok(self.files[id].snapshot().clone())
@@ -154,7 +169,9 @@ mod tests {
         ));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "external edit");
         files.release(&saved.id);
-        assert_eq!(files.open(&path).unwrap().source(), "external edit");
+        let reopened = files.open(&path).unwrap();
+        assert_eq!(reopened.source(), "external edit");
+        assert!(reopened.revision > saved.revision);
         std::fs::remove_file(path).unwrap();
     }
     #[test]
