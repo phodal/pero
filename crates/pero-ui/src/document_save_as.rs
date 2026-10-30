@@ -208,11 +208,16 @@ impl Workbench {
         if let Some((reading, current)) = source {
             if let Some(open) = self.documents.iter().find(|open| open.item == target) {
                 open.view.update(cx, |view, cx| {
-                    view.restore_reading_state(reading, window, cx);
-                    // Typing during the write belongs to the migrated File buffer too.
+                    let mut reading = reading;
                     if file_source && current != saved {
+                        // Restore newer edits before bounding their selection against the target text.
                         view.restore_draft(current, window, cx);
+                    } else if current != saved {
+                        // A producer changed after copying: its newer geometry does not describe this file.
+                        reading = reading.without_location();
                     }
+                    reading.source_revision = Some(view.document.revision);
+                    view.restore_reading_state(reading, window, cx);
                 });
             }
         }
