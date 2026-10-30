@@ -382,6 +382,7 @@ mod tests {
                             .into_iter()
                             .map(|route| HistoryEntry {
                                 route,
+                                preview: false,
                                 reading: None
                             })
                             .collect(),

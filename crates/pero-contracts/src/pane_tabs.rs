@@ -58,6 +58,7 @@ pub struct PaneTabSet {
     pinned_count: usize,
     activation_history: Vec<ViewId>,
     history: WorkspaceHistory,
+    closed: Vec<HistoryEntry>,
 }
 
 impl PaneTabSet {
@@ -79,6 +80,12 @@ impl PaneTabSet {
     pub fn history(&self) -> &WorkspaceHistory {
         &self.history
     }
+    pub fn closed_items(&self) -> &[HistoryEntry] {
+        &self.closed
+    }
+    pub fn can_reopen(&self) -> bool {
+        !self.closed.is_empty()
+    }
     pub fn item(&self, id: ViewId) -> Option<&PaneItem> {
         self.items.iter().find(|item| item.id == id)
     }
@@ -98,6 +105,7 @@ impl PaneTabSet {
     fn depart(&mut self) {
         if let Some(item) = self.active().cloned() {
             self.history.reading = item.reading;
+            self.history.preview = self.preview == Some(item.id);
             self.history.depart(&item.route);
         }
     }
@@ -106,6 +114,7 @@ impl PaneTabSet {
             return false;
         };
         self.history.reading = item.reading.clone();
+        self.history.preview = self.preview == Some(id);
         self.active = Some(id);
         self.activation_history.retain(|entry| *entry != id);
         self.activation_history.insert(0, id);
@@ -122,6 +131,14 @@ impl PaneTabSet {
     }
 
     pub fn open(&mut self, item: PaneItem, intent: OpenIntent) -> Result<OpenTab, PaneTabError> {
+        self.open_inner(item, intent, intent == OpenIntent::Preview)
+    }
+    fn open_inner(
+        &mut self,
+        item: PaneItem,
+        intent: OpenIntent,
+        preview: bool,
+    ) -> Result<OpenTab, PaneTabError> {
         if item.id.0 == 0
             || !item.route.supports_pane()
             || !HistoryEntry::valid_location(&item.route, item.reading.as_ref())
@@ -156,7 +173,7 @@ impl PaneTabSet {
         }
         let mut replaced = None;
         let mut index = position;
-        if intent == OpenIntent::Preview {
+        if preview {
             if let Some(previous) = self.preview.take() {
                 if let Some(at) = self.items.iter().position(|item| item.id == previous) {
                     index = at;
@@ -179,6 +196,9 @@ impl PaneTabSet {
     pub fn promote(&mut self, id: ViewId) -> bool {
         if self.preview == Some(id) {
             self.preview = None;
+            if self.active == Some(id) {
+                self.history.preview = false;
+            }
             true
         } else {
             false
@@ -207,17 +227,19 @@ impl PaneTabSet {
         let Some(previous) = self.items.iter().position(|item| item.id == id) else {
             return false;
         };
+        self.promote(id);
         let pinned = previous < self.pinned_count;
-        let target = if pinned {
-            index.min(self.pinned_count - 1)
-        } else {
-            index.max(self.pinned_count).min(self.items.len() - 1)
-        };
+        let target = index.min(self.items.len() - 1);
         if previous == target {
             return false;
         }
         let item = self.items.remove(previous);
         self.items.insert(target, item);
+        match (pinned, target < self.pinned_count) {
+            (false, true) => self.pinned_count += 1,
+            (true, false) => self.pinned_count -= 1,
+            _ => {}
+        }
         true
     }
     pub fn cycle(&mut self, next: bool) -> Option<ViewId> {
@@ -231,7 +253,36 @@ impl PaneTabSet {
         Some(id)
     }
     pub fn close(&mut self, id: ViewId) -> Option<PaneItem> {
+        self.remove(id, true)
+    }
+    /// Moving a view is not closing it, and must not create a reopen entry.
+    pub fn take(&mut self, id: ViewId) -> Option<PaneItem> {
+        self.remove(id, false)
+    }
+    /// Cmd-W preserves pinned tabs and selects the first ordinary tab instead.
+    pub fn keyboard_close_target(&mut self) -> Option<ViewId> {
+        let active = self.active?;
+        if !self.is_pinned(active) {
+            return Some(active);
+        }
+        if let Some(id) = self.items.get(self.pinned_count).map(|item| item.id) {
+            self.activate(id);
+        }
+        None
+    }
+    fn remove(&mut self, id: ViewId, closing: bool) -> Option<PaneItem> {
         let index = self.items.iter().position(|item| item.id == id)?;
+        if closing && self.preview != Some(id) {
+            let item = &self.items[index];
+            if self.closed.len() == 1024 {
+                self.closed.remove(0);
+            }
+            self.closed.push(HistoryEntry {
+                route: item.route.clone(),
+                reading: item.reading.clone(),
+                preview: false,
+            });
+        }
         if self.active == Some(id) {
             self.depart();
         }
@@ -244,6 +295,7 @@ impl PaneTabSet {
         if self.active == Some(id) {
             self.active = None;
             self.history.reading = None;
+            self.history.preview = false;
             let fallback = self
                 .activation_history
                 .first()
@@ -254,6 +306,17 @@ impl PaneTabSet {
             }
         }
         Some(removed)
+    }
+    pub fn reopen_closed(&mut self, new_id: ViewId) -> Option<PaneItem> {
+        let entry = self.closed.last()?.clone();
+        let item = PaneItem {
+            id: new_id,
+            route: entry.route,
+            reading: entry.reading,
+        };
+        let opened = self.open(item, OpenIntent::Permanent).ok()?;
+        self.closed.pop();
+        self.item(opened.active).cloned()
     }
     pub fn observe(&mut self, id: ViewId, reading: ReaderState) {
         let Some(item) = self.items.iter_mut().find(|item| item.id == id) else {
@@ -304,7 +367,10 @@ impl PaneTabSet {
             route: entry.route,
             reading: entry.reading,
         };
-        if self.open(item.clone(), OpenIntent::History).is_err() {
+        if self
+            .open_inner(item.clone(), OpenIntent::History, entry.preview)
+            .is_err()
+        {
             self.history = previous;
             return None;
         }
@@ -329,8 +395,15 @@ impl PaneTabSet {
             history.reading = None;
         }
         self.history = history;
+        self.history.preview = self.active == self.preview && self.active.is_some();
     }
     pub fn rebase_edit(&mut self, item: &WorkspaceItem, edit: &TextEdit) {
+        if let Some(id) = self
+            .find_route(&WorkspaceRoute::Content(item.clone()))
+            .map(|item| item.id)
+        {
+            self.promote(id);
+        }
         for view in &mut self.items {
             if view.route == WorkspaceRoute::Content(item.clone()) {
                 if let Some(reading) = &mut view.reading {
@@ -339,6 +412,9 @@ impl PaneTabSet {
             }
         }
         self.history.rebase_edit(item, edit);
+        for entry in &mut self.closed {
+            entry.rebase_edit(item, edit);
+        }
         self.history.reading = self.active().and_then(|item| item.reading.clone());
     }
     pub fn bind_revision(&mut self, item: &WorkspaceItem, revision: u64) {
@@ -350,6 +426,9 @@ impl PaneTabSet {
             }
         }
         self.history.bind_revision(item, revision);
+        for entry in &mut self.closed {
+            entry.bind_revision(item, revision);
+        }
         self.history.reading = self.active().and_then(|item| item.reading.clone());
     }
     pub fn replace_identity(&mut self, old: &WorkspaceItem, new: &WorkspaceItem) {
@@ -368,13 +447,31 @@ impl PaneTabSet {
         }
         if let Some((source, target)) = duplicate {
             let focused = self.active == Some(source);
-            self.close(source);
+            self.take(source);
             if focused {
                 self.focus(target);
             }
         }
         self.history.replace_identity(old, new);
+        for entry in &mut self.closed {
+            entry.replace_identity(old, new);
+        }
         self.history.reading = self.active().and_then(|item| item.reading.clone());
+    }
+    /// Reconcile an explicitly removed producer, not an ordinary view close.
+    pub fn retain_sources(&mut self, admitted: &[WorkspaceItem]) {
+        let keep = |route: &WorkspaceRoute| matches!(route, WorkspaceRoute::Content(item) if admitted.contains(item));
+        let removed: Vec<_> = self
+            .items
+            .iter()
+            .filter(|item| !keep(&item.route))
+            .map(|item| item.id)
+            .collect();
+        for id in removed {
+            self.take(id);
+        }
+        self.history.retain(keep);
+        self.closed.retain(|entry| keep(&entry.route));
     }
     pub fn valid(&self) -> bool {
         let mut ids = std::collections::HashSet::new();
@@ -390,7 +487,8 @@ impl PaneTabSet {
             }
             routes.push(&item.route);
         }
-        self.pinned_count <= self.items.len()
+        self.closed.len() <= 1024
+            && self.pinned_count <= self.items.len()
             && self.active.is_some() == !self.items.is_empty()
             && self.active.is_none_or(|id| ids.contains(&id))
             && self
@@ -403,6 +501,7 @@ impl PaneTabSet {
                 .back
                 .iter()
                 .chain(&self.history.forward)
+                .chain(&self.closed)
                 .all(|entry| entry.valid() && entry.route.supports_pane())
     }
 }
@@ -450,16 +549,50 @@ mod tests {
         assert_eq!(tabs.preview_id(), None);
         assert_eq!(tabs.items()[0].id, ViewId(7));
         tabs.move_tab(ViewId(3), 0);
+        assert_eq!(tabs.items()[0].id, ViewId(3));
+        assert_eq!(tabs.pinned_count(), 2);
+        tabs.move_tab(ViewId(3), tabs.items().len());
+        assert_eq!(tabs.pinned_count(), 1);
         assert_eq!(tabs.items()[0].id, ViewId(7));
         let duplicate = tabs
             .open(item(8, "/another"), OpenIntent::Permanent)
             .unwrap();
         assert_eq!(duplicate.active, ViewId(7));
         assert!(!duplicate.inserted);
+        assert_eq!(tabs.keyboard_close_target(), None);
+        assert_eq!(tabs.active_id(), Some(ViewId(1)));
+        let previously_closed = tabs.closed_items().to_vec();
+        tabs.close(ViewId(2));
+        tabs.activate(ViewId(3));
+        assert_eq!(
+            tabs.reopen_closed(ViewId(9)).unwrap().route,
+            item(2, "/2").route
+        );
+        assert_eq!(tabs.closed_items(), previously_closed);
+        tabs.open(item(10, "/temporary"), OpenIntent::Preview)
+            .unwrap();
+        tabs.close(ViewId(10));
+        assert_eq!(tabs.closed_items(), previously_closed);
+        tabs.take(ViewId(9));
+        assert_eq!(tabs.closed_items(), previously_closed);
         assert!(tabs.valid());
         let saved: PaneTabSet =
             serde_json::from_value(serde_json::to_value(&tabs).unwrap()).unwrap();
         assert_eq!(saved, tabs);
+        let mut previews = PaneTabSet::default();
+        previews.open(item(1, "/a"), OpenIntent::Preview).unwrap();
+        previews.open(item(2, "/b"), OpenIntent::Preview).unwrap();
+        previews.step_history(false, ViewId(3)).unwrap();
+        assert_eq!(previews.preview_id(), Some(ViewId(3)));
+        previews.open(item(4, "/c"), OpenIntent::Preview).unwrap();
+        assert_eq!(previews.items().len(), 1);
+        assert_eq!(previews.active_id(), Some(ViewId(4)));
+        assert!(previews.valid());
+        previews.retain_sources(&[]);
+        assert!(previews.items().is_empty());
+        assert!(!previews.can_reopen());
+        assert!(!previews.can_step_history(false));
+        assert!(previews.valid());
     }
     #[test]
     fn locations_history_and_edits_stay_in_their_pane_and_can_reopen_closed_tabs() {

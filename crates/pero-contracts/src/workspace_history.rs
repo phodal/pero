@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct HistoryEntry {
     pub route: WorkspaceRoute,
+    #[serde(skip_serializing_if = "is_false")]
+    pub preview: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reading: Option<ReaderState>,
 }
@@ -17,18 +19,32 @@ impl<'de> Deserialize<'de> for HistoryEntry {
             Located {
                 route: WorkspaceRoute,
                 #[serde(default)]
+                preview: bool,
+                #[serde(default)]
                 reading: Option<ReaderState>,
             },
             Legacy(WorkspaceRoute),
         }
         Ok(match Saved::deserialize(deserializer)? {
-            Saved::Located { route, reading } => Self { route, reading },
+            Saved::Located {
+                route,
+                reading,
+                preview,
+            } => Self {
+                route,
+                reading,
+                preview,
+            },
             Saved::Legacy(route) => Self {
                 route,
                 reading: None,
+                preview: false,
             },
         })
     }
+}
+fn is_false(value: &bool) -> bool {
+    !value
 }
 impl HistoryEntry {
     fn same_location(&self, other: &Self) -> bool {
@@ -49,12 +65,36 @@ impl HistoryEntry {
                 WorkspaceRoute::Content(WorkspaceItem::Document { .. })
             )
     }
+    pub fn rebase_edit(&mut self, item: &WorkspaceItem, edit: &crate::text_edit_anchor::TextEdit) {
+        if self.route == WorkspaceRoute::Content(item.clone()) {
+            if let Some(reading) = &mut self.reading {
+                edit.rebase(reading);
+            }
+        }
+    }
+    pub fn bind_revision(&mut self, item: &WorkspaceItem, revision: u64) {
+        if self.route == WorkspaceRoute::Content(item.clone()) {
+            if let Some(reading) = &mut self.reading {
+                reading.source_revision = Some(revision);
+            }
+        }
+    }
+    pub fn replace_identity(&mut self, old: &WorkspaceItem, new: &WorkspaceItem) {
+        if self.route == WorkspaceRoute::Content(old.clone()) {
+            self.route = WorkspaceRoute::Content(new.clone());
+            if matches!(old, WorkspaceItem::Document { .. }) {
+                self.reading = None;
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct WorkspaceHistory {
     pub reading: Option<ReaderState>,
+    #[serde(skip_serializing_if = "is_false")]
+    pub preview: bool,
     pub back: Vec<HistoryEntry>,
     pub forward: Vec<HistoryEntry>,
 }
@@ -72,6 +112,7 @@ impl WorkspaceHistory {
         self.back.push(HistoryEntry {
             route: route.clone(),
             reading: self.reading.take(),
+            preview: std::mem::take(&mut self.preview),
         });
         self.forward.clear();
     }
@@ -91,6 +132,7 @@ impl WorkspaceHistory {
         let entry = HistoryEntry {
             route: route.clone(),
             reading: Some(before),
+            preview: self.preview,
         };
         if self
             .back
@@ -114,6 +156,7 @@ impl WorkspaceHistory {
         let current = HistoryEntry {
             route: route.clone(),
             reading: self.reading.clone(),
+            preview: self.preview,
         };
         let entries = if forward { &self.forward } else { &self.back };
         entries.iter().any(|entry| !entry.same_location(&current))
@@ -134,11 +177,13 @@ impl WorkspaceHistory {
             };
             let entry = entries.pop()?;
             self.reading = entry.reading.clone();
+            self.preview = entry.preview;
             return Some(entry);
         };
         let current = HistoryEntry {
             route: route.clone(),
             reading: self.reading.clone(),
+            preview: self.preview,
         };
         let (from, to) = if forward {
             (&mut self.forward, &mut self.back)
@@ -149,6 +194,7 @@ impl WorkspaceHistory {
             if !entry.same_location(&current) {
                 to.push(current);
                 self.reading = entry.reading.clone();
+                self.preview = entry.preview;
                 return Some(entry);
             }
         }
@@ -159,35 +205,18 @@ impl WorkspaceHistory {
         self.forward.retain(|entry| admitted(&entry.route));
     }
     pub fn rebase_edit(&mut self, item: &WorkspaceItem, edit: &crate::text_edit_anchor::TextEdit) {
-        let route = WorkspaceRoute::Content(item.clone());
         for entry in self.back.iter_mut().chain(&mut self.forward) {
-            if entry.route == route {
-                if let Some(reading) = &mut entry.reading {
-                    edit.rebase(reading);
-                }
-            }
+            entry.rebase_edit(item, edit);
         }
     }
     pub fn bind_revision(&mut self, item: &WorkspaceItem, revision: u64) {
-        let route = WorkspaceRoute::Content(item.clone());
         for entry in self.back.iter_mut().chain(&mut self.forward) {
-            if entry.route == route {
-                if let Some(reading) = &mut entry.reading {
-                    reading.source_revision = Some(revision);
-                }
-            }
+            entry.bind_revision(item, revision);
         }
     }
     pub fn replace_identity(&mut self, old: &WorkspaceItem, new: &WorkspaceItem) {
         for entry in self.back.iter_mut().chain(&mut self.forward) {
-            if entry.route == WorkspaceRoute::Content(old.clone()) {
-                entry.route = WorkspaceRoute::Content(new.clone());
-                if matches!(old, WorkspaceItem::Document { .. }) {
-                    // A copied file can also start at revision 1. Source
-                    // identity replacement does not prove range compatibility.
-                    entry.reading = None;
-                }
-            }
+            entry.replace_identity(old, new);
         }
     }
 }
@@ -288,6 +317,7 @@ mod tests {
         let b = item("/b");
         let entry = |item: WorkspaceItem| HistoryEntry {
             route: WorkspaceRoute::Content(item),
+            preview: false,
             reading: Some(ReaderState {
                 source_revision: Some(1),
                 selection: 10..20,
