@@ -249,3 +249,8 @@ temporary bundle paths with `pathToFileURL` before dynamic import. Move the
 standalone loopback check directly after npm installation; it depends on npm
 packages and committed schemas, not on the native Desktop build. This keeps the
 same test on every OS and exposes loader/fixture failures before the long build.
+
+Moving the gate before build exposed another fixture precondition on fresh CI
+checkouts: `target/` did not exist for mkdtemp. Use the OS temporary directory
+instead, keeping both file URLs and the existing finally cleanup. The suite
+must run with npm dependencies alone, without relying on native build artifacts.
