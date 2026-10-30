@@ -107,6 +107,29 @@ try {
   checks.push('strict CSP without unsafe-eval permits declared parameter schemas');
   checks.push('semantic invoke changes App state and verify reads the result');
 
+  await page.evaluate(() => surface.overlay({x:600,y:400,width:120,height:100}));
+  let covered = (await call({ action: 'status' })).value;
+  assert.equal(covered.visible, true); assert.equal(covered.operable, false); assert.equal(covered.capturable, false);
+  assert.equal((await call({ action: 'observe', instance: initial.instance })).ok, true);
+  assert.equal((await call({ action: 'invoke', instance: initial.instance, target: 'probe', name: 'set', params: { value: 1 }, revision: observed.value.objects[0].revision })).error.code, 'APP_SURFACE_COVERED');
+  assert.notEqual(await page.evaluate(() => document.elementFromPoint(650,450)?.tagName), 'IFRAME');
+  assert.equal(await page.evaluate(() => document.elementFromPoint(100,100)?.tagName), 'IFRAME');
+  await page.evaluate(() => surface.suspendChatOverlay(true));
+  assert.equal((await call({ action: 'status' })).value.capturable, true);
+  await page.evaluate(() => surface.suspendChatOverlay(false));
+  assert.equal((await call({ action: 'status' })).value.capturable, false);
+  await page.evaluate(() => surface.overlay(null));
+  assert.equal((await call({ action: 'status' })).value.operable, true);
+  assert.equal((await call({ action: 'status' })).value.capturable, true);
+  await page.evaluate(() => { const overlay=document.createElement('aside'); overlay.dataset.peroAppChatOverlay=''; overlay.style.cssText='position:fixed;left:600px;top:400px;width:120px;height:100px'; document.body.append(overlay); });
+  covered = (await call({ action: 'status' })).value;
+  assert.equal(covered.operable, false); assert.equal(covered.capturable, false);
+  await page.evaluate(() => { document.querySelector('[data-pero-app-chat-overlay]').style.visibility='hidden'; });
+  assert.equal((await call({ action: 'status' })).value.operable, true);
+  await page.evaluate(() => document.querySelector('[data-pero-app-chat-overlay]').remove());
+  assert.equal((await call({ action: 'status' })).value.operable, true);
+  checks.push('floating Chat blocks operation and capture while leaving reads available; closing restores access');
+
   const geometry = await call({ action: 'geometry', instance: initial.instance, target: 'probe' });
   assert.equal(geometry.ok, true); assert.ok(geometry.value.rect.x >= 50); assert.ok(geometry.value.rect.y >= 50);
   checks.push('App geometry translated into parent coordinates');
