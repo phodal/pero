@@ -421,6 +421,7 @@ jobs:
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/workbench.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/toolcalls.mjs
           run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/control-lab.mjs
+          run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/control-lab-app-use.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/virtual-cell-comparison.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/virtual-cell-dataset-download.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use.mjs
