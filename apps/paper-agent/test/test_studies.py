@@ -95,6 +95,31 @@ class ResearchStudies(unittest.TestCase):
             with self.assertRaises(Invalid):
                 ResearchStep.read(reopened, command, document, NOW)
 
+    def test_followup_reuses_only_unchanged_frozen_pdf_evidence(self):
+        paper, document = source()
+        first = new_study(paper, document)
+        command = StudyCommand.parse(dict(action='read', paperId=paper.id, page=1), first)
+        first = first.append(ResearchStep.read(first, command, document, NOW))
+        parent = first.freeze_input()
+        followup = replace(request([paper], fullText=True), request_id='followup', parent_intent_id=parent.id)
+        for version, expected in ((document, 1),
+                (PdfDocument.create(paper.id, '9' * 64, paper.url, document.pages, NOW), 0)):
+            with self.subTest(document=version.id):
+                study = ResearchStudy.create(followup, (paper,), (version,), (), NOW, parent)
+                self.assertEqual(len(study.passages), expected)
+                restored = ResearchStudy.from_record(study.to_record())
+                self.assertEqual(restored.passages, study.passages)
+                if expected:
+                    recall = StudyCommand.parse(dict(action='recall', passageId=parent.passages[0].id), restored)
+                    self.assertEqual(recall.passage, parent.passages[0])
+                    final = StudyCommand.parse(dict(action='finalize', report=final_report(restored, recall.passage)), restored)
+                    self.assertTrue(final.report.sections[0].evidence)
+                else:
+                    with self.assertRaises(Invalid):
+                        StudyCommand.parse(dict(action='recall', passageId=parent.passages[0].id), restored)
+        with self.assertRaisesRegex(Invalid, 'follow-up'):
+            ResearchStudy.create(replace(followup, parent_intent_id='0' * 64), (paper,), (document,), (), NOW, parent)
+
     def test_only_observed_exact_evidence_can_be_finalized(self):
         paper, document = source()
         study = new_study(paper, document)

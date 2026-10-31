@@ -307,7 +307,8 @@ class ResearchStore:
                 return existing
             papers = tuple(self.paper(i) for i in request.paper_ids)
             documents = tuple(self.paper_pdf(p.id) for p in papers)
-            study = ResearchStudy.create(request, papers, documents, self.conversation(request), now)
+            parent = self.intent(request.parent_intent_id) if request.parent_intent_id else None
+            study = ResearchStudy.create(request, papers, documents, self.conversation(request), now, parent)
             self._write('studies', study.id, study.to_record())
             return study
 

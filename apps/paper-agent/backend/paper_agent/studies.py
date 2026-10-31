@@ -230,6 +230,26 @@ class StudyCommand:
 
 
 @dataclass(frozen=True)
+class StudyCarryover:
+    intent_id: str
+    passages: tuple[PdfPassage, ...]
+
+    @classmethod
+    def from_parent(cls, parent: ResearchInput, sources: tuple[StudySource, ...]):
+        versions = {(s.paper_id, s.document_id, s.file_digest) for s in sources}
+        passages = tuple(p for p in parent.passages
+                         if (p.paper_id, p.document_id, p.file_digest) in versions)
+        return cls(parent.id, passages) if passages else None
+
+    def to_dict(self):
+        return dict(intentId=self.intent_id, passages=[p.to_dict() for p in self.passages])
+
+    @classmethod
+    def from_record(cls, value):
+        return cls(value['intentId'], tuple(PdfPassage.from_record(p) for p in value['passages']))
+
+
+@dataclass(frozen=True)
 class ResearchStudy:
     request: ResearchRequest
     papers: tuple[PaperSnapshot, ...]
@@ -239,14 +259,19 @@ class ResearchStudy:
     frozen_prompt: str = ''
     steps: tuple[ResearchStep, ...] = ()
     continuations: tuple[StudyContinuation, ...] = ()
+    carryover: StudyCarryover | None = None
 
     @classmethod
-    def create(cls, request, papers, documents, conversation, now):
+    def create(cls, request, papers, documents, conversation, now, parent=None):
         if not request.full_text or request.verify_code or any(d is None for d in documents):
             raise Invalid('Research studies require saved PDFs and reading-only mode')
         if tuple(p.id for p in papers) != request.paper_ids or tuple(d.paper_id for d in documents) != request.paper_ids:
             raise Invalid('Frozen PDF versions do not match the selected papers')
         study = cls(request, papers, tuple(StudySource.create(p, d) for p, d in zip(papers, documents)), conversation, now)
+        if parent is not None:
+            if parent.id != request.parent_intent_id:
+                raise Invalid('Prior evidence does not belong to this follow-up')
+            study = replace(study, carryover=StudyCarryover.from_parent(parent, study.sources))
         return replace(study, frozen_prompt=study.build_prompt())
 
     @property
@@ -259,7 +284,8 @@ class ResearchStudy:
 
     @property
     def passages(self):
-        return tuple({p.id: p for step in self.steps for p in step.passages}.values())
+        prior = self.carryover.passages if self.carryover else ()
+        return tuple({p.id: p for p in (*prior, *(p for step in self.steps for p in step.passages))}.values())
 
     @property
     def report_id(self):
@@ -320,13 +346,15 @@ class ResearchStudy:
     def to_record(self):
         return dict(id=self.id, request=self.request.to_dict(), papers=[p.to_record() for p in self.papers],
                     sources=[s.to_dict() for s in self.sources], conversation=[t.to_dict() for t in self.conversation],
-                    createdAt=self.created_at, frozenPrompt=self.frozen_prompt)
+                    createdAt=self.created_at, frozenPrompt=self.frozen_prompt,
+                    **(dict(carryover=self.carryover.to_dict()) if self.carryover else {}))
 
     @classmethod
     def from_record(cls, value):
         result = cls(ResearchRequest.parse(value['request']), tuple(PaperSnapshot.from_record(p) for p in value['papers']),
                      tuple(StudySource.from_record(s) for s in value['sources']),
-                     tuple(ConversationTurn.from_record(t) for t in value['conversation']), value['createdAt'], value['frozenPrompt'])
+                     tuple(ConversationTurn.from_record(t) for t in value['conversation']), value['createdAt'], value['frozenPrompt'],
+                     carryover=StudyCarryover.from_record(value['carryover']) if value.get('carryover') else None)
         if result.id != value['id']:
             raise Invalid('Stored study integrity check failed')
         return result
@@ -344,10 +372,11 @@ class ResearchStudy:
         context = dict(studyId=self.id, intentId=self.id, question=self.request.question,
                        sourceCatalog=[s.to_dict() for s in self.sources], budget=self.budget,
                        priorConversation=[t.to_dict() for t in self.conversation],
-                       observedPassages=[dict(id=p.id, paperId=p.paper_id, page=p.page, start=p.start,
+                       observedPassages=[dict(id=p.id, paperId=p.paper_id, page=p.page, start=p.start, preview=p.content[:160],
                                               length=len(p.content)) for p in self.passages],
                        findings=self.compact()['findings'], gaps=self.compact()['gaps'])
         return ('ResearchStudy: investigate the frozen PDFs for the question below in this ONE Host-owned Agent session. '
+                'Follow-ups retain original passages only for unchanged frozen PDF versions. Use recall on relevant observedPassages before rereading the same pages; previous answer prose is not evidence. Read only sections needed for this question and finalize once the claims and important limitations are supported. Do not spend the step budget surveying unrelated sections. '
                 'Use the app_describe and app_write MCP tools for App "paper-agent". Discover the declared '
                 '"research-step" write tool with app_describe, then call app_write with app="paper-agent", '
                 'tool="research-step" and document containing studyId and action. Do not start subagents or another runtime. '
