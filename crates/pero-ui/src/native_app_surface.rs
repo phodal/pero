@@ -252,7 +252,7 @@ impl Workbench {
                     anyhow::ensure!(this.navigation.current()==Some(&item), "Show the App before opening its conversation");
                     this.set_chat_dock(true,cx);
                     this.chat.update(cx, |chat,cx| {
-                        chat.set_scope(Some(scope.clone()),cx);
+                        chat.open_app_draft(scope.clone(),cx);
                         let thread = chat.active_chat.and_then(|index|chat.chats.get(index)).ok_or_else(||anyhow::anyhow!("Open Chat and retry"))?.id.clone();
                         if let Some(text) = options.message {
                             let mut insertion = HostEvent::new("compose_context",None,text);

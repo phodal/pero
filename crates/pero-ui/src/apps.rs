@@ -189,7 +189,7 @@ mod surface {
                                 self.set_chat_dock(true, cx);
                             }
                             self.chat
-                                .update(cx, |chat, cx| chat.set_scope(Some(scope), cx));
+                                .update(cx, |chat, cx| chat.open_app_draft(scope, cx));
                             self.sync_follow(cx);
                         }
                     }
