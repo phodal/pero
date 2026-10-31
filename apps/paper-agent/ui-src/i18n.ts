@@ -19,6 +19,7 @@ export const messages = {
   backToLibrary: { zh: '返回文库', en: 'Back to library' }, sendQuestion: { zh: '发送问题', en: 'Send question' },
   askPlaceholder: { zh: '询问这篇论文…', en: 'Ask about this paper…' },
   reportActions: { zh: '导出', en: 'Export' }, chooseSources: { zh: '选择论文', en: 'Choose papers' },
+  continueFromHere: { zh: '从此处追问', en: 'Continue from here' },
   otherPaperTask: { zh: '当前研究属于另一篇论文：', en: 'The current research belongs to another paper:' },
   resumeQuestion: { zh: '继续此问题', en: 'Resume question' }, removeContext: { zh: '移除选段', en: 'Remove selection' },
   pdfFitPage: { zh: '适应页面', en: 'Fit page' },
