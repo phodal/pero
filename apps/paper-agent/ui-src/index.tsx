@@ -150,11 +150,14 @@ export default function PaperAgent() {
   async function send(execute = true) {
     if (task.busy || task.working) return;
     setError('');
-    const contextPaper = draft.contextSource && library.papers.find(paper => paper.id === draft.contextSource?.paperId);
-    const question = draft.question.trim() + (draft.context ? `\n\n${draft.contextSource ? `${contextPaper?.title ?? ''} — ${t('pdfPage')} ${draft.contextSource.page}\n` : ''}> ${draft.context}` : '');
+    const question = draft.question.trim();
     try {
+      const context = draft.context ? await api.post<{ id: string }>('/api/contexts', {
+        content: draft.context, paperId: draft.contextSource?.paperId ?? draft.selected[0],
+        ...(draft.contextSource ? { documentId: draft.contextSource.documentId, page: draft.contextSource.page } : {}),
+      }) : null;
       const previous = draft.parentIntentId ?? (task.report && task.intent?.papers.some(paper => draft.selected.includes(paper.id)) ? task.intent.id : [...library.intents].filter(intent => intent.paperIds?.some(id => draft.selected.includes(id)) && library.reports.some(report => report.intentId === intent.id)).sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0]?.id);
-      const frozen = await task.begin({ question, paperIds: draft.selected, fullText: draft.fullText, verifyCode: draft.verifyCode, verificationPlan: draft.verificationPlan, parentIntentId: previous }, agentId, execute);
+      const frozen = await task.begin({ question, ...(context ? { contextId: context.id } : {}), paperIds: draft.selected, fullText: draft.fullText, verifyCode: draft.verifyCode, verificationPlan: draft.verificationPlan, parentIntentId: previous }, agentId, execute);
       if (frozen && execute) updateDraft({ question: '', context: '', contextSource: undefined, parentIntentId: undefined });
     } catch (error) { onError(error); }
   }

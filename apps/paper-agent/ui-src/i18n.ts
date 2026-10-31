@@ -113,6 +113,7 @@ export const messages = {
   original: { zh: '打开原始来源', en: 'Open original source' }, originalPdf: { zh: '原始 PDF', en: 'Original PDF' },
   fetchFull: { zh: '获取全文', en: 'Get full text' }, sourceDetails: { zh: '快照详情', en: 'Snapshot details' },
   addExcerpt: { zh: '将选段加入问题', en: 'Add selection to question' },
+  discussPage: { zh: '讨论本页', en: 'Discuss page' },
   discussSelection: { zh: '讨论选段', en: 'Discuss selection' },
   discussPrompt: { zh: '请结合这段原文解释，并区分原文结论与推断。', en: 'Explain this source passage, distinguishing the paper’s conclusions from inference.' },
   openChat: { zh: '打开工作台对话', en: 'Open workbench chat' },

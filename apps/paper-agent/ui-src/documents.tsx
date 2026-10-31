@@ -17,7 +17,7 @@ export function Reader({ paper, busy, api, pdfFocus, onFull, onDiscuss, onMatrix
     const selection = window.getSelection();
     if (!paper.content || !selection || !selection.rangeCount || !source.current?.contains(selection.anchorNode) || !source.current.contains(selection.focusNode)) return;
     const value = selection.toString().trim();
-    setExcerpt(value.length <= 2000 ? value : '');
+    setExcerpt(value);
   }
   return <article className="pa-document pa-reading-document" data-paper-id={paper.id} aria-label={paper.title}>
     <PdfReader key={paper.id} chrome={chrome} paper={paper} api={api} focus={pdfFocus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}>

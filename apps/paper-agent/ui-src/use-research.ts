@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Agent, Api, Intent, Report, ResearchStudy } from './types';
 import type { Translator } from './i18n';
 
-export type ResearchRequest = { question: string; paperIds: string[]; verifyCode: boolean; verificationPlan: string; fullText?: boolean; parentIntentId?: string };
+export type ResearchRequest = { question: string; paperIds: string[]; verifyCode: boolean; verificationPlan: string; fullText?: boolean; parentIntentId?: string; contextId?: string };
 type ResearchStage = { stage: 'research' | 'answer'; requestId: string; prompt: string; question: string; studyId?: string; intent?: Intent };
 
 export function useResearch(api: Api, agent: Agent, active: boolean, refresh: () => Promise<void>, onError: (error: unknown) => void, t: Translator) {
