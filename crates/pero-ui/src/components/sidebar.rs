@@ -12,7 +12,7 @@ use gpui_kit::{
 pub(crate) struct RecentRow {
     pub bounds: Option<AnyElement>,
     pub label: String,
-    pub icon: &'static str,
+    pub icon: Option<&'static str>,
     pub active: bool,
     pub busy: bool,
     pub attention: bool,
@@ -87,7 +87,7 @@ fn recent_row(
     let lead = if row.attention {
         Some("alert-circle")
     } else {
-        Some(row.icon)
+        row.icon
     };
     let trailing = row
         .delete

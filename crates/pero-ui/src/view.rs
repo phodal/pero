@@ -122,7 +122,7 @@ impl Workbench {
             |i: usize, chat: &pero_chat_ui::conversation::Conversation| sidebar::RecentRow {
                 bounds: Some(self.view_bounds.sessions.probe(chat.id.clone()).into_any_element()),
                 label: chat.title.display().to_owned(),
-                icon: "plus",
+                icon: None,
                 active: self.navigation.page() == WorkbenchPage::Conversation
                     && panel.active_chat == Some(i),
                 busy: chat.busy(),
@@ -169,7 +169,7 @@ impl Workbench {
                         .map(|task| sidebar::RecentRow {
                             bounds: None,
                             label: crate::remote::string(task, "title").to_string(),
-                            icon: "layout-list",
+                            icon: Some("layout-list"),
                             active: selected_task.is_some_and(|id| task["id"].as_str() == Some(id)),
                             busy: matches!(
                                 phase(task),
