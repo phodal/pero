@@ -184,6 +184,7 @@ impl Automation {
 
     fn advance(&mut self, agents: &mut Manager) -> Result<(), String> {
         while let Ok(observation) = self.observations.try_recv() { self.observe(observation)?; }
+        self.advance_app_calendars(now())?;
         let state = self.store.state()?;
         let due = domain::due_slots(&state, now());
         if !due.is_empty() { self.store.apply(due, now(), None, None, None)?; }
@@ -244,3 +245,7 @@ impl Automation {
         let _ = self.store.apply(vec![Command::Recover], now(), None, None, None);
     }
 }
+
+#[path="automation_app.rs"]
+mod app_api;
+pub(crate) use app_api::AppRequest;

@@ -131,6 +131,11 @@ impl Apps {
         }
     }
 
+    pub(crate) fn require_grant(&self, name: &AppName, grant: &str) -> Result<(), String> {
+        let guard=self.store.try_lock().map_err(|_|"An App environment is being prepared; retry when installation finishes".to_string())?;
+        guard.as_ref().map_err(Clone::clone)?.require_grant(name,grant)
+    }
+
     /// Installers run outside the stdio input loop so Agent traffic and
     /// cancellation remain responsive while pip downloads packages.
     pub fn dispatch_async(&self, value: serde_json::Value, agents: &mut crate::agents::Manager) {

@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { buildReader } from './reader.mjs';
+import { buildAutomationApp } from './automation-app.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const args = process.argv.slice(2);
@@ -11,6 +12,7 @@ const appNames = args.includes('--app') ? [args[args.indexOf('--app') + 1]] : JS
 const readerDirectory = args.includes('--reader-dist') ? resolve(args[args.indexOf('--reader-dist') + 1]) : resolve(root, 'web/dist-reader');
 if (!args.includes('--reader-dist')) await buildReader();
 for (const appName of appNames) {
+if (appName === 'automations') { await buildAutomationApp({pointRoot:process.env.PERO_POINT_ROOT}); continue; }
 if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(appName)) throw new Error('Invalid App name');
 const appRoot = resolve(root, 'apps', appName);
 // Each App has a frozen dependency tree, separate from Desktop's runtime.

@@ -210,6 +210,25 @@ fn main() -> io::Result<()> {
             }
             continue;
         }
+        if value.get("method").and_then(|v| v.as_str()) == Some("apps") && value["action"] == "automation" {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct AppAutomation { method:String, action:String, id:String, name:pero_runtime::apps::AppName, request:automation::AppRequest }
+            let id=value["id"].as_str().map(str::to_owned);
+            let result=(|| {
+                let request:AppAutomation=serde_json::from_value(value).map_err(|e|e.to_string())?;
+                let _=(request.method,request.action);
+                apps.require_grant(&request.name,"automation")?;
+                let owner=automation.as_mut().map_err(|error|error.clone())?;
+                let response=owner.app_request(request.request,&mut agents);
+                let _=request.id;
+                serde_json::to_value(response).map_err(|e|e.to_string())
+            })();
+            let mut event=HostEvent::new("apps_result",id,String::new());
+            event.data=match result{Ok(value)=>serde_json::json!({"ok":true,"value":value}),Err(error)=>serde_json::json!({"ok":false,"error":error})};
+            emit(event)?;
+            continue;
+        }
         if value.get("method").and_then(|v| v.as_str()) == Some("apps") {
             apps.dispatch_async(value, &mut agents);
             continue;
