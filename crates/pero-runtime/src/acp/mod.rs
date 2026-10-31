@@ -9,4 +9,4 @@ pub use agent_client_protocol as sdk;
 pub use app_use::{AppUseEndpoint, APP_USE_SKILL};
 pub use connectors::ConnectorsEndpoint;
 pub use registry::{registry, AgentConfig, CREDENTIAL_REQUIRED};
-pub use session::{start, start_app, start_supervised, SessionCommand, SessionHandle};
+pub use session::{start, start_app, start_supervised, PromptRejection, SessionCommand, SessionHandle};

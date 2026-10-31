@@ -1,3 +1,4 @@
+import { installAutomation } from './automation';
 import {installContentAnalysis} from './content-analysis';
 import { loadContentResult, cancelContentResult } from './content-results';
 import type { ContentChunk, ConversationReadParameters } from '../../packages/content-source/index';
@@ -100,7 +101,9 @@ try {
     }
     window.pero.sendProbe(request).catch(() => receive_host_event(JSON.stringify({ version: 1, kind: 'error', request_id: request.id, text: '', message_key: 'error.connection' })));
   };
+  const automation = installAutomation(command => window.pero ? window.pero.sessionCommand(command) : Promise.reject(new Error(t('error.browser'))));
   const onEvent = (event: HostEvent) => {
+    automation.event(event);
     if (event.kind === 'settings') { locale = normalizeLocale(event.text); updateDocument(); }
     receive_host_event(JSON.stringify(event));
     if (event.kind === 'workbench_settings') applyAppearance(JSON.parse(snapshot()).appearance);

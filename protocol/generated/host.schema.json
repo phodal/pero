@@ -1094,6 +1094,1821 @@
       ],
       "additionalProperties": false
     },
+    "AutomationAccept": {
+      "title": "AutomationAccept",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "accept"
+        },
+        "event": {
+          "$ref": "#/$defs/AutomationEventAssertion"
+        }
+      },
+      "required": [
+        "action",
+        "event"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationAcceptanceReceipt": {
+      "title": "AutomationAcceptanceReceipt",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "acceptance"
+        },
+        "id": {
+          "type": "string"
+        },
+        "duplicate": {
+          "type": "boolean"
+        },
+        "matched": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "duplicate",
+        "matched"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationAcceptedEvent": {
+      "title": "AutomationAcceptedEvent",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "input": {
+          "$ref": "#/$defs/AutomationEventInput"
+        },
+        "position": {
+          "$ref": "#/$defs/AutomationCounter"
+        },
+        "accepted_at": {
+          "$ref": "#/$defs/AutomationCounter"
+        }
+      },
+      "required": [
+        "id",
+        "input",
+        "position",
+        "accepted_at"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationAdmission": {
+      "title": "AutomationAdmission",
+      "type": "object",
+      "properties": {
+        "admittedAt": {
+          "$ref": "#/$defs/AutomationCounter"
+        },
+        "authority": {
+          "$ref": "#/$defs/AutomationAuthority"
+        },
+        "candidate": {
+          "$ref": "#/$defs/AutomationCandidateRef"
+        }
+      },
+      "required": [
+        "admittedAt",
+        "authority",
+        "candidate"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationAdmissionEntry": {
+      "title": "AutomationAdmissionEntry",
+      "type": "object",
+      "properties": {
+        "execution_id": {
+          "type": "string"
+        },
+        "record": {
+          "$ref": "#/$defs/AutomationAdmission"
+        }
+      },
+      "required": [
+        "execution_id",
+        "record"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationAdmissionFailure": {
+      "title": "AutomationAdmissionFailure",
+      "type": "object",
+      "properties": {
+        "admissionFailure": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "admissionFailure"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationAgentMethod": {
+      "title": "AutomationAgentMethod",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "agent"
+        },
+        "agent_id": {
+          "type": "string"
+        },
+        "workspace": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "agent_id",
+        "workspace",
+        "prompt"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationAgentSummary": {
+      "title": "AutomationAgentSummary",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "available": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "available"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationAttention": {
+      "title": "AutomationAttention",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "AutomationAuthority": {
+      "title": "AutomationAuthority",
+      "type": "object",
+      "properties": {
+        "agentId": {
+          "type": "string"
+        },
+        "workspace": {
+          "type": "string"
+        },
+        "configurationDigest": {
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "permissionPolicy": {
+          "type": "string"
+        },
+        "appUse": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "agentId",
+        "workspace",
+        "configurationDigest",
+        "model",
+        "permissionPolicy",
+        "appUse"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationCancel": {
+      "title": "AutomationCancel",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "cancel"
+        },
+        "request_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "request_id"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationCandidateRef": {
+      "title": "AutomationCandidateRef",
+      "type": "object",
+      "properties": {
+        "binding_id": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "content_ref": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "binding_id",
+        "subject",
+        "revision",
+        "digest",
+        "content_ref"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationCapabilities": {
+      "title": "AutomationCapabilities",
+      "type": "object",
+      "properties": {
+        "owner": {
+          "type": "string"
+        },
+        "workspace": {
+          "type": "string"
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationAgentSummary"
+          }
+        },
+        "supportedTargets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "const": "local_host"
+          }
+        },
+        "supportedMethods": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "const": "agent"
+          }
+        },
+        "sourceBindingId": {
+          "type": "string"
+        },
+        "sourceKind": {
+          "type": "string",
+          "const": "local_published_registry"
+        },
+        "maxInputBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "available": {
+          "type": "boolean"
+        },
+        "unsupported": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "owner",
+        "workspace",
+        "agents",
+        "supportedTargets",
+        "supportedMethods",
+        "sourceBindingId",
+        "sourceKind",
+        "maxInputBytes",
+        "available",
+        "unsupported"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationCapacityCount": {
+      "title": "AutomationCapacityCount",
+      "type": "object",
+      "properties": {
+        "used": {
+          "$ref": "#/$defs/AutomationCounter"
+        },
+        "limit": {
+          "$ref": "#/$defs/AutomationCounter"
+        }
+      },
+      "required": [
+        "used",
+        "limit"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationCapacityKind": {
+      "title": "AutomationCapacityKind",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "requests"
+        },
+        {
+          "type": "string",
+          "const": "events"
+        },
+        {
+          "type": "string",
+          "const": "snapshots"
+        },
+        {
+          "type": "string",
+          "const": "definitions"
+        },
+        {
+          "type": "string",
+          "const": "dispatches"
+        }
+      ]
+    },
+    "AutomationCapacityStatus": {
+      "title": "AutomationCapacityStatus",
+      "type": "object",
+      "properties": {
+        "requests": {
+          "$ref": "#/$defs/AutomationCapacityCount"
+        },
+        "events": {
+          "$ref": "#/$defs/AutomationCapacityCount"
+        },
+        "snapshots": {
+          "$ref": "#/$defs/AutomationCapacityCount"
+        },
+        "definitions": {
+          "$ref": "#/$defs/AutomationCapacityCount"
+        },
+        "dispatches": {
+          "$ref": "#/$defs/AutomationCapacityCount"
+        },
+        "exhausted": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationCapacityKind"
+          }
+        }
+      },
+      "required": [
+        "requests",
+        "events",
+        "snapshots",
+        "definitions",
+        "dispatches",
+        "exhausted"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationClosed": {
+      "title": "AutomationClosed",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "AutomationCommand": {
+      "title": "AutomationCommand",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AutomationQuery"
+        },
+        {
+          "$ref": "#/$defs/AutomationCreateLocal"
+        },
+        {
+          "$ref": "#/$defs/AutomationPutDefinition"
+        },
+        {
+          "$ref": "#/$defs/AutomationPutBinding"
+        },
+        {
+          "$ref": "#/$defs/AutomationPublishInput"
+        },
+        {
+          "$ref": "#/$defs/AutomationAccept"
+        },
+        {
+          "$ref": "#/$defs/AutomationManualInput"
+        },
+        {
+          "$ref": "#/$defs/AutomationCancel"
+        },
+        {
+          "$ref": "#/$defs/AutomationSetControl"
+        },
+        {
+          "$ref": "#/$defs/AutomationRevokeBinding"
+        },
+        {
+          "$ref": "#/$defs/AutomationContinueOld"
+        },
+        {
+          "$ref": "#/$defs/AutomationReconcile"
+        }
+      ],
+      "description": "Internal execution receipts, reservations and clock ticks are never client commands."
+    },
+    "AutomationContinueOld": {
+      "title": "AutomationContinueOld",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "continue_old"
+        },
+        "request_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "request_id"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationControl": {
+      "title": "AutomationControl",
+      "type": "object",
+      "properties": {
+        "paused": {
+          "type": "boolean"
+        },
+        "revoked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "paused",
+        "revoked"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationControls": {
+      "title": "AutomationControls",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {
+        "$ref": "#/$defs/AutomationControl"
+      }
+    },
+    "AutomationCounter": {
+      "title": "AutomationCounter",
+      "type": "integer",
+      "minimum": 0
+    },
+    "AutomationCoveredRequestStatus": {
+      "title": "AutomationCoveredRequestStatus",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "covered"
+        },
+        "request_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "request_id"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationCreateLocal": {
+      "title": "AutomationCreateLocal",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "create_local"
+        },
+        "id": {
+          "type": "string"
+        },
+        "trigger": {
+          "$ref": "#/$defs/AutomationTrigger"
+        },
+        "input": {
+          "$ref": "#/$defs/AutomationInputContract"
+        },
+        "agent_id": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "id",
+        "trigger",
+        "input",
+        "agent_id",
+        "prompt"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationDecision": {
+      "title": "AutomationDecision",
+      "type": "object",
+      "properties": {
+        "acceptance_id": {
+          "type": "string"
+        },
+        "definition_id": {
+          "type": "string"
+        },
+        "revision": {
+          "$ref": "#/$defs/AutomationCounter"
+        },
+        "request_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "acceptance_id",
+        "definition_id",
+        "revision",
+        "request_id"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationDefinition": {
+      "title": "AutomationDefinition",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "$ref": "#/$defs/AutomationCounter"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "trigger": {
+          "$ref": "#/$defs/AutomationTrigger"
+        },
+        "input": {
+          "$ref": "#/$defs/AutomationInputContract"
+        },
+        "input_binding_id": {
+          "type": "string"
+        },
+        "method": {
+          "$ref": "#/$defs/AutomationAgentMethod"
+        },
+        "target": {
+          "$ref": "#/$defs/AutomationTarget"
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "owner",
+        "trigger",
+        "input",
+        "input_binding_id",
+        "method",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationErrorEvent": {
+      "title": "AutomationErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "automation_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationEventAssertion": {
+      "title": "AutomationEventAssertion",
+      "type": "object",
+      "properties": {
+        "binding_id": {
+          "type": "string"
+        },
+        "producer_id": {
+          "type": "string"
+        },
+        "event_kind": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "exact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationExactRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "binding_id",
+        "producer_id",
+        "event_kind",
+        "subject",
+        "exact"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationEventInput": {
+      "title": "AutomationEventInput",
+      "type": "object",
+      "properties": {
+        "binding_id": {
+          "type": "string"
+        },
+        "producer_id": {
+          "type": "string"
+        },
+        "event_kind": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "exact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationExactRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "digest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "binding_id",
+        "producer_id",
+        "event_kind",
+        "subject",
+        "exact",
+        "digest"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationEventIntent": {
+      "title": "AutomationEventIntent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "event"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationEventTrigger": {
+      "title": "AutomationEventTrigger",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "event"
+        },
+        "binding_id": {
+          "type": "string"
+        },
+        "event_kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "binding_id",
+        "event_kind"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationEvidence": {
+      "title": "AutomationEvidence",
+      "type": "object",
+      "properties": {
+        "admissions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationAdmissionEntry"
+          }
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationObservationEntry"
+          }
+        }
+      },
+      "required": [
+        "admissions",
+        "observations"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationExactRef": {
+      "title": "AutomationExactRef",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "revision",
+        "digest"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationInputContract": {
+      "title": "AutomationInputContract",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "process_exact"
+        },
+        {
+          "type": "string",
+          "const": "recheck_latest"
+        }
+      ]
+    },
+    "AutomationIntent": {
+      "title": "AutomationIntent",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AutomationEventIntent"
+        },
+        {
+          "$ref": "#/$defs/AutomationManualIntent"
+        },
+        {
+          "$ref": "#/$defs/AutomationTimeIntent"
+        }
+      ]
+    },
+    "AutomationLimits": {
+      "title": "AutomationLimits",
+      "type": "object",
+      "properties": {
+        "max_events": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "max_requests": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "max_snapshots": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "max_definitions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "max_fanout": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "max_event_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "max_active": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "max_dispatches": {
+          "$ref": "#/$defs/AutomationCounter"
+        }
+      },
+      "required": [
+        "max_events",
+        "max_requests",
+        "max_snapshots",
+        "max_definitions",
+        "max_fanout",
+        "max_event_bytes",
+        "max_active",
+        "max_dispatches"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationLocalTarget": {
+      "title": "AutomationLocalTarget",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "local_host"
+        },
+        "owner": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "owner"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationManualInput": {
+      "title": "AutomationManualInput",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "manual_input"
+        },
+        "definition_id": {
+          "type": "string"
+        },
+        "intent_id": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "definition_id",
+        "intent_id",
+        "subject",
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationManualIntent": {
+      "title": "AutomationManualIntent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "manual"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationManualTrigger": {
+      "title": "AutomationManualTrigger",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "manual"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationObservation": {
+      "title": "AutomationObservation",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "observedAt": {
+          "$ref": "#/$defs/AutomationCounter"
+        }
+      },
+      "required": [
+        "kind",
+        "observedAt"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationObservationEntry": {
+      "title": "AutomationObservationEntry",
+      "type": "object",
+      "properties": {
+        "execution_id": {
+          "type": "string"
+        },
+        "record": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationObservation"
+            },
+            {
+              "$ref": "#/$defs/AutomationAdmissionFailure"
+            }
+          ]
+        }
+      },
+      "required": [
+        "execution_id",
+        "record"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationOpenEvent": {
+      "title": "AutomationOpenEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "automation_open"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationOperatorReconciliation": {
+      "title": "AutomationOperatorReconciliation",
+      "type": "object",
+      "properties": {
+        "execution_id": {
+          "type": "string"
+        },
+        "disposition": {
+          "$ref": "#/$defs/AutomationReconciliationDisposition"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "recorded_at": {
+          "$ref": "#/$defs/AutomationCounter"
+        },
+        "previous_status": {
+          "$ref": "#/$defs/AutomationRequestStatus"
+        },
+        "authority": {
+          "type": "string",
+          "const": "local_operator"
+        }
+      },
+      "required": [
+        "execution_id",
+        "disposition",
+        "evidence",
+        "recorded_at",
+        "previous_status",
+        "authority"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationPublishInput": {
+      "title": "AutomationPublishInput",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "publish_input"
+        },
+        "binding_id": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "latest": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "binding_id",
+        "subject",
+        "revision",
+        "content",
+        "latest"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationPutBinding": {
+      "title": "AutomationPutBinding",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "put_binding"
+        },
+        "binding": {
+          "$ref": "#/$defs/AutomationSourceBinding"
+        }
+      },
+      "required": [
+        "action",
+        "binding"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationPutDefinition": {
+      "title": "AutomationPutDefinition",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "put_definition"
+        },
+        "definition": {
+          "$ref": "#/$defs/AutomationDefinition"
+        }
+      },
+      "required": [
+        "action",
+        "definition"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationQuery": {
+      "title": "AutomationQuery",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "query"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationReceipt": {
+      "title": "AutomationReceipt",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AutomationUpdatedReceipt"
+        },
+        {
+          "$ref": "#/$defs/AutomationAcceptanceReceipt"
+        },
+        {
+          "$ref": "#/$defs/AutomationRequestReceipt"
+        }
+      ]
+    },
+    "AutomationReconcile": {
+      "title": "AutomationReconcile",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "reconcile"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "expected_execution_id": {
+          "type": "string"
+        },
+        "disposition": {
+          "$ref": "#/$defs/AutomationReconciliationDisposition"
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "execution_stopped": {
+          "type": "boolean",
+          "const": true
+        },
+        "effects_checked": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": [
+        "action",
+        "request_id",
+        "expected_execution_id",
+        "disposition",
+        "evidence",
+        "execution_stopped",
+        "effects_checked"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationReconciliationDisposition": {
+      "title": "AutomationReconciliationDisposition",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "not_started"
+        },
+        {
+          "type": "string",
+          "const": "completed"
+        },
+        {
+          "type": "string",
+          "const": "failed"
+        },
+        {
+          "type": "string",
+          "const": "cancelled"
+        }
+      ]
+    },
+    "AutomationRequest": {
+      "title": "AutomationRequest",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "automation"
+        },
+        "id": {
+          "type": "string"
+        },
+        "command": {
+          "$ref": "#/$defs/AutomationCommand"
+        }
+      },
+      "required": [
+        "method",
+        "id",
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationRequestReceipt": {
+      "title": "AutomationRequestReceipt",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "request"
+        },
+        "id": {
+          "type": "string"
+        },
+        "duplicate": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "duplicate"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationRequestStatus": {
+      "title": "AutomationRequestStatus",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AutomationSimpleRequestStatus"
+        },
+        {
+          "$ref": "#/$defs/AutomationCoveredRequestStatus"
+        }
+      ]
+    },
+    "AutomationResult": {
+      "title": "AutomationResult",
+      "type": "object",
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/AutomationState"
+        },
+        "capacity": {
+          "$ref": "#/$defs/AutomationCapacityStatus"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/AutomationCapabilities"
+        },
+        "receipt": {
+          "$ref": "#/$defs/AutomationReceipt"
+        },
+        "attention": {
+          "$ref": "#/$defs/AutomationAttention"
+        },
+        "fault": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "$ref": "#/$defs/AutomationEvidence"
+        }
+      },
+      "required": [
+        "state",
+        "capacity",
+        "capabilities",
+        "attention",
+        "fault",
+        "evidence"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationResultEvent": {
+      "title": "AutomationResultEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "automation_result"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/AutomationResult"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationRevokeBinding": {
+      "title": "AutomationRevokeBinding",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "revoke_binding"
+        },
+        "binding_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "binding_id"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationRunRequest": {
+      "title": "AutomationRunRequest",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "definition": {
+          "$ref": "#/$defs/AutomationDefinition"
+        },
+        "intent": {
+          "$ref": "#/$defs/AutomationIntent"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "exact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationExactRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "created_at": {
+          "$ref": "#/$defs/AutomationCounter"
+        },
+        "through_position": {
+          "$ref": "#/$defs/AutomationCounter"
+        },
+        "snapshot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationCandidateRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "execution_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reprocess_of": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "operator_reconciliation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationOperatorReconciliation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/AutomationRequestStatus"
+        },
+        "continued_revision": {
+          "type": "boolean"
+        },
+        "cancel_requested": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "definition",
+        "intent",
+        "subject",
+        "exact",
+        "created_at",
+        "through_position",
+        "snapshot",
+        "execution_id",
+        "reprocess_of",
+        "operator_reconciliation",
+        "status",
+        "continued_revision",
+        "cancel_requested"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationSetControl": {
+      "title": "AutomationSetControl",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "control"
+        },
+        "definition_id": {
+          "type": "string"
+        },
+        "paused": {
+          "type": "boolean"
+        },
+        "revoked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "definition_id",
+        "paused",
+        "revoked"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationSimpleRequestStatus": {
+      "title": "AutomationSimpleRequestStatus",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "pending"
+            },
+            {
+              "type": "string",
+              "const": "input_unavailable"
+            },
+            {
+              "type": "string",
+              "const": "definition_changed"
+            },
+            {
+              "type": "string",
+              "const": "reserved"
+            },
+            {
+              "type": "string",
+              "const": "running"
+            },
+            {
+              "type": "string",
+              "const": "cancel_requested"
+            },
+            {
+              "type": "string",
+              "const": "reconcile"
+            },
+            {
+              "type": "string",
+              "const": "completed"
+            },
+            {
+              "type": "string",
+              "const": "failed"
+            },
+            {
+              "type": "string",
+              "const": "cancelled"
+            },
+            {
+              "type": "string",
+              "const": "expired"
+            },
+            {
+              "type": "string",
+              "const": "reconciled"
+            },
+            {
+              "type": "string",
+              "const": "not_started"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationSourceBinding": {
+      "title": "AutomationSourceBinding",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "authority": {
+          "type": "string"
+        },
+        "event_kinds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "owner",
+        "authority",
+        "event_kinds"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationState": {
+      "title": "AutomationState",
+      "type": "object",
+      "properties": {
+        "owner": {
+          "type": "string"
+        },
+        "limits": {
+          "$ref": "#/$defs/AutomationLimits"
+        },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationSourceBinding"
+          }
+        },
+        "definitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationDefinition"
+          }
+        },
+        "controls": {
+          "$ref": "#/$defs/AutomationControls"
+        },
+        "revoked_bindings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "snapshots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationCandidateRef"
+          }
+        },
+        "latest": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationCandidateRef"
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationAcceptedEvent"
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationDecision"
+          }
+        },
+        "requests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationRunRequest"
+          }
+        },
+        "dispatch_count": {
+          "$ref": "#/$defs/AutomationCounter"
+        }
+      },
+      "required": [
+        "owner",
+        "limits",
+        "bindings",
+        "definitions",
+        "controls",
+        "revoked_bindings",
+        "snapshots",
+        "latest",
+        "events",
+        "decisions",
+        "requests",
+        "dispatch_count"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationTarget": {
+      "title": "AutomationTarget",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AutomationLocalTarget"
+        },
+        {
+          "$ref": "#/$defs/AutomationUnsupportedTarget"
+        }
+      ]
+    },
+    "AutomationTimeIntent": {
+      "title": "AutomationTimeIntent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "time"
+        },
+        "slot": {
+          "$ref": "#/$defs/AutomationCounter"
+        }
+      },
+      "required": [
+        "kind",
+        "slot"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationTimeTrigger": {
+      "title": "AutomationTimeTrigger",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "time"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "exact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationExactRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "anchor": {
+          "$ref": "#/$defs/AutomationCounter"
+        },
+        "interval_seconds": {
+          "$ref": "#/$defs/AutomationCounter"
+        },
+        "max_lateness_seconds": {
+          "$ref": "#/$defs/AutomationCounter"
+        }
+      },
+      "required": [
+        "kind",
+        "subject",
+        "exact",
+        "anchor",
+        "interval_seconds",
+        "max_lateness_seconds"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationTrigger": {
+      "title": "AutomationTrigger",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AutomationManualTrigger"
+        },
+        {
+          "$ref": "#/$defs/AutomationEventTrigger"
+        },
+        {
+          "$ref": "#/$defs/AutomationTimeTrigger"
+        }
+      ]
+    },
+    "AutomationUnsupportedTarget": {
+      "title": "AutomationUnsupportedTarget",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "shared"
+            },
+            {
+              "type": "string",
+              "const": "worker"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationUpdatedReceipt": {
+      "title": "AutomationUpdatedReceipt",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "updated"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
     "BackendAccess": {
       "title": "BackendAccess",
       "type": "object",
@@ -3306,6 +5121,15 @@
           "$ref": "#/$defs/RemoteOpenEvent"
         },
         {
+          "$ref": "#/$defs/AutomationOpenEvent"
+        },
+        {
+          "$ref": "#/$defs/AutomationResultEvent"
+        },
+        {
+          "$ref": "#/$defs/AutomationErrorEvent"
+        },
+        {
           "$ref": "#/$defs/AppsResultEvent"
         },
         {
@@ -3355,6 +5179,9 @@
     "HostInput": {
       "title": "HostInput",
       "oneOf": [
+        {
+          "$ref": "#/$defs/AutomationRequest"
+        },
         {
           "$ref": "#/$defs/TerminalRequest"
         },

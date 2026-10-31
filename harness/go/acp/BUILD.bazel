@@ -24,8 +24,8 @@ go_test(
     srcs = [
         "extraction_test.go",
         "models_test.go",
-        "permission_test.go",
         "native_approval_test.go",
+        "permission_test.go",
         "stream_test.go",
     ],
     embed = [":acp"],

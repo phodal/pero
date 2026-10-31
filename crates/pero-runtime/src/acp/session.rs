@@ -25,6 +25,14 @@ const SETUP_TIMEOUT: Duration = Duration::from_secs(if cfg!(test) { 3 } else { 4
 const CANCEL_TIMEOUT: Duration = Duration::from_secs(if cfg!(test) { 1 } else { 5 });
 const MAX_DEFERRED_COMMANDS: usize = 16;
 
+/// An authoritative rejection before this prompt crossed the ACP submission boundary.
+/// This is not inferred from error text or from the absence of a turn-start event.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PromptRejection {
+    WorkspaceLease,
+}
+
 pub enum SessionCommand {
     Prompt(String),
     PromptWithContext {
@@ -396,7 +404,11 @@ async fn run(
                         let _workspace_lease = if acquire_workspace {
                             match crate::workspace_lease::WorkspaceLease::acquire(&cwd) {
                                 Ok(lease) => Some(lease),
-                                Err(error) => { event(&tx,&thread,"session_error",error,Value::Null); continue; },
+                                Err(error) => {
+                                    event(&tx, &thread, "session_error", error,
+                                        json!({ "promptRejection": PromptRejection::WorkspaceLease }));
+                                    continue;
+                                },
                             }
                         } else { None };
                         // App Use syntax belongs only to the explicit Host-selected path.

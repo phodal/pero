@@ -1,16 +1,50 @@
 # Validated reference snapshot
 
-Updated run: 2026-10-29 (Windows source-receipt refresh). Python 3.12.14; pinned requirements; 18 unit tests passed (no skips).
+Updated run: 2026-10-31 (ACP source-receipt refresh). Python 3.12.14; pinned requirements; 18 unit tests passed (no skips).
 
 - Official DSH: `f3803c96974ad4a94195fb97e5c637e9c2a3afe3`
-- Tested and published Pero source: [`bac3bbaf6edd66357d6972eea86e71eb65ad8f86`](https://github.com/phodal/pero/commit/bac3bbaf6edd66357d6972eea86e71eb65ad8f86). Independently fetched from the public GitHub repository into a fixed checkout; `git rev-parse HEAD^{tree}` is `efa178ec16d0d16d6812a99ee5bd1ca7019912c7`. Every mapped Go file matches both `git show` at this pin and the working source bytes. The mapping uses this fetchable source ref; only the mapping and this validation note change in the receipt-refresh commit.
+- Tested and published Pero source: [`db533bcceb199574a69c1385820a8942a61731e4`](https://github.com/phodal/pero/commit/db533bcceb199574a69c1385820a8942a61731e4). Verified in a detached checkout of this fetched public source ref; `git rev-parse HEAD^{tree}` is `b1a3476c319af1d6ac2f9d7f382272591a48b703`. Every mapped Go file matches both `git show` at this pin and the working source bytes. The mapping uses this fetchable source ref; only the mapping and this validation note change in the receipt-refresh commit.
 - Coverage: 17 explicitly selected callable pairs; 11 official files, 10 Go files. This is not whole-module coverage.
 - Result: **17 extracted for cross-language review; 0 unavailable**. Exit 0 means extraction only.
 - Actual parser: local extension `0.23.2+pero.export-type-star.1`, official CLI 0.25.10, ABI 14, GCC 14.2.0 on Linux. Full original Todo file now parses; its SHA256 is unchanged. No source syntax was stripped.
 - Archive SHA256: `0fdf63c35930a75885145d75ee63cb879da2d49db9bfe454bd8e60b08ba778a1`; patched grammar SHA256: `b67967d0c12de9b9a315c657826c428776877ec8a7cd604700d7f6bf4ee6929c`. Original grammar hash is pinned in `build_typescript.py`; per-machine library hash is in generated report metadata.
 - Extraction and observed landmarks do not establish semantic equivalence or passing behavioral tests.
 
-## Windows source-receipt refresh
+## ACP source-receipt refresh
+
+The previous `bac3bbaf6edd66357d6972eea86e71eb65ad8f86` mapping reproduced
+**14 extracted / 3 unavailable**, exit 2, against the fixed `db533bc` checkout.
+All three unavailable pairs reported `source_hash_mismatch` for
+`harness/go/acp/server.go`: `acp-prompt-admission`, `acp-cancel-admission` and
+`acp-settlement`. They were not missing symbols or parser failures.
+
+Reviewed the file diff from the previous pin. Commit `9b91b793d4ec5820fa67945d241afc768fff86e2`
+adds `ensureAutoReview` calls before activation in `newSession` and
+`resumeSession`, outside the selected functions. Both selected declarations
+remain byte-for-byte unchanged: `Server.prompt` is now lines 516–560 (1,589 bytes,
+SHA256 `f6d2e97bd26d18e20e9f971791f0514ff94c0a686c9acb54c5433a8483debef8`),
+and `Server.handleNotification` remains lines 383–406 (626 bytes, SHA256
+`eb174f0e12a1cc33ec736acbe2276d8bda78d771fd8fc96d1bf0ba4433859d25`).
+The containing-file SHA256 is refreshed in all three selectors; the other nine
+mapped Go files and all eleven official files retain their previous hashes.
+
+The official source was independently fetched at the unchanged `f3803c9` pin.
+All 21 unique mapped files were compared with their pinned Git objects and
+selector hashes. With the unchanged pinned grammar, all 18 unit tests passed
+without skips; the refreshed mapping extracted **17 / 0 unavailable**, exit 0.
+The before/after JSON and Markdown reports and test log were generated outside
+the repository. No pair, landmark, source-hash check, parser check, official pin,
+exit contract or `cross_language_review_required` status was changed.
+
+This repairs source admission, not a permission policy. The new helper records
+`auto-review` for a new or restored session lacking a preset; an existing preset
+is retained. That mode allows approval requests without consulting an answerer,
+while `ApprovalNever` still rejects them. This is a distinct permission semantic
+change outside the selected callable pairs, not proof of automated safety
+review, runtime acceptance or official DSH parity. It requires separate policy
+and behavior review; these extraction results do not establish those claims.
+
+## Historical Windows source-receipt refresh
 
 The previous mapping still recorded the `ad001471c794cb5d116729b6631c7f7f4a731260`
 source snapshot. With the pinned grammar and current source, the unchanged
@@ -71,7 +105,7 @@ Install the pinned requirements, build the local TS5 grammar and run tests as sh
 ```sh
 python scripts/ast-compare/references.py \
   --mapping scripts/ast-compare/mappings/official-dsh.json \
-  --left-root /path/to/dsh-f3803c9 --right-root /path/to/pero-bac3bba \
+  --left-root /path/to/dsh-f3803c9 --right-root /path/to/pero-db533bc \
   --json /tmp/official-dsh.json --markdown /tmp/official-dsh.md
 ```
 
@@ -94,7 +128,7 @@ Each unique file below was independently compared byte-for-byte with `git show R
 | left | `packages/session/session-persistence-jsonl/src/storage.ts` | `57d5fa1d7efd17789d6a223f6aa5e06b79092665bea13f8a23d3bab644d066c3` |
 | left | `packages/storage/storage-json/src/per-record-unit.ts` | `9aa4df293c02c28aaf74515443a7c089c660c33e66c3ece2255ff8c53d47add1` |
 | left | `packages/todo/tool-todo/src/index.ts` | `80559ed95b7fc9c1dc083312f187885254bf2c1498d0f7a079dad21427d24def` |
-| right | `harness/go/acp/server.go` | `722f1f137bea925688b419a50f338766987a938b6375adc6f6fa6a0fd065dd74` |
+| right | `harness/go/acp/server.go` | `aff1929fafdce8abbf04970466b46bf6a32a44b1feeae69d9c2356ce446dbd5e` |
 | right | `harness/go/cmd/pero-agent-acp/coding.go` | `6898a4178c921c7683991e735c369554978162b610de0237b1728b07ab53c583` |
 | right | `harness/go/fstools/workspace.go` | `f24afcaace3efc212eac8f765d39e055032d2115b25b37690cb28298ddd6ffd6` |
 | right | `harness/go/harness/loop.go` | `95113ee77a8856acf39b64319cb1db92cabc2799e8e1581796885e6daa64d798` |
