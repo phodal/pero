@@ -354,6 +354,7 @@ model RemoteStateEvent { kind: "remote_state"; ...EventBase; data: RemoteSnapsho
 /** Open remote tasks from the native Workbench menu or keyboard. */
 model RemoteOpenEvent { kind: "remote_open"; ...EventBase }
 /** Private acknowledgements intercepted by Desktop main. */
+model AppsPreparationEvent { kind: "apps_preparation"; ...EventBase; data: Pero.Apps.AppPreparation }
 model AppsResultEvent { kind: "apps_result"; ...EventBase; data: Pero.Apps.AppResult }
 model AppsCatalogEvent { kind: "apps_catalog"; ...EventBase; data: Pero.Apps.AppRecord[] }
 model AppsErrorEvent { kind: "apps_error"; ...EventBase }
@@ -486,6 +487,7 @@ union HostEvent {
   RemoteStateEvent,
   RemoteOpenEvent,
   AppsResultEvent,
+  AppsPreparationEvent,
   AppsCatalogEvent,
   AppsErrorEvent,
   AppsOpenedEvent,

@@ -589,6 +589,49 @@
       ],
       "additionalProperties": false
     },
+    "AppPreparation": {
+      "title": "AppPreparation",
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "phase": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "checking"
+            },
+            {
+              "type": "string",
+              "const": "creating"
+            },
+            {
+              "type": "string",
+              "const": "installing"
+            },
+            {
+              "type": "string",
+              "const": "ready"
+            },
+            {
+              "type": "string",
+              "const": "failed"
+            }
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "phase",
+        "message"
+      ],
+      "additionalProperties": false,
+      "description": "Dependency preparation is separate from backend startup."
+    },
     "AppRecord": {
       "title": "AppRecord",
       "type": "object",
@@ -822,6 +865,45 @@
       ],
       "additionalProperties": false
     },
+    "AppsPreparationEvent": {
+      "title": "AppsPreparationEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "apps_preparation"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/AppPreparation"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false,
+      "description": "Private acknowledgements intercepted by Desktop main."
+    },
     "AppsResultEvent": {
       "title": "AppsResultEvent",
       "type": "object",
@@ -858,8 +940,7 @@
         "text",
         "data"
       ],
-      "additionalProperties": false,
-      "description": "Private acknowledgements intercepted by Desktop main."
+      "additionalProperties": false
     },
     "AppSuccess": {
       "title": "AppSuccess",
@@ -3186,6 +3267,9 @@
         },
         {
           "$ref": "#/$defs/AppsResultEvent"
+        },
+        {
+          "$ref": "#/$defs/AppsPreparationEvent"
         },
         {
           "$ref": "#/$defs/AppsCatalogEvent"

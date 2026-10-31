@@ -213,6 +213,7 @@
   },
   "backend": {
     "type": "python",
-    "entry": "backend/server.py"
+    "entry": "backend/server.py",
+    "dependencies": ["pypdfium2==5.0.0", "Pillow==12.0.0"]
   }
 }

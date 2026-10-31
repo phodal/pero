@@ -127,6 +127,7 @@ export type HostEvent =
   | RemoteStateEvent
   | RemoteOpenEvent
   | AppsResultEvent
+  | AppsPreparationEvent
   | AppsCatalogEvent
   | AppsErrorEvent
   | AppsOpenedEvent
@@ -1551,9 +1552,6 @@ export interface RemoteOpenEvent {
   request_id: string | null;
   text: string;
 }
-/**
- * Private acknowledgements intercepted by Desktop main.
- */
 export interface AppsResultEvent {
   kind: "apps_result";
   version: 1;
@@ -1636,6 +1634,24 @@ export interface AppGrant {
 export interface AppFailure {
   ok: false;
   error: string;
+}
+/**
+ * Private acknowledgements intercepted by Desktop main.
+ */
+export interface AppsPreparationEvent {
+  kind: "apps_preparation";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: AppPreparation;
+}
+/**
+ * Dependency preparation is separate from backend startup.
+ */
+export interface AppPreparation {
+  name: AppName;
+  phase: "checking" | "creating" | "installing" | "ready" | "failed";
+  message: string;
 }
 export interface AppsCatalogEvent {
   kind: "apps_catalog";

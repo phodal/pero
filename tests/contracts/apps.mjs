@@ -21,6 +21,7 @@ const ajv = new Ajv2020({ strict: true, strictTypes: false });
 ajv.addSchema(schema);
 const validateInput = ajv.getSchema(`${schema.$id}#/$defs/AppRequest`);
 const validateResult = ajv.getSchema(`${schema.$id}#/$defs/AppsResultEvent`);
+const validatePreparation = ajv.getSchema(`${schema.$id}#/$defs/AppsPreparationEvent`);
 const validateRecord = ajv.getSchema(`${schema.$id}#/$defs/AppRecord`);
 const failures = [];
 const preparePythonApp = async (name, dependency, sharedEnvironment) => {
@@ -82,6 +83,7 @@ const launch = async ({ builtins = '', installed = resolve(temp, 'installed') } 
   createInterface({ input: child.stdout }).on('line', line => {
     const event = JSON.parse(line);
     if (event.kind === 'ready') ready();
+    if (event.kind === 'apps_preparation' && !validatePreparation(event)) failures.push(ajv.errorsText(validatePreparation.errors));
     if (event.kind !== 'apps_result') return;
     if (!validateResult(event)) failures.push(ajv.errorsText(validateResult.errors));
     pending.get(event.request_id)?.(event.data);
@@ -204,6 +206,30 @@ try {
   assert.equal((await host.request('connectors', { name: 'paper-agent' })).ok, false);
   await host.request('disable', { name: 'connector-management' });
   assert.equal((await host.request('connectors', { name: 'connector-management' })).ok, false);
+  await host.close(); host = undefined;
+  // A failed preparation leaves a newly installed App disabled. Recovery
+  // verifies real installed distribution metadata without a network dependency.
+  const recoverable = await preparePythonApp('recoverable', 'prepared');
+  const manifestPath = resolve(recoverable.app, 'app.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  manifest.backend.dependencies = ['paper-dependency==1.0'];
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  const recoveryConfig = resolve(recoverable.environment, 'pyvenv.cfg');
+  const validConfig = await readFile(recoveryConfig, 'utf8');
+  await writeFile(recoveryConfig, validConfig.replace('include-system-site-packages = false', 'include-system-site-packages = true'));
+  await writeFile(resolve(temp, 'settings.json'), JSON.stringify({ app_python: { apps: { recoverable: recoverable.environment } } }));
+  host = await launch();
+  assert.equal((await host.request('install', { path: recoverable.app })).ok, true);
+  assert.equal((await host.request('enable', { name: 'recoverable' })).ok, false);
+  assert.equal((await host.request('list')).value.find(app => app.name === 'recoverable').enabled, false);
+  await writeFile(recoveryConfig, validConfig);
+  const executable = resolve(recoverable.environment, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
+  const packages = execFileSync(executable, ['-I', '-c', 'import sysconfig; print(sysconfig.get_path("purelib"))'], { encoding: 'utf8' }).trim();
+  const metadata = resolve(packages, 'paper_dependency-1.0.dist-info');
+  await mkdir(metadata);
+  await writeFile(resolve(metadata, 'METADATA'), 'Metadata-Version: 2.1\nName: paper-dependency\nVersion: 1.0\n');
+  assert.equal((await host.request('enable', { name: 'recoverable' })).ok, true);
+  assert.equal((await host.request('resolve', { name: 'recoverable' })).ok, true);
   assert.deepEqual(failures, []);
   console.log('App stdio wiring, generated contract, Python environments, incremental builtin discovery and retained disable/removal passed.');
 } finally {

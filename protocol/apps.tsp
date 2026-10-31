@@ -52,3 +52,6 @@ model AppGrant { permitted: true; ...AppClosed; }
 model AppSuccess { ok: true; value: AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }
+
+/** Dependency preparation is separate from backend startup. */
+model AppPreparation { name: AppName; phase: "checking" | "creating" | "installing" | "ready" | "failed"; message: string; ...AppClosed; }
