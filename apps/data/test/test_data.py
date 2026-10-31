@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 from catalog import Catalog, IMPORT_LIMIT, ImportFile
-from downloads import Downloads, require_url
+from downloads import DownloadJob, Downloads, require_url
 from sources import Checksum, SOURCES
 
 
@@ -31,6 +31,19 @@ class DataTests(unittest.TestCase):
         downloads.thread.join(3)
         self.assertFalse(downloads.thread.is_alive())
         return downloads
+
+    def test_download_job_values_preserve_terminal_and_byte_invariants(self):
+        initial = DownloadJob('job', 'source', 'running', 0, 3)
+        progress = initial.progress(3)
+        completed = progress.finish('completed')
+        self.assertEqual(initial.received, 0)
+        self.assertEqual(completed.to_dict()['status'], 'completed')
+        self.assertEqual(DownloadJob(**completed.to_dict()), completed)
+        for operation in (lambda: initial.progress(4), lambda: progress.progress(2),
+                          lambda: initial.finish('completed'), lambda: completed.progress(3),
+                          lambda: completed.finish('failed'), lambda: initial.finish('running')):
+            with self.assertRaises(ValueError):
+                operation()
 
     def test_import_persists_opaque_model_and_digest(self):
         content = b'\x80\x04not a safe pickle; never interpreted'
@@ -52,7 +65,7 @@ class DataTests(unittest.TestCase):
         request = ImportFile.parse(dict(name='温度.csv', kind='dataset', source='实验室',
                                         content='YQ=='))
         self.catalog.import_file(request)
-        self.catalog.atomic('download.json', dict(status='failed', error='网络不可用'))
+        self.catalog.atomic('download.json', dict(id='test', sourceId='test', status='failed', received=0, total=1, error='网络不可用'))
         original = Path.read_text
         def locale_read(path, encoding=None, errors=None):
             return original(path, encoding=encoding or 'ascii', errors=errors)
