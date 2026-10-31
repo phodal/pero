@@ -230,6 +230,8 @@ export class AppUse {
   private grantKey(thread: string, scope: AppScope) {
     return `${thread}\0${scope.app}\0${scope.panel}`;
   }
+  isControlLab(thread: string) { return this.sessions.get(thread)?.scope?.app === 'control-lab'; }
+  canBeginGoal(thread: string) { const session = this.sessions.get(thread); return !!session && !session.running; }
   private publish(thread: string) {
     const session = this.sessions.get(thread);
     if (!session) return;
@@ -403,6 +405,8 @@ export class AppUse {
       };
       const before = inventory.surfaces.find((surface) => surface.surfaceId === input.surfaceId);
       if (!before) fail('APP_SURFACE_UNKNOWN', 'Use the surfaceId from inventory.');
+      if (before.app === 'control-lab')
+        fail('APP_GOAL_DENIED', 'Use the approved Control Lab experiment tools instead of general App UI access.');
       const task = new AppUseTask(
         randomUUID(),
         thread,

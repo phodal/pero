@@ -11,9 +11,10 @@ import { ContentArtifacts } from './content-artifacts.ts';
 import { ContentRead } from '../../../packages/content-source/index.ts';
 import { AppChatContext } from './app-chat-context.ts';
 import { AppUse, type AppUsePorts, type AppUseEvent } from './app-use.ts';
-import { DesktopComputer, COMPUTER_TOOL, COMPUTER_INSTRUCTIONS } from './computer';
-import { ComputerFailure } from './computer-client';
+import { DesktopComputer, COMPUTER_TOOL, COMPUTER_INSTRUCTIONS } from './computer.ts';
+import { ComputerFailure } from './computer-client.ts';
 import { APP_USE_ACTIONS, APP_USE_VERBS, AppUseError } from './app-use-task.ts';
+import { ControlLabGoals, type ControlLabGoal } from './control-lab-goal.ts';
 
 type Event = {
   version: number;
@@ -66,22 +67,26 @@ export class DesktopAppUse {
   readonly results: ContentArtifacts;
   readonly authority: AppUse;
   readonly draftContext: AppChatContext;
+  readonly goals = new ControlLabGoals();
+  private submitted = new Set<string>();
   private writes?: {
     describe(): Promise<AppWriteDefinition[]>;
-    apply(write: PreparedAppWrite, signal: AbortSignal): Promise<unknown>;
+    apply(write: PreparedAppWrite, signal: AbortSignal, goal?: ControlLabGoal): Promise<unknown>;
   };
   private window: () => BrowserWindow;
   private send: (event: Event) => void;
+  readonly computer?: DesktopComputer;
   constructor(
     window: () => BrowserWindow,
     send: (event: Event) => void,
     evidenceRoot: string,
     writes?: {
       describe(): Promise<AppWriteDefinition[]>;
-      apply(write: PreparedAppWrite, signal: AbortSignal): Promise<unknown>;
+      apply(write: PreparedAppWrite, signal: AbortSignal, goal?: ControlLabGoal): Promise<unknown>;
     },
-    readonly computer?: DesktopComputer,
+    computer?: DesktopComputer,
   ) {
+    this.computer = computer;
     this.results = new ContentArtifacts(join(evidenceRoot, 'content'));
     this.writes = writes;
     this.window = window;
@@ -151,24 +156,44 @@ export class DesktopAppUse {
         }),
     };
     this.authority = new AppUse(ports);
-    this.draftContext = new AppChatContext(ports);
+    this.draftContext = new AppChatContext(ports, (scope, thread, refs) => this.goals.approve(scope, thread, refs));
   }
   accept(event: AppUseEvent) {
-    if (event.kind === 'user_message' && event.thread_id)
+    if (event.kind === 'disconnected') { this.goals.forget(); this.submitted.clear(); }
+    const rejected = ['session_error', 'session_auth_required', 'session_auth_error', 'command_rejected'].includes(event.kind);
+    if (rejected && !event.thread_id) { this.goals.revokeAll(); this.submitted.clear(); }
+    if (event.kind === 'user_message' && event.thread_id) {
       this.inputs.retain(event.thread_id, (event.data as { contexts?: ContextReference[] })?.contexts || []);
+      this.goals.accept(event.thread_id, (event.data as { contexts?: ContextReference[] })?.contexts || [],
+        this.authority.canBeginGoal(event.thread_id) && !this.submitted.has(event.thread_id));
+      this.submitted.add(event.thread_id);
+    }
     if (event.kind === 'replay')
-      for (const entry of (event.data as { events?: AppUseEvent[] })?.events || [])
+      for (const entry of (event.data as { events?: AppUseEvent[] })?.events || []) {
+        if (entry.thread_id) {
+          this.goals.blockRestored(entry.thread_id);
+          this.authority.revoke(entry.thread_id);
+        }
         if (entry.kind === 'user_message' && entry.thread_id)
           this.inputs.retain(
             entry.thread_id,
             (entry.data as { contexts?: ContextReference[] })?.contexts || [],
           );
+      }
     if (event.kind === 'session_deleted' && event.thread_id) {
       this.inputs.forget(event.thread_id);
       void this.computer?.forget(event.thread_id).catch(error => this.send({version:1,kind:'error',request_id:null,thread_id:event.thread_id,text:`Could not remove desktop evidence: ${String(error)}`}));
       void this.results.forget(event.thread_id).catch(error => this.send({version:1,kind:'error',request_id:null,thread_id:event.thread_id,text:`Could not remove result artifacts: ${String(error)}`}));
     }
+    if (event.thread_id && event.kind === 'session_deleted') this.goals.forget(event.thread_id);
+    if (event.thread_id && (event.kind === 'session_closed' || rejected ||
+        (event.kind === 'turn_finished' && (event.text?.toLowerCase() === 'cancelled' || (event.data as { stopReason?: string })?.stopReason === 'cancelled')))) this.goals.revoke(event.thread_id);
+    if (event.thread_id && (rejected || ['turn_started', 'turn_finished', 'session_closed', 'session_deleted'].includes(event.kind))) this.submitted.delete(event.thread_id);
     this.authority.accept(event);
+  }
+  command(value: { action?: string; thread_id?: string }) {
+    if (value.thread_id && ['cancel', 'close', 'delete'].includes(value.action || '')) this.goals.revoke(value.thread_id);
+    this.authority.command(value);
   }
   async input(app: string, token: string) {
     const grant = this.inputs.read(app, token, Date.now());
@@ -177,6 +202,8 @@ export class DesktopAppUse {
   }
   reset() {
     this.inputs.forget();
+    this.goals.forget();
+    this.submitted.clear();
     this.authority.reset(true);
   }
   async close() {
@@ -305,12 +332,13 @@ export class DesktopAppUse {
           const value = await this.authority.access(
             thread,
             { app: definition.app, panel: definition.panel },
-            async (_scope, signal) => ({
-              app: input.app,
-              tool: input.tool,
-              digest: prepared.digest,
-              result: await this.writes!.apply(prepared, signal),
-            }),
+            async (_scope, signal) => {
+              const goal = input.app === 'control-lab'
+                ? this.goals.require(thread, (prepared.document as Record<string, unknown>).experimentId)
+                : undefined;
+              return { app: input.app, tool: input.tool, digest: prepared.digest,
+                result: await this.writes!.apply(prepared, signal, goal) };
+            },
             controller.signal,
             'app-data',
           );
@@ -324,7 +352,11 @@ export class DesktopAppUse {
           response.writeHead(202).end();
           return;
         } else if (message.method === 'tools/call' && message.params?.name === 'computer_use' && this.computer) {
-          const value = await this.authority.access(thread, undefined, (_scope, signal) => this.computer!.call(thread, message.params.arguments, signal), controller.signal);
+          const value = await this.authority.access(thread, undefined, (_scope, signal) => {
+            if (this.goals.has(thread) || this.authority.isControlLab(thread))
+              throw new AppUseError('APP_GOAL_DENIED', 'Computer Use is unavailable for Control Lab research conversations.');
+            return this.computer!.call(thread, message.params.arguments, signal);
+          }, controller.signal);
           const images: object[] = [];
           if (value.kind === 'observation' && value.image) {
             images.push({type:'image',data:value.image.data,mimeType:value.image.media_type});

@@ -330,18 +330,17 @@ export default function ControlLab() {
       <header>
         <h1>Control Lab</h1>
         <button
+          disabled={!experiment || busy}
           onClick={() =>
             void chat
               .compose(
-                experiment
-                  ? `Review Control Lab experiment ${experiment.id}. Inspect the frozen specification and full verification denominator. Do not change the policy or claim engineering PASS from process success. Propose bounded candidates only.`
-                  : "Help me choose a Control Lab specification for controller or second-order active-filter design.",
-                { attachments: [chat.objectReference("control-lab")] },
+                `Review Control Lab experiment ${experiment!.id}. Inspect the frozen specification and full verification denominator. Do not change the policy or claim engineering PASS from process success. Propose bounded candidates only.`,
+                { attachments: [chat.objectReference("control-lab")], approveGoal: true },
               )
               .catch(onError)
           }
         >
-          Discuss in chat
+          Approve goal and discuss
         </button>
         <button disabled={busy} onClick={newExperiment}>
           New experiment

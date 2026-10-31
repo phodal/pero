@@ -11,6 +11,7 @@ export type AppChatLaunch = {
   mode?: 'append' | 'replace';
   attachments?: AppChatAttachment[];
   capture?: boolean;
+  approveGoal?: boolean;
 };
 
 /** The launch request carries references; the trusted shell freezes their content. */
@@ -18,7 +19,7 @@ export function parseAppChatLaunch(value: unknown): AppChatLaunch {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Invalid App chat request');
   const record = value as Record<string, unknown>;
-  if (Object.keys(record).some((key) => !['message', 'mode', 'attachments', 'capture'].includes(key)))
+  if (Object.keys(record).some((key) => !['message', 'mode', 'attachments', 'capture', 'approveGoal'].includes(key)))
     throw new Error('Unknown App chat option');
   if (record.message !== undefined && (typeof record.message !== 'string' || record.message.length > 64000))
     throw new Error('App chat message exceeds 64000 characters');
@@ -26,6 +27,8 @@ export function parseAppChatLaunch(value: unknown): AppChatLaunch {
     throw new Error('Unknown draft mode');
   if (record.capture !== undefined && typeof record.capture !== 'boolean')
     throw new Error('Invalid capture option');
+  if (record.approveGoal !== undefined && typeof record.approveGoal !== 'boolean')
+    throw new Error('Invalid goal approval');
   if (record.attachments !== undefined) {
     if (!Array.isArray(record.attachments) || record.attachments.length > 12)
       throw new Error('Choose at most 12 App references');
