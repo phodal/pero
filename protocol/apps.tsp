@@ -34,6 +34,27 @@ model PointProjectHeaders is Record<string>;
 model PointProjectRequest { method: "GET" | "POST"; path: string; headers?: PointProjectHeaders; body?: unknown; ...AppClosed; }
 model PointProjects { action: "pointprojects"; name: AppName; request: PointProjectRequest; ...RequestBase; }
 model PointProjectReply { status: int32; headers: PointProjectHeaders; body: unknown; ...AppClosed; }
+model PointScope { workspaceId:string; ...AppClosed; }
+model PointBinding {scope:PointScope;requestId:string;harnessId:string;panel:string;runtimeDigest:string;createdAt:string;context?:AppDocumentSchema;...AppClosed}
+model PointAttempt {requestId:string;text:string;attempt:uint32;updatedAt:string;...AppClosed}
+model PointStart {operation:"start";scope:PointScope;requestId:string;text:string;harnessId?:string;context?:AppDocumentSchema;...AppClosed}
+model PointLookup {operation:"lookup";scope:PointScope;requestId:string;...AppClosed}
+model PointStatus {operation:"status";scope:PointScope;runId:string;...AppClosed}
+model PointEvents {operation:"events";scope:PointScope;runId:string;after?:uint64;...AppClosed}
+model PointCancel {operation:"cancel";scope:PointScope;runId:string;...AppClosed}
+model PointRetry {operation:"retry";scope:PointScope;runId:string;requestId:string;text?:string;...AppClosed}
+model PointOpen {operation:"open";sessionId:string;...AppClosed}
+@oneOf union PointAgentRequest {PointStart,PointLookup,PointStatus,PointEvents,PointCancel,PointRetry,PointOpen}
+model PointAgent {action:"pointagent";name:AppName;request:PointAgentRequest;...RequestBase}
+model PointCatalog {action:"pointcatalog";name:AppName;path:"/api/workspaces"|"/api/harnesses";...RequestBase}
+model PointRun {id:string;sessionId:string;scope:PointScope;status:"running"|"needs_input"|"cancelling"|"completed"|"failed"|"cancelled"|"interrupted";attempt:uint32;requestId:string;updatedAt:string;error?:string;stopReason?:string;...AppClosed}
+model PointProjectedEvent {seq:uint64;type:string;data:unknown;...AppClosed}
+model PointTranscript {run:PointRun;events:PointProjectedEvent[];cursor:uint64;...AppClosed}
+model PointLookupReply {requestId:string;run:PointRun|null;...AppClosed}
+model PointOpenReply {sessionId:string;...AppClosed}
+model PointWorkspace {workspaceId:string;title:string;path:string;...AppClosed}
+model PointHarness {id:string;name:string;available:boolean;...AppClosed}
+model PointCatalogReply {items:(PointWorkspace|PointHarness)[];...AppClosed}
 model EnableApp { action: "enable"; name: AppName; ...RequestBase; }
 model DisableApp { action: "disable"; name: AppName; ...RequestBase; }
 model UninstallApp { action: "uninstall"; name: AppName; ...RequestBase; }
@@ -52,10 +73,13 @@ enum AppAgentStatus { running, text, needs_input, completed, cancelled, failed }
 model AppAgentEvent { kind: AppAgentStatus; text: string; ...AppClosed; }
 model AppAgentTranscript { events: AppAgentEvent[]; cursor: uint32; status: AppAgentStatus; text: string; ...AppClosed; }
 model AppAgentCancelled { cancelled: true; ...AppClosed; }
-model AppSessionBinding { app: AppName; requestId: string; agentId: string; prompt: string; ...AppClosed; }
-@oneOf union AppRequest { ListApps, InstallApp, PointConfig, PointProjects, EnableApp, DisableApp, UninstallApp, ResolveApp, AgentApp, ConnectorsApp }
+model AppSessionBinding { app: AppName; requestId: string; agentId: string; prompt: string; point?:PointBinding; ...AppClosed; }
+model AutomationApiRequest {method:"GET"|"POST"|"PUT"|"DELETE";path:string;body?:unknown;...AppClosed}
+model AutomationApp {action:"automation";name:AppName;request:AutomationApiRequest;...RequestBase}
+model AutomationApiReply {status:uint16;body:unknown;...AppClosed}
+@oneOf union AppRequest { ListApps, InstallApp, PointConfig, PointProjects, PointAgent, PointCatalog, EnableApp, DisableApp, UninstallApp, ResolveApp, AgentApp, ConnectorsApp, AutomationApp }
 model AppGrant { permitted: true; ...AppClosed; }
-model AppSuccess { ok: true; value: PointProjectReply | PointConfigReply | AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant; ...AppClosed; }
+model AppSuccess { ok: true; value: PointRun | PointTranscript | PointLookupReply | PointOpenReply | PointCatalogReply | AutomationApiReply | PointProjectReply | PointConfigReply | AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }
 

@@ -37,7 +37,8 @@ export type AutomationCommand =
   | AutomationRevokeBinding
   | AutomationContinueOld
   | AutomationReconcile;
-export type AutomationTrigger = AutomationManualTrigger | AutomationEventTrigger | AutomationTimeTrigger;
+export type AutomationTrigger =
+  AutomationManualTrigger | AutomationEventTrigger | AutomationTimeTrigger | AutomationCalendarTrigger;
 export type AutomationCounter = number;
 export type AutomationInputContract = "process_exact" | "recheck_latest";
 export type AutomationTarget = AutomationLocalTarget | AutomationUnsupportedTarget;
@@ -55,7 +56,7 @@ export type WorkspaceSessionRequest =
   | AppendWorkspaceSource
   | StoreWorkspaceDraft;
 export type ContentOrigin = ConversationOrigin | FileOrigin | AppOrigin | McpOrigin;
-export type WorkspaceItem = WorkspaceSimpleItem | WorkspaceDocumentItem | WorkspaceAppItem;
+export type WorkspaceItem = WorkspaceSimpleItem | WorkspaceDocumentItem | WorkspaceAppItem | WorkspaceComputeItem;
 export type WorkspaceRoute = WorkspacePageRoute | WorkspaceContentRoute;
 export type PaneNode = PaneLeafNode | PaneSplitNode;
 export type PaneItemKind = "primary" | "rendered_preview";
@@ -95,14 +96,19 @@ export type AppRequest =
   | InstallApp
   | PointConfig
   | PointProjects
+  | PointAgent
+  | PointCatalog
   | EnableApp
   | DisableApp
   | UninstallApp
   | ResolveApp
   | AgentApp
-  | ConnectorsApp;
+  | ConnectorsApp
+  | AutomationApp;
 export type RequestId = string;
 export type AppName = string;
+export type PointAgentRequest =
+  PointStart | PointLookup | PointStatus | PointEvents | PointCancel | PointRetry | PointOpen;
 export type AgentRequest = AgentInfoRequest | AgentStartRequest | AgentEventsRequest | AgentCancelRequest;
 export type ContributionRequest = ContributionPrepare | ContributionReview | ContributionPublish;
 export type HostEvent =
@@ -189,6 +195,9 @@ export type MessageKey = string;
  */
 export type ThreadEvent =
   | TurnStartedEvent
+  | PointSessionOpenEvent
+  | PointAttemptEvent
+  | PointCancelEvent
   | SessionCreatedEvent
   | UserMessageEvent
   | SessionUpdateEvent
@@ -253,6 +262,18 @@ export interface AutomationTimeTrigger {
 export interface AutomationExactRef {
   revision: string;
   digest: string;
+}
+export interface AutomationCalendarTrigger {
+  kind: "calendar";
+  schedule: CalendarSchedule;
+  subject: string;
+  exact: AutomationExactRef | null;
+}
+export interface CalendarSchedule {
+  rule: string;
+  timezone: string;
+  first_slot: AutomationCounter;
+  max_lateness_seconds: AutomationCounter;
 }
 export interface AutomationPutDefinition {
   action: "put_definition";
@@ -498,6 +519,9 @@ export interface WorkspaceAppItem {
     name: string;
     panel: string;
   };
+}
+export interface WorkspaceComputeItem {
+  kind: "compute";
 }
 export interface WorkspacePageRoute {
   kind: "page";
@@ -954,6 +978,63 @@ export interface PointProjectRequest {
 export interface PointProjectHeaders {
   [k: string]: string | undefined;
 }
+export interface PointAgent {
+  action: "pointagent";
+  name: AppName;
+  request: PointAgentRequest;
+  method: "apps";
+  id: RequestId;
+}
+export interface PointStart {
+  operation: "start";
+  scope: PointScope;
+  requestId: string;
+  text: string;
+  harnessId?: string;
+  context?: AppDocumentSchema;
+}
+export interface PointScope {
+  workspaceId: string;
+}
+export interface PointLookup {
+  operation: "lookup";
+  scope: PointScope;
+  requestId: string;
+}
+export interface PointStatus {
+  operation: "status";
+  scope: PointScope;
+  runId: string;
+}
+export interface PointEvents {
+  operation: "events";
+  scope: PointScope;
+  runId: string;
+  after?: string;
+}
+export interface PointCancel {
+  operation: "cancel";
+  scope: PointScope;
+  runId: string;
+}
+export interface PointRetry {
+  operation: "retry";
+  scope: PointScope;
+  runId: string;
+  requestId: string;
+  text?: string;
+}
+export interface PointOpen {
+  operation: "open";
+  sessionId: string;
+}
+export interface PointCatalog {
+  action: "pointcatalog";
+  name: AppName;
+  path: "/api/workspaces" | "/api/harnesses";
+  method: "apps";
+  id: RequestId;
+}
 export interface EnableApp {
   action: "enable";
   name: AppName;
@@ -1008,6 +1089,18 @@ export interface ConnectorsApp {
   name: AppName;
   method: "apps";
   id: RequestId;
+}
+export interface AutomationApp {
+  action: "automation";
+  name: AppName;
+  request: AutomationApiRequest;
+  method: "apps";
+  id: RequestId;
+}
+export interface AutomationApiRequest {
+  method: "GET" | "POST" | "PUT" | "DELETE";
+  path: string;
+  body?: unknown;
 }
 export interface ContributionPrepare {
   method: "contribution";
@@ -1564,6 +1657,46 @@ export interface TurnStartedEvent {
   text: string;
   thread_id: string;
 }
+export interface PointSessionOpenEvent {
+  kind: "point_app_session_open";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: PointSessionOpenData;
+}
+export interface PointSessionOpenData {
+  scope: AppChatScope;
+  sessionId: string;
+}
+export interface PointAttemptEvent {
+  kind: "app_agent_attempt";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: PointAttemptData;
+}
+export interface PointAttemptData {
+  attempt: PointAttempt;
+  pointTime?: string;
+}
+export interface PointAttempt {
+  requestId: string;
+  text: string;
+  attempt: number;
+  updatedAt: string;
+}
+export interface PointCancelEvent {
+  kind: "app_agent_cancel";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: PointCancelData;
+}
+export interface PointCancelData {
+  pointTime?: string;
+}
 export interface SessionCreatedEvent {
   kind: "session_created";
   version: 1;
@@ -1583,6 +1716,15 @@ export interface AppSessionBinding {
   requestId: string;
   agentId: string;
   prompt: string;
+  point?: PointBinding;
+}
+export interface PointBinding {
+  scope: PointScope;
+  requestId: string;
+  harnessId: string;
+  panel: string;
+  createdAt: string;
+  context?: AppDocumentSchema;
 }
 export interface UserMessageEvent {
   kind: "user_message";
@@ -1839,6 +1981,7 @@ export interface AutomationState {
   decisions: AutomationDecision[];
   requests: AutomationRunRequest[];
   dispatch_count: AutomationCounter;
+  calendar_slots?: AutomationCalendarSlots;
 }
 export interface AutomationLimits {
   max_events: number;
@@ -1939,6 +2082,9 @@ export interface AutomationCoveredRequestStatus {
   kind: "covered";
   request_id: string;
 }
+export interface AutomationCalendarSlots {
+  [k: string]: AutomationCounter | undefined;
+}
 export interface AutomationCapacityStatus {
   requests: AutomationCapacityCount;
   events: AutomationCapacityCount;
@@ -2033,6 +2179,12 @@ export interface AppsResultEvent {
 export interface AppSuccess {
   ok: true;
   value:
+    | PointRun
+    | PointTranscript
+    | PointLookupReply
+    | PointOpenReply
+    | PointCatalogReply
+    | AutomationApiReply
     | PointProjectReply
     | PointConfigReply
     | AppRecord[]
@@ -2042,6 +2194,51 @@ export interface AppSuccess {
     | AppAgentTranscript
     | AppAgentCancelled
     | AppGrant;
+}
+export interface PointRun {
+  id: string;
+  sessionId: string;
+  scope: PointScope;
+  status: "running" | "needs_input" | "cancelling" | "completed" | "failed" | "cancelled" | "interrupted";
+  attempt: number;
+  requestId: string;
+  updatedAt: string;
+  error?: string;
+  stopReason?: string;
+}
+export interface PointTranscript {
+  run: PointRun;
+  events: PointProjectedEvent[];
+  cursor: string;
+}
+export interface PointProjectedEvent {
+  seq: string;
+  type: string;
+  data: unknown;
+}
+export interface PointLookupReply {
+  requestId: string;
+  run: PointRun | null;
+}
+export interface PointOpenReply {
+  sessionId: string;
+}
+export interface PointCatalogReply {
+  items: (PointWorkspace | PointHarness)[];
+}
+export interface PointWorkspace {
+  workspaceId: string;
+  title: string;
+  path: string;
+}
+export interface PointHarness {
+  id: string;
+  name: string;
+  available: boolean;
+}
+export interface AutomationApiReply {
+  status: number;
+  body: unknown;
 }
 export interface PointProjectReply {
   status: number;

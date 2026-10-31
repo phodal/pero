@@ -13,7 +13,9 @@ model AutomationSourceBinding { id:string; owner:string; authority:string; event
 model AutomationManualTrigger { kind:"manual"; ...AutomationClosed; }
 model AutomationEventTrigger { kind:"event"; binding_id:string; event_kind:string; ...AutomationClosed; }
 model AutomationTimeTrigger { kind:"time"; subject:string; exact:AutomationExactRef|null; anchor:AutomationCounter; interval_seconds:AutomationCounter; max_lateness_seconds:AutomationCounter; ...AutomationClosed; }
-@oneOf union AutomationTrigger { AutomationManualTrigger,AutomationEventTrigger,AutomationTimeTrigger }
+model CalendarSchedule { rule:string; timezone:string; first_slot:AutomationCounter; max_lateness_seconds:AutomationCounter; ...AutomationClosed; }
+model AutomationCalendarTrigger { kind:"calendar"; schedule:CalendarSchedule; subject:string; exact:AutomationExactRef|null; ...AutomationClosed; }
+@oneOf union AutomationTrigger { AutomationManualTrigger,AutomationEventTrigger,AutomationTimeTrigger,AutomationCalendarTrigger }
 union AutomationInputContract { "process_exact","recheck_latest" }
 model AutomationAgentMethod { kind:"agent"; agent_id:string; workspace:string; prompt:string; ...AutomationClosed; }
 model AutomationLocalTarget { kind:"local_host"; owner:string; ...AutomationClosed; }
@@ -25,6 +27,7 @@ model AutomationDefinition {
 }
 model AutomationControl { paused:boolean; revoked:boolean; ...AutomationClosed; }
 model AutomationControls is Record<AutomationControl>;
+model AutomationCalendarSlots is Record<AutomationCounter>;
 model AutomationExactRef { revision:string; digest:string; ...AutomationClosed; }
 model AutomationCandidateRef { binding_id:string; subject:string; revision:string; digest:string; content_ref:string; ...AutomationClosed; }
 model AutomationEventInput { binding_id:string; producer_id:string; event_kind:string; subject:string; exact:AutomationExactRef|null; digest:string; ...AutomationClosed; }
@@ -50,7 +53,7 @@ model AutomationRunRequest {
 model AutomationState {
   owner:string; limits:AutomationLimits; bindings:AutomationSourceBinding[]; definitions:AutomationDefinition[];
   controls:AutomationControls; revoked_bindings:string[]; snapshots:AutomationCandidateRef[]; latest:AutomationCandidateRef[];
-  events:AutomationAcceptedEvent[]; decisions:AutomationDecision[]; requests:AutomationRunRequest[]; dispatch_count:AutomationCounter; ...AutomationClosed;
+  events:AutomationAcceptedEvent[]; decisions:AutomationDecision[]; requests:AutomationRunRequest[]; dispatch_count:AutomationCounter; calendar_slots?:AutomationCalendarSlots; ...AutomationClosed;
 }
 model AutomationUpdatedReceipt { kind:"updated"; ...AutomationClosed; }
 model AutomationAcceptanceReceipt { kind:"acceptance"; id:string; duplicate:boolean; matched:uint32; ...AutomationClosed; }

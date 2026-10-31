@@ -703,6 +703,12 @@
           "$ref": "#/$defs/PointProjects"
         },
         {
+          "$ref": "#/$defs/PointAgent"
+        },
+        {
+          "$ref": "#/$defs/PointCatalog"
+        },
+        {
           "$ref": "#/$defs/EnableApp"
         },
         {
@@ -719,6 +725,9 @@
         },
         {
           "$ref": "#/$defs/ConnectorsApp"
+        },
+        {
+          "$ref": "#/$defs/AutomationApp"
         }
       ]
     },
@@ -823,6 +832,9 @@
         },
         "prompt": {
           "type": "string"
+        },
+        "point": {
+          "$ref": "#/$defs/PointBinding"
         }
       },
       "required": [
@@ -958,6 +970,24 @@
         },
         "value": {
           "anyOf": [
+            {
+              "$ref": "#/$defs/PointRun"
+            },
+            {
+              "$ref": "#/$defs/PointTranscript"
+            },
+            {
+              "$ref": "#/$defs/PointLookupReply"
+            },
+            {
+              "$ref": "#/$defs/PointOpenReply"
+            },
+            {
+              "$ref": "#/$defs/PointCatalogReply"
+            },
+            {
+              "$ref": "#/$defs/AutomationApiReply"
+            },
             {
               "$ref": "#/$defs/PointProjectReply"
             },
@@ -1263,6 +1293,89 @@
       ],
       "additionalProperties": false
     },
+    "AutomationApiReply": {
+      "title": "AutomationApiReply",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "body": {}
+      },
+      "required": [
+        "status",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationApiRequest": {
+      "title": "AutomationApiRequest",
+      "type": "object",
+      "properties": {
+        "method": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "GET"
+            },
+            {
+              "type": "string",
+              "const": "POST"
+            },
+            {
+              "type": "string",
+              "const": "PUT"
+            },
+            {
+              "type": "string",
+              "const": "DELETE"
+            }
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "body": {}
+      },
+      "required": [
+        "method",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationApp": {
+      "title": "AutomationApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "automation"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "request": {
+          "$ref": "#/$defs/AutomationApiRequest"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "request",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "AutomationAttention": {
       "title": "AutomationAttention",
       "type": "object",
@@ -1308,6 +1421,47 @@
         "model",
         "permissionPolicy",
         "appUse"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationCalendarSlots": {
+      "title": "AutomationCalendarSlots",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {
+        "$ref": "#/$defs/AutomationCounter"
+      }
+    },
+    "AutomationCalendarTrigger": {
+      "title": "AutomationCalendarTrigger",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "calendar"
+        },
+        "schedule": {
+          "$ref": "#/$defs/CalendarSchedule"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "exact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationExactRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "schedule",
+        "subject",
+        "exact"
       ],
       "additionalProperties": false
     },
@@ -2771,6 +2925,9 @@
         },
         "dispatch_count": {
           "$ref": "#/$defs/AutomationCounter"
+        },
+        "calendar_slots": {
+          "$ref": "#/$defs/AutomationCalendarSlots"
         }
       },
       "required": [
@@ -2870,6 +3027,9 @@
         },
         {
           "$ref": "#/$defs/AutomationTimeTrigger"
+        },
+        {
+          "$ref": "#/$defs/AutomationCalendarTrigger"
         }
       ]
     },
@@ -2955,6 +3115,31 @@
         "request_id",
         "header",
         "total_bytes"
+      ],
+      "additionalProperties": false
+    },
+    "CalendarSchedule": {
+      "title": "CalendarSchedule",
+      "type": "object",
+      "properties": {
+        "rule": {
+          "type": "string"
+        },
+        "timezone": {
+          "type": "string"
+        },
+        "first_slot": {
+          "$ref": "#/$defs/AutomationCounter"
+        },
+        "max_lateness_seconds": {
+          "$ref": "#/$defs/AutomationCounter"
+        }
+      },
+      "required": [
+        "rule",
+        "timezone",
+        "first_slot",
+        "max_lateness_seconds"
       ],
       "additionalProperties": false
     },
@@ -7176,6 +7361,317 @@
       ],
       "additionalProperties": false
     },
+    "PointAgent": {
+      "title": "PointAgent",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "pointagent"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "request": {
+          "$ref": "#/$defs/PointAgentRequest"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "request",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "PointAgentRequest": {
+      "title": "PointAgentRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PointStart"
+        },
+        {
+          "$ref": "#/$defs/PointLookup"
+        },
+        {
+          "$ref": "#/$defs/PointStatus"
+        },
+        {
+          "$ref": "#/$defs/PointEvents"
+        },
+        {
+          "$ref": "#/$defs/PointCancel"
+        },
+        {
+          "$ref": "#/$defs/PointRetry"
+        },
+        {
+          "$ref": "#/$defs/PointOpen"
+        }
+      ]
+    },
+    "PointAttempt": {
+      "title": "PointAttempt",
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId",
+        "text",
+        "attempt",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "PointAttemptData": {
+      "title": "PointAttemptData",
+      "type": "object",
+      "properties": {
+        "attempt": {
+          "$ref": "#/$defs/PointAttempt"
+        },
+        "pointTime": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "attempt"
+      ],
+      "additionalProperties": false
+    },
+    "PointAttemptEvent": {
+      "title": "PointAttemptEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "app_agent_attempt"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/PointAttemptData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "PointBinding": {
+      "title": "PointBinding",
+      "type": "object",
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/PointScope"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "harnessId": {
+          "type": "string"
+        },
+        "panel": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "context": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "scope",
+        "requestId",
+        "harnessId",
+        "panel",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    },
+    "PointCancel": {
+      "title": "PointCancel",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "cancel"
+        },
+        "scope": {
+          "$ref": "#/$defs/PointScope"
+        },
+        "runId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "runId"
+      ],
+      "additionalProperties": false
+    },
+    "PointCancelData": {
+      "title": "PointCancelData",
+      "type": "object",
+      "properties": {
+        "pointTime": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PointCancelEvent": {
+      "title": "PointCancelEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "app_agent_cancel"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/PointCancelData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "PointCatalog": {
+      "title": "PointCatalog",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "pointcatalog"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "/api/workspaces"
+            },
+            {
+              "type": "string",
+              "const": "/api/harnesses"
+            }
+          ]
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "path",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "PointCatalogReply": {
+      "title": "PointCatalogReply",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PointWorkspace"
+              },
+              {
+                "$ref": "#/$defs/PointHarness"
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false
+    },
     "PointConfig": {
       "title": "PointConfig",
       "type": "object",
@@ -7216,6 +7712,148 @@
       },
       "required": [
         "config"
+      ],
+      "additionalProperties": false
+    },
+    "PointEvents": {
+      "title": "PointEvents",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "events"
+        },
+        "scope": {
+          "$ref": "#/$defs/PointScope"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "after": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "runId"
+      ],
+      "additionalProperties": false
+    },
+    "PointHarness": {
+      "title": "PointHarness",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "available": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "available"
+      ],
+      "additionalProperties": false
+    },
+    "PointLookup": {
+      "title": "PointLookup",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "lookup"
+        },
+        "scope": {
+          "$ref": "#/$defs/PointScope"
+        },
+        "requestId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "PointLookupReply": {
+      "title": "PointLookupReply",
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string"
+        },
+        "run": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PointRun"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "requestId",
+        "run"
+      ],
+      "additionalProperties": false
+    },
+    "PointOpen": {
+      "title": "PointOpen",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "open"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "PointOpenReply": {
+      "title": "PointOpenReply",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "PointProjectedEvent": {
+      "title": "PointProjectedEvent",
+      "type": "object",
+      "properties": {
+        "seq": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "data": {}
+      },
+      "required": [
+        "seq",
+        "type",
+        "data"
       ],
       "additionalProperties": false
     },
@@ -7306,6 +7944,276 @@
         "request",
         "method",
         "id"
+      ],
+      "additionalProperties": false
+    },
+    "PointRetry": {
+      "title": "PointRetry",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "retry"
+        },
+        "scope": {
+          "$ref": "#/$defs/PointScope"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "runId",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "PointRun": {
+      "title": "PointRun",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/PointScope"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "running"
+            },
+            {
+              "type": "string",
+              "const": "needs_input"
+            },
+            {
+              "type": "string",
+              "const": "cancelling"
+            },
+            {
+              "type": "string",
+              "const": "completed"
+            },
+            {
+              "type": "string",
+              "const": "failed"
+            },
+            {
+              "type": "string",
+              "const": "cancelled"
+            },
+            {
+              "type": "string",
+              "const": "interrupted"
+            }
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "stopReason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "sessionId",
+        "scope",
+        "status",
+        "attempt",
+        "requestId",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "PointScope": {
+      "title": "PointScope",
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspaceId"
+      ],
+      "additionalProperties": false
+    },
+    "PointSessionOpenData": {
+      "title": "PointSessionOpenData",
+      "type": "object",
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/AppChatScope"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope",
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "PointSessionOpenEvent": {
+      "title": "PointSessionOpenEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "point_app_session_open"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/PointSessionOpenData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "PointStart": {
+      "title": "PointStart",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "start"
+        },
+        "scope": {
+          "$ref": "#/$defs/PointScope"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "harnessId": {
+          "type": "string"
+        },
+        "context": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "requestId",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "PointStatus": {
+      "title": "PointStatus",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "status"
+        },
+        "scope": {
+          "$ref": "#/$defs/PointScope"
+        },
+        "runId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "runId"
+      ],
+      "additionalProperties": false
+    },
+    "PointTranscript": {
+      "title": "PointTranscript",
+      "type": "object",
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/PointRun"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PointProjectedEvent"
+          }
+        },
+        "cursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run",
+        "events",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "PointWorkspace": {
+      "title": "PointWorkspace",
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "title",
+        "path"
       ],
       "additionalProperties": false
     },
@@ -9527,6 +10435,15 @@
           "$ref": "#/$defs/TurnStartedEvent"
         },
         {
+          "$ref": "#/$defs/PointSessionOpenEvent"
+        },
+        {
+          "$ref": "#/$defs/PointAttemptEvent"
+        },
+        {
+          "$ref": "#/$defs/PointCancelEvent"
+        },
+        {
           "$ref": "#/$defs/SessionCreatedEvent"
         },
         {
@@ -10544,6 +11461,20 @@
       ],
       "additionalProperties": false
     },
+    "WorkspaceComputeItem": {
+      "title": "WorkspaceComputeItem",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "compute"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
     "WorkspaceContentRoute": {
       "title": "WorkspaceContentRoute",
       "type": "object",
@@ -10735,6 +11666,9 @@
         },
         {
           "$ref": "#/$defs/WorkspaceAppItem"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceComputeItem"
         }
       ]
     },
