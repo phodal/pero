@@ -119,7 +119,7 @@ try {
   const legacyWorkbench = {appearance:'dark',projects:[{workspace:temp,project_id:'pero'}]};
   host.send({method:'settings.workbench',preferences:legacyWorkbench});
   const migrated = await host.next('workbench_settings');
-  const expectedLegacy={...legacyWorkbench,accent:'teal',typography:{ui_size:14,chat_size:16,code_size:null},layout:{chat_width:420,chat_open:false}};
+  const expectedLegacy={...legacyWorkbench,accent:'teal',typography:{ui_size:14,chat_size:14,code_size:null},layout:{chat_width:420,chat_open:false}};
   if (!isDeepStrictEqual(migrated.data,expectedLegacy)) failures.push('Legacy workbench preferences did not restore default layout');
   const workbench = {...expectedLegacy,accent:'blue',typography:{ui_size:18,chat_size:20,code_size:null},layout:{chat_width:512,chat_open:true}};
   host.send({method:'settings.workbench',preferences:workbench});

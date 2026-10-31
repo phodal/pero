@@ -346,11 +346,26 @@ impl Render for StreamText {
             .with_code_background(cx.theme().muted)
             .with_border(cx.theme().border)
             .with_dark(cx.theme().is_dark())
-            .with_paragraph_gap(rems(0.4))
+            .with_paragraph_gap(rems(pero_theme::PROSE_PARAGRAPH_GAP))
+            .with_heading(pero_theme::chat_heading)
+            .with_inline_code_style(
+                StyleRefinement::default()
+                    .text_size(rems(pero_theme::PROSE_INLINE_CODE))
+                    .px(px(2.))
+                    .py(px(1.5))
+                    .rounded(px(5.))
+                    .bg(color.opacity(0.08)),
+            )
             .with_code_block(
                 StyleRefinement::default()
                     .font_family("JetBrains Mono")
-                    .text_size(px(typography.code)),
+                    .text_size(rems(pero_theme::PROSE_CODE_SIZE))
+                    .rounded(px(12.))
+                    .border_1()
+                    .border_color(cx.theme().border)
+                    .bg(cx.theme().background)
+                    .py(px(6.))
+                    .px(px(10.)),
             );
         let mut view = TextView::new(&self.document).selectable(true).style(style);
         if let Some(scroll) = &self.reveal_scroll {

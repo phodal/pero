@@ -93,13 +93,40 @@ function contractOf(schema) {
   for (const [name, value] of [...Object.entries(space), ...Object.entries(typePx), ...Object.entries(radii), ...Object.entries(metrics)]) {
     if (!Number.isFinite(value)) throw new Error(`${name} is not a number`);
   }
-  return { space, typePx, typeWeight, radii, metrics, colors };
+  const chatProse = props(defs.ChatProse);
+  if (!chatProse || Object.keys(chatProse).length === 0) throw new Error('Design contract is missing ChatProse');
+  return { space, typePx, typeWeight, radii, metrics, colors, chatProse };
+}
+
+function proseRatio(value, name) {
+  const match = /^(\d+)\/(\d+)$/.exec(String(value));
+  if (!match || match[2] === '0') throw new Error(`${name} must be a ratio like 4/3`);
+  return { css: `calc(${match[1]} / ${match[2]})`, rust: `${match[1]}. / ${match[2]}.` };
+}
+
+function proseTokens(prose) {
+  const css = [];
+  const rust = [];
+  for (const [name, value] of Object.entries(prose)) {
+    const kebab = name.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
+    const ident = `PROSE_${name.replace(/[A-Z]/g, letter => `_${letter}`).toUpperCase()}`;
+    if (name === 'quoteBorder') {
+      if (!Number.isInteger(value)) throw new Error('quoteBorder is not an integer');
+      css.push([`pero-prose-${kebab}`, px(value)]);
+      rust.push(`pub const ${ident}: f32 = ${value}.;`);
+      continue;
+    }
+    const ratio = proseRatio(value, name);
+    css.push([`pero-prose-${kebab}`, ratio.css]);
+    rust.push(`pub const ${ident}: f32 = ${ratio.rust};`);
+  }
+  return { css, rust };
 }
 
 const px = value => `${value}px`;
 
 function cssOf(contract) {
-  const { space, typePx, radii, metrics, colors } = contract;
+  const { space, typePx, radii, metrics, colors, chatProse } = contract;
   const decl = (name, value) => `  --${name}: ${value};`;
   const lines = [
     decl('pero-space-1', px(space.space4)),
@@ -134,6 +161,7 @@ function cssOf(contract) {
     decl('pero-composer-max', px(metrics.composerMax)),
     decl('pero-sidebar-width', px(metrics.sidebarWidth)),
     decl('pero-list-column', px(metrics.listColumn)),
+    ...proseTokens(chatProse).css.map(([name, value]) => decl(name, value)),
     decl('pero-role-page', 'var(--pero-bg)'),
     decl('pero-role-sidebar', 'var(--pero-surface-muted)'),
     decl('pero-role-reading', 'var(--pero-surface)'),
@@ -153,11 +181,11 @@ function cssOf(contract) {
 
 function tsOf(contract) {
   const body = JSON.stringify(contract, null, 2);
-  return `/** ${banner} */\nexport const designContract = ${body} as const;\nexport const { space, typePx, typeWeight, radii, metrics, colors: colorRoles } = designContract;\n`;
+  return `/** ${banner} */\nexport const designContract = ${body} as const;\nexport const { space, typePx, typeWeight, radii, metrics, colors: colorRoles, chatProse } = designContract;\n`;
 }
 
 function rustOf(contract) {
-  const { space, typePx, typeWeight, radii, metrics, colors } = contract;
+  const { space, typePx, typeWeight, radii, metrics, colors, chatProse } = contract;
   const num = (name, value) => `pub const ${name}: f32 = ${value}.;`;
   const text = (name, value) => `pub const ${name}: &str = ${JSON.stringify(value)};`;
   const lines = [
@@ -197,6 +225,7 @@ function rustOf(contract) {
     num('COMPOSER_MAX', metrics.composerMax),
     num('SIDEBAR_WIDTH', metrics.sidebarWidth),
     num('LIST_COLUMN', metrics.listColumn),
+    ...proseTokens(chatProse).rust,
   ];
   for (const [role, pair] of Object.entries(colors)) {
     const ident = role.replace(/[A-Z]/g, letter => `_${letter}`).toUpperCase();

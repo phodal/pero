@@ -5,9 +5,9 @@
   "version": "0.1.0",
   "shell": "workbench",
   "apps": [
+    "insights",
     "virtual-cell",
     "paper-agent",
-    "insights",
     "control-lab"
   ],
   "required": [

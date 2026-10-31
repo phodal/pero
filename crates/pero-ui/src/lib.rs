@@ -116,3 +116,11 @@ mod workspace_tab_actions;
 
 #[cfg(any(target_family="wasm",feature="native"))]
 mod workspace_recent;
+
+#[cfg(all(feature="native",not(target_family="wasm")))]
+mod native_apps;
+#[cfg(all(feature="native",not(target_family="wasm")))]
+mod native_app_surface;
+
+#[cfg(all(feature="native-probe",not(target_family="wasm")))]
+mod native_app_probe;

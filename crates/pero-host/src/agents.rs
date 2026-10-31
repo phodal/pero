@@ -189,6 +189,12 @@ impl Manager {
             .collect()
     }
 
+    pub fn repository_snapshot(&self) -> (Vec<serde_json::Value>, Vec<serde_json::Value>) {
+        let repositories = super::local_repo::read_directories(&[self.workspace.clone()]);
+        let conflicts = super::local_repo::conflicts(&repositories, &self.visible_history());
+        (repositories, conflicts)
+    }
+
     fn publish_insights(&self, thread_id: String) {
         match self.insights_value(&thread_id) {
             Ok(value) => {

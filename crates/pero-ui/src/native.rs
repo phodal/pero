@@ -13,6 +13,7 @@ use std::{
 };
 
 thread_local! {
+    static APPS: RefCell<Option<crate::native_apps::NativeApps>> = const { RefCell::new(None) };
     static COMMANDS: RefCell<Option<mpsc::Sender<String>>> = const { RefCell::new(None) };
     static HOST_COMMANDS: RefCell<Option<mpsc::Sender<String>>> = const { RefCell::new(None) };
 }
@@ -20,10 +21,18 @@ thread_local! {
 pub(crate) fn session_command(json: &str) -> Result<(), String> {
     let value: serde_json::Value = serde_json::from_str(json).map_err(|error| error.to_string())?;
     let action = value["action"].as_str().unwrap_or_default();
+    if action.starts_with("apps_") && action != "apps_install" {
+        return APPS.with(|apps| {
+            let apps = apps.borrow();
+            let apps = apps.as_ref().ok_or("Native Apps are unavailable")?;
+            apps.command(value);
+            Ok(())
+        });
+    }
     let controller = action.starts_with("remote_")
         || action.starts_with("local_worker_")
         || action.starts_with("choose_")
-        || matches!(action, "harness_get" | "harness_save");
+        || matches!(action, "apps_install" | "harness_get" | "harness_save");
     let channel = if controller {
         &COMMANDS
     } else {
@@ -36,6 +45,9 @@ pub(crate) fn session_command(json: &str) -> Result<(), String> {
             .send(json.to_string())
             .map_err(|error| error.to_string())
     })
+}
+pub(crate) fn apps() -> crate::native_apps::NativeApps {
+    APPS.with(|apps| apps.borrow().as_ref().expect("Native Apps initialized").clone())
 }
 pub(crate) fn send_probe(json: &str) -> Result<(), String> {
     session_command(json)
@@ -70,8 +82,11 @@ pub fn run() -> anyhow::Result<()> {
             anyhow::bail!("Build with native-probe to run Web view acceptance");
         }
     }
+    let app_probe = std::env::args().nth(1).as_deref() == Some("--verify-apps");
+    #[cfg(not(feature="native-probe"))]
+    if app_probe { anyhow::bail!("Build with native-probe to run App acceptance"); }
     #[cfg(target_os = "macos")]
-    relaunch_in_bundle();
+    if !app_probe { relaunch_in_bundle(); }
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .canonicalize()?;
@@ -102,6 +117,9 @@ pub fn run() -> anyhow::Result<()> {
     let settings_path = data.join("settings.json");
     let harness = crate::native_harness::NativeHarness::open(&data, &settings_path, ephemeral_secrets);
     let (provider_endpoint, provider_model, provider_key) = harness.process_env();
+    #[derive(serde::Deserialize)]
+    struct NativeProduct { apps: Vec<String>, #[serde(default)] required: Vec<String> }
+    let product: NativeProduct = serde_json::from_slice(&std::fs::read(root.join("products/pero.json"))?)?;
     let mut host = Command::new(executable)
         .arg("--stdio")
         .current_dir(&root)
@@ -109,6 +127,9 @@ pub fn run() -> anyhow::Result<()> {
         .env("PATH", std::env::join_paths(paths)?)
         .env("PERO_LOCALE", &locale)
         .env("PERO_SETTINGS_PATH", &settings_path)
+        .env("PERO_BUILTIN_APPS_ROOT", std::env::var_os("PERO_BUILTIN_APPS_ROOT").map(PathBuf::from).unwrap_or_else(||root.join("apps")))
+        .env("PERO_BUILTIN_APPS", std::env::var("PERO_BUILTIN_APPS").unwrap_or_else(|_|product.apps.join(",")))
+        .env("PERO_REQUIRED_APPS", std::env::var("PERO_REQUIRED_APPS").unwrap_or_else(|_|product.required.join(",")))
         .env("DEEPSEEK_BASE_URL", &provider_endpoint)
         .env("DEEPSEEK_MODEL", &provider_model)
         .env("DEEPSEEK_API_KEY", &provider_key)
@@ -126,6 +147,8 @@ pub fn run() -> anyhow::Result<()> {
     // own writer so they never wait for a remote response.
     let (host_commands, host_incoming) = mpsc::channel::<String>();
     HOST_COMMANDS.with(|slot| *slot.borrow_mut() = Some(host_commands.clone()));
+    let app_client = crate::native_apps::NativeApps::new(host_commands.clone(), events.clone());
+    APPS.with(|slot| *slot.borrow_mut() = Some(app_client.clone()));
     let writer_events = events.clone();
     std::thread::spawn(move || {
         for json in host_incoming {
@@ -149,6 +172,7 @@ pub fn run() -> anyhow::Result<()> {
             let Ok(line) = line else { break };
             match serde_json::from_str::<HostEvent>(&line) {
                 Ok(event) if event.version == pero_contracts::PROTOCOL_VERSION => {
+                    if app_client.accept(&event) { continue; }
                     if matches!(event.kind.as_str(), "harness_settings_saved" | "harness_settings_error") {
                         let _ = worker_states.send(
                             serde_json::json!({
@@ -276,6 +300,7 @@ pub fn run() -> anyhow::Result<()> {
                     | "choose_document"
                     | "choose_document_save"
                     | "choose_icon_theme"
+                    | "apps_install"
             ) {
                 let mut event = HostEvent::new(&format!("native_{action}"), None, String::new());
                 event.data = value;
@@ -300,11 +325,11 @@ pub fn run() -> anyhow::Result<()> {
         }
     });
     app.run(move |cx| {
-        let registration = cx.register_url_scheme("pero");
+        let registration = if app_probe { None } else { Some(cx.register_url_scheme("pero")) };
         cx.spawn(async move |_cx| {
-            if let Err(error) = registration.await {
+            if let Some(registration) = registration { if let Err(error) = registration.await {
                 eprintln!("pero:// handler was not registered: {error:#}");
-            }
+            }}
         })
         .detach();
         cx.text_system()
@@ -326,6 +351,8 @@ pub fn run() -> anyhow::Result<()> {
         let system_dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
         pero_theme::ResolvedAppearance::resolve(&Default::default(), system_dark, &palettes).install(cx);
         let options = WindowOptions {
+            show: !app_probe,
+            focus: !app_probe,
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                 None,
                 size(px(1440.), px(960.)),
@@ -346,6 +373,11 @@ pub fn run() -> anyhow::Result<()> {
             })
         })
         .expect("native workbench window");
+        #[cfg(feature="native-probe")]
+        if app_probe {
+            let receipt = PathBuf::from(std::env::args().nth(2).expect("App acceptance receipt path"));
+            crate::native_app_probe::attach(view.clone(),window,receipt,cx);
+        }
         let close_view=view.downgrade();
         let _=window.update(cx,|_,window,cx| {
             window.on_window_should_close(cx,move|window,cx| {
@@ -374,15 +406,16 @@ pub fn run() -> anyhow::Result<()> {
                 }
                 if matches!(
                     event.kind.as_str(),
-                    "native_choose_workspace" | "native_choose_context" | "native_choose_worker_workspace" | "native_choose_document" | "native_choose_icon_theme"
+                    "native_apps_install" | "native_choose_workspace" | "native_choose_context" | "native_choose_worker_workspace" | "native_choose_document" | "native_choose_icon_theme"
                 ) {
+                    let app_install=event.kind=="native_apps_install";
                     let icon_theme=event.kind=="native_choose_icon_theme";
                     let file_document=event.kind=="native_choose_document";
                     let worker_workspace=event.kind=="native_choose_worker_workspace";
                     let workspace = event.kind == "native_choose_workspace" || worker_workspace;
                     let typed_context = !workspace && event.data["request_id"].is_string();
                     let context_kind = event.data["kind"].as_str().unwrap_or("file");
-                    let directory = workspace || typed_context && context_kind == "directory";
+                    let directory = app_install || workspace || typed_context && context_kind == "directory";
                     let paths = cx.update(|cx| {
                         cx.prompt_for_paths(PathPromptOptions {
                             files: !directory,
@@ -414,6 +447,10 @@ pub fn run() -> anyhow::Result<()> {
                                 }).and_then(|result| result);
                                 continue;
                             }
+                            if app_install {
+                                apps().command(serde_json::json!({"action":"apps_install","path":path}));
+                                continue;
+                            }
                             let command = if icon_theme {
                                 serde_json::json!({"method":"icons","action":"install","request_id":"icons","path":path})
                             } else if file_document {
@@ -437,6 +474,7 @@ pub fn run() -> anyhow::Result<()> {
             }
         })
         .detach();
+        apps().command(serde_json::json!({"action":"apps_list"}));
         let _ = commands.send(serde_json::json!({"action":"local_worker_init"}).to_string());
         let _ = commands.send(serde_json::json!({"method":"settings.workbench.get"}).to_string());
         let _ = commands.send(serde_json::json!({"action":"list_agents"}).to_string());
@@ -446,7 +484,7 @@ pub fn run() -> anyhow::Result<()> {
             }
         })
         .detach();
-        cx.activate(true);
+        if !app_probe { cx.activate(true); }
     });
     Ok(())
 }

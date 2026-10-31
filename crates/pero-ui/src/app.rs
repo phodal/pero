@@ -53,6 +53,8 @@ pub(crate) struct Workbench {
     pub pending_save_as:Option<crate::document_save_as::PendingSaveAs>,
     pub save_as_feedback:Option<crate::document_save_as::SaveAsFeedback>,
     #[cfg(not(target_family="wasm"))]
+    pub native_app_pages:std::collections::BTreeMap<(String,String),crate::native_app_surface::RetainedApp>,
+    #[cfg(not(target_family="wasm"))]
     pub native_web_pages:std::collections::BTreeMap<String,crate::web_documents::WorkspaceNativeWeb>,
     pub web_documents:Vec<pero_contracts::web_document::WebDocument>,
     pub web_address:Entity<InputState>,
@@ -300,6 +302,8 @@ impl Workbench {
             workspace_focus,
             #[cfg(not(target_family="wasm"))]
             native_web_pages:Default::default(),
+            #[cfg(not(target_family="wasm"))]
+            native_app_pages:Default::default(),
             web_documents:vec![],web_address,web_entry_open:false,web_surface:String::new(),
             remote,
             local_execution,
@@ -308,7 +312,7 @@ impl Workbench {
             pending_app: None,
             app_surface: String::new(),
             app_chat_slot: None,
-            floating_chat: true,
+            floating_chat: cfg!(target_family="wasm"),
             floating_chat_expanded: false,
             layout,
             resizing_chat: false,
@@ -493,6 +497,8 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        #[cfg(not(target_family="wasm"))]
+        self.receive_native_app(&event,window,cx);
         let event_kind = event.kind.clone();
         let feature_handled = self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
             || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)

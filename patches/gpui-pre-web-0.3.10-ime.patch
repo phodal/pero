@@ -232,7 +232,20 @@
      fn request_decorations(&self, _decorations: WindowDecorations) {}
 --- a/src/text_system.rs
 +++ b/src/text_system.rs
-@@ -468,3 +468,16 @@
+@@ -445,7 +445,11 @@
+ impl CanvasFont {
+     fn css_font(&self, font_size: Pixels, color: bool) -> Result<String> {
+-        let font_size = f32::from(font_size);
++        // PingFang SC Regular at 14px has a 12.04px cap; the macOS UI face
++        // used beside SF is 11.32. Latin IBM Plex caps are 9.8. Shrink Han
++        // fallbacks to the UI optical size so Electron Chinese matches the
++        // Latin face instead of reading as a larger font. Emoji stays full size.
++        let font_size = f32::from(font_size) * if color { 1. } else { 11.32 / 12.04 };
+         ensure!(
+             font_size.is_finite() && font_size > 0.,
+             "invalid Canvas font size"
+         );
+@@ -468,3 +472,16 @@
              );
          }
 +        // Named system faces, not generic sans-serif. OffscreenCanvas otherwise

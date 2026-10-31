@@ -76,7 +76,7 @@ impl Default for TypographyPreferences {
     fn default() -> Self {
         Self {
             ui_size: FontSize(14),
-            chat_size: Some(FontSize(16)),
+            chat_size: Some(FontSize(14)),
             code_size: None,
         }
     }
@@ -185,7 +185,7 @@ mod tests {
     #[test]
     fn typography_bounds_and_inheritance() {
         for (input, expected) in [
-            (r#"{}"#, Some((14., 16., 14.))),
+            (r#"{}"#, Some((14., 14., 14.))),
             (r#"{"ui_size":18,"chat_size":null}"#, Some((18., 18., 18.))),
             (
                 r#"{"ui_size":20,"chat_size":16,"code_size":14}"#,
@@ -222,10 +222,10 @@ mod tests {
             );
         }
         for (scope, delta, expected) in [
-            (FontScope::Interface, 1, (15., 16., 15.)),
-            (FontScope::Chat, 1, (14., 17., 14.)),
-            (FontScope::Code, 1, (14., 16., 15.)),
-            (FontScope::Interface, -100, (12., 16., 12.)),
+            (FontScope::Interface, 1, (15., 14., 15.)),
+            (FontScope::Chat, 1, (14., 15., 14.)),
+            (FontScope::Code, 1, (14., 14., 15.)),
+            (FontScope::Interface, -100, (12., 14., 12.)),
             (FontScope::Chat, 100, (14., 24., 14.)),
         ] {
             let mut preferences = TypographyPreferences::default();

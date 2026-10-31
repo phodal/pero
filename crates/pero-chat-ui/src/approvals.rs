@@ -33,7 +33,7 @@ impl ChatPanel {
             .as_str()
             .unwrap_or_default()
             .to_owned();
-        Some(div().mx(px(4.)).my(px(6.)).p(px(8.)).bg(p.warning_bg)
+        Some(div().w_full().max_w(px(pero_theme::COMPOSER_MAX)).min_w_0().mx_auto().my(px(6.)).p(px(8.)).bg(p.warning_bg)
             .child(div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).child(self.t("chat.permission")))
             .when(tool.is_none(), |el| el.child(permission["toolCall"]["title"].as_str().unwrap_or_default().to_owned()))
             .child(div().mt(px(6.)).flex().flex_wrap().gap(px(6.)).children(

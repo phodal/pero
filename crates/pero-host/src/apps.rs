@@ -160,7 +160,12 @@ impl Apps {
                         Some(thread) => vec![agents.insights_value(&thread)?],
                         None => agents.insights_catalog(),
                     };
-                    serde_json::to_value(serde_json::json!({ "sessions": sessions }))
+                    let (repositories, conflicts) = agents.repository_snapshot();
+                    serde_json::to_value(serde_json::json!({
+                        "sessions": sessions,
+                        "repositories": repositories,
+                        "conflicts": conflicts,
+                    }))
                 }
                 Request::Resolve { method, id, name } => {
                     let _ = (method, id);

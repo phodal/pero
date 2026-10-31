@@ -43,6 +43,47 @@ model Radii {
   cell: 2;
 }
 
+/** ACP session Markdown, in em of the 14px chat body. Heading gaps are em of that heading. */
+model ChatProse {
+  /** 22px line on a 14px body. */
+  bodyLine: "11/7";
+  /** 10px between paragraphs. */
+  paragraphGap: "5/7";
+  /** 4px under a heading, before it collapses with the next block. */
+  headingBottom: "1/5";
+  /** Stacked headings keep the same top gap as a section heading. */
+  headingFollow: "11/10";
+  /** 16px around a rule. */
+  ruleSpace: "8/7";
+  quotePad: "9/10";
+  quoteBorder: 2;
+  /** 28px list indent. */
+  listIndent: "2/1";
+  tableScale: "1/1";
+  /** 12.6px inline code. */
+  inlineCode: "9/10";
+  /** 12px fenced code. */
+  codeSize: "6/7";
+  h1Scale: "3/2";
+  h1Line: "71/50";
+  h1Gap: "11/10";
+  h2Scale: "4/3";
+  h2Line: "71/50";
+  h2Gap: "11/10";
+  h3Scale: "8/7";
+  h3Line: "71/50";
+  h3Gap: "1/1";
+  h4Scale: "1/1";
+  h4Line: "71/50";
+  h4Gap: "1/1";
+  h5Scale: "1/1";
+  h5Line: "71/50";
+  h5Gap: "1/1";
+  h6Scale: "1/1";
+  h6Line: "71/50";
+  h6Gap: "1/1";
+}
+
 model Metrics {
   sidebarNavRow: 32;
   /** Account and choice menus use the same row box as sidebar navigation. */
@@ -56,7 +97,7 @@ model Metrics {
   ghostIconButton: 28;
   searchFieldHeight: 32;
   readerMaxWidth: 720;
-  /** Centered conversation composer. Width is the minimum of this value and the pane minus its horizontal inset. */
+  /** Centered conversation composer and ACP session stream. Width is the minimum of this value and the pane minus its horizontal inset. */
   composerMax: 800;
   sidebarWidth: 224;
   listColumn: 336;

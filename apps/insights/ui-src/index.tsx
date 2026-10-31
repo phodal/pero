@@ -1,7 +1,8 @@
 import { useAppAgent, useAppI18n } from '@pero/app-sdk';
 import { useEffect, useRef, useState } from 'react';
-import { analysisRequest, workRecapPrompt } from './work-recap-model.mjs';
-import { PulseWorkRecap, type MemoryContext, type RecapSession, type RecapTurn, type WorkRecap } from './pulse-work-recap';
+import { analysisRequest, briefFromReply, briefResultPrompt } from './work-recap-model.mjs';
+import { PulseHomeResult, type ResultBrief } from './pulse-home-result';
+import type { RecapSession, RecapTurn, WorkRecap } from './pulse-work-recap';
 
 type HostTurn = { status?: string; request?: string; response?: string; response_kind?: string; boundary?: string; seq_start?: number; seq_end?: number; truncated?: boolean };
 type HostSession = {
@@ -9,8 +10,6 @@ type HostSession = {
   status?: string; response_kind?: string; request?: string; response?: string; turns?: HostTurn[];
   source?: { start_seq?: number; end_seq?: number; as_of_seq?: number; digest?: string };
 };
-
-const emptyCoverage = { examined: 0, matched: 0, shown: 0, unreadable: 0, omitted: 0, complete: true };
 
 function pointStatus(status: string | undefined): RecapTurn['status'] {
   if (status === 'completed' || status === 'failed' || status === 'unfinished' || status === 'unknown') return status;
@@ -79,18 +78,19 @@ function toRecap(sessions: HostSession[]): WorkRecap {
   };
 }
 
-const emptyMemory: MemoryContext = { items: [], coverage: emptyCoverage, policy: '' };
-
 export default function Insights() {
   const { t } = useAppI18n({ locale: { zh: 'zh', en: 'en' } });
   const locale = t('locale') === 'zh' ? 'zh' : 'en';
   const agent = useAppAgent();
   const [recap, setRecap] = useState<WorkRecap | null>(null);
+  const [repositories, setRepositories] = useState<unknown[]>([]);
+  const [conflicts, setConflicts] = useState<unknown[]>([]);
   const [error, setError] = useState('');
-  const [suggestion, setSuggestion] = useState('');
+  const [brief, setBrief] = useState<ResultBrief | null>(null);
+  const [generatedAt, setGeneratedAt] = useState('');
+  const [running, setRunning] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const started = useRef(false);
-  const [canRegenerate, setCanRegenerate] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -98,9 +98,14 @@ export default function Insights() {
     fetch('/host/insights', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', signal: controller.signal })
       .then(async response => {
         if (!response.ok) throw new Error((await response.text()).slice(0, 500) || 'Insights failed');
-        return response.json() as Promise<{ sessions?: HostSession[] }>;
+        return response.json() as Promise<{ sessions?: HostSession[]; repositories?: unknown[]; conflicts?: unknown[] }>;
       })
-      .then(body => { if (!controller.signal.aborted) setRecap(toRecap(body.sessions ?? [])); })
+      .then(body => {
+        if (controller.signal.aborted) return;
+        setRepositories(Array.isArray(body.repositories) ? body.repositories : []);
+        setConflicts(Array.isArray(body.conflicts) ? body.conflicts : []);
+        setRecap(toRecap(body.sessions ?? []));
+      })
       .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Insights failed'); });
     return () => controller.abort();
   }, [attempt]);
@@ -109,7 +114,8 @@ export default function Insights() {
   const runAnalysis = (prompt: string) => {
     const agentId = agent.agents.find(item => item.available)?.id;
     if (!agentId) return;
-    setSuggestion('');
+    setBrief(null);
+    setRunning(true);
     const requestId = `insights-${Date.now()}`;
     void agent.start({ requestId, prompt, agentId }).then(async startedSession => {
       let cursor = 0;
@@ -123,27 +129,26 @@ export default function Insights() {
         if (status !== 'running') break;
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
-      if (status === 'failed' || status === 'cancelled' || !text) {
-        setError(text || (locale === 'zh' ? '下一步建议没有生成。' : 'The next-step suggestion was not produced.'));
+      setRunning(false);
+      const published = briefFromReply(text);
+      if (status === 'failed' || status === 'cancelled' || !published) {
+        setError(locale === 'zh' ? '上次生成失败。' : 'The last brief failed.');
         return;
       }
-      setSuggestion(text);
-    }).catch(reason => setError(reason instanceof Error ? reason.message : 'Insights failed'));
+      setGeneratedAt(new Date().toISOString());
+      setBrief(published);
+    }).catch(reason => {
+      setRunning(false);
+      setError(reason instanceof Error ? reason.message : (locale === 'zh' ? '上次生成失败。' : 'The last brief failed.'));
+    });
   };
   useEffect(() => {
     if (analysisRequest({ recapReady: !!recap, modelReady, started: started.current }) !== 'start' || !recap) return;
     started.current = true;
-    setCanRegenerate(true);
-    runAnalysis(workRecapPrompt(recap, emptyMemory, locale));
-  }, [recap, modelReady, locale]);
+    runAnalysis(briefResultPrompt(recap, repositories, conflicts, locale));
+  }, [recap, repositories, conflicts, modelReady, locale]);
   return <div className="point-pulse-page">
-    {error && <p className="point-pulse-banner" role="alert">{error} <button type="button" onClick={() => setAttempt(value => value + 1)}>{locale === 'zh' ? '重试' : 'Retry'}</button></p>}
-    <PulseWorkRecap
-      recap={recap ?? undefined}
-      memory={emptyMemory}
-      locale={locale}
-      suggestion={suggestion}
-      delegate={modelReady && recap && canRegenerate ? prompt => runAnalysis(prompt) : undefined}
-    />
+    {error && <p className="point-pulse-banner" role="alert">{error} <button type="button" onClick={() => { started.current = false; setAttempt(value => value + 1); }}>{locale === 'zh' ? '重试' : 'Retry'}</button></p>}
+    <PulseHomeResult brief={brief} createdAt={generatedAt || undefined} running={running} locale={locale} />
   </div>;
 }

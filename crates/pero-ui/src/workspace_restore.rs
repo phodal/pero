@@ -213,8 +213,7 @@ impl Workbench {
         }
     }
     pub(crate) fn apply_workspace_recovery(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.recovery.replayed || !(self.recovery.catalog || cfg!(not(target_family = "wasm")))
-        {
+        if !self.recovery.replayed || !self.recovery.catalog {
             return;
         }
         let Some(restored) = self.recovery.pending.take() else {

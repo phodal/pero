@@ -315,7 +315,7 @@ the current window open.
 
 `npm run build:macos-native` still writes the release bundle at
 `target/native/Pero Native.app`. This preview reuses the GPUI workbench and Rust
-Host without Electron, Chromium, WebView or Wasm. Local ACP sessions use the
+Host without Electron, Chromium or Wasm; embedded Web/App content uses Wry/WebKit. Local ACP sessions use the
 existing installed adapters and model authentication. Preview history and
 preferences are isolated under `~/.pero/native-preview`; they do not overwrite
 the Electron profile.
@@ -329,9 +329,10 @@ sync use the same cloud routes as Electron. Opening a task source, a pull
 request, or GitHub CLI help follows the canonical GitHub page. On macOS, native
 Cloud and device credentials use the OS keychain separately from the Electron
 profile. Other native platforms report credential storage unavailable. Preparing
-a local contribution workspace, and embedded App
-panels, are still not connected; those actions show an explicit error. Native
-cross-platform packaging remains unverified. See [native verification](../docs/fitness/native-preview.md).
+a local contribution workspace is still not connected. Embedded App panels now
+use the Host App runtime and native WebView; see [Native App verification](../docs/fitness/native-apps.md)
+for the accepted workflows and remaining limits. Native cross-platform packaging
+remains unverified. See [native verification](../docs/fitness/native-preview.md).
 
 ### Native development packages (Electron)
 

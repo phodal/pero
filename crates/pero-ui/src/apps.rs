@@ -93,12 +93,8 @@ mod surface {
     impl Workbench {
         pub(crate) fn refresh_apps(&mut self, cx: &mut Context<Self>) {
             self.apps.error = None;
-            self.apps.loading = cfg!(target_family = "wasm");
-            if cfg!(target_family = "wasm") {
-                self.command(json!({"action":"apps_list"}), cx);
-            } else {
-                cx.notify();
-            }
+            self.apps.loading = true;
+            self.command(json!({"action":"apps_list"}), cx);
         }
 
         pub(crate) fn receive_apps(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
@@ -185,6 +181,8 @@ mod surface {
             let _=(&mut payload,cx);
         }
         pub(crate) fn sync_app_surface(&mut self, bounds: Option<Bounds<Pixels>>, cx: &mut Context<Self>) {
+            #[cfg(not(target_family="wasm"))]
+            self.sync_native_apps(cx);
             if self.navigation.pane_layout_visible() {self.sync_pane_surfaces(cx);return;}
             #[cfg(target_family = "wasm")]
             {
@@ -207,7 +205,13 @@ mod surface {
         pub(crate) fn apps_view(&self, cx: &mut Context<Self>) -> AnyElement {
             let p = &pero_theme::UiAppearance::global(cx).palette.clone();
             let busy = self.apps.loading;
-            if matches!(self.navigation.current(), Some(WorkspaceItem::App { .. })) {
+            if let Some(WorkspaceItem::App { name, panel }) = self.navigation.current() {
+                #[cfg(not(target_family="wasm"))]
+                return self.native_app_content(name,panel,cx);
+                #[cfg(target_family="wasm")]
+                let _ = (name,panel);
+                #[cfg(target_family="wasm")]
+                {
                 let owner = cx.entity().clone();
                 return div()
                     .on_prepaint(move |bounds, _, cx| {
@@ -221,13 +225,10 @@ mod surface {
                     .child(if !self.layout.embedded_surface_visible {
                         ""
                     } else {
-                        self.t(if cfg!(target_family = "wasm") {
-                            "apps.loading_panel"
-                        } else {
-                            "apps.native_unavailable"
-                        })
+                        self.t("apps.loading_panel")
                     })
                     .into_any_element();
+                }
             }
             let chrome = pero_theme::Chrome::from_app(cx);
             div().id("apps-library").flex_1().min_w_0().h_full().overflow_y_scroll().bg(chrome.list()).p(px(pero_theme::WorkbenchStyle::PAGE))
@@ -237,10 +238,10 @@ mod surface {
                     None,
                     Some(div().flex().items_center().gap(px(pero_theme::ICON_GAP))
                         .child(pero_theme::action_button("apps-refresh", self.t("apps.refresh"), pero_theme::ActionKind::Ghost, chrome, cx)
-                            .disabled(busy || !cfg!(target_family = "wasm"))
+                            .disabled(busy)
                             .on_click(cx.listener(|this, _, _, cx| this.refresh_apps(cx))))
                         .child(pero_theme::action_button("apps-install", self.t("apps.install"), pero_theme::ActionKind::Primary, chrome, cx)
-                            .disabled(busy || !cfg!(target_family = "wasm"))
+                            .disabled(busy)
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.apps.error = None;
                                 this.command(json!({"action":"apps_install"}), cx);
@@ -248,12 +249,10 @@ mod surface {
                         .into_any_element()),
                     chrome,
                 ))
-                .when(!cfg!(target_family = "wasm"), |el| el.child(div().mb(px(12.)).text_color(p.text_muted)
-                    .child(self.t("apps.native_unavailable"))))
                 .when_some(self.apps.error.as_ref(), |el, error| el.child(div().mb(px(12.)).p(px(10.))
                     .bg(p.error_bg).text_color(p.error).child(error.clone())))
                 .when(busy, |el| el.child(div().py(px(12.)).text_color(p.text_muted).child(self.t("apps.loading"))))
-                .when(cfg!(target_family = "wasm") && !busy && self.apps.entries.is_empty(), |el| el.child(
+                .when(!busy && self.apps.entries.is_empty(), |el| el.child(
                     pero_theme::empty_state(self.t("apps.empty"), Some(self.t("apps.empty_hint").into()), chrome)))
                 .children(self.apps.entries.iter().enumerate().map(|(index, app)| {
                     let name = app.name.clone();
@@ -276,7 +275,7 @@ mod surface {
                                 let panel_name = panel.id.clone();
                                 let label = if app.panels.len() == 1 { self.t("apps.open").to_string() } else { panel.title.clone() };
                                 Button::new(("app-open", index * 100 + panel_index)).outline().small().label(label)
-                                    .disabled(busy || !enabled || !cfg!(target_family = "wasm"))
+                                    .disabled(busy || !enabled)
                                     .on_click(cx.listener(move |this, _, _, cx| {
                                         this.open_app(app_name.clone(), panel_name.clone(), cx);
                                         cx.notify();
@@ -284,12 +283,12 @@ mod surface {
                             }))
                             .when(!required, |row| row
                             .child(Button::new(("app-toggle", index)).outline().small()
-                                .label(self.t(if enabled { "apps.disable" } else { "apps.enable" })).disabled(busy || !cfg!(target_family = "wasm"))
+                                .label(self.t(if enabled { "apps.disable" } else { "apps.enable" })).disabled(busy)
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.apps.loading = true;
                                     this.command(json!({"action":if enabled {"apps_disable"} else {"apps_enable"},"name":toggle_name}), cx);
                                 })))
-                            .child(Button::new(("app-remove", index)).ghost().small().label(self.t("apps.remove")).disabled(busy || !cfg!(target_family = "wasm"))
+                            .child(Button::new(("app-remove", index)).ghost().small().label(self.t("apps.remove")).disabled(busy)
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.apps.removing = Some(remove_name.clone()); cx.notify();
                                 })))))

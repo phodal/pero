@@ -35,3 +35,14 @@ and the rebuilt `pero_ui` Wasm contains those family names.
 A window started before that rebuild still has the old canvas list. Restart
 `npm run dev` to load the new bundle. Live appearance after that restart was
 not recaptured in this record.
+
+## Follow-up
+
+On 2026-10-31 the same Electron window still drew Han larger than Latin, and
+session titles wrapped onto a second line in the sidebar and the open tab.
+PingFang SC Regular at 14px has a 12.04px cap; the macOS UI face beside SF is
+11.32, and IBM Plex caps are 9.8. The canvas fallback now draws non-emoji text
+at `11.32 / 12.04` of the requested size. Session titles are also a single
+line: metadata newlines collapse, and the sidebar row and pane tab clip with
+nowrap and an ellipsis. Rebuild with `npm run dev` so the Wasm picks up both
+the UI and the canvas scale.
