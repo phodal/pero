@@ -86,9 +86,14 @@ possibly incorrect implementations alone is not proof.
 
 ## Runtime and Agent boundary
 
-The backend is trusted local code, not an arbitrary-code sandbox. Dependencies
-must be prepared explicitly. Missing python-control or ngspice is reported as
-unavailable; analytical fixtures never silently replace a missing engine.
+The backend is trusted local code, not an arbitrary-code sandbox. Installing
+or enabling Control Lab selects a CPython 3.12 environment, the bundled minor,
+and installs the locked `requirements.txt` when those packages are not already
+present. Opening the App does not reinstall a satisfied environment. A failed
+install stays visible and is retried by restarting Pero. ngspice is not a
+Python package and is not downloaded; it must be on the Host PATH. Missing
+python-control or ngspice is reported as unavailable; analytical fixtures never
+silently replace a missing engine.
 ngspice runs with an argument vector, a private attempt directory and startup
 configuration disabled. Logs, generated netlists and observed solver versions
 are evidence. Timeouts/cancellation must terminate owned computation before a

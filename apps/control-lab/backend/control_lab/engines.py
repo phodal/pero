@@ -46,13 +46,24 @@ class Grid:
 def capabilities():
     result = []
     for name, module in (("python-control", "control"),):
-        present = util.find_spec(module) is not None
-        try:
-            version = metadata.version(module) if present else None
-        except metadata.PackageNotFoundError:
-            version = "unknown"
-        result.append(dict(engine=name, available=present, version=version,
-                           error=None if present else "Install the locked control dependencies in the App Python environment"))
+        present = False
+        version = None
+        error = "Restart Pero to retry installing the locked Python 3.12 requirements. ngspice must be on PATH and is not downloaded."
+        if util.find_spec(module) is not None:
+            try:
+                imported = __import__(module)
+                present = True
+                error = None
+                version = getattr(imported, "__version__", None)
+            except (ImportError, OSError) as exc:
+                detail = str(exc).splitlines()[0][:300]
+                error = f"Locked Python packages did not load: {detail}. Enable Control Lab again to retry. ngspice is not downloaded."
+        if present and not version:
+            try:
+                version = metadata.version(module)
+            except metadata.PackageNotFoundError:
+                version = "unknown"
+        result.append(dict(engine=name, available=present, version=version, error=error))
     executable = shutil.which("ngspice")
     error = None
     version = None
