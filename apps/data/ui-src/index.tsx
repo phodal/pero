@@ -77,7 +77,7 @@ export default function Data() {
     </div>
     {modal && <dialog ref={dialog} onCancel={event => { if (busy) event.preventDefault(); else close(); }} aria-labelledby="dialog-title"><div className="dialog-heading"><h2 id="dialog-title">{modal === 'import' ? 'Import file' : 'Sources'}</h2><button aria-label="Close" disabled={busy} onClick={close}>×</button></div>
       {modal === 'import' ? <form ref={importForm} onSubmit={event => event.preventDefault()}>
-        <label>Type<select value={importKind} onChange={event => setImportKind(event.target.value as Kind)}><option value="dataset">Dataset</option><option value="model">Model</option></select></label>
+        <label>Type<select aria-label="Type" value={importKind} onChange={event => setImportKind(event.target.value as Kind)}><option value="dataset">Dataset</option><option value="model">Model</option></select></label>
         <label>File <span className="muted">Up to 10 MiB</span><input type="file" required onChange={event => { const candidate = event.target.files?.[0] ?? null; setFile(null); setImportError(''); if (candidate) { try { validateImport(candidate.size); setFile(candidate); } catch (e) { setImportError((e as Error).message); } } }} /></label>
         {importError && <p role="alert" className="failure">{importError}</p>}
         <div className="actions"><button type="button" disabled={busy} onClick={close}>Cancel</button><button className="primary" type="button" onClick={() => void importFile()} disabled={!file || busy}>{busy ? 'Importing…' : 'Import'}</button></div>
