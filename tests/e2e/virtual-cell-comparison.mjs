@@ -20,7 +20,7 @@ const python = process.env.PERO_APP_PYTHON || 'python3';
 const checks = [], errors = [], requests = [], runEvidence = {}, cleanup = [];
 const sampleText = 'Sample data. Demonstration only, not a real Norman validation.';
 const activeStatuses = ['starting', 'running', 'cancelling'];
-let expect, electron, clickAppOpen, setAppearance, temp, profile, app, page, frame, manifest, failure;
+let expect, electron, clickAppOpen, clickAppShortcut, setAppearance, temp, profile, app, page, frame, manifest, failure;
 
 const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const read = path => frame.locator('body').evaluate(async (_body, path) => {
@@ -62,7 +62,7 @@ async function openComparison() {
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await expect.poll(async () => (await state()).apps?.some(item => item.name === 'virtual-cell')).toBe(true);
   await painted();
-  await page.mouse.click(80, await page.evaluate(() => innerHeight - 55));
+  await clickAppShortcut(page, 'apps');
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await painted();
@@ -200,7 +200,7 @@ async function saveFailure(error) {
 try {
   ({ expect } = await import('@playwright/test'));
   ({ electron } = await import('./electron.mjs'));
-  ({ clickAppOpen, setAppearance } = await import('./sidebar-controls.mjs'));
+  ({ clickAppOpen, clickAppShortcut, setAppearance } = await import('./sidebar-controls.mjs'));
   if (!['linux', 'darwin'].includes(process.platform)) throw new Error('Comparison CPU execution currently requires Linux or macOS. This is not a skipped success.');
   temp = await mkdtemp(resolve(tmpdir(), 'pero-comparison-e2e-'));
   profile = resolve(temp, 'desktop');

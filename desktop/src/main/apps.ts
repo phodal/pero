@@ -3,7 +3,6 @@ import { realpath, stat } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { net } from 'electron';
-import { readPointApp, pointTarget, pointHeaders, appProxyHeaders } from './point-apps.ts';
 import { AppWriteRoutes } from './app-write-routes.ts';
 import { PreparedAppWrite, type AppWriteDefinition } from './app-write.ts';
 
@@ -16,7 +15,6 @@ type Pending = { resolve(value: unknown): void; reject(error: Error): void; time
 /** Desktop projection of Host-owned Apps. Tokens and installed paths stay here. */
 export class DesktopApps {
   private pending = new Map<string, Pending>();
-  installedRoot?: string;
   connectors?: (request: Record<string, unknown>) => Promise<unknown>;
 
   async requireConnectorsGrant(name = 'connectors'): Promise<void> {
@@ -101,7 +99,7 @@ export class DesktopApps {
 
   async describeWrites():Promise<AppWriteDefinition[]>{ return this.writeRoutes().describe(); }
   async applyWrite(prepared:PreparedAppWrite,signal:AbortSignal,goal?:import('./control-lab-goal.ts').ControlLabGoal):Promise<unknown>{ return this.writeRoutes().apply(prepared,signal,goal); }
-  private writeRoutes() { return new AppWriteRoutes((action, fields) => this.request(action, fields), this.send, net.fetch, this.installedRoot); }
+  private writeRoutes() { return new AppWriteRoutes((action, fields) => this.request(action, fields), this.send, net.fetch); }
 
   /** App origins have no Electron preload. Their /api is always this App's backend. */
   async serve(request: Request): Promise<Response> {
@@ -146,46 +144,17 @@ export class DesktopApps {
         return Response.json(result, { headers: { 'Cache-Control': 'no-store' } });
       }
       const access = await this.request<AppAccess>('resolve', { name: url.hostname });
-      const point = await readPointApp(access.root);
-      if (point && (url.pathname === '/api/projects' || url.pathname.startsWith('/api/projects/'))) {
-        if (!['GET', 'POST'].includes(request.method)) return new Response('Method refused', {status:405});
-        const raw = request.method === 'GET' ? '' : await request.text();
-        if (Buffer.byteLength(raw) > 65536) return new Response('Project request exceeds 64 KiB', {status:413});
-        const operation = {method:request.method, path:url.pathname + url.search, headers:Object.fromEntries(appProxyHeaders(request.headers)), ...(raw ? {body:JSON.parse(raw)} : {})};
-        const value = await this.request<{status:number;headers:Record<string,string>;body:unknown}>('pointprojects', {name:url.hostname,request:operation});
-        return new Response(JSON.stringify(value.body), {status:value.status,headers:value.headers});
-      }
-      if (point && url.pathname === `/api/apps/${url.hostname}/config`) {
-        if (!point.permissions?.storage || !point.permissions.api?.includes(url.pathname)) return new Response('App storage denied', { status: 403 });
-        if (!['GET', 'PUT'].includes(request.method)) return new Response('Method refused', { status: 405 });
-        const fields: Record<string, unknown> = { name: url.hostname };
-        if (request.method === 'PUT') {
-          const body = await request.text();
-          if (Buffer.byteLength(body) > 1048576) return new Response('Config exceeds 1 MiB', { status: 400 });
-          const config = JSON.parse(body);
-          if (!config || typeof config !== 'object' || Array.isArray(config)) return new Response('Config must be an object', { status: 400 });
-          fields.config = config;
-        }
-        const value = await this.request<{ config: Record<string, unknown> }>('pointconfig', fields);
-        return Response.json(value.config, { headers: { 'Cache-Control': 'no-store' } });
-      }
-      if (url.pathname.startsWith('/api/') || point && url.pathname.startsWith(`/apps/${url.hostname}/api/`)) {
+      if (url.pathname.startsWith('/api/')) {
         if (!access.backend) return new Response('This App has no backend', { status: 503 });
         const body = request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.arrayBuffer();
-        if (body && body.byteLength > (point ? point.backend?.maxBodyBytes ?? 1048576 : 16 * 1024 * 1024)) return new Response('Request too large', { status: 413 });
-        const target = point ? pointTarget(point, url.pathname + url.search) : url.pathname + url.search;
-        const authentication = point ? pointHeaders(access.backend.token, request.method, target, body ? new Uint8Array(body) : undefined) : { 'X-Pero-App-Token': access.backend.token };
-        const forwarded = point ? appProxyHeaders(request.headers) : new Headers({'Content-Type':request.headers.get('Content-Type') || 'application/json'});
-        for (const [key, value] of Object.entries(authentication)) forwarded.set(key, value);
-        const response = await net.fetch(`${access.backend.url}${target}`, {
+        if (body && body.byteLength > 16 * 1024 * 1024) return new Response('Request too large', { status: 413 });
+        const response = await net.fetch(`${access.backend.url}${url.pathname}${url.search}`, {
           method: request.method,
-          headers: forwarded,
+          headers: { 'Content-Type': request.headers.get('Content-Type') || 'application/json', 'X-Pero-App-Token': access.backend.token },
           body,
           redirect: 'error',
         });
-        const headers = appProxyHeaders(response.headers, true);
-        if (!headers.has('Cache-Control')) headers.set('Cache-Control', 'no-store');
-        return new Response(response.body, { status: response.status, headers });
+        return new Response(response.body, { status: response.status, headers: { 'Content-Type': response.headers.get('Content-Type') || 'application/json', 'Cache-Control': 'no-store' } });
       }
       if (request.method !== 'GET') return new Response('Method refused', { status: 405 });
       const root = await realpath(access.root);

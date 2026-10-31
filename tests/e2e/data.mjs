@@ -2,7 +2,7 @@
 // This is development workbench acceptance, not live source/model or installer acceptance.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { clickAppOpen, setAppearance } from './sidebar-controls.mjs';
+import { clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -34,11 +34,8 @@ async function openData() {
     const canvas = document.querySelector('canvas');
     return canvas?.width === Math.round(innerWidth * devicePixelRatio) && canvas.height === Math.round(innerHeight * devicePixelRatio);
   });
-  // The existing bottom Apps menu exposes measured Open button bounds.
-  await page.mouse.click(80, await page.evaluate(() => innerHeight - 55));
-  await expect.poll(async () => (await desktop()).navigation).toBe(7);
-  await expect.poll(async () => (await desktop()).appsLoading).toBe(false);
-  await clickAppOpen(page, 'data');
+  // Data is a workspace-level sidebar entry, not a catalog App card.
+  await clickAppShortcut(page, 'data');
   await expect.poll(async () => (await desktop()).activeContent).toEqual({ kind: 'app', value: { name: 'data', panel: 'main' } });
   frame = page.frameLocator('iframe[title="data"]');
   await expect(frame.getByRole('button', { name: 'Add data', exact: true })).toBeVisible({ timeout: 20000 });

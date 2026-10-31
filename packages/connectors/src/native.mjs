@@ -28,7 +28,7 @@ const owner = new HostConnectors({ root, executable, helpers, nodeExecutable: pr
 });
 const mcp = new ConnectorMcp(owner);
 const routes = new AppWriteRoutes((action, fields = {}) => effect('apps', { value: { action, ...fields } }),
-  event => effect('surface', { value: { action: 'written', event } }), fetch, join(dirname(root), 'apps'));
+  event => effect('surface', { value: { action: 'written', event } }), fetch);
 const appUse = new DesktopAppUse({
   selectedThread: () => effect('surface', { value: { action: 'selected' } }),
   page: (scope, request) => effect('surface', { value: { action: 'page', scope, request } }),

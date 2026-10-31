@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, renameSync } from 'node:fs';
+import { mkdirSync, renameSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { cargoArgs, ensureGpuiLock } from '../lib/cargo.mjs';
 import { root } from '../lib/paths.mjs';
 import { run } from '../lib/run.mjs';
@@ -6,7 +7,11 @@ await run(process.execPath, [`${root}/scripts/codegen/theme.mjs`]);
 await import('./fonts.mjs');
 const bindgen = `${root}/target/tools/bin/wasm-bindgen${process.platform === 'win32' ? '.exe' : ''}`;
 const release = process.env.PERO_BUILD_RELEASE === '1';
-if (!existsSync(bindgen)) await run('cargo', ['install', 'wasm-bindgen-cli', '--version', '0.2.127', '--locked', '--root', `${root}/target/tools`]);
+const bindgenVersion = '0.2.127';
+const cachedBindgen = spawnSync(bindgen, ['--version'], { encoding: 'utf8', timeout: 10_000 });
+if (cachedBindgen.status !== 0 || cachedBindgen.stdout?.trim() !== `wasm-bindgen ${bindgenVersion}`) {
+  await run('cargo', ['install', 'wasm-bindgen-cli', '--version', bindgenVersion, '--locked', '--force', '--root', `${root}/target/tools`]);
+}
 await ensureGpuiLock();
 const chatOnly = process.argv.includes('--chat-only');
 const readerOnly = process.argv.includes('--reader-only');

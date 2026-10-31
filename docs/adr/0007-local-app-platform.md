@@ -120,27 +120,11 @@ panel evidence. This is distinct from the App-initiated research sessions above.
 See [App Use verification](../fitness/app-use.md) for actual acceptance scope.
 
 
-## Point package input (2026-10-31)
+## Standalone build boundary (2026-10-31)
 
-The existing Host `install` operation also accepts a built Point App directory.
-A Host-owned preparation adapter uses the bundled shared Point SDK runtime and
-returns files to the same Rust App store; it owns no catalog, enable state or
-process supervisor. Original App modules/backends and stable panel IDs are
-preserved. Source data and installation records are not imported.
-
-The private shells carry Point's original API namespace and HMAC authentication,
-including method/query/body binding and App-scoped permissions. Config remains
-under Rust Host authority. A private, compiled Point Project-domain operation
-provides bounded local list/create/read/revision/context endpoints under a
-Pero-owned journal; the Rust store serializes requests and checks the installed
-App scope. It owns no second Session runtime, planner or scheduler.
-SDK objects, examples and chat drafts use the existing
-App surfaces. The SDK source checkout is a build input only.
-
-The owner decision is independent Pero execution, not forwarding these APIs to
-a running Point installation. Full Project delivery/shared-Hub semantics,
-Session/Workspace APIs, specialized
-Host grants/events, `exec` backends and agent plugins still require independent
-Pero implementations; they are rejected until that work exists. Acceptance of
-nine domain Apps is not acceptance of every Point App. See
-[the current matrix](../fitness/point-apps.md).
+The external Point package adapter and its SDK/Project runtime were removed at
+user request. Installation accepts Pero App manifests through the existing Host
+store and backend lifecycle; no Point checkout or runtime package is a build
+prerequisite. The independent Pero App SDK, preparation state, App Use and
+permission checks remain. Historical source references above are design context,
+not runtime dependencies.

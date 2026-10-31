@@ -405,3 +405,29 @@ test("transcript JSON applies the last valid draft and leaves the current values
   assert.equal(frozen.budget, current.budget);
   assert.match(frozen.error ?? "", /frozen experiment/);
 });
+
+for (const phase of ["search", "verification"] as const) {
+  test(`${phase} partial checks keep incomplete evidence inconclusive without crashing`, () => {
+    const saved = { name: "Target overshoot", verdict: "PASS", actual: 0.05, limit: 0.1, message: "Within limit" };
+    const experiment = {
+      templateId: "robust-pid", criteria: { overshootMax: 0.1 },
+      scenarios: [{ id: "first", role: phase }, { id: "pending", role: phase }],
+      trials: [{ candidateId: "chosen", scenarioId: "first", phase, report: { checks: [saved] } }],
+    } as Experiment;
+    const [partial] = checkConcepts(experiment, "chosen", phase);
+    assert.equal(partial.verdict, "INCONCLUSIVE");
+    assert.equal(partial.actual, saved.actual);
+    assert.equal(partial.scenarioId, "first");
+    assert.match(partial.message, /Not every frozen scenario has this check/);
+    assert.notEqual(verdictSummary([partial], 2).title, "All checks passed");
+    const complete = { ...experiment, trials: [...experiment.trials, { ...experiment.trials[0], scenarioId: "pending" }] };
+    assert.equal(checkConcepts(complete, "chosen", phase)[0].verdict, "PASS");
+    for (const verdict of ["FAIL", "INCONCLUSIVE"] as const) {
+      const explicit = { ...complete, trials: [complete.trials[0], { ...complete.trials[1], report: { checks: [{ ...saved, verdict, actual: null, message: "Explicit evidence" }] } }] } as Experiment;
+      const [concept] = checkConcepts(explicit, "chosen", phase);
+      assert.equal(concept.verdict, verdict);
+      assert.equal(concept.scenarioId, "pending");
+      assert.equal(concept.message, "Explicit evidence");
+    }
+  });
+}

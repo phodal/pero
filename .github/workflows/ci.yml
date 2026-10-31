@@ -4,21 +4,25 @@
 # gpui-kit ec89cfc (desktop/README.md, scripts/build/fonts.manifest.json)
 # Go 1.26.4 (MODULE.bazel). server/go.mod's `go 1.24` is the language version.
 # Bazel 9.2.0 (.bazelversion). pnpm-lock.yaml is the Bazel translation of the npm lock.
-# The same commands run on Linux, Windows, and macOS. Worker process supervision
-# is Unix-only in the crate; those tests are cfg-gated and the rest still run.
+# PR/push runs Linux contracts and three critical Desktop smokes. Daily/manual
+# runs all Desktop scenarios and platforms; Worker Unix cfg gates remain intact.
 name: CI
 
 on:
   push:
     branches: [master]
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  schedule:
+    - cron: "0 20 * * *" # 04:00 UTC+08; GitHub runs schedules on the default branch.
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'ci:full' && github.run_id || 'active' }}-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'full' || 'linux' }}
+  cancel-in-progress: ${{ !(github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) }}
 
 defaults:
   run:
@@ -95,7 +99,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && fromJSON('["ubuntu-latest","windows-latest","macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -131,7 +135,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && fromJSON('["ubuntu-latest","windows-latest","macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -153,7 +157,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && fromJSON('["ubuntu-latest","windows-latest","macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
     env:
       GOWORK: "off"
     steps:
@@ -212,6 +216,7 @@ jobs:
         run: go test -count=1 -v ./sandbox -run '^TestNativeRuntime$'
 
   windows-acl-sandbox:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')
     name: Positive Windows file and partial ACL contracts
     runs-on: windows-latest
     timeout-minutes: 15
@@ -300,180 +305,152 @@ jobs:
             --json "$RUNNER_TEMP/official-dsh.json" \
             --markdown "$RUNNER_TEMP/official-dsh.md"
 
-  desktop:
-    name: Build, check, and Rust tests (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+  generated:
+    name: Fast generated contracts and CI runner contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      # Windows Git would otherwise rewrite LF and make the generator checks stale.
-      - name: Keep LF line endings
-        if: runner.os == 'Windows'
-        run: |
-          git config --local core.autocrlf false
-          git checkout -- .
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
+      - run: npm ci
+      - run: node scripts/codegen/contracts.mjs --check
+      - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs
 
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Computer Use loopback transport contracts
-        run: node tests/e2e/computer-transport.mjs
-
-      - name: Set up Rust nightly
-        uses: dtolnay/rust-toolchain@v1
+  core:
+    name: Linux core types, permissions and durable runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          toolchain: nightly-2026-10-28
-          targets: wasm32-unknown-unknown
-
-      - name: Set up Rust stable
-        uses: dtolnay/rust-toolchain@v1
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: stable
-
-      - name: Set up Go for bundled harness
-        uses: actions/setup-go@v7
-        with:
-          go-version: "1.27.3"
-          cache-dependency-path: harness/go/go.sum
-
-      - name: Cache Cargo
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-
-      # Outside this repo. A checkout inside it is absorbed by the Cargo workspace.
-      - name: Checkout gpui-kit
+      - name: Independent TypeScript and generated contracts
         run: |
-          kit="$RUNNER_TEMP/gpui-kit"
-          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
-          git init --quiet "$kit"
-          git -C "$kit" config core.autocrlf false
-          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
-          git -C "$kit" fetch --depth 1 origin ec89cfc36404667b7947aeb3d40b1c2859d729dd
-          git -C "$kit" checkout --detach FETCH_HEAD
-
-      # scripts/build/fonts.mjs creates a venv when fontTools is not already installed.
-      - name: Prepare Python for font subsetting
+          npx tsc -p scripts/ci/tsconfig.core.json
+          node scripts/codegen/contracts.mjs --check
+          node scripts/codegen/theme.mjs --check
+          node scripts/codegen/design.mjs --check
+          node scripts/check/locales.mjs
+      - name: Core Rust without GPUI or WASM compilation
         run: |
-          if python3 -c 'import venv, ensurepip'; then
-            exit 0
-          fi
-          case "$RUNNER_OS" in
-            Linux)
-              sudo apt-get update
-              sudo apt-get install --yes python3-venv
-              ;;
-            macOS)
-              brew install python@3
-              ;;
-            Windows)
-              echo "python3 with the venv module is required for font subsetting" >&2
-              exit 1
-              ;;
-          esac
-
-      - name: Font-tool environment recovery tests
-        run: node --test scripts/build/fonttools.test.mjs scripts/build/patch-checkout.test.mjs scripts/build/gpui-kit.test.mjs
-      - name: Resolve pinned local GPUI packages
-        run: node scripts/cargo.mjs check -p pero-contracts
-
-      - name: Build
-        run: npm run build
-
-      - name: Typecheck and generated sources
-        run: |
-          npm run check
-          npm --prefix apps/virtual-cell run typecheck
-          npm --prefix apps/virtual-cell run test:ui
-          npm --prefix apps/control-lab run typecheck
-          npm --prefix apps/control-lab run test:ui
-          npm --prefix apps/data run typecheck
-          npm --prefix apps/data run test:ui
-          node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs
-
-      - name: Test
-        run: npm test
-
-      - name: App Use and goal authorization tests
-        if: runner.os == 'Linux'
+          cargo test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker
+          cargo build --locked -p pero-host -p pero-worker
+      - name: Permission, cancellation and fixture contracts
         run: |
           npm run test:app-use:unit
-          node --test tests/runtime/control-lab/host-goal.test.ts
+          node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs
+          node --test desktop/src/main/{app-context,app-use,connector-secrets,content-artifacts,control-lab-goal,harness-environment,home,mcp-sources}.test.ts web/src/{automation-model,content-results}.test.ts
+          node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs
+          node --test tests/runtime/control-lab/*.test.mjs tests/runtime/control-lab/host-goal.test.ts
+          node tests/e2e/computer-transport.mjs
+      - name: Build the actual Host MCP sidecar and HTTP assets
+        run: node scripts/build/mcp.mjs
+      - name: Actual Host stdio and durable ownership
+        run: |
+          node tests/contracts/host.mjs
+          node tests/contracts/mcp-settings.mjs
+          node tests/contracts/mcp-ownership.mjs
+          node tests/runtime/automation.mjs
+      - name: Core failure and recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: core-contracts-${{ github.sha }}
+          path: test-results/
+          if-no-files-found: warn
 
-      - name: Host contract tests
-        run: npm run test:contracts
+  desktop-linux:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')
+    name: Linux build and contracts
+    uses: ./.github/workflows/desktop-check.yml
+    with:
+      os: ubuntu-latest
+      upload-runtime: true
 
-      - name: Install virtual display dependencies
-        if: runner.os == 'Linux'
+  desktop:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')
+    name: Build and contracts (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    uses: ./.github/workflows/desktop-check.yml
+    with:
+      os: ${{ matrix.os }}
+
+  desktop-acceptance:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')
+    name: Desktop acceptance (${{ matrix.suite }})
+    needs: desktop-linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [workbench, automation, toolcalls, data, data-product, control-lab, control-lab-app-use, control-lab-live, virtual-cell-comparison, virtual-cell-dataset-download, app-use, app-use-workbench, mcp-lifecycle, mcp-persistence, mcp-transport]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/control-lab/requirements.txt
+      - run: npm ci
+      - uses: actions/download-artifact@v8
+        with:
+          name: desktop-runtime-${{ github.sha }}-Linux-X64
+          path: ${{ runner.temp }}/desktop-runtime
+      - name: Verify and restore same-revision runtime
+        run: node scripts/ci/desktop-artifact.mjs unpack "$RUNNER_TEMP/desktop-runtime/desktop-runtime.tgz"
+      - name: Install isolated display
         run: |
           sudo apt-get update
           sudo apt-get install --yes libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64 xvfb
-
-      - name: Set up supported Control Lab Python for Desktop
-        if: runner.os == 'Linux'
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      - name: Install Control Lab numerical engines for real Desktop acceptance
-        if: runner.os == 'Linux'
+      - name: Install real numerical engines
+        if: startsWith(matrix.suite, 'control-lab')
         run: |
           sudo apt-get install --yes ngspice
-          python --version
           python -m venv "$RUNNER_TEMP/control-lab-python"
           "$RUNNER_TEMP/control-lab-python/bin/python" -m pip install --only-binary=:all: -r apps/control-lab/requirements.txt
-
-      - name: Desktop E2E in isolated display
-        if: runner.os == 'Linux'
+      - name: Run independent acceptance with bounded cleanup
         env:
           PERO_TEST_HEADED: '1'
           PERO_TEST_SOFTWARE_GL: '1'
-        run: |
-          node -e "require('esbuild').buildSync({entryPoints:['desktop/src/main/app-use.test.ts','desktop/src/main/app-context.test.ts'],outdir:process.env.RUNNER_TEMP+'/app-use-tests',bundle:true,platform:'node',format:'esm',external:['electron']})"
-          node --test "$RUNNER_TEMP"/app-use-tests/*.js
-          node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs
-          node --test tests/runtime/control-lab/*.test.mjs
-          node tests/runtime/automation.mjs
-          (cd harness/go && go build -o "$RUNNER_TEMP/control-lab-live-agent" ./cmd/pero-agent-acp)
-          control_lab_agent_sha=$(sha256sum "$RUNNER_TEMP/control-lab-live-agent" | cut -d' ' -f1)
-          # Independent suites keep separate profiles/displays. Collect every receipt,
-          # but retain a failing step if any acceptance command fails.
-          failed=0
-          run_acceptance() { "$@" || failed=1; }
-          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/workbench.mjs
-          run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/data.mjs
-          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/data-product.mjs
-          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/automation.mjs
-          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/toolcalls.mjs
-          run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/control-lab.mjs
-          run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/control-lab-app-use.mjs
-          run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" PERO_CONTROL_LAB_REAL_MODEL=1 PERO_CONTROL_LAB_LOCAL_FIXTURE=1 PERO_CONTROL_LAB_LIVE_SCENE=p-golden PERO_CONTROL_LAB_LIVE_AGENT="$RUNNER_TEMP/control-lab-live-agent" PERO_CONTROL_LAB_LIVE_AGENT_SHA256="$control_lab_agent_sha" PERO_CONTROL_LAB_LIVE_RESERVATION=6 DEEPSEEK_API_KEY=local-control-lab-fixture xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/control-lab-live.mjs
-          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/virtual-cell-comparison.mjs
-          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/virtual-cell-dataset-download.mjs
-          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use.mjs
-          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use-workbench.mjs
-          run_acceptance node tests/contracts/mcp-settings.mjs
-          run_acceptance node tests/contracts/mcp-ownership.mjs
-          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/mcp-settings.mjs
-          exit "$failed"
-
-      - name: Desktop E2E evidence
-        if: always() && runner.os == 'Linux'
+        run: node scripts/ci/desktop-suite.mjs '${{ matrix.suite }}'
+      - name: Acceptance evidence including failure and timeout
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: desktop-e2e-linux
+          name: desktop-${{ matrix.suite }}-${{ github.sha }}
           path: test-results/
-          if-no-files-found: ignore
+          if-no-files-found: warn
           retention-days: 7
+
+  complete:
+    name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'Full-platform CI gate' || 'Linux CI gate' }}
+    if: always()
+    needs: [core, data, control-lab, virtual-cell, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Require every contract and acceptance shard for this mode
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          FULL_MATRIX: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full') }}
+        run: node scripts/ci/gate.mjs

@@ -157,7 +157,6 @@ app.whenReady().then(async () => {
   });
   protocol.handle('pero-app', request => apps.serve(request));
   const home = prepareWorkbenchHome(process.env, app.getPath('userData'));
-  apps.installedRoot = home.apps;
   runtimeSettingsPath = home.settings;
   harness = new HarnessPreferences(process.env.PERO_ENV_FILE || resolve(app.isPackaged ? app.getPath('userData') : root, '.env'), runtimeSettingsPath, send, fields => savePreference('settings.harness', fields));
   await harness.initialize();
@@ -208,7 +207,6 @@ app.whenReady().then(async () => {
     PERO_SETTINGS_PATH: runtimeSettingsPath,
     PERO_MCP_EXTERNAL:'1',
     PERO_APPS_ROOT: home.apps,
-    PERO_POINT_RUNTIME_ROOT: resolve(root, 'packages/point-app/dist'),
     PERO_BUILTIN_APPS_ROOT: resolve(root, 'apps'),
     // A source checkout holds test-only Apps too; seed only those the Pero product builds.
     // Required names stay enabled. They are not a field of the App manifest.

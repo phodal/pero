@@ -1,14 +1,19 @@
 name: Computer Use
 on:
+  schedule:
+    - cron: "0 20 * * *"
+  workflow_dispatch:
   push:
     paths: ['use/**', 'protocol/computer-*.tsp', 'crates/pero-contracts/**', 'scripts/build/computer.mjs', 'tests/**/computer-*', '.github/workflows/computer-use.yml']
   pull_request:
-    paths: ['use/**', 'protocol/computer-*.tsp', 'crates/pero-contracts/**', 'scripts/build/computer.mjs', 'tests/**/computer-*', '.github/workflows/computer-use.yml']
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 jobs:
   native:
+    name: Native Computer Use (${{ matrix.os }})
     strategy:
+      fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && fromJSON('["ubuntu-latest","windows-latest","macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -18,6 +23,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: use/computer -> ../../target/computer
+          cache-on-failure: true
       - run: node scripts/build/computer.mjs --test
       - run: cargo clippy --manifest-path use/computer/Cargo.toml --locked --workspace --all-targets -- -D warnings
       - run: node scripts/build/computer.mjs

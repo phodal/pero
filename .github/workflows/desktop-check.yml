@@ -1,0 +1,171 @@
+name: Desktop build and contracts
+on:
+  workflow_call:
+    inputs:
+      os:
+        type: string
+        required: true
+      upload-runtime:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  desktop:
+    name: Build, check, and Rust tests (${{ inputs.os }})
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Windows Git would otherwise rewrite LF and make the generator checks stale.
+      - name: Keep LF line endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --local core.autocrlf false
+          git checkout -- .
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Generated contracts fail fast before compilation
+        run: node scripts/codegen/contracts.mjs --check
+
+      - name: Computer Use loopback transport contracts
+        run: node tests/e2e/computer-transport.mjs
+
+      - name: Set up Rust nightly
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: nightly-2026-10-28
+          targets: wasm32-unknown-unknown
+
+      - name: Set up Rust stable
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Set up Go for bundled harness
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.27.3"
+          cache-dependency-path: harness/go/go.sum
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          workspaces: |
+            . -> target
+            use/computer -> ../../target/computer
+            use/connectors/worker -> target
+
+      - name: Cache exact wasm-bindgen tool
+        uses: actions/cache@v4
+        with:
+          path: target/tools
+          key: wasm-bindgen-${{ runner.os }}-${{ runner.arch }}-0.2.127-v1
+
+
+      # Outside this repo. A checkout inside it is absorbed by the Cargo workspace.
+      - name: Checkout gpui-kit
+        run: |
+          kit="$RUNNER_TEMP/gpui-kit"
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+          git init --quiet "$kit"
+          git -C "$kit" config core.autocrlf false
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin ec89cfc36404667b7947aeb3d40b1c2859d729dd
+          git -C "$kit" checkout --detach FETCH_HEAD
+
+      # scripts/build/fonts.mjs creates a venv when fontTools is not already installed.
+      - name: Prepare Python for font subsetting
+        run: |
+          if python3 -c 'import venv, ensurepip'; then
+            exit 0
+          fi
+          case "$RUNNER_OS" in
+            Linux)
+              sudo apt-get update
+              sudo apt-get install --yes python3-venv
+              ;;
+            macOS)
+              brew install python@3
+              ;;
+            Windows)
+              echo "python3 with the venv module is required for font subsetting" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Font-tool environment recovery tests
+        run: node --test scripts/build/fonttools.test.mjs scripts/build/patch-checkout.test.mjs scripts/build/gpui-kit.test.mjs
+      - name: Resolve pinned local GPUI packages
+        run: node scripts/cargo.mjs check -p pero-contracts
+
+      - name: Build
+        run: npm run build
+
+      - name: Typecheck and generated sources
+        run: |
+          npm run check
+          npm --prefix apps/virtual-cell run typecheck
+          npm --prefix apps/virtual-cell run test:ui
+          npm --prefix apps/control-lab run typecheck
+          npm --prefix apps/control-lab run test:ui
+          npm --prefix apps/data run typecheck
+          npm --prefix apps/data run test:ui
+          node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs
+
+      - name: Test
+        run: npm test
+
+      - name: App Use and goal authorization tests
+        if: runner.os == 'Linux'
+        run: |
+          npm run test:app-use:unit
+          node --test tests/runtime/control-lab/host-goal.test.ts
+
+      - name: Host contract tests
+        run: npm run test:contracts
+
+      - name: Linux fixture and transport contracts
+        if: runner.os == 'Linux'
+        run: |
+          node -e "require('esbuild').buildSync({entryPoints:['desktop/src/main/app-use.test.ts','desktop/src/main/app-context.test.ts'],outdir:process.env.RUNNER_TEMP+'/app-use-tests',bundle:true,platform:'node',format:'esm',external:['electron']})"
+          node --test "$RUNNER_TEMP"/app-use-tests/*.js
+          node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs
+          node --test tests/runtime/control-lab/*.test.mjs
+          node tests/runtime/automation.mjs
+          node tests/contracts/mcp-settings.mjs
+          node tests/contracts/mcp-ownership.mjs
+
+      - name: Package same-revision Linux acceptance runtime
+        if: inputs.upload-runtime
+        run: node scripts/ci/desktop-artifact.mjs pack "$RUNNER_TEMP/desktop-runtime.tgz"
+      - uses: actions/upload-artifact@v7
+        if: inputs.upload-runtime
+        with:
+          name: desktop-runtime-${{ github.sha }}-Linux-X64
+          path: ${{ runner.temp }}/desktop-runtime.tgz
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
+      - name: Build and contract evidence
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-build-evidence
+          path: test-results/
+          if-no-files-found: warn
+          retention-days: 7

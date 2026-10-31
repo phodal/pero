@@ -697,12 +697,6 @@
           "$ref": "#/$defs/InstallApp"
         },
         {
-          "$ref": "#/$defs/PointConfig"
-        },
-        {
-          "$ref": "#/$defs/PointProjects"
-        },
-        {
           "$ref": "#/$defs/EnableApp"
         },
         {
@@ -958,12 +952,6 @@
         },
         "value": {
           "anyOf": [
-            {
-              "$ref": "#/$defs/PointProjectReply"
-            },
-            {
-              "$ref": "#/$defs/PointConfigReply"
-            },
             {
               "type": "array",
               "items": {
@@ -7173,139 +7161,6 @@
       },
       "required": [
         "kind"
-      ],
-      "additionalProperties": false
-    },
-    "PointConfig": {
-      "title": "PointConfig",
-      "type": "object",
-      "properties": {
-        "action": {
-          "type": "string",
-          "const": "pointconfig"
-        },
-        "name": {
-          "$ref": "#/$defs/AppName"
-        },
-        "config": {
-          "$ref": "#/$defs/AppDocumentSchema"
-        },
-        "method": {
-          "type": "string",
-          "const": "apps"
-        },
-        "id": {
-          "$ref": "#/$defs/RequestId"
-        }
-      },
-      "required": [
-        "action",
-        "name",
-        "method",
-        "id"
-      ],
-      "additionalProperties": false
-    },
-    "PointConfigReply": {
-      "title": "PointConfigReply",
-      "type": "object",
-      "properties": {
-        "config": {
-          "$ref": "#/$defs/AppDocumentSchema"
-        }
-      },
-      "required": [
-        "config"
-      ],
-      "additionalProperties": false
-    },
-    "PointProjectHeaders": {
-      "title": "PointProjectHeaders",
-      "type": "object",
-      "properties": {},
-      "additionalProperties": {
-        "type": "string"
-      }
-    },
-    "PointProjectReply": {
-      "title": "PointProjectReply",
-      "type": "object",
-      "properties": {
-        "status": {
-          "type": "integer",
-          "minimum": -2147483648,
-          "maximum": 2147483647
-        },
-        "headers": {
-          "$ref": "#/$defs/PointProjectHeaders"
-        },
-        "body": {}
-      },
-      "required": [
-        "status",
-        "headers",
-        "body"
-      ],
-      "additionalProperties": false
-    },
-    "PointProjectRequest": {
-      "title": "PointProjectRequest",
-      "type": "object",
-      "properties": {
-        "method": {
-          "anyOf": [
-            {
-              "type": "string",
-              "const": "GET"
-            },
-            {
-              "type": "string",
-              "const": "POST"
-            }
-          ]
-        },
-        "path": {
-          "type": "string"
-        },
-        "headers": {
-          "$ref": "#/$defs/PointProjectHeaders"
-        },
-        "body": {}
-      },
-      "required": [
-        "method",
-        "path"
-      ],
-      "additionalProperties": false
-    },
-    "PointProjects": {
-      "title": "PointProjects",
-      "type": "object",
-      "properties": {
-        "action": {
-          "type": "string",
-          "const": "pointprojects"
-        },
-        "name": {
-          "$ref": "#/$defs/AppName"
-        },
-        "request": {
-          "$ref": "#/$defs/PointProjectRequest"
-        },
-        "method": {
-          "type": "string",
-          "const": "apps"
-        },
-        "id": {
-          "$ref": "#/$defs/RequestId"
-        }
-      },
-      "required": [
-        "action",
-        "name",
-        "request",
-        "method",
-        "id"
       ],
       "additionalProperties": false
     },

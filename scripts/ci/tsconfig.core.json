@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": [
+    "../../desktop/src/**/*.ts",
+    "../../web/src/**/*.ts",
+    "../../web/vite.config.ts",
+    "../../protocol/generated/*.ts"
+  ],
+  "exclude": [
+    "../../desktop/src/product/shell.ts",
+    "../../web/src/bootstrap.ts",
+    "../../web/src/chat.ts",
+    "../../web/src/reader.ts",
+    "../../web/src/content-analysis.worker.ts",
+    "../../web/src/wasm.d.ts",
+    "../../web/src/app-preparation.ts",
+    "../../web/src/apps.ts",
+    "../../web/src/chat-surface.ts",
+    "../../web/src/content-results.ts",
+    "../../web/src/content-results.test.ts",
+    "../../web/src/wasm/**",
+    "../../web/src/*-wasm/**"
+  ]
+}
