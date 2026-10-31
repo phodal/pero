@@ -85,6 +85,29 @@ an Agent. Final human acceptance is separate from a numerical pass. Fixture ACP
 tests do not establish real-provider Agent verification, and shared process
 modules are not a security-isolated verifier.
 
+The research Goal is a Host-owned, session-local reference to one existing
+experiment ID and Spec hash, with `maxExperiments=1`; it does not modify the
+Spec or its canonical hash. The user approves a frozen experiment in the App
+and submits its unchanged attachment in the selected conversation. Desktop
+checks the actual Host message against its captured reference, fixes the Goal
+to that session, checks every Agent write against it and supplies the hash for
+the backend's locked Spec integrity check. Agent tools cannot create an
+experiment or change its criteria. The iframe cannot call the Agent route;
+general App Use tasks cannot operate or read the Control Lab panel. The
+existing experiment store remains the sole owner of candidate and execution
+budgets.
+
+An approval sent while another turn is running or already queued does not
+grant that turn access. Cancellation or errors revoke access but retain the
+session's fixed Goal identity. Replayed conversations fail closed, including
+when an active session is restored: start a new conversation and approve the
+experiment again. A side effect already dispatched when a call is interrupted
+may need observation; revocation does not undo it. Computer Use is denied in
+Control Lab scoped and Goal-bearing conversations. A separate ordinary
+conversation can still use globally enabled Computer Use; the opt-in research
+acceptance must disable that tool, shell, coding tools and subagents. These
+controls are not isolation from a compromised Host process.
+
 ## Verification and scope
 
 Acceptance is incremental: pure contracts and analytical checks; real solver

@@ -4,8 +4,8 @@ kind: verification_report
 
 # Control Lab verification
 
-Implementation and independent review passed the local gates below. No full Desktop, real-provider or
-release-package acceptance is claimed. The implementation branch starts from
+At the time of the 2026-10-30 local checks below, no full Desktop, real-provider or
+release-package acceptance was claimed. The implementation branch starts from
 `bbf0e88f9df6ff891882d30473e1980f179827c7` (PR #62 merge).
 
 ## Local evidence (2026-10-30)
@@ -30,44 +30,61 @@ release-package acceptance is claimed. The implementation branch starts from
   stale previous final-batch evidence. Regression checks passed. Reports are
   deterministic across reopen/re-evaluation on saved observations.
 
-## Open gates
+## Goal binding development evidence (2026-10-31)
 
-The Agent data route now rejects experiment creation and changes to frozen
-criteria, modeling inputs and candidate budget; human creation remains on its
-existing route. This is an entry-point restriction, not a trusted research
-goal: the Host does not yet bind an approved experiment ID and spec hash to a
-session, and generic App Use can still operate the human UI. The two supplied
-read-only Skills give workflow guidance but do not enforce this boundary.
-Do not count the scripted ACP fixture as a real model or run the proposed
-single-goal acceptance until Host binding and bypass rejection are verified.
-The authorized DeepSeek budget for this continuation is six provider HTTP
-attempts total, at most 8192 output tokens per request; none was used here.
+- On the working tree, strict Python science tests passed **22 tests with zero
+  skips**, using real python-control and ngspice. This is scientific and
+  backend evidence, not evidence of a model-run pass.
+- App Use and SDK unit tests passed **21 tests**. They cover missing or changed
+  references, foreign target IDs, cancellation, failed authentication,
+  rejected and queued prompts, replay including truncated history and active
+  restoration, generic App UI denial, and Computer Use authorization races.
+  A separate loopback test passed through the actual Host `user_message`,
+  scripted ACP and Desktop MCP with a simulated App backend; only the
+  approved experiment was accepted. It does not open Electron or run a solver.
+- Workbench and Product main-process bundles and TypeScript checks passed.
+  A native Desktop test for this change has not run locally: the suite
+  requires a headed, isolated desktop and the available Mac is the user's
+  active desktop. The real-provider gate remains pending until that and the
+  independent evidence checks are complete. The previous PR head's green CI
+  does not validate this working tree.
 
-On 2026-10-30, the narrowed Agent route and its negative cases passed the strict
+## Earlier entry-point baseline (2026-10-30)
+
+Before the Goal binding changes above, the Agent data route was narrowed to
+reject experiment creation and changes to frozen criteria, modeling inputs
+and candidate budget. Human creation remained on its existing route. At that
+point the Host did not bind the experiment to a session, and generic App Use
+could operate the human UI. The read-only Skills provided guidance rather than
+enforcement. This is historical context, not a description of the current
+working tree.
+
+The narrowed Agent route and its negative cases passed the strict
 science suite on Darwin 27: 21 tests, zero skips, with Python 3.12.11,
 python-control 0.10.2 and ngspice 46. The locked SciPy 1.15.3 macOS 12 ARM
 wheel was needed because the macOS 14 wheel failed to load on that host.
 The frontend typecheck, six UI/schema tests and read-only Skill catalog tests
 also passed. These results do not establish a real-model run.
-The headed Desktop → scripted ACP → Host MCP → python-control fixture also
-passed with `realModel: false`: its independent persisted report was FAIL,
-the four invalid proposals or budget requests were rejected, and all owned
-processes exited without recovery. The local receipt is
-`test-results/control-lab-app-use/result.json` (an ignored test artifact).
+The headed Desktop → scripted ACP → Host MCP → python-control fixture passed
+at commit `2261733691751e0414fbd67cd7877d3360c7a3e3`, before the current Goal
+binding, with `realModel: false`. Its persisted report was FAIL, four invalid
+proposal or budget requests were rejected, and all owned processes exited
+without recovery. This is not evidence that the present Goal binding passed
+Desktop acceptance. The earlier local receipt was an ignored `test-results`
+artifact and is not present in this checkout.
 
-The remaining binding must use trusted Host state tied to the actual submitted
-context and session, verify the ID and hash against the backend's frozen Spec,
-and reject unbound or mismatched requests as well as generic UI and computer
-operations that bypass the goal. It needs a single cross-process attempt ledger,
-real ACP/MCP tool evidence, independent exported-evidence re-evaluation and
-process cleanup before a real-model result can be claimed.
+## Remaining gates
 
-- Run actual Desktop interaction, dark/light/narrow screenshots and App Use
-  acceptance. The current cloud workspace has no native display; do not
-  substitute headless screenshots for a native-window gate.
-- Validate the exact published PR commit and its merge with current master.
-- Real-provider Agent and signed-product installation remain opt-in separate
-  acceptance levels, not implied by solver or ACP-fixture tests.
+- Run the updated headed Desktop and App Use fixture in an isolated desktop,
+  including the new Goal and Agent-route bypass negatives. The current Mac is
+  the user's active desktop, so the suite was stopped before opening a window.
+- Complete the opt-in real-provider acceptance with one shared attempt ledger,
+  real ACP/MCP and Skill evidence, independent re-evaluation of exported
+  evidence, and verified process cleanup. A scripted ACP fixture is not a
+  real model. The authorized DeepSeek budget is **0 of 6 provider HTTP
+  attempts used**, with at most 8192 output tokens per request.
+- Validate exact-head CI and, separately, signed-product installation. Solver
+  and fixture checks do not establish either acceptance level.
 
 See [design](../design-docs/control-lab.md) and
 [App instructions](../../apps/control-lab/README.md).
