@@ -219,6 +219,7 @@ mod tests {
             }],
             sessions: Default::default(), tx, history: Default::default(),
             app_bindings: Default::default(), app_use: None, settings_path: None,
+            connectors: None,
             history_path: PathBuf::new(), automation_threads: Default::default(),
             automation_tx, automation_rx: Some(automation_rx),
         }
