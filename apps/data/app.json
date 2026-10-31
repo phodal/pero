@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "name": "data",
+  "version": "0.1.0",
+  "displayName": "Data",
+  "description": "Manage local scientific datasets and model files.",
+  "contributes": {"panels": [{"id": "main", "title": "Data", "entry": "dist/index.html"}]},
+  "backend": {"type": "python", "entry": "backend/server.py"}
+}
