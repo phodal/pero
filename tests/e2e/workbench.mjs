@@ -140,6 +140,7 @@ try{
  await expect.poll(async()=>(await state()).locale).toBe('en');
  await page.screenshot({path:resolve(out,'english.png')});
  await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click());
+ await expect.poll(async()=>(await state()).locale).toBe('zh-CN');
  await setAppearance(page,'dark');
  await expect.poll(async()=>(await state()).dark).toBe(true);
  await page.screenshot({path:resolve(out,'dark.png')});

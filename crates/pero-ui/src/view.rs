@@ -38,7 +38,10 @@ impl Workbench {
 
     fn sidebar(&self, width: f32, cx: &mut Context<Self>) -> Stateful<Div> {
         let actions = self.navigation_actions(cx);
-        let settings = self.settings_menu(self.sidebar_collapsed, cx).into_any_element();
+        let settings = div().relative()
+            .child(self.settings_menu(self.sidebar_collapsed, cx))
+            .child(self.view_bounds.settings.probe("settings".into()))
+            .into_any_element();
         let apps = self.apps.entries.iter().filter(|app| app.enabled).filter_map(|app| {
             let panel = app.panels.first()?;
             Some(sidebar::AppShortcut {

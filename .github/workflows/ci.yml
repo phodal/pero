@@ -317,7 +317,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/codegen/contracts.mjs --check
-      - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs
+      - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs
 
   core:
     name: Linux core types, permissions and durable runtime

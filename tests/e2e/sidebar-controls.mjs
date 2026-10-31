@@ -32,7 +32,8 @@ export async function openSettings(page) {
     return canvas?.width===Math.round(innerWidth*devicePixelRatio) && canvas.height===Math.round(innerHeight*devicePixelRatio);
   });
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-  await page.mouse.click(100, await page.evaluate(() => innerHeight - 26));
+  await clickBounds(page, snapshot => snapshot.settingsButtonBounds);
+  await expect.poll(async () => (await state(page)).settingsMenuOpen).toBe(true);
 }
 export async function setAppearance(page, appearance) {
   await openSettings(page);
