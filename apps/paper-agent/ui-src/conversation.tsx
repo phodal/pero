@@ -63,6 +63,7 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
   const [settings, setSettings] = useState(false);
   const panel = useRef<HTMLElement>(null), bottom = useRef<HTMLDivElement>(null);
   const locked = task.working || task.busy || task.pending;
+  const belongsToPaper = !paper || (task.study ? task.study.paperIds.includes(paper.id) : task.intent ? task.intent.papers.some(p => p.id === paper.id) : true);
   const current = task.intent && (!paper || task.intent.papers.some(p => p.id === paper.id)) ? task.intent : null;
   const history = library.intents.filter(intent => (!paper || intent.paperIds?.includes(paper.id)) && intent.id !== current?.id).sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''));
   useEffect(() => { panel.current?.querySelector<HTMLTextAreaElement>('#paper-question')?.focus(); }, []);
@@ -83,8 +84,9 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
     <header className="pa-conversation-header"><h2>{t('ask')}</h2><Button variant="ghost" aria-label={t('researchOptions')} aria-expanded={settings} onClick={() => setSettings(value => !value)}><Icon name="settings"/></Button><Button variant="ghost" aria-label={t('closeAgent')} onClick={close}>×</Button></header>
     <div className="pa-conversation-scroll">
       {library.studies?.filter(study => !study.reportId && study.id !== task.study?.id && (!paper || study.paperIds.includes(paper.id))).map(study => <section className="pa-turn-history" data-saved-study-id={study.id} key={study.id}><p>{study.question}</p><Button disabled={locked} onClick={() => void task.openStudy(study.id)}>{t('savedStudy')}</Button></section>)}
+      {!belongsToPaper && locked && <Feedback>{t('otherPaperTask')} {task.study?.question ?? task.plannedQuestion}</Feedback>}
       {history.map(intent => <SavedTurn key={intent.id} entry={intent} reports={library.reports.filter(report => report.intentId === intent.id)} api={api} onCite={onCite} disabled={locked} onResume={() => { void task.openIntent(intent.id).then(() => onDraft({ question: intent.question, parentIntentId: intent.id })); }} t={t}/>)}
-      {(current || task.plannedQuestion) && <section className="pa-turn" data-turn-id={current?.id}><p className="pa-user-message">{current?.question ?? task.plannedQuestion}</p>
+      {belongsToPaper && (current || task.plannedQuestion) && <section className="pa-turn" data-turn-id={current?.id}><p className="pa-user-message">{current?.question ?? task.plannedQuestion}</p>
         {task.report && current && <Answer report={task.report} intent={current} api={api} onCite={onCite} t={t}/>}
         {task.working && <p role="status" className="pa-run-status">{t(task.status === 'needs_input' ? 'needsInput' : task.phase === 'research' ? 'researching' : 'running')}{task.status === 'needs_input' && <Button onClick={onOpenChat}>{t('openChat')}</Button>}</p>}
         {task.study && <StudyRecord study={task.study} complete={!!task.report} t={t}/>}

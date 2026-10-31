@@ -48,16 +48,16 @@ export default function PaperAgent() {
   useEffect(() => {
     if (!agentId || !agent.agents.some(item => item.available && item.id === agentId)) setAgentId(agent.agents.find(item => item.available)?.id ?? '');
   }, [agent.agents, agentId]);
-  const task = useResearch(api, agent, info.active, refresh, onError, t);
+  const task = useResearch(api, agent, refresh, onError, t);
   const locked = task.working || task.busy || task.pending;
   const updateDraft = (value: Partial<QuestionDraft>) => setDraft(prior => ({ ...prior,
     ...(value.selected && prior.contextSource && !value.selected.includes(prior.contextSource.paperId) ? { context: '', contextSource: undefined } : {}), ...value }));
   useEffect(() => {
     const study = task.study;
-    if (study) setDraft(prior => ({ ...prior, selected: study.paperIds, fullText: true, verifyCode: false }));
+    if (study && (!reading || study.paperIds.includes(reading.id))) setDraft(prior => ({ ...prior, selected: study.paperIds, fullText: true, verifyCode: false }));
   }, [task.study?.id]);
   useEffect(() => {
-    if (!task.intent) return;
+    if (!task.intent || (reading && !task.intent.papers.some(paper => paper.id === reading.id))) return;
     const intent = task.intent;
     setDraft(prior => ({ ...prior, selected: intent.papers.map(p => p.id), fullText: !!intent.fullText, verifyCode: intent.verifyCode, verificationPlan: intent.verificationPlan }));
   }, [task.intent?.id]);
