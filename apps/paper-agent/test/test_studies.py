@@ -59,6 +59,36 @@ class ResearchStudies(unittest.TestCase):
         self.assertIn('ResearchStudy', study.prompt())
         self.assertIn('formal methods', study.prompt())
 
+    def test_line_reads_survive_restart_and_keep_pdf_citation_offsets(self):
+        content = 'Title\r\n\r\nFormal method. Exact original evidence.\r\nLimitations.\n'
+        paper, document = source(content)
+        with tempfile.TemporaryDirectory() as root:
+            store = ResearchStore(root)
+            store.save_paper(paper)
+            store.save_pdf(document, b'fixture PDF bytes')
+            study = store.create_study(request([paper], fullText=True), NOW)
+            self.assertEqual(study.sources[0].pages[0].line_count, 4)
+            result = store.study_step(dict(studyId=study.id, action='read', paperId=paper.id,
+                                          page=1, startLine=3, endLine=3), NOW)
+            self.assertEqual(result['observation']['nextLine'], 4)
+            reopened = ResearchStore(root).study(study.id)
+            step = reopened.steps[0]
+            self.assertEqual((step.start_line, step.end_line), (3, 3))
+            passage = step.passages[0]
+            self.assertEqual(content[passage.start:passage.start + len(passage.content)], passage.content)
+            command = StudyCommand.parse(dict(studyId=study.id, action='finalize',
+                                             report=final_report(reopened, passage)), reopened)
+            self.assertEqual(command.report.sections[0].evidence[0].quote, passage.content[:40])
+            for fields in (dict(startLine=1, endLine=2, start=0), dict(startLine=3),
+                           dict(startLine=0, endLine=2)):
+                with self.subTest(fields=fields), self.assertRaises(Invalid):
+                    StudyCommand.parse(dict(studyId=study.id, action='read', paperId=paper.id,
+                                            page=1, **fields), reopened)
+            command = StudyCommand.parse(dict(studyId=study.id, action='read', paperId=paper.id,
+                                             page=1, startLine=5, endLine=5), reopened)
+            with self.assertRaises(Invalid):
+                ResearchStep.read(reopened, command, document, NOW)
+
     def test_only_observed_exact_evidence_can_be_finalized(self):
         paper, document = source()
         study = new_study(paper, document)

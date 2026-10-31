@@ -95,3 +95,26 @@ clones, versions and license observations are recorded in
 Detailed comparison is in [the source review](../../reports/Research%20Agent%20源码研究与%20Pero%20接入建议.md).
 
 Verification: [Paper research Agent](../fitness/paper-research-agent.md).
+
+## Original-text lines (2026-10-31)
+
+New paper JSON records store `lines` rather than a single `content` string;
+new PDF records store each page's `lines` rather than `text`. Entries retain
+original newline characters, blank lines and Unicode exactly. Joining entries
+reconstructs the same content digest and quotation offsets. Existing string
+records remain readable without migration or changing source IDs. API responses
+for the reader retain their existing text fields.
+
+The study page catalog includes `lineCount`. The existing `read` action accepts
+`startLine` and `endLine` (one-based, inclusive) with `paperId` and `page`.
+A request must choose line ranges or the existing character `start` offset.
+Observations retain the requested range, original passages, exact character
+offsets and `nextLine`/`nextStart` continuation. The 4,800-character read budget
+still applies; an oversized range is rejected with a smaller-range/character
+read recovery message. Final report quotation validation and PDF highlighting
+continue to use observed passage IDs and original offsets.
+
+`GET /api/papers/{id}/lines?startLine=1&endLine=20` provides the same bounded
+line view for saved online text, with source digest, total line count and next
+line. Agent PDF research uses the scoped `research-step` tool and frozen PDF
+identity; it does not use that HTTP route to bypass its evidence ledger.

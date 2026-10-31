@@ -99,6 +99,12 @@ class ResearchHTTP(unittest.TestCase):
                 self.assertEqual(call("GET", "/api/library")[1]["papers"], [])
                 paper = call("POST", "/api/papers/import", reading())[1]
                 self.assertEqual(paper["source"], "import")
+                status, lines = call('GET', f"/api/papers/{paper['id']}/lines?startLine=1&endLine=1")
+                self.assertEqual(status, 200)
+                self.assertEqual(lines['content'], reading()['content'].splitlines(keepends=True)[0])
+                self.assertEqual(lines['contentDigest'], paper['contentDigest'])
+                self.assertEqual(call('GET', f"/api/papers/{paper['id']}/lines?startLine=0&endLine=1")[0], 400)
+                self.assertEqual(call('GET', f"/api/papers/{paper['id']}/lines", token='wrong')[0], 401)
                 status, local = call('POST', '/api/library/search', dict(query='Exact original'))
                 self.assertEqual(status, 200)
                 self.assertEqual(local['items'][0]['source']['paperId'], paper['id'])

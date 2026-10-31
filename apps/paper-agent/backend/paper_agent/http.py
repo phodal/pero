@@ -15,6 +15,7 @@ from .pdf import PdfAnnotation
 from .pdf_files import PdfFiles
 from .retrieval import SearchQuery
 from .local_pdf import LocalPdf, MAX_PDF_BYTES
+from .source_text import SourceText
 from .research import ResearchPlan
 from .thumbnails import PaperThumbnails
 
@@ -88,6 +89,18 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if self.command == 'GET': return self.reply(200, store.report_matrix(matrix_match[1]))
                     if self.command == 'POST': return self.reply(201, store.edit_matrix(matrix_match[1], data, now()))
                 if self.command == "GET":
+                    lines_match = re.fullmatch(r'/api/papers/([a-f0-9]{64})/lines', path)
+                    if lines_match:
+                        paper = store.paper(lines_match[1])
+                        source = SourceText(paper.content)
+                        query = parse_qs(parsed.query)
+                        first = int(query.get('startLine', ['1'])[0])
+                        last = int(query.get('endLine', [str(min(first + 19, len(source.lines)))])[0])
+                        start, content = source.range(first, last)
+                        return self.reply(200, dict(paperId=paper.id, contentDigest=paper.content_digest,
+                            startLine=first, endLine=last, totalLines=len(source.lines),
+                            nextLine=last + 1 if last < len(source.lines) else None,
+                            start=start, end=start + len(content), content=content))
                     thumbnail_match = re.fullmatch(r'/api/paper-thumbnails/([^/]+)\.png', path)
                     if thumbnail_match:
                         return self.binary(200, thumbnails.read(thumbnail_match[1]), 'image/png')
