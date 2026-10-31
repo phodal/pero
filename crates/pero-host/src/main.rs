@@ -27,7 +27,7 @@ fn main() -> io::Result<()> {
     }
     let mut agents = agents::Manager::new(std::env::current_dir()?);
     let settings_path = std::env::var_os("PERO_SETTINGS_PATH").map(std::path::PathBuf::from);
-    let mut apps = apps::Apps::new(settings_path.as_deref());
+    let apps = apps::Apps::new(settings_path.as_deref());
     let mut workspace_store = settings_path
         .as_deref()
         .map(pero_runtime::workspace_store::WorkspaceStore::new);
@@ -181,7 +181,7 @@ fn main() -> io::Result<()> {
             continue;
         }
         if value.get("method").and_then(|v| v.as_str()) == Some("apps") {
-            emit(apps.dispatch(value, &mut agents))?;
+            apps.dispatch_async(value, &mut agents);
             continue;
         }
         if value

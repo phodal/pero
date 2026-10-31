@@ -74,6 +74,32 @@ pub struct AppBackend {
     #[serde(rename = "type")]
     pub kind: BackendKind,
     pub entry: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dependencies: Vec<PythonDependency>,
+}
+
+/// A pinned package requirement, never a pip option, URL or setup command.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct PythonDependency(String);
+impl PythonDependency {
+    pub fn as_str(&self) -> &str { &self.0 }
+}
+impl TryFrom<String> for PythonDependency {
+    type Error = String;
+    fn try_from(value: String) -> Result<Self, String> {
+        let (name, version) = value.split_once("==").ok_or("Python dependency must be pinned as package==version")?;
+        if name.is_empty() || version.is_empty() || value.len() > 200
+            || !name.starts_with(|c: char| c.is_ascii_alphanumeric())
+            || !name.bytes().all(|c| c.is_ascii_alphanumeric() || b"-_.".contains(&c))
+            || !version.bytes().all(|c| c.is_ascii_alphanumeric() || b".+!-_".contains(&c)) {
+            return Err("Invalid pinned Python dependency".into());
+        }
+        Ok(Self(value))
+    }
+}
+impl From<PythonDependency> for String {
+    fn from(value: PythonDependency) -> Self { value.0 }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -173,6 +199,9 @@ impl AppDefinition {
                         || backend.entry.ends_with(".cjs")
                 }
             };
+            if backend.dependencies.len() > 64 || matches!(backend.kind, BackendKind::Node) && !backend.dependencies.is_empty() {
+                return Err("Dependencies require a Python backend and at most 64 pinned packages".into());
+            }
             if !relative_entry(&backend.entry) || !supported {
                 return Err(
                     "Backend entry must be relative and match its runtime extension".into(),
@@ -240,6 +269,11 @@ mod tests {
                 serde_json::json!({"type":"ruby","entry":"server.rb"}),
                 false,
             ),
+            ("backend", serde_json::json!({"type":"python","entry":"server.py","dependencies":["numpy==2.2.6"]}), true),
+            ("backend", serde_json::json!({"type":"python","entry":"server.py","dependencies":["--index-url==bad"]}), false),
+            ("backend", serde_json::json!({"type":"python","entry":"server.py","dependencies":["https://example.org/pkg"]}), false),
+            ("backend", serde_json::json!({"type":"python","entry":"server.py","dependencies":["numpy"]}), false),
+            ("backend", serde_json::json!({"type":"node","entry":"server.mjs","dependencies":["numpy==2.2.6"]}), false),
             ("extra", serde_json::json!(true), false),
         ] {
             let mut candidate = valid.clone();

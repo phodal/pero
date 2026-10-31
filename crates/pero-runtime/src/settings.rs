@@ -82,6 +82,19 @@ fn update(path: &Path, edit: impl FnOnce(&mut serde_json::Value)) -> io::Result<
     result
 }
 
+pub fn save_app_python_binding(path: &Path, app: &str, root: &Path) -> io::Result<()> {
+    let root = root.to_string_lossy().into_owned();
+    update(path, |value| {
+        if !value.get("app_python").is_some_and(|item| item.is_object()) {
+            value["app_python"] = serde_json::json!({});
+        }
+        if !value["app_python"].get("apps").is_some_and(|item| item.is_object()) {
+            value["app_python"]["apps"] = serde_json::json!({});
+        }
+        value["app_python"]["apps"][app] = serde_json::json!(root);
+    })
+}
+
 pub fn save_locale(path: &Path, locale: &str) -> io::Result<()> {
     update(path, |value| {
         value["locale"] = pero_contracts::i18n::normalize(locale).into()
