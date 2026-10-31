@@ -74,6 +74,56 @@ def capabilities():
     return result
 
 
+def _margin_values(value):
+    if hasattr(value, "tolist"):
+        value = value.tolist()
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    return [value]
+
+
+def _positive_infinity(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return False
+    return math.isinf(number) and number > 0
+
+
+def _loop_margins(control, loop):
+    """Finite classical margins, or an explicit unbounded flag. Never emit inf/NaN."""
+    try:
+        margins = control.stability_margins(loop)
+    except (ValueError, RuntimeError, FloatingPointError, OverflowError, ZeroDivisionError):
+        return {}
+    saved = {}
+    for index, measured_key, unbounded_key, kind in (
+        (0, "gainMarginDb", "gainMarginUnbounded", "db"),
+        (1, "phaseMarginDeg", "phaseMarginUnbounded", "deg"),
+    ):
+        values = _margin_values(margins[index])
+        finite = []
+        for item in values:
+            try:
+                number = float(item)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(number):
+                finite.append(number)
+        if finite:
+            number = min(finite)
+            if kind == "db":
+                if number <= 0:
+                    continue
+                number = 20 * math.log10(number)
+                if not math.isfinite(number):
+                    continue
+            saved[measured_key] = number
+        elif values and all(_positive_infinity(item) for item in values):
+            saved[unbounded_key] = 1
+    return saved
+
+
 def _series(name, values, output, unit="1", x_unit="s"):
     xs = [float(value) for value in values]
     ys = [float(value) for value in output]
@@ -94,6 +144,7 @@ def _python_control(model, parameters, scenario, directory, cancelled):
         raise EngineCancelled("Cancelled before computation")
     grid = Grid.from_parameters(parameters, .01 if model == "rc" else 12.0)
     t = np.linspace(0, grid.horizon, grid.samples)
+    margin_metrics = {}
     if model == "rc":
         tau = parameters.get("r", 1000.0) * parameters.get("c", 1e-6)
         tau *= scenario.get("componentScale", 1.0) ** 2
@@ -138,14 +189,23 @@ def _python_control(model, parameters, scenario, directory, cancelled):
                   _series("disturbance", disturbed.time, disturbed.outputs),
                   _series("controlEffort", controlled.time, controlled.outputs),
                   _series("disturbanceControlEffort", response.time, -response.outputs)]
+        # Open-loop margins can hide cancellations. Internal poles stay unreduced.
+        margin_metrics = _loop_margins(ct, plant * controller)
     poles = np.roots(denominator)
     stable = bool(np.all(np.real(poles) < -1e-10))
     if cancelled.is_set():
         raise EngineCancelled("Cancelled during computation; result not accepted")
+    diagnostics = ["Continuous-time SISO; unit reference and unit plant-input disturbance start at t=0"]
+    if model != "rc":
+        if "gainMarginDb" not in margin_metrics and "gainMarginUnbounded" not in margin_metrics:
+            diagnostics.append("No finite gain margin was returned.")
+        if "phaseMarginDeg" not in margin_metrics and "phaseMarginUnbounded" not in margin_metrics:
+            diagnostics.append("No finite phase margin was returned.")
     output = dict(series=series, metrics={"internalPoles": [dict(real=float(p.real), imag=float(p.imag)) for p in poles],
                                         "characteristicDenominator": [float(v) for v in denominator],
-                                        "dependencyVersions": {name: metadata.version(name) for name in ("numpy", "scipy", "control")}},
-                  diagnostics=["Continuous-time SISO; unit reference and unit plant-input disturbance start at t=0"],
+                                        "dependencyVersions": {name: metadata.version(name) for name in ("numpy", "scipy", "control")},
+                                        **margin_metrics},
+                  diagnostics=diagnostics,
                   artifacts=["solver-input.json", "waveforms.json"], engineVersion=ct.__version__, internalStable=stable)
     (directory / "solver-input.json").write_text(json.dumps(dict(engine="python-control", model=model,
         parameters=parameters, scenario=scenario), sort_keys=True), encoding="utf-8")

@@ -42,6 +42,14 @@ Continuous-time SISO transfer functions with P, PI or filtered PID controllers.
 The demonstration plant is 1/(s² + 2s + 1). Scenarios define concrete plant gain
 and damping variations, not names that are resolved differently at execution.
 Tracking, plant-input disturbance and control effort are separate signals.
+The robust-PID search set is nominal, gain ±20% and damping ±20%. Final
+verification repeats nominal and damping −20% under different scenario
+identities, so those trials are not the search chart. Default tracking limits
+are overshoot ≤ 0.10, settling ≤ 5 s inside the ±0.02 band, and final-window
+error ≤ 0.01 on a 10 s window. python-control also stores classical gain and
+phase margins when the frequency response supports them. An undefined crossover
+is inconclusive and does not replace the internal Hurwitz check. P and PI
+golden plants stay G=1/(s+1).
 
 The initial mathematical oracle is G=1/(s+1): C=1 yields
 0.5(1-exp(-2t)); C=1+1/s yields 1-exp(-t). A verifier using the reference target

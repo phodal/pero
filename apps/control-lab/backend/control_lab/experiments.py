@@ -80,38 +80,46 @@ class Template:
                     scenarios=[s.to_dict() for s in self.scenarios])
 
 
-def scenario(identity, role, **parameters):
-    return Scenario(identity, identity.replace('-', ' ').title(), role, tuple(sorted(parameters.items())))
+def scenario(identity, role, label=None, **parameters):
+    return Scenario(identity, label or identity.replace('-', ' ').title(), role, tuple(sorted(parameters.items())))
 
 
+# Search is the comparison the chart may draw. Final verification repeats a
+# subset under different scenario identities, so those trials are not the
+# search observations and must not be plotted as the interactive comparison.
 CONTROL_SCENARIOS = (
-    scenario('nominal-search', 'search', gain=1, damping=1),
-    scenario('gain-high-search', 'search', gain=1.15, damping=.9),
-    scenario('nominal-final', 'verification', gain=1, damping=1),
-    scenario('gain-low-final', 'verification', gain=.8, damping=.85),
-    scenario('gain-high-final', 'verification', gain=1.2, damping=1.15),
-    scenario('damping-low-final', 'verification', gain=1, damping=.7),
+    scenario('nominal', 'search', 'Nominal', gain=1, damping=1),
+    scenario('gain-low', 'search', 'Plant gain -20%', gain=.8, damping=1),
+    scenario('gain-high', 'search', 'Plant gain +20%', gain=1.2, damping=1),
+    scenario('damping-low', 'search', 'Damping -20%', gain=1, damping=.8),
+    scenario('damping-high', 'search', 'Damping +20%', gain=1, damping=1.2),
+    scenario('nominal-final', 'verification', 'Nominal final', gain=1, damping=1),
+    scenario('damping-low-final', 'verification', 'Damping -20% final', gain=1, damping=.8),
 )
 CONTROL_PARAMETERS = (
-    Parameter('kp', 'Proportional gain', 2, 0, 20, .1),
-    Parameter('ki', 'Integral gain', 1, 0, 10, .1),
-    Parameter('kd', 'Derivative gain', .3, 0, 5, .05),
+    Parameter('kp', 'Proportional gain', 2, 0, 8, .1),
+    Parameter('ki', 'Integral gain', 1, 0, 5, .1),
+    Parameter('kd', 'Derivative gain', .3, 0, 2, .1),
     Parameter('n', 'Derivative filter pole', 12, 12, 12, 1, 'rad/s'),
-    Parameter('horizon', 'Observation window', 12, 2, 50, 1, 's'),
-    Parameter('samples', 'Samples', 1201, 101, 5001, 100),
+    Parameter('horizon', 'Observation window', 10, 2, 50, 1, 's'),
+    Parameter('samples', 'Samples', 1001, 101, 5001, 100),
 )
 CONTROL_CRITERIA = (
-    Parameter('overshootMax', 'Maximum target overshoot', .2, 0, 2, .01, 'fraction'),
-    Parameter('settlingMax', 'Maximum target settling time', 8, .1, 60, .1, 's'),
-    Parameter('steadyErrorMax', 'Maximum target error', .02, .001, .5, .001),
+    Parameter('overshootMax', 'Maximum target overshoot', .1, 0, 2, .01, 'fraction'),
+    Parameter('settlingMax', 'Maximum target settling time', 5, .1, 60, .1, 's'),
+    Parameter('steadyErrorMax', 'Maximum target error', .01, .001, .5, .001),
     Parameter('settlingBand', 'Target settling band', .02, .001, .5, .001),
     Parameter('controlEffortMax', 'Maximum absolute control effort', 20, .1, 1000, .1),
     Parameter('disturbanceMax', 'Maximum final disturbance residual', .03, .001, 1, .001),
 )
+MARGIN_CRITERIA = (
+    Parameter('gainMarginMin', 'Minimum gain margin', 6, 0, 80, .5, 'dB'),
+    Parameter('phaseMarginMin', 'Minimum phase margin', 30, 0, 180, 1, 'deg'),
+)
 TEMPLATES = (
     Template('robust-pid', 'Robust filtered PID',
-             'Continuous SISO plant 1/(s² + 2ζs + 1). Filtered derivative N=12. Search and final scenarios are separate.',
-             'python-control', CONTROL_PARAMETERS, CONTROL_CRITERIA, CONTROL_SCENARIOS),
+             'Continuous SISO plant 1/(s² + 2ζs + 1). Filtered derivative N=12. Search compares nominal and ±20% gain and damping. Final verification repeats nominal and damping -20% as separate trials.',
+             'python-control', CONTROL_PARAMETERS, CONTROL_CRITERIA + MARGIN_CRITERIA, CONTROL_SCENARIOS),
     Template('p-golden', 'P controller · analytic golden',
              'G=1/(s+1), P=1. Reference response 0.5(1-exp(-2t)); unit-target steady error intentionally fails.',
              'python-control', tuple(p for p in CONTROL_PARAMETERS if p.name in ('horizon', 'samples')),
@@ -171,7 +179,9 @@ class ExperimentSpec:
         if not isinstance(data, dict) or set(data) - {'templateId', 'parameters', 'criteria', 'candidateBudget'}:
             raise Invalid('Invalid experiment request')
         item = template(data.get('templateId'))
-        budget = data.get('candidateBudget', 8)
+        # Five robust-PID search cases plus two final trials, at the default
+        # 1001-point grid, exceed 40000 evidence points above 7 candidates.
+        budget = data.get('candidateBudget', 6)
         if isinstance(budget, bool) or not isinstance(budget, int) or not 1 <= budget <= 30:
             raise Invalid('Candidate budget must be an integer from 1 to 30')
         parameters = values(item.parameters, data.get('parameters', {}))
