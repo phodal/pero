@@ -11,6 +11,7 @@ pub use history::{HistoryEntry, MAX_NAVIGATION_HISTORY, WorkspaceHistory};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum WorkspaceItem {
+    Compute,
     Conversation(String),
     Web(String),
     Document {
@@ -54,7 +55,7 @@ impl WorkspaceRoute {
                 WorkspaceItem::Document { .. } => WorkbenchPage::Document,
                 WorkspaceItem::Web(_) => WorkbenchPage::Web,
                 WorkspaceItem::Project(_) | WorkspaceItem::Task(_) => WorkbenchPage::Tasks,
-                WorkspaceItem::App { .. } => WorkbenchPage::Apps,
+                WorkspaceItem::App { .. } | WorkspaceItem::Compute => WorkbenchPage::Apps,
             },
         }
     }

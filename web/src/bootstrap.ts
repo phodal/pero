@@ -1,4 +1,3 @@
-import { installAutomation } from './automation';
 import {installContentAnalysis} from './content-analysis';
 import { loadContentResult, cancelContentResult } from './content-results';
 import type { ContentChunk, ConversationReadParameters } from '../../packages/content-source/index';
@@ -76,7 +75,7 @@ try {
     },
     deliver:(thread_id,contexts,text,replace)=>receive_host_event(JSON.stringify({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}})),
   });
-  const apps = mountAppSurfaces(value=>window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser'))),launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})),pane=>receive_host_event(JSON.stringify({version:1,kind:'pane_focus',request_id:null,text:'',data:{id:pane}})),async slot=>{
+  const apps = mountAppSurfaces(value=>{if('action' in value && value.action==='automation_session_open'){receive_host_event(JSON.stringify({version:1,kind:'automation_session_open',request_id:null,text:'',data:value}));return Promise.resolve();}return window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser')));},launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})),pane=>receive_host_event(JSON.stringify({version:1,kind:'pane_focus',request_id:null,text:'',data:{id:pane}})),async slot=>{
     receive_host_event(JSON.stringify({version:1,kind:'app_chat_slot',request_id:null,text:'',data:slot}));
     if(!slot)return false;
     const deadline=performance.now()+5000;
@@ -103,9 +102,7 @@ try {
     }
     window.pero.sendProbe(request).catch(() => receive_host_event(JSON.stringify({ version: 1, kind: 'error', request_id: request.id, text: '', message_key: 'error.connection' })));
   };
-  const automation = installAutomation(command => window.pero ? window.pero.sessionCommand(command) : Promise.reject(new Error(t('error.browser'))));
   const onEvent = (event: HostEvent) => {
-    automation.event(event);
     if (event.kind === 'settings') { locale = normalizeLocale(event.text); updateDocument(); }
     receive_host_event(JSON.stringify(event));
     if (event.kind === 'workbench_settings') applyAppearance(JSON.parse(snapshot()).appearance);
@@ -117,6 +114,7 @@ try {
   };
   window.peroSessionCommand = (json) => {
     const command = JSON.parse(json);
+    if(command.action==='automation_open'){onEvent({version:1,kind:'automation_open',request_id:null,text:''});return;}
     if(typeof command.action==='string'&&command.action.startsWith('web_')) {if(window.pero)void window.pero.webCommand(command).catch(()=>onEvent({version:1,kind:'web_error',request_id:null,text:t('error.connection')}));else onEvent({version:1,kind:'web_error',request_id:null,text:t('error.browser')});return;}
     if(command.action==='cancel_read_result'){cancelContentResult(command.request_id);return;}
     if(command.action==='read_result'){void loadContentResult(command,request=>window.pero?window.pero.readContent(request):Promise.reject(new Error(t('error.browser'))),onEvent);return;}

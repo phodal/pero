@@ -24,7 +24,7 @@ pub(crate) struct InstalledApp {
 
 /// Workbench-owned destinations stay outside the optional App catalog.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum AppPlacement { Workspace, Customize, Catalog }
+pub(crate) enum AppPlacement { Primary, Workspace, Customize, Automation, Catalog }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) enum AppCategory { #[default] All, Research, Data, Tools }
@@ -36,10 +36,10 @@ impl AppCategory {
 }
 impl InstalledApp {
     pub fn placement(&self) -> AppPlacement {
-        match self.name.as_str() { "paper-agent" | "data" => AppPlacement::Workspace, "connectors" => AppPlacement::Customize, _ => AppPlacement::Catalog }
+        match self.name.as_str() { "insights" => AppPlacement::Primary, "paper-agent" | "data" => AppPlacement::Workspace, "connectors" => AppPlacement::Customize, "automations" => AppPlacement::Automation, _ => AppPlacement::Catalog }
     }
     pub fn category(&self) -> AppCategory {
-        match self.name.as_str() { "virtual-cell" | "control-lab" => AppCategory::Research, "data-agent" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
+        match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" => AppCategory::Research, "data-agent" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
     }
 }
 
@@ -148,7 +148,9 @@ mod surface {
         }
 
         pub(crate) fn installed_app_title(&self, name: &str, display_name: &str) -> String {
-            if name == "paper-agent" {
+            if name == "automations" {
+                self.t("nav.automations").to_string()
+            } else if name == "paper-agent" {
                 self.t("nav.papers").to_string()
             } else if name == "connectors" {
                 self.t("nav.customize").to_string()
@@ -174,6 +176,22 @@ mod surface {
                     if self.app_chat_slot != slot {
                         self.app_chat_slot = slot;
                         self.sync_follow(cx);
+                    }
+                }
+                "app_examples" => {
+                    if let Ok(scope)=serde_json::from_value::<pero_contracts::AppChatScope>(event.data["scope"].clone()){self.receive_app_examples(scope,event.data["state"].clone(),cx);}
+                }
+                "point_app_session_open" => {
+                    if let (Ok(scope),Some(id))=(serde_json::from_value::<pero_contracts::AppChatScope>(event.data["scope"].clone()),event.data["sessionId"].as_str()) {
+                        if self.apps.contains_panel(&scope.app,&scope.panel) {
+                            let index=self.chat.read(cx).chats.iter().position(|chat|chat.id==id && chat.scope.as_ref()==Some(&scope));
+                            if let Some(index)=index {
+                                self.navigation.open(WorkspaceItem::App{name:scope.app.clone(),panel:scope.panel.clone()});
+                                self.set_chat_dock(true,cx);
+                                self.chat.update(cx,|chat,cx|{chat.set_scope(Some(scope),cx);chat.focus_chat(Some(index),cx);});
+                                self.sync_follow(cx);
+                            }
+                        }
                     }
                 }
                 "app_scope" => {

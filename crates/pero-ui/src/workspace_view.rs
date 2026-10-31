@@ -231,7 +231,7 @@ impl Workbench {
                     projects.iter().any(|project| project.matches_key(key))
                 }
                 // The current task page is only a partial observation of source availability.
-                WorkspaceItem::Task(_) => true,
+                WorkspaceItem::Task(_) | WorkspaceItem::Compute => true,
                 WorkspaceItem::App { name, panel } => self.apps.retains_panel(name, panel),
             })
             .cloned()
@@ -292,6 +292,7 @@ impl Workbench {
             WorkspaceRoute::Content(WorkspaceItem::App { name, panel }) => {
                 self.open_app(name, panel, cx)
             }
+            WorkspaceRoute::Content(WorkspaceItem::Compute) => self.open_compute(cx),
         }
         self.sync_follow(cx);
         self.queue_workspace_checkpoint(cx);
@@ -441,6 +442,7 @@ impl Workbench {
                     .into(),
                 "layout-list".into(),
             ),
+            WorkspaceItem::Compute => (self.t("nav.compute").into(), "cpu".into()),
             WorkspaceItem::App { name, .. } => (
                 self.apps
                     .entries

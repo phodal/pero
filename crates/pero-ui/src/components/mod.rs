@@ -1,5 +1,6 @@
 //! Stateless Workbench components. State and Host commands remain in the owner.
 pub(super) mod chrome;
+pub(crate) mod app_examples;
 pub(super) mod sidebar;
 pub(super) mod workspace;
 use crate::theme::Palette;

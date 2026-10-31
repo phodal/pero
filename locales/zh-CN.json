@@ -1,4 +1,6 @@
 {
+  "apps.examples": "示例",
+  "apps.example_source": "示例来源",
   "sessions.no_matches": "没有匹配的会话。",
   "apps.actions": "应用操作",
   "apps.manage": "应用商店",
@@ -854,5 +856,6 @@
   "apps.category_data": "数据分析",
   "apps.category_tools": "工具",
   "nav.automations": "自动化",
-  "apps.category_empty": "此分类暂无应用"
+  "apps.category_empty": "此分类暂无应用",
+  "nav.compute": "科学计算"
 }

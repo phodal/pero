@@ -93,6 +93,7 @@ pub(crate) struct Workbench {
     pub local_execution: crate::local_execution::LocalExecution,
     pub contribution: crate::contributions::ContributionState,
     pub apps: crate::apps::AppCatalog,
+    pub(crate) app_examples:std::collections::BTreeMap<(String,String),crate::components::app_examples::Examples>,
     pub(crate) pending_app: Option<(String, String)>,
     #[cfg(not(target_family="wasm"))]
     pub(crate) pending_app_location:Option<pero_contracts::app_chat::AppLocation>,
@@ -322,6 +323,7 @@ impl Workbench {
             local_execution,
             contribution: Default::default(),
             apps: crate::apps::AppCatalog::default(),
+            app_examples:Default::default(),
             pending_app: None,
             #[cfg(not(target_family="wasm"))]
             pending_app_location:None,
@@ -517,6 +519,11 @@ impl Workbench {
     ) {
         #[cfg(not(target_family="wasm"))]
         self.receive_native_app(&event,window,cx);
+        if event.kind=="automation_session_open" {
+            if let Some(id)=event.data["sessionId"].as_str(){self.open_automation_session(id,cx);}
+            return;
+        }
+        if event.kind == "automation_open" { self.open_automations(window, cx); return; }
         let event_kind = event.kind.clone();
         let feature_handled = self.receive_terminal(&event,cx) || self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
             || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
@@ -782,7 +789,7 @@ pub fn snapshot() -> String {
             "error": ui.error, "dark": pero_theme::UiAppearance::global(cx).dark, "navigation": ui.navigation.page().legacy_index(),
             "appearance": appearance_snapshot(cx), "preferences":ui.preferences,"selectedProject":ui.selected_project,"projectTab":ui.project_tab,"taskStatus":ui.task_status,
             "projects":ui.project_catalog(cx),"workspaceRepositories":ui.workspace_repositories,
-            "apps": ui.apps.entries, "activeApp": ui.navigation.current().and_then(|item| match item { WorkspaceItem::App { name, panel } => Some(json!({"name":name,"panel":panel})), _ => None }), "appError": ui.apps.error, "appsLoading": ui.apps.loading, "appChatOpen": ui.preferences.layout.chat_open, "floatingChat": ui.layout.chat == crate::layout::ChatPlacement::Float, "floatingChatExpanded": ui.floating_chat_expanded, "appChatSlot": if ui.layout.chat == crate::layout::ChatPlacement::Slot { ui.active_app_chat_slot() } else { None },
+            "appExamplesBounds":ui.app_examples_bounds(), "apps": ui.apps.entries, "activeApp": ui.navigation.current().and_then(|item| match item { WorkspaceItem::App { name, panel } => Some(json!({"name":name,"panel":panel})), _ => None }), "appError": ui.apps.error, "appsLoading": ui.apps.loading, "appChatOpen": ui.preferences.layout.chat_open, "floatingChat": ui.layout.chat == crate::layout::ChatPlacement::Float, "floatingChatExpanded": ui.floating_chat_expanded, "appChatSlot": if ui.layout.chat == crate::layout::ChatPlacement::Slot { ui.active_app_chat_slot() } else { None },
             "locale": ui.locale, "labels": { "tasks": ui.t("nav.tasks"), "send": ui.t("probe.send") },
             "tab": ui.tab.legacy_index(), "events": ui.events, "workspace": ui.workspace,
         });

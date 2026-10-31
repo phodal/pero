@@ -1,3 +1,4 @@
+import { mountAppExamples } from './app-examples';
 import { mountAppPreparation } from './app-preparation';
 import { translate, normalizeLocale } from '../../locales';
 import type { HostEvent } from './bootstrap';
@@ -20,6 +21,7 @@ type SlotRequest = { frame: Frame; id: string; rect: AppChatSlot['rect'] };
 /** Retains App documents across navigation; GPUI owns selection and layout. */
 export function mountAppSurfaces(command: (value: object) => Promise<void>, onChat?: (context: { name: string; panel: string; text?: string;options?:unknown }) => void|Promise<unknown>, onDocument?:(value:ReturnType<AppDocuments['admit']>)=>void,onFocus?:(pane:number)=>void,onChatSlot?:(slot:AppChatSlot|null)=>boolean|Promise<boolean>) {
   const frames = new Map<string, Frame>();
+  const examples=mountAppExamples((scope,request)=>frames.get(`${scope.app}:${scope.panel}`)?.element.contentWindow?.postMessage(request,'*'));
   const appUse = mountAppUseFrames();
   const presence = new Map<string, AppUsePresence & { thread: string }>();
   const mounts=new Map<string,Mount>();
@@ -79,7 +81,7 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   const active = (slot:Mount) => frames.get(key(slot.surface.name,slot.surface.panel));
   const context = (frame:Frame) => {
     const value=mounts.get(key(frame.name,frame.panel))?.surface||surface;
-    frame.element.contentWindow?.postMessage({type:'pero:app:context',context:{appearance:value.appearance,dark:value.dark,locale:normalizeLocale(value.locale),active:value.visible}},'*');
+    frame.element.contentWindow?.postMessage({type:'pero:app:context',context:{appearance:value.appearance,dark:value.dark,locale:normalizeLocale(value.locale),active:value.visible,titlebar:true}},'*');
   };
   const renderPresence = (slot:Mount) => {
     const {surface,useStatus}=slot;
@@ -184,6 +186,13 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   window.addEventListener('message', event => {
     const frame = [...frames.values()].find(frame => frame.element.contentWindow === event.source);
     if (!frame) return;
+    if(event.data?.type==='pero:app:open-session' && frame.name==='automations' && mounts.get(key(frame.name,frame.panel))?.surface.visible) {
+      const url=new URL(frame.element.src), sessionId=event.data.sessionId;
+      if(event.origin===`${url.protocol}//${url.host}` && typeof sessionId==='string' && sessionId.length<=128)
+        void command({action:'automation_session_open',sessionId});
+      return;
+    }
+    if(event.data?.type==='pero:app:examples'){examples({app:frame.name,panel:frame.panel},event.data.state);return;}
     if(event.data?.type==='pero:app:chat-slot') {
       const url=new URL(frame.element.src), origin=`${url.protocol}//${url.host}`;
       const {id,rect}=event.data;

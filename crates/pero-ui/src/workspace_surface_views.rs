@@ -138,7 +138,7 @@ impl Workbench {
                     }
                 }),
             )
-            .when(self.navigation.pane_layout().is_some_and(|layout| layout.leaves().len() > 1), |pane| pane.child(self.pane_tab_bar(leaf, cx)))
+            .when(self.navigation.pane_layout().is_some_and(|layout| layout.leaves().len() > 1), |pane| pane.child(self.pane_tab_bar(leaf, crate::workspace_pane_tabs::TabBarPlacement::Pane, cx)))
             .when(
                 document
                     && item.as_ref().is_some_and(|item| {
@@ -205,6 +205,9 @@ impl Workbench {
             }
             Some(WorkspaceRoute::Content(WorkspaceItem::Conversation(_))) => {
                 self.chat.clone().into_any_element()
+            }
+            Some(WorkspaceRoute::Content(WorkspaceItem::Compute)) => {
+                self.compute_content(cx)
             }
             Some(WorkspaceRoute::Content(WorkspaceItem::App { name, panel })) => {
                 #[cfg(not(target_family="wasm"))]

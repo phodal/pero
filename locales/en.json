@@ -1,4 +1,6 @@
 {
+  "apps.examples": "Examples",
+  "apps.example_source": "Example source",
   "sessions.no_matches": "No matching sessions.",
   "apps.actions": "App actions",
   "apps.manage": "App Store",
@@ -854,5 +856,6 @@
   "apps.category_data": "Data & analysis",
   "apps.category_tools": "Tools",
   "nav.automations": "Automations",
-  "apps.category_empty": "No apps in this category"
+  "apps.category_empty": "No apps in this category",
+  "nav.compute": "Compute"
 }
