@@ -117,7 +117,9 @@ async function exportEvidence(id) {
   return document;
 }
 async function selectExperiment(id) {
-  const button = frame.locator('aside').getByTitle(id, { exact: true });
+  const history = frame.locator('aside details.experiment-history');
+  if (await history.getAttribute('open') === null) await history.locator('summary').click();
+  const button = history.getByTitle(id, { exact: true });
   await button.focus();
   await button.press('Enter');
   await expect(button).toHaveAttribute('aria-current', 'true');
@@ -226,6 +228,16 @@ try {
     const verification = frame.locator('section').filter({ has: frame.getByRole('heading', { name: 'Independent verification', exact: true }) });
     await expect(verification.locator('table').first().locator(':scope > tbody > tr')).toHaveCount(finalScenarios.length);
     await expect(verification).toContainText(`/ ${finalScenarios.length} final scenarios passed`);
+    const lockedCandidate = verified.candidates.find(item => item.id === verified.lockedCandidateId);
+    await expect(verification).toContainText(`Locked candidate: ${lockedCandidate.label}`);
+    const otherCandidate = verified.candidates.find(item => item.id !== verified.lockedCandidateId);
+    if (otherCandidate) {
+      await frame.getByRole('radio', { name: otherCandidate.label, exact: true }).check();
+      await expect(verification).toContainText(`Locked candidate: ${lockedCandidate.label}`);
+      await expect(verification.getByRole('status')).toHaveText('Different from selected response');
+      await frame.getByRole('radio', { name: `${lockedCandidate.label} (locked)`, exact: true }).check();
+      await expect(verification.getByRole('status')).toHaveCount(0);
+    }
     const reevaluated = await action('Re-evaluate evidence', `${experimentPath(frozen.id)}/reevaluate`);
     expect(reevaluated.trials).toEqual(verified.trials);
     expect(reevaluated.report.verdict).toBe(verified.report.verdict);
@@ -240,7 +252,23 @@ try {
       expect(createHash('sha256').update(artifact.text).digest('hex')).toBe(reference.sha256);
     }
     checks.push(`${template.engine}: real bounded search, numerical series/artifact hashes, immutable policy, locked separate verification, full denominator and saved-evidence reevaluation/export`);
-    const responseHeading = frame.getByRole('heading', { name: 'Baseline and candidate', exact: true });
+    const scenarioPicker = frame.getByLabel('Response scenario', { exact: true });
+    const searchScenarios = saved.scenarios.filter(item => item.role === 'search');
+    await expect(scenarioPicker.locator('option')).toHaveCount(searchScenarios.length);
+    for (const scenario of searchScenarios) {
+      await scenarioPicker.selectOption(scenario.id);
+      await expect(scenarioPicker).toHaveValue(scenario.id);
+      await expect(frame.getByRole('img').first()).toBeVisible();
+    }
+    await scenarioPicker.selectOption(searchScenarios[0].id);
+    const signals = frame.getByRole('group', { name: 'Response signal' }).getByRole('button');
+    for (let index = 0; index < await signals.count(); index++) {
+      await signals.nth(index).click();
+      await expect(signals.nth(index)).toHaveAttribute('aria-pressed', 'true');
+      await expect(frame.getByRole('img').first()).toBeVisible();
+    }
+    await signals.first().click();
+    const responseHeading = frame.getByRole('heading', { name: 'Response analysis', exact: true });
     await responseHeading.evaluate(element => element.scrollIntoView({ block: 'start' }));
     await expect(responseHeading).toBeInViewport();
     await page.screenshot({ path: resolve(out, `${template.id}-response.png`) });

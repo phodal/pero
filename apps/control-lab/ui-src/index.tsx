@@ -9,7 +9,7 @@ import {
 } from "@pero/app-sdk";
 import type { Capability, Experiment, Field, Summary, Template } from "./types";
 import { numeric } from "./presentation";
-import { Results } from "./results";
+import { Results, Evidence } from "./results";
 import "./styles.css";
 const emptySchema = {
   type: "object",
@@ -326,7 +326,7 @@ export default function ControlLab() {
     (item) => item.engine === template?.engine,
   );
   return (
-    <div {...appObjectProps("control-lab")}>
+    <div className="control-lab" {...appObjectProps("control-lab")}>
       <header>
         <h1>Control Lab</h1>
         <button
@@ -360,7 +360,8 @@ export default function ControlLab() {
       )}
       <div className="layout">
         <aside>
-          <h2>Experiments</h2>
+          <details className="experiment-history">
+          <summary>Experiments ({history.length})</summary>
           {loading ? (
             <p role="status">Loading templates and history…</p>
           ) : !history.length ? (
@@ -375,7 +376,11 @@ export default function ControlLab() {
                     disabled={busy}
                     title={item.id}
                     aria-current={experiment?.id === item.id}
-                    onClick={() => void open(item.id)}
+                    onClick={(event) => {
+                      const disclosure = event.currentTarget.closest("details");
+                      if (disclosure) disclosure.open = false;
+                      void open(item.id);
+                    }}
                   >
                     {item.title}
                     <br />
@@ -388,6 +393,7 @@ export default function ControlLab() {
               ))}
             </ul>
           )}
+          </details>
           <details>
             <summary>Engine availability</summary>
             {capabilities.map((item) => (
@@ -438,7 +444,7 @@ export default function ControlLab() {
                 </label>
                 {template && (
                   <>
-                    <p>{template.description}</p>
+
                     {capability && !capability.available && (
                       <p className="error">
                         {capability.engine} is unavailable. You can freeze this
@@ -497,10 +503,7 @@ export default function ControlLab() {
                         }
                       />
                     </label>
-                    <p className="muted">
-                      Freezing saves an immutable specification and verification
-                      policy. Changes require a new experiment.
-                    </p>
+                    <p className="muted">Specification and policy are locked after freezing.</p>
                     <button
                       className="primary"
                       type="button"
@@ -517,61 +520,16 @@ export default function ControlLab() {
             </section>
           ) : (
             <>
-              <section>
-                <h2>{experiment.title}</h2>
-                <p>
-                  <strong>Frozen specification</strong> — {experiment.status}
+              <section className="experiment-heading">
+                <div><h2>{experiment.title}</h2>
+                <span className="muted">Frozen specification: {experiment.status}
                   {experiment.operation && ` (${experiment.operation})`}
-                </p>
-                <details>
-                  <summary>Specification and policy</summary>
-                  <pre>
-                    {JSON.stringify(
-                      {
-                        specHash: experiment.specHash,
-                        candidateBudget: experiment.candidateBudget,
-                        parameters: experiment.parameters,
-                        criteria: experiment.criteria,
-                        scenarios: experiment.scenarios,
-                      },
-                      null,
-                      2,
-                    )}
-                  </pre>
-                </details>
-                {experiment.error && (
-                  <p className="error" role="alert">
-                    {experiment.error}
-                  </p>
-                )}
+                </span></div>
                 <div className="toolbar">
-                  <button
-                    disabled={busy || running}
-                    onClick={() => void create(experiment).catch(onError)}
-                  >
+                  <button disabled={busy || running} onClick={() => void create(experiment).catch(onError)}>
                     Rerun as new experiment
                   </button>
-                  <button
-                    onClick={() =>
-                      void exportEvidence(experiment.id).catch(onError)
-                    }
-                  >
-                    Export evidence
-                  </button>
-                </div>
-              </section>
-              <section>
-                <h2>Candidate search</h2>
-                <p className="muted">
-                  Built-in search is deterministic. Agent proposals are
-                  evaluated under the same frozen policy. Batch search fills
-                  the remaining candidate slots; the total budget includes
-                  the baseline and all attempted candidates.
-                </p>
-                <div className="toolbar">
-                  <p>
-                    Frozen total candidate budget: {experiment.candidateBudget}
-                  </p>
+                  <button onClick={() => void exportEvidence(experiment.id).catch(onError)}>Export evidence</button>
                   <button
                     className="primary"
                     disabled={busy || running || !!experiment.lockedCandidateId}
@@ -596,6 +554,17 @@ export default function ControlLab() {
                     </button>
                   )}
                 </div>
+              </section>
+              {experiment.error && <p className="error" role="alert">{experiment.error}</p>}
+              <Results experiment={experiment} selectedId={selectedId} template={templates.find((item) => item.id === experiment.templateId)} />
+              <section className="candidate-panel panel">
+                <h2>Candidates</h2>
+                <div className="toolbar">
+                  <p>
+                    {experiment.candidates.length} / {experiment.candidateBudget} candidate slots
+                  </p>
+
+                </div>
                 {running && (
                   <p role="status">
                     {experiment.operation === "verify"
@@ -604,8 +573,7 @@ export default function ControlLab() {
                         ? "Evaluating proposal"
                         : "Searching"}
                     : {experiment.progress.completed} /{" "}
-                    {experiment.progress.total} trials recorded. Results and
-                    failures remain visible.
+                    {experiment.progress.total} trials
                   </p>
                 )}
                 {experiment.candidates.length ? (
@@ -621,7 +589,7 @@ export default function ControlLab() {
                       </thead>
                       <tbody>
                         {experiment.candidates.map((item) => (
-                          <tr key={item.id}>
+                          <tr key={item.id} className={selectedId === item.id ? "selected" : undefined}>
                             <td>
                               <label className="candidate-option">
                                 <input
@@ -636,12 +604,12 @@ export default function ControlLab() {
                               </label>
                             </td>
                             <td>
-                              {Object.entries(item.parameters)
+                              <span className="parameter-values">{Object.entries(item.parameters)
                                 .map(
                                   ([name, value]) =>
                                     `${name} = ${numeric(value)}`,
                                 )
-                                .join(", ")}
+                                .join(", ")}</span>
                             </td>
                             <td>{numeric(item.score)}</td>
                             <td className={`status ${item.verdict}`}>
@@ -654,8 +622,7 @@ export default function ControlLab() {
                   </div>
                 ) : (
                   <p>
-                    No candidates yet. Run the bounded search to evaluate the
-                    baseline and candidates.
+                    No candidates yet.
                   </p>
                 )}
                 <div className="toolbar">
@@ -689,11 +656,10 @@ export default function ControlLab() {
                   </button>
                 </div>
                 <p className="muted">
-                  Locking is permanent for this experiment. Final verification
-                  runs the frozen scenarios separately from search.
+                  Locking a candidate is permanent.
                 </p>
               </section>
-              <Results experiment={experiment} selectedId={selectedId} />
+              <Evidence experiment={experiment} />
             </>
           )}
         </main>

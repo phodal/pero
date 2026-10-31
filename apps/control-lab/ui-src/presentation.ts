@@ -67,3 +67,28 @@ export function pairedSeries(
     ),
   }));
 }
+/** Response comparisons use search observations only, never held-out verification. */
+export function responseComparison(experiment: Experiment, selectedId: string, scenarioId: string) {
+  const scenarios = experiment.scenarios.filter((scenario) => scenario.role === "search");
+  const scenario = scenarios.find((item) => item.id === scenarioId) ?? scenarios[0];
+  const latest = (candidateId: string | undefined) => experiment.trials.filter(
+    (trial) => trial.phase === "search" && trial.candidateId === candidateId && trial.scenarioId === scenario?.id,
+  ).at(-1);
+  const baseline = latest(experiment.candidates[0]?.id);
+  const selected = latest(selectedId);
+  return { scenarios, scenario, baseline, selected, series: pairedSeries(baseline, selected) };
+}
+
+/** Group existing FAIL evidence for display; never recompute the verifier's verdict. */
+export function failedCheckGroups(experiment: Experiment) {
+  const groups = new Map<string, { scenario: string; check: NonNullable<Trial["report"]>["checks"][number] }[]>();
+  for (const { scenario, trial } of verificationRows(experiment)) {
+    for (const check of trial?.report?.checks ?? []) {
+      if (check.verdict !== "FAIL") continue;
+      const group = groups.get(check.name) ?? [];
+      group.push({ scenario: scenario.label, check });
+      groups.set(check.name, group);
+    }
+  }
+  return [...groups].map(([name, failures]) => ({ name, failures }));
+}

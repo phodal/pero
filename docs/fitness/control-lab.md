@@ -127,8 +127,10 @@ artifact and is not present in this checkout.
   observation point budget. Their fixes and the exact reproduction are tracked
   in [incremental baseline](../issues/2026-10-31-control-lab-incremental-baseline.md)
   and [adaptive sample budget](../issues/2026-10-31-control-lab-adaptive-sample-budget.md).
-  Working-tree changes still need integrated strict solver and exact-head CI
-  validation; the earlier green CI does not validate them.
+  These fixes and persistence-failure recovery were subsequently published at
+  `21173170ba8510ccc3ce97c20a13c1a6de846e6a`; all 18 jobs in
+  [CI 41156647170](https://github.com/phodal/pero/actions/runs/41156647170)
+  passed. This receipt predates the workbench presentation update below.
 - A complete real-provider Agent run still requires search, a locked candidate,
   full final scenarios and independent reproduction of the saved report. The
   six-attempt budget above is exhausted; do not automatically retry or raise it.
@@ -137,3 +139,21 @@ artifact and is not present in this checkout.
 
 See [design](../design-docs/control-lab.md) and
 [App instructions](../../apps/control-lab/README.md).
+
+## Workbench presentation update (2026-10-31)
+
+The UI now prioritizes model setup, a single selectable response plot and
+independent verification, with the candidate table below. History and raw
+evidence use disclosures; failed metrics remain visible with their actual
+values, limits and scenario counts. Numerical verdicts, frozen inputs and
+execution permissions are unchanged.
+
+Cloud checks passed strict TypeScript, nine UI/schema tests and a standalone
+frontend esbuild bundle. A real python-control record with twelve trials and
+a FAIL final report was used for static rendering; this is not visual or
+Desktop acceptance. The standard App build needs the external GPUI checkout.
+Local cloud Chromium was denied a socket by the execution environment; no
+sandbox protections were disabled and no user-desktop testing was performed.
+The updated headed CI suite checks scenario and signal selection and captures
+the real UI. Its exact-head result and screenshots must be checked before
+claiming visual fidelity to the supplied references.

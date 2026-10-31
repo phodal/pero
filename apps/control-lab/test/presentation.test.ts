@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   curvePath,
+  failedCheckGroups,
   numeric,
   pairedSeries,
+  responseComparison,
   verificationRows,
 } from "../ui-src/presentation.ts";
 import type { Experiment, Trial } from "../ui-src/types.ts";
@@ -143,4 +145,37 @@ test("cancelled second verification cannot reuse a prior batch's passing evidenc
   );
   assert.equal(rows[0].trial?.status, "cancelled");
   assert.equal(rows[1].trial, undefined);
+});
+
+
+test("response selection falls back across experiments and never mixes verification into search", () => {
+  const search = { candidateId: "chosen", scenarioId: "nominal", phase: "search", status: "completed", observation: { series: [{ name: "output", unit: "", x: [0, 1], y: [0, 1] }] } };
+  const experiment = { candidates: [{ id: "baseline" }, { id: "chosen" }], scenarios: [{ id: "nominal", role: "search" }, { id: "held-out", role: "verification" }], trials: [search, { ...search, phase: "verification" }] } as Experiment;
+  const response = responseComparison(experiment, "chosen", "previous-experiment-scenario");
+  assert.equal(response.scenario?.id, "nominal");
+  assert.equal(response.scenarios.length, 1);
+  assert.equal(response.selected, search);
+  assert.equal(response.series[0].candidate?.y[1], 1);
+  assert.equal(response.series[0].baseline, undefined);
+});
+
+test("missing selected response never substitutes a baseline as candidate data", () => {
+  const baseline = { candidateId: "baseline", scenarioId: "nominal", phase: "search", observation: { series: [{ name: "output", unit: "", x: [0, 1], y: [0, 0.5] }] } };
+  const experiment = { candidates: [{ id: "baseline" }, { id: "chosen" }], scenarios: [{ id: "nominal", role: "search" }], trials: [baseline] } as Experiment;
+  const response = responseComparison(experiment, "chosen", "nominal");
+  assert.equal(response.selected, undefined);
+  assert.equal(response.series[0].candidate, undefined);
+  assert.deepEqual(response.series[0].baseline?.y, [0, 0.5]);
+});
+
+
+test("compact failed metrics retain each scenario actual and limit without recomputing verdicts", () => {
+  const check = { name: "overshoot", verdict: "FAIL", actual: 20, limit: 10, message: "Above limit" };
+  const experiment = { lockedCandidateId: "chosen", scenarios: [{ id: "a", label: "A", role: "verification" }, { id: "b", label: "B", role: "verification" }], trials: [
+    { candidateId: "chosen", scenarioId: "a", phase: "verification", report: { checks: [check, { ...check, name: "stability", verdict: "PASS" }] } },
+    { candidateId: "chosen", scenarioId: "b", phase: "verification", report: { checks: [{ ...check, actual: 30 }] } },
+  ] } as Experiment;
+  const groups = failedCheckGroups(experiment);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].failures.map(({ scenario, check }) => [scenario, check.actual, check.limit]), [["A", 20, 10], ["B", 30, 10]]);
 });
