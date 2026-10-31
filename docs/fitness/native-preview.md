@@ -57,3 +57,8 @@ The development bundle is `target/native/Pero Native.app` in the release
 worktree. It still references that checkout and its adapters, so the worktree
 must remain available. It is not added to the portable Electron/Virtual Cell
 release assets, and the cloud/Web App limits above still apply.
+
+## Native App extension, 2026-10-31
+
+The earlier embedded-App exclusion is superseded by [Native Apps](native-apps.md).
+It records actual WebKit/Host/Python acceptance and the remaining native App limits.

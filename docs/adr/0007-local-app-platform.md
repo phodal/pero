@@ -68,7 +68,8 @@ App port; its existing scientific methods and source attribution stay in the App
   an iframe in that slot, retains it across navigation, and supplies theme,
   locale and active-state messages. Loading, timeout/retry, disabled and removed
   states remain visible. Disabling or removing an App disposes its frame.
-  Native GPUI preview reports the Web App surface as unavailable.
+  Native GPUI uses retained Wry panels with the same Host App authority; see
+  [native App verification](../fitness/native-apps.md) for the 2026-10-31 extension.
 
 The packages are trusted local executable code. Separate browser origins and a
 bounded proxy reduce the exposed UI surface; they do not sandbox Python's access

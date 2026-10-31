@@ -82,8 +82,11 @@ pub fn run() -> anyhow::Result<()> {
             anyhow::bail!("Build with native-probe to run Web view acceptance");
         }
     }
+    let app_probe = std::env::args().nth(1).as_deref() == Some("--verify-apps");
+    #[cfg(not(feature="native-probe"))]
+    if app_probe { anyhow::bail!("Build with native-probe to run App acceptance"); }
     #[cfg(target_os = "macos")]
-    relaunch_in_bundle();
+    if !app_probe { relaunch_in_bundle(); }
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .canonicalize()?;
@@ -322,11 +325,11 @@ pub fn run() -> anyhow::Result<()> {
         }
     });
     app.run(move |cx| {
-        let registration = cx.register_url_scheme("pero");
+        let registration = if app_probe { None } else { Some(cx.register_url_scheme("pero")) };
         cx.spawn(async move |_cx| {
-            if let Err(error) = registration.await {
+            if let Some(registration) = registration { if let Err(error) = registration.await {
                 eprintln!("pero:// handler was not registered: {error:#}");
-            }
+            }}
         })
         .detach();
         cx.text_system()
@@ -348,6 +351,8 @@ pub fn run() -> anyhow::Result<()> {
         let system_dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
         pero_theme::ResolvedAppearance::resolve(&Default::default(), system_dark, &palettes).install(cx);
         let options = WindowOptions {
+            show: !app_probe,
+            focus: !app_probe,
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                 None,
                 size(px(1440.), px(960.)),
@@ -368,6 +373,11 @@ pub fn run() -> anyhow::Result<()> {
             })
         })
         .expect("native workbench window");
+        #[cfg(feature="native-probe")]
+        if app_probe {
+            let receipt = PathBuf::from(std::env::args().nth(2).expect("App acceptance receipt path"));
+            crate::native_app_probe::attach(view.clone(),window,receipt,cx);
+        }
         let close_view=view.downgrade();
         let _=window.update(cx,|_,window,cx| {
             window.on_window_should_close(cx,move|window,cx| {
@@ -474,7 +484,7 @@ pub fn run() -> anyhow::Result<()> {
             }
         })
         .detach();
-        cx.activate(true);
+        if !app_probe { cx.activate(true); }
     });
     Ok(())
 }
