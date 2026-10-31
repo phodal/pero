@@ -244,3 +244,16 @@ PERO_PAPER_LIVE=1 PERO_APP_PYTHON=/path/to/prepared/bin/python node tests/e2e/pa
 profile，检查报告并继续真实追问。`PERO_PAPER_LIVE_QUESTION` 指定追问；
 `PERO_PAPER_LIVE_RESTORE_ONLY=1` 仅重开真实报告并核对 PDF，不发模型请求。
 `PERO_PAPER_LIVE_OUTPUT` 可为每次运行保留独立证据目录。
+
+复用 profile 时，可组合以下真实场景开关：
+
+- `PERO_PAPER_LIVE_CONTEXT=1`：通过“讨论本页”提交超过 2,000 字的真实 PDF
+  页面，核对文件字节、问题与上下文分离，以及 Agent 收到的实际文件路径。
+- `PERO_PAPER_LIVE_BACKGROUND=1`：运行中切到新聊天，检查 Paper 隐藏时仍保存
+  报告并结束其 Host 回合。
+- `PERO_PAPER_LIVE_SWITCH_SOURCE=1`：真实添加第二篇 Harness 论文，在 A 运行时
+  打开 B，检查 A 完成后没有替换 B 的阅读位置和所选来源。
+- `PERO_PAPER_LIVE_BRANCH=1`：从旧报告继续，核对新问题绑定该报告。
+- `PERO_PAPER_LIVE_SCROLL=1`：运行时上滚阅读，核对更新不会强制滚到底部。
+- `PERO_PAPER_LIVE_SEND_GUARD=1`：取消来源选择后按 Enter，检查没有发送请求。
+  可与 `PERO_PAPER_LIVE_RESTORE_ONLY=1` 组合，无需新模型请求。

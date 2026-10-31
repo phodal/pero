@@ -195,3 +195,59 @@ Final regression: 33 Python cases, App TypeScript/build and root checks pass.
 The complete 16-group Desktop suite passes with zero unexpected browser errors;
 after centering source navigation, the focused PDF journey and an actual saved
 report render were rechecked, including matching the page counter to its source.
+
+## 2026-10-31 Context-file and conversation acceptance
+
+Development Electron L2, the same authenticated Codex/real Host route and saved
+37-page Harness² PDF, through `3e6eb781`. No source responses or Agent answers
+were substituted. These runs cover the follow-up fixes after the earlier audit:
+
+- Selected the actual first page using Page text → Discuss page: 2,822 characters
+  / 2,844 UTF-8 bytes. The saved `.txt` matches the page text exactly, the question
+  remains separate, and the frozen prompt includes the absolute file path.
+  The initial file-backed question saved in 25,111 ms and unlocked at 26,431 ms.
+- The workspace-only file tool rejected that absolute App-data path. A study
+  context read recovered, but ordinary questions lack a study ID. Added the
+  declared `read-context` App tool for both flows. A subsequent actual Agent call
+  to that tool completed successfully, then saved a cited report in 35,004 ms;
+  the composer unlocked at 35,008 ms. The report's distinction between two
+  recursion levels was reviewed against the actual first-page abstract; clicking
+  its citation showed the rendered page and exact quote highlight.
+- A final real run explicitly requested `startLine=1,endLine=3`. The Agent used
+  those exact arguments with `read-context`, then saved a cited report in
+  44,654 ms and unlocked at 45,979 ms. Its successful tool/range receipt and
+  rendered-source screenshot are in `test-results/paper-context-line-read/`.
+- While Paper was hidden behind New Chat, a real question saved in 10,230 ms;
+  the Host reached terminal `cancelled` after successful App delivery, and the
+  composer was ready at 10,596 ms. This checks background cleanup, not merely
+  cleanup after returning to the App.
+- Added the real 36-page Harness Learning paper, started a question on Harness²,
+  switched to Harness Learning, then hid Paper. The former report saved in
+  13,672 ms; returning preserved the latter's source checkbox and reading title
+  without displaying the other paper's active turn. Its Host was already
+  terminal while hidden. Returning to Harness² reopened the cited result.
+- Explicitly continued an older completed report and checked the new intent's
+  parent ID. Scrolled upward during actual execution; report/status updates did
+  not force the transcript down. That report saved in 26,126 ms.
+- Reopened a saved actual report, unchecked all sources and pressed Enter with
+  Send disabled: no context/study/intent POST occurred. Restoring the source
+  retained valid report-to-PDF navigation. This check made no new model request.
+
+Receipts/screenshots: `test-results/paper-context-live/`,
+`paper-context-background-rerun/`, `paper-context-switch-source-rerun/`,
+`paper-context-branch-scroll/`, `paper-context-send-guard/`, and
+`paper-context-universal-read/` under `test-results`. The last includes the actual
+completed App-tool call receipt in `context-read.json`. Initial background and
+source-switch attempts stopped on test navigation/focus assumptions; their
+original failure artifacts remain, and corrected reruns exercised the controls.
+Observed times use different questions/history and are not a latency benchmark.
+
+Final checks: 35 Python tests (including abstract-only file reads over authenticated
+HTTP, exact CRLF/Unicode, reload, range bounds, source scoping and integrity), App
+TypeScript/build, root checks and the complete 16-group Desktop fixture suite
+pass. Final fixture output: `test-results/paper-context-final-regression/`, zero
+unexpected browser errors. Fixture output is not real-provider acceptance.
+
+The screenshots were inspected. Manual native-app inspection was unavailable
+because the Mac was locked; these results do not establish native Wry or signed
+package acceptance. Standard/side/App Chat view unification remains unimplemented.

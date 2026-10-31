@@ -139,3 +139,28 @@ The composer can reveal the original selection, and includes the paper title and
 page in the submitted context. Citation, annotation and selection navigation use
 one reveal operation; narrow layouts close the covering conversation. Source
 buttons show PDF page numbers instead of repeating one long paper title.
+
+`ContextSelection` preserves selected text separately from the question. The App
+writes its exact UTF-8 bytes to `research-v1/context-files/<id>.txt`, and keeps an
+immutable `ContextFile` record with the absolute path, digest and source/page
+identity. The question retains its 2,000-character limit; selected text does not
+consume that budget. Whole-page discussion uses the same file-backed flow.
+Input and conversation records carry the file reference, so reopening or
+explicitly following an older answer keeps its selected context.
+
+The Agent receives the path and reads on demand with the declared `read-context`
+App tool, using an opaque context ID and bounded character or original-line
+ranges. App-managed absolute paths are not workspace-relative paths accepted by
+every Agent's ordinary file tool. `ContextRead` owns range rules; the store reads
+the bytes and checks the digest. Abstract-only questions use the same tool without
+a PDF study. The existing study context action also delegates to this reader.
+Reading a selection adds no validated evidence and consumes no study step;
+reports still cite observed original sources.
+
+Research polling continues while the App is hidden, including report delivery
+and Host-turn cleanup. The currently read paper owns its source selection;
+another paper's finishing task must not replace it. Saved answers offer an
+explicit follow-up target. The transcript follows new output only while the
+reader remains near the bottom, and Enter shares the visible Send action's
+disabled conditions. The custom Paper conversation remains; this change does
+not implement the proposed standard/side/App Chat view switch.
