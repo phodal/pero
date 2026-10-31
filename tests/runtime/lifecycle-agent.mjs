@@ -27,6 +27,7 @@ const legacyModels = () => ({ currentModelId: model, availableModels: [{ modelId
 readline.createInterface({ input: process.stdin }).on('line', line => {
   const { id, method, params, result } = JSON.parse(line);
   if (method === 'initialize') {
+    if (process.env.PERO_CONNECTORS_TOKEN) { fail(id, -32603, 'Host connector master key leaked into Agent environment'); return; }
     if (scenario === 'initialization_hangs') return;
     if (scenario === 'unsupported_protocol') { reply(id, { protocolVersion: 999, agentCapabilities: {}, authMethods: [] }); return; }
     if (scenario === 'dsh_wire') { reply(id, { protocolVersion: 1, agentCapabilities: { loadSession: true }, authMethods: [] }); return; }

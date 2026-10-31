@@ -504,6 +504,20 @@
       ],
       "additionalProperties": false
     },
+    "AppGrant": {
+      "title": "AppGrant",
+      "type": "object",
+      "properties": {
+        "permitted": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": [
+        "permitted"
+      ],
+      "additionalProperties": false
+    },
     "AppName": {
       "title": "AppName",
       "type": "string",
@@ -653,6 +667,9 @@
         },
         {
           "$ref": "#/$defs/AgentApp"
+        },
+        {
+          "$ref": "#/$defs/ConnectorsApp"
         }
       ]
     },
@@ -874,6 +891,9 @@
             },
             {
               "$ref": "#/$defs/AppAgentCancelled"
+            },
+            {
+              "$ref": "#/$defs/AppGrant"
             }
           ]
         }
@@ -1234,6 +1254,33 @@
         "thread_id",
         "config_id",
         "value"
+      ],
+      "additionalProperties": false
+    },
+    "ConnectorsApp": {
+      "title": "ConnectorsApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "connectors"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "method",
+        "id"
       ],
       "additionalProperties": false
     },

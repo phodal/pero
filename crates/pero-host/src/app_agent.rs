@@ -45,7 +45,10 @@ impl Manager {
             .map_err(
                 |_| "MCP settings are unavailable or invalid; review local connector settings",
             )?;
-        let agent = agent.with_managed_mcp(&configuration);
+        let mut agent = agent.with_managed_mcp(&configuration);
+        if let Some(endpoint) = &self.connectors {
+            endpoint.bind(&mut agent, &thread_id)?;
+        }
         if binding.is_none() {
             if let Some(path) = &self.settings_path {
                 pero_runtime::settings::save_chat_agent(path, agent_id)

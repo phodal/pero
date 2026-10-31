@@ -66,7 +66,8 @@ export type ContextKind =
   "file" | "directory" | "symbol" | "thread" | "skill" | "image" | "selection" | "branch_diff" | "fetch" | "app_object";
 export type ThreadId = string;
 export type ContextContent = TextContextContent | ImageContextContent;
-export type AppRequest = ListApps | InstallApp | EnableApp | DisableApp | UninstallApp | ResolveApp | AgentApp;
+export type AppRequest =
+  ListApps | InstallApp | EnableApp | DisableApp | UninstallApp | ResolveApp | AgentApp | ConnectorsApp;
 export type RequestId = string;
 export type AppName = string;
 export type AgentRequest = AgentInfoRequest | AgentStartRequest | AgentEventsRequest | AgentCancelRequest;
@@ -774,6 +775,12 @@ export interface AgentEventsRequest {
 export interface AgentCancelRequest {
   operation: "cancel";
   sessionId: string;
+}
+export interface ConnectorsApp {
+  action: "connectors";
+  name: AppName;
+  method: "apps";
+  id: RequestId;
 }
 export interface ContributionPrepare {
   method: "contribution";
@@ -1555,7 +1562,7 @@ export interface AppsResultEvent {
 }
 export interface AppSuccess {
   ok: true;
-  value: AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled;
+  value: AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant;
 }
 export interface AppRecord {
   name: AppName;
@@ -1621,6 +1628,9 @@ export interface AppAgentEvent {
 }
 export interface AppAgentCancelled {
   cancelled: true;
+}
+export interface AppGrant {
+  permitted: true;
 }
 export interface AppFailure {
   ok: false;

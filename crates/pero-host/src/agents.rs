@@ -27,6 +27,7 @@ pub struct Manager {
     history: Arc<Mutex<Vec<HostEvent>>>,
     app_bindings: HashMap<String, AppSessionBinding>,
     app_use: Option<acp::AppUseEndpoint>,
+    connectors: Option<acp::ConnectorsEndpoint>,
     settings_path: Option<PathBuf>,
     history_path: PathBuf,
 }
@@ -132,6 +133,7 @@ impl Manager {
             history,
             app_bindings,
             app_use: acp::AppUseEndpoint::from_environment(),
+            connectors: acp::ConnectorsEndpoint::from_environment(),
             settings_path,
             history_path,
         }

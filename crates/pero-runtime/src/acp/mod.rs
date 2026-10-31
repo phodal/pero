@@ -4,6 +4,8 @@ mod configuration;
 mod session;
 mod prompt;
 mod app_use;
+mod connectors;
+pub use connectors::ConnectorsEndpoint;
 pub use app_use::{AppUseEndpoint, APP_USE_SKILL};
 pub use agent_client_protocol as sdk;
 pub use registry::{AgentConfig, registry};

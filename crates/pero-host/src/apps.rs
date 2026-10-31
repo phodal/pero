@@ -55,6 +55,11 @@ enum Request {
         #[serde(default, rename = "threadId")]
         thread_id: Option<String>,
     },
+    Connectors {
+        method: Method,
+        id: String,
+        name: AppName,
+    },
 }
 
 pub struct Apps {
@@ -166,6 +171,11 @@ impl Apps {
                         "repositories": repositories,
                         "conflicts": conflicts,
                     }))
+                }
+                Request::Connectors { method, id, name } => {
+                    let _ = (method, id);
+                    store.require_grant(&name, "connectors")?;
+                    Ok(serde_json::json!({"permitted":true}))
                 }
                 Request::Resolve { method, id, name } => {
                     let _ = (method, id);

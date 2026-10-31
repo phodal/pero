@@ -64,6 +64,7 @@ impl McpConfiguration {
         }
         let mut names: HashSet<&str> = reserved.iter().map(String::as_str).collect();
         names.insert("pero-app-use");
+        names.insert("pero-connectors");
         for server in &self.servers {
             if server.name.trim().is_empty()
                 || server.name.len() > 128
