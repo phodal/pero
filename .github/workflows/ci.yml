@@ -319,7 +319,66 @@ jobs:
       - run: node scripts/codegen/contracts.mjs --check
       - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs
 
+  core:
+    name: Linux core types, permissions and durable runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Prepare pinned dependency resolution (no UI compilation)
+        run: |
+          kit="$RUNNER_TEMP/gpui-kit"
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+          git init --quiet "$kit"
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin ec89cfc36404667b7947aeb3d40b1c2859d729dd
+          git -C "$kit" checkout --detach FETCH_HEAD
+      - name: Independent TypeScript and generated contracts
+        run: |
+          npx tsc -p scripts/ci/tsconfig.core.json
+          node scripts/codegen/contracts.mjs --check
+          node scripts/codegen/theme.mjs --check
+          node scripts/codegen/design.mjs --check
+          node scripts/check/locales.mjs
+      - name: Core Rust without GPUI or WASM compilation
+        run: |
+          node scripts/cargo.mjs test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker
+          node scripts/cargo.mjs build --locked -p pero-host -p pero-worker
+      - name: Permission, cancellation and fixture contracts
+        run: |
+          npm run test:app-use:unit
+          node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs
+          node --test desktop/src/main/{app-context,app-use,connector-secrets,content-artifacts,control-lab-goal,harness-environment,home,mcp-sources}.test.ts web/src/{automation-model,content-results}.test.ts
+          node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs
+          node --test tests/runtime/control-lab/*.test.mjs tests/runtime/control-lab/host-goal.test.ts
+          node tests/e2e/computer-transport.mjs
+      - name: Actual Host stdio and durable ownership
+        run: |
+          node tests/contracts/host.mjs
+          node tests/contracts/mcp-settings.mjs
+          node tests/contracts/mcp-ownership.mjs
+          node tests/runtime/automation.mjs
+      - name: Core failure and recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: core-contracts-${{ github.sha }}
+          path: test-results/
+          if-no-files-found: warn
+
   desktop-linux:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')
     name: Linux build and contracts
     uses: ./.github/workflows/desktop-check.yml
     with:
@@ -338,6 +397,7 @@ jobs:
       os: ${{ matrix.os }}
 
   desktop-acceptance:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')
     name: Desktop acceptance (${{ matrix.suite }})
     needs: desktop-linux
     runs-on: ubuntu-latest
@@ -345,7 +405,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && fromJSON('["workbench","automation","toolcalls","data","data-product","control-lab","control-lab-app-use","control-lab-live","virtual-cell-comparison","virtual-cell-dataset-download","app-use","app-use-workbench","mcp-lifecycle","mcp-persistence","mcp-transport"]') || fromJSON('["workbench","data","app-use-workbench"]') }}
+        suite: [workbench, automation, toolcalls, data, data-product, control-lab, control-lab-app-use, control-lab-live, virtual-cell-comparison, virtual-cell-dataset-download, app-use, app-use-workbench, mcp-lifecycle, mcp-persistence, mcp-transport]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -391,7 +451,7 @@ jobs:
   complete:
     name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'Full-platform CI gate' || 'Linux CI gate' }}
     if: always()
-    needs: [data, control-lab, virtual-cell, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
+    needs: [core, data, control-lab, virtual-cell, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

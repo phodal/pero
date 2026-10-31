@@ -1,10 +1,9 @@
-// Explicit coverage tiers: ordinary critical smokes, daily/manual complete acceptance.
+// Complete Desktop acceptance is retained in the daily/manual tier.
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-export const fastSuites = Object.freeze(['workbench', 'data', 'app-use-workbench']);
 export const suites = Object.freeze({
   workbench: ['workbench'], automation: ['automation'], toolcalls: ['toolcalls'], data: ['data'], 'data-product': ['data-product'],
   'control-lab': ['control-lab'], 'control-lab-app-use': ['control-lab-app-use'], 'control-lab-live': ['control-lab-live'],

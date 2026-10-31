@@ -6,10 +6,10 @@ import { tmpdir } from 'node:os';
 import { resolve, dirname } from 'node:path';
 import YAML from 'yaml';
 import { failures } from './gate.mjs';
-import { suites, fastSuites } from './desktop-suite.mjs';
+import { suites } from './desktop-suite.mjs';
 import { pack, unpack, runtimePaths } from './desktop-artifact.mjs';
 
-test('daily keeps all acceptance; ordinary tier keeps the explicit critical smokes', () => {
+test('daily keeps all Desktop acceptance; ordinary tier runs independent core contracts', () => {
   assert.deepEqual(Object.values(suites).map(([name]) => name).sort(), [
     'workbench', 'automation', 'toolcalls', 'data', 'data-product', 'control-lab', 'control-lab-app-use', 'control-lab-live',
     'virtual-cell-comparison', 'virtual-cell-dataset-download', 'app-use', 'app-use-workbench',
@@ -17,15 +17,13 @@ test('daily keeps all acceptance; ordinary tier keeps the explicit critical smok
   ].sort());
   const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
   const acceptance = workflow.jobs['desktop-acceptance'];
-  const matrices = [...acceptance.strategy.matrix.suite.matchAll(/fromJSON\('([^']+)'\)/g)].map(match => JSON.parse(match[1]));
-  assert.deepEqual(matrices, [Object.keys(suites), fastSuites]);
-  assert.deepEqual(fastSuites, ['workbench', 'data', 'app-use-workbench']);
-  assert.match(acceptance.strategy.matrix.suite, /schedule.*workflow_dispatch/);
+  assert.deepEqual(acceptance.strategy.matrix.suite, Object.keys(suites));
+  assert.match(acceptance.if, /schedule.*workflow_dispatch/);
   assert.equal(acceptance.strategy['fail-fast'], false);
   assert.equal(acceptance.needs, 'desktop-linux');
   assert.match(workflow.jobs.complete.if, /always\(\)/);
   assert.deepEqual(workflow.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
-  assert.match(acceptance.strategy.matrix.suite, /contains\(github.event.pull_request.labels.\*.name, 'ci:full'\)/);
+  assert.match(acceptance.if, /contains\(github.event.pull_request.labels.\*.name, 'ci:full'\)/);
   assert.deepEqual([...workflow.jobs.complete.needs].sort(), Object.keys(workflow.jobs).filter(name => name !== 'complete').sort());
   assert.equal(workflow.jobs.complete.steps.at(-1).run, 'node scripts/ci/gate.mjs');
   for (const name of ['bazel', 'go', 'harness']) {
@@ -34,7 +32,7 @@ test('daily keeps all acceptance; ordinary tier keeps the explicit critical smok
     assert.match(matrix, /windows-latest/); assert.match(matrix, /macos-latest/);
     assert.match(matrix, /\|\| fromJSON\('\["ubuntu-latest"\]'\)/);
   }
-  for (const name of ['desktop', 'windows-acl-sandbox']) assert.match(workflow.jobs[name].if, /schedule.*workflow_dispatch/);
+  for (const name of ['desktop-linux', 'desktop', 'desktop-acceptance', 'windows-acl-sandbox']) assert.match(workflow.jobs[name].if, /schedule.*workflow_dispatch/);
   assert.equal(workflow.on.schedule[0].cron, '0 20 * * *');
   const platform = YAML.parse(readFileSync('.github/workflows/desktop-check.yml', 'utf8')).jobs.desktop;
   const commands = platform.steps.map(step => step.run || '').join('\n');
@@ -51,6 +49,14 @@ test('daily keeps all acceptance; ordinary tier keeps the explicit critical smok
     'npm --prefix apps/control-lab run test:ui', 'npm --prefix apps/data run typecheck',
     'npm --prefix apps/data run test:ui', 'node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs',
     'tests/fixtures/owned-electron-close.test.mjs', 'node tests/runtime/automation.mjs']) assert.ok(commands.includes(command), command);
+  const core = workflow.jobs.core.steps.map(step => step.run || '').join('\n');
+  for (const command of ['npx tsc -p scripts/ci/tsconfig.core.json',
+    'node scripts/cargo.mjs test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker',
+    'node scripts/cargo.mjs build --locked -p pero-host -p pero-worker',
+    'node tests/contracts/host.mjs', 'node tests/runtime/automation.mjs',
+    'node tests/contracts/mcp-settings.mjs', 'node tests/contracts/mcp-ownership.mjs',
+    'tests/fixtures/owned-electron-close.test.mjs', 'npm run test:app-use:unit']) assert.ok(core.includes(command), command);
+  assert.doesNotMatch(core, /npm run build|xvfb-run|build:wasm/);
   const native = YAML.parse(readFileSync('.github/workflows/computer-use.yml', 'utf8'));
   assert.match(native.jobs.native.strategy.matrix.os, /schedule.*workflow_dispatch/);
   assert.equal(native.on.schedule[0].cron, '0 20 * * *');
@@ -82,11 +88,11 @@ test('runtime archive is tied to exact revision, retains executable mode and ver
   } finally { rmSync(temp, { recursive: true, force: true }); }
 });
 
-test('Linux gate permits only explicitly daily-only skips; full gate requires every platform', () => {
-  const jobs = { 'desktop-linux': { result: 'success' }, desktop: { result: 'skipped' }, 'windows-acl-sandbox': { result: 'skipped' } };
+test('Linux gate permits only full Desktop/platform skips; full gate requires them', () => {
+  const jobs = { core: { result: 'success' }, 'desktop-linux': { result: 'skipped' }, desktop: { result: 'skipped' }, 'desktop-acceptance': { result: 'skipped' }, 'windows-acl-sandbox': { result: 'skipped' } };
   assert.deepEqual(failures(jobs, false), []);
-  assert.deepEqual(failures(jobs, true), ['desktop', 'windows-acl-sandbox']);
+  assert.deepEqual(failures(jobs, true), ['desktop-linux', 'desktop', 'desktop-acceptance', 'windows-acl-sandbox']);
   for (const result of ['failure', 'cancelled', 'skipped'])
-    assert.deepEqual(failures({ 'desktop-acceptance': { result } }, false), ['desktop-acceptance']);
+    assert.deepEqual(failures({ core: { result } }, false), ['core']);
   assert.deepEqual(failures({ desktop: { result: 'failure' } }, false), ['desktop']);
 });

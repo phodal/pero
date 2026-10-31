@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 export function failures(jobs, full) {
-  const dailyOnly = new Set(['desktop', 'windows-acl-sandbox']);
+  const dailyOnly = new Set(['desktop-linux', 'desktop', 'desktop-acceptance', 'windows-acl-sandbox']);
   return Object.entries(jobs).filter(([name, job]) =>
     job.result !== 'success' && !(job.result === 'skipped' && !full && dailyOnly.has(name))).map(([name]) => name);
 }
