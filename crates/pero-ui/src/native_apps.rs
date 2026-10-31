@@ -94,7 +94,7 @@ impl NativeApps {
             .map_err(anyhow::Error::from)
             .and_then(|_| {
                 receiver
-                    .recv_timeout(Duration::from_secs(15))
+                    .recv_timeout(Duration::from_secs(660))
                     .map_err(anyhow::Error::from)
             });
         self.pending.lock().unwrap().remove(&id);

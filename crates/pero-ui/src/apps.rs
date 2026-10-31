@@ -43,12 +43,22 @@ pub(crate) struct AppChatSlotRect {
     pub height: f32,
 }
 
+#[derive(Clone, Deserialize)]
+pub(crate) struct AppPreparationView {
+    pub name: String,
+    pub phase: String,
+    pub message: String,
+    #[serde(skip)]
+    pub log: Vec<String>,
+}
+
 #[derive(Default)]
 pub(crate) struct AppCatalog {
     pub entries: Vec<InstalledApp>,
     pub loading: bool,
     pub error: Option<String>,
     pub removing: Option<String>,
+    pub preparation: Option<AppPreparationView>,
 }
 
 impl AppCatalog {
@@ -91,6 +101,30 @@ mod surface {
     }
 
     impl Workbench {
+        pub(crate) fn app_preparation_content(&self, cx: &mut Context<Self>) -> AnyElement {
+            let Some(value) = &self.apps.preparation else { return div().into_any_element(); };
+            let name = value.name.clone();
+            let phase = match value.phase.as_str() {
+                "checking" => self.t("apps.env_checking"),
+                "creating" => self.t("apps.env_creating"),
+                "installing" => self.t("apps.env_installing"),
+                "ready" => self.t("apps.env_ready"),
+                _ => self.t("apps.env_failed"),
+            };
+            div().flex().flex_col().gap(px(12.)).p(px(12.))
+                .child(format!("{}: {}", value.name, phase))
+                .children(value.log.iter().map(|line| div().text_sm().child(line.clone())))
+                .when(value.phase == "failed", |el| el.child(Button::new("app-env-retry")
+                    .label(self.t("apps.env_retry"))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if let Some(WorkspaceItem::App { name: active, panel }) = this.navigation.current() {
+                            if active == &name { this.pending_app = Some((active.clone(), panel.clone())); }
+                        }
+                        this.command(json!({"action":"apps_enable","name":name}), cx);
+                    }))))
+                .into_any_element()
+        }
+
         pub(crate) fn installed_app_title(&self, name: &str, display_name: &str) -> String {
             if name == "connectors" {
                 self.t("nav.connectors").to_string()
@@ -149,6 +183,16 @@ mod surface {
                         self.apps.error = Some(self.t("apps.invalid_catalog").into());
                     }
                 },
+                "apps_preparation" => {
+                    if let Ok(mut value) = serde_json::from_value::<AppPreparationView>(event.data.clone()) {
+                        if value.phase != "checking" {
+                            if let Some(previous) = self.apps.preparation.take().filter(|p| p.name == value.name) { value.log = previous.log; }
+                        }
+                        value.log.push(value.message.clone());
+                        if value.log.len() > 8 { value.log.remove(0); }
+                        self.apps.preparation = Some(value);
+                    }
+                }
                 "apps_error" => {
                     self.apps.loading = false;
                     self.apps.error = Some(event.text.clone());
@@ -238,25 +282,26 @@ mod surface {
                     .into_any_element();
                 }
             }
+            #[cfg(not(target_family = "wasm"))]
+            let preparation = self.apps.preparation.as_ref().filter(|value| value.phase != "ready").map(|_| self.app_preparation_content(cx));
+            #[cfg(target_family = "wasm")]
+            let preparation: Option<AnyElement> = None;
             let chrome = pero_theme::Chrome::from_app(cx);
             div().id("apps-library").flex_1().min_w_0().h_full().overflow_y_scroll().bg(chrome.list()).p(px(pero_theme::WorkbenchStyle::PAGE))
-                .child(pero_theme::library_header(
-                    "apps-library-header",
-                    self.t("nav.apps"),
-                    None,
-                    Some(div().flex().items_center().gap(px(pero_theme::ICON_GAP))
-                        .child(pero_theme::action_button("apps-refresh", self.t("apps.refresh"), pero_theme::ActionKind::Ghost, chrome, cx)
-                            .disabled(busy)
-                            .on_click(cx.listener(|this, _, _, cx| this.refresh_apps(cx))))
-                        .child(pero_theme::action_button("apps-install", self.t("apps.install"), pero_theme::ActionKind::Primary, chrome, cx)
-                            .disabled(busy)
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.apps.error = None;
-                                this.command(json!({"action":"apps_install"}), cx);
-                            })))
-                        .into_any_element()),
-                    chrome,
-                ))
+                .child(div().id("apps-library-header").flex().flex_shrink_0().items_center().justify_end()
+                    .gap(px(pero_theme::ICON_GAP)).mb(px(pero_theme::WorkbenchStyle::PAGE))
+                    .child(pero_theme::action_button("apps-refresh", self.t("apps.refresh"), pero_theme::ActionKind::Ghost, chrome, cx)
+                        .icon(Icon::default().path(pero_chat_ui::assets::UiIcon::Refresh.path()))
+                        .disabled(busy)
+                        .on_click(cx.listener(|this, _, _, cx| this.refresh_apps(cx))))
+                    .child(pero_theme::action_button("apps-install", self.t("apps.install"), pero_theme::ActionKind::Primary, chrome, cx)
+                        .icon(Icon::default().path(pero_chat_ui::assets::UiIcon::Folder.path()))
+                        .disabled(busy)
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.apps.error = None;
+                            this.command(json!({"action":"apps_install"}), cx);
+                        }))))
+                .children(preparation)
                 .when_some(self.apps.error.as_ref(), |el, error| el.child(div().mb(px(12.)).p(px(10.))
                     .bg(p.error_bg).text_color(p.error).child(error.clone())))
                 .when(busy, |el| el.child(div().py(px(12.)).text_color(p.text_muted).child(self.t("apps.loading"))))

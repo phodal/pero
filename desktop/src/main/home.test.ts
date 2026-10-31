@@ -12,7 +12,7 @@ test('workbench locations use ~/.pero unless a profile or path override is set',
     isolated: false,
     settings: '/home/pero/config/runtime-settings.json',
     apps: '/home/pero/apps',
-    python: '/home/pero/environment/pero-default',
+    python: '/home/pero/environment/pero-python312',
   });
   assert.equal(workbenchLocations({ PERO_DESKTOP_DATA_DIR: '/tmp/profile' }, userData, home).apps, join(userData, 'apps'));
   assert.equal(workbenchLocations({ PERO_APPS_ROOT: '/opt/apps', PERO_SETTINGS_PATH: '/opt/settings.json' }, userData, home).apps, '/opt/apps');
@@ -47,11 +47,14 @@ test('default Python is recorded without replacing an existing choice or other s
   const root = mkdtempSync(join(tmpdir(), 'pero-python-settings-'));
   const settings = join(root, 'runtime-settings.json');
   writeFileSync(settings, '{"locale":"zh-CN","app_python":{"apps":{"paper-agent":"/tmp/paper"}}}\n');
-  assignDefaultPython(settings, '/home/pero/environment/pero-default');
+  assignDefaultPython(settings, '/home/pero/environment/pero-python312');
   const merged = JSON.parse(readFileSync(settings, 'utf8'));
   assert.equal(merged.locale, 'zh-CN');
-  assert.equal(merged.app_python.default, '/home/pero/environment/pero-default');
+  assert.equal(merged.app_python.default, '/home/pero/environment/pero-python312');
   assert.equal(merged.app_python.apps['paper-agent'], '/tmp/paper');
+  writeFileSync(settings, JSON.stringify({ ...merged, app_python: { ...merged.app_python, default: '/home/pero/environment/pero-default' } }));
+  assignDefaultPython(settings, '/home/pero/environment/pero-python312');
+  assert.equal(JSON.parse(readFileSync(settings, 'utf8')).app_python.default, '/home/pero/environment/pero-default');
   assignDefaultPython(settings, '/other');
   assert.equal(JSON.parse(readFileSync(settings, 'utf8')).app_python.default, '/home/pero/environment/pero-default');
   rmSync(root, { recursive: true, force: true });

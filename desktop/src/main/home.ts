@@ -1,6 +1,5 @@
 // The workbench home. Isolated profiles (tests and PERO_DESKTOP_DATA_DIR) stay
 // in their own directory; a normal launch uses one directory under ~/.pero.
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, copyFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -24,7 +23,7 @@ export function workbenchLocations(
       ? join(userData, 'runtime-settings.json')
       : join(home, 'config', 'runtime-settings.json')),
     apps: env.PERO_APPS_ROOT || (isolated ? join(userData, 'apps') : join(home, 'apps')),
-    python: join(home, 'environment', 'pero-default'),
+    python: join(home, 'environment', 'pero-python312'),
   };
 }
 
@@ -46,6 +45,7 @@ export function assignDefaultPython(settingsPath: string, pythonHome: string): v
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Settings must be an object');
   const current = value.app_python;
   const appPython = current && typeof current === 'object' && !Array.isArray(current) ? { ...current } : {};
+  // An existing default, including the older 3.14 pero-default, stays. Its packages are not discarded.
   if (typeof appPython.default === 'string' && appPython.default) return;
   value.app_python = { ...appPython, default: pythonHome };
   mkdirSync(dirname(settingsPath), { recursive: true });
@@ -58,7 +58,7 @@ export function prepareWorkbenchHome(env: NodeJS.ProcessEnv, userData: string): 
   if (locations.isolated) return locations;
   try {
     migrateLegacyWorkbench(userData, locations, home);
-    if (!env.PERO_APP_PYTHON && !env.PERO_SETTINGS_PATH && ensureSharedPython(locations.python)) {
+    if (!env.PERO_APP_PYTHON && !env.PERO_SETTINGS_PATH) {
       assignDefaultPython(locations.settings, locations.python);
     }
   } catch (error) {
@@ -71,39 +71,4 @@ function moveIfAbsent(source: string, destination: string): void {
   if (!existsSync(source) || existsSync(destination)) return;
   mkdirSync(dirname(destination), { recursive: true });
   renameSync(source, destination);
-}
-
-function ensureSharedPython(root: string): boolean {
-  const python = join(root, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
-  if (!existsSync(python)) {
-    mkdirSync(dirname(root), { recursive: true });
-    const created = spawnSync(resolvePython(), ['-m', 'venv', root], { stdio: 'inherit' });
-    if (created.status !== 0 || !existsSync(python)) {
-      console.error('The shared Python environment could not be created.');
-      return false;
-    }
-  }
-  const config = readFileSync(join(root, 'pyvenv.cfg'), 'utf8');
-  const isolated = config.split('\n')
-    .filter(line => line.split('=')[0]?.trim().toLowerCase() === 'include-system-site-packages')
-    .at(-1)?.split('=').slice(1).join('=').trim().toLowerCase() === 'false';
-  if (!isolated) {
-    console.error(`Python environment ${root} must set include-system-site-packages = false.`);
-    return false;
-  }
-  const imports = () => spawnSync(python, ['-c', 'import pypdfium2, PIL.Image'], { stdio: 'ignore' }).status === 0;
-  if (imports()) return true;
-  const installed = spawnSync(python, ['-m', 'pip', 'install', 'pypdfium2==5.0.0', 'Pillow==12.0.0'], { stdio: 'inherit' });
-  if (installed.status !== 0 || !imports()) {
-    console.error('Paper Agent PDF packages were not installed into the shared Python environment.');
-    return false;
-  }
-  return true;
-}
-
-function resolvePython(): string {
-  const found = spawnSync('python3', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' });
-  const executable = found.stdout?.trim();
-  if (found.status === 0 && executable) return executable;
-  return 'python3';
 }

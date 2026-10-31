@@ -310,6 +310,9 @@ impl Workbench {
         panel: &str,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        if self.apps.preparation.as_ref().is_some_and(|value| value.name == name && value.phase != "ready") {
+            return self.app_preparation_content(cx);
+        }
         let error = self
             .native_app_pages
             .get(&(name.into(), panel.into()))

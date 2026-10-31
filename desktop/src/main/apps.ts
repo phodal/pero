@@ -55,7 +55,7 @@ export class DesktopApps {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error('The App request timed out. Check the App and retry.'));
-      }, 15000);
+      }, 660000);
       this.pending.set(id, { resolve: value => resolveRequest(value as T), reject, timer });
       try { this.write({ method: 'apps', id, action, ...fields }); }
       catch (error) { clearTimeout(timer); this.pending.delete(id); reject(error); }
