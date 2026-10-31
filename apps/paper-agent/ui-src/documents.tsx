@@ -1,13 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Disclosure, EmptyState, Toolbar } from '@pero/app-sdk/ui';
-import type { Api, Evidence, EvidenceLocation, Intent, Paper, Report, PdfFocus, PdfSource } from './types';
+import type { Api, Evidence, EvidenceLocation, Intent, Paper, Report, PdfFocus, PdfSource, TextFocus } from './types';
 import { PdfReader, type ReaderChrome } from './pdf-reader';
 import { ScientificContent } from './scientific-content';
 import { EvidenceMatrix } from './evidence-matrix';
 import type { Translator } from './i18n';
 
-export function Reader({ paper, busy, api, pdfFocus, onFull, onDiscuss, onMatrixAdded, chrome, t }: {
-  paper: Paper; busy: boolean; api: Api; pdfFocus?: PdfFocus | null; onFull(): void;
+function SourceLines({ content, focus, label }: { content: string; focus: TextFocus; label: string }) {
+  const mark = useRef<HTMLElement>(null);
+  const from = Math.max(0, Math.min(focus.start, content.length));
+  const to = Math.max(from, Math.min(focus.end, content.length));
+  const line = content.slice(0, from).split('\n').length;
+  useEffect(() => { mark.current?.scrollIntoView({ block: 'center' }); }, [content, from, to, focus.token]);
+  return <>
+    <p className="pa-document-meta">{label.replace('{n}', String(line))}</p>
+    <pre className="pa-search-source">{content.slice(0, from)}<mark ref={mark} data-search-line={line}>{content.slice(from, to)}</mark>{content.slice(to)}</pre>
+  </>;
+}
+export function Reader({ paper, busy, api, pdfFocus, textFocus, onFull, onDiscuss, onMatrixAdded, chrome, t }: {
+  paper: Paper; busy: boolean; api: Api; pdfFocus?: PdfFocus | null; textFocus?: TextFocus | null; onFull(): void;
   onDiscuss(text: string, source?: PdfSource): void; onMatrixAdded(): Promise<void>; chrome: ReaderChrome; t: Translator;
 }) {
   const source = useRef<HTMLDivElement>(null);
@@ -20,10 +31,10 @@ export function Reader({ paper, busy, api, pdfFocus, onFull, onDiscuss, onMatrix
     setExcerpt(value);
   }
   return <article className="pa-document pa-reading-document" data-paper-id={paper.id} aria-label={paper.title}>
-    <PdfReader key={paper.id} chrome={chrome} paper={paper} api={api} focus={pdfFocus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}>
+    <PdfReader key={paper.id} chrome={chrome} paper={paper} api={api} focus={textFocus ? null : pdfFocus} lockText={!!textFocus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}>
       <div className="pa-text-reading pero-reader-body"><div className="pero-reader-content">
-        {paper.contentKind !== 'full-text' && <p className="pa-document-meta">{t(paper.contentKind === 'abstract' ? 'abstract' : 'sourceReport')}</p>}
-        <div className="pa-source-text" ref={source} onMouseUp={capture} onKeyUp={capture}>{paper.content ? <ScientificContent content={paper.content}/> : t('loading')}</div>
+        {paper.contentKind !== 'full-text' && !textFocus && <p className="pa-document-meta">{t(paper.contentKind === 'abstract' ? 'abstract' : 'sourceReport')}</p>}
+        <div className="pa-source-text" ref={source} onMouseUp={capture} onKeyUp={capture}>{paper.content ? textFocus ? <SourceLines content={paper.content} focus={textFocus} label={t('sourceLine')}/> : <ScientificContent content={paper.content}/> : t('loading')}</div>
         {!!excerpt && <div className="pa-reader-actions"><Button onClick={() => onDiscuss(excerpt)}>{t('discussSelection')}</Button></div>}
         <Disclosure summary={t('sourceDetails')}>
           {paper.source !== 'local-pdf' && <a href={paper.url} target="_blank" rel="noreferrer">{t('original')}</a>}

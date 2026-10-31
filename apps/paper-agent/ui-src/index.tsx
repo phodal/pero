@@ -7,7 +7,7 @@ import { LibrarySearch } from './library-search';
 import { Reader, EvidencePanel, type Citation } from './documents';
 import { ResearchRecords } from './research-records';
 import { Discovery, type DiscoveryOpening } from './discovery';
-import type { EvidenceLocation, Intent, Library, Paper, PdfAnnotation, PdfFocus, PdfSource, SavedDiscovery, StudySummary, PaperResearchSelection } from './types';
+import type { EvidenceLocation, Intent, Library, LocalSearchHit, Paper, PdfAnnotation, PdfFocus, PdfSource, SavedDiscovery, StudySummary, PaperResearchSelection, TextFocus } from './types';
 import './styles.css';
 
 type WorkspaceScreen = 'library' | 'reading';
@@ -23,6 +23,8 @@ export default function PaperAgent() {
   const [chatRequest, setChatRequest] = useState<{selection:Partial<PaperResearchSelection>;message:string} | null>(null);
   const [discoveryOpening, setDiscoveryOpening] = useState<DiscoveryOpening | null>(null), [matrixOpen, setMatrixOpen] = useState(false);
   const [pdfFocus, setPdfFocus] = useState<PdfFocus | null>(null), [pdfToolbar, setPdfToolbar] = useState<HTMLDivElement | null>(null);
+  const [hitPreview, setHitPreview] = useState(false), [openHit, setOpenHit] = useState<LocalSearchHit | null>(null), [locateToken, setLocateToken] = useState(0);
+  const textFocus: TextFocus | null = openHit && reading?.id === openHit.source.paperId && openHit.page == null ? { start: openHit.start, end: openHit.end, token: locateToken } : null;
   const [citation, setCitation] = useState<(Citation & { intent: Intent }) | null>(null), [evidence, setEvidence] = useState<EvidenceLocation | null>(null), [evidenceBusy, setEvidenceBusy] = useState(false);
   const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 760px)').matches);
   const mounted = useRef(true), active = useRef(info.active), readVersion = useRef(0), libraryVersion = useRef(0), evidenceVersion = useRef(0);
@@ -48,7 +50,7 @@ export default function PaperAgent() {
     preserveView.current?.(); setShowResearch(false); setChatRequest({selection,message});
   }
   function closeRecords() { preserveView.current?.(); setShowResearch(false); requestAnimationFrame(() => askButton.current?.querySelector('button')?.focus({ preventScroll: true })); }
-  function back() { preserveView.current?.(); setScreen('library'); setLibraryScreen('papers'); setShowResearch(false); setCitation(null); }
+  function back() { preserveView.current?.(); setScreen('library'); setLibraryScreen('papers'); setShowResearch(false); setCitation(null); setHitPreview(false); setOpenHit(null); }
   useEffect(() => {
     function key(event: KeyboardEvent) {
       if (!info.active || screen !== 'reading') return;
@@ -59,8 +61,10 @@ export default function PaperAgent() {
     window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
   }, [screen, showResearch, info.active]);
 
-  async function read(paper: Paper, keepRecords = false, propagate = false) {
+  async function read(paper: Paper, keepRecords = false, propagate = false, fromSearch = false) {
     const version = ++readVersion.current; setReadingBusy(true); setScreen('reading'); setCitation(null); setError('');
+    setHitPreview(fromSearch);
+    if (!fromSearch) setOpenHit(null);
     if (paper.id !== reading?.id) setPdfFocus(null);
     if (!keepRecords) setShowResearch(false);
     try {
@@ -69,6 +73,17 @@ export default function PaperAgent() {
     } catch (error) { if (mounted.current && version === readVersion.current) onError(error); if (propagate) throw error; }
     finally { if (mounted.current && version === readVersion.current) setReadingBusy(false); }
   }
+  async function openSearchHit(hit: LocalSearchHit) {
+    const paper = library.papers.find(item => item.id === hit.source.paperId);
+    if (!paper) return;
+    setOpenHit({ ...hit });
+    setLocateToken(value => value + 1);
+    await read(paper, false, false, true);
+  }
+  useEffect(() => {
+    if (!hitPreview || !openHit || reading?.id !== openHit.source.paperId || !openHit.source.documentId || !openHit.page) return;
+    setPdfFocus({ documentId: openHit.source.documentId, page: openHit.page });
+  }, [hitPreview, openHit, reading?.id]);
   async function added(paper: Paper, focus: boolean | (() => boolean)) {
     await refresh();
     if (mounted.current && active.current && (typeof focus === 'function' ? focus() : focus)) await read(paper);
@@ -171,12 +186,13 @@ export default function PaperAgent() {
   return <div onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }} onDrop={event => { if (!event.dataTransfer.files.length) return; event.preventDefault(); void importPdf(event.dataTransfer.files[0]); }} className="pa-workbench pa-reading-first" data-screen={screen} data-research={showResearch} {...appObjectProps('paper-agent')}>
     {importingPdf && <p className="pa-loading" role="status">{t('pdfImporting')}</p>}
     {error && <div className="pa-global-error"><Feedback kind="error"><span>{error}</span><Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback></div>}
-    <section className="pa-library-screen" hidden={screen !== 'library'} aria-label={t('papers')}>
+    <div className="pa-workspace" data-hit-preview={hitPreview && screen === 'reading' ? 'true' : undefined}>
+    <section className="pa-library-screen" hidden={screen !== 'library' && !hitPreview} aria-label={t('papers')}>
       <PageHeader title={t(libraryScreen === 'import' ? 'add' : libraryScreen === 'discovery' ? 'discover' : 'papers')}
         navigation={libraryScreen !== 'papers' && <Button variant="ghost" aria-label={t('backToLibrary')} onClick={() => setLibraryScreen('papers')}><Icon name="chevron-left"/></Button>}
         actions={libraryScreen === 'papers' && <><Button variant="ghost" aria-label={t('refresh')} onClick={() => void refresh().catch(onError)}><Icon name="refresh"/></Button><Button variant="primary" onClick={() => setLibraryScreen('import')}><Icon name="plus"/>{t('add')}</Button></>}/>
       <div className="pa-library-content" hidden={libraryScreen !== 'papers'}>
-        {loading ? <p role="status">{t('loading')}</p> : !library.papers.length ? <EmptyState heading={t('emptyLibrary')} description={t('emptyLibraryCopy')}/> : <LibrarySearch api={api} t={t} onOpen={async hit => { const paper = library.papers.find(p => p.id === hit.source.paperId); if (paper) { await read(paper); if (hit.source.documentId && hit.page) setPdfFocus({ documentId: hit.source.documentId, page: hit.page }); } }}><PaperList selecting={false} papers={library.papers} selected={reading ? [reading.id] : []} readingId={reading?.id ?? ''} locked={false} onRead={paper => void read(paper)} onSelect={() => {}} onDiscover={discover} t={t}/></LibrarySearch>}
+        {loading ? <p role="status">{t('loading')}</p> : <LibrarySearch api={api} t={t} onAdded={added} activeHitId={openHit?.id} onOpen={openSearchHit}>{!library.papers.length ? <EmptyState heading={t('emptyLibrary')} description={t('emptyLibraryCopy')}/> : <PaperList selecting={false} papers={library.papers} selected={reading ? [reading.id] : []} readingId={reading?.id ?? ''} locked={false} onRead={paper => void read(paper)} onSelect={() => {}} onDiscover={discover} t={t}/>}</LibrarySearch>}
         {!!library.favorites?.length && <details className="pa-library-saved"><summary>{t('favorites')} {library.favorites.length}</summary><ul className="pa-report-list">{library.favorites.map(favorite => <li key={favorite.id} data-favorite-work={favorite.paper.id}><Button variant="ghost" disabled={!favorite.paper.abstract.trim()} onClick={() => void readFavorite(favorite)}>{favorite.paper.title}</Button><div className="pa-actions"><Button variant="ghost" disabled={!favorite.paper.abstract.trim()} onClick={() => void readFavorite(favorite, true)}>{t('addToMatrix')}</Button><Button variant="ghost" onClick={() => { setDiscoveryOpening({ historyId: favorite.batchId }); setLibraryScreen('discovery'); }}>{t('viewDiscovery')}</Button><a href={favorite.paper.url} target="_blank" rel="noreferrer">{t('original')}</a></div></li>)}</ul></details>}
       </div>
       <div hidden={libraryScreen !== 'import'}><ImportPanel onImportPdf={importPdf} importingPdf={importingPdf} api={api} t={t} active={screen === 'library' && libraryScreen === 'import' && info.active} onAdded={added} onError={onError} onClose={() => setLibraryScreen('papers')}/></div>
@@ -185,7 +201,7 @@ export default function PaperAgent() {
     <section className="pa-reading-screen" hidden={screen !== 'reading'} data-agent={showResearch}>
       <div className="pa-reading-main" inert={narrow && showResearch}>
         <header className="pa-reading-bar pero-reader-header"><Button variant="ghost" aria-label={t('backToLibrary')} onClick={back}>‹</Button><h1>{reading?.title ?? t('loading')}</h1><div className="pa-pdf-toolbar-slot" ref={setPdfToolbar}/><Button variant="ghost" aria-expanded={showResearch} onClick={() => { preserveView.current?.(); setShowResearch(value => !value); }}>{t('researchProgress')}</Button><div ref={askButton}><Button variant="primary" disabled={!reading || readingBusy} onMouseDown={event => event.preventDefault()} onClick={() => void ask()} aria-keyshortcuts="Control+j Meta+j">{t('ask')}</Button></div></header>
-        <main className="pa-reading-canvas" aria-busy={readingBusy}>{reading ? <Reader key={reading.id} chrome={{ toolbar: pdfToolbar, preserveView }} api={api} paper={reading} busy={readingBusy} pdfFocus={pdfFocus} onFull={() => void full()} onDiscuss={selectedText} onMatrixAdded={async () => { await refresh(); setMatrixOpen(true); setShowResearch(true); }} t={t}/> : <p role="status">{t('loading')}</p>}</main>
+        <main className="pa-reading-canvas" aria-busy={readingBusy}>{reading ? <Reader key={reading.id} chrome={{ toolbar: pdfToolbar, preserveView }} api={api} paper={reading} busy={readingBusy} pdfFocus={textFocus ? null : pdfFocus} textFocus={textFocus} onFull={() => void full()} onDiscuss={selectedText} onMatrixAdded={async () => { await refresh(); setMatrixOpen(true); setShowResearch(true); }} t={t}/> : <p role="status">{t('loading')}</p>}</main>
       </div>
       {screen === 'reading' && showResearch && <aside className="pa-records" aria-label={t('researchProgress')} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); if (citation) closeEvidence(); else closeRecords(); } }}>
         <header className="pa-records-header"><h2>{t('researchProgress')}</h2><Button variant="ghost" aria-label={t('closeRecords')} onClick={closeRecords}>×</Button></header>
@@ -195,5 +211,6 @@ export default function PaperAgent() {
         </div>
       </aside>}
     </section>
+    </div>
   </div>;
 }

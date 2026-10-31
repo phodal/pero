@@ -67,21 +67,7 @@ export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImpor
         {searchError && <Feedback kind="error">{searchError}<Button disabled={busy} onClick={() => void search()}>{t('retry')}</Button></Feedback>}
         {addError?.key === query && <Feedback kind="error">{addError.message}</Feedback>}
         {warnings.map((warning, index) => <Feedback key={index}>{warning}</Feedback>)}
-        {!!results?.length && resultPriority === 'popular' && <p className="pa-muted">{t('citedOrderScope')}</p>}
-        {results?.length === 0 && <Feedback>{t('noMatches')}</Feedback>}
-        <ol className="pa-search-results">{results?.map(item => <li key={`${item.source}:${item.id}`}>
-          <div><h3>{item.title}</h3>
-            {!!item.authors?.length && <p className="pa-muted">{item.authors.slice(0, 4).join(', ')}{item.authors.length > 4 ? ' et al.' : ''}</p>}
-            <div className="pa-search-meta"><span>{item.publicationDate?.slice(0, 10) || t('dateUnavailable')}</span><span>{item.citations == null ? t('citationsUnavailable') : `${item.citations.toLocaleString()} ${t('citationCount')}${item.citationSource ? ` (${sourceNames[item.citationSource] ?? item.citationSource})` : ''}`}</span>{item.hfVotes != null && <span>{item.hfVotes.toLocaleString()} {t('communityLikes')} (Hugging Face)</span>}{item.githubStars != null && <span>{item.githubStars.toLocaleString()} {t('githubStars')} (GitHub)</span>}<span>{sourceNames[item.source] ?? item.source}</span></div>
-            {item.abstract && <p className="pa-search-abstract">{item.abstract}</p>}
-            {adding === `${item.source}:${item.id}` && <p role="status">{t('addingPaper')}</p>}
-            {addError?.key === `${item.source}:${item.id}` && <Feedback kind="error">{addError.message}</Feedback>}
-            <div className="pa-search-links">{item.url && item.url !== item.paperUrl && <a href={item.url} target="_blank" rel="noreferrer">{t('searchOriginal')}</a>}{item.paperUrl && <a href={item.paperUrl} target="_blank" rel="noreferrer">Hugging Face</a>}{item.pdfUrl && <a href={item.pdfUrl} target="_blank" rel="noreferrer">PDF</a>}{item.githubUrl && <a href={item.githubUrl} target="_blank" rel="noreferrer">GitHub</a>}{item.projectUrl && item.projectUrl !== item.githubUrl && <a href={item.projectUrl} target="_blank" rel="noreferrer">{t('projectPage')}</a>}{item.thumbnailUrl && <a href={item.thumbnailUrl} target="_blank" rel="noreferrer">{t('searchImage')}</a>}{item.doi && <span>DOI: {item.doi}</span>}</div>
-            {!!item.alternatives?.length && <details className="pa-search-alternatives"><summary>{t('otherSources')} ({item.alternatives.length})</summary><ul>{item.alternatives.map(alternative => <li key={`${alternative.source}:${alternative.id}`}>{alternative.url ? <a href={alternative.url} target="_blank" rel="noreferrer">{sourceNames[alternative.source] ?? alternative.source}</a> : sourceNames[alternative.source] ?? alternative.source}</li>)}</ul></details>}
-          </div>
-          {item.thumbnailId && <img className="pa-search-thumbnail" src={`/api/paper-thumbnails/${encodeURIComponent(item.thumbnailId)}.png`} alt="" loading="lazy" onError={event => { event.currentTarget.hidden = true; }}/>}
-          <Button busy={adding === `${item.source}:${item.id}`} disabled={!!adding} onClick={() => void add({ id: item.id, source: item.source }, `${item.source}:${item.id}`)}>{adding === `${item.source}:${item.id}` ? t('addingPaper') : addError?.key === `${item.source}:${item.id}` ? t('retry') : t('addShort')}</Button>
-        </li>)}</ol>
+        <LiteratureHits results={results} resultPriority={resultPriority} adding={adding} addError={addError} onAdd={add} t={t}/>
       </TabsContent>
       <TabsContent value="pdf" forceMount>
         <div className="pa-import-form"><FilePicker label={importingPdf ? t('pdfImporting') : t('importPdf')} emptyLabel={t('pdfFileHint')} accept="application/pdf,.pdf" busy={importingPdf} onFile={file => void onImportPdf(file)}/></div>
@@ -98,6 +84,32 @@ export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImpor
       </TabsContent>
     </Tabs>
   </section>;
+}
+
+export function LiteratureHits({ results, resultPriority, adding, addError, onAdd, t }: {
+  results: SearchItem[] | null; resultPriority: string; adding: string; addError: { key: string; message: string } | null;
+  onAdd(input: { id: string; source?: string }, key?: string): void; t: Translator;
+}) {
+  return <>
+    {!!results?.length && resultPriority === 'popular' && <p className="pa-muted">{t('citedOrderScope')}</p>}
+    {results?.length === 0 && <Feedback>{t('noMatches')}</Feedback>}
+    <ol className="pa-search-results">{results?.map(item => {
+      const key = `${item.source}:${item.id}`;
+      return <li key={key}>
+        <div><h3>{item.title}</h3>
+          {!!item.authors?.length && <p className="pa-muted">{item.authors.slice(0, 4).join(', ')}{item.authors.length > 4 ? ' et al.' : ''}</p>}
+          <div className="pa-search-meta"><span>{item.publicationDate?.slice(0, 10) || t('dateUnavailable')}</span><span>{item.citations == null ? t('citationsUnavailable') : `${item.citations.toLocaleString()} ${t('citationCount')}${item.citationSource ? ` (${sourceNames[item.citationSource] ?? item.citationSource})` : ''}`}</span>{item.hfVotes != null && <span>{item.hfVotes.toLocaleString()} {t('communityLikes')} (Hugging Face)</span>}{item.githubStars != null && <span>{item.githubStars.toLocaleString()} {t('githubStars')} (GitHub)</span>}<span>{sourceNames[item.source] ?? item.source}</span></div>
+          {item.abstract && <p className="pa-search-abstract">{item.abstract}</p>}
+          {adding === key && <p role="status">{t('addingPaper')}</p>}
+          {addError?.key === key && <Feedback kind="error">{addError.message}</Feedback>}
+          <div className="pa-search-links">{item.url && item.url !== item.paperUrl && <a href={item.url} target="_blank" rel="noreferrer">{t('searchOriginal')}</a>}{item.paperUrl && <a href={item.paperUrl} target="_blank" rel="noreferrer">Hugging Face</a>}{item.pdfUrl && <a href={item.pdfUrl} target="_blank" rel="noreferrer">PDF</a>}{item.githubUrl && <a href={item.githubUrl} target="_blank" rel="noreferrer">GitHub</a>}{item.projectUrl && item.projectUrl !== item.githubUrl && <a href={item.projectUrl} target="_blank" rel="noreferrer">{t('projectPage')}</a>}{item.thumbnailUrl && <a href={item.thumbnailUrl} target="_blank" rel="noreferrer">{t('searchImage')}</a>}{item.doi && <span>DOI: {item.doi}</span>}</div>
+          {!!item.alternatives?.length && <details className="pa-search-alternatives"><summary>{t('otherSources')} ({item.alternatives.length})</summary><ul>{item.alternatives.map(alternative => <li key={`${alternative.source}:${alternative.id}`}>{alternative.url ? <a href={alternative.url} target="_blank" rel="noreferrer">{sourceNames[alternative.source] ?? alternative.source}</a> : sourceNames[alternative.source] ?? alternative.source}</li>)}</ul></details>}
+        </div>
+        {item.thumbnailId && <img className="pa-search-thumbnail" src={`/api/paper-thumbnails/${encodeURIComponent(item.thumbnailId)}.png`} alt="" loading="lazy" onError={event => { event.currentTarget.hidden = true; }}/>}
+        <Button busy={adding === key} disabled={!!adding} onClick={() => void onAdd({ id: item.id, source: item.source }, key)}>{adding === key ? t('addingPaper') : addError?.key === key ? t('retry') : t('addShort')}</Button>
+      </li>;
+    })}</ol>
+  </>;
 }
 
 export function PaperList({ papers, selecting, selected, readingId, locked, onSelect, onRead, onDiscover, t }: { papers: Paper[]; selecting: boolean; selected: string[]; readingId: string; locked: boolean; onSelect(id: string, checked: boolean): void; onRead(paper: Paper): void; onDiscover?(paper: Paper): void; t: Translator }) {
