@@ -100,3 +100,6 @@ Single-session Paper research, source recall, evidence gaps and explicit
 continuation: [Paper research Agent](paper-research-agent.md).
 
 Public literature search, source metadata and thumbnails: [Paper search](paper-search.md).
+
+Point App direct-directory installation, shared SDK/proxy contracts and the
+remaining Host API parity matrix: [Point Apps](point-apps.md).
