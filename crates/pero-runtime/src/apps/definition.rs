@@ -169,9 +169,9 @@ impl AppDefinition {
         }
         let mut seen = std::collections::BTreeSet::new();
         for grant in &value.permissions.host {
-            if !matches!(grant.as_str(), "agent" | "insights" | "connectors") || !seen.insert(grant.as_str()) {
+            if !matches!(grant.as_str(), "agent" | "insights" | "connectors" | "automation") || !seen.insert(grant.as_str()) {
                 return Err(
-                    "This Host supports only the App agent, insights and connectors permissions".into(),
+                    "This Host supports only the App agent, insights, connectors and automation permissions".into(),
                 );
             }
         }

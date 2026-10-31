@@ -1,4 +1,4 @@
-// Point's local Project domain, hosted as a private Pero Host operation.
+// Point's Project and calendar domains, hosted as private Pero Host operations.
 // It owns no App installation, Agent runtime, scheduler or Session store.
 package main
 
@@ -191,6 +191,9 @@ func handle(ctx context.Context, store *projects.Store, workspaceID string, r Re
 	return reply(501, map[string]string{"code": "point-api/not-implemented"})
 }
 func execute(root, workspaceID string, r Request) (Response, error) {
+	if r.Path == automationCalendarPath {
+		return automationCalendar(r), nil
+	}
 	ctx := context.Background()
 	backend, err := storage.NewJSONBackend(root)
 	if err != nil {
@@ -217,10 +220,6 @@ func main() {
 	root := flag.String("root", "", "Host-owned Project data root")
 	workspace := flag.String("workspace-id", "", "Registered Host workspace identity")
 	flag.Parse()
-	if !filepath.IsAbs(*root) {
-		fmt.Fprintln(os.Stderr, "absolute Host Project data root required")
-		os.Exit(1)
-	}
 	body, err := io.ReadAll(io.LimitReader(os.Stdin, 1048577))
 	if err != nil || len(body) > 1048576 {
 		fmt.Fprintln(os.Stderr, "request exceeds 1 MiB")
@@ -229,6 +228,10 @@ func main() {
 	var request Request
 	if err = decode(body, &request); err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if request.Path != automationCalendarPath && !filepath.IsAbs(*root) {
+		fmt.Fprintln(os.Stderr, "absolute Host Project data root required")
 		os.Exit(1)
 	}
 	result, err := execute(*root, *workspace, request)
