@@ -7,10 +7,10 @@ use std::path::Path;
 #[derive(Deserialize)]
 pub(super) struct PointApp {
     pub name: String,
-    pub permissions: Permissions,
+    #[serde(default)] pub permissions: Permissions,
     pub backend: Option<Backend>,
 }
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 pub(super) struct Permissions {
     #[serde(default)] pub api: Vec<String>,
     #[serde(default)] pub storage: bool,
@@ -53,6 +53,7 @@ mod tests {
     use super::*;
     #[test]
     fn point_wire_protocol() {
+        assert!(serde_json::from_value::<PointApp>(serde_json::json!({"name":"minimal"})).is_ok());
         let app: PointApp = serde_json::from_value(serde_json::json!({"name":"map","permissions":{"api":["/apps/map/api"]}})).unwrap();
         assert_eq!(app.target("/apps/map/api/document?part=a%2Fb").unwrap(), "/api/document?part=a%2Fb");
         for path in ["/apps/other/api/document", "/api/projects", "/apps/map/api/a%5Cprivate", "/apps/map/api/../private"] { assert!(app.target(path).is_err(), "{path}"); }
