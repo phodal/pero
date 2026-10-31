@@ -338,7 +338,8 @@ try {
   const failedSearch = await settled(missing.id);
   expect(failedSearch.status).toBe('failed');
   expect(failedSearch.trials.every(trial => trial.status === 'failed' && trial.observation === null)).toBe(true);
-  await expect(frame.getByRole('alert')).toBeVisible();
+  await expect(frame.getByRole('alert').filter({ hasText: 'One or more solver attempts failed' })).toBeVisible();
+  await expect(frame.locator('.response-panel').getByRole('alert')).toContainText('EngineUnavailable');
   await action('Lock candidate', `${experimentPath(missing.id)}/lock`);
   await action('Verify locked candidate', `${experimentPath(missing.id)}/verify`);
   const failedVerification = await settled(missing.id);

@@ -148,7 +148,7 @@ evidence use disclosures; failed metrics remain visible with their actual
 values, limits and scenario counts. Numerical verdicts, frozen inputs and
 execution permissions are unchanged.
 
-Cloud checks passed strict TypeScript, nine UI/schema tests and a standalone
+Cloud checks passed strict TypeScript, eleven UI/schema tests and a standalone
 frontend esbuild bundle. A real python-control record with twelve trials and
 a FAIL final report was used for static rendering; this is not visual or
 Desktop acceptance. The standard App build needs the external GPUI checkout.
@@ -157,3 +157,12 @@ sandbox protections were disabled and no user-desktop testing was performed.
 The updated headed CI suite checks scenario and signal selection and captures
 the real UI. Its exact-head result and screenshots must be checked before
 claiming visual fidelity to the supplied references.
+
+The `07bd485` hosted run produced real PID, filter, light/dark and narrow
+screenshots; these were inspected against the supplied references. All four
+solver cases, export reproduction and restart checks completed before a
+missing-engine assertion ambiguously matched two valid errors. Three other
+Desktop suites clicked the old New chat row after Insights moved above it.
+[Test-target follow-up](../issues/2026-10-31-desktop-test-targets.md) records the
+scoped assertions and shared pointer target. The suite remains unverified on
+the follow-up commit until its own CI completes.

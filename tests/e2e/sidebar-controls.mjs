@@ -1,6 +1,12 @@
-// Shared gestures for the fixed sidebar footer; all choices use the visible menu.
+// Shared gestures for visible sidebar controls; no internal navigation actions.
 import { expect } from '@playwright/test';
 const state = page => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
+export async function clickNewChat(page) {
+  // Expanded GPUI sidebar is canvas-painted (no DOM button/bounds probe).
+  // components/sidebar.rs + pero-theme/design_tokens.rs place Insights first,
+  // then New chat: 8px inset + one 32px row + 4px gap + half a row.
+  await page.mouse.click(100, 8 + (32 + 4) + 32 / 2);
+}
 export async function openSettings(page) {
   await page.waitForFunction(() => {
     const canvas=document.querySelector('canvas');

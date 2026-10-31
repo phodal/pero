@@ -1,4 +1,4 @@
-import { setAppearance } from './sidebar-controls.mjs';
+import { clickNewChat, setAppearance } from './sidebar-controls.mjs';
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { resolve } from 'node:path';
@@ -25,7 +25,7 @@ try{
  await expect.poll(async()=>(await state()).agents?.length||0,{timeout:15000}).toBeGreaterThan(2);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await page.screenshot({path:resolve(out,'overview.png')});
- await page.mouse.click(100,28);
+ await clickNewChat(page);
  await expect.poll(async()=>(await state()).navigation).toBe(0);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await expect.poll(async()=>(await state()).chats.length).toBe(1);
@@ -108,7 +108,7 @@ try{
  await page.waitForFunction(()=>window.peroDiagnostics && !document.getElementById('loading'));
  await app.evaluate(()=>{globalThis.workspaceReplayTrace.rendererReadyMs=performance.now()-globalThis.workspaceReplayStartedAt;});
  await expect.poll(()=>app.evaluate(()=>typeof globalThis.releaseWorkspaceReplay)).toBe('function');
- await page.mouse.click(100,28);
+ await clickNewChat(page);
  await expect.poll(async()=>(await state()).activeContent?.kind).toBe('conversation');
  const draftItem=(await state()).activeContent;
  await app.evaluate(()=>{globalThis.releaseWorkspaceReplay();delete globalThis.releaseWorkspaceReplay;});
@@ -117,9 +117,9 @@ try{
  expect((await state()).activeContent).toEqual(draftItem);
  await page.screenshot({path:resolve(out,'history-retained-draft.png')});
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
- // Shared sidebar geometry: 8px inset + three 32px controls and 4px gaps,
+ // Shared sidebar geometry: 8px inset + four 32px controls and 4px gaps,
  // then the 32px project header. Select the first 26px session row, not its project.
- const firstHistoryRowY=8+3*(32+4)+32+26/2;
+ const firstHistoryRowY=8+4*(32+4)+32+26/2;
  await page.mouse.click(100,firstHistoryRowY);
  // Selecting retained long history schedules real GPUI layout/paint before observations.
  const historyPaintStarted=performance.now();

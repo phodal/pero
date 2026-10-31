@@ -1,5 +1,6 @@
 // Workbench and standalone Products share the same MCP authority and App RPC.
 import { expect } from '@playwright/test';
+import { clickNewChat } from './sidebar-controls.mjs';
 import { electron } from './electron.mjs';
 import { requestAppChat } from '../fixtures/app-chat-launch.mjs';
 import { waitForFullAppUse } from '../fixtures/app-use-progress.mjs';
@@ -70,7 +71,7 @@ try{
  await page.evaluate(()=>{const original=window.peroAppUse;window.peroAppUse=input=>{if(input.request.action==='semantic'){window.contextWaiting=true;return new Promise(resolve=>{window.releaseContext=async()=>{window.peroAppUse=original;resolve(await original(input));};});}return original(input);};});
  await frame.getByRole('button',{name:'Discuss context',exact:true}).click();
  await page.waitForFunction(()=>window.contextWaiting);
- await page.mouse.click(100,28);await expect.poll(async()=>(await active()).scope).toBeNull();
+ await clickNewChat(page);await expect.poll(async()=>(await active()).scope).toBeNull();
  await page.evaluate(()=>window.releaseContext());
  await expect.poll(async()=>(await state()).attachments.length).toBe(0);
  const restored=await frame.locator('body').evaluate(requestAppChat,{text:'',parentOrigin});
@@ -80,7 +81,7 @@ try{
  await page.screenshot({path:resolve(output,'original-draft.png')});
  checks.push('An asynchronous App object response returns to its original draft after a conversation switch; the other draft stays empty');
  // Ordinary conversations also discover mounted Apps; hidden panels remain read-only.
- await page.mouse.click(100,28);
+ await clickNewChat(page);
  await expect.poll(async()=>(await state()).navigation).toBe(0);
  await expect.poll(async()=>(await active()).scope).toBeNull();
  await page.mouse.click(900,await page.evaluate(()=>innerHeight-70));
