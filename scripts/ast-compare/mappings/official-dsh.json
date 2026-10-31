@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "bac3bbaf6edd66357d6972eea86e71eb65ad8f86",
+  "right_ref": "db533bcceb199574a69c1385820a8942a61731e4",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -239,7 +239,7 @@
         "path": "harness/go/acp/server.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "722f1f137bea925688b419a50f338766987a938b6375adc6f6fa6a0fd065dd74"
+        "sha256": "aff1929fafdce8abbf04970466b46bf6a32a44b1feeae69d9c2356ce446dbd5e"
       },
       "notes": "AbortController/Go context are analogous cancellation mechanisms. Preserve admission ownership and request slot until settlement.",
       "landmarks": [
@@ -278,7 +278,7 @@
         "path": "harness/go/acp/server.go",
         "language": "go",
         "symbol": "Server.handleNotification",
-        "sha256": "722f1f137bea925688b419a50f338766987a938b6375adc6f6fa6a0fd065dd74"
+        "sha256": "aff1929fafdce8abbf04970466b46bf6a32a44b1feeae69d9c2356ce446dbd5e"
       },
       "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity.",
       "landmarks": [
@@ -307,7 +307,7 @@
         "path": "harness/go/acp/server.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "722f1f137bea925688b419a50f338766987a938b6375adc6f6fa6a0fd065dd74"
+        "sha256": "aff1929fafdce8abbf04970466b46bf6a32a44b1feeae69d9c2356ce446dbd5e"
       },
       "notes": "Go waits for the active Agent to become idle before releasing its ACP slot after cancellation; official also drains descendants/output updates.",
       "landmarks": [
