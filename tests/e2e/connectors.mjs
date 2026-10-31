@@ -1,7 +1,7 @@
 // Real App origin, Host grants, native MCP driver, persisted configuration and OS encryption.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { clickAppOpen, setAppearance } from './sidebar-controls.mjs';
+import { clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
 import { mkdtemp, mkdir, rm, readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -22,8 +22,7 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
     await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(app => app.name === 'connectors')), { timeout: 20000 }).toBe(true);
-    await page.mouse.click(80, await page.evaluate(() => innerHeight - 76));
-    await clickAppOpen(page, 'connectors');
+    await clickAppShortcut(page, 'connectors');
     const frame = page.frameLocator('iframe[title="connectors"]');
     await expect(frame.getByRole('button', { name: /^(Add custom MCP|添加自定义 MCP)$/ })).toBeVisible({ timeout: 20000 });
     return frame;

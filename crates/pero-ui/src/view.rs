@@ -229,9 +229,11 @@ impl Workbench {
             ui,
             width,
             SidebarProps {
+                shortcut_bounds: &self.view_bounds.sidebar,
                 new_chat_bounds: &self.view_bounds.new_chat,
                 navigation: self.navigation.page(),
                 insights_open: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == "insights"),
+                connectors_open: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == "connectors"),
                 data_open: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == "data"),
                 local_connected: self.connected,
                 collapsed: self.sidebar_collapsed,

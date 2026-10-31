@@ -21,6 +21,9 @@ export async function clickSessionRow(page, sessionId) {
 export async function clickAppOpen(page, appName) {
   await clickBounds(page, snapshot => snapshot.appOpenButtonBounds?.[appName]);
 }
+export async function clickAppShortcut(page, appName) {
+  await clickBounds(page, snapshot => snapshot.sidebarButtonBounds?.[appName]);
+}
 export async function openSettings(page) {
   await page.waitForFunction(() => {
     const canvas=document.querySelector('canvas');

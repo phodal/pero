@@ -37,10 +37,12 @@ pub(crate) struct ProjectGroup {
     pub rows: Vec<RecentRow>,
 }
 pub(crate) struct SidebarProps<'a> {
+    pub shortcut_bounds: &'a crate::view_bounds::ViewBounds,
     pub new_chat_bounds: &'a crate::view_bounds::ViewBounds,
     pub navigation: WorkbenchPage,
     pub insights_open: bool,
     pub data_open: bool,
+    pub connectors_open: bool,
     pub local_connected: bool,
     pub collapsed: bool,
     pub groups: Vec<ProjectGroup>,
@@ -420,10 +422,19 @@ fn icon_rail(
         ))
         .child(div().flex_1())
         .child(rail_icon(
+            "sidebar-connectors",
+            Icon::default().path("icons/plug.svg"),
+            ui.t("nav.connectors"),
+            props.connectors_open,
+            chrome,
+            click(&on_action, SidebarAction::OpenApp { name: "connectors".into(), panel: "main".into() }),
+            cx,
+        ).relative().child(props.shortcut_bounds.probe("connectors".into())))
+        .child(rail_icon(
             "sidebar-apps",
             Icon::default().path("icons/file-code.svg"),
             ui.t("nav.apps"),
-            props.navigation == WorkbenchPage::Apps && !props.insights_open && !props.data_open,
+            props.navigation == WorkbenchPage::Apps && !props.insights_open && !props.data_open && !props.connectors_open,
             chrome,
             click(&on_action, SidebarAction::Navigate(WorkbenchPage::Apps)),
             cx,
@@ -654,12 +665,17 @@ pub(crate) fn sidebar(
                             )
                         }),
                 )
+                .child(div().relative()
+                    .child(pero_theme::menu_button("sidebar-connectors", ui.t("nav.connectors"), props.connectors_open, chrome, cx)
+                        .icon(Icon::default().path("icons/plug.svg"))
+                        .on_click(click(&on_action, SidebarAction::OpenApp { name: "connectors".into(), panel: "main".into() })))
+                    .child(props.shortcut_bounds.probe("connectors".into())))
                 .child(pero_theme::sidebar_row(
                     "sidebar-apps",
                     ui.t("nav.apps"),
                     None,
                     None,
-                    props.navigation == WorkbenchPage::Apps && !props.insights_open && !props.data_open,
+                    props.navigation == WorkbenchPage::Apps && !props.insights_open && !props.data_open && !props.connectors_open,
                     pero_theme::RowLevel::Nav,
                     Some(Icon::default().path("icons/file-code.svg").into_any_element()),
                     chrome,

@@ -412,6 +412,7 @@
   "cloud.worker.none": "—",
   "cloud.worker.busy": "Running",
   "nav.connectors": "Connectors",
+  "nav.connectors": "Connectors",
   "nav.apps": "Apps",
   "apps.back": "Apps",
   "apps.refresh": "Refresh",

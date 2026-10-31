@@ -774,6 +774,7 @@ pub fn snapshot() -> String {
             "locale": ui.locale, "labels": { "tasks": ui.t("nav.tasks"), "send": ui.t("probe.send") },
             "tab": ui.tab.legacy_index(), "events": ui.events, "workspace": ui.workspace,
         });
+        value["sidebarButtonBounds"] = ui.view_bounds.sidebar.snapshot();
         value["newChatButtonBounds"] = ui.view_bounds.new_chat.snapshot()["new-chat"].clone();
         value["sessionRowBounds"] = ui.view_bounds.sessions.snapshot();
         value["appOpenButtonBounds"] = ui.view_bounds.app_open.snapshot();

@@ -412,6 +412,7 @@
   "cloud.worker.none": "—",
   "cloud.worker.busy": "执行中",
   "nav.connectors": "Connectors",
+  "nav.connectors": "Connectors",
   "nav.apps": "应用",
   "apps.back": "应用列表",
   "apps.refresh": "刷新",
