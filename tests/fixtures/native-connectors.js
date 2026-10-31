@@ -9,9 +9,15 @@
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
   });
   const request = async input => {
-    const response = await fetch('/host/connectors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
-    const value = await response.json();
-    check(response.ok && value.ok, JSON.stringify(value)); return value;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const response = await fetch('/host/connectors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+      const value = await response.json();
+      // The page also refreshes its list. Poll only this read while that
+      // observed Host operation is busy; never replay a mutation.
+      if (input.operation === 'list' && value.code === 'MCP_CONTROL_BUSY') { await new Promise(resolve => setTimeout(resolve, 25)); continue; }
+      check(response.ok && value.ok, JSON.stringify(value)); return value;
+    }
+    throw Error('Host list stayed busy: ' + state.step);
   };
   const button = (text, scope = document) => [...scope.querySelectorAll('button')].find(el => el.textContent.trim() === text);
   const fill = (element, value) => {
@@ -40,6 +46,7 @@
   const logos = [...document.querySelectorAll('.point-connectors-logo')];
   check(logos.length >= 57 && logos.every(img => img.src.startsWith('data:')), 'Bundled logo coverage');
   const maxCardHeight = Math.max(...cards.map(card => card.getBoundingClientRect().height));
+  const maxGuideHeight = Math.max(0, ...[...document.querySelectorAll('.point-connectors-guide')].map(guide => guide.getBoundingClientRect().height));
   check(maxCardHeight < 130, 'Cards exceed compact height: ' + maxCardHeight);
   check((await fetch('/host/connectors')).status === 405, 'Method boundary');
   check((await fetch('/host/connectors', { method: 'POST', body: '{' })).status === 400, 'JSON boundary');
@@ -95,6 +102,5 @@
     await request({ operation: 'verify', connectorId: 'fixture' });
   }
   check(!JSON.stringify(await request({ operation: 'snapshot' })).includes('native-fixture-private-value'), 'Secret leaked to App projection');
-  const maxGuideHeight = Math.max(...[...document.querySelectorAll('.point-connectors-guide')].map(guide => guide.getBoundingClientRect().height));
   Object.assign(state, { passed: true, pending: false, directory, logos: logos.length, maxCardHeight, maxGuideHeight, bridge: typeof window.pero });
 })().catch(error => { window.nativeConnectors = { passed: false, error: String(error), step: window.nativeConnectors?.step }; });

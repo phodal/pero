@@ -46,7 +46,7 @@ pub(crate) async fn query(root: &Entity<Workbench>, name: &str, script: &str, cx
     let (sender, receiver) = async_channel::bounded(1);
     cx.update(|cx| {
         let view=root.read(cx).native_app_pages.get(&(name.into(),"main".into())).ok_or_else(||anyhow::anyhow!("App not mounted"))?;
-        view.view.read(cx).inspect(&format!("(()=>{{try{{return ({script});}}catch(error){{return {{scriptError:String(error)}};}}}})()"),cx,move|reply|{let _=sender.try_send(reply);})
+        view.view.read(cx).inspect(&format!("(()=>{{try{{return JSON.stringify(({script}),(_,value)=>{{if(typeof value==='number'&&!Number.isFinite(value))throw Error('Non-finite observation');return value;}})??'null';}}catch(error){{return JSON.stringify({{scriptError:String(error)}});}}}})()"),cx,move|reply|{let _=sender.try_send(reply);})
     })?;
     let text = receiver.recv().await?;
     let value: Value = serde_json::from_str(&text)?;

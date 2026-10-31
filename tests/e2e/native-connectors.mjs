@@ -17,11 +17,13 @@ await mkdir(out, { recursive: true });
 const remote = await fixture();
 const binary = resolve(temp, 'pero-native');
 for (const name of ['pero-native', 'pero-host', 'pero-connector-worker']) await copyFile(resolve(root, 'target/debug', name), resolve(temp, name));
+assert((await readFile(binary)).includes(Buffer.from('Native Connectors acceptance timed out')), 'Build with --features native-probe before Native acceptance');
 const agents = resolve(temp, 'agents.json');
 await writeFile(agents, JSON.stringify([{ id: 'codex', name: 'Connector fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/connectors-acp.mjs')] }]));
 const directory = createCatalog(pointDirectory().filter(provider => !provider.channel)).visibleProviders();
 const expected = directory.map(provider => provider.providerId).sort();
 const cards = connectorSections(directory).reduce((count, section) => count + section.entries.length, 0);
+let completed = false;
 try {
   for (const phase of ['initial', 'restore']) {
     const capture = resolve(temp, phase + '.json'), receipt = resolve(out, phase + '.json');
@@ -52,5 +54,17 @@ try {
     ].map(async ([name, path]) => [name, createHash('sha256').update(await readFile(path)).digest('hex')]))),
   };
   await writeFile(resolve(out, 'result.json'), JSON.stringify(evidence, null, 2));
+  completed = true;
   console.log(`Native Connectors passed: ${expected.length} providers, real keychain restart, grants, two actual ACP calls, dark/zh/narrow.`);
-} finally { await remote.close(); await rm(temp, { recursive: true, force: true }); }
+} finally {
+  if (!completed) {
+    const cleanup = spawn(binary, ['--verify-connectors', resolve(out, 'cleanup.json'), 'cleanup'], { cwd: root, env: { ...process.env,
+      PERO_NATIVE_BUNDLED: '1', PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_NATIVE_DATA_DIR: resolve(temp, 'data'), PERO_NATIVE_HOST: resolve(temp, 'pero-host'),
+      PERO_BUILTIN_APPS: 'connectors', PERO_REQUIRED_APPS: '', PERO_LOCALE: 'en',
+    }, stdio: 'ignore' });
+    const deadline = setTimeout(() => cleanup.kill('SIGKILL'), 20000);
+    try { await new Promise(done => { cleanup.once('error', done); cleanup.once('exit', done); }); }
+    finally { clearTimeout(deadline); cleanup.kill(); }
+  }
+  await remote.close(); await rm(temp, { recursive: true, force: true });
+}

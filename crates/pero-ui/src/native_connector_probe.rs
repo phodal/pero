@@ -11,24 +11,19 @@ pub(crate) fn attach(
     cx: &mut App,
 ) {
     cx.spawn(async move |cx| {
-        let outcome = verify(&root, window, cx).await;
-        if outcome.is_err() {
-            let apps = cx.update(|_| crate::native::apps());
-            let _ = cx
-                .background_spawn(async move {
-                    apps.serve(
-                        "connectors",
-                        wry::http::Request::builder()
-                            .method("POST")
-                            .uri("pero-app://connectors/host/connectors")
-                            .body(
-                                br#"{"operation":"secret.delete","reference":"fixture.native"}"#
-                                    .to_vec(),
-                            )
-                            .unwrap(),
-                    )
-                })
-                .await;
+        let cleanup = std::env::args().nth(3).as_deref() == Some("cleanup");
+        let restoring = std::env::args().nth(3).as_deref() == Some("restore");
+        let mut outcome = if cleanup {
+            clear_fixture(cx)
+                .await
+                .map(|_| json!({"passed":true,"cleanup":true}))
+        } else {
+            verify(&root, window, cx).await
+        };
+        if !cleanup && (restoring || outcome.is_err()) {
+            if let Err(error) = clear_fixture(cx).await {
+                outcome = Err(error);
+            }
         }
         let value = match outcome {
             Ok(value) => value,
@@ -38,6 +33,34 @@ pub(crate) fn attach(
         cx.update(|cx| cx.quit());
     })
     .detach();
+}
+
+async fn clear_fixture(cx: &mut AsyncApp) -> anyhow::Result<()> {
+    let apps = cx.update(|_| crate::native::apps());
+    cx.background_spawn(async move {
+        for _ in 0..50 {
+            let response = apps.serve(
+                "connectors",
+                wry::http::Request::builder()
+                    .method("POST")
+                    .uri("pero-app://connectors/host/connectors")
+                    .body(br#"{"operation":"secret.delete","reference":"fixture.native"}"#.to_vec())
+                    .unwrap(),
+            );
+            let value: Value = serde_json::from_slice(response.body())?;
+            if value["code"] == "MCP_CONTROL_BUSY" {
+                std::thread::sleep(Duration::from_millis(20));
+                continue;
+            }
+            anyhow::ensure!(
+                response.status().is_success() && value["ok"] == true,
+                "Fixture credential cleanup: {value}"
+            );
+            return Ok(());
+        }
+        anyhow::bail!("Fixture credential cleanup stayed busy")
+    })
+    .await
 }
 
 async fn verify(
@@ -151,20 +174,13 @@ async fn verify(
                         value["overflow"] == false,
                         "Narrow Native overflow: {value}"
                     );
-                    if restoring {
-                        query(root, "connectors", "(()=>{window.nativeCleanup=false;fetch('/host/connectors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'secret.delete',reference:'fixture.native'})}).then(r=>r.json()).then(r=>window.nativeCleanup=r.ok);return true})()", cx).await?;
-                    }
                     stage = 6;
                 }
             }
             6 => {
-                if !restoring
-                    || query(root, "connectors", "window.nativeCleanup", cx).await? == true
-                {
-                    return Ok(
-                        json!({"passed":true,"restored":restoring,"app":result,"acp_call":true,"dark_zh_narrow":true}),
-                    );
-                }
+                return Ok(
+                    json!({"passed":true,"restored":restoring,"app":result,"acp_call":true,"dark_zh_narrow":true}),
+                );
             }
             _ => {}
         }
