@@ -259,7 +259,9 @@ mod tests {
         let (journal_tx, journal_rx) = mpsc::channel();
         manager.tx = journal_tx;
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-        manager.agents[0].command = "node".into();
+        // Admission freezes an exact executable, not a shell/PATHEXT lookup.
+        // setup-node installs node.exe on Windows; keep the real ACP fixture on every OS.
+        manager.agents[0].command = format!("node{}", std::env::consts::EXE_SUFFIX);
         manager.agents[0].args = vec![root.join("tests/runtime/lifecycle-agent.mjs").to_string_lossy().into_owned()];
         manager.agents[0].model = None;
         let workspace = std::env::temp_dir().join(format!("pero-automation-adapter-{}-{}", std::process::id(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
