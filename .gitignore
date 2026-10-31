@@ -33,7 +33,6 @@ apps/desktop/src-tauri/frontend/**
 !apps/desktop/src-tauri/frontend/
 !apps/desktop/src-tauri/frontend/.placeholder
 apps/vscode/bin/
-apps/vscode/dist/
 apps/vscode/out/
 apps/vscode/resources/
 **/gen/**
@@ -184,7 +183,9 @@ fonts/*.ttf
 # Data Agent packages the harness-owned shared Python data core.
 /apps/data-agent/backend/_core/
 /packages/connectors/helpers/
-/apps/connectors/dist/
+
+# Built app bundles.
+apps/**/dist
 
 # Connector product marks are source assets, separate from test screenshots.
 !apps/connectors/ui-src/assets/connectors/*.png
