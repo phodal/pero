@@ -459,3 +459,23 @@ mod tests {
         }
     }
 }
+
+impl crate::app::Workbench {
+    pub(crate) fn open_app_link(&mut self, href:&str, _window:&mut gpui_kit::Window, cx:&mut gpui_kit::Context<Self>) {
+        if !href.starts_with("pero-app-location:") {cx.open_url(href);return;}
+        let Some(address)=pero_contracts::app_chat::AppLocation::parse(href) else{return;};
+        let app=address.scope.app.as_str();let panel=address.scope.panel.as_str();let location=address.location.as_str();
+        if !self.apps.contains_panel(app,panel) {return;}
+        self.open_app(app.into(),panel.into(),cx);
+        #[cfg(not(target_family="wasm"))]
+        if let Some(page)=self.native_app_pages.get(&(app.into(),panel.into())) {page.view.update(cx,|page,cx|page.navigate(location.into(),cx));}
+        else {self.pending_app_location=Some(address.clone());}
+        #[cfg(target_family="wasm")]
+        {
+            #[wasm_bindgen::prelude::wasm_bindgen]
+            extern "C" {#[wasm_bindgen::prelude::wasm_bindgen(js_namespace=window,js_name=peroOpenAppLocation)] fn deliver(value:&str);}
+            deliver(&serde_json::json!({"app":app,"panel":panel,"location":location}).to_string());
+        }
+        cx.notify();
+    }
+}

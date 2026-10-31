@@ -94,6 +94,8 @@ pub(crate) struct Workbench {
     pub contribution: crate::contributions::ContributionState,
     pub apps: crate::apps::AppCatalog,
     pub(crate) pending_app: Option<(String, String)>,
+    #[cfg(not(target_family="wasm"))]
+    pub(crate) pending_app_location:Option<pero_contracts::app_chat::AppLocation>,
     pub app_surface: String,
     pub app_chat_slot: Option<crate::apps::AppChatSlot>,
     pub floating_chat: bool,
@@ -228,6 +230,7 @@ impl Workbench {
                     }
                     this.command(command, cx)
                 },
+                ChatAction::AppLink(href)=>this.open_app_link(href,window,cx),
                 ChatAction::OpenDocument(document)=>this.open_document(document.clone(),window,cx),
                 ChatAction::Content(intent) => this.command(serde_json::to_value(intent).expect("content intent"), cx),
                 ChatAction::ChooseWorkspace => {
@@ -320,6 +323,8 @@ impl Workbench {
             contribution: Default::default(),
             apps: crate::apps::AppCatalog::default(),
             pending_app: None,
+            #[cfg(not(target_family="wasm"))]
+            pending_app_location:None,
             app_surface: String::new(),
             app_chat_slot: None,
             floating_chat: cfg!(target_family="wasm"),

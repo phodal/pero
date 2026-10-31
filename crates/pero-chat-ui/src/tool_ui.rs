@@ -197,6 +197,12 @@ mod rendering {
                             cx.notify();
                         })),
                 )
+                .children(tools.iter().flat_map(|tool|tool.app_links.iter()).enumerate().map(|(index,link)|{
+                    let url=link.url.clone();
+                    Button::new(("app-source",row*64+index)).relative().child(link.bounds.probe()).ghost().small()
+                        .label(link.label.clone()).accessibility_label(link.label.clone())
+                        .on_click(cx.listener(move|_,_,_,cx|cx.emit(crate::ChatAction::AppLink(url.clone()))))
+                }))
                 .when(open, |el| {
                     el.child(
                         div()

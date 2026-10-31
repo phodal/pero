@@ -222,9 +222,14 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
     clearTimeout(frame.timer); frame.ready = true;
     frame.element.contentWindow?.postMessage({type:'pero:app:icon-theme',theme:iconTheme},'*');
     const slot=mounts.get(key(frame.name,frame.panel));if(slot?.surface.visible&&slot.surface.pane!==undefined&&slot.surface.focused)frame.element.contentWindow?.focus();
-    context(frame);update();
+    context(frame);
+    const location=pendingLocations.get(key(frame.name,frame.panel));
+    if(location){frame.element.contentWindow?.postMessage({type:'pero:app:location',location},'*');pendingLocations.delete(key(frame.name,frame.panel));}
+    update();
   });
+  const pendingLocations=new Map<string,string>();
   return {
+    openLocation(app:string,panel:string,location:string) {const identity=key(app,panel),frame=frames.get(identity);if(frame?.ready)frame.element.contentWindow?.postMessage({type:'pero:app:location',location},'*');else pendingLocations.set(identity,location);},
     overlayMatches(rect: AppChatSlot['rect']) {
       if (chatOverlaySuspended || !chatOverlay) return false;
       // GPUI reports the painted area inside the slot border, not its outer box.

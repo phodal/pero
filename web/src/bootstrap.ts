@@ -24,6 +24,7 @@ declare global {
     peroSetLocale(locale: string): void;
     peroSessionCommand(json: string): void;
     peroAppSurface(json: string): void;
+    peroOpenAppLocation(json:string):void;
     peroAppChatOverlay(json: string): void;
     peroDiagnostics: { snapshot: typeof snapshot };
   }
@@ -91,6 +92,7 @@ try {
     return false;
   });
   window.peroAppUseRevoke = async(thread,scope) => {await window.pero!.appUseCommand({action:'revoke',thread_id:thread,scope});};
+  window.peroOpenAppLocation = input => {const value=JSON.parse(input);apps.openLocation(value.app,value.panel,value.location);};
   window.peroAppSurface = json => apps.surface(JSON.parse(json) as AppSurface|AppSurfaceBatch);
   window.peroAppChatOverlay = json => apps.overlay(JSON.parse(json));
   window.peroSendProbe = (json) => {
