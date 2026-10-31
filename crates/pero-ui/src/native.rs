@@ -118,7 +118,8 @@ pub fn run() -> anyhow::Result<()> {
             anyhow::bail!("Build with native-probe to run Web view acceptance");
         }
     }
-    let app_probe = std::env::args().nth(1).as_deref() == Some("--verify-apps");
+    let connector_probe = std::env::args().nth(1).as_deref() == Some("--verify-connectors");
+    let app_probe = connector_probe || std::env::args().nth(1).as_deref() == Some("--verify-apps");
     #[cfg(not(feature = "native-probe"))]
     if app_probe {
         anyhow::bail!("Build with native-probe to run App acceptance");
@@ -473,7 +474,8 @@ pub fn run() -> anyhow::Result<()> {
         #[cfg(feature="native-probe")]
         if app_probe {
             let receipt = PathBuf::from(std::env::args().nth(2).expect("App acceptance receipt path"));
-            crate::native_app_probe::attach(view.clone(),window,receipt,cx);
+            if connector_probe { crate::native_connector_probe::attach(view.clone(),window,receipt,cx); }
+            else { crate::native_app_probe::attach(view.clone(),window,receipt,cx); }
         }
         let close_view=view.downgrade();
         let _=window.update(cx,|_,window,cx| {

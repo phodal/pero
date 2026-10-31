@@ -128,3 +128,5 @@ mod native_app_surface;
 
 #[cfg(all(feature="native-probe",not(target_family="wasm")))]
 mod native_app_probe;
+#[cfg(all(feature = "native-probe", not(target_family = "wasm")))]
+mod native_connector_probe;

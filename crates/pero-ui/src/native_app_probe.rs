@@ -42,10 +42,10 @@ pub(crate) fn attach(
     })
     .detach();
 }
-async fn query(root: &Entity<Workbench>, script: &str, cx: &mut AsyncApp) -> anyhow::Result<Value> {
+pub(crate) async fn query(root: &Entity<Workbench>, name: &str, script: &str, cx: &mut AsyncApp) -> anyhow::Result<Value> {
     let (sender, receiver) = async_channel::bounded(1);
     cx.update(|cx| {
-        let view=root.read(cx).native_app_pages.get(&("virtual-cell".into(),"main".into())).ok_or_else(||anyhow::anyhow!("App not mounted"))?;
+        let view=root.read(cx).native_app_pages.get(&(name.into(),"main".into())).ok_or_else(||anyhow::anyhow!("App not mounted"))?;
         view.view.read(cx).inspect(&format!("(()=>{{try{{return ({script});}}catch(error){{return {{scriptError:String(error)}};}}}})()"),cx,move|reply|{let _=sender.try_send(reply);})
     })?;
     let text = receiver.recv().await?;
@@ -85,7 +85,7 @@ async fn verify(
             }
             1 => {
                 if cx.update(|cx| root.read(cx).native_app_pages.contains_key(&key)) {
-                    match query(root, START, cx).await {
+                    match query(root, "virtual-cell", START, cx).await {
                         Ok(value) if value == true => stage = 2,
                         Ok(value) => result = value,
                         Err(error) => result = json!({"queryError":error.to_string()}),
@@ -93,7 +93,7 @@ async fn verify(
                 }
             }
             2 => {
-                let value = query(root, READ, cx).await?;
+                let value = query(root, "virtual-cell", READ, cx).await?;
                 anyhow::ensure!(
                     value["result"]["error"].is_null(),
                     "App operation failed: {}",
@@ -121,7 +121,7 @@ async fn verify(
                 }
             }
             3 => {
-                let value = query(root, READ, cx).await?;
+                let value = query(root, "virtual-cell", READ, cx).await?;
                 if value["dark"] == "dark" && value["mediaDark"] == true {
                     anyhow::ensure!(
                         value["identity"] == identity && value["draft"] == "retained draft",
