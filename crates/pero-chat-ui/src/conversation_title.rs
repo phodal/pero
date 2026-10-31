@@ -18,21 +18,31 @@ impl ConversationTitle {
             .lines()
             .map(str::trim)
             .find(|line| !line.is_empty())
+            .and_then(single_line)
             .unwrap_or_default()
             .chars()
             .take(24)
             .collect();
     }
     pub fn report(&mut self, title: Option<&str>) {
-        self.reported = title
-            .map(str::trim)
-            .filter(|title| !title.is_empty())
-            .map(str::to_owned);
+        self.reported = title.and_then(single_line);
     }
     pub fn display(&self) -> &str {
         self.reported.as_deref().unwrap_or(&self.provisional)
     }
 }
+/// A session title is one line. Newlines and repeated spaces come from the
+/// prompt or from agent metadata, and both the sidebar and the open tab paint
+/// that string directly.
+fn single_line(title: &str) -> Option<String> {
+    let line = title.split_whitespace().collect::<Vec<_>>().join(" ");
+    if line.is_empty() {
+        None
+    } else {
+        Some(line)
+    }
+}
+
 impl Serialize for ConversationTitle {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(self.display())
@@ -54,6 +64,7 @@ mod tests {
         assert_eq!(title.display(), "hi");
         for (reported, expected) in [
             (Some(" 杭州天气查询 "), "杭州天气查询"),
+            (Some("当前有什么\napp?"), "当前有什么 app?"),
             (None, "hi"),
             (Some(""), "hi"),
         ] {

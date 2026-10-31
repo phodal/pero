@@ -433,7 +433,16 @@ impl Workbench {
                 div()
                     .flex_1()
                     .min_w_0()
+                    .h_full()
+                    .overflow_hidden()
+                    .flex()
+                    .items_center()
+                    .whitespace_nowrap()
                     .text_ellipsis()
+                    .line_height(relative(1.2))
+                    .text_size(
+                        pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body),
+                    )
                     .when(preview, |label| label.italic())
                     .child(title.clone()),
             )

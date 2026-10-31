@@ -87,6 +87,7 @@ fn recent_row(
         .map(|delete| session_menu(ui, index, &title, delete, on_action, chrome, cx));
     pero_theme::interaction_row(("recent-work", index), row.active, pero_theme::ROW_NAV, chrome)
         .cursor_pointer()
+        .overflow_hidden()
         .pl(chrome.geo(pero_theme::SPACE_8 + pero_theme::SUB_INDENT))
         .pr(chrome.geo(pero_theme::SPACE_8))
         .gap(chrome.geo(pero_theme::ICON_GAP))
@@ -106,7 +107,10 @@ fn recent_row(
             div()
                 .flex_1()
                 .min_w_0()
+                .overflow_hidden()
+                .whitespace_nowrap()
                 .text_ellipsis()
+                .line_height(relative(1.2))
                 .child(row.label),
         )
         .children(trailing)
