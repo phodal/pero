@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   curvePath,
+  signalLabel,
+  candidateParameterSummary,
   failedCheckGroups,
   numeric,
   pairedSeries,
@@ -178,4 +180,19 @@ test("compact failed metrics retain each scenario actual and limit without recom
   const groups = failedCheckGroups(experiment);
   assert.equal(groups.length, 1);
   assert.deepEqual(groups[0].failures.map(({ scenario, check }) => [scenario, check.actual, check.limit]), [["A", 20, 10], ["B", 30, 10]]);
+});
+
+
+test("signal labels are concise without changing observation keys", () => {
+  assert.deepEqual(["reference", "disturbance", "controlEffort", "disturbanceControlEffort", "frequencyGain", "frequencyPhase"].map(signalLabel),
+    ["Tracking", "Disturbance", "Control effort", "Disturbance effort", "Gain", "Phase"]);
+  assert.equal(signalLabel("otherSignal"), "other Signal");
+});
+
+test("candidate rows show design parameters and units, retaining source metadata unchanged", () => {
+  const control = { kp: 2, ki: 1, kd: .3, n: 12, horizon: 12, samples: 1201 };
+  assert.equal(candidateParameterSummary(control), "Kp = 2, Ki = 1, Kd = 0.3, N = 12 rad/s");
+  assert.equal(candidateParameterSummary({ r: 1000, c: 1e-7, gain: 1.586, horizon: .005, samples: 1001 }), "R = 1000 Ω, C = 1e-7 F, Gain = 1.586");
+  assert.equal(candidateParameterSummary({ horizon: 12, samples: 1201 }), "Fixed controller");
+  assert.deepEqual(control, { kp: 2, ki: 1, kd: .3, n: 12, horizon: 12, samples: 1201 });
 });

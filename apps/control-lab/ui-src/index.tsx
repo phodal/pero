@@ -8,7 +8,7 @@ import {
   useAppObject,
 } from "@pero/app-sdk";
 import type { Capability, Experiment, Field, Summary, Template } from "./types";
-import { numeric } from "./presentation";
+import { numeric, candidateParameterSummary } from "./presentation";
 import { Results, Evidence } from "./results";
 import "./styles.css";
 const emptySchema = {
@@ -604,12 +604,7 @@ export default function ControlLab() {
                               </label>
                             </td>
                             <td>
-                              <span className="parameter-values">{Object.entries(item.parameters)
-                                .map(
-                                  ([name, value]) =>
-                                    `${name} = ${numeric(value)}`,
-                                )
-                                .join(", ")}</span>
+                              <span className="parameter-values">{candidateParameterSummary(item.parameters)}</span>
                             </td>
                             <td>{numeric(item.score)}</td>
                             <td className={`status ${item.verdict}`}>

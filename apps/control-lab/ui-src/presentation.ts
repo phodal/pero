@@ -92,3 +92,27 @@ export function failedCheckGroups(experiment: Experiment) {
   }
   return [...groups].map(([name, failures]) => ({ name, failures }));
 }
+
+/** Labels only: observation keys stay unchanged for pairing and evidence. */
+export function signalLabel(name: string) {
+  const labels: Record<string, string> = {
+    reference: "Tracking",
+    disturbance: "Disturbance",
+    controlEffort: "Control effort",
+    disturbanceControlEffort: "Disturbance effort",
+    frequencyGain: "Gain",
+    frequencyPhase: "Phase",
+  };
+  return labels[name] ?? name.replaceAll("_", " ").replace(/([a-z])([A-Z])/g, "$1 $2");
+}
+
+/** Keep fixed sampling metadata in setup/evidence, not every candidate row. */
+export function candidateParameterSummary(parameters: Record<string, number>) {
+  const fields = [
+    ["kp", "Kp", ""], ["ki", "Ki", ""], ["kd", "Kd", ""],
+    ["n", "N", "rad/s"], ["r", "R", "Ω"], ["c", "C", "F"], ["gain", "Gain", ""],
+  ];
+  return fields.filter(([key]) => Object.hasOwn(parameters, key))
+    .map(([key, label, unit]) => `${label} = ${numeric(parameters[key])}${unit ? ` ${unit}` : ""}`)
+    .join(", ") || "Fixed controller";
+}

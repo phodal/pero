@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import type { Experiment, Report, Series, Template } from "./types";
 import {
   curvePath,
+  signalLabel,
   failedCheckGroups,
   numeric,
   responseComparison,
@@ -63,7 +64,7 @@ function Curve({
       .map((x, i) => [x, series.y[i]])
       .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y)),
   );
-  if (!points.length) return <p>No finite observations for {name}.</p>;
+  if (!points.length) return <p>No finite observations for {signalLabel(name)}.</p>;
   const xs = points.map((p) => p[0]),
     ys = points.map((p) => p[1]);
   const bounds: [number, number, number, number] = [
@@ -75,14 +76,14 @@ function Curve({
   return (
     <figure>
       <figcaption>
-        {name}
+        {signalLabel(name)}
         {unit && ` (${unit})`}
       </figcaption>
       <svg
         className="chart"
         viewBox="0 0 560 240"
         role="img"
-        aria-label={`${name}: dashed baseline and solid candidate`}
+        aria-label={`${signalLabel(name)}: dashed baseline and solid candidate`}
       >
         {[0.25, 0.5, 0.75].map((fraction) => (
           <line key={fraction} x1={plotArea.left} x2={plotArea.right}
@@ -186,7 +187,7 @@ export function Results({ experiment, selectedId, template }: { experiment: Expe
         </div>
         {series.length > 0 && <div className="signal-tabs" role="group" aria-label="Response signal">
           {series.map((item) => <button key={item.name} aria-pressed={signal?.name === item.name}
-            onClick={() => setSignalName(item.name)}>{item.name.replaceAll("_", " ")}</button>)}
+            onClick={() => setSignalName(item.name)}>{signalLabel(item.name)}</button>)}
         </div>}
         {signal ? <><Curve {...signal} /><div className="curve-legend">
           {signal.baseline && <span className="baseline-key">Baseline (dashed)</span>}
