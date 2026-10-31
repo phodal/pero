@@ -659,3 +659,25 @@ test('Product context reads the current trusted Chat frame without a timed paren
     assert.ok(reads <= 1, 'no selection retry or replay');
   }
 });
+
+test('MCP advertises only the UI operations supplied by its shell', async () => {
+  const { DesktopAppUse } = await import('./app-use-mcp.ts');
+  const { tmpdir } = await import('node:os');
+  const unavailable = async ():Promise<never> => { throw new Error('Unsupported native UI port must not be called'); };
+  for (const native of [false,true]) {
+    const shell = native ? {selectedThread:async()=> 'thread',page:unavailable,capture:unavailable,presence:()=>{}}
+      : ()=>({} as never);
+    const endpoint=new DesktopAppUse(shell,()=>{},tmpdir());
+    const env=await endpoint.start();
+    const rpc=async(method:string,params?:object)=>{
+      const response=await fetch(env.PERO_APP_USE_URL,{method:'POST',headers:{Authorization:`Bearer ${env.PERO_APP_USE_TOKEN}`,'X-Pero-Thread':'thread'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});
+      return (await response.json()).result;
+    };
+    try {
+      const listed=await rpc('tools/list');
+      assert.equal(listed.tools.some((tool:{name:string})=>tool.name==='app_use'),!native);
+      assert.equal(listed.tools.some((tool:{name:string})=>tool.name==='content_read'),true);
+      if(native)assert.equal((await rpc('tools/call',{name:'app_use',arguments:{action:'inventory'}})).isError,true);
+    } finally {await endpoint.close();}
+  }
+});
