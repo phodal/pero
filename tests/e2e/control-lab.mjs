@@ -63,7 +63,7 @@ async function assertFinalReport(experiment) {
   const scenarios = experiment.scenarios.filter(item => item.role === 'verification');
   const verification = frame.locator('section').filter({ has: frame.getByRole('heading', { name: 'Verification', exact: true }) });
   await expect(frame.getByText('Final cases', { exact: true }).locator('xpath=following-sibling::dd[1]')).toHaveText(String(scenarios.length));
-  await expect(verification).toContainText(new RegExp(`\\b${scenarios.length}(?: frozen)? scenarios\\b`));
+  await expect(verification.locator('.verdict-header > span')).toContainText(new RegExp(`\\b${scenarios.length}(?: frozen)? scenarios$`));
   const details = verification.locator('details').filter({ has: frame.getByText('Final report checks', { exact: true }) });
   if (!(await details.evaluate(element => element.open))) await details.locator('summary').click();
   const table = details.getByRole('table');
