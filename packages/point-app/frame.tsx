@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { AppApiProvider, applyTheme, createAppExamples, readAppExample, Select } from 'point-sdk';
+import { AppApiProvider, applyTheme, createAppExamples, readAppExample } from 'point-sdk';
 import 'point-sdk-client';
+import {PointExamples} from './examples';
 import 'point-tokens';
 import { createAppSurface } from 'point-sdk';
 import { installAppUseBridge, AppUseError } from '../app-sdk/src/app-use';
@@ -12,8 +13,12 @@ const examples = createAppExamples({ entries: (app.contributes.examples ?? []).f
 });
 const launchChat = (options: Record<string, unknown> = {}) => {
   for (const key of Object.keys(options)) {
-    if (!['message', 'mode', 'attachments', 'capture', 'submit'].includes(key) || key === 'submit' && options[key] !== false)
+    if (!['message', 'mode', 'attachments', 'capture', 'submit', 'sessionId'].includes(key) || key === 'submit' && options[key] !== false)
       throw new Error(`Point chat option is unavailable: ${key}`);
+  }
+  if (options.sessionId !== undefined) {
+    if (Object.keys(options).some(key => key !== 'sessionId')) throw new Error('Selecting an existing Session cannot also compose a message');
+    return pointAgent('open', {sessionId:options.sessionId});
   }
   const { submit: _submit, ...draft } = options;
   return new Promise<void>((resolve, reject) => {
@@ -54,9 +59,18 @@ const bridge = {
 const unavailable = () => { throw new Error('This Point Host operation is unavailable in Pero'); };
 const prefix = `/apps/${app.name}`;
 const backendFetch: typeof fetch = (input, init) => {
-  if (typeof input !== 'string' || !(input === '/api/projects' || input.startsWith('/api/projects/') || input.startsWith(prefix + '/api/') || app.permissions?.storage && input === `/api/apps/${app.name}/config`))
+  if (typeof input !== 'string' || !(['/api/workspaces', '/api/harnesses'].includes(input) || input === '/api/projects' || input.startsWith('/api/projects/') || input.startsWith(prefix + '/api/') || app.permissions?.storage && input === `/api/apps/${app.name}/config`))
     throw new Error('Only this App backend is available');
   return fetch(input, { ...init, redirect: 'error' });
+};
+const pointAgent = async (operation: string, input: Record<string, unknown> = {}) => {
+  const response = await fetch('/host/point-agent', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation,...input})});
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
+};
+const hostCall = (capability: string, operation: string, input: Record<string, unknown>) => {
+  if (capability !== 'agent') throw new Error('Point Host capability is unavailable');
+  return pointAgent(operation, input);
 };
 const noEvents = () => { throw new Error('Point events are unavailable in Pero'); };
 
@@ -68,7 +82,7 @@ class Boundary extends React.Component<{children: React.ReactNode}, {error: stri
   }
 }
 function Frame({ Panel }: {Panel: React.ComponentType}) {
-  const [context, setContext] = useState({ locale: 'en', dark: false, active: false });
+  const [context, setContext] = useState({ locale: 'en', dark: false, active: false, titlebar: false });
   const [notice, setNotice] = useState('');
   const [exampleState, setExampleState] = useState(examples.getSnapshot());
   useEffect(() => examples.subscribe(() => setExampleState(previous => {
@@ -85,7 +99,7 @@ function Frame({ Panel }: {Panel: React.ComponentType}) {
       document.documentElement.lang = next.locale;
       document.documentElement.style.colorScheme = next.dark ? 'dark' : 'light';
       examples.setActive(next.active);
-      setContext({ locale: next.locale, dark: next.dark, active: next.active });
+      setContext({ locale: next.locale, dark: next.dark, active: next.active, titlebar: next.titlebar===true });
     };
     const stop = installAppUseBridge(bridge);
     window.addEventListener('message', receive);
@@ -93,12 +107,11 @@ function Frame({ Panel }: {Panel: React.ComponentType}) {
     return () => { window.removeEventListener('message', receive); stop(); };
   }, []);
   return <AppApiProvider appName={app.name} appVersion={app.version} locale={context.locale}
+    allowedHostCapabilities={app.permissions?.host ?? []} hostCallFn={hostCall}
     allowedApiPaths={app.permissions?.api ?? []} allowedEvents={[]} active={context.active}
     fetch={backendFetch} surface={surface} examples={examples} subscribeFn={noEvents} navigateFn={unavailable} notifyFn={setNotice}
     setBadgeFn={unavailable} launchChatFn={launchChat}>
-    {!!app.contributes.examples?.length && <Select label={context.locale === 'zh-CN' ? '示例' : 'Example'} value={exampleState.selected?.id ?? ''}
-      disabled={!exampleState.ready || exampleState.busy} options={app.contributes.examples.map((entry: any) => ({ value: entry.id, label: entry.localizations?.[context.locale === 'zh-CN' ? 'zh' : 'en']?.title ?? entry.title }))}
-      onChange={(id: string) => { void examples.load(id); }}/>}
+    <PointExamples controller={examples} state={exampleState} entries={(app.contributes.examples??[]).filter((entry:any)=>entry.panelId===document.documentElement.dataset.pointPanel)} locale={context.locale} titlebar={context.titlebar}/>
     {exampleState.error && <p role="alert">{exampleState.error}</p>}
     {notice && <div role="status">{notice}</div>}<Boundary><Panel/></Boundary>
   </AppApiProvider>;

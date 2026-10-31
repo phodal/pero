@@ -21,11 +21,11 @@ export function pointAppManifest(app) {
     if (!(key === 'storage' && typeof value === 'boolean') && (!['api', 'events', 'host'].includes(key) || !Array.isArray(value)))
       throw new Error(`Unsupported Point permission: ${key}`);
   }
-  if (permissions.host?.length || permissions.events?.length)
+  if (permissions.host?.some(grant => grant !== 'agent') || permissions.events?.length)
     throw new Error('Point Host capabilities and events are not available in this adapter');
   const prefix = `/apps/${app.name}/api`;
   for (const path of permissions.api ?? []) {
-    if (typeof path !== 'string' || !(path === '/api/projects' || path.startsWith('/api/projects/') || path === prefix || path.startsWith(prefix + '/') || path === `/api/apps/${app.name}/config` && permissions.storage) || !safeEntry(path.slice(1)))
+    if (typeof path !== 'string' || !(['/api/workspaces', '/api/harnesses'].includes(path) || path === '/api/projects' || path.startsWith('/api/projects/') || path === prefix || path.startsWith(prefix + '/') || path === `/api/apps/${app.name}/config` && permissions.storage) || !safeEntry(path.slice(1)))
       throw new Error(`Unsupported Point API permission: ${path}`);
   }
   if ((permissions.api ?? []).some(path => path.startsWith(prefix)) && !app.backend) throw new Error('Point API permission requires a backend');
@@ -56,7 +56,7 @@ export function pointAppManifest(app) {
   return {
     schemaVersion: 1, name: app.name, version: app.version,
     displayName: app.displayName, description: app.description ?? '',
-    permissions: { host: [] },
+    permissions: { host: [...(permissions.host ?? [])] },
     contributes: { panels: panels.map((panel, index) => ({ id: panel.id, title: panel.title, entry: index === 0 ? 'dist/index.html' : `dist/${panel.id}.html` })) },
     ...(app.backend ? { backend: { type: app.backend.type, entry: app.backend.type === 'python' ? 'point-backend.py' : 'point-backend.mjs' } } : {}),
   };

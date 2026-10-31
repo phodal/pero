@@ -31,7 +31,7 @@ try {
   await buildPointRuntime({ pointRoot, destination: env.PERO_POINT_RUNTIME_ROOT });
   const pointRevision = JSON.parse(await readFile(resolve(env.PERO_POINT_RUNTIME_ROOT, 'runtime.json'))).pointRevision;
   const names = ['welcome', 'ontology-explorer', 'virtual-cell', 'map', 'design-system', 'can-bus-monitor', 'data-lab', 'cad-studio', 'ai4s-lab'];
-  for (const name of ['factory', 'calendar', 'aaos-test', 'paper-agent']) {
+  for (const name of ['factory', 'calendar', 'aaos-test', 'cobol-modernization']) {
     const manifest = JSON.parse(await readFile(resolve(pointRoot, 'apps', name, 'app.json'), 'utf8'));
     assert.throws(() => pointAppManifest(manifest));
   }

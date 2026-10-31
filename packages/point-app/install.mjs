@@ -40,7 +40,7 @@ export async function preparePointApp({ source, destination, runtime }) {
   if (app.backend) await copy(resolve(runtime, app.backend.type === 'python' ? 'backend.py' : 'backend-node.mjs'), resolve(destination, app.backend.type === 'python' ? 'point-backend.py' : 'point-backend.mjs'));
   await writeFile(resolve(destination, 'dist/point-manifest.json'), JSON.stringify(app));
   for (const panel of manifest.contributes.panels) {
-    await writeFile(resolve(destination, panel.entry), `<!doctype html><html data-point-panel="${panel.id}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="./frame.css"><style>html,body,#app{margin:0;min-height:100%;background:var(--point-bg);color:var(--point-text);font:14px system-ui}*{box-sizing:border-box}</style></head><body><div id="app"></div><script type="module" src="./frame.js"></script></body></html>`);
+    await writeFile(resolve(destination, panel.entry), `<!doctype html><html data-point-panel="${panel.id}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="./frame.css"><style>html,body,#app{margin:0;height:100%;background:var(--point-bg);color:var(--point-text);font:14px system-ui}#app{display:flex;flex-direction:column;overflow:auto}*{box-sizing:border-box}</style></head><body><div id="app"></div><script type="module" src="./frame.js"></script></body></html>`);
   }
   await writeFile(resolve(destination, 'app.json'), JSON.stringify(manifest, null, 2));
   const receipt = { schema: 'pero.point-app-build.v2', app: app.name, runtime: JSON.parse(await readFile(resolve(runtime, 'runtime.json'), 'utf8')), files };

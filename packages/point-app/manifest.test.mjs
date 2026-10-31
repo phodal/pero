@@ -14,11 +14,11 @@ test('Point packaging preserves identity and refuses contracts Pero cannot carry
   for (const [label, app] of [
     ['duplicate panels', { ...base, contributes: { panelTabs: [panel, panel] } }],
     ['escaping module', { ...base, contributes: { panelTabs: [{ ...panel, entry: '../outside.mjs' }] } }],
-    ['host grant', { ...base, permissions: { host: ['agent'] } }],
+    ['host grant', { ...base, permissions: { host: ['mobile'] } }],
     ['events', { ...base, permissions: { events: ['session.changed'] } }],
     ['extra permission', { ...base, permissions: { arbitrary: true } }],
     ['cross-app API', { ...base, backend, permissions: { api: ['/apps/other/api'] } }],
-    ['Host API', { ...base, backend, permissions: { api: ['/api/workspaces'] } }],
+    ['Host API', { ...base, backend, permissions: { api: ['/api/runtime/settings'] } }],
     ['API traversal', { ...base, backend, permissions: { api: ['/apps/sample/api/../other'] } }],
     ['missing backend', { ...base, permissions: { api: ['/apps/sample/api'] } }],
     ['invalid agent tool', { ...base, contributes: { panelTabs: [panel], agentTools: [{name: 'bad'}] } }],

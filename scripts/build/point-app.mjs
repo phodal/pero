@@ -20,7 +20,7 @@ export async function buildPointRuntime({ pointRoot, destination }) {
     entryPoints: [resolve(root, 'packages/point-app/frame.tsx')], outfile: resolve(destination, 'frame.js'),
     bundle: true, format: 'esm', platform: 'browser', target: 'chrome140', minify: true, metafile: true,
     external: ['./point-ui/*'], loader: { '.woff2': 'file', '.woff': 'file', '.ttf': 'file' },
-    alias: { 'point-sdk-client': resolve(sdk, 'src/client.tsx'), 'point-sdk': resolve(sdk, 'src/index.tsx'),
+    alias: { 'point-sdk-client': resolve(sdk, 'src/client.tsx'), 'point-sdk': resolve(sdk, 'src/index.tsx'), 'point-sdk-ui': resolve(sdk,'src/components/index.ts'),
       'point-tokens': resolve(sdk, 'src/tokens/tokens.css'),
       'react-dom': resolve(require.resolve('react-dom/package.json'), '..'), react: resolve(require.resolve('react/package.json'), '..') },
   });
