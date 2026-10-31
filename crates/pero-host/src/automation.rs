@@ -1,6 +1,6 @@
 //! Local Automation composition: durable decisions first, existing ACP owner second.
 use crate::{agents::{Manager, automation_agent::{AutomationReceipt, AutomationReceiptKind, AutomationStartError}}, automation_store::{Store, INPUT_LIMIT, digest}};
-use pero_contracts::{HostEvent, automation::{self as domain, CandidateRef, Command, Definition, Effect, ExactRef, Ids, InputContract, Method, Outcome, RequestStatus, SourceBinding, Target, Trigger}};
+use pero_contracts::{HostEvent, automation::{self as domain, CandidateRef, Command, Definition, Effect, ExactRef, Ids, InputContract, Method, Outcome, ReconciliationDisposition, RequestStatus, SourceBinding, Target, Trigger}};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, path::Path, sync::mpsc::Receiver, time::{SystemTime, UNIX_EPOCH}};
@@ -21,6 +21,7 @@ enum PublicCommand {
     Control { definition_id: String, paused: bool, revoked: bool },
     Cancel { request_id: String },
     ContinueOld { request_id: String },
+    Reconcile { request_id: String, expected_execution_id: String, disposition: ReconciliationDisposition, evidence: String, execution_stopped: bool, effects_checked: bool },
     RevokeBinding { binding_id: String },
 }
 #[derive(Deserialize, serde::Serialize)]
@@ -123,6 +124,16 @@ impl Automation {
                 PublicCommand::Control { definition_id, paused, revoked } => vec![Command::Control { definition_id, paused, revoked }],
                 PublicCommand::Cancel { request_id } => vec![Command::Cancel { request_id }],
                 PublicCommand::ContinueOld { request_id } => vec![Command::ContinueOld { request_id }],
+                PublicCommand::Reconcile { request_id, expected_execution_id, disposition, evidence, execution_stopped, effects_checked } => {
+                    let request = state.requests.iter().find(|r| r.id == request_id).ok_or("Request not found")?;
+                    let execution_id = request.execution_id.as_ref().ok_or("Request has no original execution")?;
+                    if execution_id != &expected_execution_id { return Err("Original execution changed; refresh before reviewing".into()); }
+                    // Trusted local controller input, not an ACP/provider receipt. An
+                    // absent/closed local handle is necessary, not proof of external effects.
+                    agents.automation_reconciliation_admit(execution_id)?;
+                    vec![Command::Reconcile { request_id, execution_id: execution_id.clone(), disposition,
+                        evidence, execution_stopped, effects_checked }]
+                }
                 PublicCommand::RevokeBinding { binding_id } => vec![Command::RevokeBinding { binding_id }],
             };
             let committed = self.store.apply(commands, now(), input.as_ref().map(|(a,b)| (a.as_str(),b.as_str())), None, None)?;
@@ -151,7 +162,7 @@ impl Automation {
     fn observe(&mut self, observation: AutomationReceipt) -> Result<(), String> {
         let state = self.store.state()?;
         let Some(request) = state.requests.iter().find(|r| r.execution_id.as_deref() == Some(&observation.execution_id)) else { return Err("Unknown Automation execution observation".into()); };
-        let terminal = matches!(request.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Cancelled | RequestStatus::Covered {..} | RequestStatus::Expired);
+        let terminal = matches!(request.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Cancelled | RequestStatus::Reconciled | RequestStatus::Covered {..} | RequestStatus::Expired);
         let outcome = match &observation.kind {
             AutomationReceiptKind::TurnStarted => Some(Outcome::Running),
             AutomationReceiptKind::TurnFinished { stop_reason } => Some(match stop_reason.as_deref() {

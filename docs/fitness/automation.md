@@ -63,8 +63,26 @@ and requests cancellation; no automatic ownership failover is implemented.
 Restart retains pending requests. Any reserved/possibly-started execution becomes
 `reconcile` with its original identity, never a fresh prompt. Pending cancellation
 intent survives this transition. This slice has no authoritative ACP resume/lookup
-or UI “retry unknown effect” shortcut; reconcile requires investigation rather
-than automatic replay. Admission failures remain visible and do not starve
+or UI “retry unknown effect” shortcut. Reconcile holds the local dispatch budget
+until a result can be checked; elapsed time and requesting cancellation are not proof.
+
+The trusted Workbench controller can record an **operator attestation**, not a
+provider receipt or platform verification. It binds the original execution, a
+known outcome and bounded evidence to explicit confirmation that the execution
+and child work have stopped and external effects have been checked. The Host
+rejects the operation while its original Session is still live. An absent local
+handle after restart does not prove the external outcome; if the operator cannot
+establish it, the request stays blocked. App/ACP tool routes do not expose this
+operation. This is not isolation from malicious executables with the same OS rights.
+
+Reconciliation atomically retains the original observations and cancellation intent,
+adds the operator record, and pauses the original definition. It dispatches nothing.
+Independent work can continue; resuming the paused definition is a separate action.
+The reconciled candidate remains covered for event wakeups, including a reported
+not-started outcome. Reprocessing needs a new explicit manual intent or schedule
+slot after resume, never reuse or replay of the original execution identity.
+
+Admission failures remain visible and do not starve
 unrelated eligible requests. A typed workspace-lease rejection emitted by the ACP
 owner before prompt submission is a known failed attempt, not an uncertain effect;
 it remains failed across restart. Generic session errors still require reconciliation.
@@ -104,6 +122,7 @@ corrupt SQLite and valid JSON with a zero-interval schedule failing closed. Core
 tables cover matching, exact/latest, revisions, cancellation, quotas and recovery.
 The stdio suite observes real receipt signals: manual/event/time, identity conflict,
 fixed workspace, idle timer without stdin, cancellation, failed-admission fairness,
+known pre-submit rejection, operator reconciliation without replay,
 and SIGKILL/restart without prompt replay. It never contacts a model provider.
 Receipts go to `test-results/automation/runtime.json` with the tested binary SHA256.
 

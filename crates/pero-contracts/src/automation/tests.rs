@@ -481,3 +481,139 @@ fn manual_input_retry_cannot_rewind_latest_or_publish_conflicting_input() {
     assert_eq!(apply(&b.state, wrong_binding, 100, Ids::default()), Err(Error::Unauthorized));
     b.state.validate_restored().unwrap();
 }
+
+fn reconcile_command(disposition: ReconciliationDisposition) -> Command {
+    Command::Reconcile { request_id: "r1".into(), execution_id: "exec-r1".into(), disposition,
+        evidence: " Checked original execution and effects. ".into(), execution_stopped: true, effects_checked: true }
+}
+fn unknown_manual() -> State {
+    let state = manual_request(&manual_state(), "first", "r1").state;
+    observe(&reserve(&state, "r1").state, "r1", Outcome::Unknown)
+}
+
+#[test]
+fn operator_reconciliation_requires_original_identity_confirmations_and_evidence() {
+    let state = unknown_manual();
+    for defect in ["execution", "stopped", "checked", "empty", "oversize"] {
+        let mut command = reconcile_command(ReconciliationDisposition::Completed);
+        if let Command::Reconcile { execution_id, evidence, execution_stopped, effects_checked, .. } = &mut command {
+            match defect {
+                "execution" => *execution_id = "different-execution".into(),
+                "stopped" => *execution_stopped = false,
+                "checked" => *effects_checked = false,
+                "empty" => *evidence = " \n ".into(),
+                _ => *evidence = "界".repeat(1366),
+            }
+        }
+        assert!(apply(&state, command, 100, Ids::default()).is_err(), "{defect}");
+    }
+    for outcome in [Outcome::Running, Outcome::Completed, Outcome::Failed, Outcome::Cancelled] {
+        let stale = observe(&state, "r1", outcome);
+        assert_eq!(apply(&stale, reconcile_command(ReconciliationDisposition::Completed), 100, Ids::default()), Err(Error::InvalidTransition));
+    }
+    let pending = manual_request(&manual_state(), "first", "r1").state;
+    assert!(apply(&pending, reconcile_command(ReconciliationDisposition::NotStarted), 100, Ids::default()).is_err());
+}
+
+#[test]
+fn reconciliation_is_a_paused_operator_record_not_an_execution_receipt_or_replay() {
+    for disposition in [ReconciliationDisposition::NotStarted, ReconciliationDisposition::Completed,
+        ReconciliationDisposition::Failed, ReconciliationDisposition::Cancelled] {
+        let state = unknown_manual();
+        let command = reconcile_command(disposition.clone());
+        let transition = apply(&state, command.clone(), 101, Ids::default()).unwrap();
+        assert!(transition.effects.is_empty());
+        assert_eq!(transition.state.requests[0].status, RequestStatus::Reconciled);
+        assert!(transition.state.controls["a"].paused);
+        let record = transition.state.requests[0].operator_reconciliation.as_ref().unwrap();
+        assert_eq!(record.authority, ReconciliationAuthority::LocalOperator);
+        assert_eq!(record.previous_status, RequestStatus::Reconcile);
+        assert_eq!(record.evidence, "Checked original execution and effects.");
+        assert_eq!(record.recorded_at, 101);
+        assert_eq!(record.disposition, disposition);
+        transition.state.validate_restored().unwrap();
+        let recovered = apply(&transition.state, Command::Recover, 200, Ids::default()).unwrap();
+        assert_eq!(recovered.state, transition.state);
+        assert!(recovered.effects.is_empty());
+        let resumed = step(&recovered.state, Command::Control { definition_id: "a".into(), paused: false, revoked: false });
+        let duplicate = apply(&resumed, command, 999, Ids::default()).unwrap();
+        assert_eq!(duplicate.state, resumed, "duplicate must not rewrite time or pause after explicit resume");
+        let mut conflict = reconcile_command(ReconciliationDisposition::Completed);
+        if let Command::Reconcile { evidence, .. } = &mut conflict { *evidence = "Different finding".into(); }
+        assert_eq!(apply(&resumed, conflict, 999, Ids::default()), Err(Error::Conflict));
+        let new_intent = manual_request(&resumed, "explicit-next", "r2").state;
+        let dispatch = reserve(&new_intent, "r2");
+        assert_eq!(dispatch.effects.len(), 1);
+        assert_eq!(dispatch.state.requests[1].reprocess_of.as_deref(), Some("r1"));
+    }
+}
+
+#[test]
+fn reconciled_not_started_and_other_dispositions_still_cover_events() {
+    for disposition in [ReconciliationDisposition::NotStarted, ReconciliationDisposition::Completed,
+        ReconciliationDisposition::Failed, ReconciliationDisposition::Cancelled] {
+        let mut state = publish(&configured(InputContract::RecheckLatest), "s", "v1");
+        state = accept(&state, event("e1", "s", None), &["r1"]);
+        state = observe(&reserve(&state, "r1").state, "r1", Outcome::Unknown);
+        state = step(&state, reconcile_command(disposition));
+        state = accept(&state, event("e2", "s", None), &["r2"]);
+        assert_eq!(apply(&state, Command::Reserve { request_id: "r2".into(), execution_id: "exec-r2".into() }, 100, Ids::default()), Err(Error::Paused));
+        state = step(&state, Command::Control { definition_id: "a".into(), paused: false, revoked: false });
+        let covered = reserve(&state, "r2");
+        assert!(covered.effects.is_empty());
+        assert_eq!(covered.state.requests[1].status, RequestStatus::Covered { request_id: "r1".into() });
+        assert_eq!(covered.state.dispatch_count, 1);
+    }
+}
+
+#[test]
+fn reconciliation_preserves_cancellation_and_revocation_and_rejects_corrupt_records() {
+    let state = manual_request(&manual_state(), "first", "r1").state;
+    let state = reserve(&state, "r1").state;
+    let state = step(&state, Command::Control { definition_id: "a".into(), paused: false, revoked: true });
+    let state = step(&state, reconcile_command(ReconciliationDisposition::Cancelled));
+    assert!(state.controls["a"].paused && state.controls["a"].revoked);
+    assert!(state.requests[0].cancel_requested);
+    assert_eq!(state.requests[0].operator_reconciliation.as_ref().unwrap().previous_status, RequestStatus::CancelRequested);
+    let restored: State = serde_json::from_str(&serde_json::to_string(&state).unwrap()).unwrap();
+    restored.validate_restored().unwrap();
+    for defect in ["missing", "identity", "previous", "evidence", "time", "cancel"] {
+        let mut corrupt = restored.clone();
+        match defect {
+            "missing" => corrupt.requests[0].operator_reconciliation = None,
+            "cancel" => corrupt.requests[0].cancel_requested = false,
+            _ => {
+                let record = corrupt.requests[0].operator_reconciliation.as_mut().unwrap();
+                match defect {
+                    "identity" => record.execution_id = "other".into(),
+                    "previous" => record.previous_status = RequestStatus::Completed,
+                    "evidence" => record.evidence = " ".into(),
+                    _ => record.recorded_at = MAX_SAFE_INTEGER + 1,
+                }
+            }
+        }
+        assert!(corrupt.validate_restored().is_err(), "{defect}");
+    }
+    let mut legacy = serde_json::to_value(unknown_manual()).unwrap();
+    legacy["requests"][0].as_object_mut().unwrap().remove("operator_reconciliation");
+    serde_json::from_value::<State>(legacy).unwrap().validate_restored().unwrap();
+}
+
+#[test]
+fn reconciled_time_slot_needs_explicit_resume_and_a_new_slot_to_run_again() {
+    let mut timed = definition("a", InputContract::RecheckLatest);
+    timed.trigger = Trigger::Time { subject: "s".into(), exact: None, anchor: 0, interval_seconds: 10, max_lateness_seconds: 30 };
+    let mut state = publish(&step(&initial(), Command::PutDefinition { definition: timed }), "s", "v1");
+    let slot = |slot| Command::Time { definition_id: "a".into(), revision: 1, slot, subject: "s".into(), exact: None };
+    state = apply(&state, slot(90), 100, ids("", &["r1"])).unwrap().state;
+    state = observe(&reserve(&state, "r1").state, "r1", Outcome::Unknown);
+    state = step(&state, reconcile_command(ReconciliationDisposition::NotStarted));
+    assert!(due_slots(&state, 100).is_empty());
+    assert_eq!(apply(&state, slot(90), 100, Ids::default()).unwrap().receipt, Receipt::Request { id: "r1".into(), duplicate: true });
+    state = step(&state, Command::Control { definition_id: "a".into(), paused: false, revoked: false });
+    state = apply(&state, slot(100), 100, ids("", &["r2"])).unwrap().state;
+    let next = reserve(&state, "r2");
+    assert_eq!(next.effects.len(), 1);
+    assert_eq!(next.state.requests[1].reprocess_of.as_deref(), Some("r1"));
+    assert!(next.state.requests[0].operator_reconciliation.is_some());
+}

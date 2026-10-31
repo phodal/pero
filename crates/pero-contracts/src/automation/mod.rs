@@ -129,6 +129,7 @@ pub enum RequestStatus {
     Running,
     CancelRequested,
     Reconcile,
+    Reconciled,
     Completed,
     Failed,
     Cancelled,
@@ -142,6 +143,23 @@ impl RequestStatus {
     fn active(&self) -> bool {
         matches!(self, Self::Reserved | Self::Running | Self::CancelRequested | Self::Reconcile)
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReconciliationDisposition { NotStarted, Completed, Failed, Cancelled }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReconciliationAuthority { LocalOperator }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OperatorReconciliation {
+    pub execution_id: String,
+    pub disposition: ReconciliationDisposition,
+    pub evidence: String,
+    pub recorded_at: u64,
+    pub previous_status: RequestStatus,
+    pub authority: ReconciliationAuthority,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -161,6 +179,8 @@ pub struct RunRequest {
     pub cancel_requested: bool,
     #[serde(default)]
     pub reprocess_of: Option<String>,
+    #[serde(default)]
+    pub operator_reconciliation: Option<OperatorReconciliation>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -254,18 +274,25 @@ impl State {
             if let Some(execution) = &request.execution_id {
                 if !identifier(execution) || !execution_ids.insert(execution) || request.snapshot.is_none() { return Err(Error::Invalid); }
             }
-            if request.status.active() || matches!(request.status, RequestStatus::Completed | RequestStatus::Failed) {
+            if request.status.active() || matches!(request.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Reconciled) {
                 if request.execution_id.is_none() || request.snapshot.is_none() { return Err(Error::Invalid); }
             }
             if request.status.waiting() && (request.execution_id.is_some() || request.snapshot.is_some()) { return Err(Error::Invalid); }
             if request.status == RequestStatus::CancelRequested && !request.cancel_requested { return Err(Error::Invalid); }
             if request.status == RequestStatus::Expired && (!matches!(request.intent, Intent::Time { .. }) || request.execution_id.is_some()) { return Err(Error::Invalid); }
+            if let Some(record) = &request.operator_reconciliation {
+                if request.status != RequestStatus::Reconciled || request.execution_id.as_ref() != Some(&record.execution_id)
+                    || !matches!(record.previous_status, RequestStatus::Reconcile | RequestStatus::CancelRequested)
+                    || (record.previous_status == RequestStatus::CancelRequested && !request.cancel_requested)
+                    || record.recorded_at > MAX_SAFE_INTEGER || record.evidence.is_empty() || record.evidence.len() > 4096
+                    || record.evidence.trim() != record.evidence { return Err(Error::Invalid); }
+            } else if request.status == RequestStatus::Reconciled { return Err(Error::Invalid); }
             if let Some(previous_id) = &request.reprocess_of {
                 let previous = self.requests.iter().find(|r| &r.id == previous_id).ok_or(Error::Invalid)?;
                 if previous.id == request.id || request.intent == Intent::Event || request.execution_id.is_none() || request.snapshot.is_none()
                     || previous.definition.id != request.definition.id || previous.subject != request.subject
                     || previous.snapshot != request.snapshot || previous.execution_id.is_none()
-                    || !matches!(previous.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Cancelled) { return Err(Error::Invalid); }
+                    || !matches!(previous.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Cancelled | RequestStatus::Reconciled) { return Err(Error::Invalid); }
                 let mut visited = BTreeSet::from([&request.id]);
                 let mut ancestor = previous;
                 loop {
@@ -279,7 +306,7 @@ impl State {
                 if covering.id == request.id || covering.definition.id != request.definition.id
                     || covering.definition.method != request.definition.method || covering.subject != request.subject
                     || covering.snapshot != request.snapshot || request.snapshot.is_none() || request.execution_id.is_some()
-                    || !matches!(covering.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Cancelled) { return Err(Error::Invalid); }
+                    || !matches!(covering.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Cancelled | RequestStatus::Reconciled) { return Err(Error::Invalid); }
             }
         }
         if self.dispatch_count != execution_ids.len() as u64 || self.dispatch_count > self.limits.max_dispatches
@@ -328,6 +355,7 @@ pub enum Command {
     Time { definition_id: String, revision: u64, slot: u64, subject: String, exact: Option<ExactRef> },
     Reserve { request_id: String, execution_id: String },
     Observe { request_id: String, execution_id: String, outcome: Outcome },
+    Reconcile { request_id: String, execution_id: String, disposition: ReconciliationDisposition, evidence: String, execution_stopped: bool, effects_checked: bool },
     Cancel { request_id: String },
     Control { definition_id: String, paused: bool, revoked: bool },
     RevokeBinding { binding_id: String },
@@ -400,7 +428,7 @@ fn new_request(state: &State, id: &str, definition: Definition, intent: Intent,
     if state.requests.len() >= state.limits.max_requests { return Err(Error::Capacity); }
     Ok(RunRequest { id: id.into(), definition, intent, subject, exact, created_at: now,
         through_position: position, snapshot: None, execution_id: None,
-        status: RequestStatus::Pending, continued_revision: false, cancel_requested: false, reprocess_of: None })
+        status: RequestStatus::Pending, continued_revision: false, cancel_requested: false, reprocess_of: None, operator_reconciliation: None })
 }
 fn cancel(request: &mut RunRequest, effects: &mut Vec<Effect>) {
     if request.status.waiting() || request.status.active() { request.cancel_requested = true; }
@@ -557,7 +585,7 @@ pub fn apply(state: &State, command: Command, now: u64, ids: Ids) -> Result<Tran
                 let same_candidate = |r: &&RunRequest| r.id != request.id && r.definition.id == request.definition.id
                     && r.subject == request.subject && r.snapshot.as_ref() == Some(candidate);
                 if state.requests.iter().filter(same_candidate).any(|r| r.status.active()) { return Err(Error::Busy); }
-                let terminal = |r: &&RunRequest| matches!(r.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Cancelled);
+                let terminal = |r: &&RunRequest| matches!(r.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Cancelled | RequestStatus::Reconciled);
                 let previous = state.requests.iter().rev().filter(same_candidate).find(terminal);
                 let covering = if request.intent == Intent::Event {
                     state.requests.iter().rev().filter(same_candidate).filter(terminal)
@@ -579,6 +607,21 @@ pub fn apply(state: &State, command: Command, now: u64, ids: Ids) -> Result<Tran
                     effects.push(Effect::Dispatch { request_id, execution_id, method: request.definition.method.clone(), snapshot: candidate.clone() });
                 }
             } else { next.requests[index].status = RequestStatus::InputUnavailable; }
+        }
+        Command::Reconcile { request_id, execution_id, disposition, evidence, execution_stopped, effects_checked } => {
+            if !execution_stopped || !effects_checked || evidence.trim().is_empty() || evidence.len() > 4096 { return Err(Error::Invalid); }
+            let evidence = evidence.trim().to_string();
+            let request = next.requests.iter_mut().find(|r| r.id == request_id).ok_or(Error::NotFound)?;
+            if request.execution_id.as_ref() != Some(&execution_id) { return Err(Error::Conflict); }
+            if let Some(record) = &request.operator_reconciliation {
+                if record.execution_id != execution_id || record.disposition != disposition || record.evidence != evidence { return Err(Error::Conflict); }
+            } else {
+                if !matches!(request.status, RequestStatus::Reconcile | RequestStatus::CancelRequested) { return Err(Error::InvalidTransition); }
+                request.operator_reconciliation = Some(OperatorReconciliation { execution_id, disposition, evidence, recorded_at: now,
+                    previous_status: request.status.clone(), authority: ReconciliationAuthority::LocalOperator });
+                request.status = RequestStatus::Reconciled;
+                next.controls.entry(request.definition.id.clone()).or_default().paused = true;
+            }
         }
         Command::Observe { request_id, execution_id, outcome } => {
             let request = next.requests.iter_mut().find(|r| r.id == request_id).ok_or(Error::NotFound)?;

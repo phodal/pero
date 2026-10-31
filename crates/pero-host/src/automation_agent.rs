@@ -173,6 +173,18 @@ impl Manager {
         session.tx.send(SessionCommand::Cancel).map_err(|_| "Automation cancellation outcome unknown".into())
     }
 
+    /// Owner-side gate only. Absence after restart is not proof about external effects;
+    /// the operator must separately attest to stopped execution and checked effects.
+    pub fn automation_reconciliation_admit(&self, execution_id: &str) -> Result<(), String> {
+        if !self.automation_threads.contains(execution_id) {
+            return Err("Unknown Automation execution".into());
+        }
+        if self.sessions.get(execution_id).is_some_and(|session| !session.tx.is_closed()) {
+            return Err("Original Automation session is still live; request cancellation and wait for closure".into());
+        }
+        Ok(())
+    }
+
     /// Restore reservations from the transactional store, never from chat replay.
     /// This protects frozen threads from interactive mutation; it starts no work.
     pub fn automation_restore_execution(&mut self, execution_id: String) {
@@ -256,7 +268,9 @@ mod tests {
     #[test]
     fn restored_execution_never_replays_or_accepts_interactive_permission() {
         let mut manager = fixture_manager();
+        assert!(manager.automation_reconciliation_admit("unknown").is_err());
         manager.automation_restore_execution("reserved".into());
+        assert!(manager.automation_reconciliation_admit("reserved").is_ok());
         let admission = manager.automation_admit("fixture", &std::env::temp_dir()).unwrap();
         assert!(matches!(manager.automation_start("reserved".into(), admission, "frozen input".into()), Err(AutomationStartError::Unknown(_))));
         assert!(manager.automation_owns_command(&HostCommand::Permission {
@@ -294,7 +308,14 @@ mod tests {
             match observation.kind {
                 AutomationReceiptKind::TurnStarted => {
                     started = true;
-                    if prompt == "wait" { manager.automation_cancel("reserved-fixture").unwrap(); }
+                    if prompt == "wait" {
+                        assert!(manager.automation_reconciliation_admit("reserved-fixture").is_err());
+                        manager.automation_cancel("reserved-fixture").unwrap();
+                        // A cancel request never overrides the actual owner's live handle.
+                        if !manager.sessions["reserved-fixture"].tx.is_closed() {
+                            assert!(manager.automation_reconciliation_admit("reserved-fixture").is_err());
+                        }
+                    }
                 },
                 AutomationReceiptKind::NotStarted { reason } => {
                     assert_eq!(reason, acp::PromptRejection::WorkspaceLease);
@@ -307,6 +328,7 @@ mod tests {
                 _ => {},
             }
         }
+        assert!(manager.automation_reconciliation_admit("reserved-fixture").is_ok());
         assert_eq!(denied, prompt == "permission");
         assert_eq!(finished, expected_stop.is_some());
         assert_eq!(started, expected_stop.is_some());

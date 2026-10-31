@@ -225,6 +225,11 @@ try {
   start = host.events.length;
   const held = await host.call(manual('cancel', 'cancel-one', 'cancel test'));
   await host.wait(event => event.kind === 'session_update' && event.data?.content?.text === 'fixture_prompt_received', start);
+  const live = await host.stateAfter(value => value.state.requests.find(request => request.id === held.receipt.id)?.status.kind === 'running');
+  const liveExecution = live.state.requests.find(request => request.id === held.receipt.id).execution_id;
+  const refused = await host.call({ action: 'reconcile', request_id: held.receipt.id, expected_execution_id: liveExecution, disposition: 'failed', evidence: 'Operator test cannot override a live owner', execution_stopped: true, effects_checked: true }, true);
+  assert.match(refused.text, /still live/);
+  assert.deepEqual((await host.query()).state, live.state, 'live reconciliation refusal changes no durable state');
   await host.call({ action: 'cancel', request_id: held.receipt.id });
   await host.wait(event => event.kind === 'turn_finished' && event.data?.stopReason === 'cancelled', start);
   await host.stateAfter(value => value.state.requests.find(request => request.id === held.receipt.id)?.status.kind === 'cancelled');
@@ -266,15 +271,58 @@ try {
   assert(cancellation.attention[crashing.receipt.id], 'unavailable original owner must remain visible, not claim stopped');
   await stop(host);
   host = await launch();
-  const stable = await host.query();
+  let stable = await host.query();
   assert.equal(stable.state.requests.find(request => request.id === crashing.receipt.id)?.status.kind, 'reconcile');
   assert.equal(stable.state.requests.find(request => request.id === crashing.receipt.id)?.cancel_requested, true);
   assert.equal(stable.state.requests.find(request => request.id === blocked.receipt.id)?.status.kind, 'pending');
   assert.equal((await logs()).length, beforeCrash);
   results.push('SIGKILL recovery blocks new intents; cancellation remains an unresolved request across restart without replay');
+  const recoveredRequest = stable.state.requests.find(request => request.id === crashing.receipt.id);
+  const reconcile = { action: 'reconcile', request_id: crashing.receipt.id, expected_execution_id: recoveredRequest.execution_id, disposition: 'failed', evidence: 'Local operator inspected the stopped fixture process and its prompt log; no external writes were executed.', execution_stopped: true, effects_checked: true };
+  for (const invalid of [
+    { ...reconcile, execution_stopped: false },
+    { ...reconcile, effects_checked: false },
+    { ...reconcile, execution_stopped: undefined },
+    { ...reconcile, expected_execution_id: 'stale-execution-id' },
+    { ...reconcile, evidence: '' },
+  ]) {
+    await host.call(invalid, true);
+    assert.deepEqual((await host.query()).state, stable.state, 'invalid attestation must not mutate durable state');
+  }
+  const resolved = await host.call(reconcile);
+  const resolution = resolved.state.requests.find(request => request.id === crashing.receipt.id);
+  assert.equal(resolution.status.kind, 'reconciled');
+  assert.equal(resolution.execution_id, recoveredRequest.execution_id);
+  assert.equal(resolution.operator_reconciliation.execution_id, recoveredRequest.execution_id);
+  assert.equal(resolution.operator_reconciliation.disposition, 'failed');
+  assert.equal(resolution.operator_reconciliation.evidence, reconcile.evidence);
+  assert.equal(resolution.operator_reconciliation.authority, 'local_operator');
+  assert.equal(resolution.operator_reconciliation.previous_status.kind, 'reconcile');
+  assert(Number.isSafeInteger(resolution.operator_reconciliation.recorded_at));
+  assert.equal(resolved.state.controls.crash.paused, true);
+  assert.equal(resolved.state.requests.find(request => request.id === blocked.receipt.id).status.kind, 'pending');
+  const duplicateResolution = await host.call(reconcile);
+  assert.deepEqual(duplicateResolution.state, resolved.state);
+  await host.call({ ...reconcile, evidence: 'conflicting report' }, true);
+  assert.equal((await logs()).length, beforeCrash, 'operator resolution never resubmits the original prompt');
+  await host.call(create('after-reconciliation'));
+  start = host.events.length;
+  await host.call(manual('after-reconciliation', 'new-independent-intent', 'independent work after resolution'));
+  await completed(host, start, 'after-reconciliation');
+  assert.equal((await logs()).length, beforeCrash + 1);
+  await stop(host);
+  host = await launch();
+  stable = await host.query();
+  assert.deepEqual(stable.state.requests.find(request => request.id === crashing.receipt.id).operator_reconciliation, resolution.operator_reconciliation);
+  assert.equal(stable.state.requests.find(request => request.id === crashing.receipt.id).status.kind, 'reconciled');
+  assert.equal(stable.state.controls.crash.paused, true);
+  assert.equal(stable.state.requests.find(request => request.id === blocked.receipt.id).status.kind, 'pending');
+  assert.equal(stable.state.requests.find(request => request.definition.id === 'after-reconciliation').status.kind, 'completed');
+  assert.equal((await logs()).length, beforeCrash + 1);
+  results.push('operator reconciliation rejects live/stale/incomplete claims, retains attestation across restart, pauses original definition and releases independent work without replay');
   await stop(host);
   await mkdir(resolve('test-results/automation'), { recursive: true });
-  const report = { status: 'passed', level: 'L0 real local Host/SQLite/fixture ACP', binarySha256: sha(await readFile(binary)), scenarios: results, promptInvocations: beforeCrash, persistedRequests: stable.state.requests.map(request => ({ definition: request.definition.id, status: request.status.kind })), providerCalls: 0, limitations: ['No Desktop acceptance', 'No remote source/provider', 'No business/scientific verification', 'No descendant cleanup guarantee'] };
+  const report = { status: 'passed', level: 'L0 real local Host/SQLite/fixture ACP', binarySha256: sha(await readFile(binary)), scenarios: results, promptInvocations: (await logs()).length, persistedRequests: stable.state.requests.map(request => ({ definition: request.definition.id, status: request.status.kind })), providerCalls: 0, limitations: ['No Desktop acceptance', 'No remote source/provider', 'No business/scientific verification', 'No descendant cleanup guarantee'] };
   await writeFile(artifact, JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify(report, null, 2));
 } catch (error) {

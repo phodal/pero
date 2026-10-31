@@ -108,3 +108,42 @@ fn manual_input_identity_and_latest_publication_commit_atomically() {
     assert_eq!(store.state().unwrap(), before);
     drop(store); std::fs::remove_file(path).unwrap();
 }
+
+#[test]
+fn operator_reconciliation_and_definition_pause_are_one_durable_commit() {
+    let path = path(); let mut store = Store::open(&path).unwrap();
+    let owner = store.state().unwrap().owner;
+    store.apply(vec![Command::PutDefinition { definition: domain::Definition {
+        id: "review".into(), revision: 1, owner: owner.clone(), trigger: domain::Trigger::Manual,
+        input: domain::InputContract::RecheckLatest, input_binding_id: "local".into(),
+        method: domain::Method::Agent { agent_id: "fixture".into(), workspace: "/tmp".into(), prompt: "Inspect".into() },
+        target: domain::Target::LocalHost { owner },
+    } }], 1, None, None, None).unwrap();
+    let hash = digest(b"original");
+    let receipt = store.apply(vec![Command::ManualInput { definition_id: "review".into(), intent_id: "original".into(),
+        candidate: CandidateRef { binding_id: "local".into(), subject: "s".into(), revision: "r1".into(), digest: hash.clone(), content_ref: hash.clone() } }],
+        2, Some((&hash, "original")), None, None).unwrap().receipt;
+    let Receipt::Request { id, .. } = receipt else { panic!("request required") };
+    store.apply(vec![Command::Reserve { request_id: id.clone(), execution_id: "original-execution".into() },
+        Command::Observe { request_id: id.clone(), execution_id: "original-execution".into(), outcome: domain::Outcome::Unknown }],
+        3, None, None, Some(("original-execution", &serde_json::json!({"kind":"unknown"})))).unwrap();
+    let before = store.state().unwrap(); let original_evidence = store.evidence().unwrap();
+    let command = Command::Reconcile { request_id: id, execution_id: "original-execution".into(),
+        disposition: domain::ReconciliationDisposition::Failed, evidence: "Operator checked process and original operation receipt".into(),
+        execution_stopped: true, effects_checked: true };
+    store.db.execute_batch("CREATE TRIGGER fail_write BEFORE UPDATE ON state BEGIN SELECT RAISE(ABORT,'disk fixture'); END;").unwrap();
+    assert!(store.apply(vec![command.clone()], 4, None, None, None).is_err());
+    assert_eq!(store.state().unwrap(), before);
+    store.db.execute_batch("DROP TRIGGER fail_write").unwrap();
+    let committed = store.apply(vec![command], 5, None, None, None).unwrap();
+    assert!(committed.effects.is_empty(), "reconciliation never resubmits a prompt");
+    let reviewed = store.state().unwrap();
+    assert!(reviewed.controls["review"].paused);
+    assert_eq!(reviewed.requests[0].status, domain::RequestStatus::Reconciled);
+    assert_eq!(reviewed.requests[0].operator_reconciliation.as_ref().unwrap().previous_status, domain::RequestStatus::Reconcile);
+    assert_eq!(store.evidence().unwrap(), original_evidence, "operator attestation does not replace provider observations");
+    drop(store); let store = Store::open(&path).unwrap();
+    assert_eq!(store.state().unwrap(), reviewed);
+    assert_eq!(store.evidence().unwrap(), original_evidence);
+    drop(store); std::fs::remove_file(path).unwrap();
+}
