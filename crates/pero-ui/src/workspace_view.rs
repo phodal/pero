@@ -446,8 +446,8 @@ impl Workbench {
                     .entries
                     .iter()
                     .find(|app| &app.name == name)
-                    .map(|app| app.display_name.clone())
-                    .unwrap_or_else(|| name.clone()),
+                    .map(|app| self.installed_app_title(&app.name, &app.display_name))
+                    .unwrap_or_else(|| self.installed_app_title(name, name)),
                 pero_chat_ui::icon_theme::app_icon(name, pero_theme::UiAppearance::global(cx).dark),
             ),
         }

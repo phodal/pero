@@ -411,7 +411,7 @@
   "cloud.worker.idle": "空闲",
   "cloud.worker.none": "—",
   "cloud.worker.busy": "执行中",
-  "nav.connectors": "Connectors",
+  "nav.connectors": "连接器",
   "nav.apps": "应用",
   "apps.back": "应用列表",
   "apps.refresh": "刷新",
