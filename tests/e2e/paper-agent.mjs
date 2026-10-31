@@ -109,6 +109,8 @@ try {
     // Synthetic content is explicit test input, imported through the real UI.
     const sample = await frame.locator('body').evaluate(async () => (await fetch('/api/example')).json());
     await frame.getByRole('button', { name: 'Add papers', exact: true }).click();
+    await expect(frame.getByLabel('Sort', { exact: true })).toHaveValue('recency');
+    expect(await frame.locator('.pero-ui-page-header').evaluate(element => element.getBoundingClientRect().height)).toBeLessThanOrEqual(56);
     await page.screenshot({ path: resolve(out, 'import-search-light.png') });
     await frame.getByRole('combobox', { name: 'Literature source', exact: true }).selectOption('openalex');
     await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).fill('attention');
