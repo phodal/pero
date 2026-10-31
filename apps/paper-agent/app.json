@@ -110,7 +110,8 @@
             },
             "start": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "description": "Character offset. Omit this field when using startLine/endLine."
             },
             "text": {
               "type": "string",
@@ -136,8 +137,14 @@
                   "passageId": {
                     "type": "string"
                   },
-                  "startLine": {"type": "integer", "minimum": 1},
-                  "endLine": {"type": "integer", "minimum": 1},
+                  "startLine": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "endLine": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
                   "quote": {
                     "type": "string",
                     "maxLength": 4000
@@ -151,7 +158,50 @@
               }
             },
             "report": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "pero.paper-agent-report.v1"
+                  ]
+                },
+                "intentId": {
+                  "type": "string",
+                  "minLength": 64,
+                  "maxLength": 64
+                },
+                "title": {
+                  "type": "string"
+                },
+                "sections": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "experiments": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "limitations": {
+                  "type": "string"
+                },
+                "matrix": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "schema",
+                "intentId",
+                "title",
+                "sections",
+                "experiments",
+                "limitations"
+              ],
+              "additionalProperties": false
             },
             "passageId": {
               "type": "string",
@@ -160,7 +210,8 @@
             },
             "startLine": {
               "type": "integer",
-              "minimum": 1
+              "minimum": 1,
+              "description": "One-based PDF page line. Omit start when using this field."
             },
             "endLine": {
               "type": "integer",

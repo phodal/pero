@@ -86,6 +86,9 @@ class ResearchStudies(unittest.TestCase):
             result = store.study_step(dict(studyId=study.id, action='read', paperId=paper.id,
                                           page=1, startLine=3, endLine=3), NOW)
             self.assertEqual(result['observation']['nextLine'], 4)
+            observed = result['observation']['passages'][0]
+            self.assertEqual(observed['lineCount'], 1)
+            self.assertEqual(observed['citationLines'], [dict(line=1, text=observed['content'])])
             reopened = ResearchStore(root).study(study.id)
             step = reopened.steps[0]
             self.assertEqual((step.start_line, step.end_line), (3, 3))

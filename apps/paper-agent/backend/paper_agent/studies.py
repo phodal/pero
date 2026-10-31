@@ -10,6 +10,7 @@ from .model import (Invalid, PaperSnapshot, ResearchInput, ResearchRequest,
 from .reports import EvidenceReference, ResearchReport
 from .retrieval import terms
 from .source_text import SourceText
+from .passage_reading import PassageReading
 from .context_file import ContextFile, ContextRead
 
 STEP_LIMIT = 24
@@ -130,7 +131,7 @@ class ResearchStep:
         return dict(studyId=self.study_id, number=self.number, action=self.action, createdAt=self.created_at,
                     paperId=self.paper_id, query=self.query, page=self.page, start=self.start,
                     nextStart=self.next_start, pageLength=self.page_length,
-                    passages=[p.to_dict() for p in self.passages], totalMatches=self.total_matches,
+                    passages=[PassageReading(p).to_dict() for p in self.passages], totalMatches=self.total_matches,
                     text=self.finding, evidence=[e.to_dict() for e in self.evidence], reportId=self.report_id,
                     **(dict(gaps=list(self.gaps)) if self.gaps is not None else {}),
                     **(dict(startLine=self.start_line, endLine=self.end_line) if self.start_line is not None else {}))
@@ -147,10 +148,10 @@ class ResearchStep:
     def observation(self):
         if self.action == 'read':
             return dict(paperId=self.paper_id, page=self.page, start=self.start, nextStart=self.next_start,
-                        pageLength=self.page_length, passages=[p.to_dict() for p in self.passages],
+                        pageLength=self.page_length, passages=[PassageReading(p).to_dict() for p in self.passages],
                         **(dict(startLine=self.start_line, endLine=self.end_line, nextLine=self.end_line + 1 if self.next_start is not None and self.passages[-1].content.endswith(("\n", "\r")) else None) if self.start_line is not None else {}))
         if self.action == 'search':
-            return dict(query=self.query, totalMatches=self.total_matches, passages=[p.to_dict() for p in self.passages])
+            return dict(query=self.query, totalMatches=self.total_matches, passages=[PassageReading(p).to_dict() for p in self.passages])
         if self.action == 'note':
             return dict(text=self.finding, evidence=[e.to_dict() for e in self.evidence],
                         **(dict(gaps=list(self.gaps)) if self.gaps is not None else {}))
@@ -255,7 +256,7 @@ class StudyCarryover:
         return cls(parent.id, passages) if passages else None
 
     def to_dict(self):
-        return dict(intentId=self.intent_id, passages=[p.to_dict() for p in self.passages])
+        return dict(intentId=self.intent_id, passages=[PassageReading(p).to_dict() for p in self.passages])
 
     @classmethod
     def from_record(cls, value):
@@ -379,7 +380,7 @@ class ResearchStudy:
         return dict(**self.compact(), requestId=self.request_id, question=self.request.question,
                     createdAt=self.created_at,
                     paperIds=list(self.request.paper_ids), sourceCatalog=[s.to_dict() for s in self.sources],
-                    steps=[s.to_dict() for s in self.steps], passages=[p.to_dict() for p in self.passages], prompt=self.prompt())
+                    steps=[s.to_dict() for s in self.steps], passages=[PassageReading(p).to_dict() for p in self.passages], prompt=self.prompt())
 
     def prompt(self):
         return self.continuations[-1].frozen_prompt if self.continuations else self.frozen_prompt
@@ -424,7 +425,7 @@ class ResearchStudy:
                 'experiments:[],limitations:string,matrix?:{columns:[{id,label}],cells:[{paperId,columnId,value,'
                 'status:"supported|missing|conflict",evidence:[{paperId,passageId,quote}]}]}}. '
                 'Use the user language and concise Markdown. Every substantive section needs evidence from passages '
-                'actually read/searched. Prefer evidence {paperId,passageId,startLine,endLine}: one-based inclusive lines within that observed passage; the backend copies and validates original text exactly, including CRLF. Alternatively supply quote; copy short contiguous quotes with exact punctuation and whitespace. At most '
+                'actually read/searched. Prefer evidence {paperId,passageId,startLine,endLine}: use only the explicit citationLines numbers (one-based inclusive within that passage, never PDF page lines); the backend copies and validates original text exactly, including CRLF. Alternatively supply quote; copy short contiguous quotes with exact punctuation and whitespace. At most '
                 '8 references per evidence array, 8 matrix columns and 40 cells. Include a structured matrix if requested. '
                 'Missing cells have empty value/evidence; supported cells need exact evidence; conflict needs two references. '
                 'Inline links [label](evidence:1) reference the section evidence array. Keep limitations explicit. '

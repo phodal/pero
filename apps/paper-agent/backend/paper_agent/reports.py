@@ -23,7 +23,12 @@ class EvidenceReference:
                 passage = next((p for p in passages if p.id == item.get('passageId') and p.paper_id == item.get('paperId')), None)
                 if passage is None:
                     raise Invalid('Citation lines require an observed passageId and its paperId')
-                _, original = SourceText(passage.content).range(item.get('startLine'), item.get('endLine'), limit=4000)
+                source = SourceText(passage.content)
+                try:
+                    _, original = source.range(item.get('startLine'), item.get('endLine'), limit=4000)
+                except Invalid as error:
+                    raise Invalid(f'{error}; passageId {passage.id} has citationLines 1..{len(source.lines)}. '
+                                  'Use recall with this passageId and select its explicit citationLines numbers, not PDF page lines.') from error
                 if quote is not None and quote != original:
                     raise Invalid('Citation quotation does not exactly match the selected original lines')
                 quote = original
