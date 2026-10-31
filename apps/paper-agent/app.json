@@ -177,6 +177,37 @@
           ],
           "additionalProperties": false
         }
+      },
+      {
+        "name": "read-context",
+        "description": "Read a saved UTF-8 selected-context file by its opaque contextId, in bounded character or line ranges. Does not execute code or add validated paper evidence.",
+        "path": "/api/contexts/read",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "contextId": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            "start": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "startLine": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "endLine": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "contextId"
+          ],
+          "additionalProperties": false
+        }
       }
     ]
   },

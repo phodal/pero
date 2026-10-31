@@ -10,7 +10,7 @@ from .model import (Invalid, PaperSnapshot, ResearchInput, ResearchRequest,
 from .reports import EvidenceReference, ResearchReport
 from .retrieval import terms
 from .source_text import SourceText
-from .context_file import ContextFile
+from .context_file import ContextFile, ContextRead
 
 STEP_LIMIT = 24
 READ_LENGTH = 4800
@@ -170,6 +170,7 @@ class StudyCommand:
     start_line: int | None = None
     end_line: int | None = None
     context_file: ContextFile | None = None
+    context_read: ContextRead | None = None
 
     @classmethod
     def parse(cls, value, study):
@@ -187,17 +188,7 @@ class StudyCommand:
             file = next((f for f in files if f.id == value['contextId']), None) if value.get('contextId') else next(iter(files), None)
             if file is None:
                 raise Invalid('This context file is outside the frozen study and its conversation')
-            if 'startLine' not in value and 'endLine' not in value:
-                start = value.get('start', 0)
-                if type(start) is not int or start < 0:
-                    raise Invalid('Invalid context file character offset')
-                return cls(action, start=start, context_file=file)
-            if 'start' in value:
-                raise Invalid('Choose lines or a character offset for the context file')
-            first, last = value.get('startLine', 1), value.get('endLine')
-            if type(first) is not int or first < 1 or (last is not None and (type(last) is not int or last < first)):
-                raise Invalid('Invalid context file line range')
-            return cls(action, start_line=first, end_line=last, context_file=file)
+            return cls(action, context_file=file, context_read=ContextRead.parse(value))
         if action == 'recall':
             identity = text(value.get('passageId'), 64, 'observed passage reference')
             passage = next((p for p in study.passages if p.id == identity), None)

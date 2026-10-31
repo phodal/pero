@@ -18,9 +18,8 @@ from .reading_matrix import ReadingCell
 from .retrieval import METHOD, SearchQuery, SourceVersion, chunks, terms
 from .research import ResearchPlan, RetrievalBatch, QueryProposal, EvidenceSelection
 from .search_index import SearchIndex
-from .context_file import ContextFile, ContextSelection
-from .source_text import SourceText
-from .studies import ResearchStudy, ResearchStep, StudyCommand, StudyContinuation, READ_LENGTH
+from .context_file import ContextFile, ContextSelection, ContextRead
+from .studies import ResearchStudy, ResearchStep, StudyCommand, StudyContinuation
 
 
 @dataclass(frozen=True)
@@ -95,9 +94,10 @@ class ResearchStore:
             if document.paper_id != selection.paper_id:
                 raise Invalid('Context PDF does not belong to the source')
             document.page(selection.page)
-        path = (self.root / 'context-files' / (selection.id + '.txt')).resolve()
+        identity = selection.id
+        path = (self.root / 'context-files' / (identity + '.txt')).resolve()
         data = selection.content.encode('utf-8')
-        record = ContextFile(selection.id, str(path), digest(data), selection.paper_id,
+        record = ContextFile(identity, str(path), digest(data), selection.paper_id,
                              selection.document_id, selection.page)
         with self.lock:
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -109,8 +109,16 @@ class ResearchStore:
     def context_file(self, request):
         if not request.context_id:
             return None
-        record = ContextFile.from_record(self._read('contexts', request.context_id))
-        return record.for_sources(request.paper_ids)
+        return self.stored_context(request.context_id).for_sources(request.paper_ids)
+
+    def stored_context(self, identity):
+        return ContextFile.from_record(self._read('contexts', identity))
+
+    def read_context(self, record: ContextFile, reading: ContextRead):
+        data = Path(record.path).read_bytes()
+        if digest(data) != record.content_digest:
+            raise Invalid('Context file integrity check failed')
+        return dict(contextFile=record.to_dict(), **reading.observation(data.decode('utf-8')))
 
     def paper(self, identity):
         return PaperSnapshot.from_record(self._read("papers", identity))
@@ -369,24 +377,7 @@ class ResearchStore:
             study = self.study(value.get('studyId'))
             command = StudyCommand.parse(value, study)
             if command.action == 'context':
-                record = command.context_file
-                content = Path(record.path).read_bytes().decode('utf-8')
-                if digest(content.encode('utf-8')) != record.content_digest:
-                    raise Invalid('Context file integrity check failed')
-                if command.start_line is None:
-                    if command.start > len(content):
-                        raise Invalid('Context offset is outside the file')
-                    end = min(command.start + READ_LENGTH, len(content))
-                    return dict(**study.compact(), observation=dict(contextFile=record.to_dict(),
-                        content=content[command.start:end], start=command.start,
-                        nextStart=end if end < len(content) else None, totalCharacters=len(content)))
-                source = SourceText(content)
-                first = command.start_line
-                last = command.end_line or min(first + 19, len(source.lines))
-                start, selected = source.range(first, last)
-                return dict(**study.compact(), observation=dict(contextFile=record.to_dict(), content=selected,
-                    start=start, startLine=first, endLine=last, totalLines=len(source.lines),
-                    nextLine=last + 1 if last < len(source.lines) else None))
+                return dict(**study.compact(), observation=self.read_context(command.context_file, command.context_read))
             if command.action == 'recall':
                 passage = command.passage
                 return dict(**study.compact(), observation=dict(passages=[passage.to_dict()],
