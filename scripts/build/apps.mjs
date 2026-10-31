@@ -31,7 +31,7 @@ await build({
   absWorkingDir: root,
   entryPoints: [resolve(appRoot, 'ui-src/frame.tsx')],
   outfile: resolve(outdir, 'index.js'), bundle: true, format: 'esm', platform: 'browser',
-  loader: { '.woff2': 'file', '.woff': 'file', '.ttf': 'file', '.wasm': 'file' },
+  loader: { '.png': 'dataurl', '.svg': 'dataurl', '.woff2': 'file', '.woff': 'file', '.ttf': 'file', '.wasm': 'file' },
   minify: true, target: 'chrome140', jsx: 'automatic',
   nodePaths: [resolve(appRoot, 'node_modules')],
   alias: { '@pero/app-sdk/ui': resolve(sdk, 'ui.tsx'), '@pero/app-sdk/chart': resolve(sdk, 'chart.ts'), '@pero/app-sdk': resolve(sdk, 'index.tsx') },

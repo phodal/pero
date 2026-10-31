@@ -9,3 +9,8 @@ Host helper bundles use the Model Context Protocol SDK (MIT), fflate (MIT) and
 PDF.js (Apache-2.0); their versions are pinned by the root and connector package
 locks. No third-party provider implementation is embedded by listing it in the
 catalog. The native driver's dependency versions are frozen in its Cargo.lock.
+
+Connector product marks retain their original colors, source records and licenses.
+See [bundled marks](ui-src/assets/connectors/SOURCES.md),
+[official sources](ui-src/assets/connectors/OFFICIAL-SOURCES.md), and `licenses/`.
+The App bundles these assets; it does not request remote logo URLs.
