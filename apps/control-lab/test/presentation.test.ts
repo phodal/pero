@@ -17,8 +17,11 @@ import {
   verdictSummary,
   verificationRows,
   worstMetrics,
+  applyTranscriptDraft,
+  generationPrompt,
+  parseGeneratedDraft,
 } from "../ui-src/presentation.ts";
-import type { Experiment, Trial } from "../ui-src/types.ts";
+import type { Experiment, Field, Trial } from "../ui-src/types.ts";
 
 test("verification denominator includes missing, failed and cancelled final scenarios only for the locked candidate", () => {
   const experiment = {
@@ -265,4 +268,121 @@ test("candidate rows show design parameters and units, retaining source metadata
   assert.equal(candidateParameterSummary({ r: 1000, c: 1e-7, gain: 1.586, horizon: .005, samples: 1001 }), "R = 1000 Ω, C = 1e-7 F, Gain = 1.586");
   assert.equal(candidateParameterSummary({ horizon: 12, samples: 1201 }), "Fixed controller");
   assert.deepEqual(control, { kp: 2, ki: 1, kd: .3, n: 12, horizon: 12, samples: 1201 });
+});
+
+function draftField(name: string, min: number, max: number, step = 0.1, unit = ""): Field {
+  return { name, label: name, value: min, min, max, step, unit };
+}
+
+test("generated draft accepts only the selected template fields inside their bounds", () => {
+  const pid = {
+    parameters: [
+      draftField("kp", 0, 8), draftField("ki", 0, 5), draftField("kd", 0, 2),
+      draftField("n", 12, 12, 1), draftField("horizon", 2, 50, 1, "s"), draftField("samples", 101, 5001, 100),
+    ],
+    criteria: [draftField("overshootMax", 0, 2, 0.01)],
+  };
+  const draft = parseGeneratedDraft(pid, {
+    parameters: { kp: 2, ki: 1, kd: 0.3, n: 12, horizon: 10, samples: 1001 },
+    criteria: { overshootMax: 0.1 },
+    candidateBudget: 6,
+  });
+  assert.equal(draft.budget, 6);
+  assert.equal(draft.parameters.samples, 1001);
+  const golden = {
+    parameters: [draftField("horizon", 2, 50, 1, "s"), draftField("samples", 101, 5001, 100)],
+    criteria: [draftField("overshootMax", 0, 2, 0.01)],
+  };
+  assert.equal(parseGeneratedDraft(golden, {
+    parameters: { horizon: 10, samples: 1000 },
+    criteria: { overshootMax: 0.1 },
+  }).budget, null);
+  const filter = {
+    parameters: [draftField("r", 100, 10000, 100, "Ω"), draftField("c", 1e-9, 1e-5, 1e-8, "F"), draftField("gain", 1, 2.8, 0.01)],
+    criteria: [draftField("cutoffTarget", 10, 50000, 10, "Hz")],
+  };
+  assert.equal(parseGeneratedDraft(filter, {
+    parameters: { r: 1000, c: 1e-7, gain: 1.586 },
+    criteria: { cutoffTarget: 1591.5494309 },
+  }).criteria.cutoffTarget, 1591.5494309);
+  const goldenDraft = { parameters: { horizon: 10, samples: 1001 }, criteria: { overshootMax: 0.1 } };
+  assert.throws(() => parseGeneratedDraft(golden, { ...goldenDraft, parameters: { ...goldenDraft.parameters, kp: 1 } }), /Unknown draft field kp/);
+  assert.throws(() => parseGeneratedDraft(filter, {
+    parameters: { r: 1000, c: 1e-7, gain: 1.586, kp: 1 },
+    criteria: { cutoffTarget: 1000 },
+  }), /Unknown draft field kp/);
+  assert.throws(() => parseGeneratedDraft(golden, { ...goldenDraft, scenarios: [] }), /Unknown draft field scenarios/);
+  assert.throws(() => parseGeneratedDraft(golden, { ...goldenDraft, specHash: "abc" }), /Unknown draft field specHash/);
+  assert.throws(() => parseGeneratedDraft(golden, { ...goldenDraft, engine: "python-control" }), /Unknown draft field engine/);
+  assert.throws(() => parseGeneratedDraft(golden, { ...goldenDraft, parameters: { horizon: 90, samples: 1001 } }), /between 2 and 50/);
+  assert.throws(() => parseGeneratedDraft(golden, { ...goldenDraft, parameters: { horizon: 10, samples: 1001.5 } }), /integer/);
+  assert.throws(() => parseGeneratedDraft(golden, { ...goldenDraft, parameters: { horizon: 10 } }), /samples is required/);
+  assert.throws(() => parseGeneratedDraft(golden, { ...goldenDraft, parameters: { horizon: "10", samples: 1001 } }), /finite number/);
+  assert.throws(() => parseGeneratedDraft(golden, { ...goldenDraft, candidateBudget: 0 }), /1 to 30/);
+  assert.throws(() => parseGeneratedDraft(golden, { ...goldenDraft, candidateBudget: 1.5 }), /1 to 30/);
+  assert.throws(() => parseGeneratedDraft(golden, { ...goldenDraft, budget: 6 }), /Unknown draft field budget/);
+  assert.throws(() => parseGeneratedDraft(golden, null), /object/);
+  assert.throws(() => parseGeneratedDraft(golden, []), /object/);
+  const prompt = generationPrompt(
+    { id: "p-golden", title: "P controller · analytic golden", ...golden },
+    { horizon: 10, samples: 1001 },
+    { overshootMax: 0.1 },
+    6,
+  );
+  assert.match(prompt, /P controller · analytic golden/);
+  assert.match(prompt, /not an engineering pass/);
+  assert.match(prompt, /End the reply with one JSON object/);
+  assert.match(prompt, /candidateBudget/);
+  assert.match(prompt, /- horizon \(horizon\): current 10 s; min 2; max 50; step 1/);
+  assert.equal(prompt.includes("\n- kp "), false);
+  const active = generationPrompt(
+    { id: "active-filter", title: "Sallen–Key active low-pass", ...filter },
+    { r: 1000, c: 1e-7, gain: 1.586 },
+    { cutoffTarget: 1591.5494309 },
+    6,
+  );
+  assert.match(active, /- r \(r\): current 1000 Ω/);
+  assert.match(active, /- gain \(gain\)/);
+  assert.equal(active.includes("\n- kp "), false);
+});
+
+test("transcript JSON applies the last valid draft and leaves the current values when it does not", () => {
+  const golden = {
+    parameters: [draftField("horizon", 2, 50, 1, "s"), draftField("samples", 101, 5001, 100)],
+    criteria: [draftField("overshootMax", 0, 2, 0.01)],
+  };
+  const current = {
+    parameters: { horizon: 10, samples: 1001 },
+    criteria: { overshootMax: 0.1 },
+    budget: 6,
+  };
+  const valid = '{"parameters":{"horizon":12,"samples":2001},"criteria":{"overshootMax":0.2},"candidateBudget":4}';
+  const applied = applyTranscriptDraft(current, golden, `Notes before the draft.\n${valid}\nThis is not an engineering pass.`, false);
+  assert.equal(applied.error, null);
+  assert.equal(applied.parameters.horizon, 12);
+  assert.equal(applied.parameters.samples, 2001);
+  assert.equal(applied.criteria.overshootMax, 0.2);
+  assert.equal(applied.budget, 4);
+  const earlier = '{"parameters":{"horizon":8,"samples":501},"criteria":{"overshootMax":0.05},"candidateBudget":3}';
+  const newer = applyTranscriptDraft(current, golden, `${earlier}\n${valid}`, false);
+  assert.equal(newer.error, null);
+  assert.equal(newer.parameters.horizon, 12);
+  assert.equal(newer.budget, 4);
+  const lastValid = applyTranscriptDraft(current, golden, `${earlier}\n{"parameters":{"kp":1},"criteria":{"overshootMax":0.1}}`, false);
+  assert.equal(lastValid.error, null);
+  assert.equal(lastValid.parameters.horizon, 8);
+  assert.equal(lastValid.budget, 3);
+  const invalid = applyTranscriptDraft(current, golden, `Try this {"parameters":{"horizon":90,"samples":1001},"criteria":{"overshootMax":0.1}}`, false);
+  assert.equal(invalid.parameters, current.parameters);
+  assert.equal(invalid.criteria, current.criteria);
+  assert.equal(invalid.budget, current.budget);
+  assert.match(invalid.error ?? "", /between 2 and 50/);
+  const broken = applyTranscriptDraft(current, golden, "not json {", false);
+  assert.equal(broken.parameters, current.parameters);
+  assert.match(broken.error ?? "", /did not return a validated draft/);
+  const frozen = applyTranscriptDraft(current, golden, valid, true);
+  assert.equal(frozen.parameters, current.parameters);
+  assert.equal(frozen.criteria, current.criteria);
+  assert.equal(frozen.budget, current.budget);
+  assert.match(frozen.error ?? "", /frozen experiment/);
 });

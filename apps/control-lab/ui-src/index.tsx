@@ -2,19 +2,29 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   appObjectProps,
   downloadFile,
+  useAppAgent,
   useAppApi,
   useAppChat,
   useAppDataChanged,
   useAppObject,
 } from "@pero/app-sdk";
 import type { Capability, Experiment, Field, Summary, Template } from "./types";
-import { draftRangeError, matchingCandidate } from "./presentation";
+import { applyTranscriptDraft, draftRangeError, generationPrompt, matchingCandidate, parseGeneratedDraft } from "./presentation";
 import { Results, Evidence } from "./results";
 import "./styles.css";
 const emptySchema = {
   type: "object",
   properties: {},
   additionalProperties: false,
+};
+const generatedDraftSchema = {
+  type: "object",
+  properties: {
+    parameters: { type: "object", additionalProperties: true },
+    criteria: { type: "object", additionalProperties: true },
+    candidateBudget: { type: "number" },
+  },
+  additionalProperties: true,
 };
 function Fields({
   fields,
@@ -55,7 +65,8 @@ function Fields({
 }
 export default function ControlLab() {
   const api = useAppApi(),
-    chat = useAppChat();
+    chat = useAppChat(),
+    agent = useAppAgent();
   const [templates, setTemplates] = useState<Template[]>([]),
     [capabilities, setCapabilities] = useState<Capability[]>([]);
   const [history, setHistory] = useState<Summary[]>([]),
@@ -69,10 +80,18 @@ export default function ControlLab() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
+    [draftError, setDraftError] = useState(""),
+    [generating, setGenerating] = useState(false),
     [draft, setDraft] = useState<Record<string, number> | null>(null);
   const selection = useRef(0),
     pending = useRef(false),
-    pendingSelect = useRef<Record<string, number> | null>(null);
+    pendingSelect = useRef<Record<string, number> | null>(null),
+    generationToken = useRef(0),
+    generationSession = useRef(""),
+    draftApplied = useRef(false),
+    draftFailure = useRef(""),
+    experimentNow = useRef(experiment);
+  experimentNow.current = experiment;
   const template = templates.find((item) => item.id === templateId),
     running = experiment?.status === "running";
   const onError = (value: unknown) =>
@@ -246,7 +265,7 @@ export default function ControlLab() {
   function freezeSpecification(form: HTMLFormElement | null) {
     // App frames intentionally do not grant allow-forms. Validate locally,
     // then use the authenticated App API rather than native form submission.
-    if (loading || busy || pending.current || !form?.reportValidity()) return;
+    if (loading || busy || generating || pending.current || !form?.reportValidity()) return;
     void create().catch(onError);
   }
   async function act(action: string, body: object = {}) {
@@ -277,6 +296,79 @@ export default function ControlLab() {
     setDraft(null);
     pendingSelect.current = null;
     setError("");
+  }
+  function cancelGeneration() {
+    generationToken.current += 1;
+    const id = generationSession.current;
+    generationSession.current = "";
+    setGenerating(false);
+    setDraftError("Generation cancelled.");
+    if (id && id !== "pending") void agent.cancel({ sessionId: id }).catch(() => {});
+  }
+  async function generateParameters() {
+    if (!template || experiment || generating || generationSession.current) return;
+    const token = ++generationToken.current;
+    generationSession.current = "pending";
+    const prompt = generationPrompt(template, parameters, criteria, budget);
+    draftApplied.current = false;
+    draftFailure.current = "";
+    setDraftError("");
+    setGenerating(true);
+    try {
+      const info = await agent.refresh();
+      if (token !== generationToken.current) return;
+      const agentId = info.agents.find((item) => item.available)?.id;
+      if (!info.available || !agentId) throw new Error("No model is available.");
+      const started = await agent.start({
+        requestId: crypto.randomUUID(),
+        prompt,
+        agentId,
+      });
+      if (token !== generationToken.current) {
+        void agent.cancel({ sessionId: started.sessionId }).catch(() => {});
+        return;
+      }
+      generationSession.current = started.sessionId;
+      let cursor = 0;
+      let status = "running";
+      let reply = "";
+      for (let attempt = 0; attempt < 60 && status === "running" && token === generationToken.current; attempt++) {
+        const transcript = await agent.events({ sessionId: started.sessionId, after: cursor });
+        if (token !== generationToken.current) return;
+        cursor = transcript.cursor;
+        reply = transcript.text;
+        if (draftApplied.current) break;
+        status = transcript.status;
+        if (status !== "running") break;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      if (token !== generationToken.current) return;
+      if (status === "cancelled") throw new Error("Generation cancelled.");
+      if (status === "needs_input") throw new Error("No model is available.");
+      if (draftApplied.current) return;
+      if (status !== "completed") throw new Error(draftFailure.current || "The host did not return a validated draft.");
+      const next = applyTranscriptDraft(
+        { parameters, criteria, budget },
+        template,
+        reply,
+        experimentNow.current != null,
+      );
+      if (next.error) throw new Error(next.error);
+      setParameters(next.parameters);
+      setCriteria(next.criteria);
+      setBudget(next.budget);
+      setDraftError("");
+    } catch (caught) {
+      if (token === generationToken.current)
+        setDraftError(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      if (token === generationToken.current) {
+        const id = generationSession.current;
+        generationSession.current = "";
+        setGenerating(false);
+        if (id && id !== "pending") void agent.cancel({ sessionId: id }).catch(() => {});
+      }
+    }
   }
   function selectCandidate(id: string) {
     setSelectedId(id);
@@ -318,6 +410,7 @@ export default function ControlLab() {
     state: {
       loading,
       busy,
+      generating,
       experimentId: experiment?.id ?? null,
       specHash: experiment?.specHash ?? null,
       status: experiment?.status ?? "draft",
@@ -374,6 +467,32 @@ export default function ControlLab() {
           setSelectedId(String(id));
         },
       },
+      ...(template && !experiment
+        ? {
+            apply_generated_draft: {
+              description:
+                "Replace the unsaved design draft for the selected template. parameters and criteria use only that template's fields. candidateBudget is an optional integer from 1 to 30. Does not freeze, search, propose, or accept scenarios, a spec hash, or an engine name.",
+              parameters: generatedDraftSchema,
+              run: (params: Record<string, unknown>) => {
+                if (experiment) throw new Error("A frozen experiment cannot accept a generated draft.");
+                try {
+                  const next = parseGeneratedDraft(template, params);
+                  setParameters(next.parameters);
+                  setCriteria(next.criteria);
+                  if (next.budget != null) setBudget(next.budget);
+                  draftApplied.current = true;
+                  draftFailure.current = "";
+                  setDraftError("");
+                } catch (caught) {
+                  const message = caught instanceof Error ? caught.message : String(caught);
+                  draftFailure.current = message;
+                  setDraftError(message);
+                  throw caught instanceof Error ? caught : new Error(message);
+                }
+              },
+            },
+          }
+        : {}),
     },
   });
   const selected = experiment?.candidates.find(
@@ -419,6 +538,7 @@ export default function ControlLab() {
         </button>
       </header>
       {notice && <p className="notice" role="status">{notice}</p>}
+      {draftError && <div className="error" role="alert">{draftError}</div>}
       {error && (
         <div className="error" role="alert">
           {error}{" "}
@@ -478,10 +598,26 @@ export default function ControlLab() {
             ))}
           </details>
         </aside>
-        <main aria-busy={loading || busy}>
+        <main aria-busy={loading || busy || generating}>
           {!experiment ? (
             <section>
-              <h2>Design specification</h2>
+              <div className="spec-heading">
+                <h2>Design specification</h2>
+                <div className="toolbar">
+                  <button
+                    type="button"
+                    disabled={loading || busy || generating || !template}
+                    onClick={() => void generateParameters()}
+                  >
+                    {generating ? "Generating…" : "Generate parameters"}
+                  </button>
+                  {generating && (
+                    <button type="button" onClick={cancelGeneration}>
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </div>
               <form
                 onSubmit={(event) => event.preventDefault()}
                 onKeyDown={(event) => {
@@ -500,7 +636,7 @@ export default function ControlLab() {
                   <select
                     aria-label="Template"
                     value={templateId}
-                    disabled={loading || busy}
+                    disabled={loading || busy || generating}
                     onChange={(event) => {
                       const item = templates.find(
                         (item) => item.id === event.target.value,
@@ -525,7 +661,7 @@ export default function ControlLab() {
                         {capability.error}
                       </p>
                     )}
-                    <fieldset disabled={busy}>
+                    <fieldset disabled={busy || generating}>
                       <legend>Plant and simulation</legend>
                       <Fields
                         fields={template.parameters}
@@ -538,7 +674,7 @@ export default function ControlLab() {
                         }
                       />
                     </fieldset>
-                    <fieldset disabled={busy}>
+                    <fieldset disabled={busy || generating}>
                       <legend>Acceptance criteria</legend>
                       <Fields
                         fields={template.criteria}
@@ -570,7 +706,7 @@ export default function ControlLab() {
                         max="30"
                         step="1"
                         value={Number.isNaN(budget) ? "" : budget}
-                        disabled={busy}
+                        disabled={busy || generating}
                         onChange={(event) =>
                           setBudget(event.target.valueAsNumber)
                         }
@@ -583,7 +719,7 @@ export default function ControlLab() {
                       onClick={(event) =>
                         freezeSpecification(event.currentTarget.form)
                       }
-                      disabled={busy || loading}
+                      disabled={busy || loading || generating}
                     >
                       {busy ? "Freezing…" : "Freeze specification"}
                     </button>

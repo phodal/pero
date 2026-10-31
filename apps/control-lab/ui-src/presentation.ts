@@ -1,4 +1,4 @@
-import type { Check, Experiment, Series, Trial, Verdict } from "./types.ts";
+import type { Check, Experiment, Field, Series, Trial, Verdict } from "./types.ts";
 /** The denominator is the frozen final scenario set, never only successful trials. */
 export function verificationRows(experiment: Experiment) {
   return experiment.scenarios
@@ -348,3 +348,150 @@ export function suggestedDraft(
   }
   return { values: next, message };
 }
+
+export type GeneratedDraft = {
+  parameters: Record<string, number>;
+  criteria: Record<string, number>;
+  budget: number | null;
+};
+
+const DRAFT_KEYS = new Set(["parameters", "criteria", "candidateBudget"]);
+
+function draftNumber(field: Field, value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value))
+    throw new Error(`${field.label} must be a finite number.`);
+  if (value < field.min || value > field.max)
+    throw new Error(`${field.label} must be between ${field.min} and ${field.max}.`);
+  if (field.name === "samples" && !Number.isInteger(value))
+    throw new Error("Samples must be an integer.");
+  return value;
+}
+
+function draftFields(fields: Field[], supplied: unknown) {
+  if (!supplied || typeof supplied !== "object" || Array.isArray(supplied))
+    throw new Error("Draft fields must be an object.");
+  const record = supplied as Record<string, unknown>;
+  const names = new Set(fields.map((field) => field.name));
+  for (const key of Object.keys(record)) {
+    if (!names.has(key)) throw new Error(`Unknown draft field ${key}.`);
+  }
+  return Object.fromEntries(fields.map((field) => {
+    if (!Object.hasOwn(record, field.name)) throw new Error(`${field.label} is required.`);
+    return [field.name, draftNumber(field, record[field.name])];
+  }));
+}
+
+/** Bounds come from the selected template fields. Step is shown to the model; samples must be a whole number. Template defaults are not required to land on step. */
+export function parseGeneratedDraft(
+  template: { parameters: Field[]; criteria: Field[] },
+  payload: unknown,
+): GeneratedDraft {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload))
+    throw new Error("Draft must be an object.");
+  const record = payload as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!DRAFT_KEYS.has(key)) throw new Error(`Unknown draft field ${key}.`);
+  }
+  let budget: number | null = null;
+  if (record.candidateBudget !== undefined) {
+    const value = record.candidateBudget;
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 30)
+      throw new Error("Candidate budget must be an integer from 1 to 30.");
+    budget = value;
+  }
+  return {
+    parameters: draftFields(template.parameters, record.parameters),
+    criteria: draftFields(template.criteria, record.criteria),
+    budget,
+  };
+}
+
+function fieldLine(field: Field, value: number | undefined) {
+  const unit = field.unit ? ` ${field.unit}` : "";
+  return `- ${field.name} (${field.label}): current ${value ?? field.value}${unit}; min ${field.min}; max ${field.max}; step ${field.step}`;
+}
+
+/** Names the selected template and its exposed fields. It does not authorize a freeze or a search. */
+export function generationPrompt(
+  template: { id: string; title: string; parameters: Field[]; criteria: Field[] },
+  parameters: Record<string, number>,
+  criteria: Record<string, number>,
+  budget: number,
+) {
+  return [
+    `Generate draft values for the Control Lab template "${template.title}" (${template.id}).`,
+    "This draft is not an engineering pass. Do not freeze, search, or propose a candidate.",
+    "Do not call tools. Use only the listed fields. Do not invent gains, scenarios, a spec hash, or an engine name.",
+    "Parameters:",
+    ...template.parameters.map((field) => fieldLine(field, parameters[field.name])),
+    "Criteria:",
+    ...template.criteria.map((field) => fieldLine(field, criteria[field.name])),
+    `Candidate budget: current ${budget}; integer from 1 to 30.`,
+    'End the reply with one JSON object and no text after it. Keys are only "parameters", "criteria", and optional "candidateBudget".',
+  ].join("\n");
+}
+
+function jsonObjects(text: string) {
+  const found: unknown[] = [];
+  let start = -1;
+  let depth = 0;
+  let quoted = false;
+  let escaped = false;
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') quoted = false;
+      continue;
+    }
+    if (char === '"') {
+      quoted = true;
+      continue;
+    }
+    if (char === "{") {
+      if (depth === 0) start = index;
+      depth++;
+    } else if (char === "}" && depth > 0) {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        try {
+          const value = JSON.parse(text.slice(start, index + 1));
+          if (value && typeof value === "object" && !Array.isArray(value)) found.push(value);
+        } catch { /* prose braces are not a draft */ }
+        start = -1;
+      }
+    }
+  }
+  return found;
+}
+
+/** The last JSON object that matches the selected template wins. A failure returns the current draft unchanged. */
+export function applyTranscriptDraft(
+  current: { parameters: Record<string, number>; criteria: Record<string, number>; budget: number },
+  template: { parameters: Field[]; criteria: Field[] },
+  text: string,
+  frozen: boolean,
+) {
+  if (frozen) {
+    return { ...current, error: "A frozen experiment cannot accept a generated draft." };
+  }
+  let draft: GeneratedDraft | null = null;
+  let error = "The host did not return a validated draft.";
+  for (const value of jsonObjects(text)) {
+    try {
+      draft = parseGeneratedDraft(template, value);
+      error = "";
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : String(caught);
+    }
+  }
+  if (!draft) return { ...current, error };
+  return {
+    parameters: draft.parameters,
+    criteria: draft.criteria,
+    budget: draft.budget ?? current.budget,
+    error: null,
+  };
+}
+
