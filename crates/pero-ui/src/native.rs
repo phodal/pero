@@ -156,6 +156,9 @@ pub fn run() -> anyhow::Result<()> {
         &std::env::var_os("PATH").unwrap_or_default(),
     ));
     let settings_path = data.join("settings.json");
+    if let Err(error) = crate::native_python::prepare(&settings_path, &home.join(".pero")) {
+        eprintln!("App Python preparation: {error:#}");
+    }
     let env_file = std::env::var_os("PERO_ENV_FILE")
         .map(PathBuf::from)
         .unwrap_or_else(|| root.join(".env"));

@@ -123,6 +123,8 @@ mod workspace_recent;
 
 #[cfg(all(feature="native",not(target_family="wasm")))]
 mod native_apps;
+#[cfg(all(feature = "native", not(target_family = "wasm")))]
+mod native_python;
 #[cfg(all(feature="native",not(target_family="wasm")))]
 mod native_app_surface;
 
