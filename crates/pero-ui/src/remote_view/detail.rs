@@ -493,7 +493,7 @@ impl Workbench {
                                         .text_color(p.text_muted)
                                         .child(string(task, "project_id").to_string())
                                         .when(github, |el| {
-                                            el.child("·").child(
+                                            el.child(
                                                 Button::new("remote-open-source")
                                                     .ghost()
                                                     .xsmall()
@@ -508,7 +508,7 @@ impl Workbench {
                                             )
                                         })
                                         .when(claimed, |el| {
-                                            el.child("·").child(format!(
+                                            el.child(format!(
                                                 "{} {}",
                                                 self.t("remote.claimed_by"),
                                                 string(&task["claimed_by"], "name")
