@@ -43,7 +43,11 @@ try{
  await expect(frame.getByRole('alert')).toContainText('preview blocked');await expect(frame.locator('#viewer-marker')).toHaveCount(0);
  await frame.getByRole('button',{name:'water.pdb',exact:true}).click();await expect(frame.getByRole('status')).toContainText('Structure ready',{timeout:45000});
  const transfer=await frame.locator('.molecule-view').evaluateHandle((_node,text)=>{const data=new DataTransfer();data.items.add(new File([text],'marker.cif',{type:'text/plain'}));return data;},marker);
- await frame.locator('.molecule-view').dispatchEvent('drop',{dataTransfer:transfer});await transfer.dispose();
+ await frame.locator('.msp-layout-standard').dispatchEvent('dragenter',{dataTransfer:transfer});
+ await expect(frame.locator('.msp-drag-drop-overlay')).toBeVisible();
+ await frame.locator('.msp-drag-drop-overlay').dispatchEvent('drop',{dataTransfer:transfer});await transfer.dispose();
+ await expect(frame.getByRole('heading',{name:'water.pdb',exact:true})).toBeVisible();
+ await expect(frame.locator('.molecule-view canvas').first()).toBeVisible();
  await expect(frame.getByRole('alert')).toContainText('Import file');await expect(frame.locator('#viewer-marker')).toHaveCount(0);
  await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'empty.smi',mimeType:'text/plain',buffer:Buffer.from(' \n\t\n')});
  await expect(frame.getByRole('alert')).toContainText('No molecule records');await expect(frame.getByText('Loading RDKit…',{exact:true})).toHaveCount(0);
