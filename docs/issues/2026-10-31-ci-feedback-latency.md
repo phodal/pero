@@ -25,8 +25,19 @@ Baseline fixes included here do not reduce coverage: Windows npm is launched via
 Node rather than executing a `.cmd` file directly; the ACP presentation fixture
 explicitly accepts the existing built-in HTTP connector configuration; MCP user
 server assertions still independently validate that built-in connector. The
-source TypeSpec generator also removes orphan Terminal types found only in the
-committed generated output, not any Host/UI implementation.
+source TypeSpec generator initially removed orphan Terminal types found only in
+the generated output. A later master added the actual Terminal source and
+implementation: the fast contract gate detected the changed merge input in 19
+seconds, before compilation. After synchronizing that master, regeneration now
+retains its complete Terminal contract. This early failure is not a passing
+ten-minute CI measurement.
+
+That master also introduced an external Point SDK/runtime build prerequisite
+without a CI supplier. At the user’s request the unused external adapter, its
+private Project binary and dedicated routes were removed, rather than bypassing
+the build check or copying external source. Ordinary Pero App installation,
+preparation, backend permissions and Terminal remain. Desktop builds and runtime
+artifacts no longer require a Point checkout.
 
 The incident remains open until real Actions measurements demonstrate the target
 and full coverage on the new exact head. See `docs/fitness/ci-feedback.md` for the
