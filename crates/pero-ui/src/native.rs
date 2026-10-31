@@ -47,7 +47,12 @@ pub(crate) fn session_command(json: &str) -> Result<(), String> {
     })
 }
 pub(crate) fn apps() -> crate::native_apps::NativeApps {
-    APPS.with(|apps| apps.borrow().as_ref().expect("Native Apps initialized").clone())
+    APPS.with(|apps| {
+        apps.borrow()
+            .as_ref()
+            .expect("Native Apps initialized")
+            .clone()
+    })
 }
 pub(crate) fn send_probe(json: &str) -> Result<(), String> {
     session_command(json)
@@ -83,10 +88,14 @@ pub fn run() -> anyhow::Result<()> {
         }
     }
     let app_probe = std::env::args().nth(1).as_deref() == Some("--verify-apps");
-    #[cfg(not(feature="native-probe"))]
-    if app_probe { anyhow::bail!("Build with native-probe to run App acceptance"); }
+    #[cfg(not(feature = "native-probe"))]
+    if app_probe {
+        anyhow::bail!("Build with native-probe to run App acceptance");
+    }
     #[cfg(target_os = "macos")]
-    if !app_probe { relaunch_in_bundle(); }
+    if !app_probe {
+        relaunch_in_bundle();
+    }
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .canonicalize()?;
@@ -115,11 +124,17 @@ pub fn run() -> anyhow::Result<()> {
         &std::env::var_os("PATH").unwrap_or_default(),
     ));
     let settings_path = data.join("settings.json");
-    let harness = crate::native_harness::NativeHarness::open(&data, &settings_path, ephemeral_secrets);
+    let harness =
+        crate::native_harness::NativeHarness::open(&data, &settings_path, ephemeral_secrets);
     let (provider_endpoint, provider_model, provider_key) = harness.process_env();
     #[derive(serde::Deserialize)]
-    struct NativeProduct { apps: Vec<String>, #[serde(default)] required: Vec<String> }
-    let product: NativeProduct = serde_json::from_slice(&std::fs::read(root.join("products/pero.json"))?)?;
+    struct NativeProduct {
+        apps: Vec<String>,
+        #[serde(default)]
+        required: Vec<String>,
+    }
+    let product: NativeProduct =
+        serde_json::from_slice(&std::fs::read(root.join("products/pero.json"))?)?;
     let mut host = Command::new(executable)
         .arg("--stdio")
         .current_dir(&root)
@@ -127,9 +142,20 @@ pub fn run() -> anyhow::Result<()> {
         .env("PATH", std::env::join_paths(paths)?)
         .env("PERO_LOCALE", &locale)
         .env("PERO_SETTINGS_PATH", &settings_path)
-        .env("PERO_BUILTIN_APPS_ROOT", std::env::var_os("PERO_BUILTIN_APPS_ROOT").map(PathBuf::from).unwrap_or_else(||root.join("apps")))
-        .env("PERO_BUILTIN_APPS", std::env::var("PERO_BUILTIN_APPS").unwrap_or_else(|_|product.apps.join(",")))
-        .env("PERO_REQUIRED_APPS", std::env::var("PERO_REQUIRED_APPS").unwrap_or_else(|_|product.required.join(",")))
+        .env(
+            "PERO_BUILTIN_APPS_ROOT",
+            std::env::var_os("PERO_BUILTIN_APPS_ROOT")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| root.join("apps")),
+        )
+        .env(
+            "PERO_BUILTIN_APPS",
+            std::env::var("PERO_BUILTIN_APPS").unwrap_or_else(|_| product.apps.join(",")),
+        )
+        .env(
+            "PERO_REQUIRED_APPS",
+            std::env::var("PERO_REQUIRED_APPS").unwrap_or_else(|_| product.required.join(",")),
+        )
         .env("DEEPSEEK_BASE_URL", &provider_endpoint)
         .env("DEEPSEEK_MODEL", &provider_model)
         .env("DEEPSEEK_API_KEY", &provider_key)
@@ -172,8 +198,13 @@ pub fn run() -> anyhow::Result<()> {
             let Ok(line) = line else { break };
             match serde_json::from_str::<HostEvent>(&line) {
                 Ok(event) if event.version == pero_contracts::PROTOCOL_VERSION => {
-                    if app_client.accept(&event) { continue; }
-                    if matches!(event.kind.as_str(), "harness_settings_saved" | "harness_settings_error") {
+                    if app_client.accept(&event) {
+                        continue;
+                    }
+                    if matches!(
+                        event.kind.as_str(),
+                        "harness_settings_saved" | "harness_settings_error"
+                    ) {
                         let _ = worker_states.send(
                             serde_json::json!({
                                 "action": "native_harness_result",
@@ -232,7 +263,10 @@ pub fn run() -> anyhow::Result<()> {
                 if let Some(event) = harness.abandon() {
                     let _ = events.send_blocking(event);
                 }
-            } else if matches!(action, "harness_get" | "harness_save" | "native_harness_result") {
+            } else if matches!(
+                action,
+                "harness_get" | "harness_save" | "native_harness_result"
+            ) {
                 let outcome = harness.handle(&value);
                 if let Some(command) = outcome.host {
                     if host_commands.send(command).is_err() {
@@ -350,17 +384,18 @@ pub fn run() -> anyhow::Result<()> {
         gpui_kit::component::set_locale(&locale);
         let system_dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
         pero_theme::ResolvedAppearance::resolve(&Default::default(), system_dark, &palettes).install(cx);
-        let options = WindowOptions {
-            show: !app_probe,
-            focus: !app_probe,
-            window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
-                None,
-                size(px(1440.), px(960.)),
-                cx,
-            ))),
-            window_min_size: Some(size(px(1000.), px(680.))),
-            ..Default::default()
-        };
+        let mut options = gpui_kit::component::TitleBar::window_options();
+        options.show = !app_probe;
+        options.focus = !app_probe;
+        options.window_bounds = Some(WindowBounds::Windowed(Bounds::centered(
+            None,
+            size(px(1440.), px(960.)),
+            cx,
+        )));
+        options.window_min_size = Some(size(px(1000.), px(680.)));
+        if let Some(titlebar) = options.titlebar.as_mut() {
+            titlebar.traffic_light_position = Some(point(px(12.), px(13.)));
+        }
         let (window, view) = gpui_kit::open_window(options, cx, move |window, cx| {
             window.set_window_title("Pero Native Preview — local sessions");
             cx.new(|cx| {
@@ -612,9 +647,11 @@ mod tests {
         );
         let bare = temp.join("bare.app");
         super::stage_native_bundle(&exe, &bare, None).unwrap();
-        assert!(!std::fs::read_to_string(bare.join("Contents/Info.plist"))
-            .unwrap()
-            .contains("CFBundleIconFile"));
+        assert!(
+            !std::fs::read_to_string(bare.join("Contents/Info.plist"))
+                .unwrap()
+                .contains("CFBundleIconFile")
+        );
         std::fs::remove_dir_all(&temp).unwrap();
     }
 }

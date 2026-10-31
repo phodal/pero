@@ -39,6 +39,7 @@ pub(crate) struct SidebarProps<'a> {
     pub navigation: WorkbenchPage,
     pub insights_open: bool,
     pub local_connected: bool,
+    pub collapsed: bool,
     pub groups: Vec<ProjectGroup>,
     pub ungrouped: Vec<RecentRow>,
     pub search: &'a Entity<InputState>,
@@ -85,35 +86,40 @@ fn recent_row(
     let trailing = row
         .delete
         .map(|delete| session_menu(ui, index, &title, delete, on_action, chrome, cx));
-    pero_theme::interaction_row(("recent-work", index), row.active, pero_theme::ROW_NAV, chrome)
-        .cursor_pointer()
-        .overflow_hidden()
-        .pl(chrome.geo(pero_theme::SPACE_8 + pero_theme::SUB_INDENT))
-        .pr(chrome.geo(pero_theme::SPACE_8))
-        .gap(chrome.geo(pero_theme::ICON_GAP))
-        .aria_label(accessible)
-        .on_click(click(on_action, row.action))
-        .child(
-            div()
-                .w(chrome.geo(pero_theme::LEAD_BOX))
-                .h(chrome.geo(pero_theme::LEAD_BOX))
-                .flex_shrink_0()
-                .flex()
-                .items_center()
-                .justify_center()
-                .children(lead.map(|name| ui.icon(name))),
-        )
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .overflow_hidden()
-                .whitespace_nowrap()
-                .text_ellipsis()
-                .line_height(relative(1.2))
-                .child(row.label),
-        )
-        .children(trailing)
+    pero_theme::interaction_row(
+        ("recent-work", index),
+        row.active,
+        pero_theme::ROW_NAV,
+        chrome,
+    )
+    .cursor_pointer()
+    .overflow_hidden()
+    .pl(chrome.geo(pero_theme::SPACE_8 + pero_theme::SUB_INDENT))
+    .pr(chrome.geo(pero_theme::SPACE_8))
+    .gap(chrome.geo(pero_theme::ICON_GAP))
+    .aria_label(accessible)
+    .on_click(click(on_action, row.action))
+    .child(
+        div()
+            .w(chrome.geo(pero_theme::LEAD_BOX))
+            .h(chrome.geo(pero_theme::LEAD_BOX))
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .children(lead.map(|name| ui.icon(name))),
+    )
+    .child(
+        div()
+            .flex_1()
+            .min_w_0()
+            .overflow_hidden()
+            .whitespace_nowrap()
+            .text_ellipsis()
+            .line_height(relative(1.2))
+            .child(row.label),
+    )
+    .children(trailing)
 }
 
 fn session_menu(
@@ -146,12 +152,11 @@ fn session_menu(
                     let on_delete = on_delete.clone();
                     let request = request.clone();
                     let confirm = confirm.clone();
-                    menu.min_w(px(148.)).item(PopupMenuItem::new(label).on_click(
-                        move |_, window, cx| {
+                    menu.min_w(px(148.))
+                        .item(PopupMenuItem::new(label).on_click(move |_, window, cx| {
                             on_delete(&request, window, cx);
                             on_delete(&confirm, window, cx);
-                        },
-                    ))
+                        }))
                 })
                 .on_open_change(move |open, window, cx| {
                     if !*open {
@@ -207,10 +212,7 @@ fn project_header(
                     &name
                 ))
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                .on_click(click(
-                    on_action,
-                    SidebarAction::ToggleProject(key.clone()),
-                ))
+                .on_click(click(on_action, SidebarAction::ToggleProject(key.clone())))
                 .child(Icon::default().path(if collapsed {
                     "icons/chevron-right.svg"
                 } else {
@@ -250,7 +252,10 @@ fn show_more(
     let muted = chrome.palette.text_muted;
     div()
         .pl(chrome.geo(
-            pero_theme::SPACE_8 + pero_theme::SUB_INDENT + pero_theme::LEAD_BOX + pero_theme::ICON_GAP,
+            pero_theme::SPACE_8
+                + pero_theme::SUB_INDENT
+                + pero_theme::LEAD_BOX
+                + pero_theme::ICON_GAP,
         ))
         .pr(chrome.geo(pero_theme::SPACE_8))
         .py(chrome.geo(pero_theme::SPACE_4))
@@ -273,16 +278,164 @@ fn show_more(
         )
 }
 
+/// Split window chrome. The search field is 32px; macOS traffic lights sit in the left inset.
+pub(crate) const WINDOW_CHROME: f32 = 40.;
+
+pub(crate) fn traffic_inset(window: &Window) -> f32 {
+    if cfg!(target_os = "macos") && !window.is_fullscreen() {
+        78.
+    } else {
+        8.
+    }
+}
+
+/// The system title bar is transparent and this process owns dragging, so empty chrome starts a window move.
+pub(crate) fn window_drag(
+    el: Stateful<Div>,
+    dragging: &Entity<bool>,
+    window: &Window,
+) -> Stateful<Div> {
+    let dragging = dragging.clone();
+    el.on_double_click(|_, window, _| window.titlebar_double_click())
+        .on_mouse_down(
+            MouseButton::Left,
+            window.listener_for(&dragging, |dragging, _, _, _| *dragging = true),
+        )
+        .on_mouse_down_out(window.listener_for(&dragging, |dragging, _, _, _| *dragging = false))
+        .on_mouse_up(
+            MouseButton::Left,
+            window.listener_for(&dragging, |dragging, _, _, _| *dragging = false),
+        )
+        .on_mouse_move(window.listener_for(&dragging, |dragging, _, window, _| {
+            if *dragging {
+                *dragging = false;
+                window.start_window_move();
+            }
+        }))
+}
+
+fn keep_click(el: Div) -> Div {
+    el.on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+}
+
+fn rail_icon(
+    id: &'static str,
+    icon: Icon,
+    tip: &str,
+    active: bool,
+    chrome: pero_theme::Chrome,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    cx: &App,
+) -> Div {
+    keep_click(div()).child(
+        pero_theme::ghost_icon_button(id, chrome, cx)
+            .selected(active)
+            .icon(icon)
+            .tooltip(tip.to_string())
+            .accessibility_label(tip.to_string())
+            .on_click(on_click),
+    )
+}
+
+fn icon_rail(
+    ui: Ui<'_>,
+    width: f32,
+    props: &SidebarProps<'_>,
+    settings: AnyElement,
+    on_action: ActionHandler<SidebarAction>,
+    _window: &Window,
+    cx: &App,
+) -> Stateful<Div> {
+    let p = ui.palette;
+    let chrome = ui.chrome();
+    let projects = matches!(
+        props.navigation,
+        WorkbenchPage::Projects | WorkbenchPage::Tasks
+    );
+    div()
+        .id("sidebar")
+        .w(px(width))
+        .h_full()
+        .flex_shrink_0()
+        .flex()
+        .flex_col()
+        .items_center()
+        .gap(px(4.))
+        .bg(p.surface_muted)
+        .border_r_1()
+        .border_color(p.border)
+        .pb(px(8.))
+        .child(div().h(px(WINDOW_CHROME)).w_full().flex_shrink_0())
+        .child(rail_icon(
+            "sidebar-expand",
+            Icon::default().path("icons/panel-left-open.svg"),
+            ui.t("sidebar.show"),
+            false,
+            chrome,
+            click(&on_action, SidebarAction::ToggleSidebar),
+            cx,
+        ))
+        .child(rail_icon(
+            "sidebar-insights",
+            Icon::default().path("icons/layout-list.svg"),
+            ui.t("nav.insights"),
+            props.insights_open,
+            chrome,
+            click(
+                &on_action,
+                SidebarAction::OpenApp {
+                    name: "insights".into(),
+                    panel: "main".into(),
+                },
+            ),
+            cx,
+        ))
+        .child(rail_icon(
+            "sidebar-new-chat",
+            Icon::new(IconName::Plus),
+            ui.t("chat.new"),
+            false,
+            chrome,
+            click(&on_action, SidebarAction::NewChat),
+            cx,
+        ))
+        .child(rail_icon(
+            "sidebar-projects",
+            Icon::default().path("icons/folder.svg"),
+            ui.t("nav.projects"),
+            projects,
+            chrome,
+            click(&on_action, SidebarAction::Navigate(WorkbenchPage::Projects)),
+            cx,
+        ))
+        .child(div().flex_1())
+        .child(rail_icon(
+            "sidebar-apps",
+            Icon::default().path("icons/file-code.svg"),
+            ui.t("nav.apps"),
+            props.navigation == WorkbenchPage::Apps && !props.insights_open,
+            chrome,
+            click(&on_action, SidebarAction::Navigate(WorkbenchPage::Apps)),
+            cx,
+        ))
+        .child(keep_click(div()).child(settings))
+}
+
 pub(crate) fn sidebar(
     ui: Ui<'_>,
     width: f32,
     props: SidebarProps<'_>,
     settings: AnyElement,
     on_action: ActionHandler<SidebarAction>,
+    dragging: &Entity<bool>,
+    window: &Window,
     cx: &App,
 ) -> Stateful<Div> {
     let p = ui.palette;
     let chrome = ui.chrome();
+    if props.collapsed {
+        return icon_rail(ui, width, &props, settings, on_action, window, cx);
+    }
     let mut index = 0;
     let projects_active = matches!(
         props.navigation,
@@ -300,103 +453,125 @@ pub(crate) fn sidebar(
         .text_color(p.text)
         .border_r_1()
         .border_color(p.border)
-        .p(px(pero_theme::SPACE_8))
-        .gap(px(pero_theme::SPACE_4))
-        .child(pero_theme::sidebar_row(
-            "sidebar-insights",
-            ui.t("nav.insights"),
-            None,
-            None,
-            props.insights_open,
-            pero_theme::RowLevel::Nav,
-            Some(Icon::default().path("icons/layout-list.svg").into_any_element()),
-            chrome,
-            click(&on_action, SidebarAction::OpenApp { name: "insights".into(), panel: "main".into() }),
-        ))
         .child(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(pero_theme::ICON_GAP))
-                .child(
-                    div().min_w_0().flex_1().child(pero_theme::sidebar_row(
-                        "sidebar-new-chat",
-                        ui.t("chat.new"),
-                        None,
-                        None,
-                        false,
-                        pero_theme::RowLevel::Nav,
-                        Some(Icon::new(IconName::Plus).into_any_element()),
-                        chrome,
-                        click(&on_action, SidebarAction::NewChat),
-                    )),
-                )
-                .child(
-                    div().flex_shrink_0().child(
-                        pero_theme::ghost_icon_button("sidebar-collapse", chrome, cx)
-                            .icon(Icon::default().path("icons/panel-left-close.svg"))
-                            .tooltip(ui.t("sidebar.hide"))
-                            .accessibility_label(ui.t("sidebar.hide"))
-                            .on_click(click(&on_action, SidebarAction::ToggleSidebar)),
-                    ),
+            window_drag(
+                div()
+                    .id("sidebar-chrome")
+                    .h(px(WINDOW_CHROME))
+                    .w_full()
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .gap(px(pero_theme::ICON_GAP))
+                    .pl(px(traffic_inset(window)))
+                    .pr(px(8.)),
+                dragging,
+                window,
+            )
+            .child(
+                keep_click(div()).child(
+                    pero_theme::ghost_icon_button("sidebar-collapse", chrome, cx)
+                        .icon(Icon::default().path("icons/panel-left-close.svg"))
+                        .tooltip(ui.t("sidebar.hide"))
+                        .accessibility_label(ui.t("sidebar.hide"))
+                        .on_click(click(&on_action, SidebarAction::ToggleSidebar)),
                 ),
-        )
-        .child(pero_theme::sidebar_row(
-            "sidebar-projects",
-            ui.t("nav.projects"),
-            None,
-            None,
-            projects_active,
-            pero_theme::RowLevel::Nav,
-            Some(Icon::default().path("icons/folder.svg").into_any_element()),
-            chrome,
-            click(&on_action, SidebarAction::Navigate(WorkbenchPage::Projects)),
-        ))
-        .child(
-            pero_theme::search_field(Input::new(props.search), chrome)
-                .prefix(ui.icon("search").size(px(W::ICON)))
-                .w_full(),
+            )
+            .child(
+                keep_click(div().min_w_0().flex_1()).child(
+                    pero_theme::search_field(Input::new(props.search), chrome)
+                        .prefix(ui.icon("search").size(px(W::ICON)))
+                        .w_full(),
+                ),
+            ),
         )
         .child(
             div()
-                .id("sidebar-project-scroll")
                 .flex_1()
                 .min_h_0()
-                .overflow_y_scroll()
-                .children(
-                    props
-                        .groups
-                        .into_iter()
-                        .enumerate()
-                        .map(|(group_index, group)| {
-                            let header = project_header(ui, group_index, &group, &on_action, chrome);
-                            let key = group.key.clone();
-                            let revealed = group.revealed;
-                            let collapsed = group.collapsed;
-                            let (sessions, tasks): (Vec<_>, Vec<_>) = group
-                                .rows
-                                .into_iter()
-                                .partition(|row| matches!(row.action, SidebarAction::SelectSession(_)));
-                            let more = sessions.len() > revealed;
-                            let empty = sessions.is_empty() && tasks.is_empty();
-                            let mut session_rows = Vec::new();
-                            for row in sessions.into_iter().take(revealed) {
-                                index += 1;
-                                session_rows.push(
-                                    recent_row(ui, row, index, &on_action, cx).into_any_element(),
-                                );
-                            }
-                            let mut task_rows = Vec::new();
-                            for row in tasks {
-                                index += 1;
-                                task_rows.push(
-                                    recent_row(ui, row, index, &on_action, cx).into_any_element(),
-                                );
-                            }
-                            div()
-                                .mb(px(4.))
-                                .child(header)
-                                .when(!collapsed, |el| {
+                .flex()
+                .flex_col()
+                .p(px(pero_theme::SPACE_8))
+                .gap(px(pero_theme::SPACE_4))
+                .child(pero_theme::sidebar_row(
+                    "sidebar-insights",
+                    ui.t("nav.insights"),
+                    None,
+                    None,
+                    props.insights_open,
+                    pero_theme::RowLevel::Nav,
+                    Some(
+                        Icon::default()
+                            .path("icons/layout-list.svg")
+                            .into_any_element(),
+                    ),
+                    chrome,
+                    click(
+                        &on_action,
+                        SidebarAction::OpenApp {
+                            name: "insights".into(),
+                            panel: "main".into(),
+                        },
+                    ),
+                ))
+                .child(pero_theme::sidebar_row(
+                    "sidebar-new-chat",
+                    ui.t("chat.new"),
+                    None,
+                    None,
+                    false,
+                    pero_theme::RowLevel::Nav,
+                    Some(Icon::new(IconName::Plus).into_any_element()),
+                    chrome,
+                    click(&on_action, SidebarAction::NewChat),
+                ))
+                .child(pero_theme::sidebar_row(
+                    "sidebar-projects",
+                    ui.t("nav.projects"),
+                    None,
+                    None,
+                    projects_active,
+                    pero_theme::RowLevel::Nav,
+                    Some(Icon::default().path("icons/folder.svg").into_any_element()),
+                    chrome,
+                    click(&on_action, SidebarAction::Navigate(WorkbenchPage::Projects)),
+                ))
+                .child(
+                    div()
+                        .id("sidebar-project-scroll")
+                        .flex_1()
+                        .min_h_0()
+                        .overflow_y_scroll()
+                        .children(props.groups.into_iter().enumerate().map(
+                            |(group_index, group)| {
+                                let header =
+                                    project_header(ui, group_index, &group, &on_action, chrome);
+                                let key = group.key.clone();
+                                let revealed = group.revealed;
+                                let collapsed = group.collapsed;
+                                let (sessions, tasks): (Vec<_>, Vec<_>) =
+                                    group.rows.into_iter().partition(|row| {
+                                        matches!(row.action, SidebarAction::SelectSession(_))
+                                    });
+                                let more = sessions.len() > revealed;
+                                let empty = sessions.is_empty() && tasks.is_empty();
+                                let mut session_rows = Vec::new();
+                                for row in sessions.into_iter().take(revealed) {
+                                    index += 1;
+                                    session_rows.push(
+                                        recent_row(ui, row, index, &on_action, cx)
+                                            .into_any_element(),
+                                    );
+                                }
+                                let mut task_rows = Vec::new();
+                                for row in tasks {
+                                    index += 1;
+                                    task_rows.push(
+                                        recent_row(ui, row, index, &on_action, cx)
+                                            .into_any_element(),
+                                    );
+                                }
+                                div().mb(px(4.)).child(header).when(!collapsed, |el| {
                                     el.child(
                                         div()
                                             .flex()
@@ -416,7 +591,8 @@ pub(crate) fn sidebar(
                                                 el.child(
                                                     div()
                                                         .pl(chrome.geo(
-                                                            pero_theme::SPACE_8 + pero_theme::SUB_INDENT,
+                                                            pero_theme::SPACE_8
+                                                                + pero_theme::SUB_INDENT,
                                                         ))
                                                         .pr(chrome.geo(pero_theme::SPACE_8))
                                                         .py(px(8.))
@@ -430,40 +606,27 @@ pub(crate) fn sidebar(
                                             }),
                                     )
                                 })
+                            },
+                        ))
+                        .when(!props.ungrouped.is_empty(), |el| {
+                            el.child(
+                                div()
+                                    .pt(px(8.))
+                                    .child(
+                                        div()
+                                            .px(px(8.))
+                                            .py(px(5.))
+                                            .text_size(px(pero_theme::TextRole::Caption
+                                                .pixels(ui.typography.ui)))
+                                            .text_color(p.text_muted)
+                                            .child(ui.t("project.unassigned")),
+                                    )
+                                    .children(props.ungrouped.into_iter().enumerate().map(
+                                        |(i, row)| recent_row(ui, row, 100000 + i, &on_action, cx),
+                                    )),
+                            )
                         }),
                 )
-                .when(!props.ungrouped.is_empty(), |el| {
-                    el.child(
-                        div()
-                            .pt(px(8.))
-                            .child(
-                                div()
-                                    .px(px(8.))
-                                    .py(px(5.))
-                                    .text_size(px(
-                                        pero_theme::TextRole::Caption.pixels(ui.typography.ui)
-                                    ))
-                                    .text_color(p.text_muted)
-                                    .child(ui.t("project.unassigned")),
-                            )
-                            .children(
-                                props
-                                    .ungrouped
-                                    .into_iter()
-                                    .enumerate()
-                                    .map(|(i, row)| recent_row(ui, row, 100000 + i, &on_action, cx)),
-                            ),
-                    )
-                }),
-        )
-        .child(
-            div()
-                .pt(px(8.))
-                .border_t_1()
-                .border_color(p.border)
-                .flex()
-                .flex_col()
-                .gap(px(2.))
                 .child(pero_theme::sidebar_row(
                     "sidebar-apps",
                     ui.t("nav.apps"),
@@ -474,23 +637,17 @@ pub(crate) fn sidebar(
                     Some(Icon::default().path("icons/file-code.svg").into_any_element()),
                     chrome,
                     click(&on_action, SidebarAction::Navigate(WorkbenchPage::Apps)),
-                )),
-        )
-        .when(!props.local_connected, |el| {
-            el.child(
-                div()
-                    .px(px(8.))
-                    .py(px(6.))
-                    .text_size(px(pero_theme::TextRole::Caption.pixels(ui.typography.ui)))
-                    .text_color(p.warning)
-                    .child(ui.t("status.disconnected")),
-            )
-        })
-        .child(
-            div()
-                .pt(px(8.))
-                .border_t_1()
-                .border_color(p.border)
+                ))
+                .when(!props.local_connected, |el| {
+                    el.child(
+                        div()
+                            .px(px(8.))
+                            .py(px(6.))
+                            .text_size(px(pero_theme::TextRole::Caption.pixels(ui.typography.ui)))
+                            .text_color(p.warning)
+                            .child(ui.t("status.disconnected")),
+                    )
+                })
                 .child(settings),
         )
 }
