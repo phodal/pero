@@ -99,6 +99,34 @@ export const designContract = {
       "light": "#007F86",
       "dark": "#55D5DD"
     }
+  },
+  "chatProse": {
+    "paragraphGap": "2/5",
+    "headingBottom": "7/20",
+    "headingFollow": "1/4",
+    "ruleSpace": "8/5",
+    "quotePad": "9/10",
+    "quoteBorder": 2,
+    "listIndent": "7/5",
+    "tableScale": "14/15",
+    "h1Scale": "9/5",
+    "h1Line": "5/4",
+    "h1Gap": "11/10",
+    "h2Scale": "4/3",
+    "h2Line": "27/20",
+    "h2Gap": "8/5",
+    "h3Scale": "17/15",
+    "h3Line": "27/20",
+    "h3Gap": "7/5",
+    "h4Scale": "1/1",
+    "h4Line": "27/20",
+    "h4Gap": "7/5",
+    "h5Scale": "14/15",
+    "h5Line": "27/20",
+    "h5Gap": "7/5",
+    "h6Scale": "13/15",
+    "h6Line": "27/20",
+    "h6Gap": "7/5"
   }
 } as const;
-export const { space, typePx, typeWeight, radii, metrics, colors: colorRoles } = designContract;
+export const { space, typePx, typeWeight, radii, metrics, colors: colorRoles, chatProse } = designContract;

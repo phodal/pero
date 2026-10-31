@@ -6,7 +6,7 @@ pub use design_tokens::*;
 mod design;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub use design::{
-    action_button, badge, empty_state, ghost_icon_button, hairline, interaction_row,
+    action_button, badge, chat_heading, empty_state, ghost_icon_button, hairline, interaction_row,
     library_header, list_row, menu_button, outline_badge, reader_frame, search_field,
     settings_actions, settings_check, settings_field, settings_group, settings_message,
     settings_panel, settings_row, settings_status, sidebar_row, ActionKind, Chrome, RowLevel,

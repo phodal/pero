@@ -82,3 +82,8 @@ export function ActionButton({ label, kind = 'primary', className = '', children
 export function SearchField({ className = '', ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} type="search" className={`pero-search-field ${className}`} />;
 }
+
+/** Session markdown. Headings, lists, code, quotes, and tables use the chat contract. */
+export function ChatMarkdown({ className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div {...props} className={`pero-chat ${className}`} />;
+}

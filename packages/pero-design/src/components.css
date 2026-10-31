@@ -187,6 +187,65 @@
   font: var(--pero-font-body) system-ui, sans-serif;
 }
 
+.pero-chat {
+  color: var(--pero-text);
+  font-size: var(--pero-font-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.pero-chat :where(h1, h2, h3, h4, h5, h6) {
+  margin: 0;
+  color: var(--pero-text);
+  font-weight: 600;
+}
+.pero-chat :where(h1) { font-size: calc(var(--pero-prose-h1-scale) * 1em); line-height: var(--pero-prose-h1-line); margin-top: calc(var(--pero-prose-h1-gap) * 1em); margin-bottom: calc(var(--pero-prose-heading-bottom) * 1em); }
+.pero-chat :where(h2) { font-size: calc(var(--pero-prose-h2-scale) * 1em); line-height: var(--pero-prose-h2-line); margin-top: calc(var(--pero-prose-h2-gap) * 1em); margin-bottom: calc(var(--pero-prose-heading-bottom) * 1em); }
+.pero-chat :where(h3) { font-size: calc(var(--pero-prose-h3-scale) * 1em); line-height: var(--pero-prose-h3-line); margin-top: calc(var(--pero-prose-h3-gap) * 1em); margin-bottom: calc(var(--pero-prose-heading-bottom) * 1em); }
+.pero-chat :where(h4) { font-size: calc(var(--pero-prose-h4-scale) * 1em); line-height: var(--pero-prose-h4-line); margin-top: calc(var(--pero-prose-h4-gap) * 1em); margin-bottom: calc(var(--pero-prose-heading-bottom) * 1em); }
+.pero-chat :where(h5) { font-size: calc(var(--pero-prose-h5-scale) * 1em); line-height: var(--pero-prose-h5-line); margin-top: calc(var(--pero-prose-h5-gap) * 1em); margin-bottom: calc(var(--pero-prose-heading-bottom) * 1em); }
+.pero-chat :where(h6) { font-size: calc(var(--pero-prose-h6-scale) * 1em); line-height: var(--pero-prose-h6-line); margin-top: calc(var(--pero-prose-h6-gap) * 1em); margin-bottom: calc(var(--pero-prose-heading-bottom) * 1em); color: var(--pero-text-muted); }
+.pero-chat :where(h1, h2, h3, h4, h5, h6) + :where(h1, h2, h3, h4, h5, h6) { margin-top: calc(var(--pero-prose-heading-follow) * 1em); }
+.pero-chat > :first-child { margin-top: 0; }
+.pero-chat :where(p, ul, ol, pre, blockquote, table) { margin: 0 0 calc(var(--pero-prose-paragraph-gap) * 1em); }
+.pero-chat :where(p, ul, ol, pre, blockquote, table):last-child { margin-bottom: 0; }
+.pero-chat :where(ul, ol) { padding-left: calc(var(--pero-prose-list-indent) * 1em); }
+.pero-chat :where(blockquote) {
+  padding-left: calc(var(--pero-prose-quote-pad) * 1em);
+  border-left: var(--pero-prose-quote-border) solid var(--pero-border);
+  color: var(--pero-text-muted);
+}
+.pero-chat :where(hr) {
+  height: 1px;
+  border: 0;
+  margin: calc(var(--pero-prose-rule-space) * 1em) 0;
+  background: var(--pero-border);
+}
+.pero-chat :where(pre) {
+  overflow: auto;
+  padding: var(--pero-space-3);
+  border-radius: var(--pero-radius-button);
+  background: var(--pero-surface-muted);
+}
+.pero-chat :where(code) { font-family: "JetBrains Mono", ui-monospace, monospace; }
+.pero-chat :where(:not(pre) > code) {
+  padding: 0.15em 0.35em;
+  border-radius: var(--pero-radius-cell);
+  background: var(--pero-accent-soft);
+}
+.pero-chat :where(table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: calc(var(--pero-prose-table-scale) * 1em);
+}
+.pero-chat :where(th, td) {
+  border: 1px solid var(--pero-border);
+  padding: var(--pero-space-1) var(--pero-space-2);
+  text-align: start;
+  vertical-align: top;
+}
+.pero-chat :where(th) { font-weight: 600; background: var(--pero-surface-muted); }
+.pero-chat :where(a) { color: var(--pero-action); }
+
 @media (forced-colors: active) {
   .pero-sidebar-row[aria-current="page"], .pero-list-row[data-current="true"] { background: Highlight; color: HighlightText; }
   .pero-ui-empty, .pero-badge-outline, .pero-settings-panel { border: 1px solid CanvasText; }

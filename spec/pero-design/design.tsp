@@ -43,6 +43,38 @@ model Radii {
   cell: 2;
 }
 
+/** ACP session Markdown, in em of the chat body. The same ratios size GPUI headings and the web class `.pero-chat`. */
+model ChatProse {
+  paragraphGap: "2/5";
+  /** Gap under a heading, relative to that heading. */
+  headingBottom: "7/20";
+  /** Gap when one heading follows another, relative to the following heading. */
+  headingFollow: "1/4";
+  ruleSpace: "8/5";
+  quotePad: "9/10";
+  quoteBorder: 2;
+  listIndent: "7/5";
+  tableScale: "14/15";
+  h1Scale: "9/5";
+  h1Line: "5/4";
+  h1Gap: "11/10";
+  h2Scale: "4/3";
+  h2Line: "27/20";
+  h2Gap: "8/5";
+  h3Scale: "17/15";
+  h3Line: "27/20";
+  h3Gap: "7/5";
+  h4Scale: "1/1";
+  h4Line: "27/20";
+  h4Gap: "7/5";
+  h5Scale: "14/15";
+  h5Line: "27/20";
+  h5Gap: "7/5";
+  h6Scale: "13/15";
+  h6Line: "27/20";
+  h6Gap: "7/5";
+}
+
 model Metrics {
   sidebarNavRow: 32;
   /** Account and choice menus use the same row box as sidebar navigation. */

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { colorRoles, metrics, radii, space, typePx } from './tokens.generated.ts';
+import { chatProse, colorRoles, metrics, radii, space, typePx } from './tokens.generated.ts';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const generated = readFileSync(resolve(dir, 'tokens.generated.css'), 'utf8');
@@ -28,6 +28,15 @@ test('generated geometry matches the TypeSpec contract', () => {
   assert.equal(colorRoles.action.light, '#007F86');
   assert.equal(colorRoles.action.dark, '#55D5DD');
   assert.equal(metrics.sidebarNavRow, 32);
+  assert.equal(chatProse.h1Scale, '9/5');
+  assert.equal(chatProse.h2Scale, '4/3');
+  assert.equal(chatProse.h3Scale, '17/15');
+  assert.match(generated, /--pero-prose-h1-scale:\s*calc\(9 \/ 5\)/);
+  assert.match(generated, /--pero-prose-paragraph-gap:\s*calc\(2 \/ 5\)/);
+  assert.match(generated, /--pero-prose-quote-border:\s*2px/);
+  assert.match(components, /\.pero-chat :where\(h1\)/);
+  assert.match(components, /var\(--pero-prose-h1-scale\)/);
+  assert.match(components, /var\(--pero-prose-h3-scale\)/);
   assert.ok(css.includes(generated));
 });
 

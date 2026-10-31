@@ -346,7 +346,8 @@ impl Render for StreamText {
             .with_code_background(cx.theme().muted)
             .with_border(cx.theme().border)
             .with_dark(cx.theme().is_dark())
-            .with_paragraph_gap(rems(0.4))
+            .with_paragraph_gap(rems(pero_theme::PROSE_PARAGRAPH_GAP))
+            .with_heading(pero_theme::chat_heading)
             .with_code_block(
                 StyleRefinement::default()
                     .font_family("JetBrains Mono")

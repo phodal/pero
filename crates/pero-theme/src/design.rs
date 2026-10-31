@@ -2,10 +2,12 @@
 //! come from `design_tokens`; accent overrides still flow through the resolved palette.
 use crate::design_tokens::{
     ACTION_BUTTON_HEIGHT, ACTION_BUTTON_PADDING, GHOST_ICON_BUTTON, ICON_GAP, LEAD_BOX,
-    LIBRARY_HEADER, LIST_DARK, LIST_LIGHT, MENU_ROW, RADIUS_BADGE, RADIUS_BUTTON,
-    RADIUS_SELECTION, READER_MAX_WIDTH, ROW_NAV, ROW_SUB, SEARCH_FIELD_HEIGHT, SPACE_12, SPACE_16,
-    SPACE_24, SPACE_4, SPACE_8, SUB_INDENT, TYPE_BODY, TYPE_CAPTION, TYPE_HEADING, TYPE_LABEL,
-    TYPE_TITLE, WEIGHT_BODY, WEIGHT_HEADING, WEIGHT_LIST_TITLE, WEIGHT_TITLE,
+    LIBRARY_HEADER, LIST_DARK, LIST_LIGHT, MENU_ROW, PROSE_H1_LINE, PROSE_H1_SCALE, PROSE_H2_LINE,
+    PROSE_H2_SCALE, PROSE_H3_LINE, PROSE_H3_SCALE, PROSE_H4_LINE, PROSE_H4_SCALE, PROSE_H5_LINE,
+    PROSE_H5_SCALE, PROSE_H6_LINE, PROSE_H6_SCALE, RADIUS_BADGE, RADIUS_BUTTON, RADIUS_SELECTION,
+    READER_MAX_WIDTH, ROW_NAV, ROW_SUB, SEARCH_FIELD_HEIGHT, SPACE_12, SPACE_16, SPACE_24, SPACE_4,
+    SPACE_8, SUB_INDENT, TYPE_BODY, TYPE_CAPTION, TYPE_HEADING, TYPE_LABEL, TYPE_TITLE, WEIGHT_BODY,
+    WEIGHT_HEADING, WEIGHT_LIST_TITLE, WEIGHT_TITLE,
 };
 use crate::Palette;
 use gpui_kit::{
@@ -671,4 +673,19 @@ pub fn search_field(input: Input, chrome: Chrome) -> Input {
     )
     .text_size(chrome.text(TYPE_BODY))
     .line_height(relative(1.3))
+}
+
+/// Heading scale for ACP markdown. One rem is the chat body size.
+pub fn chat_heading(level: u8) -> StyleRefinement {
+    let (scale, line) = match level {
+        1 => (PROSE_H1_SCALE, PROSE_H1_LINE),
+        2 => (PROSE_H2_SCALE, PROSE_H2_LINE),
+        3 => (PROSE_H3_SCALE, PROSE_H3_LINE),
+        4 => (PROSE_H4_SCALE, PROSE_H4_LINE),
+        5 => (PROSE_H5_SCALE, PROSE_H5_LINE),
+        _ => (PROSE_H6_SCALE, PROSE_H6_LINE),
+    };
+    StyleRefinement::default()
+        .text_size(rems(scale))
+        .line_height(relative(line))
 }
