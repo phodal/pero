@@ -22,3 +22,9 @@ test('schedule carries fixed subject, input reference and explicit catch-up wind
   assert.equal(valid(envelope({...command,trigger})),false);
   assert.equal(valid(envelope({...command,trigger:{...command.trigger,interval_seconds:-1}})),false);
 });
+
+test('operator reconciliation binds an execution and requires explicit attestations',()=>{
+  const command={action:'reconcile',request_id:'r',expected_execution_id:'e',disposition:'failed',evidence:'Inspected process and outputs',execution_stopped:true,effects_checked:true};
+  assert.equal(valid(envelope(command)),true);
+  for(const edit of [{execution_stopped:false},{effects_checked:false},{expected_execution_id:undefined},{evidence:''},{disposition:'verified'},{outcome:'completed'}]) assert.equal(valid(envelope({...command,...edit})),false);
+});

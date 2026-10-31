@@ -1372,6 +1372,9 @@
         },
         {
           "$ref": "#/$defs/AutomationContinueOld"
+        },
+        {
+          "$ref": "#/$defs/AutomationReconcile"
         }
       ],
       "description": "Internal execution receipts, reservations and clock ticks are never client commands."
@@ -1965,6 +1968,40 @@
       ],
       "additionalProperties": false
     },
+    "AutomationOperatorReconciliation": {
+      "title": "AutomationOperatorReconciliation",
+      "type": "object",
+      "properties": {
+        "execution_id": {
+          "type": "string"
+        },
+        "disposition": {
+          "$ref": "#/$defs/AutomationReconciliationDisposition"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "recorded_at": {
+          "$ref": "#/$defs/AutomationCounter"
+        },
+        "previous_status": {
+          "$ref": "#/$defs/AutomationRequestStatus"
+        },
+        "authority": {
+          "type": "string",
+          "const": "local_operator"
+        }
+      },
+      "required": [
+        "execution_id",
+        "disposition",
+        "evidence",
+        "recorded_at",
+        "previous_status",
+        "authority"
+      ],
+      "additionalProperties": false
+    },
     "AutomationPublishInput": {
       "title": "AutomationPublishInput",
       "type": "object",
@@ -2060,6 +2097,69 @@
         },
         {
           "$ref": "#/$defs/AutomationRequestReceipt"
+        }
+      ]
+    },
+    "AutomationReconcile": {
+      "title": "AutomationReconcile",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "reconcile"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "expected_execution_id": {
+          "type": "string"
+        },
+        "disposition": {
+          "$ref": "#/$defs/AutomationReconciliationDisposition"
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "execution_stopped": {
+          "type": "boolean",
+          "const": true
+        },
+        "effects_checked": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": [
+        "action",
+        "request_id",
+        "expected_execution_id",
+        "disposition",
+        "evidence",
+        "execution_stopped",
+        "effects_checked"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationReconciliationDisposition": {
+      "title": "AutomationReconciliationDisposition",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "not_started"
+        },
+        {
+          "type": "string",
+          "const": "completed"
+        },
+        {
+          "type": "string",
+          "const": "failed"
+        },
+        {
+          "type": "string",
+          "const": "cancelled"
         }
       ]
     },
@@ -2275,6 +2375,16 @@
             }
           ]
         },
+        "operator_reconciliation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationOperatorReconciliation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "status": {
           "$ref": "#/$defs/AutomationRequestStatus"
         },
@@ -2296,6 +2406,7 @@
         "snapshot",
         "execution_id",
         "reprocess_of",
+        "operator_reconciliation",
         "status",
         "continued_revision",
         "cancel_requested"
@@ -2377,6 +2488,10 @@
             {
               "type": "string",
               "const": "expired"
+            },
+            {
+              "type": "string",
+              "const": "reconciled"
             }
           ]
         }

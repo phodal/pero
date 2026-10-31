@@ -34,13 +34,18 @@ model AutomationEventIntent { kind:"event"; ...AutomationClosed; }
 model AutomationManualIntent { kind:"manual"; id:string; ...AutomationClosed; }
 model AutomationTimeIntent { kind:"time"; slot:AutomationCounter; ...AutomationClosed; }
 @oneOf union AutomationIntent { AutomationEventIntent,AutomationManualIntent,AutomationTimeIntent }
-model AutomationSimpleRequestStatus { kind:"pending"|"input_unavailable"|"definition_changed"|"reserved"|"running"|"cancel_requested"|"reconcile"|"completed"|"failed"|"cancelled"|"expired"; ...AutomationClosed; }
+model AutomationSimpleRequestStatus { kind:"pending"|"input_unavailable"|"definition_changed"|"reserved"|"running"|"cancel_requested"|"reconcile"|"completed"|"failed"|"cancelled"|"expired"|"reconciled"; ...AutomationClosed; }
 model AutomationCoveredRequestStatus { kind:"covered"; request_id:string; ...AutomationClosed; }
 @oneOf union AutomationRequestStatus { AutomationSimpleRequestStatus,AutomationCoveredRequestStatus }
+union AutomationReconciliationDisposition { "not_started","completed","failed","cancelled" }
+model AutomationOperatorReconciliation {
+  execution_id:string; disposition:AutomationReconciliationDisposition; evidence:string; recorded_at:AutomationCounter;
+  previous_status:AutomationRequestStatus; authority:"local_operator"; ...AutomationClosed;
+}
 model AutomationRunRequest {
   id:string; definition:AutomationDefinition; intent:AutomationIntent; subject:string; exact:AutomationExactRef|null;
   created_at:AutomationCounter; through_position:AutomationCounter; snapshot:AutomationCandidateRef|null;
-  execution_id:string|null; reprocess_of:string|null; status:AutomationRequestStatus; continued_revision:boolean; cancel_requested:boolean; ...AutomationClosed;
+  execution_id:string|null; reprocess_of:string|null; operator_reconciliation:AutomationOperatorReconciliation|null; status:AutomationRequestStatus; continued_revision:boolean; cancel_requested:boolean; ...AutomationClosed;
 }
 model AutomationState {
   owner:string; limits:AutomationLimits; bindings:AutomationSourceBinding[]; definitions:AutomationDefinition[];
@@ -60,12 +65,16 @@ model AutomationPublishInput { action:"publish_input"; binding_id:string; subjec
 model AutomationEventAssertion { binding_id:string; producer_id:string; event_kind:string; subject:string; exact:AutomationExactRef|null; ...AutomationClosed; }
 model AutomationAccept { action:"accept"; event:AutomationEventAssertion; ...AutomationClosed; }
 model AutomationManualInput { action:"manual_input"; definition_id:string; intent_id:string; subject:string; content:string; ...AutomationClosed; }
+model AutomationReconcile {
+  action:"reconcile"; request_id:string; expected_execution_id:string; disposition:AutomationReconciliationDisposition;
+  @minLength(1) @maxLength(4096) evidence:string; execution_stopped:true; effects_checked:true; ...AutomationClosed;
+}
 model AutomationCancel { action:"cancel"; request_id:string; ...AutomationClosed; }
 model AutomationSetControl { action:"control"; definition_id:string; paused:boolean; revoked:boolean; ...AutomationClosed; }
 model AutomationRevokeBinding { action:"revoke_binding"; binding_id:string; ...AutomationClosed; }
 model AutomationContinueOld { action:"continue_old"; request_id:string; ...AutomationClosed; }
 /** Internal execution receipts, reservations and clock ticks are never client commands. */
-@oneOf union AutomationCommand { AutomationQuery,AutomationCreateLocal,AutomationPutDefinition,AutomationPutBinding,AutomationPublishInput,AutomationAccept,AutomationManualInput,AutomationCancel,AutomationSetControl,AutomationRevokeBinding,AutomationContinueOld }
+@oneOf union AutomationCommand { AutomationQuery,AutomationCreateLocal,AutomationPutDefinition,AutomationPutBinding,AutomationPublishInput,AutomationAccept,AutomationManualInput,AutomationCancel,AutomationSetControl,AutomationRevokeBinding,AutomationContinueOld,AutomationReconcile }
 model AutomationRequest { method:"automation"; id:string; command:AutomationCommand; ...AutomationClosed; }
 model AutomationAgentSummary { id:string; name:string; available:boolean; ...AutomationClosed; }
 model AutomationCapabilities {

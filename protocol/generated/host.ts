@@ -34,11 +34,13 @@ export type AutomationCommand =
   | AutomationCancel
   | AutomationSetControl
   | AutomationRevokeBinding
-  | AutomationContinueOld;
+  | AutomationContinueOld
+  | AutomationReconcile;
 export type AutomationTrigger = AutomationManualTrigger | AutomationEventTrigger | AutomationTimeTrigger;
 export type AutomationCounter = number;
 export type AutomationInputContract = "process_exact" | "recheck_latest";
 export type AutomationTarget = AutomationLocalTarget | AutomationUnsupportedTarget;
+export type AutomationReconciliationDisposition = "not_started" | "completed" | "failed" | "cancelled";
 export type McpSettingsRequest = GetMcpSettingsRequest | SetMcpSettingsRequest;
 export type McpTransport = McpStdioTransport | McpHttpTransport;
 export type IconThemeRequest = GetIconThemes | InstallIconTheme | SelectIconTheme | RemoveIconTheme;
@@ -317,6 +319,15 @@ export interface AutomationRevokeBinding {
 export interface AutomationContinueOld {
   action: "continue_old";
   request_id: string;
+}
+export interface AutomationReconcile {
+  action: "reconcile";
+  request_id: string;
+  expected_execution_id: string;
+  disposition: AutomationReconciliationDisposition;
+  evidence: string;
+  execution_stopped: true;
+  effects_checked: true;
 }
 export interface GetMcpSettingsRequest {
   method: "settings.mcp.get";
@@ -1784,6 +1795,7 @@ export interface AutomationRunRequest {
   snapshot: AutomationCandidateRef | null;
   execution_id: string | null;
   reprocess_of: string | null;
+  operator_reconciliation: AutomationOperatorReconciliation | null;
   status: AutomationRequestStatus;
   continued_revision: boolean;
   cancel_requested: boolean;
@@ -1799,6 +1811,14 @@ export interface AutomationTimeIntent {
   kind: "time";
   slot: AutomationCounter;
 }
+export interface AutomationOperatorReconciliation {
+  execution_id: string;
+  disposition: AutomationReconciliationDisposition;
+  evidence: string;
+  recorded_at: AutomationCounter;
+  previous_status: AutomationRequestStatus;
+  authority: "local_operator";
+}
 export interface AutomationSimpleRequestStatus {
   kind:
     | "pending"
@@ -1811,7 +1831,8 @@ export interface AutomationSimpleRequestStatus {
     | "completed"
     | "failed"
     | "cancelled"
-    | "expired";
+    | "expired"
+    | "reconciled";
 }
 export interface AutomationCoveredRequestStatus {
   kind: "covered";
