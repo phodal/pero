@@ -161,6 +161,21 @@ export default function PaperAgent() {
     const paper = library.papers.find(p => p.id === annotation.paperId);
     if (paper) void revealPdf(paper, { documentId: annotation.documentId, page: annotation.page, annotationId: annotation.id }).catch(onError);
   }
+  useEffect(() => {
+    const receive=(event:MessageEvent)=>{
+      if(event.source!==window.parent || event.data?.type!=='pero:app:location' || typeof event.data.location!=='string')return;
+      const match=/^report\/([a-f0-9]{64})\/citation\/(\d+)$/.exec(event.data.location);
+      if(!match)return;
+      void (async()=>{
+        const report=await api.get<import('./types').Report>(`/api/reports/${match[1]}`);
+        const intent=await api.get<Intent>(`/api/intents/${report.intentId}`);
+        const refs=report.sections?.flatMap(section=>section.evidence??[])??[];
+        const ref=refs[Number(match[2])];if(!ref)throw Error('Citation is unavailable');
+        await cite(ref,intent);
+      })().catch(onError);
+    };
+    window.addEventListener('message',receive);return()=>window.removeEventListener('message',receive);
+  },[api,reading]);
   useAppDataChanged(() => refresh().catch(onError));
   useAppObject({id:'paper-agent',kind:'research-library',label:'Paper Agent',state:{
     paperCount:library.papers.length,reportCount:library.reports.length,selected:reading ? [reading.id] : [],

@@ -59,6 +59,21 @@ class ResearchStudies(unittest.TestCase):
         self.assertIn('ResearchStudy', study.prompt())
         self.assertIn('formal methods', study.prompt())
 
+    def test_large_line_read_returns_original_windows_without_skipping_text(self):
+        content = 'Title\r\n' + 'Original text. ' * 600 + '\r\nEnd.'
+        paper, document = source(content)
+        study = new_study(paper, document)
+        command = StudyCommand.parse(dict(action='read', paperId=paper.id, page=1, startLine=1, endLine=3), study)
+        step = ResearchStep.read(study, command, document, NOW)
+        pieces = [p.content for p in step.passages]
+        self.assertEqual(step.next_start, 4800)
+        self.assertIsNone(step.observation()['nextLine'])
+        while step.next_start is not None:
+            command = StudyCommand.parse(dict(action='read', paperId=paper.id, page=1, start=step.next_start), study)
+            step = ResearchStep.read(study, command, document, NOW)
+            pieces.extend(p.content for p in step.passages)
+        self.assertEqual(''.join(pieces), content)
+
     def test_line_reads_survive_restart_and_keep_pdf_citation_offsets(self):
         content = 'Title\r\n\r\nFormal method. Exact original evidence.\r\nLimitations.\n'
         paper, document = source(content)
@@ -82,6 +97,19 @@ class ResearchStudies(unittest.TestCase):
             self.assertIn(passage.id, str(mismatch.exception))
             self.assertIn('page 1', str(mismatch.exception))
             self.assertIn('recall', str(mismatch.exception))
+            from paper_agent.reports import EvidenceReference
+            for fields, valid in ((dict(startLine=1, endLine=1), True),
+                    (dict(startLine=1, endLine=1, quote=passage.content), True),
+                    (dict(startLine=1, endLine=1, quote=passage.content.replace('\r\n', '\n')), False),
+                    (dict(startLine=0, endLine=1), False), (dict(startLine=1, endLine=2), False)):
+                value = dict(paperId=paper.id, passageId=passage.id, **fields)
+                with self.subTest(fields=fields):
+                    if valid:
+                        ref = EvidenceReference.parse_many([value], (paper.id,), (paper,), (passage,))[0]
+                        self.assertEqual(ref.quote, passage.content)
+                    else:
+                        with self.assertRaises(Invalid):
+                            EvidenceReference.parse_many([value], (paper.id,), (paper,), (passage,))
             command = StudyCommand.parse(dict(studyId=study.id, action='finalize',
                                              report=final_report(reopened, passage)), reopened)
             self.assertEqual(command.report.sections[0].evidence[0].quote, passage.content[:40])

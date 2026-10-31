@@ -136,6 +136,8 @@
                   "passageId": {
                     "type": "string"
                   },
+                  "startLine": {"type": "integer", "minimum": 1},
+                  "endLine": {"type": "integer", "minimum": 1},
                   "quote": {
                     "type": "string",
                     "maxLength": 4000
@@ -143,8 +145,7 @@
                 },
                 "required": [
                   "paperId",
-                  "passageId",
-                  "quote"
+                  "passageId"
                 ],
                 "additionalProperties": false
               }

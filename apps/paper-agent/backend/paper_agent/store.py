@@ -413,6 +413,10 @@ class ResearchStore:
             observation = step.observation()
             if command.action == 'finalize':
                 observation.update(report=saved.to_dict(), intent=command.intent.to_dict())
+                citations = [dict(label=f"{section.heading[:120]} · p. {next(p.page for p in command.intent.passages if p.id == ref.passage_id)}", location=f"report/{saved.id}/citation/{index}")
+                    for index, (section, ref) in enumerate((section, ref) for section in saved.report.sections for ref in section.evidence)]
+                result['links'] = citations
+                observation['chatCitations'] = [dict(label=link['label'], url=f"pero-app-location://paper-agent/main/{link['location']}") for link in citations]
             return dict(**result, observation=observation)
 
     def retrieval_batch(self, identity):
