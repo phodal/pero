@@ -84,8 +84,12 @@ slot after resume, never reuse or replay of the original execution identity.
 
 Admission failures remain visible and do not starve
 unrelated eligible requests. A typed workspace-lease rejection emitted by the ACP
-owner before prompt submission is a known failed attempt, not an uncertain effect;
-it remains failed across restart. Generic session errors still require reconciliation.
+owner before prompt submission is a known `not_started` attempt, not an uncertain
+effect. It remains terminal across restart and never retries its original identity.
+A new event for the same candidate may execute: a proven non-start cannot cover
+work that never ran. Older persisted `failed` results are not guessed or migrated.
+Operator-reconciled outcomes remain distinct and conservatively cover events.
+Generic session errors still require reconciliation.
 
 ## Fixed policy and bounds
 

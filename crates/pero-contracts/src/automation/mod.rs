@@ -130,6 +130,7 @@ pub enum RequestStatus {
     CancelRequested,
     Reconcile,
     Reconciled,
+    NotStarted,
     Completed,
     Failed,
     Cancelled,
@@ -143,6 +144,10 @@ impl RequestStatus {
     fn active(&self) -> bool {
         matches!(self, Self::Reserved | Self::Running | Self::CancelRequested | Self::Reconcile)
     }
+    fn covers_event(&self) -> bool {
+        matches!(self, Self::Completed | Self::Failed | Self::Cancelled | Self::Reconciled)
+    }
+    fn known_terminal(&self) -> bool { self.covers_event() || *self == Self::NotStarted }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -274,7 +279,7 @@ impl State {
             if let Some(execution) = &request.execution_id {
                 if !identifier(execution) || !execution_ids.insert(execution) || request.snapshot.is_none() { return Err(Error::Invalid); }
             }
-            if request.status.active() || matches!(request.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Reconciled) {
+            if request.status.active() || matches!(request.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Reconciled | RequestStatus::NotStarted) {
                 if request.execution_id.is_none() || request.snapshot.is_none() { return Err(Error::Invalid); }
             }
             if request.status.waiting() && (request.execution_id.is_some() || request.snapshot.is_some()) { return Err(Error::Invalid); }
@@ -292,7 +297,7 @@ impl State {
                 if previous.id == request.id || request.intent == Intent::Event || request.execution_id.is_none() || request.snapshot.is_none()
                     || previous.definition.id != request.definition.id || previous.subject != request.subject
                     || previous.snapshot != request.snapshot || previous.execution_id.is_none()
-                    || !matches!(previous.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Cancelled | RequestStatus::Reconciled) { return Err(Error::Invalid); }
+                    || !previous.status.known_terminal() { return Err(Error::Invalid); }
                 let mut visited = BTreeSet::from([&request.id]);
                 let mut ancestor = previous;
                 loop {
@@ -306,7 +311,7 @@ impl State {
                 if covering.id == request.id || covering.definition.id != request.definition.id
                     || covering.definition.method != request.definition.method || covering.subject != request.subject
                     || covering.snapshot != request.snapshot || request.snapshot.is_none() || request.execution_id.is_some()
-                    || !matches!(covering.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Cancelled | RequestStatus::Reconciled) { return Err(Error::Invalid); }
+                    || !covering.status.covers_event() { return Err(Error::Invalid); }
             }
         }
         if self.dispatch_count != execution_ids.len() as u64 || self.dispatch_count > self.limits.max_dispatches
@@ -341,7 +346,7 @@ pub struct Ids { pub acceptance_id: String, pub request_ids: Vec<String> }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Outcome { Running, Completed, Failed, Cancelled, Unknown }
+pub enum Outcome { Running, NotStarted, Completed, Failed, Cancelled, Unknown }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
@@ -585,10 +590,9 @@ pub fn apply(state: &State, command: Command, now: u64, ids: Ids) -> Result<Tran
                 let same_candidate = |r: &&RunRequest| r.id != request.id && r.definition.id == request.definition.id
                     && r.subject == request.subject && r.snapshot.as_ref() == Some(candidate);
                 if state.requests.iter().filter(same_candidate).any(|r| r.status.active()) { return Err(Error::Busy); }
-                let terminal = |r: &&RunRequest| matches!(r.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Cancelled | RequestStatus::Reconciled);
-                let previous = state.requests.iter().rev().filter(same_candidate).find(terminal);
+                let previous = state.requests.iter().rev().filter(same_candidate).find(|r| r.status.known_terminal());
                 let covering = if request.intent == Intent::Event {
-                    state.requests.iter().rev().filter(same_candidate).filter(terminal)
+                    state.requests.iter().rev().filter(same_candidate).filter(|r| r.status.covers_event())
                         .find(|r| r.definition.method == request.definition.method)
                 } else { None };
                 if let Some(covering) = covering {
@@ -626,7 +630,8 @@ pub fn apply(state: &State, command: Command, now: u64, ids: Ids) -> Result<Tran
         Command::Observe { request_id, execution_id, outcome } => {
             let request = next.requests.iter_mut().find(|r| r.id == request_id).ok_or(Error::NotFound)?;
             if request.execution_id.as_ref() != Some(&execution_id) { return Err(Error::Conflict); }
-            let status = match outcome { Outcome::Running => RequestStatus::Running, Outcome::Completed => RequestStatus::Completed,
+            if outcome == Outcome::NotStarted && !matches!(request.status, RequestStatus::Reserved | RequestStatus::CancelRequested | RequestStatus::NotStarted) { return Err(Error::InvalidTransition); }
+            let status = match outcome { Outcome::Running => RequestStatus::Running, Outcome::NotStarted => RequestStatus::NotStarted, Outcome::Completed => RequestStatus::Completed,
                 Outcome::Failed => RequestStatus::Failed, Outcome::Cancelled => RequestStatus::Cancelled, Outcome::Unknown => RequestStatus::Reconcile };
             if !request.status.active() && request.status != status { return Err(Error::InvalidTransition); }
             request.status = if request.cancel_requested && status == RequestStatus::Running { RequestStatus::CancelRequested } else { status };

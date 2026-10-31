@@ -617,3 +617,64 @@ fn reconciled_time_slot_needs_explicit_resume_and_a_new_slot_to_run_again() {
     assert_eq!(next.state.requests[1].reprocess_of.as_deref(), Some("r1"));
     assert!(next.state.requests[0].operator_reconciliation.is_some());
 }
+
+#[test]
+fn proven_not_started_keeps_identity_but_does_not_claim_candidate_coverage() {
+    let mut state = publish(&configured(InputContract::RecheckLatest), "s", "v1");
+    state = accept(&state, event("e1", "s", None), &["r1"]);
+    state = observe(&reserve(&state, "r1").state, "r1", Outcome::NotStarted);
+    assert_eq!(state.requests[0].status, RequestStatus::NotStarted);
+    assert_eq!(state.requests[0].execution_id.as_deref(), Some("exec-r1"));
+    assert!(state.requests[0].snapshot.is_some());
+    let duplicate = apply(&state, Command::Accept { event: event("e1", "s", None) }, 200, Ids::default()).unwrap();
+    assert_eq!(duplicate.state, state);
+    assert!(duplicate.effects.is_empty());
+    let recovered = apply(&state, Command::Recover, 200, Ids::default()).unwrap();
+    assert_eq!(recovered.state, state);
+    assert!(recovered.effects.is_empty());
+    assert_eq!(observe(&state, "r1", Outcome::NotStarted), state);
+    assert_eq!(apply(&state, Command::Observe { request_id: "r1".into(), execution_id: "exec-r1".into(), outcome: Outcome::Unknown }, 200, Ids::default()), Err(Error::InvalidTransition));
+    state = accept(&state, event("e2", "s", None), &["r2"]);
+    let next = reserve(&state, "r2");
+    assert_eq!(next.effects.len(), 1);
+    assert_eq!(next.state.requests[1].status, RequestStatus::Reserved);
+    assert_eq!(next.state.dispatch_count, 2);
+    let mut corrupt = state.clone();
+    corrupt.requests[0].execution_id = None;
+    assert!(corrupt.validate_restored().is_err());
+}
+
+#[test]
+fn not_started_does_not_reclassify_unknown_or_legacy_failed_work() {
+    let mut state = publish(&configured(InputContract::RecheckLatest), "s", "v1");
+    state = accept(&state, event("e1", "s", None), &["r1"]);
+    let reserved = reserve(&state, "r1").state;
+    for outcome in [Outcome::Running, Outcome::Unknown, Outcome::Failed] {
+        let state = observe(&reserved, "r1", outcome);
+        assert_eq!(apply(&state, Command::Observe { request_id: "r1".into(), execution_id: "exec-r1".into(), outcome: Outcome::NotStarted }, 200, Ids::default()), Err(Error::InvalidTransition));
+    }
+    let unknown = observe(&reserved, "r1", Outcome::Unknown);
+    let pending = accept(&unknown, event("e2", "s", None), &["r2"]);
+    assert_eq!(apply(&pending, Command::Reserve { request_id: "r2".into(), execution_id: "exec-r2".into() }, 200, Ids::default()), Err(Error::Busy));
+    let failed = observe(&reserved, "r1", Outcome::Failed);
+    let legacy: State = serde_json::from_str(&serde_json::to_string(&failed).unwrap()).unwrap();
+    legacy.validate_restored().unwrap();
+    assert_eq!(step(&legacy, Command::Recover), legacy);
+    let pending = accept(&legacy, event("e2", "s", None), &["r2"]);
+    assert_eq!(reserve(&pending, "r2").state.requests[1].status, RequestStatus::Covered { request_id: "r1".into() });
+    let cancelled = step(&reserved, Command::Cancel { request_id: "r1".into() });
+    let stopped = observe(&cancelled, "r1", Outcome::NotStarted);
+    assert!(stopped.requests[0].cancel_requested);
+    assert_eq!(stopped.requests[0].status, RequestStatus::NotStarted);
+}
+
+#[test]
+fn manual_reprocessing_can_reference_a_proven_not_started_attempt() {
+    let state = manual_request(&manual_state(), "first", "r1").state;
+    let state = observe(&reserve(&state, "r1").state, "r1", Outcome::NotStarted);
+    assert_eq!(manual_request(&state, "first", "unused").state, state);
+    let next = manual_request(&state, "second", "r2").state;
+    let dispatch = reserve(&next, "r2");
+    assert_eq!(dispatch.effects.len(), 1);
+    assert_eq!(dispatch.state.requests[1].reprocess_of.as_deref(), Some("r1"));
+}
