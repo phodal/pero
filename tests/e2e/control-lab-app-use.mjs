@@ -152,6 +152,9 @@ try {
   expect(final.candidates.find(item => item.id === result.proposalId).parameters.kp).toBe(3);
   expect(final.report).toEqual(result.report);
   expect(final.trials.every(item => item.status === 'completed' && item.observation.engine === 'python-control')).toBe(true);
+  for (const candidate of final.candidates)
+    expect(final.trials.filter(item => item.phase === 'search' && item.candidateId === candidate.id).map(item => item.scenarioId).sort())
+      .toEqual(frozen.scenarios.filter(item => item.role === 'search').map(item => item.id).sort());
   expect(final.trials.filter(item => item.phase === 'verification').map(item => item.scenarioId).sort())
     .toEqual(frozen.scenarios.filter(item => item.role === 'verification').map(item => item.id).sort());
   await expect(frame.getByRole('button', { name: 'Select Agent/user proposal', exact: true })).toContainText('Agent/user proposal (locked)');
