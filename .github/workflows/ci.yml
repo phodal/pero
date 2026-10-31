@@ -401,6 +401,7 @@ jobs:
           npm --prefix apps/control-lab run test:ui
           npm --prefix apps/data run typecheck
           npm --prefix apps/data run test:ui
+          node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs
 
       - name: Test
         run: npm test
@@ -444,6 +445,7 @@ jobs:
           node --test "$RUNNER_TEMP"/app-use-tests/*.js
           node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs
           node --test tests/runtime/control-lab/*.test.mjs
+          node tests/runtime/automation.mjs
           (cd harness/go && go build -o "$RUNNER_TEMP/control-lab-live-agent" ./cmd/pero-agent-acp)
           control_lab_agent_sha=$(sha256sum "$RUNNER_TEMP/control-lab-live-agent" | cut -d' ' -f1)
           # Independent suites keep separate profiles/displays. Collect every receipt,
@@ -453,6 +455,7 @@ jobs:
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/workbench.mjs
           run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/data.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/data-product.mjs
+          run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/automation.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/toolcalls.mjs
           run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/control-lab.mjs
           run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/control-lab-app-use.mjs
