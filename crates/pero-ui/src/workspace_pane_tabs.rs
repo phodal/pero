@@ -419,6 +419,10 @@ impl Workbench {
         });
         let keep_label = self.t("workspace.keep_tab");
         let close_label = self.t("workspace.close_tab");
+        let close_others_label = self.t("workspace.close_other_tabs");
+        let close_all_label = self.t("workspace.close_all_tabs");
+        let close_others = leaf.tabs.bulk_close_ids(Some(view));
+        let close_all = leaf.tabs.bulk_close_ids(None);
         let drag = PaneTabDrag {
             pane,
             view,
@@ -546,6 +550,32 @@ impl Workbench {
                         let _ = owner.update(cx, |this, cx| this.close_pane_tab(view, window, cx));
                     }
                 }))
+                .item({
+                    let targets = close_others.clone();
+                    PopupMenuItem::new(close_others_label)
+                        .disabled(targets.is_empty())
+                        .on_click({
+                            let owner = owner.clone();
+                            move |_, window, cx| {
+                                let _ = owner.update(cx, |this, cx| {
+                                    this.close_pane_tabs(targets.clone(), window, cx)
+                                });
+                            }
+                        })
+                })
+                .item({
+                    let targets = close_all.clone();
+                    PopupMenuItem::new(close_all_label)
+                        .disabled(targets.is_empty())
+                        .on_click({
+                            let owner = owner.clone();
+                            move |_, window, cx| {
+                                let _ = owner.update(cx, |this, cx| {
+                                    this.close_pane_tabs(targets.clone(), window, cx)
+                                });
+                            }
+                        })
+                })
             })
             .into_any_element()
     }

@@ -303,6 +303,15 @@ impl PaneTabSet {
         }
         None
     }
+    /// Left-to-right tabs for Close Others (`keep`) or Close All (`None`).
+    /// Pinned tabs stay open.
+    pub fn bulk_close_ids(&self, keep: Option<ViewId>) -> Vec<ViewId> {
+        self.items
+            .iter()
+            .filter(|item| !self.is_pinned(item.id) && keep != Some(item.id))
+            .map(|item| item.id)
+            .collect()
+    }
     fn remove(&mut self, id: ViewId, closing: bool) -> Option<PaneItem> {
         let index = self.items.iter().position(|item| item.id == id)?;
         if closing && self.preview != Some(id) {
@@ -797,5 +806,20 @@ mod tests {
         assert_eq!(right.active().unwrap().reading, Some(state(30)));
         assert!(left.valid());
         assert!(right.valid());
+    }
+    #[test]
+    fn bulk_close_keeps_the_named_tab_and_every_pinned_tab() {
+        let mut tabs = PaneTabSet::default();
+        for id in 1..=3 {
+            tabs.open(item(id, &format!("/{id}")), OpenIntent::Permanent)
+                .unwrap();
+        }
+        tabs.open(item(4, "/preview"), OpenIntent::Preview).unwrap();
+        tabs.pin(ViewId(2), true);
+        let ids = |targets: Vec<ViewId>| targets.into_iter().map(|id| id.0).collect::<Vec<_>>();
+        assert_eq!(ids(tabs.bulk_close_ids(Some(ViewId(3)))), [1, 4]);
+        assert_eq!(ids(tabs.bulk_close_ids(None)), [1, 3, 4]);
+        assert_eq!(tabs.items().len(), 4);
+        assert!(tabs.valid());
     }
 }

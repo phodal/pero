@@ -676,6 +676,8 @@
   "chat.usage_input": "输入 token",
   "chat.usage_output": "输出 token",
   "workspace.close_tab": "关闭标签",
+  "workspace.close_other_tabs": "关闭其他标签",
+  "workspace.close_all_tabs": "关闭所有标签",
   "workspace.resize_chat": "调整聊天宽度，可使用左右方向键",
   "workspace.resize_sidebar": "调整侧栏宽度，可使用左右方向键",
   "composer.app_object": "应用对象",

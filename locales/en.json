@@ -676,6 +676,8 @@
   "chat.usage_input": "Input tokens",
   "chat.usage_output": "Output tokens",
   "workspace.close_tab": "Close tab",
+  "workspace.close_other_tabs": "Close other tabs",
+  "workspace.close_all_tabs": "Close all tabs",
   "workspace.resize_chat": "Resize chat. Use Left and Right arrow keys.",
   "workspace.resize_sidebar": "Resize sidebar. Use Left and Right arrow keys.",
   "composer.app_object": "App objects",
