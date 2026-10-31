@@ -650,6 +650,7 @@
   "workspace.close_tab": "Close tab",
   "workspace.resize_chat": "Resize chat. Use Left and Right arrow keys.",
   "workspace.resize_sidebar": "Resize sidebar. Use Left and Right arrow keys.",
+  "workspace.resize_sidebar": "Resize sidebar. Use Left and Right arrow keys.",
   "composer.app_object": "App objects",
   "composer.preview": "Preview",
   "settings.accent": "Accent color",

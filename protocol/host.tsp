@@ -186,6 +186,7 @@ model ProjectBinding { @minLength(1) @maxLength(4096) workspace: string; @maxLen
 model LayoutPreferences {
   @minValue(320) @maxValue(640) chat_width?: uint16 = 420;
   chat_open?: boolean = false;
+  @minValue(200) @maxValue(480) sidebar_width?: uint16 = 260;
   ...Closed;
 }
 model TypographyPreferences {

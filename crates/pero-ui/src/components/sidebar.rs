@@ -318,7 +318,7 @@ pub(crate) fn window_drag(
         }))
 }
 
-fn keep_click(el: Div) -> Div {
+pub(crate) fn keep_click(el: Div) -> Div {
     el.on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
 }
 
@@ -370,15 +370,6 @@ fn icon_rail(
         .border_color(p.border)
         .pb(px(8.))
         .child(div().h(px(WINDOW_CHROME)).w_full().flex_shrink_0())
-        .child(rail_icon(
-            "sidebar-expand",
-            Icon::default().path("icons/panel-left-open.svg"),
-            ui.t("sidebar.show"),
-            false,
-            chrome,
-            click(&on_action, SidebarAction::ToggleSidebar),
-            cx,
-        ))
         .child(rail_icon(
             "sidebar-insights",
             Icon::default().path("icons/layout-list.svg"),

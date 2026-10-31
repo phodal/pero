@@ -18,6 +18,37 @@ thread_local! {
     static HOST_COMMANDS: RefCell<Option<mpsc::Sender<String>>> = const { RefCell::new(None) };
 }
 
+/// AppKit draws its own titlebar rule under a transparent titlebar. The content
+/// header already has one edge, so the system rule would be a second line.
+#[cfg(target_os = "macos")]
+fn hide_titlebar_separator(window: &mut gpui_kit::Window) {
+    use objc2::runtime::{AnyObject, Bool};
+    use objc2::{msg_send, sel};
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    let Ok(handle) = window.window_handle() else {
+        return;
+    };
+    let RawWindowHandle::AppKit(appkit) = handle.as_raw() else {
+        return;
+    };
+    unsafe {
+        let view = &*appkit.ns_view.as_ptr().cast::<AnyObject>();
+        let ns_window: *mut AnyObject = msg_send![view, window];
+        if ns_window.is_null() {
+            return;
+        }
+        let ns_window = &*ns_window;
+        let selector = sel!(setTitlebarSeparatorStyle:);
+        let responds: Bool = msg_send![ns_window, respondsToSelector: selector];
+        if responds.as_bool() {
+            let _: () = msg_send![ns_window, setTitlebarSeparatorStyle: 1isize];
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn hide_titlebar_separator(_window: &mut gpui_kit::Window) {}
+
 pub(crate) fn session_command(json: &str) -> Result<(), String> {
     let value: serde_json::Value = serde_json::from_str(json).map_err(|error| error.to_string())?;
     let action = value["action"].as_str().unwrap_or_default();
@@ -397,6 +428,7 @@ pub fn run() -> anyhow::Result<()> {
             titlebar.traffic_light_position = Some(point(px(12.), px(13.)));
         }
         let (window, view) = gpui_kit::open_window(options, cx, move |window, cx| {
+            hide_titlebar_separator(window);
             window.set_window_title("Pero Native Preview — local sessions");
             cx.new(|cx| {
                 let mut view = Workbench::new(palettes, system_dark, locale, window, cx);
