@@ -22,6 +22,7 @@ pero-theme.workspace = true
 pero-chat-ui.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+vt100 = "=0.16.2"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 gpui-kit = { workspace = true, features = ["syntect"] }

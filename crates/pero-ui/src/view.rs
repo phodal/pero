@@ -1,9 +1,8 @@
-use crate::remote_view::phase;
 use crate::{
     app::Workbench,
     components::{
         ActionHandler, Ui,
-        chrome, sidebar::{self, DeleteAffordance, SidebarAction, SidebarProps},
+        chrome, sidebar,
         workspace::{self, AgentRow, WorkspaceAction},
     },
 };
@@ -18,11 +17,9 @@ use gpui_kit::{
 };
 use std::rc::Rc;
 
-const INITIAL_VISIBLE_SESSIONS: usize = 5;
-const SESSION_REVEAL_STEP: usize = 10;
 
 impl Workbench {
-    fn ui<'a>(&'a self, cx: &'a App) -> Ui<'a> {
+    pub(crate) fn ui<'a>(&'a self, cx: &'a App) -> Ui<'a> {
         let appearance = pero_theme::UiAppearance::global(cx);
         Ui {
             palette: &appearance.palette,
@@ -40,200 +37,22 @@ impl Workbench {
     }
 
     fn sidebar(&self, width: f32, cx: &mut Context<Self>) -> Stateful<Div> {
-        let on_action = Rc::new(cx.listener(
-            |this: &mut Self, action: &SidebarAction, window, cx| {
-                match action {
-                    SidebarAction::RequestDelete(index) => {
-                        this.chat.update(cx, |panel, _| {
-                            panel.deleting_chat =
-                                panel.chats.get(*index).map(|chat| chat.id.clone());
-                        });
-                    }
-                    SidebarAction::ConfirmDelete(index) => {
-                        this.chat.update(cx, |panel, cx| {
-                            if panel.deleting_chat.as_deref()
-                                == panel.chats.get(*index).map(|chat| chat.id.as_str())
-                            {
-                                panel.delete_chat(*index, cx);
-                            }
-                        });
-                    }
-                    SidebarAction::CancelDelete => {
-                        this.chat.update(cx, |panel, _| panel.deleting_chat = None);
-                    }
-                    SidebarAction::NewChat => {
-                        this.chat.update(cx, |panel, _| panel.deleting_chat = None);
-                        this.new_chat(cx);
-                        let composer = this.chat.read(cx).composer.clone();
-                        composer.update(cx, |input, cx| input.focus(window, cx));
-                    }
-                    SidebarAction::OpenApp { name, panel } => {
-                        this.chat
-                            .update(cx, |panel_state, _| panel_state.deleting_chat = None);
-                        this.pending_app = Some((name.clone(), panel.clone()));
-                        this.refresh_apps(cx);
-                        this.open_app(name.clone(), panel.clone(), cx);
-                    }
-                    SidebarAction::Navigate(index) => {
-                        this.chat.update(cx, |panel, _| panel.deleting_chat = None);
-                        this.navigate(*index, cx);
-                        this.sync_follow(cx);
-                        if *index == WorkbenchPage::Apps {
-                            this.refresh_apps(cx);
-                        }
-                    }
-                    SidebarAction::OpenProject(key) => {
-                        this.chat.update(cx, |panel, _| panel.deleting_chat = None);
-                        this.open_project(key.clone(), window, cx);
-                    }
-                    SidebarAction::ToggleProject(key) => {
-                        this.chat.update(cx, |panel, _| panel.deleting_chat = None);
-                        if !this.collapsed_projects.remove(key) {
-                            this.collapsed_projects.insert(key.clone());
-                        }
-                    }
-                    SidebarAction::RevealSessions(key) => {
-                        let shown = this
-                            .revealed_sessions
-                            .get(key)
-                            .copied()
-                            .unwrap_or(INITIAL_VISIBLE_SESSIONS);
-                        this.revealed_sessions
-                            .insert(key.clone(), shown.saturating_add(SESSION_REVEAL_STEP));
-                    }
-                    SidebarAction::SelectSession(index) => {
-                        this.chat.update(cx, |panel, _| panel.deleting_chat = None);
-                        this.focus_chat(Some(*index), ConversationTab::Chat, cx);
-                    }
-                    SidebarAction::SelectTask(id) => {
-                        this.chat.update(cx, |panel, _| panel.deleting_chat = None);
-                        this.open_task(id.clone(), cx);
-                    }
-                }
-                cx.notify();
-            },
-        ));
-        let panel = self.chat.read(cx);
-        let selected_task = match self.navigation.current() {
-            Some(WorkspaceItem::Task(id)) => Some(id.as_str()),
-            _ => None,
-        };
-        let session_row =
-            |i: usize, chat: &pero_chat_ui::conversation::Conversation| sidebar::RecentRow {
-                bounds: Some(self.view_bounds.sessions.probe(chat.id.clone()).into_any_element()),
-                label: chat.title.display().to_owned(),
-                icon: None,
-                active: self.navigation.page() == WorkbenchPage::Conversation
-                    && panel.active_chat == Some(i),
-                busy: chat.busy(),
-                attention: chat.permission.is_some() || chat.error.is_some(),
-                action: SidebarAction::SelectSession(i),
-                delete: Some(DeleteAffordance {
-                    request: SidebarAction::RequestDelete(i),
-                    confirm: SidebarAction::ConfirmDelete(i),
-                    cancel: SidebarAction::CancelDelete,
-                }),
-            };
-        let groups = self
-            .project_catalog(cx)
-            .into_iter()
-            .filter_map(|project| {
-                let mut rows = panel
-                    .chats
-                    .iter()
-                    .enumerate()
-                    .rev()
-                    .filter(|(_, chat)| project.contains_workspace(&chat.workspace))
-                    .map(|(i, chat)| session_row(i, chat))
-                    .collect::<Vec<_>>();
-                rows.extend(
-                    self.remote
-                        .tasks()
-                        .iter()
-                        .filter(|task| {
-                            project.contains_task(crate::remote::string(task, "project_id"))
-                                && (matches!(
-                                    phase(task),
-                                    crate::cloud::Phase::Running
-                                        | crate::cloud::Phase::Stopping
-                                        | crate::cloud::Phase::Failed
-                                        | crate::cloud::Phase::Reconcile
-                                ) || self
-                                    .recent_tasks
-                                    .iter()
-                                    .any(|id| Some(id.as_str()) == task["id"].as_str())
-                                    || selected_task
-                                        .is_some_and(|id| task["id"].as_str() == Some(id)))
-                        })
-                        .take(4)
-                        .map(|task| sidebar::RecentRow {
-                            bounds: None,
-                            label: crate::remote::string(task, "title").to_string(),
-                            icon: Some("layout-list"),
-                            active: selected_task.is_some_and(|id| task["id"].as_str() == Some(id)),
-                            busy: matches!(
-                                phase(task),
-                                crate::cloud::Phase::Running | crate::cloud::Phase::Stopping
-                            ),
-                            attention: matches!(
-                                phase(task),
-                                crate::cloud::Phase::Failed | crate::cloud::Phase::Reconcile
-                            ),
-                            action: SidebarAction::SelectTask(
-                                crate::remote::string(task, "id").to_string(),
-                            ),
-                            delete: None,
-                        }),
-                );
-                Some(sidebar::ProjectGroup {
-                    active: self.navigation.page() == WorkbenchPage::Tasks
-                        && self.selected_project.as_ref() == Some(&project.key),
-                    collapsed: self.collapsed_projects.contains(&project.key),
-                    revealed: self
-                        .revealed_sessions
-                        .get(&project.key)
-                        .copied()
-                        .unwrap_or(INITIAL_VISIBLE_SESSIONS),
-                    path: project
-                        .workspace
-                        .unwrap_or_else(|| project.shared_id.unwrap_or_default()),
-                    key: project.key,
-                    name: project.name,
-                    rows,
-                })
+        let actions = self.navigation_actions(cx);
+        let settings = self.settings_menu(self.sidebar_collapsed, cx).into_any_element();
+        let apps = self.apps.entries.iter().filter(|app| app.enabled).filter_map(|app| {
+            let panel = app.panels.first()?;
+            Some(sidebar::AppShortcut {
+                name: app.name.clone(), panel: panel.id.clone(),
+                label: self.installed_app_title(&app.name, &app.display_name),
+                icon: pero_chat_ui::icon_theme::app_icon(&app.name, pero_theme::UiAppearance::global(cx).dark),
+                active: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == &app.name),
             })
-            .collect();
-        let ungrouped = panel
-            .chats
-            .iter()
-            .enumerate()
-            .rev()
-            .filter(|(_, chat)| chat.workspace.is_empty())
-            .map(|(i, chat)| session_row(i, chat))
-            .collect();
-        let settings = self
-            .settings_menu(self.sidebar_collapsed, cx)
-            .into_any_element();
-        let ui = self.ui(cx);
-        sidebar::sidebar(
-            ui,
-            width,
-            SidebarProps {
-                shortcut_bounds: &self.view_bounds.sidebar,
-                new_chat_bounds: &self.view_bounds.new_chat,
-                navigation: self.navigation.page(),
-                insights_open: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == "insights"),
-                connectors_open: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == "connectors"),
-                data_open: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == "data"),
-                local_connected: self.connected,
-                collapsed: self.sidebar_collapsed,
-                groups,
-                ungrouped,
-            },
-            settings,
-            on_action,
-            cx,
-        )
+        }).collect();
+        sidebar::sidebar(self.ui(cx), width, sidebar::SidebarProps {
+            shortcut_bounds: &self.view_bounds.sidebar,
+            navigation: self.navigation.page(), catalog_open: self.navigation.current().is_none(),
+            terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed, apps,
+        }, settings, actions, cx)
     }
 
     fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
@@ -373,6 +192,8 @@ impl Render for Workbench {
         self.leave_settings_route(window, cx);
         if self.input_locale != self.locale {
             self.input_locale = self.locale.clone();
+            let session_placeholder = self.t("sessions.search");
+            self.session_search.update(cx, |input, cx| input.set_placeholder(session_placeholder, window, cx));
             let placeholder = self.t("project.search_tasks");
             self.remote.search.update(cx, |input, cx| {
                 input.set_placeholder(placeholder, window, cx)
@@ -484,6 +305,8 @@ impl Render for Workbench {
         }
         self.layout = layout;
         let sidebar_width = layout.sidebar_width;
+        let sessions = (self.navigation.page() == WorkbenchPage::Conversation && self.tab == ConversationTab::Chat)
+            .then(|| self.sessions_panel(if width - sidebar_width < 680. {220.} else {280.}, cx).into_any_element());
         let chat_width = layout.chat_width;
         let dock = layout.chat == ChatPlacement::Dock;
         let narrow = layout.narrow;
@@ -831,6 +654,7 @@ impl Render for Workbench {
                             .min_h_0()
                             .flex()
                             .relative()
+                            .children(sessions)
                             .when(layout.content_visible, |el| {
                                 el.child(
                                     div()
@@ -906,7 +730,8 @@ impl Render for Workbench {
                             .when(floating, |el| {
                                 el.child(self.floating_app_chat(width, window, cx))
                             }),
-                    ),
+                    )
+                    .when(self.terminal.visible, |el| el.child(self.terminal_panel((f32::from(window.viewport_size().height)*0.4).clamp(180.,320.),cx))),
                     )
             )
             .when(self.spotlight.is_some(), |el| {

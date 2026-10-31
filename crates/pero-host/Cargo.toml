@@ -11,3 +11,4 @@ session-analysis.workspace = true
 futures-executor = "=0.3.34"
 serde_json.workspace = true
 serde.workspace = true
+portable-pty = "=0.9.0"

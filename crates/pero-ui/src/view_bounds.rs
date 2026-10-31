@@ -31,6 +31,7 @@ impl ViewBounds {
 #[derive(Default)]
 pub(crate) struct WorkbenchBounds {
     pub sidebar: ViewBounds,
+    pub terminal: ViewBounds,
     pub new_chat: ViewBounds,
     pub sessions: ViewBounds,
     pub app_open: ViewBounds,
@@ -40,6 +41,7 @@ impl WorkbenchBounds {
     // A hidden, collapsed, filtered, or removed control must not retain its old target.
     pub fn clear(&self) {
         self.sidebar.clear();
+        self.terminal.clear();
         self.new_chat.clear();
         self.sessions.clear();
         self.app_open.clear();

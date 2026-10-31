@@ -1,3 +1,4 @@
+pub mod terminal;
 pub mod harness_settings;
 use serde::{Deserialize, Serialize};
 pub mod app_chat;

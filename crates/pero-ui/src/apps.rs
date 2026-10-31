@@ -86,7 +86,7 @@ mod surface {
     use super::*;
     use crate::{app::Workbench, workspace::WorkspaceItem};
     use gpui_kit::{
-        component::{button::*, *},
+        component::{button::*, menu::{DropdownMenu, PopupMenuItem}, *},
         prelude::*,
         *,
     };
@@ -307,59 +307,74 @@ mod surface {
                 .when(busy, |el| el.child(div().py(px(12.)).text_color(p.text_muted).child(self.t("apps.loading"))))
                 .when(!busy && self.apps.entries.is_empty(), |el| el.child(
                     pero_theme::empty_state(self.t("apps.empty"), Some(self.t("apps.empty_hint").into()), chrome)))
-                .children(self.apps.entries.iter().enumerate().map(|(index, app)| {
-                    let name = app.name.clone();
-                    let toggle_name = name.clone();
-                    let remove_name = name.clone();
-                    let confirming = self.apps.removing.as_deref() == Some(name.as_str());
-                    let enabled = app.enabled;
-                    let required = app.tenure == "required";
-                    div().py(px(8.)).border_b_1().border_color(p.border)
-                        .child(div().flex().items_center().gap(px(10.))
-                            .child(div().flex_1().min_w_0().flex().flex_col().gap(px(5.))
-                                .child(div().flex().items_center().gap(px(8.))
-                                    .child(div().font_weight(FontWeight::SEMIBOLD).child(self.installed_app_title(&app.name, &app.display_name)))
-                                    .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted).child(app.version.clone())))
-                                .child(div().text_color(p.text_muted).whitespace_normal().child(app.description.clone())))
-                            .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted)
-                                .child(self.t(if enabled { "apps.enabled" } else { "apps.disabled" })))
-                            .children(app.panels.iter().enumerate().map(|(panel_index, panel)| {
-                                let app_name = name.clone();
-                                let panel_name = panel.id.clone();
-                                let label = if app.panels.len() == 1 { self.t("apps.open").to_string() } else { panel.title.clone() };
-                                // The app-name target identifies its first panel; never a disabled action.
-                                Button::new(("app-open", index * 100 + panel_index)).outline().small().label(label)
-                                    .relative().children((panel_index == 0 && enabled && !busy).then(|| self.view_bounds.app_open.probe(name.clone())))
-                                    .disabled(busy || !enabled)
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.open_app(app_name.clone(), panel_name.clone(), cx);
-                                        cx.notify();
-                                    }))
-                            }))
-                            .when(!required, |row| row
-                            .child(Button::new(("app-toggle", index)).outline().small()
-                                .label(self.t(if enabled { "apps.disable" } else { "apps.enable" })).disabled(busy)
+                .when_some(self.apps.removing.as_ref(), |el, name| {
+                    let name = name.clone();
+                    el.child(div().mb(px(12.)).p(px(12.)).bg(p.warning_bg).flex().flex_col().gap(px(8.))
+                        .child(format!("{}: {}", name, self.t("apps.remove_hint")))
+                        .child(div().flex().gap(px(8.))
+                            .child(Button::new("app-remove-cancel").small().label(self.t("apps.cancel"))
+                                .on_click(cx.listener(|this, _, _, cx| { this.apps.removing = None; cx.notify(); })))
+                            .child(Button::new("app-remove-confirm").danger().small().label(self.t("apps.confirm_remove"))
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.apps.loading = true;
-                                    this.command(json!({"action":if enabled {"apps_disable"} else {"apps_enable"},"name":toggle_name}), cx);
-                                })))
-                            .child(Button::new(("app-remove", index)).ghost().small().label(self.t("apps.remove")).disabled(busy)
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.apps.removing = Some(remove_name.clone()); cx.notify();
+                                    this.command(json!({"action":"apps_uninstall","name":name}), cx);
                                 })))))
-                        .when(confirming, |el| {
-                            let name = name.clone();
-                            el.child(div().mt(px(10.)).flex().items_center().gap(px(10.))
-                                .child(div().flex_1().text_color(p.warning).child(self.t("apps.remove_hint")))
-                                .child(Button::new(("app-remove-cancel", index)).outline().small().label(self.t("apps.cancel"))
-                                    .on_click(cx.listener(|this, _, _, cx| { this.apps.removing = None; cx.notify(); })))
-                                .child(Button::new(("app-remove-confirm", index)).outline().small().label(self.t("apps.confirm_remove"))
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.apps.loading = true;
-                                        this.command(json!({"action":"apps_uninstall","name":name}), cx);
+                })
+                .child(div().id("apps-launchpad").w_full().flex().flex_wrap().items_start().gap(px(16.))
+                    .children(self.apps.entries.iter().enumerate().map(|(index, app)| {
+                        let title = self.installed_app_title(&app.name, &app.display_name);
+                        let name = app.name.clone();
+                        let required = app.tenure == "required";
+                        let panel = app.panels.first().map(|panel| panel.id.clone()).unwrap_or_default();
+                        let open_name = name.clone();
+                        let icon = pero_chat_ui::icon_theme::app_icon(&name, pero_theme::UiAppearance::global(cx).dark);
+                        let owner = cx.entity().downgrade();
+                        let toggle_name = name.clone();
+                        let remove_name = name.clone();
+                        let enabled = app.enabled;
+                        let toggle_label = self.t(if enabled { "apps.disable" } else { "apps.enable" });
+                        let remove_label = self.t("apps.remove");
+                        let menu_caption = format!("{}  {}", title, app.version);
+                        div().w(px(160.)).min_w_0().flex().flex_col().items_center().gap(px(4.)).pb(px(12.))
+                            .child(Button::new(("app-open", index)).ghost().w_full().h(px(112.)).px(px(8.))
+                                .accessibility_label(title.clone()).tooltip(format!("{} {}\n{}", title, app.version, app.description))
+                                .disabled(busy || !enabled)
+                                .relative().children((enabled && !busy).then(|| self.view_bounds.app_open.probe(name.clone())))
+                                .child(div().flex().flex_col().items_center().gap(px(10.)).w_full()
+                                    .child(div().size(px(56.)).rounded(px(12.)).bg(p.surface).flex().items_center().justify_center()
+                                        .when(!enabled, |el| el.opacity(0.45))
+                                        .child(svg().path(icon).size(px(30.)).text_color(p.text)))
+                                    .child(div().w_full().text_ellipsis().text_center().font_weight(FontWeight::SEMIBOLD).child(title.clone())))
+                                .on_click(cx.listener(move |this, _, _, cx| { this.open_app(open_name.clone(), panel.clone(), cx); cx.notify(); })))
+                            .child(div().h(px(24.)).flex().items_center().justify_center().gap(px(8.))
+                                .when(enabled, |el| el.child(div().text_size(px(12.)).text_color(p.text_muted).child(app.version.clone())))
+                                .when(!enabled, |el| {
+                                    let name = name.clone();
+                                    el.child(Button::new(("app-enable", index)).ghost().small().label(self.t("apps.enable")).disabled(busy)
+                                        .on_click(cx.listener(move |this, _, _, cx| {
+                                            this.apps.loading = true;
+                                            this.command(json!({"action":"apps_enable","name":name}), cx);
+                                        })))
+                                })
+                                .when(!required, |el| el.child(pero_theme::ghost_icon_button(("app-menu", index), chrome, cx)
+                                    .icon(Icon::default().path("icons/dots.svg")).accessibility_label(format!("{}: {}", title, self.t("apps.actions")))
+                                    .tooltip(self.t("apps.actions")).disabled(busy).dropdown_caret(false)
+                                    .dropdown_menu_with_anchor(Anchor::TopRight, move |menu, _, _| {
+                                        let toggle = owner.clone(); let remove = owner.clone();
+                                        let toggle_name = toggle_name.clone(); let remove_name = remove_name.clone();
+                                        menu.min_w(px(180.)).item(PopupMenuItem::label(menu_caption.clone())).separator()
+                                            .item(PopupMenuItem::new(toggle_label).on_click(move |_, _, cx| {
+                                                let _ = toggle.update(cx, |this, cx| {
+                                                    this.apps.loading = true;
+                                                    this.command(json!({"action":if enabled {"apps_disable"} else {"apps_enable"},"name":toggle_name}), cx);
+                                                    cx.notify();
+                                                });
+                                            }))
+                                            .item(PopupMenuItem::new(remove_label).on_click(move |_, _, cx| {
+                                                let _ = remove.update(cx, |this, cx| { this.apps.removing = Some(remove_name.clone()); cx.notify(); });
+                                            }))
                                     }))))
-                        })
-                })).into_any_element()
+                    }))).into_any_element()
         }
     }
 }
