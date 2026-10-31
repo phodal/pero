@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "name": "automations",
+  "version": "0.1.0",
+  "displayName": "Automations",
+  "description": "Point Automation management: schedules, templates, run history and editing.",
+  "permissions": { "host": ["automation", "connectors"] },
+  "contributes": { "panels": [{ "id": "main", "title": "Automations", "entry": "dist/index.html" }] }
+}
