@@ -254,10 +254,11 @@ fn show_more(
     on_action: &ActionHandler<SidebarAction>,
     chrome: pero_theme::Chrome<'_>,
 ) -> impl IntoElement {
-    let rest = chrome.palette.text.opacity(0.08);
     let hover = chrome.palette.text.opacity(0.14);
     let muted = chrome.palette.text_muted;
     div()
+        .flex()
+        .items_start()
         .pl(chrome.geo(
             pero_theme::SPACE_8
                 + pero_theme::SUB_INDENT
@@ -271,12 +272,11 @@ fn show_more(
                 .id(("project-show-more", group_index))
                 .self_start()
                 .h(chrome.geo(pero_theme::ROW_SUB))
-                .px(chrome.geo(pero_theme::SPACE_12))
+                .px(chrome.geo(pero_theme::SPACE_4))
                 .rounded(chrome.geo(pero_theme::RADIUS_SELECTION))
                 .flex()
                 .items_center()
                 .cursor_pointer()
-                .bg(rest)
                 .hover(move |row| row.bg(hover))
                 .text_size(chrome.text(pero_theme::TYPE_BODY))
                 .text_color(muted)
