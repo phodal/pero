@@ -1,0 +1,132 @@
+{
+  "schema": "point.code-hosting-provider.v1",
+  "providerId": "github",
+  "apiVersion": "2026-03-10",
+  "origins": {
+    "public": "https://api.github.com/",
+    "enterprisePath": "/api/v3/"
+  },
+  "authModes": [
+    "shared-token",
+    "service-identity",
+    "user-oauth"
+  ],
+  "tools": [
+    {
+      "name": "github_account_get",
+      "effect": "read"
+    },
+    {
+      "name": "github_repository_list",
+      "effect": "read"
+    },
+    {
+      "name": "github_issue_list",
+      "effect": "read"
+    },
+    {
+      "name": "github_issue_get",
+      "effect": "read"
+    },
+    {
+      "name": "github_pull_request_get",
+      "effect": "read"
+    },
+    {
+      "name": "github_pull_request_search",
+      "effect": "read"
+    },
+    {
+      "name": "github_pull_request_files",
+      "effect": "read"
+    },
+    {
+      "name": "github_repository_get",
+      "effect": "read"
+    },
+    {
+      "name": "github_pull_request_list",
+      "effect": "read"
+    },
+    {
+      "name": "github_branch_list",
+      "effect": "read"
+    },
+    {
+      "name": "github_branch_get",
+      "effect": "read"
+    },
+    {
+      "name": "github_compare_get",
+      "effect": "read"
+    },
+    {
+      "name": "github_commit_get",
+      "effect": "read"
+    },
+    {
+      "name": "github_tree_get",
+      "effect": "read"
+    },
+    {
+      "name": "github_blob_get",
+      "effect": "read"
+    },
+    {
+      "name": "github_pull_request_comments",
+      "effect": "read"
+    },
+    {
+      "name": "github_pull_request_review_comments",
+      "effect": "read"
+    },
+    {
+      "name": "github_pull_request_reviews",
+      "effect": "read"
+    },
+    {
+      "name": "github_commit_checks",
+      "effect": "read"
+    },
+    {
+      "name": "github_commit_statuses",
+      "effect": "read"
+    },
+    {
+      "name": "github_factory_blob_create",
+      "effect": "external_send"
+    },
+    {
+      "name": "github_factory_tree_create",
+      "effect": "external_send"
+    },
+    {
+      "name": "github_factory_commit_create",
+      "effect": "external_send"
+    },
+    {
+      "name": "github_factory_branch_create",
+      "effect": "external_send"
+    },
+    {
+      "name": "github_factory_draft_create",
+      "effect": "external_send"
+    },
+    {
+      "name": "github_factory_pull_lookup",
+      "effect": "read"
+    },
+    {
+      "name": "github_factory_branch_advance",
+      "effect": "external_send"
+    }
+  ],
+  "kinds": [
+    "issue",
+    "change_request",
+    "review",
+    "commit",
+    "ci_run",
+    "ci_check"
+  ]
+}

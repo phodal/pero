@@ -42,6 +42,7 @@ apps/vscode/resources/
 Cargo.lock
 !/Cargo.lock
 !/use/computer/Cargo.lock
+!/use/connectors/worker/Cargo.lock
 target/
 /desktop/dist/
 /web/dist/
@@ -182,3 +183,5 @@ fonts/*.ttf
 
 # Data Agent packages the harness-owned shared Python data core.
 /apps/data-agent/backend/_core/
+/packages/connectors/helpers/
+/apps/connectors/dist/
