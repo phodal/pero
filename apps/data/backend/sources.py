@@ -41,7 +41,7 @@ SOURCES = (
            'e291ace2bfae073c3ebc7ae2f9479a525989baa7',
            'https://huggingface.co/mace-foundations/mace-mp-0',
            'https://huggingface.co/mace-foundations/mace-mp-0/resolve/e291ace2bfae073c3ebc7ae2f9479a525989baa7/mace-mp-0b2-small.model',
-           ('huggingface.co', 'cas-bridge.xethub.hf.co', 'cdn-lfs.huggingface.co', 'cdn-lfs-us-1.huggingface.co'),
+           ('huggingface.co', 'us.aws.cdn.hf.co', 'cas-bridge.xethub.hf.co', 'cdn-lfs.huggingface.co', 'cdn-lfs-us-1.huggingface.co'),
            (Checksum('sha256', 'd5773bf9440e96d6eb8c598f84bd0e6369fcfa432f626a87f890e07da3c651c9',
                      'Hugging Face file LFS SHA256 at pinned commit'),)),
 )

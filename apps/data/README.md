@@ -26,7 +26,12 @@ There is no external cache scan, automatic import, startup download or remote sy
 | [Norman 2019 / scPerturb v1.0](https://zenodo.org/records/7041849) | 698,680,199 bytes | CC-BY-4.0 | Publisher MD5; additionally a locally observed SHA256 from 2026-10-30 (not a publisher SHA256) |
 | [MACE MP-0b2 small](https://huggingface.co/mace-foundations/mace-mp-0) | 67,622,684 bytes | MIT, this repository | LFS SHA256 at commit `e291ace2bfae073c3ebc7ae2f9479a525989baa7` |
 
-Exact URLs, checksums and provenance are in `backend/sources.py`. Norman metadata
+Exact URLs, checksums and provenance are in `backend/sources.py`. The pinned
+MACE URL was observed by a HEAD-only check redirecting to `us.aws.cdn.hf.co`,
+which returned HTTP 200 and the expected 67,622,684-byte Content-Length. That
+exact HTTPS host is allowed, not arbitrary CDN subdomains. This metadata check
+did not download or hash model bytes. Live Norman availability remains
+unverified. Norman metadata
 is pinned to the project's existing public scPerturb source record, not its private
 cached files. MACE storage makes no compatibility claim. License and integrity
 metadata do not establish scientific validity.

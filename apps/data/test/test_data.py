@@ -152,6 +152,12 @@ class DataTests(unittest.TestCase):
             with self.subTest(url=url), self.assertRaises(ValueError):
                 require_url(url, ('zenodo.org',))
         require_url('https://zenodo.org/file', ('zenodo.org',))
+        # Observed pinned-file HEAD redirect, still an exact host allowlist.
+        require_url('https://us.aws.cdn.hf.co/xet-bridge-us/file?signature=test', SOURCES[1].hosts)
+        for url in ('http://us.aws.cdn.hf.co/file', 'https://us.aws.cdn.hf.co:8443/file',
+                    'https://untrusted.cdn.hf.co/file', 'https://us.aws.cdn.hf.co.evil.example/file'):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                require_url(url, SOURCES[1].hosts)
 
 
 if __name__ == '__main__':
