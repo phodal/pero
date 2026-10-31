@@ -39,11 +39,12 @@ impl Workbench {
     fn sidebar(&self, width: f32, cx: &mut Context<Self>) -> Stateful<Div> {
         let actions = self.navigation_actions(cx);
         let settings = self.settings_menu(self.sidebar_collapsed, cx).into_any_element();
-        let apps = self.apps.entries.iter().filter(|app| app.enabled).filter_map(|app| {
+        let apps = self.apps.entries.iter().filter(|app| app.enabled || app.placement() != crate::apps::AppPlacement::Catalog).filter_map(|app| {
             let panel = app.panels.first()?;
             Some(sidebar::AppShortcut {
                 name: app.name.clone(), panel: panel.id.clone(),
                 label: self.installed_app_title(&app.name, &app.display_name),
+                placement: app.placement(),
                 icon: pero_chat_ui::icon_theme::app_icon(&app.name, pero_theme::UiAppearance::global(cx).dark),
                 active: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == &app.name),
             })
@@ -51,6 +52,7 @@ impl Workbench {
         sidebar::sidebar(self.ui(cx), width, sidebar::SidebarProps {
             shortcut_bounds: &self.view_bounds.sidebar,
             navigation: self.navigation.page(), catalog_open: self.navigation.current().is_none(),
+            identity: self.remote.data["identity"]["name"].as_str().unwrap_or(self.t("nav.local_user")).to_string(),
             terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed, apps,
         }, settings, actions, cx)
     }
@@ -64,6 +66,7 @@ impl Workbench {
         if let Some(item) = self.navigation.current() {
             return self.content_label(item, cx).0;
         }
+        if self.navigation.page() == WorkbenchPage::Apps { return self.t("apps.manage").to_string(); }
         let panel = self.chat.read(cx);
         panel
             .active_chat
@@ -80,7 +83,12 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let tabs = has_tabs.then(|| self.content_tabs(false, cx).into_any_element());
+        let single_pane = self.navigation.pane_layout().filter(|_| self.navigation.pane_layout_visible()).and_then(|layout| {
+            let leaves = layout.leaves();
+            (leaves.len() == 1).then(|| leaves[0].clone())
+        });
+        let tabs = if let Some(leaf) = single_pane { Some(div().flex_1().min_w_0().child(self.pane_tab_bar(&leaf, cx)).into_any_element()) }
+            else { has_tabs.then(|| self.content_tabs(false, cx).into_any_element()) };
         let title = if has_tabs {
             SharedString::default()
         } else {
@@ -89,6 +97,7 @@ impl Workbench {
         chrome::window_titlebar(
             self.ui(cx),
             self.sidebar_collapsed,
+            self.layout.sidebar_width,
             title,
             tabs,
             cx.listener(|this, _, _, cx| this.toggle_sidebar(cx)),
@@ -720,7 +729,7 @@ impl Render for Workbench {
                                         .when(
                                             !pane_tree
                                                 && self.navigation.page() == WorkbenchPage::Apps,
-                                            |el| el.child(self.apps_view(cx)),
+                                            |el| el.child(self.apps_view(width - sidebar_width, cx)),
                                         ),
                                 )
                             })

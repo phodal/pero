@@ -69,11 +69,7 @@ impl Workbench {
         );
         let appearance_choices = [Appearance::Light, Appearance::Dark, Appearance::System]
             .map(|mode| (mode, t(mode.label_key())));
-        let label = if identity.is_empty() {
-            t("settings.title")
-        } else {
-            identity.clone()
-        };
+        let label = t("settings.title");
         let chrome = pero_theme::Chrome::from_app(cx);
         let icon = || Icon::default().path("icons/settings.svg");
         let button = if icon_only {

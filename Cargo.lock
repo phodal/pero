@@ -2569,6 +2569,8 @@ dependencies = [
 [[package]]
 name = "gpui-base"
 version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d862bc8f2e27710039013d075ac4995892e9687ff207fa530f880cbcd513936f"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -2609,6 +2611,8 @@ dependencies = [
 [[package]]
 name = "gpui-component"
 version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46ce53430332e30f303364eaabfa10ed2aa23dfaf2a147e04370e0e9c423578b"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2657,6 +2661,8 @@ dependencies = [
 [[package]]
 name = "gpui-component-macros"
 version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a512c830553e7dddc43c3f8faffc2d2d7bd24db21fe3dc1326dde9c470013768"
 dependencies = [
  "proc-macro-crate 3.5.0",
  "proc-macro2",
@@ -2973,6 +2979,8 @@ dependencies = [
 [[package]]
 name = "gpui-kit"
 version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25210f6e59ea9ffac3a033dbce9edafe5ff0dd2900f894fd1316f54da2fe2b89"
 dependencies = [
  "gpui-base",
  "gpui-component",
@@ -2989,6 +2997,8 @@ dependencies = [
 [[package]]
 name = "gpui-kit-assets"
 version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c214017b45e5654665f18faa551f58a2c2c8d25efe6632b1a443ba8edf365e96"
 dependencies = [
  "anyhow",
  "gpui-fast",
@@ -3396,6 +3406,8 @@ dependencies = [
 [[package]]
 name = "gpui-pre-web"
 version = "0.3.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1acd86af2347f0dd8b63c441a5dbd43b3fcd7dac69b340827c3497da5a13d6fb"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -3497,6 +3509,8 @@ checksum = "e0f9dae92b9bc15baa6e530c90bdd4c689d3710bd4d18c3566deb1d6ae182daf"
 [[package]]
 name = "gpui-webview"
 version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b9341059c351cf3c0d57aba830ced051ddd5f53fe90e22a99b3a6cc9de67d07"
 dependencies = [
  "anyhow",
  "gpui-kit",

@@ -1,7 +1,7 @@
 {
   "sessions.no_matches": "没有匹配的会话。",
   "apps.actions": "应用操作",
-  "apps.manage": "管理应用",
+  "apps.manage": "应用商店",
   "sessions.search": "搜索会话…",
   "mcp.import": "导入 JSON",
   "mcp.import_save": "导入为停用",
@@ -841,5 +841,18 @@
   "terminal.new": "新建终端",
   "terminal.hide": "收起终端",
   "terminal.copy": "复制可见输出",
-  "terminal.close_confirm": "关闭此终端并停止其中的命令？"
+  "terminal.close_confirm": "关闭此终端并停止其中的命令？",
+  "nav.customize": "自定义",
+  "nav.papers": "论文",
+  "nav.workspace": "工作空间",
+  "nav.environment": "环境",
+  "nav.todo": "待实现",
+  "nav.local_user": "本地用户",
+  "apps.categories": "分类",
+  "apps.category_all": "全部应用",
+  "apps.category_research": "研究",
+  "apps.category_data": "数据分析",
+  "apps.category_tools": "工具",
+  "nav.automations": "自动化",
+  "apps.category_empty": "此分类暂无应用"
 }

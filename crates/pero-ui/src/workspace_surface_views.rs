@@ -138,7 +138,7 @@ impl Workbench {
                     }
                 }),
             )
-            .child(self.pane_tab_bar(leaf, cx))
+            .when(self.navigation.pane_layout().is_some_and(|layout| layout.leaves().len() > 1), |pane| pane.child(self.pane_tab_bar(leaf, cx)))
             .when(
                 document
                     && item.as_ref().is_some_and(|item| {

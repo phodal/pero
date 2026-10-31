@@ -149,3 +149,24 @@ Screenshots and result: `test-results/app-discovery/legacy-profile-discovered.pn
 flow. These isolated checks did not restart the user's current Desktop or change
 its App directories. The rebuilt development Host takes effect on its next start;
 packaged-release acceptance is not established by this run.
+
+## Native App Store and navigation — 2026-10-31
+
+Source: local working changes over `bc5df075`, macOS arm64 Native Preview.
+The catalog uses a category rail and two cards per row when the available grid
+width reaches 720px, otherwise one. Card spacing, icon plates and information
+hierarchy were compared with the local KiroCrew Discover implementation.
+Papers/Data are workspace destinations; Customize is a bottom tool. They stay
+outside the optional App catalog. Existing disabled workspace/tool packages
+remain reachable through the sidebar's Host enable/open path. Environment and
+Automations are explicitly disabled placeholders, without scheduling behavior.
+Single-pane tabs share the window chrome; its sidebar section follows the saved
+sidebar width. Split panes retain their local tab strips.
+
+Validation: `npm run check`, native and wasm32 `pero-ui` checks, and all 17
+`pero-ui` library tests passed. In the running Native Preview, inspected light
+and dark App Store cards, category filtering, empty categories, opening an App,
+and the unified titlebar. The preview was returned to light mode and App Store.
+The narrow-width breakpoint is implemented but an actual narrow-window render
+was not established in this pass. Old disabled-profile recovery, browser E2E,
+split-pane interaction regressions and packaged releases were not exercised.
