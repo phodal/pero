@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "com.openpero.data",
+  "name": "Data",
+  "version": "0.1.0",
+  "shell": "app",
+  "entry": {
+    "app": "data",
+    "panel": "main"
+  },
+  "apps": [
+    "data"
+  ],
+  "required": [
+    "data"
+  ],
+  "python": "bundled"
+}

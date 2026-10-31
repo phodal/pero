@@ -6,13 +6,15 @@
   "shell": "workbench",
   "apps": [
     "insights",
+    "data",
     "virtual-cell",
     "paper-agent",
     "control-lab",
     "connectors"
   ],
   "required": [
-    "insights"
+    "insights",
+    "data"
   ],
   "python": "system"
 }

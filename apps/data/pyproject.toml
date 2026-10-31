@@ -1,0 +1,7 @@
+[project]
+name = "pero-data"
+version = "0.1.0"
+description = "Local scientific dataset and model file catalog"
+requires-python = ">=3.10"
+dependencies = []
+license = "Apache-2.0"
