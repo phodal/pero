@@ -16,6 +16,11 @@ the child entirely. Use Kit's existing native window composition so popup
 menus can paint above a retained, visible WebView. Keep the existing coverage
 policy for Electron's canvas/iframe composition and for explicit full overlays.
 
+The shared right Chat dock also has no close control of its own. Its older
+toggle lives in a content bar bypassed by the pane-tab layout. Give the dock a
+close control using the existing persisted layout preference; closing the view
+must not delete or cancel the conversation.
+
 ## Resolution and verification
 
 Native selects Kit's existing Fast backend and WebView composition together.
@@ -26,11 +31,17 @@ patch or second App renderer was added.
 
 Before removing the redundant Connectors tab dropdown and pane-actions buttons,
 both were exercised in the actual loaded native directory: menus appeared above
-the catalog without blanking it.
+the catalog without blanking it. The right Chat dock now has its own close
+button; the pane bar offers reopen after closing. Actual close/reopen retained
+the same conversation, and Host saved `chat_open: false` after closing. Restart
+restored the directory with Chat closed and only its reopen button; both
+redundant menu buttons were absent. In a roughly 1000px-wide window, closing
+the full-width Chat returned to the directory. The window was restored to its
+original size after verification.
 
 Native build, 47 UI concept tests, native App evaluation/retention/theme/restart,
 native Web history/retention/teardown, Wasm compilation and `npm run check`
 passed on macOS arm64. Existing App/Web automation receipts are under
-`test-results/native-apps/` and `test-results/native-webview/`; the menu
+`test-results/native-apps/` and `test-results/native-webview/`; the menu and dock
 checks were inspected through computer use. This does not establish other
 operating systems or signed-package acceptance.

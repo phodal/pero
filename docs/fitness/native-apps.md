@@ -82,12 +82,14 @@ Captures live under `test-results/native-apps/`: `virtual-cell-light.png`,
 `paper-agent-dark.png`. `insights-sidebar-fixed.png` records the corrected
 shortcut. The sidebar Insights rejection was found during this pass and tracked in [the incident](../issues/2026-10-31-native-app-embedding.md).
 
-## Connector menu regression, 2026-10-31
+## Connector menu and Chat dock regression, 2026-10-31
 
 The native preview now composes WebViews below GPUI popups rather than hiding
 the whole App for a deferred menu. Both Connectors workspace menus were visibly
 verified above the loaded directory before removing those redundant buttons.
-Native build, 47 UI tests, App and Web engine suites,
+Chat now has a close control inside its dock and a reopen control in the pane
+bar. Actual close/reopen, saved closed state after restart and closing Chat in
+a narrow window passed. Native build, 47 UI tests, App and Web engine suites,
 Wasm compilation and repository checks passed. See the
 [incident](../issues/2026-10-31-native-connector-menu-blank.md).
 

@@ -362,6 +362,26 @@ impl Workbench {
                     }),
             ))
             .when(!connector, |bar| bar.child(self.pane_actions(pane, cx)))
+            .when(
+                !self.preferences.layout.chat_open
+                    && self.navigation.pane_layout()
+                        .is_some_and(|layout| layout.conversation().is_none())
+                    && matches!(leaf.route(), Some(WorkspaceRoute::Content(
+                        WorkspaceItem::App { .. } | WorkspaceItem::Web(_)
+                            | WorkspaceItem::Document { .. } | WorkspaceItem::Task(_)
+                    ))),
+                |bar| {
+                    bar.child(
+                        Button::new(("pane-chat-open", pane.0 as usize))
+                            .ghost()
+                            .small()
+                            .icon(Icon::default().path("icons/panel-right-open.svg"))
+                            .tooltip(self.t("chat.open_panel"))
+                            .accessibility_label(self.t("chat.open_panel"))
+                            .on_click(cx.listener(|this, _, _, cx| this.set_chat_dock(true, cx))),
+                    )
+                },
+            )
             .when_some(self.pane_tab_switcher(leaf, height, cx), |bar, switcher| {
                 bar.child(switcher)
             })
