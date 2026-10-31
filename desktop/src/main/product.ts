@@ -206,7 +206,10 @@ app.whenReady().then(async () => {
   nativeTheme.on('updated', () => { if (!window.isDestroyed()) window.webContents.send('product:context', context()); });
   window.webContents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main) appUse?.reset(); });
   window.webContents.on('render-process-gone', () => appUse?.reset());
-  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//.test(url)) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
   window.webContents.on('will-navigate', event => event.preventDefault());
   menus();
   await window.loadURL('pero://workbench/');

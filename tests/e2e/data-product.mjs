@@ -74,6 +74,22 @@ try {
   await expect(page.locator('iframe')).toHaveCount(1);
   await expect(page.locator('#product-chat-toggle')).toBeHidden();
   checks.push('production Data entry opens directly in standalone shell without chat or App preload access');
+  // Capture the OS boundary: exercise the actual link without opening a browser.
+  await app.evaluate(({ shell }) => {
+    globalThis.dataExternalUrls = [];
+    shell.openExternal = async url => { globalThis.dataExternalUrls.push(url); };
+  });
+  await frame.getByRole('button', { name: 'Sources', exact: true }).click();
+  const sourceUrl = (await state()).sources[0].sourceUrl;
+  await frame.getByRole('dialog').getByRole('link', { name: 'Source', exact: true }).first().click();
+  await expect.poll(() => app.evaluate(() => globalThis.dataExternalUrls)).toEqual([sourceUrl]);
+  await frame.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+  for (const url of ['http://example.test/source', 'file:///tmp/not-opened', 'pero://workbench/', 'ftp://example.test/source'])
+    await page.evaluate(url => window.open(url, '_blank'), url);
+  await expect.poll(() => app.evaluate(() => globalThis.dataExternalUrls)).toEqual([sourceUrl, 'http://example.test/source']);
+  expect(app.windows()).toHaveLength(1);
+  checks.push('Source HTTP(S) links reach stubbed OS opener; other schemes and child windows denied');
+
   await frame.getByRole('button', { name: 'Import', exact: true }).click();
   const dialog = frame.getByRole('dialog');
   await dialog.getByLabel('Type', { exact: true }).selectOption('dataset');
