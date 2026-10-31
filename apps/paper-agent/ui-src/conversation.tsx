@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { downloadFile } from '@pero/app-sdk';
-import { Button, Checkbox, Feedback, Field, Icon, Select, SettingsGroup, Textarea } from '@pero/app-sdk/ui';
+import { Button, Checkbox, Composer, Feedback, Field, Icon, Select, SettingsGroup, Textarea } from '@pero/app-sdk/ui';
 import { EvidencePanel, Experiments, ReportView, type Citation } from './documents';
 import { PaperList } from './library';
 import { ReadingMatrix } from './reading-matrix';
@@ -104,7 +104,6 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
         <label className="pa-checkbox-label"><Checkbox checked={draft.fullText} disabled={locked || draft.verifyCode} onCheckedChange={fullText => onDraft({ fullText })}/>{t('fullTextQuestion')}</label>
         <label className="pa-checkbox-label"><Checkbox checked={draft.verifyCode} disabled={locked || draft.fullText} onCheckedChange={verifyCode => onDraft({ verifyCode })}/>{t('verifyCode')}</label>
         {draft.verifyCode && <Field label={t('boundary')}>{props => <Textarea {...props} rows={3} value={draft.verificationPlan} maxLength={4000} disabled={locked} onChange={event => onDraft({ verificationPlan: event.target.value })}/>}</Field>}
-        <Select label={t('agent')} value={agentId} onChange={onAgent} disabled={locked} options={agent.agents.map(agent => ({ value: agent.id, label: agent.name }))}/>
         <details><summary>{t('chooseSources')}</summary><PaperList selecting papers={library.papers} selected={draft.selected} readingId={paper?.id ?? ''} locked={locked} onRead={p => onDraft({ selected: [p.id] })} onSelect={(id, checked) => onDraft({ selected: checked ? [...draft.selected, id] : draft.selected.filter(value => value !== id) })} t={t}/></details>
         {!task.working && !task.pending && <Button disabled={!validDraft || locked} onClick={() => onSend(false)}>{t('prepare')}</Button>}
         {current && <><Button onClick={() => downloadFile('research-prompt.txt', current.prompt, 'text/plain;charset=utf-8')}>{t('prompt')}</Button>
@@ -114,11 +113,12 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
       </SettingsGroup>}
       <div ref={bottom}/>
     </div>
-    <div className="pa-composer" role="group" aria-label={t('question')}>
-      {!!draft.context && <div className="pa-question-context"><blockquote>{draft.context}</blockquote>{draft.contextSource && <Button variant="ghost" onClick={onReadContext}>{t('pdfPage')} {draft.contextSource.page} ↗</Button>}<Button variant="ghost" aria-label={t('removeContext')} onClick={() => onDraft({ context: '', contextSource: undefined })}>×</Button></div>}
-      {!agent.available && <Feedback>{t('noAgentChoice')}<Button onClick={() => void agent.refresh()}>{t('refresh')}</Button></Feedback>}
-      <label className="pa-sr-only" htmlFor="paper-question">{t('question')}</label><Textarea id="paper-question" rows={2} value={draft.question} maxLength={2000} disabled={locked} placeholder={t('askPlaceholder')} onChange={event => onDraft({ question: event.target.value })} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (canSend) onSend(); } }}/>
-      {task.working ? <Button aria-label={t('cancel')} disabled={task.busy || task.status === 'cancelling'} onClick={() => void task.cancel()}>{t('cancel')}</Button> : <Button onClick={() => onSend()} variant="primary" aria-label={t(task.pending ? 'retryStart' : 'sendQuestion')} disabled={!canSend}>{task.busy ? t('preparing') : task.pending ? t('retryStart') : '↑'}</Button>}
-    </div>
+    <Composer className="pa-composer" id="paper-question" label={t('question')} value={draft.question} maxLength={2000} disabled={locked} placeholder={t('askPlaceholder')} onChange={question => onDraft({ question })} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (canSend) onSend(); } }}
+      attachments={(draft.context || !agent.available) && <>
+        {!!draft.context && <div className="pa-question-context"><blockquote>{draft.context}</blockquote>{draft.contextSource && <Button variant="ghost" onClick={onReadContext}>{t('pdfPage')} {draft.contextSource.page} ↗</Button>}<Button variant="ghost" aria-label={t('removeContext')} onClick={() => onDraft({ context: '', contextSource: undefined })}>×</Button></div>}
+        {!agent.available && <Feedback>{t('noAgentChoice')}<Button onClick={() => void agent.refresh()}>{t('refresh')}</Button></Feedback>}
+      </>}
+      toolbar={<Select label={t('agent')} value={agentId} onChange={onAgent} disabled={locked} options={agent.agents.map(item => ({ value: item.id, label: item.name }))}/>}
+      submit={task.working ? <Button aria-label={t('cancel')} disabled={task.busy || task.status === 'cancelling'} onClick={() => void task.cancel()}>{t('cancel')}</Button> : <Button onClick={() => onSend()} variant="primary" disabled={!canSend}><Icon name="arrow-right"/>{task.busy ? t('preparing') : t(task.pending ? 'retryStart' : 'sendQuestion')}</Button>}/>
   </aside>;
 }
