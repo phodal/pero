@@ -51,12 +51,12 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
     'tests/fixtures/owned-electron-close.test.mjs', 'node tests/runtime/automation.mjs']) assert.ok(commands.includes(command), command);
   const core = workflow.jobs.core.steps.map(step => step.run || '').join('\n');
   for (const command of ['npx tsc -p scripts/ci/tsconfig.core.json',
-    'node scripts/cargo.mjs test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker',
-    'node scripts/cargo.mjs build --locked -p pero-host -p pero-worker',
+    'cargo test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker',
+    'cargo build --locked -p pero-host -p pero-worker',
     'node tests/contracts/host.mjs', 'node tests/runtime/automation.mjs',
     'node tests/contracts/mcp-settings.mjs', 'node tests/contracts/mcp-ownership.mjs',
     'tests/fixtures/owned-electron-close.test.mjs', 'npm run test:app-use:unit']) assert.ok(core.includes(command), command);
-  assert.doesNotMatch(core, /npm run build|xvfb-run|build:wasm/);
+  assert.doesNotMatch(core, /npm run build|xvfb-run|build:wasm|scripts\/cargo.mjs|PERO_GPUI_KIT_PATH/);
   const native = YAML.parse(readFileSync('.github/workflows/computer-use.yml', 'utf8'));
   assert.match(native.jobs.native.strategy.matrix.os, /schedule.*workflow_dispatch/);
   assert.equal(native.on.schedule[0].cron, '0 20 * * *');

@@ -49,9 +49,11 @@ Moving a failing scenario to daily is not a fix or a passing result.
 | Ordinary + daily | Independent Desktop and Web TypeScript graph in `scripts/ci/tsconfig.core.json`, model/unit tests | Excludes Wasm-dependent frontend entrypoints and Product shell; no fake declarations |
 | Daily/manual | Complete three-platform build/typecheck and fifteen real Desktop scenarios | Required to establish rendering, scientific workflows and GUI recovery behavior |
 
-Core Cargo uses the normal pinned public GPUI source preparation because the
-committed workspace lock contains path-patched dependencies. It compiles only
-Contracts/Runtime/Host/Worker, not GPUI, Reader or Wasm. The generated Host binary
+Master `9af37ba4` restored the normal registry checksums in the committed
+workspace lock. Core now uses directly validated `cargo test/build --locked`
+without a GPUI checkout or temporary lock edits. It compiles only
+Contracts/Runtime/Host/Worker, not GPUI, Reader or Wasm. Full Desktop builds still
+use the existing pinned GPUI source preparation and wrapper. The generated Host binary
 is exercised directly; no cached GUI runtime is accepted as a substitute.
 Ordinary checks do not prove UI correctness or complete frontend type safety.
 Both cold and warm latency require actual exact-head Actions measurements.

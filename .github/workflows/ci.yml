@@ -336,14 +336,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - name: Prepare pinned dependency resolution (no UI compilation)
-        run: |
-          kit="$RUNNER_TEMP/gpui-kit"
-          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
-          git init --quiet "$kit"
-          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
-          git -C "$kit" fetch --depth 1 origin ec89cfc36404667b7947aeb3d40b1c2859d729dd
-          git -C "$kit" checkout --detach FETCH_HEAD
       - name: Independent TypeScript and generated contracts
         run: |
           npx tsc -p scripts/ci/tsconfig.core.json
@@ -353,8 +345,8 @@ jobs:
           node scripts/check/locales.mjs
       - name: Core Rust without GPUI or WASM compilation
         run: |
-          node scripts/cargo.mjs test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker
-          node scripts/cargo.mjs build --locked -p pero-host -p pero-worker
+          cargo test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker
+          cargo build --locked -p pero-host -p pero-worker
       - name: Permission, cancellation and fixture contracts
         run: |
           npm run test:app-use:unit
