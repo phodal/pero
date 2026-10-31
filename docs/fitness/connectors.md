@@ -96,3 +96,67 @@ cleanup completed; only the seven local GPUI path-patch source/checksum removals
 were restored in Cargo.lock. No personal-account authorization, third-party
 runtime installation, real Agent tool execution or release-package acceptance
 was performed. The remaining boundaries above still apply.
+
+## Native route, sidebar and original artwork repair
+
+2026-10-31. The user's running shell was the debug GPUI/Wry Native preview,
+loading `target/debug/Pero Native.app`, the debug stdio Host and its existing
+`~/.pero/native-preview` profile. Electron-only acceptance had not established
+that this route worked. Native previously sent `/host/connectors` into its
+asset handler; the App mislabeled the resulting failure as an uninstalled MCP
+service. The [incident](../issues/2026-10-31-native-connectors.md) records the cause.
+
+Native now starts the existing management owner, admits requests through the
+Rust Host App grant, stores connector credentials in macOS Keychain and binds
+the shared MCP endpoint to actual ACP conversation identities. Configuration,
+permissions, credentials and process lifetime stay with that owner. The sidebar
+opens the same retained App directly above Apps in both widths. Host failure
+causes remain distinct, with an explicit reload action.
+
+The complete directory ID set matches Point: 110 entries, including 13
+documentation-only entries. The existing shelf policy renders 106 cards;
+the other four are the built-in provider and the three custom transport
+templates reached through the existing import/editor flow. No denominator was
+reduced to accept a missing provider. All 57 restored image assets match Point
+revision `b45190a3db725953128b4a8a40e95a287aa9bfd7` byte for byte. Shared semantic
+glyphs replace initial-letter fallbacks; images remain bundled offline with
+their source and license records.
+
+Actual Native acceptance (`node tests/e2e/native-connectors.mjs`) passed:
+
+- Complete directory comparison, rendered shelves and GitHub search.
+- App UI import/save, secret input clearing, real portable-driver verification,
+  tool grant removal/restoration and refusal of an ungranted App.
+- Two real ACP-fixture calls through the Host MCP endpoint to an independent
+  loopback MCP server; an unselected tool was denied and the master token did
+  not enter the Agent environment.
+- Same-profile restart with actual system Keychain credential retrieval,
+  preserved connector ID/reference/allowlist and a second successful call.
+- No Workbench bridge or plaintext secret in the App projection/registry;
+  dark theme, Chinese and 1000px layout. The test removes its credential item
+  and profile, and waits for owned process shutdown.
+
+Receipts, artifact hashes and logs are in `test-results/native-connectors/`.
+The final run used a fixed checkout at `fe445beb`, with the scoped dark-mark
+and probe corrections committed as `1104b3a` and `301c142`. Those six source
+files matched the validated checkout byte for byte. Later concurrent Paper
+changes were outside that snapshot. The receipt hashes the actual copied
+Native, Host and worker executables used by both phases.
+The first measured catalog has 63 logo placements backed by the 57 originals;
+its maximum card height is 92 CSS pixels. The initial guide layout measured
+121.16 CSS pixels at most; Computer Use and App Use no longer reserve a fixed
+minimum height. Narrow Chinese and dark catalog captures were also inspected.
+The real running Native profile was also
+opened from the sidebar and visually inspected with the restored marks and
+compact guides; personal connection definitions were not overwritten.
+
+The refreshed background Electron flow starts from that sidebar shortcut and
+passes the existing configuration, encrypted credentials, tool-grant, restart,
+keyboard/focus, locale/theme and narrow-window checks. Captures remain in
+`test-results/connectors/`. Unit/protocol checks pass 47 JS/TS and 44 isolated
+worker tests; repository/App checks and real Host App contracts also pass.
+
+These are macOS development Native/Electron checks with synthetic Agent and
+provider fixtures. They do not accept personal supplier accounts, real-model
+use, Native Computer Use/App Use execution, Linux credential storage,
+Windows, standalone Products, signed packages or production deployment.
