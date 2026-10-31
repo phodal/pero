@@ -190,4 +190,3 @@ fonts/*.ttf
 !apps/connectors/ui-src/assets/connectors/*.png
 
 # Shared Point SDK runtime is built once and packaged with the Host.
-/packages/point-app/dist/
