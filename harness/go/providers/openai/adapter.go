@@ -33,6 +33,8 @@ type Config struct {
 	DisableThinking bool
 	// Explicit opt-in to the process environment HTTP(S) proxy; TLS verification is unchanged.
 	UseEnvironmentProxy bool
+	// Optional audit gate called before each HTTP attempt. An error prevents it.
+	BeforeHTTPAttempt func() error
 	// Optional adapter-lifetime hard limits. Zero preserves unlimited behavior.
 	MaxRequests                    int
 	MaxOutputTokens                int
@@ -117,8 +119,23 @@ func New(c Config) (*Adapter, error) {
 		transport = configuredTransport(c.UseEnvironmentProxy)
 	}
 	client.Transport = terminalCheckingTransport{next: transport}
+	if c.BeforeHTTPAttempt != nil {
+		client.Transport = attemptAuditTransport{next: client.Transport, before: c.BeforeHTTPAttempt}
+	}
 	sdk := openaisdk.NewChatCompletionService(option.WithAPIKey(c.APIKey), option.WithBaseURL(u.String()), option.WithHTTPClient(&client), option.WithMaxRetries(0), option.WithOrganization(""), option.WithProject(""), option.WithHeader("User-Agent", "pero-agent/0.1"))
 	return &Adapter{disableThinking: c.DisableThinking, maxRequests: int64(c.MaxRequests), maxOutputTokens: c.MaxOutputTokens, client: sdk, models: models, providerName: c.ProviderName, retryPolicy: policy, streamIdleTimeout: time.Duration(c.StreamIdleTimeoutMS) * time.Millisecond}, nil
+}
+
+type attemptAuditTransport struct {
+	next   http.RoundTripper
+	before func() error
+}
+
+func (t attemptAuditTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if err := t.before(); err != nil {
+		return nil, errors.New("openai adapter: HTTP attempt audit failed")
+	}
+	return t.next.RoundTrip(request)
 }
 
 func (a *Adapter) ResolveModelInfo(_ context.Context, provider, model string) (llm.ModelInfo, error) {
