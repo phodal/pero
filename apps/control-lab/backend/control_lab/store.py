@@ -8,7 +8,7 @@ import threading
 import uuid
 import platform
 
-from .experiments import Attempt, Candidate, ExperimentSpec, Invalid, Trial, admit_attempts, candidates, canonical, input_digest, proposal, template
+from .experiments import Attempt, Candidate, ExperimentSpec, Invalid, Trial, admit_attempts, candidates, canonical, input_digest, proposal, sample_reservation, template
 from .verification import Observation, aggregate, verify_observation
 from . import engines
 
@@ -104,34 +104,60 @@ class ExperimentStore:
                 raise Invalid('Candidate proposals require an idle, unlocked experiment')
             spec=self.spec(record)
             candidate=proposal(spec,parameters)
-            if not record['candidates']: record['candidates']=[candidates(spec,1)[0].to_dict()]
-            if not any(c['id']==candidate.id for c in record['candidates']):
-                if len(record['candidates'])>=spec.candidate_budget:
-                    raise Invalid('Frozen candidate budget is exhausted')
-                record['candidates'].append(candidate.to_dict())
-                self.save(record)
-            return self.start(identity,'evaluate',candidate_id=candidate.id)
+            return self.start(identity,'evaluate',candidate_id=candidate.id,proposed_candidate=candidate)
 
-    def start(self, identity, operation, budget=None, candidate_id=None):
+    def start(self, identity, operation, budget=None, candidate_id=None, proposed_candidate=None):
         with self.lock:
             record = self.get_record(identity)
             if self.worker and self.worker.is_alive():
                 raise Invalid('A calculation is already running; wait or cancel it first')
             spec = self.spec(record)
-            if operation == 'search':
+            added = []
+            if operation in ('search', 'baseline', 'search-next'):
                 if record['lockedCandidateId']:
                     raise Invalid('Candidate is locked; search requires a new experiment')
                 if budget is not None and budget != spec.candidate_budget:
                     raise Invalid('Search budget is frozen in the experiment; create a new experiment to change it')
                 proposed = candidates(spec, spec.candidate_budget)
                 existing = {c['id'] for c in record['candidates']}
-                record['candidates'].extend([c.to_dict() for c in proposed if c.id not in existing][:spec.candidate_budget-len(existing)])
                 phase = 'search'
-                chosen = list(record['candidates'])
+                if operation == 'baseline':
+                    baseline = next((c for c in record['candidates'] if c['id'] == 'baseline'), None)
+                    if baseline is None:
+                        if len(existing) >= spec.candidate_budget:
+                            raise Invalid('Frozen candidate budget is exhausted')
+                        baseline = proposed[0].to_dict()
+                        added = [baseline]
+                    chosen = [baseline]
+                elif operation == 'search-next':
+                    # Complete or retry one existing candidate before consuming a
+                    # new slot. The frozen search scenarios remain authoritative.
+                    search_scenarios = [s for s in spec.scenarios if s.role == 'search']
+                    chosen = [c for c in record['candidates'] if any(
+                        not any(t['candidateId'] == c['id'] and t['scenarioId'] == s.id
+                                and t['status'] == 'completed' for t in record['trials'])
+                        for s in search_scenarios)][:1]
+                    if not chosen and len(existing) < spec.candidate_budget:
+                        next_candidate = next((c for c in proposed if c.id not in existing), None)
+                        if next_candidate:
+                            added = [next_candidate.to_dict()]
+                            chosen = list(added)
+                    if not chosen:
+                        raise Invalid('No remaining bounded search candidates')
+                else:
+                    added = [c.to_dict() for c in proposed if c.id not in existing][:spec.candidate_budget-len(existing)]
+                    chosen = list(record['candidates']) + added
             elif operation == 'evaluate':
                 if record['lockedCandidateId']: raise Invalid('The final candidate is frozen')
                 phase='search'
-                chosen=[c for c in record['candidates'] if c['id']==candidate_id]
+                if proposed_candidate is not None:
+                    if not record['candidates']:
+                        added.append(candidates(spec,1)[0].to_dict())
+                    if not any(c['id']==proposed_candidate.id for c in record['candidates']):
+                        if len(record['candidates'])+len(added)>=spec.candidate_budget:
+                            raise Invalid('Frozen candidate budget is exhausted')
+                        added.append(proposed_candidate.to_dict())
+                chosen=[c for c in record['candidates']+added if c['id']==candidate_id]
                 if not chosen: raise Invalid('Candidate not found')
             elif operation == 'verify':
                 if not record['lockedCandidateId']:
@@ -148,10 +174,29 @@ class ExperimentStore:
                     if phase == 'search' and any(t['candidateId']==candidate['id'] and t['scenarioId']==scenario.id and t['status']=='completed' for t in record['trials']):
                         continue
                     jobs.append((deepcopy(candidate), scenario))
-            existing_samples=sum(max((len(curve['x']) for curve in (trial.get('observation') or {}).get('series',[])),default=0) for trial in record['trials'])
+            # A failed, cancelled or interrupted attempt may already have
+            # consumed its grid. Retain its conservative reservation across
+            # retries and restarts when it has no saved observation.
+            per_trial_samples=sample_reservation(template(spec.template_id).engine,dict(spec.parameters)['samples'])
+            existing_samples=0
+            for trial in record['trials']:
+                observation=trial.get('observation')
+                series=observation.get('series',[]) if isinstance(observation,dict) else []
+                series=series if isinstance(series,list) else []
+                actual=max((len(curve[axis]) for curve in series if isinstance(curve,dict)
+                            for axis in ('x','y') if isinstance(curve.get(axis),list)),default=0)
+                valid=False
+                if trial['status']=='completed' and actual:
+                    try:
+                        Observation.parse(observation)
+                        valid=True
+                    except (Invalid,ValueError,TypeError,KeyError,AttributeError,OverflowError):
+                        pass
+                existing_samples+=actual if valid else max(actual,per_trial_samples)
             admit_attempts(spec,existing_samples,len(jobs))
             if len(record['trials'])+len(jobs)>80:
                 raise Invalid('This ledger has reached its 80-attempt evidence limit; export it and create a new experiment')
+            record['candidates'].extend(added)
             if not jobs:
                 return deepcopy(record)
             self.cancelled = threading.Event()
@@ -186,6 +231,10 @@ class ExperimentStore:
                 try:
                     result = self.execute(template(spec.template_id).engine, spec.template_id,
                                           dict(candidate['parameters']), dict(scenario.parameters), directory, cancelled)
+                    limit = sample_reservation(template(spec.template_id).engine, dict(spec.parameters)['samples'])
+                    if any(len(curve.get('x', [])) > limit or len(curve.get('y', [])) > limit
+                           for curve in result.get('series', [])):
+                        raise engines.EngineError(f'Solver output exceeds the {limit}-point evidence limit; raw output is retained')
                     artifact_refs = []
                     for path in sorted(directory.iterdir()):
                         if path.is_file():

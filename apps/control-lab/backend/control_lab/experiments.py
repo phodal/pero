@@ -9,6 +9,14 @@ import re
 MAX_EVIDENCE_SAMPLES = 40000
 
 
+def sample_reservation(engine, samples):
+    """Upper bound per accepted observation, not a promise about solver output."""
+    # ngspice uses adaptive transient times and also emits a 301-point AC
+    # table. Keep all returned points or reject the attempt; never truncate.
+    samples = int(samples)
+    return max(1000, 2 * samples) if engine == 'ngspice' else samples
+
+
 class Invalid(ValueError):
     pass
 
@@ -171,7 +179,7 @@ class ExperimentSpec:
         search_count=sum(s.role=='search' for s in item.scenarios)
         final_count=sum(s.role=='verification' for s in item.scenarios)
         effective_budget=1 if item.id in ('p-golden','pi-golden') else budget
-        if (effective_budget*search_count+final_count)*parsed['samples'] > MAX_EVIDENCE_SAMPLES:
+        if (effective_budget*search_count+final_count)*sample_reservation(item.engine, parsed['samples']) > MAX_EVIDENCE_SAMPLES:
             raise Invalid('The frozen search and final-verification plan exceeds 40000 evidence sample-points; reduce candidate budget or samples (shorten horizon to retain 0.01 s control resolution)')
         if item.engine == 'python-control' and parsed['horizon']/(parsed['samples']-1) > .010000001:
             raise Invalid('Control responses require a sample interval at most 0.01 s; increase samples or shorten the horizon')
@@ -283,6 +291,6 @@ def proposal(spec, supplied):
 
 
 def admit_attempts(spec, existing_samples, new_attempts):
-    required=existing_samples+new_attempts*dict(spec.parameters)['samples']
+    required=existing_samples+new_attempts*sample_reservation(template(spec.template_id).engine, dict(spec.parameters)['samples'])
     if required>MAX_EVIDENCE_SAMPLES:
         raise Invalid('This experiment has reached its 40000 evidence sample-point budget; export it and create a new experiment rather than growing an unreadable ledger')

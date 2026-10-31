@@ -14,6 +14,8 @@ import subprocess
 import threading
 import time
 
+from .experiments import MAX_EVIDENCE_SAMPLES, sample_reservation
+
 
 class EngineError(RuntimeError):
     """A run did not produce valid solver evidence."""
@@ -175,24 +177,27 @@ def _run_ngspice(executable, directory, cancelled, timeout=20.0):
                     process.wait()
 
 
-def _read_table(path, columns):
+def _read_table(path, columns, max_rows=MAX_EVIDENCE_SAMPLES):
     if not path.is_file():
         raise EngineError(f"ngspice did not produce {path.name}; inspect retained logs")
     # wrdata has a single header and whitespace-separated finite numeric rows.
     rows = []
-    for index, line in enumerate(path.read_text(encoding="utf-8").splitlines()):
-        if not line.strip():
-            continue
-        parts = line.split()
-        try:
-            values = [float(value) for value in parts]
-        except ValueError:
-            if index == 0:
+    with path.open(encoding="utf-8") as table:
+        for index, line in enumerate(table):
+            if not line.strip():
                 continue
-            raise EngineError(f"Malformed ngspice table {path.name}") from None
-        if len(values) != columns or not all(math.isfinite(v) for v in values):
-            raise EngineError(f"Incomplete ngspice table {path.name}")
-        rows.append(values)
+            parts = line.split()
+            try:
+                values = [float(value) for value in parts]
+            except ValueError:
+                if index == 0:
+                    continue
+                raise EngineError(f"Malformed ngspice table {path.name}") from None
+            if len(values) != columns or not all(math.isfinite(v) for v in values):
+                raise EngineError(f"Incomplete ngspice table {path.name}")
+            if len(rows) >= max_rows:
+                raise EngineError(f"ngspice table {path.name} exceeds the {max_rows}-point evidence limit; raw output is retained")
+            rows.append(values)
     if len(rows) < 2:
         raise EngineError(f"Empty ngspice table {path.name}")
     return list(zip(*rows))
@@ -246,8 +251,9 @@ quit
     _run_ngspice(executable, directory, cancelled)
     if cancelled.is_set():
         raise EngineCancelled("Cancelled before accepting ngspice evidence")
-    t, y = _read_table(directory / "transient.tsv", 2)
-    f, gain, phase = _read_table(directory / "frequency.tsv", 3)
+    limit = sample_reservation('ngspice', grid.samples)
+    t, y = _read_table(directory / "transient.tsv", 2, limit)
+    f, gain, phase = _read_table(directory / "frequency.tsv", 3, limit)
     if t[-1] < grid.horizon * .999 or f[-1] < frequency_stop * .999 or f[0] > frequency_start * 1.001:
         raise EngineError("ngspice returned a truncated analysis window")
     import numpy as np
