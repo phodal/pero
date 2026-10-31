@@ -40,6 +40,7 @@ pub(crate) struct SidebarProps<'a> {
     pub new_chat_bounds: &'a crate::view_bounds::ViewBounds,
     pub navigation: WorkbenchPage,
     pub insights_open: bool,
+    pub data_open: bool,
     pub local_connected: bool,
     pub collapsed: bool,
     pub groups: Vec<ProjectGroup>,
@@ -394,6 +395,21 @@ fn icon_rail(
             cx,
         ))
         .child(rail_icon(
+            "sidebar-data",
+            Icon::default().path("icons/database.svg"),
+            ui.t("nav.data"),
+            props.data_open,
+            chrome,
+            click(
+                &on_action,
+                SidebarAction::OpenApp {
+                    name: "data".into(),
+                    panel: "main".into(),
+                },
+            ),
+            cx,
+        ))
+        .child(rail_icon(
             "sidebar-new-chat",
             Icon::new(IconName::Plus),
             ui.t("chat.new"),
@@ -416,7 +432,7 @@ fn icon_rail(
             "sidebar-apps",
             Icon::default().path("icons/file-code.svg"),
             ui.t("nav.apps"),
-            props.navigation == WorkbenchPage::Apps && !props.insights_open,
+            props.navigation == WorkbenchPage::Apps && !props.insights_open && !props.data_open,
             chrome,
             click(&on_action, SidebarAction::Navigate(WorkbenchPage::Apps)),
             cx,
@@ -513,6 +529,23 @@ pub(crate) fn sidebar(
                         &on_action,
                         SidebarAction::OpenApp {
                             name: "insights".into(),
+                            panel: "main".into(),
+                        },
+                    ),
+                ))
+                .child(pero_theme::sidebar_row(
+                    "sidebar-data",
+                    ui.t("nav.data"),
+                    None,
+                    None,
+                    props.data_open,
+                    pero_theme::RowLevel::Nav,
+                    Some(Icon::default().path("icons/database.svg").into_any_element()),
+                    chrome,
+                    click(
+                        &on_action,
+                        SidebarAction::OpenApp {
+                            name: "data".into(),
                             panel: "main".into(),
                         },
                     ),
@@ -635,7 +668,7 @@ pub(crate) fn sidebar(
                     ui.t("nav.apps"),
                     None,
                     None,
-                    props.navigation == WorkbenchPage::Apps && !props.insights_open,
+                    props.navigation == WorkbenchPage::Apps && !props.insights_open && !props.data_open,
                     pero_theme::RowLevel::Nav,
                     Some(Icon::default().path("icons/file-code.svg").into_any_element()),
                     chrome,

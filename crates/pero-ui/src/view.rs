@@ -232,6 +232,7 @@ impl Workbench {
                 new_chat_bounds: &self.view_bounds.new_chat,
                 navigation: self.navigation.page(),
                 insights_open: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == "insights"),
+                data_open: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == "data"),
                 local_connected: self.connected,
                 collapsed: self.sidebar_collapsed,
                 groups,
