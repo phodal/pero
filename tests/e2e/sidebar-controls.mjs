@@ -1,11 +1,25 @@
 // Shared gestures for visible sidebar controls; no internal navigation actions.
 import { expect } from '@playwright/test';
 const state = page => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
+// Bounds come from the actual GPUI paint, so title bars and reordered rows do
+// not change the pointer target. Callers still assert the resulting UI state.
+async function clickBounds(page, select) {
+  let bounds;
+  await expect.poll(async () => {
+    bounds = select(await state(page));
+    return !!bounds && [bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)
+      && bounds.width > 0 && bounds.height > 0;
+  }).toBe(true);
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+}
 export async function clickNewChat(page) {
-  // Expanded GPUI sidebar is canvas-painted (no DOM button/bounds probe).
-  // components/sidebar.rs + pero-theme/design_tokens.rs place Insights first,
-  // then New chat: 8px inset + one 32px row + 4px gap + half a row.
-  await page.mouse.click(100, 8 + (32 + 4) + 32 / 2);
+  await clickBounds(page, snapshot => snapshot.newChatButtonBounds);
+}
+export async function clickSessionRow(page, sessionId) {
+  await clickBounds(page, snapshot => snapshot.sessionRowBounds?.[sessionId]);
+}
+export async function clickAppOpen(page, appName) {
+  await clickBounds(page, snapshot => snapshot.appOpenButtonBounds?.[appName]);
 }
 export async function openSettings(page) {
   await page.waitForFunction(() => {

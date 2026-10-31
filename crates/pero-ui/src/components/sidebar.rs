@@ -13,6 +13,7 @@ use gpui_kit::{
 use pero_chat_ui::theme::WorkbenchStyle as W;
 
 pub(crate) struct RecentRow {
+    pub bounds: Option<AnyElement>,
     pub label: String,
     pub icon: &'static str,
     pub active: bool,
@@ -36,6 +37,7 @@ pub(crate) struct ProjectGroup {
     pub rows: Vec<RecentRow>,
 }
 pub(crate) struct SidebarProps<'a> {
+    pub new_chat_bounds: &'a crate::view_bounds::ViewBounds,
     pub navigation: WorkbenchPage,
     pub insights_open: bool,
     pub local_connected: bool,
@@ -92,6 +94,7 @@ fn recent_row(
         pero_theme::ROW_NAV,
         chrome,
     )
+    .relative().children(row.bounds)
     .cursor_pointer()
     .overflow_hidden()
     .pl(chrome.geo(pero_theme::SPACE_8 + pero_theme::SUB_INDENT))
@@ -398,7 +401,7 @@ fn icon_rail(
             chrome,
             click(&on_action, SidebarAction::NewChat),
             cx,
-        ))
+        ).relative().child(props.new_chat_bounds.probe("new-chat".into())))
         .child(rail_icon(
             "sidebar-projects",
             Icon::default().path("icons/folder.svg"),
@@ -524,7 +527,7 @@ pub(crate) fn sidebar(
                     Some(Icon::new(IconName::Plus).into_any_element()),
                     chrome,
                     click(&on_action, SidebarAction::NewChat),
-                ))
+                ).relative().child(props.new_chat_bounds.probe("new-chat".into())))
                 .child(pero_theme::sidebar_row(
                     "sidebar-projects",
                     ui.t("nav.projects"),

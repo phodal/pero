@@ -274,7 +274,9 @@ mod surface {
                                 let app_name = name.clone();
                                 let panel_name = panel.id.clone();
                                 let label = if app.panels.len() == 1 { self.t("apps.open").to_string() } else { panel.title.clone() };
+                                // The app-name target identifies its first panel; never a disabled action.
                                 Button::new(("app-open", index * 100 + panel_index)).outline().small().label(label)
+                                    .relative().children((panel_index == 0 && enabled && !busy).then(|| self.view_bounds.app_open.probe(name.clone())))
                                     .disabled(busy || !enabled)
                                     .on_click(cx.listener(move |this, _, _, cx| {
                                         this.open_app(app_name.clone(), panel_name.clone(), cx);

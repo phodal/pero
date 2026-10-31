@@ -1,4 +1,4 @@
-import { clickNewChat, setAppearance } from './sidebar-controls.mjs';
+import { clickNewChat, clickSessionRow, setAppearance } from './sidebar-controls.mjs';
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { resolve } from 'node:path';
@@ -117,10 +117,7 @@ try{
  expect((await state()).activeContent).toEqual(draftItem);
  await page.screenshot({path:resolve(out,'history-retained-draft.png')});
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
- // Shared sidebar geometry: 8px inset + four 32px controls and 4px gaps,
- // then the 32px project header. Select the first 26px session row, not its project.
- const firstHistoryRowY=8+4*(32+4)+32+26/2;
- await page.mouse.click(100,firstHistoryRowY);
+ await clickSessionRow(page, restoredThread.id);
  // Selecting retained long history schedules real GPUI layout/paint before observations.
  const historyPaintStarted=performance.now();
  let historyPaintTimer;
