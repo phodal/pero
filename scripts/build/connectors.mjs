@@ -10,7 +10,9 @@ const test = process.argv.includes('--test');
 const profile = release ? 'release' : 'debug';
 const source = resolve(root, 'packages/connectors');
 if (!existsSync(resolve(source, 'node_modules/fflate/package.json'))) {
-  execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['ci', '--prefix', source, '--ignore-scripts'], { stdio: 'inherit' });
+  const windows = process.platform === 'win32';
+  if (windows && !process.env.npm_execpath) throw new Error('Run Connectors builds through npm run build:connectors on Windows.');
+  execFileSync(windows ? process.execPath : 'npm', [...(windows ? [process.env.npm_execpath] : []), 'ci', '--prefix', source, '--ignore-scripts'], { stdio: 'inherit' });
 }
 execFileSync('cargo', [test ? 'test' : 'build', '--locked', '--manifest-path', resolve(root, 'use/connectors/worker/Cargo.toml'), ...(release ? ['--release'] : [])], { stdio: 'inherit' });
 if (!test) {
