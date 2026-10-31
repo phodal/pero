@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 go_library(
     name = "pero-agent-acp_lib",
     srcs = [
+        "attempt_audit.go",
         "coding.go",
         "compaction.go",
         "main.go",
@@ -36,6 +37,7 @@ go_binary(
 go_test(
     name = "pero-agent-acp_test",
     srcs = [
+        "attempt_audit_test.go",
         "coding_model_wire_test.go",
         "coding_test.go",
         "compaction_test.go",

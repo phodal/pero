@@ -35,6 +35,7 @@ func run() (resultErr error) {
 	recoverTail := flag.Bool("recover-complete-session-tail", false, "opt in to lossless final JSONL delimiter recovery with a private backup")
 	sessions := flag.String("session-dir", "", "private directory for durable JSONL sessions (required)")
 	keyEnv := flag.String("api-key-env", "AGENT_PROVIDER_API_KEY", "environment variable containing the provider credential")
+	auditPath := flag.String("http-attempt-audit", "", "optional absolute existing private file to durably record each provider HTTP attempt")
 	workspace := flag.String("workspace", "", "explicit native file tool authority root; absent disables native tools")
 	enableShell := flag.Bool("enable-shell", false, "enable approved shell execution (Unix unsandboxed unless --sandbox supplied; Windows requires windows-acl; requires --workspace)")
 	shellPath := flag.String("shell", "", "absolute shell executable; defaults to /bin/bash on Unix; Windows requires explicit pwsh.exe")
@@ -71,6 +72,10 @@ func run() (resultErr error) {
 		return err
 	}
 	providerConfig, err := configuredProvider(*endpoint, *model, credential, *budget)
+	if err != nil {
+		return err
+	}
+	providerConfig.BeforeHTTPAttempt, err = httpAttemptAudit(*auditPath, budget.MaxRequests)
 	if err != nil {
 		return err
 	}

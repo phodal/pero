@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -100,6 +101,9 @@ func TestBudgetAgentProcess(t *testing.T) {
 	}
 	flag.CommandLine = flag.NewFlagSet("agent-fixture", flag.ContinueOnError)
 	os.Args = []string{"agent-fixture", "--endpoint", os.Getenv("PERO_BUDGET_TEST_ENDPOINT"), "--model", "fixture", "--session-dir", os.Getenv("PERO_BUDGET_TEST_SESSIONS"), "--max-requests", "4", "--max-tokens", "512", "--max-retries", "0", "--disable-thinking"}
+	if audit := os.Getenv("PERO_BUDGET_TEST_AUDIT"); audit != "" {
+		os.Args = append(os.Args, "--http-attempt-audit", audit)
+	}
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
@@ -130,8 +134,12 @@ func TestBudgetCLIActualLoopAndWire(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
+	audit := filepath.Join(t.TempDir(), "attempts")
+	if err := os.WriteFile(audit, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
 	child := exec.CommandContext(ctx, exe, "-test.run=^TestBudgetAgentProcess$")
-	child.Env = append(os.Environ(), "PERO_BUDGET_TEST_CHILD=1", "PERO_BUDGET_TEST_ENDPOINT="+server.URL+"/v1", "PERO_BUDGET_TEST_SESSIONS="+t.TempDir(), "AGENT_PROVIDER_API_KEY=fixture-not-secret")
+	child.Env = append(os.Environ(), "PERO_BUDGET_TEST_CHILD=1", "PERO_BUDGET_TEST_ENDPOINT="+server.URL+"/v1", "PERO_BUDGET_TEST_SESSIONS="+t.TempDir(), "PERO_BUDGET_TEST_AUDIT="+audit, "AGENT_PROVIDER_API_KEY=fixture-not-secret")
 	input, err := child.StdinPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -189,6 +197,10 @@ func TestBudgetCLIActualLoopAndWire(t *testing.T) {
 	_ = input.Close()
 	if err = child.Wait(); err != nil {
 		t.Fatalf("child: %v %s", err, diagnostics.String())
+	}
+	data, err := os.ReadFile(audit)
+	if err != nil || string(data) != "attempt\nattempt\nattempt\nattempt\n" {
+		t.Fatalf("HTTP audit=%q error=%v", data, err)
 	}
 }
 
