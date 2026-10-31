@@ -87,7 +87,7 @@ try {
   await page.mouse.click(edge + 120, await page.evaluate(() => innerHeight - 70));
   const cdp = await page.context().newCDPSession(page);
   // Revised after an observed P-golden development run; that run is not blind evidence.
-  await cdp.send('Input.insertText', { text: `\nList skills, then read the ${scene === 'p-golden' ? 'control-design' : 'active-filter-design'} skill by its catalog digest. Call app_describe to inspect Control Lab's declared data tools; use app_write with experiment-step or propose-candidate for the approved experiment. Do not use generic app_use to operate Control Lab. Read the frozen experiment, run the bounded search, inspect the result, lock one candidate and run full verification. Check the saved report and observations; keep the frozen model, criteria and budget unchanged. Report the actual verifier verdict and any failed or missing evidence, or say if the work is incomplete. End with a JSON object containing experimentId, specHash, verdict, and explanation.` });
+  await cdp.send('Input.insertText', { text: `\nList skills, then read the ${scene === 'p-golden' ? 'control-design' : 'active-filter-design'} skill by its catalog digest. Call app_describe to inspect Control Lab's declared data tools; use app_write with experiment-step or propose-candidate for the approved experiment. Do not use generic app_use to operate Control Lab. Read the frozen experiment, evaluate baseline and inspect its saved evidence. If further candidates are needed, use search-next or propose a candidate within the frozen budget. Lock one candidate and run full verification. Check the saved report and observations; keep the frozen model, criteria and budget unchanged. Report the actual verifier verdict and any failed or missing evidence, or say if the work is incomplete. End with a JSON object containing experimentId, specHash, verdict, and explanation.` });
   await page.keyboard.press('Enter');
   await expect.poll(async () => { const chat = await active(); return chat.state !== 'idle' || chat.messages.some(item => item.role === 'assistant'); }, { timeout: 30000 }).toBe(true);
   await expect.poll(async () => (await active()).state, { timeout: 240000, intervals: [250, 500, 1000] }).toBe('idle');
@@ -165,7 +165,7 @@ finally {
         calls: events.filter(event => event.type === 'tool/call').map(event => event.data),
         usage: events.filter(event => event.type === 'assistant/message').map(event => event.data.usage ?? 'unknown'),
         budgetExhausted: events.some(event => event.type === 'turn/end' && /BUDGET_EXHAUSTED|provider request budget exhausted/i.test(event.data.error || '')) };
-      try { summary.validated = inspectSession(events, skillName, digest, frozen?.id, fixture ? ['read', 'search'] : undefined); }
+      try { summary.validated = inspectSession(events, skillName, digest, frozen?.id, fixture ? ['read', 'search'] : ['read', 'baseline', 'lock', 'verify']); }
       catch (error) { summary.validationFailure = String(error.message); failure ||= `Session evidence: ${error.message}`; }
       evidence.sessions.push(summary);
     }

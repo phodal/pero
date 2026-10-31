@@ -43,6 +43,10 @@ class HttpTest(unittest.TestCase):
                     {'action':'read',**goal,'criteria':{'steadyErrorMax':.5}},
                     {'action':'search',**goal,'candidateBudget':30},
                     {'action':'search',**goal,'budget':2},
+                    {'action':'baseline',**goal,'budget':1},
+                    {'action':'search-next',**goal,'candidateBudget':2},
+                    {'action':'baseline',**goal,'specHash':'0'*64},
+                    {'action':'search-next',**goal,'experimentId':other['id']},
                     {'action':'propose',**goal,'parameters':{'horizon':60}},
                     {'action':[], **goal},
                     {'action':{}, **goal},
@@ -87,7 +91,7 @@ class HttpTest(unittest.TestCase):
                     request({'action':'search',**goal,'experimentId':other['id']})
                 self.assertEqual(denied.exception.code,400)
                 self.assertEqual(store.read(other['id'])['status'],'idle')
-                request({'action':'search',**goal})
+                request({'action':'baseline',**goal})
                 store.worker.join(timeout=3)
                 self.assertFalse(store.worker.is_alive(),'search must release the store lock')
                 self.assertEqual(store.read(record['id'])['status'],'completed')

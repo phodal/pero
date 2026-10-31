@@ -2,13 +2,26 @@
 // This is transport acceptance, not real-model or scientific-method acceptance.
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 const root = resolve(import.meta.dirname, '../..'), out = resolve(root, 'test-results/control-lab-app-use');
 await mkdir(out, { recursive: true });
-for (const name of ['result.json', 'failure.json']) await rm(resolve(out, name), { force: true });
-const execute = promisify(execFile), errors = [], consoleErrors = [], cleanup = [];
+// Preserve an earlier failure before starting a new run. A later pass does not
+// explain an intermittent failure; retain both its receipt and screenshot.
+const priorFiles = [];
+for (const name of ['failure.json', 'failure.png']) {
+  try { priorFiles.push({ name, modified: (await stat(resolve(out, name))).mtime.toISOString() }); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+}
+let previousFailure;
+if (priorFiles.length) {
+  const archive = await mkdtemp(resolve(out, 'failure-'));
+  for (const { name } of priorFiles) await rename(resolve(out, name), resolve(archive, name));
+  previousFailure = { observedAt: priorFiles[0].modified, files: priorFiles.map(({ name }) => resolve(archive, name)) };
+}
+await rm(resolve(out, 'result.json'), { force: true });
+const execute = promisify(execFile), errors = [], consoleErrors = [], cleanup = [], uiActions = [];
 let expect, electron, app, page, frame, temp, failure, result, frozen, final;
 const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } };
@@ -35,9 +48,16 @@ async function closeDesktop() {
   if (failures.length) throw new AggregateError(failures, 'App/Host/ACP cleanup failed; no success receipt');
 }
 async function recordFailure(error) {
-  const receipt = { status: 'failed', fixture: true, realModel: false, error: String(error.stack || error), errors, consoleErrors, cleanup, result };
+  const receipt = { status: 'failed', fixture: true, realModel: false, error: String(error.stack || error), errors, consoleErrors, cleanup, result, uiActions, previousFailure };
   if (page && !page.isClosed()) {
     try { receipt.state = await state(); } catch {}
+    if (frame && frozen) try {
+      receipt.experiment = await frame.locator('body').evaluate(async (_body, id) => {
+        const record = await (await fetch(`/api/experiments/${id}`)).json();
+        return { status: record.status, operation: record.operation, error: record.error,
+          trials: record.trials.map(({ status, error, scenarioId }) => ({ status, error, scenarioId })) };
+      }, frozen.id);
+    } catch {}
     try { receipt.formInputs = await frame.locator('form input, form select').evaluateAll(inputs => inputs.map(input => ({
       label: input.getAttribute('aria-label') || [...input.labels ?? []].map(label => label.textContent.trim()).join(' '),
       value: input.value, validity: Object.fromEntries(['valid', 'badInput', 'rangeOverflow', 'rangeUnderflow', 'stepMismatch', 'typeMismatch', 'valueMissing', 'customError'].map(key => [key, input.validity[key]])),
@@ -63,6 +83,12 @@ try {
   delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT;
   app = await electron.launch({ requiresNativeWindow: true, args: [...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []), resolve(root, 'desktop')], cwd: root, env });
   page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message));
+  page.on('request', request => {
+    if (request.method() !== 'POST') return;
+    const path = new URL(request.url()).pathname;
+    if (/^\/api\/experiments\/[a-f0-9]{32}\/(search|verify|cancel|lock|reevaluate|propose)$/.test(path))
+      uiActions.push(path.split('/').at(-1));
+  });
   page.on('console', message => { if (message.type() === 'error') consoleErrors.push({ message: message.text(), location: message.location().url.split('?')[0] }); });
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1488, 1086));
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
@@ -81,7 +107,7 @@ try {
   await frame.getByLabel('Template', { exact: true }).selectOption('robust-pid');
   await frame.getByLabel('Observation window', { exact: true }).fill('6');
   await frame.getByLabel('Samples', { exact: true }).fill('601');
-  await frame.getByLabel('Total candidate budget', { exact: true }).fill('2');
+  await frame.getByLabel('Total candidate budget', { exact: true }).fill('3');
   const created = page.waitForResponse(response => new URL(response.url()).pathname === '/api/experiments' && response.request().method() === 'POST');
   await frame.getByRole('button', { name: 'Freeze specification', exact: true }).click();
   const response = await created; expect(response.status()).toBe(201); frozen = await response.json();
@@ -114,7 +140,7 @@ try {
   final = await frame.locator('body').evaluate(async (_body, id) => (await fetch(`/api/experiments/${id}`)).json(), frozen.id);
   expect(final.status).toBe('completed'); expect(final.specHash).toBe(frozen.specHash);
   expect(final.criteria).toEqual(frozen.criteria); expect(final.parameters).toEqual(frozen.parameters);
-  expect(final.candidates).toHaveLength(2); expect(final.lockedCandidateId).toBe(result.proposalId);
+  expect(final.candidates).toHaveLength(3); expect(final.lockedCandidateId).toBe(result.proposalId);
   expect(final.candidates.find(item => item.id === result.proposalId).parameters.kp).toBe(3);
   expect(final.report).toEqual(result.report);
   expect(final.trials.every(item => item.status === 'completed' && item.observation.engine === 'python-control')).toBe(true);
@@ -130,5 +156,5 @@ finally {
 }
 if (failure) throw failure;
 await writeFile(resolve(out, 'result.json'), JSON.stringify({ status: 'passed', scope: 'real-Desktop-ACP-MCP-App-transport', fixture: true, realModel: false,
-  result, experiment: final, errors, consoleErrors, cleanup, temporaryProfileRemoved: true }, null, 2));
+  result, experiment: final, errors, consoleErrors, cleanup, temporaryProfileRemoved: true, previousFailure }, null, 2));
 console.log(JSON.stringify({ status: 'passed', fixture: true, realModel: false, experimentId: final.id }));

@@ -12,12 +12,15 @@ function sample() {
   add('request/header', { tools: [{ name: 'skill' }, { name: 'mcp__pero-app-use__app_write' }, { name: 'chart' }] });
   call('skill', {}, [{ name: 'control-design', digest }]);
   call('skill', { name: 'control-design', digest }, { name: 'control-design', digest, content: 'guidance' });
-  for (const action of ['read', 'search', 'lock', 'verify']) call('mcp__pero-app-use__app_write', { document: { action, experimentId: id } }, {});
+  for (const action of ['read', 'baseline', 'search', 'lock', 'verify']) call('mcp__pero-app-use__app_write', { document: { action, experimentId: id } }, {});
   return events;
 }
 test('validates real skill results, target, actions and full advertised tools', () => {
   const evidence = inspectSession(sample(), 'control-design', digest, id);
   assert.deepEqual(evidence.tools, ['chart', 'mcp__pero-app-use__app_write', 'skill']);
+  assert.ok(inspectSession(sample(), 'control-design', digest, id, ['read', 'baseline', 'lock', 'verify']));
+  const missingBaseline = sample().filter(event => !(event.type === 'tool/call' && event.data.arguments?.document?.action === 'baseline'));
+  assert.throws(() => inspectSession(missingBaseline, 'control-design', digest, id, ['read', 'baseline', 'lock', 'verify']), /No successful baseline/);
   const wrong = sample(); wrong.find(event => event.type === 'tool/call' && event.data.arguments?.document).data.arguments.document.experimentId = 'other';
   assert.throws(() => inspectSession(wrong, 'control-design', digest, id), /another experiment/);
   assert.throws(() => inspectSession(sample(), 'control-design', `sha256:${'b'.repeat(64)}`, id), /launch digest/);

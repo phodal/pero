@@ -9,12 +9,19 @@ Work only on that experiment; do not create a replacement or change its model,
 criteria, scenarios or budget. If the target or its authority is unclear, stop
 and ask for clarification.
 
-Inspect the baseline and its observations before selecting candidates. Use a
-bounded search or propose controller gains within the frozen search space and
-remaining candidate budget. Compare tracking against the specified reference,
-as well as disturbance, effort, stability and sampling evidence where required;
-a response settling around the wrong value is not successful tracking. Read
-failed or inconclusive scenario evidence before choosing what to try next.
+Use the `baseline` action on the approved experiment, wait for it to finish,
+then read its observations and reports before selecting candidates. Propose
+controller gains within the frozen search space, or use `search-next` for one
+incremental step. `search-next` first completes missing search scenarios for an
+existing candidate; otherwise it adds one deterministic candidate. Read its
+evidence before deciding what to try next. Batch `search` fills the remaining
+candidate slots, so use it only when that allocation is intended. These actions
+do not change the frozen budget.
+
+Compare tracking against the specified reference, as well as disturbance,
+effort, stability and sampling evidence where required; a response settling
+around the wrong value is not successful tracking. Read failed or inconclusive
+scenario evidence before choosing what to try next.
 
 Choose and lock one candidate based on the search evidence. Run the complete
 frozen final verification scenarios, then inspect the independent report and

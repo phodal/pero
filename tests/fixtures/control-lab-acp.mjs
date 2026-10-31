@@ -60,14 +60,13 @@ async function exercise(prompt, signal) {
   const step = (document, pointer = '/result', rejection) => tool('app_write', { app: 'control-lab', tool: document.action === 'propose' ? 'propose-candidate' : 'experiment-step', document: { experimentId, ...document } }, pointer, rejection);
   assert.ok(declarations.some(item => item.app === 'control-lab' && item.tool === 'propose-candidate'));
   const original = await step({ action: 'read' });
-  assert.equal(original.templateId, 'robust-pid'); assert.equal(original.candidateBudget, 2); assert.equal(original.trials.length, 0);
+  assert.equal(original.templateId, 'robust-pid'); assert.equal(original.candidateBudget, 3); assert.equal(original.trials.length, 0);
   await step({ action: 'read', experimentId: 'f'.repeat(32) }, '/result', /APP_GOAL_DENIED/);
   await step({ action: 'propose', experimentId: 'f'.repeat(32), parameters: { kp: 3 } }, '/result', /APP_GOAL_DENIED/);
   await step({ action: 'propose', parameters: { kp: 999 } }, '/result', /between|bounds|range/i);
   await step({ action: 'propose', parameters: { horizon: 60 } }, '/result', /not declared|only|frozen|controller|component|additional|schema|unknown|invalid/i);
   await step({ action: 'propose', parameters: { kp: 3 }, criteria: { steadyErrorMax: .5 } }, '/result', /not declared|schema|invalid|frozen|policy/i);
   await step({ action: 'search', budget: 3 }, '/result', /frozen|budget|additional|schema|invalid|declared/i);
-  await step({ action: 'propose', parameters: { kp: 3 } }, '/result/status');
   async function settled() {
     const deadline = Date.now() + 60000;
     while (Date.now() < deadline) {
@@ -77,10 +76,18 @@ async function exercise(prompt, signal) {
     }
     assert.fail('Real solver did not finish within fixture deadline');
   }
+  await step({ action: 'baseline' }, '/result/status'); await settled();
+  const baseline = await step({ action: 'read' });
+  assert.equal(baseline.candidates.length, 1);
+  assert.equal(baseline.candidates[0].id, 'baseline');
+  assert.equal(baseline.trials.filter(item => item.candidateId === 'baseline' && item.status === 'completed').length, 2);
+  await step({ action: 'propose', parameters: { kp: 3 } }, '/result/status');
   await settled();
+  await step({ action: 'search-next' }, '/result/status'); await settled();
   await step({ action: 'search' }, '/result/status'); await settled();
   const candidates = await step({ action: 'read' }, '/result/candidates');
-  assert.equal(candidates.length, 2);
+  assert.equal(candidates.length, 3);
+  assert.ok(candidates.some(item => item.id === 'candidate-01'));
   const proposal = candidates.find(item => item.id.startsWith('proposal-'));
   assert.ok(proposal); assert.equal(proposal.parameters.kp, 3);
   await step({ action: 'lock', candidateId: proposal.id }, '/result/lockedCandidateId');

@@ -15,7 +15,7 @@
     "writes": [
       {
         "name": "experiment-step",
-        "description": "Read a frozen Control Lab experiment, run its bounded search, lock a candidate, independently verify, cancel, or re-evaluate saved observations. Backend owns numeric bounds and immutable policy; execution success never implies engineering PASS.",
+        "description": "Read a frozen experiment, evaluate its baseline, advance bounded search by one candidate, run batch search, lock a candidate, independently verify, cancel, or re-evaluate saved observations. Batch search fills remaining candidate slots. Backend owns numeric bounds and immutable policy; execution success never implies engineering PASS.",
         "path": "/api/agent-step",
         "schema": {
           "type": "object",
@@ -24,6 +24,8 @@
               "type": "string",
               "enum": [
                 "read",
+                "baseline",
+                "search-next",
                 "search",
                 "cancel",
                 "lock",

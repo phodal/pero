@@ -25,6 +25,7 @@ def handler(store, secret):
         def action(self, action, identity, data):
             if action == 'read': return store.read(identity)
             if action == 'propose': return store.propose(identity,data.get('parameters'))
+            if action in ('baseline', 'search-next'): return store.start(identity, action)
             if action == 'search': return store.start(identity, 'search', data.get('budget'))
             if action == 'verify': return store.start(identity, 'verify')
             if action == 'cancel': return store.cancel(identity)
@@ -59,7 +60,7 @@ def handler(store, secret):
                     if not isinstance(data,dict): raise Invalid('Request must be a JSON object')
                     if self.path == '/api/experiments': return self.reply(201,store.create(data))
                     if self.path == '/api/agent-step':
-                        fields = {'read': set(), 'search': set(), 'propose': {'parameters'},
+                        fields = {'read': set(), 'baseline': set(), 'search-next': set(), 'search': set(), 'propose': {'parameters'},
                                   'cancel': set(), 'lock': {'candidateId'}, 'verify': set(), 'reevaluate': set()}
                         action = data.get('action')
                         if not isinstance(action, str) or action not in fields: raise Invalid('Unknown Agent action')

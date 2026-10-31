@@ -564,8 +564,9 @@ export default function ControlLab() {
                 <h2>Candidate search</h2>
                 <p className="muted">
                   Built-in search is deterministic. Agent proposals are
-                  evaluated under the same frozen policy. The total budget
-                  includes the baseline and all attempted candidates.
+                  evaluated under the same frozen policy. Batch search fills
+                  the remaining candidate slots; the total budget includes
+                  the baseline and all attempted candidates.
                 </p>
                 <div className="toolbar">
                   <p>
