@@ -203,6 +203,13 @@ impl NativeApps {
         let path = uri.path();
         let method = request.method();
         let body = request.body();
+        if path == "/host/automation" {
+            anyhow::ensure!(method == "POST" && body.len() <= 256_000, "Invalid Automation request");
+            let operation: Value = serde_json::from_slice(body)?;
+            let value=self.request::<Value>("automation", json!({"name":name,"request":operation}))?;
+            return Ok(Response::builder().header("Content-Type","application/json").header("Cache-Control","no-store")
+                .body(serde_json::to_vec(&value)?).unwrap());
+        }
         if path == "/host/connectors" {
             let response = |status, value: Value| Response::builder().status(status)
                 .header("Content-Type", "application/json").header("Cache-Control", "no-store")
@@ -222,13 +229,15 @@ impl NativeApps {
             });
         }
         let mut response_headers = Vec::new();
-        let (status, content_type, data) = if matches!(path, "/host/agent" | "/host/insights") {
+        let (status, content_type, data) = if matches!(path, "/host/agent" | "/host/point-agent" | "/host/insights") {
             anyhow::ensure!(
                 method == "POST" && body.len() <= 256_000,
                 "Invalid App Host request"
             );
             let operation: Value = serde_json::from_slice(body)?;
-            let (action, fields) = if path == "/host/agent" {
+            let (action, fields) = if path == "/host/point-agent" {
+                ("pointagent", json!({"name":name,"request":operation}))
+            } else if path == "/host/agent" {
                 ("agent", json!({"name":name,"request":operation}))
             } else {
                 let mut fields = json!({"name":name});
@@ -247,6 +256,11 @@ impl NativeApps {
             let access: Access = self.request("resolve", json!({"name":name}))?;
             let point = point::PointApp::read(&access.root)?;
             if let Some(point) = &point {
+                if matches!(path,"/api/workspaces"|"/api/harnesses") {
+                    anyhow::ensure!(method == "GET" && uri.query().is_none(),"Method refused");
+                    let value:Value=self.request("pointcatalog",json!({"name":name,"path":path}))?;
+                    return Ok(Response::builder().status(200).header("Content-Type","application/json").header("Cache-Control","no-store").body(serde_json::to_vec(&value)?)?);
+                }
                 if path == "/api/projects" || path.starts_with("/api/projects/") {
                     anyhow::ensure!(method == "GET" || method == "POST", "Method refused");
                     anyhow::ensure!(body.len() <= 65536, "Project request exceeds 64 KiB");
@@ -322,7 +336,8 @@ impl NativeApps {
                 (status, content_type, response.bytes()?.to_vec())
             } else {
                 anyhow::ensure!(method == "GET", "Method refused");
-                let path = percent_encoding::percent_decode_str(path).decode_utf8()?;
+                let asset_path=point.as_ref().and_then(|point|path.strip_prefix(&format!("/apps/{}/ui/",point.name))).map(|suffix|format!("/dist/point-ui/{suffix}")).unwrap_or_else(||path.into());
+                let path = percent_encoding::percent_decode_str(&asset_path).decode_utf8()?;
                 let assets = access
                     .root
                     .join(&access.entry)

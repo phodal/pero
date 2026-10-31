@@ -20,6 +20,12 @@ impl Manager {
         binding: Option<&AppSessionBinding>,
         scope: Option<pero_contracts::app_chat::AppChatScope>,
     ) -> Result<(), String> {
+        self.create_session_with_resume(thread_id,agent_id,binding,scope,None)
+    }
+
+    pub(super) fn create_session_with_resume(
+        &mut self,thread_id:String,agent_id:&str,binding:Option<&AppSessionBinding>,scope:Option<pero_contracts::app_chat::AppChatScope>,resume_id:Option<String>,
+    )->Result<(),String> {
         if scope.as_ref().is_some_and(|scope| !scope.valid()) {
             return Err("Invalid App conversation scope".into());
         }
@@ -69,10 +75,12 @@ impl Manager {
             event.data["appBinding"] =
                 serde_json::to_value(binding).map_err(|error| error.to_string())?;
         }
-        let _ = self.tx.send(event);
+        if binding.is_some_and(|binding|binding.point.is_some()) { self.point_journal.append(&self.tx,event)?; } else { let _ = self.tx.send(event); }
         self.sessions.insert(
             thread_id.clone(),
-            if let Some(endpoint) = app_use {
+            if let Some(resume_id)=resume_id {
+                acp::resume_app(agent.clone(),self.workspace.clone(),thread_id,self.tx.clone(),app_use,resume_id)
+            } else if let Some(endpoint) = app_use {
                 acp::start_app(
                     agent.clone(),
                     self.workspace.clone(),
