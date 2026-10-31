@@ -3,6 +3,7 @@ pub fn canonical(name: &str) -> Option<&'static str> {
     match name {
         "settings" => Some("settings"),
         "pin" => Some("pin"),
+        "microscope" => Some("microscope"),
         "alert-circle" => Some("alert-circle"),
         "database" => Some("database"),
         "languages" => Some("languages"),
@@ -222,12 +223,14 @@ pub fn lookup(section: &str, value: &str) -> Option<&'static str> {
         ("extensions", "gif") => Some("image"),
         ("extensions", "webp") => Some("image"),
         ("apps", "virtual-cell") => Some("network"),
+        ("apps", "scientific-viewer") => Some("microscope"),
         ("apps", "paper-agent") => Some("book-open-text"),
         ("apps", "control-lab") => Some("activity"),
         ("apps", "data") => Some("database"),
         ("apps", "data-agent") => Some("chart-line"),
         ("apps", "insights") => Some("layout-list"),
         ("apps", "connectors") => Some("plug"),
+        ("apps", "automations") => Some("clock"),
         _ => None,
     }
 }

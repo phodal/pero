@@ -1,6 +1,7 @@
 {
   "settings": {},
   "pin": { "kit": "Pin" },
+  "microscope": { "kit": "Microscope" },
   "alert-circle": {},
   "database": {},
   "languages": {},
