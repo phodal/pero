@@ -16,7 +16,10 @@ The fix separates independent Desktop scenarios, reuses an exact-revision runtim
 artifact, caches previously uncached pinned tools/independent Cargo targets,
 and retains complete mode-specific gates. The user subsequently requested normal
 Linux-only CI, with all platforms retained in daily/manual full runs. Each scenario has its own timing/failure
-receipt and bounded test-owned cleanup. The Linux acceptance matrix retains all tests; daily full keeps every OS contract.
+receipt and bounded test-owned cleanup. The first split run still took 16m07s with cold build caches and found three
+Control Lab failures. The user then authorized ordinary critical smokes with
+slow complete scenarios in daily/manual runs. All tests remain in the full tier;
+moving a failing test is not treated as fixing it.
 
 Baseline fixes included here do not reduce coverage: Windows npm is launched via
 Node rather than executing a `.cmd` file directly; the ACP presentation fixture

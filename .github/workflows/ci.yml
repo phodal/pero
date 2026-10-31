@@ -4,8 +4,8 @@
 # gpui-kit ec89cfc (desktop/README.md, scripts/build/fonts.manifest.json)
 # Go 1.26.4 (MODULE.bazel). server/go.mod's `go 1.24` is the language version.
 # Bazel 9.2.0 (.bazelversion). pnpm-lock.yaml is the Bazel translation of the npm lock.
-# PR/push runs the complete Linux suite. Daily/manual full runs repeat the same
-# contracts on Windows/macOS; Worker Unix process tests retain their cfg gates.
+# PR/push runs Linux contracts and three critical Desktop smokes. Daily/manual
+# runs all Desktop scenarios and platforms; Worker Unix cfg gates remain intact.
 name: CI
 
 on:
@@ -344,7 +344,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [workbench, toolcalls, data, data-product, control-lab, control-lab-app-use, control-lab-live, virtual-cell-comparison, virtual-cell-dataset-download, app-use, app-use-workbench, mcp-lifecycle, mcp-persistence, mcp-transport]
+        suite: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && fromJSON('["workbench","toolcalls","data","data-product","control-lab","control-lab-app-use","control-lab-live","virtual-cell-comparison","virtual-cell-dataset-download","app-use","app-use-workbench","mcp-lifecycle","mcp-persistence","mcp-transport"]') || fromJSON('["workbench","data","app-use-workbench"]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

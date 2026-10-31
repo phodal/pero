@@ -6,10 +6,10 @@ import { tmpdir } from 'node:os';
 import { resolve, dirname } from 'node:path';
 import YAML from 'yaml';
 import { failures } from './gate.mjs';
-import { suites } from './desktop-suite.mjs';
+import { suites, fastSuites } from './desktop-suite.mjs';
 import { pack, unpack, runtimePaths } from './desktop-artifact.mjs';
 
-test('all prior Desktop acceptance remains mandatory, with three MCP scenarios', () => {
+test('daily keeps all acceptance; ordinary tier keeps the explicit critical smokes', () => {
   assert.deepEqual(Object.values(suites).map(([name]) => name).sort(), [
     'workbench', 'toolcalls', 'data', 'data-product', 'control-lab', 'control-lab-app-use', 'control-lab-live',
     'virtual-cell-comparison', 'virtual-cell-dataset-download', 'app-use', 'app-use-workbench',
@@ -17,7 +17,10 @@ test('all prior Desktop acceptance remains mandatory, with three MCP scenarios',
   ].sort());
   const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
   const acceptance = workflow.jobs['desktop-acceptance'];
-  assert.deepEqual(acceptance.strategy.matrix.suite, Object.keys(suites));
+  const matrices = [...acceptance.strategy.matrix.suite.matchAll(/fromJSON\('([^']+)'\)/g)].map(match => JSON.parse(match[1]));
+  assert.deepEqual(matrices, [Object.keys(suites), fastSuites]);
+  assert.deepEqual(fastSuites, ['workbench', 'data', 'app-use-workbench']);
+  assert.match(acceptance.strategy.matrix.suite, /schedule.*workflow_dispatch/);
   assert.equal(acceptance.strategy['fail-fast'], false);
   assert.equal(acceptance.needs, 'desktop-linux');
   assert.equal(workflow.jobs.complete.if, 'always()');

@@ -15,6 +15,33 @@ separately. A timeout is a failure and is not evidence of faster execution.
 New-path cold caches and subsequent warm-cache runs must be measured separately;
 no cold-build ten-minute guarantee is claimed before Actions measurement.
 
+## First split run and revised feedback tiers
+
+Run `41204251625` took **16m07s** end to end, not under ten minutes.
+The Linux producer took 11m51s with cold Cargo and bindgen caches. Its build step
+was 8m53s, including 4m59s in App/reader preparation (bindgen 1m27s and GPUI Wasm
+cold compilation 2m22s), plus about one minute for the separate connector worker.
+npm and Go caches hit. All 14 acceptance jobs started together after the producer;
+11 passed, three Control Lab scenarios failed and require actual fixes. MCP
+persistence/transport were the longest shards, about four minutes including setup.
+
+After this measurement, the user explicitly authorized a smaller ordinary tier.
+No test is physically deleted: ordinary PR/push runs the three critical real
+Desktop smokes below; daily/manual runs preserve all fourteen scenarios. Moving a
+failing scenario to daily is not a fix or a passing result.
+
+| Tier | Real Desktop scenarios | Boundary retained |
+| --- | --- | --- |
+| Ordinary + daily | Workbench | Actual session, permission and cancellation/reload behavior |
+| Ordinary + daily | Data | Import, SHA256, type/search/details, persistence and no automatic download |
+| Ordinary + daily | App Use Workbench | Actual ACP/MCP/App connection and hidden-surface read-only boundary |
+| Daily/manual | Toolcalls; Data Product; three Control Lab suites; two Virtual Cell suites; App Use Product; three MCP GUI scenarios | Full rendering, domain workflows, multi-round scientific work and detailed settings recovery |
+
+Every ordinary run still executes the full low-level Host/Rust contracts,
+scientific Python checks, App Use authorization/context/goal tests, and MCP
+settings/ownership contracts. These do not pretend to replace the daily GUI
+assertions. Warm-cache latency needs a new exact-head Actions measurement.
+
 ## Execution graph
 
 - Generated contracts and CI runner tests provide early, cheap failure evidence.
@@ -38,13 +65,13 @@ no cold-build ten-minute guarantee is claimed before Actions measurement.
   actual add/grant/edit/remove; persistence covers write failure, restart,
   conflict/import and visual states; transport covers rejected/unrelated IPC,
   unknown save reload and disconnection. The default command still runs all.
-- `Linux CI gate` requires every Linux job and all acceptance shards. Only the
+- `Linux CI gate` requires every Linux contract job and all three critical smokes. Only the
   two explicitly full-platform-only job groups may be skipped in normal mode.
-  `Full-platform CI gate` requires all jobs, including Windows positive ACL and
-  macOS/Windows builds. Failure/cancellation of any required job rejects the gate;
+  `Full-platform CI gate` requires all fourteen acceptance shards and all jobs,
+  including Windows positive ACL and macOS/Windows builds. Failure/cancellation of any required job rejects the gate;
   the Linux result is not represented as proof of cross-platform acceptance.
 
-Acceptance parity is pinned by `scripts/ci/desktop-ci.test.mjs`: Workbench,
+Daily acceptance parity and the explicit ordinary subset are pinned by `scripts/ci/desktop-ci.test.mjs`: Workbench,
 Toolcalls, Data, Data Product, three Control Lab suites, two Virtual Cell suites,
 two App Use suites and all three MCP scenarios. MCP settings/ownership protocol
 contracts and all fixture/control-lab unit tests remain in Linux build contracts.
@@ -69,7 +96,7 @@ revision and suite, and the mode-specific gate rejects any unexpected failed/ski
 For acceptance, compare exact-head Actions job/step timestamps and cache-hit
 outputs, report total execution critical path and queue separately, and identify
 cold versus warm runs. If the target is missed, retain the failure evidence and
-optimize the measured bottleneck; do not shrink coverage or call a cancelled run
-successful. Branch protection should require `Linux CI gate` once this workflow is deployed;
+optimize the measured bottleneck; do not silently drop a tier or call a cancelled
+run successful. Branch protection should require `Linux CI gate` once this workflow is deployed;
 the daily/manual result is separately named `Full-platform CI gate`. Changing
 required-check settings is a separate repository operation.
