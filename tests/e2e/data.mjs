@@ -41,7 +41,7 @@ async function openData() {
   await clickAppOpen(page, 'data');
   await expect.poll(async () => (await desktop()).activeContent).toEqual({ kind: 'app', value: { name: 'data', panel: 'main' } });
   frame = page.frameLocator('iframe[title="data"]');
-  await expect(frame.getByRole('heading', { name: 'Data', exact: true })).toBeVisible({ timeout: 20000 });
+  await expect(frame.getByRole('button', { name: 'Add data', exact: true })).toBeVisible({ timeout: 20000 });
   await expect.poll(async () => (await catalog()).sources.length).toBe(2);
 }
 async function launch() {

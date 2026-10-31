@@ -18,7 +18,17 @@ not dependencies of this SDK. Existing imports from `@pero/app-sdk/ui` remain
 compatible. Button accepts `busy`; Field associates its description and error
 with the control. Native controls expose refs.
 
-`PageHeader` aligns page navigation, title and actions. `FilePicker` takes
+The workbench tab names the App. The frame does not repeat that name.
+
+`AppFrame` is the shell: an accessible `label`, then one `AppBar`, then the screen.
+`AppBar` is a single compact row. Trailing `actions` are the buttons. Leading
+`tools` hold search, back, or a screen switch. A `title` is a screen the tab
+does not already name, at heading size, not an 88px hero. A file picker's
+status text stays available to assistive technology and is not drawn in the
+row. Search fields, filters, and tables stay in the body. `PageHeader` is that
+same bar for a titled column; it keeps the page width so the title lines up
+with the column. `LibraryHeader` remains the design-system library block and
+is not the workbench shell. `FilePicker` takes
 translated `label` and `emptyLabel` strings and emits a selected File; the App
 owns validation and import. It supports keyboard activation and selecting the
 same file again. Shared controls follow the workbench's compact geometry and
