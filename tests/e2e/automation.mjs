@@ -2,6 +2,7 @@
 // No external source, provider, model or tool calls; not standalone/installer acceptance.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { closeOwnedElectron } from './owned-electron-close.mjs';
 import { mkdir, mkdtemp, readFile, readdir, readlink, realpath, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -34,7 +35,7 @@ async function launch(){
  await expect(panel).toBeVisible();
  await expect(panel.getByRole('button',{name:'New',exact:true})).toBeEnabled();
 }
-async function close(){if(app){const current=app;app=undefined;await current.close();}}
+async function close(crashed=false){if(app){const current=app;try{await closeOwnedElectron(current,{crashed});}finally{app=undefined;}}}
 // Only inspect children of the test-owned process; worker threads may spawn ACP.
 async function ownedChildren(pid){
  const children=new Set();
@@ -159,7 +160,9 @@ try{
    for(const pid of fixturePids){try{const stat=await readFile(`/proc/${pid}/stat`,'utf8');if(!['Z','X'].includes(stat.slice(stat.lastIndexOf(')')+2).split(' ')[0]))return false;}catch(error){if(error.code!=='ENOENT')throw error;}}
    return true;
   }).toBe(true);
-  await close();await launch();
+  console.log('Automation: original Host killed and fixture processes stopped; terminating test-owned desktop');
+  await close(true);await launch();
+  console.log('Automation: replacement desktop opened for operator reconciliation');
   expect((await query()).state.requests.find(value=>value.id===held.id).status.kind).toBe('reconcile');
   await panel.getByRole('button',{name:'Recover held execution',exact:true}).click();
   await panel.getByRole('button',{name:'Review outcome',exact:true}).click();
