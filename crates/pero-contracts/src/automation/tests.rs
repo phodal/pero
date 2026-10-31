@@ -339,3 +339,118 @@ fn full_schedule_capacity_does_not_poison_already_accepted_work() {
     assert_eq!(transition.effects.len(), 1);
     assert_eq!(transition.state.requests.len(), 1);
 }
+
+fn manual_state() -> State {
+    let mut manual = definition("a", InputContract::RecheckLatest);
+    manual.trigger = Trigger::Manual;
+    publish(&step(&initial(), Command::PutDefinition { definition: manual }), "s", "v1")
+}
+fn manual_request(state: &State, intent_id: &str, request_id: &str) -> Transition {
+    apply(state, Command::Manual { definition_id: "a".into(), intent_id: intent_id.into(), subject: "s".into(), exact: None },
+        100, ids("", &[request_id])).unwrap()
+}
+
+#[test]
+fn retrying_the_same_manual_intent_does_not_dispatch_twice() {
+    let mut state = manual_request(&manual_state(), "intent-1", "r1").state;
+    state = reserve(&state, "r1").state;
+    state = observe(&state, "r1", Outcome::Completed);
+    let retry = manual_request(&state, "intent-1", "unused");
+    assert_eq!(retry.receipt, Receipt::Request { id: "r1".into(), duplicate: true });
+    assert_eq!(retry.state, state);
+    assert_eq!(retry.state.dispatch_count, 1);
+    assert!(retry.effects.is_empty());
+}
+
+#[test]
+fn new_manual_intent_reprocesses_known_candidate_with_an_explicit_link() {
+    for outcome in [Outcome::Completed, Outcome::Failed, Outcome::Cancelled] {
+    let mut state = manual_request(&manual_state(), "intent-1", "r1").state;
+    state = reserve(&state, "r1").state;
+    state = observe(&state, "r1", outcome);
+    state = manual_request(&state, "intent-2", "r2").state;
+    let second = reserve(&state, "r2");
+    assert_eq!(second.effects.len(), 1);
+    assert_eq!(second.state.dispatch_count, 2);
+    assert_eq!(second.state.requests[1].snapshot, second.state.requests[0].snapshot);
+    assert_eq!(second.state.requests[1].reprocess_of.as_deref(), Some("r1"));
+    let mut corrupt = second.state.clone();
+    corrupt.requests[1].reprocess_of = Some("r2".into());
+    assert!(corrupt.validate_restored().is_err());
+    // Existing persisted rows did not have this optional relationship.
+    let mut legacy = serde_json::to_value(&state).unwrap();
+    for request in legacy["requests"].as_array_mut().unwrap() { request.as_object_mut().unwrap().remove("reprocess_of"); }
+    let restored: State = serde_json::from_value(legacy).unwrap();
+    assert!(restored.validate_restored().is_ok());
+    }
+    // Admission can skip an earlier obligation; lineage follows execution, not queue order.
+    let mut state = manual_request(&manual_state(), "early", "r1").state;
+    state = manual_request(&state, "later", "r2").state;
+    state = reserve(&state, "r2").state;
+    state = observe(&state, "r2", Outcome::Completed);
+    let earlier = reserve(&state, "r1");
+    assert_eq!(earlier.state.requests[0].reprocess_of.as_deref(), Some("r2"));
+}
+
+#[test]
+fn new_time_slot_runs_again_but_retrying_that_slot_is_a_duplicate() {
+    let mut timed = definition("a", InputContract::RecheckLatest);
+    timed.trigger = Trigger::Time { subject: "s".into(), exact: None, anchor: 0, interval_seconds: 10, max_lateness_seconds: 30 };
+    let mut state = publish(&step(&initial(), Command::PutDefinition { definition: timed }), "s", "v1");
+    for (slot, request_id) in [(90, "r1"), (100, "r2")] {
+        let command = Command::Time { definition_id: "a".into(), revision: 1, slot, subject: "s".into(), exact: None };
+        state = apply(&state, command.clone(), 100, ids("", &[request_id])).unwrap().state;
+        let dispatch = reserve(&state, request_id);
+        assert_eq!(dispatch.effects.len(), 1);
+        state = observe(&dispatch.state, request_id, Outcome::Completed);
+        assert!(matches!(apply(&state, command, 100, Ids::default()).unwrap().receipt, Receipt::Request { duplicate: true, .. }));
+    }
+    assert_eq!(state.dispatch_count, 2);
+    assert_eq!(state.requests[1].reprocess_of.as_deref(), Some("r1"));
+}
+
+#[test]
+fn distinct_event_delivery_still_uses_completed_candidate_coverage() {
+    for contract in [InputContract::ProcessExact, InputContract::RecheckLatest] {
+        let mut state = publish(&configured(contract), "s", "v1");
+        state = accept(&state, event("e1", "s", Some("v1")), &["r1"]);
+        state = reserve(&state, "r1").state;
+        state = observe(&state, "r1", Outcome::Completed);
+        state = accept(&state, event("e2", "s", Some("v1")), &["r2"]);
+        let covered = reserve(&state, "r2");
+        assert!(covered.effects.is_empty());
+        assert_eq!(covered.state.dispatch_count, 1);
+        assert_eq!(covered.state.requests[1].status, RequestStatus::Covered { request_id: "r1".into() });
+        assert_eq!(covered.state.requests[1].reprocess_of, None);
+    }
+}
+
+#[test]
+fn an_older_terminal_request_never_hides_later_active_or_unknown_work() {
+    for outcome in [Outcome::Running, Outcome::Unknown] {
+        for intent in ["event", "manual", "time"] {
+            let mut state = manual_request(&manual_state(), "intent-1", "r1").state;
+            state = reserve(&state, "r1").state;
+            state = observe(&state, "r1", Outcome::Completed);
+            state = manual_request(&state, "intent-2", "r2").state;
+            state = reserve(&state, "r2").state;
+            state = observe(&state, "r2", outcome.clone());
+            let mut edited = definition("a", InputContract::RecheckLatest);
+            edited.revision = 2;
+            edited.method = Method::Agent { agent_id: "different-agent".into(), workspace: "/trusted".into(), prompt: "Explicit new method".into() };
+            edited.trigger = match intent {
+                "event" => Trigger::Event { binding_id: "local".into(), event_kind: "changed".into() },
+                "manual" => Trigger::Manual,
+                _ => Trigger::Time { subject: "s".into(), exact: None, anchor: 0, interval_seconds: 10, max_lateness_seconds: 30 },
+            };
+            state = step(&state, Command::PutDefinition { definition: edited });
+            state = match intent {
+                "event" => accept(&state, event("e3", "s", None), &["r3"]),
+                "manual" => manual_request(&state, "intent-3", "r3").state,
+                _ => apply(&state, Command::Time { definition_id: "a".into(), revision: 2, slot: 100, subject: "s".into(), exact: None }, 100, ids("", &["r3"])).unwrap().state,
+            };
+            assert_eq!(apply(&state, Command::Reserve { request_id: "r3".into(), execution_id: "exec-r3".into() }, 100, Ids::default()), Err(Error::Busy), "{intent}: {outcome:?}");
+            assert_eq!(state.dispatch_count, 2);
+        }
+    }
+}

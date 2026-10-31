@@ -1782,6 +1782,7 @@ export interface AutomationRunRequest {
   through_position: AutomationCounter;
   snapshot: AutomationCandidateRef | null;
   execution_id: string | null;
+  reprocess_of: string | null;
   status: AutomationRequestStatus;
   continued_revision: boolean;
   cancel_requested: boolean;

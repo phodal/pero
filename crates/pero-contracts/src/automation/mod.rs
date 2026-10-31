@@ -159,6 +159,8 @@ pub struct RunRequest {
     pub status: RequestStatus,
     pub continued_revision: bool,
     pub cancel_requested: bool,
+    #[serde(default)]
+    pub reprocess_of: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -258,6 +260,20 @@ impl State {
             if request.status.waiting() && (request.execution_id.is_some() || request.snapshot.is_some()) { return Err(Error::Invalid); }
             if request.status == RequestStatus::CancelRequested && !request.cancel_requested { return Err(Error::Invalid); }
             if request.status == RequestStatus::Expired && (!matches!(request.intent, Intent::Time { .. }) || request.execution_id.is_some()) { return Err(Error::Invalid); }
+            if let Some(previous_id) = &request.reprocess_of {
+                let previous = self.requests.iter().find(|r| &r.id == previous_id).ok_or(Error::Invalid)?;
+                if previous.id == request.id || request.intent == Intent::Event || request.execution_id.is_none() || request.snapshot.is_none()
+                    || previous.definition.id != request.definition.id || previous.subject != request.subject
+                    || previous.snapshot != request.snapshot || previous.execution_id.is_none()
+                    || !matches!(previous.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Cancelled) { return Err(Error::Invalid); }
+                let mut visited = BTreeSet::from([&request.id]);
+                let mut ancestor = previous;
+                loop {
+                    if !visited.insert(&ancestor.id) { return Err(Error::Invalid); }
+                    let Some(id) = &ancestor.reprocess_of else { break; };
+                    ancestor = self.requests.iter().find(|r| &r.id == id).ok_or(Error::Invalid)?;
+                }
+            }
             if let RequestStatus::Covered { request_id } = &request.status {
                 let covering = self.requests.iter().find(|r| &r.id == request_id).ok_or(Error::Invalid)?;
                 if covering.id == request.id || covering.definition.id != request.definition.id
@@ -374,7 +390,7 @@ fn new_request(state: &State, id: &str, definition: Definition, intent: Intent,
     if state.requests.len() >= state.limits.max_requests { return Err(Error::Capacity); }
     Ok(RunRequest { id: id.into(), definition, intent, subject, exact, created_at: now,
         through_position: position, snapshot: None, execution_id: None,
-        status: RequestStatus::Pending, continued_revision: false, cancel_requested: false })
+        status: RequestStatus::Pending, continued_revision: false, cancel_requested: false, reprocess_of: None })
 }
 fn cancel(request: &mut RunRequest, effects: &mut Vec<Effect>) {
     if request.status.waiting() || request.status.active() { request.cancel_requested = true; }
@@ -518,13 +534,18 @@ pub fn apply(state: &State, command: Command, now: u64, ids: Ids) -> Result<Tran
                 && s.subject == request.subject && (request.definition.input == InputContract::RecheckLatest
                     || request.exact.as_ref().is_some_and(|e| e.revision == s.revision && e.digest == s.digest)));
             if let Some(candidate) = candidate {
-                // Unknown effects block even edited method bindings for this candidate.
-                let covering = state.requests.iter().find(|r| r.id != request.id && r.definition.id == request.definition.id
-                    && r.subject == request.subject && r.snapshot.as_ref() == Some(candidate)
-                    && (r.status.active() || (r.definition.method == request.definition.method
-                        && matches!(r.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Cancelled))));
+                // Check every unresolved execution before considering any terminal
+                // coverage. An older completion must not hide a later unknown effect.
+                let same_candidate = |r: &&RunRequest| r.id != request.id && r.definition.id == request.definition.id
+                    && r.subject == request.subject && r.snapshot.as_ref() == Some(candidate);
+                if state.requests.iter().filter(same_candidate).any(|r| r.status.active()) { return Err(Error::Busy); }
+                let terminal = |r: &&RunRequest| matches!(r.status, RequestStatus::Completed | RequestStatus::Failed | RequestStatus::Cancelled);
+                let previous = state.requests.iter().rev().filter(same_candidate).find(terminal);
+                let covering = if request.intent == Intent::Event {
+                    state.requests.iter().rev().filter(same_candidate).filter(terminal)
+                        .find(|r| r.definition.method == request.definition.method)
+                } else { None };
                 if let Some(covering) = covering {
-                    if covering.status.active() { return Err(Error::Busy); }
                     next.requests[index].snapshot = Some(candidate.clone());
                     next.requests[index].status = RequestStatus::Covered { request_id: covering.id.clone() };
                 } else {
@@ -535,6 +556,7 @@ pub fn apply(state: &State, command: Command, now: u64, ids: Ids) -> Result<Tran
                     request.snapshot = Some(candidate.clone());
                     request.execution_id = Some(execution_id.clone());
                     request.status = RequestStatus::Reserved;
+                    request.reprocess_of = if request.intent == Intent::Event { None } else { previous.map(|r| r.id.clone()) };
                     next.dispatch_count += 1;
                     effects.push(Effect::Dispatch { request_id, execution_id, method: request.definition.method.clone(), snapshot: candidate.clone() });
                 }

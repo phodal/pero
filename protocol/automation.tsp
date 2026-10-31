@@ -40,7 +40,7 @@ model AutomationCoveredRequestStatus { kind:"covered"; request_id:string; ...Aut
 model AutomationRunRequest {
   id:string; definition:AutomationDefinition; intent:AutomationIntent; subject:string; exact:AutomationExactRef|null;
   created_at:AutomationCounter; through_position:AutomationCounter; snapshot:AutomationCandidateRef|null;
-  execution_id:string|null; status:AutomationRequestStatus; continued_revision:boolean; cancel_requested:boolean; ...AutomationClosed;
+  execution_id:string|null; reprocess_of:string|null; status:AutomationRequestStatus; continued_revision:boolean; cancel_requested:boolean; ...AutomationClosed;
 }
 model AutomationState {
   owner:string; limits:AutomationLimits; bindings:AutomationSourceBinding[]; definitions:AutomationDefinition[];

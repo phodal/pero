@@ -100,7 +100,15 @@ try {
   assert.equal(duplicate.receipt.duplicate, true);
   await host.call(manual('manual', 'manual-one', 'different input'), true);
   assert.equal((await logs()).length, 1);
-  results.push('manual completion, immutable input, duplicate and conflict');
+  const repeatFrom = host.events.length;
+  const repeated = await host.call(manual('manual', 'manual-two', 'immutable manual input'));
+  await host.wait(event => event.kind === 'turn_finished', repeatFrom);
+  const repeatedDone = await host.stateAfter(value => value.state.requests.find(request => request.id === repeated.receipt.id)?.status.kind === 'completed');
+  const repeatRequest = repeatedDone.state.requests.find(request => request.id === repeated.receipt.id);
+  assert.equal(repeatRequest.reprocess_of, requestId);
+  assert.notEqual(repeatRequest.execution_id, done.state.requests.find(request => request.id === requestId).execution_id);
+  assert.equal((await logs()).length, 2);
+  results.push('manual identity retries deduplicate; new intent reprocesses identical input with prior-request link');
 
   await host.call(create('exact', 'Read exact revision', { kind: 'event', binding_id: 'local', event_kind: 'changed' }));
   await host.call({ action: 'publish_input', binding_id: 'local', subject: 'exact-subject', revision: 'r1', content: 'old exact bytes', latest: false });
@@ -131,12 +139,23 @@ try {
   await host.call({ action: 'publish_input', binding_id: 'local', subject: 'clock-subject', revision: 'clock-r1', content: 'scheduled bytes', latest: true });
   const anchor = Math.floor(Date.now() / 1000) + 2;
   start = host.events.length;
-  await host.call(create('clock', 'Scheduled method', { kind: 'time', subject: 'clock-subject', exact: null, anchor, interval_seconds: 3600, max_lateness_seconds: 30 }, 'recheck_latest'));
+  await host.call(create('clock', 'Scheduled method', { kind: 'time', subject: 'clock-subject', exact: null, anchor, interval_seconds: 3, max_lateness_seconds: 30 }, 'recheck_latest'));
   // Intentionally write nothing to stdin until the independently scheduled turn.
   await host.wait(event => event.kind === 'turn_started', start);
-  await completed(host, start, 'clock');
+  const firstSlot = await completed(host, start, 'clock');
+  const firstClockRequest = firstSlot.state.requests.find(request => request.definition.id === 'clock');
+  // Same frozen source, distinct scheduler slot: no new input and no manual tick.
+  // Keep the original event cursor so a fast next slot cannot outrun observation.
+  const nextTurn = await host.wait(event => event.kind === 'turn_started' && event.thread_id !== firstClockRequest.execution_id, start);
+  await host.wait(event => event.kind === 'turn_finished' && event.thread_id === nextTurn.thread_id, start);
+  const secondSlot = await host.stateAfter(value => value.state.requests.some(request => request.execution_id === nextTurn.thread_id && request.status.kind === 'completed'));
   await host.call({ action: 'control', definition_id: 'clock', paused: true, revoked: false });
-  results.push('time slot executes while Host stdin is idle');
+  const secondClockRequest = secondSlot.state.requests.find(request => request.execution_id === nextTurn.thread_id);
+  assert.equal(secondClockRequest.intent.slot, firstClockRequest.intent.slot + 3);
+  assert.equal(secondClockRequest.reprocess_of, firstClockRequest.id);
+  assert.deepEqual(secondClockRequest.snapshot, firstClockRequest.snapshot);
+  assert.notEqual(secondClockRequest.execution_id, firstClockRequest.execution_id);
+  results.push('distinct time slots execute unchanged input while stdin is idle, linked without replay');
 
   await host.call(create('workspace', 'Check frozen workspace'));
   start = host.events.length;
@@ -185,10 +204,20 @@ try {
   assert.equal(recovered.state.requests.find(request => request.id === crashing.receipt.id)?.status.kind, 'reconcile');
   assert.equal(recovered.state.requests.find(request => request.id === requestId)?.status.kind, 'completed');
   await host.call(manual('crash', 'crash-one', 'must not replay'));
+  const blocked = await host.call(manual('crash', 'crash-two', 'must not replay'));
+  assert.equal(blocked.state.requests.find(request => request.id === blocked.receipt.id)?.status.kind, 'pending');
+  const cancellation = await host.call({ action: 'cancel', request_id: crashing.receipt.id });
+  assert.equal(cancellation.state.requests.find(request => request.id === crashing.receipt.id)?.cancel_requested, true);
+  assert.equal(cancellation.state.requests.find(request => request.id === crashing.receipt.id)?.status.kind, 'cancel_requested');
+  assert(cancellation.attention[crashing.receipt.id], 'unavailable original owner must remain visible, not claim stopped');
+  await stop(host);
+  host = await launch();
   const stable = await host.query();
   assert.equal(stable.state.requests.find(request => request.id === crashing.receipt.id)?.status.kind, 'reconcile');
+  assert.equal(stable.state.requests.find(request => request.id === crashing.receipt.id)?.cancel_requested, true);
+  assert.equal(stable.state.requests.find(request => request.id === blocked.receipt.id)?.status.kind, 'pending');
   assert.equal((await logs()).length, beforeCrash);
-  results.push('SIGKILL recovery retains original identity, completed state and uncertain reservation without replay');
+  results.push('SIGKILL recovery blocks new intents; cancellation remains an unresolved request across restart without replay');
   await stop(host);
   await mkdir(resolve('test-results/automation'), { recursive: true });
   const report = { status: 'passed', level: 'L0 real local Host/SQLite/fixture ACP', binarySha256: sha(await readFile(binary)), scenarios: results, promptInvocations: beforeCrash, persistedRequests: stable.state.requests.map(request => ({ definition: request.definition.id, status: request.status.kind })), providerCalls: 0, limitations: ['No Desktop acceptance', 'No remote source/provider', 'No business/scientific verification', 'No descendant cleanup guarantee'] };

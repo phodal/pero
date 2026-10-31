@@ -2265,6 +2265,16 @@
             }
           ]
         },
+        "reprocess_of": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "status": {
           "$ref": "#/$defs/AutomationRequestStatus"
         },
@@ -2285,6 +2295,7 @@
         "through_position",
         "snapshot",
         "execution_id",
+        "reprocess_of",
         "status",
         "continued_revision",
         "cancel_requested"
