@@ -52,8 +52,10 @@ post-snapshot wakeup retains a subsequent observation obligation; the published
 registry is read again, and an unchanged event candidate may reference prior known
 work. New manual intent IDs and distinct schedule slots instead run unchanged input
 again, retaining `reprocess_of` to the prior known request; retries of the same intent
-or slot remain idempotent. Every trigger is blocked by an active or unresolved effect
-for that candidate, even when an older completed request exists.
+or slot remain idempotent. A duplicate manual input does not republish or roll back
+the latest snapshot; conflicting retries fail atomically. Every trigger is blocked
+by an active or unresolved effect for that candidate, even when an older completed
+request exists.
 Exact requests retain every accepted revision. Edited definitions hold old pending
 work until explicitly continued or cancelled. Revocation prevents new admission
 and requests cancellation; no automatic ownership failover is implemented.

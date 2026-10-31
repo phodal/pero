@@ -117,9 +117,8 @@ impl Automation {
                     let revision = format!("sha256-{hash}");
                     let candidate = CandidateRef { binding_id: definition.input_binding_id.clone(), subject: subject.clone(),
                         revision: revision.clone(), digest: hash.clone(), content_ref: hash.clone() };
-                    let exact = Some(ExactRef { revision, digest: hash.clone() });
                     input = Some((hash, content));
-                    vec![Command::PublishSnapshot { candidate, latest: true }, Command::Manual { definition_id, intent_id, subject, exact }]
+                    vec![Command::ManualInput { definition_id, intent_id, candidate }]
                 }
                 PublicCommand::Control { definition_id, paused, revoked } => vec![Command::Control { definition_id, paused, revoked }],
                 PublicCommand::Cancel { request_id } => vec![Command::Cancel { request_id }],

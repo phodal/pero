@@ -324,6 +324,7 @@ pub enum Command {
     PublishSnapshot { candidate: CandidateRef, latest: bool },
     Accept { event: EventInput },
     Manual { definition_id: String, intent_id: String, subject: String, exact: Option<ExactRef> },
+    ManualInput { definition_id: String, intent_id: String, candidate: CandidateRef },
     Time { definition_id: String, revision: u64, slot: u64, subject: String, exact: Option<ExactRef> },
     Reserve { request_id: String, execution_id: String },
     Observe { request_id: String, execution_id: String, outcome: Outcome },
@@ -373,6 +374,15 @@ fn authorized(state: &State, definition: &Definition) -> Result<(), Error> {
         return Err(Error::Unauthorized);
     }
     if state.controls.get(&definition.id).is_some_and(|c| c.paused) { return Err(Error::Paused); }
+    Ok(())
+}
+fn validate_candidate(state: &State, candidate: &CandidateRef) -> Result<(), Error> {
+    source(state, &candidate.binding_id)?;
+    if !identifier(&candidate.subject) || !identifier(&candidate.revision)
+        || !digest(&candidate.digest) || candidate.content_ref.is_empty()
+        || candidate.content_ref.len() > 4096 || candidate.content_ref.chars().any(char::is_control) { return Err(Error::Invalid); }
+    if state.snapshots.iter().any(|old| old.binding_id == candidate.binding_id && old.subject == candidate.subject
+        && old.revision == candidate.revision && old != candidate) { return Err(Error::Conflict); }
     Ok(())
 }
 fn validate_event(state: &State, event: &EventInput) -> Result<(), Error> {
@@ -458,15 +468,9 @@ pub fn apply(state: &State, command: Command, now: u64, ids: Ids) -> Result<Tran
             }
         }
         Command::PublishSnapshot { candidate, latest } => {
-            source(state, &candidate.binding_id)?;
+            validate_candidate(state, &candidate)?;
             if state.revoked_bindings.contains(&candidate.binding_id) { return Err(Error::Unauthorized); }
-            if !identifier(&candidate.subject) || !identifier(&candidate.revision)
-                || !digest(&candidate.digest) || candidate.content_ref.is_empty()
-                || candidate.content_ref.len() > 4096 || candidate.content_ref.chars().any(char::is_control) { return Err(Error::Invalid); }
-            if let Some(old) = state.snapshots.iter().find(|s| s.binding_id == candidate.binding_id
-                && s.subject == candidate.subject && s.revision == candidate.revision) {
-                if old != &candidate { return Err(Error::Conflict); }
-            } else {
+            if !state.snapshots.contains(&candidate) {
                 if state.snapshots.len() >= state.limits.max_snapshots { return Err(Error::Capacity); }
                 next.snapshots.push(candidate.clone());
             }
@@ -509,6 +513,20 @@ pub fn apply(state: &State, command: Command, now: u64, ids: Ids) -> Result<Tran
                 next.events.push(AcceptedEvent { id: ids.acceptance_id.clone(), input: event, position, accepted_at: now });
                 receipt = Receipt::Acceptance { id: ids.acceptance_id, duplicate: false, matched: definitions.len() };
             }
+        }
+        Command::ManualInput { definition_id, intent_id, candidate } => {
+            let definition = state.latest_definition(&definition_id).ok_or(Error::NotFound)?;
+            if definition.input_binding_id != candidate.binding_id { return Err(Error::Unauthorized); }
+            validate_candidate(state, &candidate)?;
+            // Identity admission owns publication too: a retry must not rewind
+            // the authoritative latest pointer or publish unrelated input.
+            let mut accepted = apply(state, Command::Manual { definition_id: definition_id.clone(), intent_id,
+                subject: candidate.subject.clone(), exact: Some(ExactRef { revision: candidate.revision.clone(), digest: candidate.digest.clone() }) }, now, ids)?;
+            if matches!(accepted.receipt, Receipt::Request { duplicate: true, .. }) { return Ok(accepted); }
+            let published = apply(&accepted.state, Command::PublishSnapshot { candidate, latest: true }, now, Ids::default())?;
+            accepted.state = published.state;
+            accepted.effects.extend(published.effects);
+            return Ok(accepted);
         }
         Command::Manual { definition_id, intent_id, subject, exact } => {
             let definition = state.latest_definition(&definition_id).ok_or(Error::NotFound)?;

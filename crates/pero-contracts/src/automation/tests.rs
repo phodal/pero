@@ -454,3 +454,30 @@ fn an_older_terminal_request_never_hides_later_active_or_unknown_work() {
         }
     }
 }
+
+#[test]
+fn manual_input_retry_cannot_rewind_latest_or_publish_conflicting_input() {
+    let state = manual_state();
+    let command = |intent: &str, revision: &str| Command::ManualInput {
+        definition_id: "a".into(), intent_id: intent.into(), candidate: candidate("s", revision),
+    };
+    let a = apply(&state, command("A", "A"), 100, ids("", &["a"])).unwrap();
+    assert_eq!(a.receipt, Receipt::Request { id: "a".into(), duplicate: false });
+    let b = apply(&a.state, command("B", "B"), 100, ids("", &["b"])).unwrap();
+    let retry = apply(&b.state, command("A", "A"), 100, Ids::default()).unwrap();
+    assert_eq!(retry.receipt, Receipt::Request { id: "a".into(), duplicate: true });
+    assert_eq!(retry.state, b.state);
+    assert_eq!(retry.state.latest, vec![candidate("s", "B")]);
+    assert_eq!(apply(&b.state, command("A", "C"), 100, ids("", &["c"])), Err(Error::Conflict));
+    let wrong_subject = Command::ManualInput { definition_id: "a".into(), intent_id: "A".into(), candidate: candidate("other", "A") };
+    assert_eq!(apply(&b.state, wrong_subject, 100, ids("", &["c"])), Err(Error::Conflict));
+    let invalid_publication = Command::ManualInput { definition_id: "a".into(), intent_id: "C".into(), candidate: CandidateRef { content_ref: "".into(), ..candidate("s", "C") } };
+    assert_eq!(apply(&b.state, invalid_publication, 100, ids("", &["c"])), Err(Error::Invalid));
+    let conflicting_ref = Command::ManualInput { definition_id: "a".into(), intent_id: "A".into(),
+        candidate: CandidateRef { content_ref: "different-reference".into(), ..candidate("s", "A") } };
+    assert_eq!(apply(&b.state, conflicting_ref, 100, Ids::default()), Err(Error::Conflict));
+    let wrong_binding = Command::ManualInput { definition_id: "a".into(), intent_id: "A".into(),
+        candidate: CandidateRef { binding_id: "another-source".into(), ..candidate("s", "A") } };
+    assert_eq!(apply(&b.state, wrong_binding, 100, Ids::default()), Err(Error::Unauthorized));
+    b.state.validate_restored().unwrap();
+}

@@ -88,7 +88,7 @@ impl Store {
         let mut effects = Vec::new();
         let mut receipt = Receipt::Updated;
         for command in commands {
-            if let Command::PublishSnapshot { candidate, .. } = &command {
+            if let Command::PublishSnapshot { candidate, .. } | Command::ManualInput { candidate, .. } = &command {
                 let content: String = tx.query_row("SELECT content FROM inputs WHERE id=?1", [&candidate.content_ref], |row| row.get(0)).map_err(failure)?;
                 if candidate.digest != candidate.content_ref || digest(content.as_bytes()) != candidate.digest {
                     return Err("Snapshot must reference intact immutable content".into());

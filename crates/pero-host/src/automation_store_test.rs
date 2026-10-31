@@ -70,3 +70,41 @@ fn valid_json_with_corrupt_schedule_fails_closed_on_reopen() {
     store.db.execute("UPDATE state SET body=?1",[body.to_string()]).unwrap();
     drop(store);assert!(Store::open(&path).is_err());std::fs::remove_file(path).unwrap();
 }
+
+#[test]
+fn manual_input_identity_and_latest_publication_commit_atomically() {
+    let path = path();
+    let mut store = Store::open(&path).unwrap();
+    let owner = store.state().unwrap().owner;
+    store.apply(vec![Command::PutDefinition { definition: domain::Definition {
+        id: "manual".into(), revision: 1, owner: owner.clone(), trigger: domain::Trigger::Manual,
+        input: domain::InputContract::RecheckLatest, input_binding_id: "local".into(),
+        method: domain::Method::Agent { agent_id: "fixture".into(), workspace: "/tmp".into(), prompt: "Inspect".into() },
+        target: domain::Target::LocalHost { owner },
+    } }], 1, None, None, None).unwrap();
+    let command = |intent: &str, content: &str| {
+        let hash = digest(content.as_bytes());
+        Command::ManualInput { definition_id: "manual".into(), intent_id: intent.into(),
+            candidate: CandidateRef { binding_id: "local".into(), subject: "s".into(),
+                revision: format!("sha256-{hash}"), digest: hash.clone(), content_ref: hash } }
+    };
+    let hash_a = digest(b"A"); let hash_b = digest(b"B"); let hash_c = digest(b"C");
+    let accepted = store.apply(vec![command("A", "A")], 2, Some((&hash_a, "A")), None, None).unwrap();
+    let Receipt::Request { id, duplicate: false } = accepted.receipt else { panic!("manual receipt required") };
+    store.apply(vec![command("B", "B")], 3, Some((&hash_b, "B")), None, None).unwrap();
+    let before = store.state().unwrap();
+    drop(store);
+    let mut store = Store::open(&path).unwrap();
+    let retry = store.apply(vec![command("A", "A")], 4, Some((&hash_a, "A")), None, None).unwrap();
+    assert_eq!(retry.receipt, Receipt::Request { id, duplicate: true });
+    assert_eq!(store.state().unwrap(), before);
+    assert_eq!(before.latest[0].digest, hash_b);
+    assert!(store.apply(vec![command("A", "C")], 5, Some((&hash_c, "C")), None, None).is_err());
+    assert!(store.content(&hash_c).is_err(), "conflicting retry must roll back its input bytes too");
+    assert_eq!(store.state().unwrap(), before);
+    store.db.execute_batch("CREATE TRIGGER fail_write BEFORE UPDATE ON state BEGIN SELECT RAISE(ABORT,'disk fixture'); END;").unwrap();
+    assert!(store.apply(vec![command("C", "C")], 6, Some((&hash_c, "C")), None, None).is_err());
+    assert!(store.content(&hash_c).is_err());
+    assert_eq!(store.state().unwrap(), before);
+    drop(store); std::fs::remove_file(path).unwrap();
+}

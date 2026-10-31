@@ -110,6 +110,32 @@ try {
   assert.equal((await logs()).length, 2);
   results.push('manual identity retries deduplicate; new intent reprocesses identical input with prior-request link');
 
+  await host.call(create('manual-latest', 'Read current manual input', { kind: 'manual' }, 'recheck_latest'));
+  await host.call({ action: 'control', definition_id: 'manual-latest', paused: true, revoked: false });
+  const latestA = await host.call(manual('manual-latest', 'latest-intent-a', 'manual version A'));
+  const latestB = await host.call(manual('manual-latest', 'latest-intent-b', 'manual version B'));
+  const retryA = await host.call(manual('manual-latest', 'latest-intent-a', 'manual version A'));
+  assert.equal(retryA.receipt.id, latestA.receipt.id);
+  assert.equal(retryA.receipt.duplicate, true);
+  assert.deepEqual(retryA.state.latest, latestB.state.latest, 'retry A must not roll latest back from B');
+  assert.deepEqual(retryA.state.snapshots, latestB.state.snapshots);
+  assert.deepEqual(retryA.state.requests, latestB.state.requests);
+  await host.call(manual('manual-latest', 'latest-intent-a', 'conflicting retry bytes'), true);
+  await host.call({ ...manual('manual-latest', 'latest-intent-a', 'manual version A'), subject: 'conflicting-subject' }, true);
+  const afterConflict = await host.query();
+  assert.deepEqual(afterConflict.state.latest, latestB.state.latest);
+  assert.deepEqual(afterConflict.state.snapshots, latestB.state.snapshots, 'rejected retries must not publish content');
+  assert.deepEqual(afterConflict.state.requests, latestB.state.requests);
+  const beforeLatestRuns = (await logs()).length;
+  await host.call({ action: 'control', definition_id: 'manual-latest', paused: false, revoked: false });
+  const latestDone = await host.stateAfter(value => [latestA.receipt.id, latestB.receipt.id].every(id =>
+    value.state.requests.find(request => request.id === id)?.status.kind === 'completed'));
+  const latestExecutions = (await logs()).slice(beforeLatestRuns);
+  assert.equal(latestExecutions.length, 2);
+  assert(latestExecutions.every(log => log.text.includes('manual version B') && !log.text.includes('manual version A')));
+  assert.equal(latestDone.state.latest.find(candidate => candidate.subject === 'manual-latest').digest, sha('manual version B'));
+  results.push('paused latest A/B/retry-A preserves B; conflicting retries publish nothing; resumed work resolves B');
+
   await host.call(create('exact', 'Read exact revision', { kind: 'event', binding_id: 'local', event_kind: 'changed' }));
   await host.call({ action: 'publish_input', binding_id: 'local', subject: 'exact-subject', revision: 'r1', content: 'old exact bytes', latest: false });
   await host.call({ action: 'publish_input', binding_id: 'local', subject: 'exact-subject', revision: 'r2', content: 'new latest bytes', latest: true });
