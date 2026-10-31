@@ -12,6 +12,7 @@ on:
   push:
     branches: [master]
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   schedule:
     - cron: "0 20 * * *" # 04:00 UTC+08; GitHub runs schedules on the default branch.
   workflow_dispatch:
@@ -20,8 +21,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'full' || 'linux' }}
-  cancel-in-progress: ${{ !(github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'ci:full' && github.run_id || 'active' }}-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'full' || 'linux' }}
+  cancel-in-progress: ${{ !(github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) }}
 
 defaults:
   run:
@@ -98,7 +99,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && fromJSON('["ubuntu-latest","windows-latest","macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
+        os: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && fromJSON('["ubuntu-latest","windows-latest","macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -134,7 +135,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && fromJSON('["ubuntu-latest","windows-latest","macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
+        os: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && fromJSON('["ubuntu-latest","windows-latest","macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -156,7 +157,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && fromJSON('["ubuntu-latest","windows-latest","macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
+        os: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && fromJSON('["ubuntu-latest","windows-latest","macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
     env:
       GOWORK: "off"
     steps:
@@ -215,7 +216,7 @@ jobs:
         run: go test -count=1 -v ./sandbox -run '^TestNativeRuntime$'
 
   windows-acl-sandbox:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')
     name: Positive Windows file and partial ACL contracts
     runs-on: windows-latest
     timeout-minutes: 15
@@ -326,7 +327,7 @@ jobs:
       upload-runtime: true
 
   desktop:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')
     name: Build and contracts (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -344,7 +345,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && fromJSON('["workbench","toolcalls","data","data-product","control-lab","control-lab-app-use","control-lab-live","virtual-cell-comparison","virtual-cell-dataset-download","app-use","app-use-workbench","mcp-lifecycle","mcp-persistence","mcp-transport"]') || fromJSON('["workbench","data","app-use-workbench"]') }}
+        suite: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && fromJSON('["workbench","toolcalls","data","data-product","control-lab","control-lab-app-use","control-lab-live","virtual-cell-comparison","virtual-cell-dataset-download","app-use","app-use-workbench","mcp-lifecycle","mcp-persistence","mcp-transport"]') || fromJSON('["workbench","data","app-use-workbench"]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -388,7 +389,7 @@ jobs:
           retention-days: 7
 
   complete:
-    name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'Full-platform CI gate' || 'Linux CI gate' }}
+    name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'Full-platform CI gate' || 'Linux CI gate' }}
     if: always()
     needs: [data, control-lab, virtual-cell, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
     runs-on: ubuntu-latest
@@ -397,5 +398,5 @@ jobs:
       - name: Require every contract and acceptance shard for this mode
         env:
           RESULTS: ${{ toJSON(needs) }}
-          FULL_MATRIX: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+          FULL_MATRIX: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full') }}
         run: node scripts/ci/gate.mjs

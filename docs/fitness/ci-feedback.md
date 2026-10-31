@@ -35,7 +35,7 @@ persistence/transport were the longest shards, about four minutes including setu
 
 After this measurement, the user explicitly authorized a smaller ordinary tier.
 No test is physically deleted: ordinary PR/push runs the three critical real
-Desktop smokes below; daily/manual runs preserve all fourteen scenarios. Moving a
+Desktop smokes below; daily/manual (`workflow_dispatch` or PR `ci:full`) runs preserve all fourteen scenarios. Moving a
 failing scenario to daily is not a fix or a passing result.
 
 | Tier | Real Desktop scenarios | Boundary retained |
@@ -56,7 +56,12 @@ assertions. Warm-cache latency needs a new exact-head Actions measurement.
 - Ordinary PR/push runs Linux only, as explicitly requested. Daily at 20:00 UTC
   (04:00 UTC+08) and manual `workflow_dispatch` run Linux/macOS/Windows builds,
   Go/Bazel/Harness and Windows positive ACL tests. Native Computer Use follows
-  the same split. Scheduled runs use the default branch.
+  the same split. Scheduled runs use the default branch. On a PR, an operator can
+  add the `ci:full` label to run the full matrix at that exact head and remove it
+  to return to the ordinary tier. GitHub cannot filter label names in the trigger:
+  other label changes rerun the currently selected tier, rather than emitting a
+  misleading skipped required gate; they cannot cancel an active main CI run.
+  Native Computer Use has no PR path filter, so manual full works for every PR.
 - Each selected OS retains its complete build, typechecks, generated checks, Rust
   tests, Host contracts and transport tests. Daily full builds keep every platform.
 - An exact-version bindgen cache and all three Rust target directories avoid

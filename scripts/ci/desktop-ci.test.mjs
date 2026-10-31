@@ -23,7 +23,9 @@ test('daily keeps all acceptance; ordinary tier keeps the explicit critical smok
   assert.match(acceptance.strategy.matrix.suite, /schedule.*workflow_dispatch/);
   assert.equal(acceptance.strategy['fail-fast'], false);
   assert.equal(acceptance.needs, 'desktop-linux');
-  assert.equal(workflow.jobs.complete.if, 'always()');
+  assert.match(workflow.jobs.complete.if, /always\(\)/);
+  assert.deepEqual(workflow.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
+  assert.match(acceptance.strategy.matrix.suite, /contains\(github.event.pull_request.labels.\*.name, 'ci:full'\)/);
   assert.deepEqual([...workflow.jobs.complete.needs].sort(), Object.keys(workflow.jobs).filter(name => name !== 'complete').sort());
   assert.equal(workflow.jobs.complete.steps.at(-1).run, 'node scripts/ci/gate.mjs');
   for (const name of ['bazel', 'go', 'harness']) {
@@ -51,6 +53,7 @@ test('daily keeps all acceptance; ordinary tier keeps the explicit critical smok
   const native = YAML.parse(readFileSync('.github/workflows/computer-use.yml', 'utf8'));
   assert.match(native.jobs.native.strategy.matrix.os, /schedule.*workflow_dispatch/);
   assert.equal(native.on.schedule[0].cron, '0 20 * * *');
+  assert.equal(native.on.pull_request.paths, undefined);
 });
 
 test('runtime archive is tied to exact revision, retains executable mode and verifies bytes', { skip: process.platform !== 'linux' }, () => {
