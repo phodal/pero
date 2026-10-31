@@ -73,6 +73,26 @@ try{
  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(800,700));
  expect(await panel.evaluate(element=>element.scrollWidth<=element.clientWidth+1)).toBe(true);
  await page.screenshot({path:resolve(output,'automation-narrow.png')});
+ // A real frozen scheduled definition: publishing newer input cannot edit its pin.
+ await panel.getByRole('button',{name:'New',exact:true}).click();
+ await create.getByLabel('Name',{exact:true}).fill('Pinned schedule');
+ await create.getByLabel('Agent',{exact:true}).selectOption('automation-fixture');
+ await create.getByLabel('Trigger',{exact:true}).selectOption('time');
+ await create.getByLabel('Input',{exact:true}).selectOption('process_exact');
+ await create.getByLabel('Method prompt',{exact:true}).fill('Inspect the frozen scheduled sample.');
+ const future=new Date(Date.now()+86400000);future.setMinutes(future.getMinutes()-future.getTimezoneOffset());
+ await create.getByLabel('First run',{exact:true}).fill(future.toISOString().slice(0,16));
+ await create.getByLabel('Subject',{exact:true}).fill('scheduled-sample');
+ await create.getByLabel('Initial input',{exact:true}).fill('sample=23');
+ await create.getByRole('button',{name:'Create',exact:true}).click();
+ await expect(create).toBeHidden();
+ const schedule=(await query()).state.definitions.find(value=>value.id==='Pinned schedule');
+ expect(schedule.trigger.exact.revision).toBeTruthy();
+ await expect(detail.locator('[data-pinned]')).toHaveText(`Pinned revision: ${schedule.trigger.exact.revision}`);
+ await expect(detail.locator('form[data-input]')).toBeHidden();
+ await expect(detail.getByRole('button',{name:'Publish latest input',exact:true})).toBeHidden();
+ expect((await query()).state.requests).toHaveLength(1);
+ checks.push('real exact schedule displays its frozen revision and offers no misleading latest-input edit');
  const before=await query();
  await close();await launch();
  const restored=await query();

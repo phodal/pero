@@ -1,5 +1,5 @@
 import type { AutomationCommand, AutomationDefinition, AutomationResult, AutomationTrigger } from '../../protocol/generated/host';
-import { checkInput, currentDefinitions } from './automation-model';
+import { cancellationLabel, checkInput, currentDefinitions, inputPresentation, requestIdentity } from './automation-model';
 import './automation.css';
 
 type Event = {kind:string; request_id:string|null; text:string; data?:unknown};
@@ -25,7 +25,7 @@ export function installAutomation(send:(command:object)=>Promise<void>) {
       <p class="automation-muted" data-workspace></p><div class="automation-actions"><button type="button" data-create-cancel>Cancel</button><button type="button" data-save>Create</button></div>
     </form>
     <section data-catalog aria-label="Automation definitions"><p data-empty>Loading…</p><table hidden><thead><tr><th>Name</th><th>Trigger</th><th>Input</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></section>
-    <section data-detail hidden aria-label="Automation details"><h2 data-detail-title></h2><p class="automation-muted" data-detail-binding></p>
+    <section data-detail hidden aria-label="Automation details"><h2 data-detail-title></h2><p class="automation-muted" data-detail-binding></p><p class="automation-muted" data-pinned hidden></p>
       <form data-input><div class="automation-fields"><label>Subject<input name="subject" required maxlength="128" value="default"></label></div><label>Input<textarea name="content" required rows="3"></textarea></label><div class="automation-actions"><button type="button" data-submit-input>Run</button></div></form>
       <table data-requests><thead><tr><th>Request</th><th>State</th><th>Input / execution</th><th></th></tr></thead><tbody></tbody></table>
     </section>`;
@@ -75,15 +75,18 @@ export function installAutomation(send:(command:object)=>Promise<void>) {
     if(definition){
       find<HTMLElement>('[data-detail-title]').textContent=definition.id;
       find<HTMLElement>('[data-detail-binding]').textContent=`${definition.method.agent_id} · ${definition.method.workspace} · revision ${definition.revision}`;
+      const presentation=inputPresentation(definition);input.hidden=!presentation.editable;
+      const pinned=find<HTMLElement>('[data-pinned]');pinned.hidden=presentation.pinnedRevision===null;pinned.textContent=presentation.pinnedRevision===null?'':`Pinned revision: ${presentation.pinnedRevision}`;
       const subject=input.elements.namedItem('subject') as HTMLInputElement;
       if(definition.trigger.kind==='time'){subject.value=definition.trigger.subject;subject.readOnly=true;}else subject.readOnly=false;
       find<HTMLButtonElement>('[data-submit-input]').textContent=definition.trigger.kind==='manual'?'Run':'Publish latest input';
       const rows=find<HTMLTableSectionElement>('[data-requests] tbody');rows.replaceChildren();
       for(const request of result.state.requests.filter(value=>value.definition.id===definition.id).reverse()){
-        const row=rows.insertRow();cell(row,request.id);cell(row,[request.status.kind,result.attention[request.id]].filter(Boolean).join(' · '));
+        const row=rows.insertRow();cell(row,requestIdentity(request));cell(row,[request.status.kind,result.attention[request.id],request.status.kind==='reconcile'?'Cancellation requests do not confirm the execution has stopped.':null].filter(Boolean).join(' · '));
         cell(row,[request.snapshot?.revision,request.snapshot?.digest,request.execution_id].filter(Boolean).join(' · ')||request.subject);
         const actions=cell(row,'');
-        if(['pending','input_unavailable','definition_changed','reserved','running','cancel_requested'].includes(request.status.kind))actions.append(button('Cancel',()=>void run(async()=>{result=await command({action:'cancel',request_id:request.id});})));
+        const cancelLabel=cancellationLabel(request.status.kind);
+        if(cancelLabel)actions.append(button(cancelLabel,()=>void run(async()=>{result=await command({action:'cancel',request_id:request.id});})));
         if(request.status.kind==='definition_changed')actions.append(button('Continue original',()=>void run(async()=>{result=await command({action:'continue_old',request_id:request.id});})));
       }
     }
@@ -124,7 +127,7 @@ export function installAutomation(send:(command:object)=>Promise<void>) {
   }));
   find('[data-submit-input]').addEventListener('click',()=>void run(async()=>{
     if(!result||!input.reportValidity())return;
-    const definition=currentDefinitions(result.state).find(value=>value.id===selected);if(!definition)return;
+    const definition=currentDefinitions(result.state).find(value=>value.id===selected);if(!definition||!inputPresentation(definition).editable)return;
     const fields=new FormData(input), content=String(fields.get('content')), subject=String(fields.get('subject'));checkInput(content,result.capabilities.maxInputBytes);
     result=await command(definition.trigger.kind==='manual'?{action:'manual_input',definition_id:definition.id,intent_id:manualIntent,subject,content}:{action:'publish_input',binding_id:definition.input_binding_id,subject,revision:manualIntent,content,latest:true});
     manualIntent=crypto.randomUUID();input.reset();
