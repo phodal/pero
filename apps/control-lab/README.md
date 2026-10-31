@@ -43,10 +43,15 @@ explicitly distinguish Hz from rad/s. Finite sampled-window criteria do not
 prove asymptotic behavior, and idealized filter results do not prove real
 op-amp bandwidth, supply-rail, noise or hardware performance.
 
-Search and final verification scenarios are fixed independently. The same local
-backend can read both, so this is a methodological separation, not a security-
-isolated or blind evaluator. App-bound Agent operations reuse Host permissions;
-there is no second Agent runtime or paid model call in a numerical trial.
+Search and final verification scenarios are fixed independently. The robust-PID
+search set is nominal, gain ±20% and damping ±20%. Final verification repeats
+nominal and damping −20% as separate trials; those traces are not the search
+chart. python-control stores classical gain and phase margins when the
+frequency response supports them. An undefined crossover is inconclusive and
+does not replace internal stability. The same local backend can read both
+phases, so this is a methodological separation, not a security-isolated or
+blind evaluator. App-bound Agent operations reuse Host permissions; there is
+no second Agent runtime or paid model call in a numerical trial.
 
 ## Development
 

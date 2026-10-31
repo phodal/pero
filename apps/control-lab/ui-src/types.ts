@@ -93,6 +93,7 @@ export type Experiment = {
   progress: { completed: number; total: number };
   error: string | null;
   candidates: Candidate[];
+  searchSpace: Record<string, { min: number; max: number }>;
   lockedCandidateId: string | null;
   verificationOperationId?: string | null;
   trials: Trial[];

@@ -1,14 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  chartTarget,
+  checkConcepts,
   curvePath,
+  draftRangeError,
+  matchingCandidate,
+  signalForCheck,
   signalLabel,
+  suggestedDraft,
   candidateParameterSummary,
   failedCheckGroups,
   numeric,
   pairedSeries,
   responseComparison,
+  verdictSummary,
   verificationRows,
+  worstMetrics,
 } from "../ui-src/presentation.ts";
 import type { Experiment, Trial } from "../ui-src/types.ts";
 
@@ -187,6 +195,68 @@ test("signal labels are concise without changing observation keys", () => {
   assert.deepEqual(["reference", "disturbance", "controlEffort", "disturbanceControlEffort", "frequencyGain", "frequencyPhase"].map(signalLabel),
     ["Tracking", "Disturbance", "Control effort", "Disturbance effort", "Gain", "Phase"]);
   assert.equal(signalLabel("otherSignal"), "other Signal");
+});
+
+test("saved search metrics stay unavailable until every scenario has a finite actual", () => {
+  const check = (name: string, actual: number | null) => ({ name, verdict: actual == null ? "INCONCLUSIVE" : "PASS", actual, limit: 1, message: "" });
+  const trial = (scenarioId: string, overshoot: number | null) => ({
+    candidateId: "chosen", scenarioId, phase: "search", status: "completed",
+    report: { checks: [check("Target overshoot", overshoot), check("Target settling time", 4), check("Final-window target error", 0.001)] },
+  });
+  const experiment = {
+    templateId: "robust-pid",
+    scenarios: [{ id: "nominal", role: "search" }, { id: "gain-low", role: "search" }, { id: "held", role: "verification" }],
+    trials: [trial("nominal", 0.2), trial("gain-low", 0.05), { ...trial("held", 0.9), phase: "verification" }],
+  } as Experiment;
+  assert.deepEqual(worstMetrics(experiment, "chosen").map((item) => item.value), [0.2, 4, 0.001]);
+  const partial = { ...experiment, trials: [trial("nominal", null), trial("gain-low", 0.05)] } as Experiment;
+  assert.equal(worstMetrics(partial, "chosen")[0].value, null);
+});
+
+test("verification concepts do not point the chart at a held-out scenario", () => {
+  const check = { name: "Target overshoot", verdict: "FAIL", actual: 0.2, limit: 0.1, message: "Above limit" };
+  const experiment = {
+    templateId: "robust-pid",
+    criteria: { overshootMax: 0.1 },
+    lockedCandidateId: "chosen",
+    verificationOperationId: "final",
+    scenarios: [{ id: "nominal", role: "search" }, { id: "nominal-final", role: "verification" }],
+    trials: [{
+      candidateId: "chosen", scenarioId: "nominal-final", phase: "verification", operationId: "final",
+      report: { checks: [check] },
+    }, {
+      candidateId: "chosen", scenarioId: "nominal", phase: "search",
+      report: { checks: [{ ...check, actual: 0.01, verdict: "PASS" }] },
+    }],
+  } as Experiment;
+  const [concept] = checkConcepts(experiment, "chosen", "verification");
+  assert.equal(concept.verdict, "FAIL");
+  assert.equal(concept.chartScenarioId, null);
+  assert.equal(concept.actual, 0.2);
+  assert.equal(signalForCheck(concept.name), "reference");
+  assert.equal(chartTarget("robust-pid", "reference"), 1);
+  assert.equal(chartTarget("robust-pid", "controlEffort"), null);
+  assert.equal(chartTarget("active-filter", "reference"), null);
+  const summary = verdictSummary([concept], 1);
+  assert.equal(summary.title, "1 constraint failed");
+});
+
+test("draft proposal stays inside the frozen range and does not claim acceptance", () => {
+  const ranges = { kp: { min: 0, max: 8 }, ki: { min: 0, max: 5 }, kd: { min: 0, max: 2 } };
+  const current = { kp: 3.5, ki: 1.8, kd: 0.5 };
+  const failed = suggestedDraft("robust-pid", current, ranges, [{ name: "Target overshoot", verdict: "FAIL" }]);
+  assert.ok(failed.values);
+  assert.ok(failed.values.kp < current.kp && failed.values.ki < current.ki && failed.values.kd > current.kd);
+  assert.equal(failed.values.kp >= 0 && failed.values.kd <= 2, true);
+  assert.equal(failed.message.includes("acceptance") || failed.message.includes("passed"), false);
+  const passed = suggestedDraft("robust-pid", current, ranges, [{ name: "Target overshoot", verdict: "PASS" }]);
+  assert.equal(passed.values, null);
+  assert.match(passed.message, /Review the evidence/);
+  assert.equal(draftRangeError({ kp: 9, ki: 1, kd: 0.2 }, ranges), "kp must be between 0 and 8");
+  assert.equal(draftRangeError({ kp: 2, ki: 1, kd: 0.2 }, ranges), null);
+  const candidates = [{ id: "baseline", parameters: { kp: 2, ki: 1, kd: 0.3 } }, { id: "other", parameters: { kp: 3, ki: 1, kd: 0.4 } }];
+  assert.equal(matchingCandidate(candidates, { kp: 3, ki: 1, kd: 0.4 }, ["kp", "ki", "kd"])?.id, "other");
+  assert.equal(matchingCandidate(candidates, { kp: 3.1, ki: 1, kd: 0.4 }, ["kp", "ki", "kd"]), undefined);
 });
 
 test("candidate rows show design parameters and units, retaining source metadata unchanged", () => {
