@@ -4,7 +4,7 @@
   "name": "Pero",
   "version": "0.1.0",
   "shell": "workbench",
-  "apps": ["virtual-cell", "paper-agent", "insights"],
+  "apps": ["insights", "virtual-cell", "paper-agent"],
   "required": ["insights"],
   "python": "system"
 }

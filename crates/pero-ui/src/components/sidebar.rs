@@ -302,6 +302,17 @@ pub(crate) fn sidebar(
         .border_color(p.border)
         .p(px(pero_theme::SPACE_8))
         .gap(px(pero_theme::SPACE_4))
+        .child(pero_theme::sidebar_row(
+            "sidebar-insights",
+            ui.t("nav.insights"),
+            None,
+            None,
+            props.insights_open,
+            pero_theme::RowLevel::Nav,
+            Some(Icon::default().path("icons/layout-list.svg").into_any_element()),
+            chrome,
+            click(&on_action, SidebarAction::OpenApp { name: "insights".into(), panel: "main".into() }),
+        ))
         .child(
             div()
                 .flex()
@@ -453,17 +464,6 @@ pub(crate) fn sidebar(
                 .flex()
                 .flex_col()
                 .gap(px(2.))
-                .child(pero_theme::sidebar_row(
-                    "sidebar-insights",
-                    ui.t("nav.insights"),
-                    None,
-                    None,
-                    props.insights_open,
-                    pero_theme::RowLevel::Nav,
-                    Some(Icon::default().path("icons/layout-list.svg").into_any_element()),
-                    chrome,
-                    click(&on_action, SidebarAction::OpenApp { name: "insights".into(), panel: "main".into() }),
-                ))
                 .child(pero_theme::sidebar_row(
                     "sidebar-apps",
                     ui.t("nav.apps"),
