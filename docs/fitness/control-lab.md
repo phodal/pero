@@ -121,6 +121,14 @@ artifact and is not present in this checkout.
 
 ## Remaining gates
 
+- Independent review found two resource/workflow defects after the CI and
+  real-provider checks above: baseline evidence could not be inspected before
+  spending the candidate budget, and adaptive ngspice output could exceed the
+  observation point budget. Their fixes and the exact reproduction are tracked
+  in [incremental baseline](../issues/2026-10-31-control-lab-incremental-baseline.md)
+  and [adaptive sample budget](../issues/2026-10-31-control-lab-adaptive-sample-budget.md).
+  Working-tree changes still need integrated strict solver and exact-head CI
+  validation; the earlier green CI does not validate them.
 - A complete real-provider Agent run still requires search, a locked candidate,
   full final scenarios and independent reproduction of the saved report. The
   six-attempt budget above is exhausted; do not automatically retry or raise it.

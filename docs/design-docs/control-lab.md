@@ -55,6 +55,13 @@ candidate generation does not require an LLM call per trial. A final candidate
 is locked before the frozen verification scenarios are evaluated. Exhausting a
 budget without a feasible candidate is a valid recorded outcome, not success.
 
+The Agent can evaluate the frozen baseline independently, inspect its evidence,
+then propose or run one deterministic search candidate at a time. An
+incremental search completes or retries unfinished search scenarios for an
+existing candidate before consuming another slot. Batch search remains
+available. All paths use the same frozen candidate budget and Store admission;
+none can supply a replacement budget or change the Spec.
+
 ## Circuit workflow
 
 The first active circuit is a constrained Sallen–Key second-order low-pass
@@ -78,6 +85,20 @@ ngspice runs with an argument vector, a private attempt directory and startup
 configuration disabled. Logs, generated netlists and observed solver versions
 are evidence. Timeouts/cancellation must terminate owned computation before a
 terminal receipt. Restart retains incomplete attempts without replaying them.
+
+For resource admission the current ngspice policy reserves at most
+`max(1000, 2×samples)` points per trial, accounting for its adaptive transient
+grid and frequency table; python-control reserves `samples`. This is an
+enforced acceptance bound, not a guarantee that every solver run fits. A
+longer table or returned series fails explicitly without truncating the
+observation or declaring PASS. The 40,000-point budget counts the longest curve
+of each completed trial with an observation. A non-completed trial, including
+one with a partial observation, is charged at least a full reservation; a
+completed trial without observation is also charged a full reservation.
+Retained raw failure files are not bounded by that point count; portable
+exports have a separate 15 MiB limit.
+Old records and Spec hashes are not rewritten, while new operations on them
+must meet current admission.
 
 App-bound Agent operations expose structured reads and bounded candidate/run
 requests through existing Host approval. Frozen policies cannot be rewritten by
