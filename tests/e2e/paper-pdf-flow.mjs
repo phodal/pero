@@ -145,6 +145,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await frame.getByRole('textbox', { name: 'Research question', exact: true }).fill(fixture.realPdf ? 'attention mechanism' : 'Second page');
   await frame.getByRole('button', { name: 'Send question', exact: true }).click();
   await expect(frame.getByRole('heading', { name: 'PDF answer fixture', exact: true })).toBeVisible({ timeout: 30000 });
+  await expect(frame.locator('.pa-turn .pa-citations button').first()).toContainText(/Page [0-9]+/);
   await frame.locator('.pa-turn .pa-report .pa-scientific').getByRole('button', { name: 'Citation evidence 1', exact: true }).click();
   await expect(viewer.locator('[data-citation-region="true"]').first()).toBeVisible();
   await expect(viewer.locator('[data-citation-identity="retained"]')).toHaveCount(1);
