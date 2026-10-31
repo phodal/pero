@@ -27,6 +27,7 @@ class ExperimentStore:
         self.worker = None
         self.active_id = None
         self.records = {}
+        self.fenced = set()
         self.provenance = dict(pythonVersion=platform.python_version(),sourceHashes={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in Path(__file__).parent.glob('*.py')})
         for path in sorted(self.root.glob('*.json')):
             record = json.loads(path.read_text())
@@ -34,11 +35,17 @@ class ExperimentStore:
             if spec.hash != record['specHash']:
                 raise Invalid(f'Experiment integrity check failed: {path.name}')
             self.records[record['id']] = record
-            if record['status'] == 'running':
-                record.update(status='failed', operation=None, error='Backend stopped before this operation completed. Saved observations remain available.')
+            if record['status'] == 'running' or any(t['status'] == 'running' for t in record['trials']):
+                record = deepcopy(record)
+                record.update(status='failed', operation=None, error=record.get('error') or 'Backend stopped before this operation completed. Saved observations remain available.')
                 for trial in record['trials']:
                     if trial['status'] == 'running':
                         trial.update(status='failed', error='Backend stopped during solver execution')
+                        trial_id = trial.get('id')
+                        directory = self.root / 'artifacts' / record['id'] / trial_id if trial_id else None
+                        if directory and directory.is_dir():
+                            trial['failureArtifacts'] = [dict(name=p.name,sha256=hashlib.sha256(p.read_bytes()).hexdigest())
+                                                         for p in sorted(directory.iterdir()) if p.is_file()]
                 self.save(record)
 
     def spec(self, record):
@@ -47,10 +54,33 @@ class ExperimentStore:
     def save(self, record):
         destination = self.root / (record['id'] + '.json')
         temporary = destination.with_suffix('.tmp')
-        temporary.write_bytes(canonical(record))
-        temporary.replace(destination)
+        payload = canonical(record)
+        previous = self.records.get(record['id'])
+        try:
+            temporary.write_bytes(payload)
+            temporary.replace(destination)
+        except OSError:
+            # replace may have succeeded before reporting an error. Compare the
+            # durable record before deciding whether the transition happened.
+            try:
+                current = destination.read_bytes()
+            except FileNotFoundError:
+                current = None
+            except OSError:
+                self.fenced.add(record['id'])
+                raise Invalid('Experiment persistence is uncertain; reopen the App') from None
+            if current == payload:
+                self.records[record['id']] = record
+                return
+            if current != (canonical(previous) if previous is not None else None):
+                self.fenced.add(record['id'])
+                raise Invalid('Experiment persistence is uncertain; reopen the App') from None
+            raise
+        self.records[record['id']] = record
 
     def get_record(self, identity):
+        if identity in self.fenced:
+            raise Invalid('Experiment persistence is uncertain; reopen the App')
         if identity not in self.records:
             raise Invalid('Experiment not found')
         return self.records[identity]
@@ -61,6 +91,8 @@ class ExperimentStore:
 
     def listing(self):
         with self.lock:
+            if self.fenced:
+                raise Invalid('Experiment persistence is uncertain; reopen the App')
             keys = ('id','title','templateId','createdAt','status','report','lockedCandidateId','specHash')
             return {'experiments': [{k:r[k] for k in keys} for r in sorted(self.records.values(),key=lambda r:(r['createdAt'],r['id']),reverse=True)]}
 
@@ -77,13 +109,12 @@ class ExperimentStore:
         if spec.template_id == 'active-filter':
             record['limitations'].append('Idealized Sallen–Key amplifier: no supply rails, bandwidth, component noise, or real-device guarantee.')
         with self.lock:
-            self.records[record['id']] = record
             self.save(record)
             return deepcopy(record)
 
     def lock_candidate(self, identity, candidate_id):
         with self.lock:
-            record = self.get_record(identity)
+            record = deepcopy(self.get_record(identity))
             if record['status'] == 'running':
                 raise Invalid('Wait for the active operation before locking a candidate')
             selected = next((c for c in record['candidates'] if c['id']==candidate_id), None)
@@ -108,9 +139,11 @@ class ExperimentStore:
 
     def start(self, identity, operation, budget=None, candidate_id=None, proposed_candidate=None):
         with self.lock:
-            record = self.get_record(identity)
+            record = deepcopy(self.get_record(identity))
             if self.worker and self.worker.is_alive():
                 raise Invalid('A calculation is already running; wait or cancel it first')
+            if record['status'] == 'running':
+                raise Invalid('The previous operation has not been recovered; reopen the App')
             spec = self.spec(record)
             added = []
             if operation in ('search', 'baseline', 'search-next'):
@@ -198,17 +231,45 @@ class ExperimentStore:
                 raise Invalid('This ledger has reached its 80-attempt evidence limit; export it and create a new experiment')
             record['candidates'].extend(added)
             if not jobs:
+                if added:
+                    self.save(record)
                 return deepcopy(record)
             self.cancelled = threading.Event()
             operation_id = uuid.uuid4().hex
+            prior_report = deepcopy(record.get('report'))
+            prior_verification_id = record.get('verificationOperationId')
+            had_verification_id = 'verificationOperationId' in record
             if phase=='verification':
                 record['verificationOperationId'] = operation_id
                 record['report'] = None
-            self.active_id = identity
             record.update(status='running', operation=operation, error=None, progress=dict(completed=0,total=len(jobs)))
             self.save(record)
-            self.worker = threading.Thread(target=self.run, args=(identity, spec, phase, jobs, self.cancelled, operation_id), daemon=False)
-            self.worker.start()
+            self.active_id = identity
+            try:
+                self.worker = threading.Thread(target=self.run, args=(identity, spec, phase, jobs, self.cancelled, operation_id), daemon=False)
+                self.worker.start()
+            except Exception as error:
+                # A custom thread implementation may report an error after it
+                # started. Fence before releasing the lock so that worker cannot
+                # enter a solver while its start outcome is uncertain.
+                if self.worker and self.worker.is_alive():
+                    self.cancelled.set()
+                    self.fenced.add(identity)
+                    raise Invalid('Calculation start is uncertain; reopen the App') from None
+                self.worker = None
+                self.active_id = None
+                failed = deepcopy(self.get_record(identity))
+                failed['report'] = prior_report
+                if had_verification_id:
+                    failed['verificationOperationId'] = prior_verification_id
+                else:
+                    failed.pop('verificationOperationId', None)
+                failed.update(status='failed', operation=None, error=f'Calculation could not start: {type(error).__name__}: {error}')
+                try:
+                    self.save(failed)
+                except Exception:
+                    self.fenced.add(identity)
+                raise Invalid('Calculation could not start; inspect the saved experiment or reopen the App') from None
             return deepcopy(record)
 
     def run(self, identity, spec, phase, jobs, cancelled, operation_id):
@@ -225,8 +286,8 @@ class ExperimentStore:
                 directory = self.root / 'artifacts' / identity / trial_id
                 directory.mkdir(parents=True, exist_ok=True)
                 with self.lock:
-                    record = self.get_record(identity)
-                    record['trials'].append(trial)
+                    record = deepcopy(self.get_record(identity))
+                    record['trials'].append(deepcopy(trial))
                     self.save(record)
                 try:
                     result = self.execute(template(spec.template_id).engine, spec.template_id,
@@ -250,8 +311,10 @@ class ExperimentStore:
                     trial['failureArtifacts'] = [dict(name=p.name,sha256=hashlib.sha256(p.read_bytes()).hexdigest())
                                                  for p in sorted(directory.iterdir()) if p.is_file()]
                 with self.lock:
-                    record = self.get_record(identity)
+                    record = deepcopy(self.get_record(identity))
                     trial['completedAt'] = now()
+                    index = next(i for i, saved in enumerate(record['trials']) if saved['id']==trial_id)
+                    record['trials'][index] = deepcopy(trial)
                     record['progress']['completed'] += 1
                     selected = next(c for c in record['candidates'] if c['id']==candidate['id'])
                     if phase == 'search':
@@ -262,7 +325,7 @@ class ExperimentStore:
                         selected['score'] = max((c['actual'] for c in summary['checks'] if c['name'].endswith(objective)),default=None) if summary['verdict']=='PASS' else None
                     self.save(record)
             with self.lock:
-                record = self.get_record(identity)
+                record = deepcopy(self.get_record(identity))
                 if phase == 'verification':
                     report = aggregate(spec, record['lockedCandidateId'], record['trials'], phase, operation_id, Candidate(candidate['id'],candidate['label'],tuple(candidate['parameters'].items()))).to_dict()
                     record['report'] = report
@@ -273,9 +336,19 @@ class ExperimentStore:
                 self.save(record)
         except Exception as error:
             with self.lock:
-                record = self.get_record(identity)
-                record.update(status='failed', operation=None, error=f'{type(error).__name__}: {error}')
-                self.save(record)
+                try:
+                    record = deepcopy(self.get_record(identity))
+                    for trial in record['trials']:
+                        if trial['status'] == 'running':
+                            trial.update(status='failed', error='Operation could not persist its result')
+                            directory = self.root / 'artifacts' / identity / trial['id']
+                            if directory.is_dir():
+                                trial['failureArtifacts'] = [dict(name=p.name,sha256=hashlib.sha256(p.read_bytes()).hexdigest())
+                                                             for p in sorted(directory.iterdir()) if p.is_file()]
+                    record.update(status='failed', operation=None, error=f'{type(error).__name__}: {error}')
+                    self.save(record)
+                except Exception:
+                    self.fenced.add(identity)
         finally:
             with self.lock:
                 self.active_id = None
@@ -289,7 +362,7 @@ class ExperimentStore:
 
     def reevaluate(self, identity):
         with self.lock:
-            record = self.get_record(identity)
+            record = deepcopy(self.get_record(identity))
             if record['status'] == 'running' or not record['lockedCandidateId']:
                 raise Invalid('A completed operation and locked candidate are required')
             report = aggregate(self.spec(record), record['lockedCandidateId'], record['trials'], 'verification', record.get('verificationOperationId'), Candidate(record['candidateLock']['candidateId'],'Locked candidate',tuple(record['candidateLock']['parameters'].items()))).to_dict()
