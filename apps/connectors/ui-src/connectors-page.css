@@ -1,0 +1,155 @@
+.point-connectors-page{container-type:inline-size}
+.point-connectors-notice{color:var(--pero-text-secondary);font-size:var(--pero-font-size-sm-plus, 12.5px)}
+.point-connectors-guides{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--pero-space-5, 10px);margin:0 0 var(--pero-space-8, 16px)}
+.point-connectors-page button.point-connectors-guide{position:relative;display:flex;align-items:stretch;gap:var(--pero-space-6, 12px);width:100%;min-height:126px;padding:var(--pero-space-7, 14px);border:0;border-radius:var(--pero-radius-xl, 12px);background:var(--pero-page);color:var(--pero-text);text-align:left;white-space:normal;cursor:pointer}
+.point-connectors-page button.point-connectors-guide:hover:not(:disabled){background:var(--pero-hover)}
+.point-connectors-page button.point-connectors-guide:focus-visible{outline: 2px solid var(--pero-focus);outline-offset: var(--pero-focus-offset, 1px)}
+.point-connectors-guide-copy{display:flex;flex-direction:column;align-items:flex-start;gap:var(--pero-space-2, 4px);min-width:0;flex:1}
+.point-connectors-guide-badge{padding-right:42px;font-size:var(--pero-font-size-sm, 12px);color:var(--pero-text-secondary)}
+.point-connectors-guide-title{padding-right:42px;font-size:var(--pero-font-size-base-plus, 15px);font-weight:var(--pero-font-weight-semibold, 600);line-height:var(--pero-line-height-tight, 1.3)}
+.point-connectors-guide-summary{font-size:var(--pero-font-size-sm-plus, 12.5px);line-height:var(--pero-line-height-normal, 1.5);color:var(--pero-text-secondary);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+.point-connectors-guide-art{position:absolute;top:14px;right:14px;box-sizing:border-box;flex:none;width:38px;border-radius:var(--pero-radius-lg, 10px);background:var(--pero-surface);box-shadow:inset 0 0 0 1px var(--pero-border-subtle);display:flex;flex-direction:column;gap:var(--pero-space-2, 4px);padding:7px;align-self:center}
+.point-connectors-guide-art-bar{height:4px;width:46%;border-radius:99px;background:color-mix(in srgb,var(--pero-text-secondary) 45%,transparent)}
+.point-connectors-guide-art-line{height:3px;border-radius:99px;background:color-mix(in srgb,var(--pero-text-secondary) 22%,transparent)}
+.point-connectors-guide-art-line[data-short=true]{width:68%}
+.point-connectors-guide-art[data-tone=browser]{background:linear-gradient(160deg,color-mix(in srgb,var(--pero-domain-dsh-go-web-point-connectors-guide-art-browser, #6090e0) 12%,var(--pero-surface)),var(--pero-surface))}
+.point-connectors-guide-art[data-tone=computer]{background:linear-gradient(160deg,color-mix(in srgb,var(--pero-domain-dsh-go-web-point-connectors-guide-art-computer, #48a879) 12%,var(--pero-surface)),var(--pero-surface))}
+.point-connectors-guide-art[data-tone=mobile]{background:linear-gradient(160deg,color-mix(in srgb,var(--pero-domain-dsh-go-web-point-connectors-guide-art-mobile, #bd884a) 12%,var(--pero-surface)),var(--pero-surface));width:28px;border-radius:var(--pero-radius-md, 8px);min-height:38px}
+.point-connectors-guide-art[data-tone=app]{background:linear-gradient(160deg,color-mix(in srgb,var(--pero-domain-dsh-go-web-point-connectors-guide-art-app, #9868bd) 12%,var(--pero-surface)),var(--pero-surface))}
+.point-connectors-guide-kicker{font-size:var(--pero-font-size-sm, 12px);font-weight:var(--pero-font-weight-semibold, 600);margin-bottom:var(--pero-space-2, 4px)}
+.point-connectors-guide-list{margin:0;padding-left:1.15em}
+.point-connectors-guide-list li{margin:var(--pero-space-1, 2px) 0;line-height:var(--pero-line-height-normal, 1.5)}
+.point-connectors-examples{border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:var(--pero-space-4, 8px)}
+.point-connectors-examples legend{padding:0}
+.point-connectors-guide-dialog .point-dialog-body label.point-connectors-example{flex-direction:row;align-items:flex-start;gap:var(--pero-space-4, 8px);font-weight:var(--pero-font-weight-regular, 400)}
+.point-connectors-guide-dialog .point-dialog-foot .point-connectors-hint{margin:0}
+.point-connectors-example input{margin-top:3px;flex:none}
+.point-connectors-example span{display:flex;flex-direction:column;gap:var(--pero-space-1, 2px);min-width:0}
+.point-connectors-guide-prompt{color:var(--pero-text-secondary);font-size:var(--pero-font-size-sm, 12px);line-height:1.45;white-space:normal}
+@container (max-width:800px){.point-connectors-guides{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (max-width:440px){.point-connectors-guides{grid-template-columns:1fr}.point-connectors-page button.point-connectors-guide{min-height:104px}}
+.point-connectors-categories{margin-bottom:var(--pero-space-8, 16px)}
+.point-connectors-hint{color:var(--pero-text-secondary);font-size:var(--pero-font-size-sm, 12px);margin:0 0 var(--pero-space-4, 8px)}
+.point-connectors-section{margin-bottom:var(--pero-space-12, 24px)}
+.point-connectors-page .point-connectors-section-title{display:flex;align-items:baseline;gap:var(--pero-space-3, 6px);font-size:var(--pero-font-size-md, 13px);font-weight:var(--pero-font-weight-semibold, 600);margin:0 0 var(--pero-space-5, 10px)}
+.point-connectors-section-title span{font-size:var(--pero-font-size-sm, 12px);font-weight:var(--pero-font-weight-regular, 400);color:var(--pero-text-secondary)}
+.point-connectors-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--pero-space-5, 10px)}
+.point-connectors-tile{border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-lg, 10px);padding:var(--pero-space-6, 12px) var(--pero-space-7, 14px);display:flex;flex-direction:column;gap:var(--pero-space-3, 6px);min-width:0}
+.point-connectors-tile:hover{border-color:var(--pero-text-secondary)}
+.point-connectors-tile-heading{flex:1;min-width:0}
+.point-connectors-tile-heading>div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.point-connectors-page button.point-connectors-tile-action{flex:none;min-height:28px;padding:3px var(--pero-space-6, 12px);font-size:var(--pero-font-size-sm-plus, 12.5px);border-radius:7px}
+.point-connectors-tile .point-connectors-summary{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;line-height:1.55}
+.point-connectors-logo{display:block;width:22px;height:22px;object-fit:contain}
+.point-connectors-card{border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-xl, 12px);padding:var(--pero-space-8, 16px);display:flex;flex-direction:column;gap:var(--pero-space-4, 8px)}
+.point-connectors-card-head{display:flex;align-items:center;gap:var(--pero-space-5, 10px)}
+.point-connectors-symbol{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:var(--pero-radius-md, 8px);background:var(--pero-hover);flex:none}
+/* Preserve official brand colors on a neutral plate, including dark marks. */
+.point-connectors-symbol:has(>.point-connectors-logo){background:var(--pero-surface, #fff);box-shadow:inset 0 0 0 1px var(--pero-domain-dsh-go-web-point-connectors-symbol-has-point, #00000014)}
+.point-connectors-card-title{font-size:var(--pero-font-size-md-plus, 13.5px);font-weight:var(--pero-font-weight-semibold, 600)}
+.point-connectors-card-meta{font-size:var(--pero-font-size-xs-plus, 11.5px);color:var(--pero-text-secondary)}
+.point-connectors-summary{font-size:var(--pero-font-size-sm-plus, 12.5px);color:var(--pero-text-secondary);margin:0}
+.point-connectors-warning{background:var(--pero-warning-surface);color:var(--pero-warning);border-left:var(--pero-border-width-accent, 3px) solid var(--pero-warning);border-radius:var(--pero-radius-sm, 6px);padding:var(--pero-space-3, 6px) var(--pero-space-5, 10px);font-size:var(--pero-font-size-sm, 12px);line-height:var(--pero-line-height-normal, 1.5);margin:0}
+.point-connectors-card-actions{margin-top:auto;display:flex;gap:var(--pero-space-4, 8px)}
+.point-connectors-row-card{display:flex;align-items:center;gap:var(--pero-space-6, 12px)}
+.point-connectors-row-copy{flex:1;min-width:0}
+.point-connectors-row-title{display:flex;align-items:center;gap:var(--pero-space-4, 8px);flex-wrap:wrap}
+.point-connectors-link{border:0;background:none;padding:0;min-height:auto;font-weight:var(--pero-font-weight-semibold, 600);font-size:var(--pero-font-size-md, 13px);text-decoration:underline;text-underline-offset:2px}
+.point-connectors-row-meta{font-size:var(--pero-font-size-xs-plus, 11.5px);color:var(--pero-text-secondary);margin-top:var(--pero-space-1, 2px)}
+.point-connectors-pill{border-radius:var(--pero-radius-full, 999px);padding:var(--pero-space-1, 2px) var(--pero-space-4, 8px);font-size:var(--pero-font-size-xs, 11px);background:var(--pero-hover)}
+.point-connectors-badge{border-radius:var(--pero-radius-full, 999px);padding:var(--pero-space-1, 2px) var(--pero-space-4, 8px);font-size:var(--pero-font-size-xs, 11px);color:var(--pero-text-secondary);border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle)}
+.point-connectors-dot{width:7px;height:7px;border-radius:50%;background:var(--pero-text-secondary);flex:none}
+.point-connectors-dot[data-state=connected],.point-connectors-dot[data-state=verified]{background:var(--pero-success)}
+.point-connectors-dot[data-state=waiting-for-approval],.point-connectors-dot[data-state=connecting]{background:var(--pero-warning)}
+.point-connectors-dot[data-state=needs-attention],.point-connectors-dot[data-state=needs-authorization]{background:var(--pero-danger)}
+.point-connectors-advanced{border-top:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);padding-top:var(--pero-space-5, 10px);margin:0}
+.point-connectors-advanced summary{cursor:pointer;font-size:var(--pero-font-size-md, 13px);font-weight:550}
+.point-connectors-actions{display:flex;align-items:center;gap:var(--pero-space-5, 10px);flex-wrap:wrap}
+.point-connectors-card{border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-xl, 12px);padding:var(--pero-space-8, 16px);margin-bottom:var(--pero-space-7, 14px)}
+.point-connector-tool code,code.point-connector-tool{font:12px var(--dsw-font-mono);background:var(--pero-hover);border-radius:var(--pero-radius-sm, 6px);padding:var(--pero-space-1, 2px) var(--pero-space-3, 6px)}
+.point-connectors-reason{color:var(--pero-warning);font-size:var(--pero-font-size-xs, 11px)}
+@media(max-width:760px){.point-connectors-grid{grid-template-columns:1fr}}
+.point-connectors-import-preview{border-top:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);padding-top:var(--pero-space-5, 10px);font-size:var(--pero-font-size-sm-plus, 12.5px);display:flex;flex-direction:column;gap:var(--pero-space-2, 4px)}
+.point-connectors-import-preview>div:first-child{display:flex;align-items:center;gap:var(--pero-space-4, 8px)}
+.point-connectors-import-preview .point-connectors-row-meta{font-family:var(--dsw-font-mono);word-break:break-all}
+.point-connectors-import-preview ul{margin:var(--pero-space-2, 4px) 0 0;padding-left:var(--pero-space-9, 18px);color:var(--pero-warning);line-height:var(--pero-line-height-relaxed, 1.6)}
+/* JSON editor: gutter and textarea share font metrics so line numbers stay aligned while scrolling. */
+.point-connectors-json{--json-line:18px;border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-md, 8px);overflow:hidden;background:var(--pero-surface)}
+.point-connectors-json:focus-within{outline: 2px solid var(--pero-focus);outline-offset: var(--pero-focus-offset, 1px)}
+.point-connectors-json[data-invalid=true]{border-color:var(--pero-danger)}
+.point-connectors-json-body{display:flex;height:calc(var(--rows) * var(--json-line) + 20px)}
+.point-connectors-json-gutter{flex:none;min-width:38px;padding:var(--pero-space-5, 10px) var(--pero-space-4, 8px) var(--pero-space-5, 10px) 0;overflow:hidden;text-align:right;font:12px/var(--json-line) var(--dsw-font-mono);color:var(--pero-text-secondary);background:var(--pero-hover);user-select:none}
+.point-connectors-json-gutter span{display:block;padding-left:var(--pero-space-4, 8px)}
+.point-connectors-json-gutter span[data-error=true]{color:var(--pero-danger);font-weight:var(--pero-font-weight-bold, 700)}
+.point-connectors-json textarea{flex:1;min-width:0;margin:0;border:0;outline:0;resize:none;padding:var(--pero-space-5, 10px) var(--pero-space-6, 12px);font:12px/var(--json-line) var(--dsw-font-mono);color:inherit;background:transparent;white-space:pre;overflow:auto;tab-size:2}
+.point-connectors-json-actions{display:flex;align-items:center;gap:var(--pero-space-3, 6px)}
+.point-connectors-json-status{display:flex;align-items:center;justify-content:space-between;gap:var(--pero-space-4, 8px);padding:var(--pero-space-2, 4px) var(--pero-space-3, 6px) var(--pero-space-2, 4px) var(--pero-space-6, 12px);border-top:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);font-size:var(--pero-font-size-xs-plus, 11.5px)}
+.point-connectors-json-status span[data-state=ok]{color:var(--pero-success)}
+.point-connectors-json-status span[data-state=error]{color:var(--pero-danger)}
+.point-connectors-json-status span[data-state=empty]{color:var(--pero-text-secondary)}
+.point-connectors-page .point-connectors-json-status button,.point-connector-detail .point-connectors-json-status button{min-height:26px;padding:var(--pero-space-1, 2px) var(--pero-space-5, 10px);font-size:var(--pero-font-size-sm, 12px);border-radius:var(--pero-radius-sm, 6px)}
+.point-connectors-discovery{margin:0;display:flex;flex-direction:column;gap:var(--pero-space-4, 8px)}
+.point-connectors-discovery h3{font-size:var(--pero-font-size-md, 13px);font-weight:var(--pero-font-weight-semibold, 600);margin:0}
+.point-connectors-discovery ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--pero-space-3, 6px)}
+.point-connectors-discovery li{display:grid;grid-template-columns:18px 96px 1fr;align-items:baseline;gap:var(--pero-space-4, 8px);font-size:var(--pero-font-size-sm-plus, 12.5px)}
+.point-connectors-discovery-mark{font-weight:var(--pero-font-weight-bold, 700);color:var(--pero-success)}
+.point-connectors-discovery li[data-ok=false] .point-connectors-discovery-mark{color:var(--pero-warning)}
+.point-connectors-discovery-label{font-weight:550}
+.point-connectors-discovery-value{min-width:0;overflow-wrap:anywhere;color:var(--pero-text-secondary)}
+.point-connectors-discovery code{font:12px var(--dsw-font-mono);background:var(--pero-hover);border-radius:var(--pero-radius-sm, 6px);padding:1px 5px}
+.point-connectors-discovery select{max-width:100%;font:12px var(--dsw-font-mono);color:inherit;background:var(--pero-surface);border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-sm, 6px);padding:3px var(--pero-space-3, 6px)}
+.point-dialog-foot .point-connectors-hint{margin:0}
+.point-connectors-page button.point-connectors-link,.point-connectors-page button.point-connectors-link:hover:not(:disabled){border:0;background:none;padding:0;min-height:auto;border-radius:0}
+.point-connectors-page button.point-connectors-inline-action{min-height:24px;padding:1px var(--pero-space-5, 10px);margin:0 var(--pero-space-3, 6px);font-size:var(--pero-font-size-sm, 12px);border-radius:var(--pero-radius-sm, 6px)}
+.point-connectors-discovery-note{display:block;margin-top:var(--pero-space-2, 4px);font:11.5px var(--dsw-font-mono)}
+.point-connectors-install-details{margin-top:var(--pero-space-3, 6px);font-size:var(--pero-font-size-sm, 12px);color:var(--pero-text-secondary)}
+.point-connectors-install-details summary{cursor:pointer}
+.point-connectors-install-log{margin:var(--pero-space-3, 6px) 0 0;align-self:stretch;max-height:160px;overflow:auto;font:11px/1.45 var(--dsw-font-mono);white-space:pre-wrap;color:var(--pero-text-secondary)}
+
+.point-connector-detail.point-ui-dialog[data-size] .point-ui-dialog-foot{flex-wrap:wrap}
+.point-connector-detail.point-ui-dialog[data-size] .point-ui-dialog-foot-start{flex-wrap:wrap}
+.point-connector-detail.point-ui-dialog[data-size] .point-ui-dialog-foot .point-connectors-hint{margin:0}
+.point-connector-action-slot{display:contents}
+.point-connector-detail.point-ui-dialog[data-size] .point-ui-dialog-foot .point-connectors-actions{gap:var(--pero-space-4, 8px)}
+@media(max-width:520px){.point-connector-detail.point-ui-dialog[data-size] .point-ui-dialog-foot button{min-height:44px}.point-connector-detail.point-ui-dialog[data-size] .point-ui-dialog-foot-start{flex-basis:100%}}
+/* Detail dialog: flat sections, label beside control, actions next to what they change. */
+.point-connector-detail .point-ui-dialog-body{gap:var(--pero-space-7, 14px);container-type:inline-size}
+.point-connector-title{display:inline-flex;align-items:center;gap:var(--pero-space-4, 8px);max-width:100%}
+.point-connector-state{display:inline-flex;align-items:center;gap:5px;flex:none;padding:1px var(--pero-space-4, 8px);border-radius:var(--pero-radius-full, 999px);font-size:var(--pero-font-size-xs-plus, 11.5px);font-weight:var(--pero-font-weight-medium, 500);line-height:18px;color:var(--pero-text-secondary);background:var(--pero-hover)}
+.point-connector-state-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.point-connector-state[data-state=success]{color:var(--pero-success);background:color-mix(in srgb,var(--pero-success) 12%,transparent)}
+.point-connector-state[data-state=progress]{color:var(--pero-warning);background:color-mix(in srgb,var(--pero-warning) 12%,transparent)}
+.point-connector-state[data-state=error]{color:var(--pero-danger);background:color-mix(in srgb,var(--pero-danger) 10%,transparent)}
+.point-connector-section{display:flex;flex-direction:column;gap:var(--pero-space-4, 8px);padding-top:var(--pero-space-6, 12px);border-top:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle)}
+.point-connector-detail .point-ui-dialog-body>.point-connector-section:first-child,.point-connector-detail .point-ui-dialog-body>.point-ui-tabs:first-child>.point-connector-section{padding-top:0;border-top:0}
+.point-connector-section-head{display:flex;align-items:center;gap:var(--pero-space-4, 8px);min-height:28px}
+.point-connector-section-head h3{flex:1;min-width:0;margin:0;font-size:var(--pero-font-size-md, 13px);font-weight:var(--pero-font-weight-semibold, 600)}
+.point-connector-section-meta{font-size:var(--pero-font-size-sm, 12px);color:var(--pero-text-secondary);text-align:right}
+/* One label column for every row: fields and the form tab are subgrids of the fieldset. */
+.point-connector-form{border:0;padding:0;margin:0;min-width:0;display:grid;grid-template-columns:fit-content(200px) minmax(0,1fr);gap:var(--pero-space-4, 8px) var(--pero-space-6, 12px);align-items:center}
+.point-connector-form>*,.point-connector-fields>*{grid-column:1/-1}
+.point-connector-fields:not([hidden]){display:grid;grid-template-columns:subgrid;row-gap:var(--pero-space-4, 8px);align-items:center}
+.point-connector-field.point-ui-field{grid-template-columns:subgrid;align-items:center;row-gap:var(--pero-space-1, 2px)}
+.point-connector-field>label{font-size:var(--pero-font-size-sm-plus, 12.5px);font-weight:var(--pero-font-weight-medium, 500);color:var(--pero-text-secondary)}
+.point-connector-field>label code{font:11.5px var(--dsw-font-mono);overflow-wrap:anywhere}
+.point-connector-field>small,.point-connector-field>.point-ui-feedback{grid-column:2;font-size:var(--pero-font-size-xs-plus, 11.5px)}
+.point-connector-tool-group{display:grid;grid-template-columns:48px minmax(0,1fr);gap:var(--pero-space-4, 8px);align-items:baseline}
+.point-connector-tool-effect{font-size:var(--pero-font-size-sm, 12px);color:var(--pero-text-secondary)}
+.point-connector-tool-list{display:flex;flex-wrap:wrap;gap:var(--pero-space-3, 6px)}
+label.point-connector-tool{display:inline-flex;align-items:center;gap:var(--pero-space-3, 6px);padding:var(--pero-space-1, 2px) var(--pero-space-4, 8px) var(--pero-space-1, 2px) var(--pero-space-3, 6px);border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:7px;font-size:var(--pero-font-size-sm, 12px);cursor:pointer;max-width:100%} /* point-style-literal: preserve this migrated component's off-tier corner geometry. */
+label.point-connector-tool[data-checked=false]{color:var(--pero-text-secondary)}
+label.point-connector-tool[data-checked=false] code{opacity:.7}
+label.point-connector-tool:has(input:focus-visible){outline:2px solid var(--pero-focus);outline-offset:1px}
+label.point-connector-tool input{margin:0}
+label.point-connector-tool code{background:none;padding:0;overflow-wrap:anywhere}
+.point-connector-secret{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:var(--pero-space-4, 8px)}
+.point-connector-secret>code{font:12px var(--dsw-font-mono);padding:var(--pero-space-1, 2px) var(--pero-space-3, 6px);border-radius:var(--pero-radius-sm, 6px);background:var(--pero-hover);overflow-wrap:anywhere;max-width:16em}
+.point-connector-secret .point-ui-button.point-connector-secret-delete{color:var(--pero-danger)}
+@container (max-width:520px){
+  .point-connector-form{grid-template-columns:minmax(0,1fr)}
+  .point-connector-field.point-ui-field{gap:var(--pero-space-2, 4px)}
+  .point-connector-field>small,.point-connector-field>.point-ui-feedback{grid-column:1}
+  .point-connector-secret{grid-template-columns:minmax(0,1fr) auto auto}
+  .point-connector-secret>:first-child{grid-column:1/-1;justify-self:start}
+  .point-connector-tool-group{grid-template-columns:1fr}
+}

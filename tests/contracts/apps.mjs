@@ -175,11 +175,11 @@ try {
   const builtins = resolve(temp, 'builtin-catalog'), builtinInstalledRoot = resolve(temp, 'auto-installed');
   await mkdir(builtins); await mkdir(builtinInstalledRoot);
   await writeFile(resolve(builtinInstalledRoot, '.builtins-seeded'), '1\n');
-  const addBuiltin = async name => {
+  const addBuiltin = async (name, permissions = undefined) => {
     const directory = resolve(builtins, name);
     await mkdir(resolve(directory, 'dist'), { recursive: true });
     await writeFile(resolve(directory, 'dist/index.html'), `<h1>${name}</h1>`);
-    await writeFile(resolve(directory, 'app.json'), JSON.stringify({ schemaVersion: 1, name, version: '0.1.0', displayName: name,
+    await writeFile(resolve(directory, 'app.json'), JSON.stringify({ schemaVersion: 1, name, version: '0.1.0', displayName: name, permissions,
       contributes: { panels: [{ id: 'main', title: name, entry: 'dist/index.html' }] } }));
   };
   host = await launch({ builtins, installed: builtinInstalledRoot });
@@ -198,6 +198,12 @@ try {
   await host.close(); host = undefined;
   host = await launch({ builtins, installed: builtinInstalledRoot });
   assert.deepEqual((await host.request('list')).value.map(app => [app.name, app.enabled]), [['paper-agent', false]]);
+  await addBuiltin('connector-management', { host: ['connectors'] });
+  await host.request('list');
+  assert.equal((await host.request('connectors', { name: 'connector-management' })).ok, true);
+  assert.equal((await host.request('connectors', { name: 'paper-agent' })).ok, false);
+  await host.request('disable', { name: 'connector-management' });
+  assert.equal((await host.request('connectors', { name: 'connector-management' })).ok, false);
   assert.deepEqual(failures, []);
   console.log('App stdio wiring, generated contract, Python environments, incremental builtin discovery and retained disable/removal passed.');
 } finally {

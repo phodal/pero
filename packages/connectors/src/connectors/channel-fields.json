@@ -1,0 +1,292 @@
+{
+  "version": 1,
+  "channels": {
+    "wechat": {
+      "transport": "ilink-long-poll",
+      "requires": [
+        {
+          "key": "allowedUserIds",
+          "kind": "text",
+          "required": false,
+          "helpId": "wechat.allowedUserIds"
+        }
+      ],
+      "operations": [
+        {
+          "tool": "wechat_receive_message",
+          "effect": "read",
+          "helpId": "wechat.receive"
+        },
+        {
+          "tool": "wechat_send_message",
+          "effect": "external_send",
+          "helpId": "wechat.send"
+        }
+      ]
+    },
+    "wecom": {
+      "transport": "websocket",
+      "requires": [
+        {
+          "key": "botId",
+          "kind": "text",
+          "required": true,
+          "helpId": "wecom.botId"
+        },
+        {
+          "key": "secret",
+          "kind": "secretRef",
+          "required": true,
+          "helpId": "wecom.secret"
+        },
+        {
+          "key": "allowedUserIds",
+          "kind": "text",
+          "required": false,
+          "helpId": "wecom.allowedUserIds"
+        }
+      ],
+      "operations": [
+        {
+          "tool": "wecom_receive_message",
+          "effect": "read",
+          "helpId": "wecom.receive"
+        },
+        {
+          "tool": "wecom_send_message",
+          "effect": "external_send",
+          "helpId": "wecom.send"
+        }
+      ]
+    },
+    "feishu": {
+      "transport": "lark-long-connection",
+      "requires": [
+        {
+          "key": "appId",
+          "kind": "text",
+          "required": true,
+          "helpId": "feishu.appId"
+        },
+        {
+          "key": "appSecret",
+          "kind": "secretRef",
+          "required": true,
+          "helpId": "feishu.appSecret"
+        },
+        {
+          "key": "allowedOpenIds",
+          "kind": "text",
+          "required": true,
+          "helpId": "feishu.allowedOpenIds"
+        },
+        {
+          "key": "mentionOwnerOpenId",
+          "kind": "text",
+          "required": false,
+          "helpId": "feishu.mentionOwnerOpenId"
+        },
+        {
+          "key": "mentionChatIds",
+          "kind": "text",
+          "required": false,
+          "helpId": "feishu.mentionChatIds"
+        },
+        {
+          "key": "mentionVoice",
+          "kind": "text",
+          "required": false,
+          "helpId": "feishu.mentionVoice"
+        }
+      ],
+      "operations": [
+        {
+          "tool": "feishu_receive_message",
+          "effect": "read",
+          "helpId": "feishu.receive"
+        },
+        {
+          "tool": "feishu_reply_message",
+          "effect": "external_send",
+          "helpId": "feishu.reply"
+        }
+      ]
+    },
+    "slack": {
+      "transport": "slack-socket-mode",
+      "requires": [
+        {
+          "key": "botToken",
+          "kind": "secretRef",
+          "required": true,
+          "helpId": "slack.botToken"
+        },
+        {
+          "key": "appToken",
+          "kind": "secretRef",
+          "required": true,
+          "helpId": "slack.appToken"
+        },
+        {
+          "key": "allowedUserIds",
+          "kind": "text",
+          "required": true,
+          "helpId": "slack.allowedUserIds"
+        },
+        {
+          "key": "allowedConversationIds",
+          "kind": "text",
+          "required": false,
+          "helpId": "slack.allowedConversationIds"
+        }
+      ],
+      "operations": [
+        {
+          "tool": "slack_receive_message",
+          "effect": "read",
+          "helpId": "slack.receive"
+        },
+        {
+          "tool": "slack_reply_message",
+          "effect": "external_send",
+          "helpId": "slack.reply"
+        }
+      ]
+    },
+    "discord": {
+      "transport": "discord-gateway",
+      "requires": [
+        {
+          "key": "botToken",
+          "kind": "secretRef",
+          "required": true,
+          "helpId": "discord.botToken"
+        },
+        {
+          "key": "allowedUserIds",
+          "kind": "text",
+          "required": true,
+          "helpId": "discord.allowedUserIds"
+        },
+        {
+          "key": "allowedConversationIds",
+          "kind": "text",
+          "required": false,
+          "helpId": "discord.allowedConversationIds"
+        }
+      ],
+      "operations": [
+        {
+          "tool": "discord_receive_message",
+          "effect": "read",
+          "helpId": "discord.receive"
+        },
+        {
+          "tool": "discord_reply_message",
+          "effect": "external_send",
+          "helpId": "discord.reply"
+        }
+      ]
+    },
+    "teams": {
+      "transport": "teams-bot-framework",
+      "requires": [
+        {
+          "key": "appId",
+          "kind": "text",
+          "required": true,
+          "helpId": "teams.appId"
+        },
+        {
+          "key": "appSecret",
+          "kind": "secretRef",
+          "required": true,
+          "helpId": "teams.appSecret"
+        },
+        {
+          "key": "tenantId",
+          "kind": "text",
+          "required": true,
+          "helpId": "teams.tenantId"
+        },
+        {
+          "key": "listenAddress",
+          "kind": "text",
+          "required": false,
+          "helpId": "teams.listenAddress"
+        },
+        {
+          "key": "allowedUserIds",
+          "kind": "text",
+          "required": true,
+          "helpId": "teams.allowedUserIds"
+        },
+        {
+          "key": "allowedConversationIds",
+          "kind": "text",
+          "required": false,
+          "helpId": "teams.allowedConversationIds"
+        }
+      ],
+      "operations": [
+        {
+          "tool": "teams_receive_message",
+          "effect": "read",
+          "helpId": "teams.receive"
+        },
+        {
+          "tool": "teams_reply_message",
+          "effect": "external_send",
+          "helpId": "teams.reply"
+        }
+      ]
+    },
+    "dingtalk": {
+      "transport": "dingtalk-stream",
+      "requires": [
+        {
+          "key": "clientId",
+          "kind": "text",
+          "required": true,
+          "helpId": "dingtalk.clientId"
+        },
+        {
+          "key": "clientSecret",
+          "kind": "secretRef",
+          "required": true,
+          "helpId": "dingtalk.clientSecret"
+        },
+        {
+          "key": "corpId",
+          "kind": "text",
+          "required": true,
+          "helpId": "dingtalk.corpId"
+        },
+        {
+          "key": "allowedUserIds",
+          "kind": "text",
+          "required": true,
+          "helpId": "dingtalk.allowedUserIds"
+        },
+        {
+          "key": "allowedConversationIds",
+          "kind": "text",
+          "required": false,
+          "helpId": "dingtalk.allowedConversationIds"
+        }
+      ],
+      "operations": [
+        {
+          "tool": "dingtalk_receive_message",
+          "effect": "read",
+          "helpId": "dingtalk.receive"
+        },
+        {
+          "tool": "dingtalk_reply_message",
+          "effect": "external_send",
+          "helpId": "dingtalk.reply"
+        }
+      ]
+    }
+  }
+}

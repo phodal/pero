@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "name": "connectors",
+  "version": "0.1.0",
+  "displayName": "Connectors",
+  "description": "管理连接、凭据与 Agent 工具访问。",
+  "permissions": {
+    "host": [
+      "connectors",
+      "agent"
+    ]
+  },
+  "contributes": {
+    "panels": [
+      {
+        "id": "main",
+        "title": "Connectors",
+        "entry": "dist/index.html"
+      }
+    ]
+  }
+}

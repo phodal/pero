@@ -16,6 +16,14 @@ HTML iframe。`apps/virtual-cell` 是首个接入实例，`apps/paper-agent` 提
 Host 管理；Paper 的领域读取与研究台账经声明路由接入 Agent。
 Task/Run 与远程 App 部署尚未与此机制连接。
 
+[ADR 0025](adr/0025-connectors-app.md) 将 Connectors 管理界面作为 Workbench App
+接入。App 声明 `connectors` 权限，Rust Host 校验其启用状态；Electron Main
+持有管理器、系统加密凭据与便携 MCP 驱动。Agent 通过 Host 创建的 ACP 会话
+访问冻结的连接和工具白名单，不能通过 MCP 修改配置、凭据或权限。端点绑定真实
+会话身份，配置变化令旧快照失效，关闭会话回收连接；既有 per-Agent MCP 设置
+继续保留为直接 ACP 授权。当前开发验收与账号、平台及安装包缺口见
+[Connectors 验证](fitness/connectors.md)。
+
 ## 可组合应用与产品
 
 产品装配以 [ADR 0008](adr/0008-product-distributions.md) 为准，区分三个概念：

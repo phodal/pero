@@ -1,0 +1,1668 @@
+[
+  {
+    "providerId": "cyanheads-pubmed",
+    "displayName": "PubMed & Europe PMC via cyanheads",
+    "summary": "检索 PubMed、Europe PMC 文献、全文与引用",
+    "summaryEn": "Find biomedical articles, available full text, and citation metadata.",
+    "endpoint": "https://pubmed.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/pubmed-mcp-server",
+    "license": "Apache-2.0",
+    "version": "2.10.21",
+    "package": "@cyanheads/pubmed-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "pubmed_search_articles",
+        "effect": "read"
+      },
+      {
+        "tool": "pubmed_fetch_articles",
+        "effect": "read"
+      },
+      {
+        "tool": "pubmed_fetch_fulltext",
+        "effect": "read"
+      },
+      {
+        "tool": "pubmed_format_citations",
+        "effect": "read"
+      },
+      {
+        "tool": "pubmed_find_related",
+        "effect": "read"
+      },
+      {
+        "tool": "pubmed_spell_check",
+        "effect": "read"
+      },
+      {
+        "tool": "pubmed_lookup_mesh",
+        "effect": "read"
+      },
+      {
+        "tool": "pubmed_lookup_citation",
+        "effect": "read"
+      },
+      {
+        "tool": "pubmed_convert_ids",
+        "effect": "read"
+      },
+      {
+        "tool": "pubmed_europepmc_search",
+        "effect": "read"
+      },
+      {
+        "tool": "pubmed_europepmc_fetch",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-clinicaltrialsgov",
+    "displayName": "ClinicalTrials.gov via cyanheads",
+    "summary": "检索临床试验记录、结果与入组条件",
+    "summaryEn": "Find clinical studies and retrieve trial records and results.",
+    "endpoint": "https://clinicaltrials.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/clinicaltrialsgov-mcp-server",
+    "license": "Apache-2.0",
+    "version": "2.9.11",
+    "package": "clinicaltrialsgov-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "clinicaltrials_search_studies",
+        "effect": "read"
+      },
+      {
+        "tool": "clinicaltrials_get_study_record",
+        "effect": "read"
+      },
+      {
+        "tool": "clinicaltrials_get_study_count",
+        "effect": "read"
+      },
+      {
+        "tool": "clinicaltrials_get_field_values",
+        "effect": "read"
+      },
+      {
+        "tool": "clinicaltrials_get_field_definitions",
+        "effect": "read"
+      },
+      {
+        "tool": "clinicaltrials_get_study_results",
+        "effect": "read"
+      },
+      {
+        "tool": "clinicaltrials_find_eligible",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-uniprot",
+    "displayName": "UniProt via cyanheads",
+    "summary": "检索蛋白记录、序列、标识符与蛋白组",
+    "summaryEn": "Explore protein records, sequences, identifiers, and proteomes.",
+    "endpoint": "https://uniprot.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/uniprot-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.2.5",
+    "package": "@cyanheads/uniprot-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "uniprot_search_proteins",
+        "effect": "read"
+      },
+      {
+        "tool": "uniprot_get_entry",
+        "effect": "read"
+      },
+      {
+        "tool": "uniprot_map_ids",
+        "effect": "read"
+      },
+      {
+        "tool": "uniprot_get_proteome",
+        "effect": "read"
+      },
+      {
+        "tool": "uniprot_get_taxonomy",
+        "effect": "read"
+      },
+      {
+        "tool": "uniprot_get_sequence",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-orcid",
+    "displayName": "ORCID via cyanheads",
+    "summary": "查询研究者档案、机构与研究成果",
+    "summaryEn": "Read researcher profiles, affiliations, and published works.",
+    "endpoint": "https://orcid.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/orcid-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.3.2",
+    "package": "@cyanheads/orcid-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "orcid_get_profile",
+        "effect": "read"
+      },
+      {
+        "tool": "orcid_search_researchers",
+        "effect": "read"
+      },
+      {
+        "tool": "orcid_get_works",
+        "effect": "read"
+      },
+      {
+        "tool": "orcid_get_work_detail",
+        "effect": "read"
+      },
+      {
+        "tool": "orcid_get_affiliations",
+        "effect": "read"
+      },
+      {
+        "tool": "orcid_get_funding",
+        "effect": "read"
+      },
+      {
+        "tool": "orcid_get_peer_reviews",
+        "effect": "read"
+      },
+      {
+        "tool": "orcid_get_research_resources",
+        "effect": "read"
+      },
+      {
+        "tool": "orcid_resolve_researcher",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-arxiv",
+    "displayName": "arXiv via cyanheads",
+    "summary": "检索 arXiv 预印本、元数据与全文",
+    "summaryEn": "Find preprints, paper metadata, and available full text.",
+    "endpoint": "https://arxiv.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/arxiv-mcp-server",
+    "license": "Apache-2.0",
+    "version": "1.5.4",
+    "package": "@cyanheads/arxiv-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "arxiv_search",
+        "effect": "read"
+      },
+      {
+        "tool": "arxiv_get_metadata",
+        "effect": "read"
+      },
+      {
+        "tool": "arxiv_read_paper",
+        "effect": "read"
+      },
+      {
+        "tool": "arxiv_list_categories",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-astronomy",
+    "displayName": "Astronomy Calculations via cyanheads",
+    "summary": "计算天体位置、月相与观测时间",
+    "summaryEn": "Calculate celestial positions, lunar phases, and observing times.",
+    "endpoint": "https://astronomy.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/astronomy-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.4.1",
+    "package": "@cyanheads/astronomy-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "astronomy_get_sky_position",
+        "effect": "read"
+      },
+      {
+        "tool": "astronomy_get_rise_set",
+        "effect": "read"
+      },
+      {
+        "tool": "astronomy_get_moon_phase",
+        "effect": "read"
+      },
+      {
+        "tool": "astronomy_find_events",
+        "effect": "read"
+      },
+      {
+        "tool": "astronomy_list_visible",
+        "effect": "read"
+      },
+      {
+        "tool": "astronomy_get_ephemeris",
+        "effect": "read"
+      },
+      {
+        "tool": "astronomy_get_satellite_passes",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-aviation-weather",
+    "displayName": "Aviation Weather via cyanheads",
+    "summary": "查询航空气象站、天气报告与预报",
+    "summaryEn": "Retrieve aviation observations, forecasts, and weather advisories.",
+    "endpoint": "https://aviation-weather.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/aviation-weather-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.5.1",
+    "package": "@cyanheads/aviation-weather-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "aviation_find_stations",
+        "effect": "read"
+      },
+      {
+        "tool": "aviation_get_metar",
+        "effect": "read"
+      },
+      {
+        "tool": "aviation_get_taf",
+        "effect": "read"
+      },
+      {
+        "tool": "aviation_get_pireps",
+        "effect": "read"
+      },
+      {
+        "tool": "aviation_get_advisories",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-biorxiv",
+    "displayName": "bioRxiv & medRxiv via cyanheads",
+    "summary": "检索 bioRxiv、medRxiv 预印本与发表版本",
+    "summaryEn": "Browse biology and medical preprints by topic, date, or DOI.",
+    "endpoint": "https://biorxiv.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/biorxiv-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.3.1",
+    "package": "@cyanheads/biorxiv-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "biorxiv_list_categories",
+        "effect": "read"
+      },
+      {
+        "tool": "biorxiv_list_recent",
+        "effect": "read"
+      },
+      {
+        "tool": "biorxiv_get_preprint",
+        "effect": "read"
+      },
+      {
+        "tool": "biorxiv_get_published_version",
+        "effect": "read"
+      },
+      {
+        "tool": "biorxiv_search_preprints",
+        "effect": "read"
+      },
+      {
+        "tool": "biorxiv_get_fulltext",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-bls-labor",
+    "displayName": "BLS Labor Statistics via cyanheads",
+    "summary": "检索美国劳动统计指标与时间序列",
+    "summaryEn": "Explore employment, inflation, wages, and labor-market series.",
+    "endpoint": "https://bls-labor.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/bls-labor-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.5.8",
+    "package": "@cyanheads/bls-labor-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "bls_list_surveys",
+        "effect": "read"
+      },
+      {
+        "tool": "bls_search_series",
+        "effect": "read"
+      },
+      {
+        "tool": "bls_get_latest",
+        "effect": "read"
+      },
+      {
+        "tool": "bls_get_series",
+        "effect": "read"
+      },
+      {
+        "tool": "bls_dataframe_describe",
+        "effect": "read"
+      },
+      {
+        "tool": "bls_dataframe_query",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-brapi",
+    "displayName": "BrAPI via cyanheads",
+    "summary": "查询植物育种研究、种质与表型数据",
+    "summaryEn": "Explore breeding studies, germplasm, and genotype records.",
+    "endpoint": "https://brapi.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/brapi-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.8.1",
+    "package": "@cyanheads/brapi-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "brapi_connect",
+        "effect": "write"
+      },
+      {
+        "tool": "brapi_build_phenotype_matrix",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_server_info",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_describe_filters",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_find_studies",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_get_study",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_find_germplasm",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_get_germplasm",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_walk_pedigree",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_germplasm_performance",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_find_variables",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_find_observations",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_find_images",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_get_image",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_find_locations",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_find_variants",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_find_genotype_calls",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_export_genotype_matrix",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_dataframe_describe",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_dataframe_query",
+        "effect": "write"
+      },
+      {
+        "tool": "brapi_raw_get",
+        "effect": "read"
+      },
+      {
+        "tool": "brapi_raw_search",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-cdc-health",
+    "displayName": "CDC Health Data via cyanheads",
+    "summary": "查询 CDC 公共卫生数据集与统计",
+    "summaryEn": "Find and query public health surveillance datasets.",
+    "endpoint": "https://cdc.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/cdc-health-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.9.3",
+    "package": "@cyanheads/cdc-health-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "cdc_discover_datasets",
+        "effect": "read"
+      },
+      {
+        "tool": "cdc_get_dataset_schema",
+        "effect": "read"
+      },
+      {
+        "tool": "cdc_list_catalog_vocabulary",
+        "effect": "read"
+      },
+      {
+        "tool": "cdc_query_dataset",
+        "effect": "read"
+      },
+      {
+        "tool": "cdc_query_wonder",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-cern-opendata",
+    "displayName": "CERN Open Data via cyanheads",
+    "summary": "检索 CERN 开放数据、文件与分析环境",
+    "summaryEn": "Find physics datasets, files, and analysis environment records.",
+    "endpoint": "https://cern-opendata.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/cern-opendata-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.2.0",
+    "package": "@cyanheads/cern-opendata-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "cern_opendata_search_records",
+        "effect": "read"
+      },
+      {
+        "tool": "cern_opendata_get_records",
+        "effect": "read"
+      },
+      {
+        "tool": "cern_opendata_list_files",
+        "effect": "read"
+      },
+      {
+        "tool": "cern_opendata_get_analysis_env",
+        "effect": "read"
+      },
+      {
+        "tool": "cern_opendata_get_validated_runs",
+        "effect": "read"
+      },
+      {
+        "tool": "cern_opendata_search_trigger_paths",
+        "effect": "read"
+      },
+      {
+        "tool": "cern_opendata_list_reference",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-chembl",
+    "displayName": "ChEMBL via cyanheads",
+    "summary": "查询化合物、靶点、药物与生物活性",
+    "summaryEn": "Explore compound activity, protein targets, and drug mechanisms.",
+    "endpoint": "https://chembl.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/chembl-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.3.3",
+    "package": "@cyanheads/chembl-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "chembl_search_molecules",
+        "effect": "read"
+      },
+      {
+        "tool": "chembl_get_bioactivities",
+        "effect": "read"
+      },
+      {
+        "tool": "chembl_search_targets",
+        "effect": "read"
+      },
+      {
+        "tool": "chembl_get_drug_info",
+        "effect": "read"
+      },
+      {
+        "tool": "chembl_get_assay",
+        "effect": "read"
+      },
+      {
+        "tool": "chembl_dataframe_query",
+        "effect": "read"
+      },
+      {
+        "tool": "chembl_dataframe_describe",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-crossref",
+    "displayName": "Crossref via cyanheads",
+    "summary": "查询 DOI、文献引用、期刊与资助者",
+    "summaryEn": "Look up DOIs, scholarly works, and reference metadata.",
+    "endpoint": "https://crossref.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/crossref-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.4.2",
+    "package": "@cyanheads/crossref-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "crossref_get_work",
+        "effect": "read"
+      },
+      {
+        "tool": "crossref_get_references",
+        "effect": "read"
+      },
+      {
+        "tool": "crossref_search_works",
+        "effect": "read"
+      },
+      {
+        "tool": "crossref_search_journals",
+        "effect": "read"
+      },
+      {
+        "tool": "crossref_search_funders",
+        "effect": "read"
+      },
+      {
+        "tool": "crossref_get_member",
+        "effect": "read"
+      },
+      {
+        "tool": "crossref_get_prefix",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-datacite",
+    "displayName": "DataCite via cyanheads",
+    "summary": "查询科研数据 DOI、引用与关联成果",
+    "summaryEn": "Find dataset and software records and trace DOI relationships.",
+    "endpoint": "https://datacite.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/datacite-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.1.2",
+    "package": "@cyanheads/datacite-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "datacite_search_works",
+        "effect": "read"
+      },
+      {
+        "tool": "datacite_get_work",
+        "effect": "read"
+      },
+      {
+        "tool": "datacite_trace_relations",
+        "effect": "read"
+      },
+      {
+        "tool": "datacite_search_repositories",
+        "effect": "read"
+      },
+      {
+        "tool": "datacite_get_citation",
+        "effect": "read"
+      },
+      {
+        "tool": "datacite_list_reference",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-earthquake",
+    "displayName": "Earthquake Feeds via cyanheads",
+    "summary": "检索地震事件、实时数据与事件数量",
+    "summaryEn": "Search seismic events from USGS and EMSC.",
+    "endpoint": "https://earthquake.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/earthquake-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.3.8",
+    "package": "@cyanheads/earthquake-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "earthquake_get_feed",
+        "effect": "read"
+      },
+      {
+        "tool": "earthquake_search",
+        "effect": "read"
+      },
+      {
+        "tool": "earthquake_get_event",
+        "effect": "read"
+      },
+      {
+        "tool": "earthquake_count",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-ensembl",
+    "displayName": "Ensembl via cyanheads",
+    "summary": "查询基因、序列、变异与同源关系",
+    "summaryEn": "Retrieve gene, sequence, variant, and homology records.",
+    "endpoint": "https://ensembl.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/ensembl-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.5.1",
+    "package": "@cyanheads/ensembl-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "ensembl_list_species",
+        "effect": "read"
+      },
+      {
+        "tool": "ensembl_lookup_gene",
+        "effect": "read"
+      },
+      {
+        "tool": "ensembl_get_sequence",
+        "effect": "read"
+      },
+      {
+        "tool": "ensembl_query_region",
+        "effect": "read"
+      },
+      {
+        "tool": "ensembl_predict_variant",
+        "effect": "read"
+      },
+      {
+        "tool": "ensembl_get_homology",
+        "effect": "read"
+      },
+      {
+        "tool": "ensembl_get_xrefs",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-epa",
+    "displayName": "EPA Data via cyanheads",
+    "summary": "查询环保设施、排放、空气与饮水数据",
+    "summaryEn": "Explore environmental compliance, pollution, and drinking-water records.",
+    "endpoint": "https://epa.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/epa-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.4.0",
+    "package": "@cyanheads/epa-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "epa_search_facilities",
+        "effect": "read"
+      },
+      {
+        "tool": "epa_get_facility",
+        "effect": "read"
+      },
+      {
+        "tool": "epa_search_violations",
+        "effect": "read"
+      },
+      {
+        "tool": "epa_get_tri_releases",
+        "effect": "read"
+      },
+      {
+        "tool": "epa_search_tri_releases",
+        "effect": "read"
+      },
+      {
+        "tool": "epa_search_superfund",
+        "effect": "read"
+      },
+      {
+        "tool": "epa_search_water_systems",
+        "effect": "read"
+      },
+      {
+        "tool": "epa_get_ejscreen",
+        "effect": "read"
+      },
+      {
+        "tool": "epa_get_air_quality",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-faostat",
+    "displayName": "FAOSTAT via cyanheads",
+    "summary": "查询农业统计、商品与地区指标",
+    "summaryEn": "Query food and agriculture statistics by region and topic.",
+    "endpoint": "https://faostat.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/faostat-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.3.0",
+    "package": "@cyanheads/faostat-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "faostat_list_domains",
+        "effect": "read"
+      },
+      {
+        "tool": "faostat_resolve_codes",
+        "effect": "read"
+      },
+      {
+        "tool": "faostat_query_observations",
+        "effect": "read"
+      },
+      {
+        "tool": "faostat_commodity_profile",
+        "effect": "read"
+      },
+      {
+        "tool": "faostat_dataframe_query",
+        "effect": "read"
+      },
+      {
+        "tool": "faostat_dataframe_describe",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-fcc-broadband",
+    "displayName": "FCC Broadband via cyanheads",
+    "summary": "查询宽带覆盖、供应商与区域比较",
+    "summaryEn": "Explore broadband coverage and availability by geography.",
+    "endpoint": "https://fcc-broadband.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/fcc-broadband-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.2.4",
+    "package": "@cyanheads/fcc-broadband-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "fcc_geocode_block",
+        "effect": "read"
+      },
+      {
+        "tool": "fcc_search_availability",
+        "effect": "read"
+      },
+      {
+        "tool": "fcc_get_coverage_summary",
+        "effect": "read"
+      },
+      {
+        "tool": "fcc_search_providers",
+        "effect": "read"
+      },
+      {
+        "tool": "fcc_get_provider",
+        "effect": "read"
+      },
+      {
+        "tool": "fcc_compare_areas",
+        "effect": "read"
+      },
+      {
+        "tool": "fcc_find_underserved",
+        "effect": "read"
+      },
+      {
+        "tool": "fcc_list_filing_periods",
+        "effect": "read"
+      },
+      {
+        "tool": "fcc_list_downloads",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-gbif-biodiversity",
+    "displayName": "GBIF Biodiversity via cyanheads",
+    "summary": "检索物种、分类、生物分布与数据集",
+    "summaryEn": "Explore species classifications and biological occurrence records.",
+    "endpoint": "https://gbif-biodiversity.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/gbif-biodiversity-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.7.5",
+    "package": "@cyanheads/gbif-biodiversity-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "gbif_match_species",
+        "effect": "read"
+      },
+      {
+        "tool": "gbif_bulk_match_species",
+        "effect": "read"
+      },
+      {
+        "tool": "gbif_get_species",
+        "effect": "read"
+      },
+      {
+        "tool": "gbif_search_species",
+        "effect": "read"
+      },
+      {
+        "tool": "gbif_get_species_classification",
+        "effect": "read"
+      },
+      {
+        "tool": "gbif_get_species_children",
+        "effect": "read"
+      },
+      {
+        "tool": "gbif_search_occurrences",
+        "effect": "read"
+      },
+      {
+        "tool": "gbif_count_occurrences",
+        "effect": "read"
+      },
+      {
+        "tool": "gbif_get_occurrence",
+        "effect": "read"
+      },
+      {
+        "tool": "gbif_occurrence_facets",
+        "effect": "read"
+      },
+      {
+        "tool": "gbif_search_datasets",
+        "effect": "read"
+      },
+      {
+        "tool": "gbif_get_dataset",
+        "effect": "read"
+      },
+      {
+        "tool": "gbif_search_publishers",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-cern-inspire",
+    "displayName": "INSPIRE High Energy Physics via cyanheads",
+    "summary": "检索高能物理论文、作者与实验资料",
+    "summaryEn": "Find physics papers, authors, experiments, and citation records.",
+    "endpoint": "https://cern-inspire.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/cern-inspire-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.1.2",
+    "package": "@cyanheads/cern-inspire-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "cern_inspire_search_literature",
+        "effect": "read"
+      },
+      {
+        "tool": "cern_inspire_get_paper",
+        "effect": "read"
+      },
+      {
+        "tool": "cern_inspire_export_citations",
+        "effect": "read"
+      },
+      {
+        "tool": "cern_inspire_search_authors",
+        "effect": "read"
+      },
+      {
+        "tool": "cern_inspire_get_citation_summary",
+        "effect": "read"
+      },
+      {
+        "tool": "cern_inspire_search_experiments",
+        "effect": "read"
+      },
+      {
+        "tool": "cern_inspire_search_hepdata",
+        "effect": "read"
+      },
+      {
+        "tool": "cern_inspire_list_reference",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-met-museum",
+    "displayName": "Met Museum via cyanheads",
+    "summary": "检索大都会博物馆藏品与元数据",
+    "summaryEn": "Find collection objects and retrieve their catalog records.",
+    "endpoint": "https://met-museum.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/met-museum-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.8.0",
+    "package": "@cyanheads/met-museum-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "met_list_departments",
+        "effect": "read"
+      },
+      {
+        "tool": "met_search_collections",
+        "effect": "read"
+      },
+      {
+        "tool": "met_list_objects",
+        "effect": "read"
+      },
+      {
+        "tool": "met_get_object",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-noaa-climate",
+    "displayName": "NOAA Climate via cyanheads",
+    "summary": "查询 NOAA 气候站、观测与灾害数据",
+    "summaryEn": "Find climate stations and retrieve historical observations.",
+    "endpoint": "https://noaa-climate.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/noaa-climate-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.6.5",
+    "package": "@cyanheads/noaa-climate-mcp-server",
+    "requiredLocalEnv": [
+      "NOAA_CDO_TOKEN"
+    ],
+    "operations": [
+      {
+        "tool": "noaa_climate_list_datasets",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_climate_list_data_categories",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_climate_list_data_types",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_climate_list_location_categories",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_climate_find_locations",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_climate_find_stations",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_climate_get_station",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_climate_fetch_data",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_climate_search_storm_events",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_climate_get_billion_dollar_disasters",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-noaa-marine",
+    "displayName": "NOAA Marine via cyanheads",
+    "summary": "查询潮汐、海平面、洋流与海洋观测",
+    "summaryEn": "Explore tide stations, buoy observations, and marine conditions.",
+    "endpoint": "https://noaa-marine.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/noaa-marine-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.6.1",
+    "package": "@cyanheads/noaa-marine-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "noaa_marine_find_stations",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_marine_get_tide_predictions",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_marine_get_water_level",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_marine_get_monthly_means",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_marine_get_currents",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_marine_get_conditions",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_marine_get_current_profile",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_marine_get_ocean_observations",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-noaa-spaceweather",
+    "displayName": "NOAA Space Weather via cyanheads",
+    "summary": "查询空间天气、太阳活动与极光预报",
+    "summaryEn": "Read solar activity, geomagnetic conditions, and aurora forecasts.",
+    "endpoint": "https://noaa-spaceweather.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/noaa-spaceweather-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.3.2",
+    "package": "@cyanheads/noaa-spaceweather-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "noaa_spaceweather_get_conditions",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_spaceweather_get_alerts",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_spaceweather_get_kp_index",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_spaceweather_get_solar_wind",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_spaceweather_get_solar_activity",
+        "effect": "read"
+      },
+      {
+        "tool": "noaa_spaceweather_get_aurora_forecast",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-nws-weather",
+    "displayName": "NWS Weather via cyanheads",
+    "summary": "查询美国天气预报、警报与观测",
+    "summaryEn": "Retrieve United States weather observations, forecasts, and alerts.",
+    "endpoint": "https://nws.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/nws-weather-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.10.0",
+    "package": "@cyanheads/nws-weather-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "nws_get_forecast",
+        "effect": "read"
+      },
+      {
+        "tool": "nws_search_alerts",
+        "effect": "read"
+      },
+      {
+        "tool": "nws_get_alert_counts",
+        "effect": "read"
+      },
+      {
+        "tool": "nws_get_observations",
+        "effect": "read"
+      },
+      {
+        "tool": "nws_get_observation_history",
+        "effect": "read"
+      },
+      {
+        "tool": "nws_find_stations",
+        "effect": "read"
+      },
+      {
+        "tool": "nws_list_alert_types",
+        "effect": "read"
+      },
+      {
+        "tool": "nws_get_office_discussion",
+        "effect": "read"
+      },
+      {
+        "tool": "nws_get_zone_forecast",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-oecd",
+    "displayName": "OECD Statistics via cyanheads",
+    "summary": "查询 OECD 数据集、维度与统计指标",
+    "summaryEn": "Find and query OECD statistical datasets.",
+    "endpoint": "https://oecd.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/oecd-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.4.0",
+    "package": "@cyanheads/oecd-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "oecd_list_agencies",
+        "effect": "read"
+      },
+      {
+        "tool": "oecd_search_datasets",
+        "effect": "read"
+      },
+      {
+        "tool": "oecd_get_dataset_info",
+        "effect": "read"
+      },
+      {
+        "tool": "oecd_get_dimension_values",
+        "effect": "read"
+      },
+      {
+        "tool": "oecd_query_dataset",
+        "effect": "read"
+      },
+      {
+        "tool": "oecd_dataframe_describe",
+        "effect": "read"
+      },
+      {
+        "tool": "oecd_dataframe_query",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-openchargemap",
+    "displayName": "Open Charge Map via cyanheads",
+    "summary": "查询充电站、设备信息与公开评论",
+    "summaryEn": "Find electric-vehicle charging stations and related location records.",
+    "endpoint": "https://openchargemap.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/openchargemap-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.1.10",
+    "package": "@cyanheads/openchargemap-mcp-server",
+    "requiredLocalEnv": [
+      "OPENCHARGEMAP_API_KEY"
+    ],
+    "operations": [
+      {
+        "tool": "openchargemap_find_stations",
+        "effect": "read"
+      },
+      {
+        "tool": "openchargemap_get_station",
+        "effect": "read"
+      },
+      {
+        "tool": "openchargemap_lookup_reference",
+        "effect": "read"
+      },
+      {
+        "tool": "openchargemap_get_station_comments",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-open-meteo",
+    "displayName": "Open-Meteo via cyanheads",
+    "summary": "查询天气、空气质量、海洋与气候数据",
+    "summaryEn": "Retrieve forecasts, historical weather, and air quality data.",
+    "endpoint": "https://open-meteo.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/open-meteo-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.4.0",
+    "package": "@cyanheads/open-meteo-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "openmeteo_search_locations",
+        "effect": "read"
+      },
+      {
+        "tool": "openmeteo_get_elevation",
+        "effect": "read"
+      },
+      {
+        "tool": "openmeteo_get_forecast",
+        "effect": "read"
+      },
+      {
+        "tool": "openmeteo_get_historical",
+        "effect": "read"
+      },
+      {
+        "tool": "openmeteo_get_marine",
+        "effect": "read"
+      },
+      {
+        "tool": "openmeteo_get_air_quality",
+        "effect": "read"
+      },
+      {
+        "tool": "openmeteo_get_ensemble",
+        "effect": "read"
+      },
+      {
+        "tool": "openmeteo_get_flood",
+        "effect": "read"
+      },
+      {
+        "tool": "openmeteo_get_climate",
+        "effect": "read"
+      },
+      {
+        "tool": "openmeteo_dataframe_query",
+        "effect": "read"
+      },
+      {
+        "tool": "openmeteo_dataframe_describe",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-openalex",
+    "displayName": "OpenAlex via cyanheads",
+    "summary": "检索学术实体、引用网络与研究趋势",
+    "summaryEn": "Find scholarly publications and related research records.",
+    "endpoint": "https://openalex.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/openalex-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.8.0",
+    "package": "@cyanheads/openalex-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "openalex_resolve_name",
+        "effect": "read"
+      },
+      {
+        "tool": "openalex_search_entities",
+        "effect": "read"
+      },
+      {
+        "tool": "openalex_analyze_trends",
+        "effect": "read"
+      },
+      {
+        "tool": "openalex_get_citation_graph",
+        "effect": "read"
+      },
+      {
+        "tool": "openalex_describe_fields",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-openfda",
+    "displayName": "openFDA via cyanheads",
+    "summary": "查询 FDA 药品、器械、不良事件与召回数据",
+    "summaryEn": "Query drug, food, device, and recall records.",
+    "endpoint": "https://openfda.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/openfda-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.8.0",
+    "package": "@cyanheads/openfda-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "openfda_search_adverse_events",
+        "effect": "read"
+      },
+      {
+        "tool": "openfda_search_animal_events",
+        "effect": "read"
+      },
+      {
+        "tool": "openfda_search_drug_shortages",
+        "effect": "read"
+      },
+      {
+        "tool": "openfda_search_recalls",
+        "effect": "read"
+      },
+      {
+        "tool": "openfda_search_tobacco_reports",
+        "effect": "read"
+      },
+      {
+        "tool": "openfda_count_values",
+        "effect": "read"
+      },
+      {
+        "tool": "openfda_describe_fields",
+        "effect": "read"
+      },
+      {
+        "tool": "openfda_get_drug_label",
+        "effect": "read"
+      },
+      {
+        "tool": "openfda_search_drug_approvals",
+        "effect": "read"
+      },
+      {
+        "tool": "openfda_search_device_clearances",
+        "effect": "read"
+      },
+      {
+        "tool": "openfda_lookup_ndc",
+        "effect": "read"
+      },
+      {
+        "tool": "openfda_drug_profile",
+        "effect": "read"
+      },
+      {
+        "tool": "openfda_dataframe_describe",
+        "effect": "read"
+      },
+      {
+        "tool": "openfda_dataframe_query",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-paleobiology",
+    "displayName": "Paleobiology Database via cyanheads",
+    "summary": "查询古生物分类、化石分布与地质年代",
+    "summaryEn": "Explore fossil occurrences, taxonomic ranges, and geological intervals.",
+    "endpoint": "https://paleobiology.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/paleobiology-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.3.7",
+    "package": "@cyanheads/paleobiology-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "paleobiology_search_occurrences",
+        "effect": "read"
+      },
+      {
+        "tool": "paleobiology_get_taxon",
+        "effect": "read"
+      },
+      {
+        "tool": "paleobiology_get_diversity",
+        "effect": "read"
+      },
+      {
+        "tool": "paleobiology_list_intervals",
+        "effect": "read"
+      },
+      {
+        "tool": "paleobiology_search_collections",
+        "effect": "read"
+      },
+      {
+        "tool": "paleobiology_dataframe_query",
+        "effect": "read"
+      },
+      {
+        "tool": "paleobiology_dataframe_describe",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-pubchem",
+    "displayName": "PubChem via cyanheads",
+    "summary": "查询化合物性质、结构、安全与活性数据",
+    "summaryEn": "Look up chemical compounds, properties, and biological activity.",
+    "endpoint": "https://pubchem.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/pubchem-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.6.6",
+    "package": "@cyanheads/pubchem-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "pubchem_search_compounds",
+        "effect": "read"
+      },
+      {
+        "tool": "pubchem_get_compound_details",
+        "effect": "read"
+      },
+      {
+        "tool": "pubchem_get_compound_image",
+        "effect": "read"
+      },
+      {
+        "tool": "pubchem_get_compound_3d_structure",
+        "effect": "read"
+      },
+      {
+        "tool": "pubchem_get_compound_xrefs",
+        "effect": "read"
+      },
+      {
+        "tool": "pubchem_get_compound_safety",
+        "effect": "read"
+      },
+      {
+        "tool": "pubchem_get_bioactivity",
+        "effect": "read"
+      },
+      {
+        "tool": "pubchem_get_compound_interactions",
+        "effect": "read"
+      },
+      {
+        "tool": "pubchem_search_assays",
+        "effect": "read"
+      },
+      {
+        "tool": "pubchem_get_summary",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-uk-legislation",
+    "displayName": "UK Legislation via cyanheads",
+    "summary": "查询英国法规、修订与引文",
+    "summaryEn": "Read legislation and trace amendments across dates.",
+    "endpoint": "https://uk-legislation.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/uk-legislation-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.1.2",
+    "package": "@cyanheads/uk-legislation-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "uklaw_search_legislation",
+        "effect": "read"
+      },
+      {
+        "tool": "uklaw_get_document",
+        "effect": "read"
+      },
+      {
+        "tool": "uklaw_get_amendments",
+        "effect": "read"
+      },
+      {
+        "tool": "uklaw_track_changes",
+        "effect": "read"
+      },
+      {
+        "tool": "uklaw_lookup_citation",
+        "effect": "read"
+      },
+      {
+        "tool": "uklaw_list_reference",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-census",
+    "displayName": "US Census via cyanheads",
+    "summary": "查询美国人口统计、地理维度与地区比较",
+    "summaryEn": "Query population statistics, variables, and geographic areas.",
+    "endpoint": "https://census.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/census-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.6.1",
+    "package": "@cyanheads/census-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "census_list_datasets",
+        "effect": "read"
+      },
+      {
+        "tool": "census_list_geographies",
+        "effect": "read"
+      },
+      {
+        "tool": "census_search_variables",
+        "effect": "read"
+      },
+      {
+        "tool": "census_get_variable",
+        "effect": "read"
+      },
+      {
+        "tool": "census_list_predicate_values",
+        "effect": "read"
+      },
+      {
+        "tool": "census_resolve_geography",
+        "effect": "read"
+      },
+      {
+        "tool": "census_query_data",
+        "effect": "read"
+      },
+      {
+        "tool": "census_compare_geographies",
+        "effect": "read"
+      }
+    ]
+  },
+  {
+    "providerId": "cyanheads-zenodo",
+    "displayName": "Zenodo via cyanheads",
+    "summary": "检索开放研究成果、版本与数据文件",
+    "summaryEn": "Find research datasets, software, publications, and their versions.",
+    "endpoint": "https://zenodo.caseyjhand.com/mcp",
+    "repository": "https://github.com/cyanheads/zenodo-mcp-server",
+    "license": "Apache-2.0",
+    "version": "0.1.2",
+    "package": "@cyanheads/zenodo-mcp-server",
+    "requiredLocalEnv": [],
+    "operations": [
+      {
+        "tool": "zenodo_search_records",
+        "effect": "read"
+      },
+      {
+        "tool": "zenodo_get_record",
+        "effect": "read"
+      },
+      {
+        "tool": "zenodo_list_versions",
+        "effect": "read"
+      },
+      {
+        "tool": "zenodo_list_files",
+        "effect": "read"
+      },
+      {
+        "tool": "zenodo_read_file",
+        "effect": "read"
+      },
+      {
+        "tool": "zenodo_lookup_vocabulary",
+        "effect": "read"
+      }
+    ]
+  }
+]

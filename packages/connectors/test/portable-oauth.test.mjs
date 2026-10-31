@@ -1,0 +1,61 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, realpath, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { createServer } from 'node:net';
+import { MCPSession } from '../src/session.mjs';
+import { createPortableCredentialAuthority } from '../src/portable-credentials.mjs';
+import { createPortableControl } from '../src/portable-control.mjs';
+import { readPortableRegistry } from '../src/portable-registry.mjs';
+import { credentialAccount } from '../src/portable-store.mjs';
+import { fixture } from './fixtures/http.mjs';
+
+const executable = resolve(import.meta.dirname, '../../../target/debug/pero-connector-worker');
+
+test('real portable Rust OAuth survives static catalog conversion, refresh rotation, reopening and local revocation', { skip: !['darwin', 'linux'].includes(process.platform), timeout: 30000 }, async t => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'point-portable-oauth-')));
+  const remote = await fixture(), sessions = [];
+  t.after(async () => { for (const s of sessions) { s.close(); await s.whenClosed; } await remote.close(); await rm(root, { recursive: true, force: true }); });
+  const socket = createServer(); await new Promise(r => socket.listen(0, '127.0.0.1', r));
+  const redirectUri = `http://127.0.0.1:${socket.address().port}/callback`; await new Promise(r => socket.close(r));
+  const registry = join(root, 'connectors.json'); await writeFile(registry, '{}', { mode: 0o600 });
+  const values = new Map();
+  const store = { read: async key => values.get(key) ?? null, write: async (key, value) => { values.set(key, value); }, remove: async key => { values.delete(key); } };
+  const credentialAuthority = createPortableCredentialAuthority({ registry, store });
+  const control = createPortableControl({ registry, credentialAuthority });
+  const definition = { transport: 'http', tools: ['counter'], url: remote.origin + '/secure', allowLoopbackHttp: true,
+    oauth: { issuer: remote.origin, clientId: 'point-fixture', redirectUri, scopes: ['tools'], persist: true } };
+  await writeFile(registry, JSON.stringify({ fixture: definition, public: { transport: 'http', url: remote.origin + '/mcp', allowLoopbackHttp: true, tools: [] } }));
+  const original = await readPortableRegistry(registry, { credentials: true });
+  const originalSlot = credentialAccount('fixture', original.entries.fixture);
+  const open = async () => { const s = new MCPSession({ executable, backend: 'portable', registry, connectorId: 'fixture', credentialAuthority }); sessions.push(s); await s.open(); return s; };
+  const auth = await open(); await assert.rejects(auth.list(), { code: 'MCP_AUTH_REQUIRED' });
+  const busy = new MCPSession({ executable, backend: 'portable', registry, connectorId: 'fixture', credentialAuthority }); sessions.push(busy);
+  await assert.rejects(busy.open(), { code: 'MCP_CONTROL_BUSY' });
+  let callback;
+  await auth.authorize({ openURL: async url => {
+    const res = await fetch(url, { redirect: 'manual' }); callback = new URL(res.headers.get('location'));
+    const wrong = new URL(callback); wrong.searchParams.set('state', 'wrong');
+    assert.equal((await fetch(wrong)).status, 400);
+    assert.equal((await fetch(callback)).status, 200);
+  } });
+  await assert.rejects(auth.request('mcp.oauth.complete', { callback: Object.fromEntries(callback.searchParams) }), { code: 'MCP_AUTH_CALLBACK' });
+  await auth.list(); assert.equal(JSON.parse((await auth.call('counter', {})).content[0].text).count, 1);
+  assert.deepEqual({ pkce: remote.metrics.pkce, resource: remote.metrics.resource, tokens: remote.metrics.tokens, refresh: remote.metrics.refresh }, { pkce: true, resource: true, tokens: 1, refresh: 1 });
+  assert.ok([...values.values()].some(value => value.includes('fixture-refresh-rotated')));
+  assert.equal((await readFile(registry, 'utf8')).includes('fixture-refresh'), false);
+  auth.close(); await auth.whenClosed;
+  const publicEntry = (await control('mcp.control', [{ operation: 'list' }])).find(entry => entry.connectorId === 'public');
+  await control('mcp.control', [{ operation: 'enable', connectorId: 'public', enabled: false, expectedRevision: publicEntry.revision }]);
+  const managed = await readPortableRegistry(registry, { credentials: true });
+  assert.equal(managed.managed, true);
+  assert.equal(credentialAccount('fixture', managed.entries.fixture), originalSlot);
+  assert.ok(values.has(originalSlot));
+  const reopened = await open(); await reopened.list(); assert.equal(remote.metrics.tokens, 1); assert.equal(remote.metrics.refresh, 1);
+  const entry = (await control('mcp.control', [{ operation: 'list' }])).find(entry => entry.connectorId === 'fixture');
+  await control('mcp.control', [{ operation: 'logout', connectorId: 'fixture', expectedRevision: entry.revision }]);
+  assert.equal(values.size, 0);
+  await assert.rejects(reopened.renew(), { code: 'MCP_CONFIG_CHANGED' }); await reopened.whenClosed;
+  const loggedOut = await open(); await assert.rejects(loggedOut.list(), { code: 'MCP_AUTH_REQUIRED' });
+});

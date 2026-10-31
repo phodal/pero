@@ -174,7 +174,10 @@ async fn run(
     let agent = AcpAgent::new(
         AcpAgentConfig::new(&config.command)
             .args(&args)
-            .envs(config.env.clone()),
+            .envs(config.env.clone())
+            // The SDK inherits Host environment. Only the per-thread MCP header
+            // belongs in the Agent; never inherit the token derivation key.
+            .env("PERO_CONNECTORS_TOKEN", ""),
     );
     let model_api = Arc::new(Mutex::new(ModelApi::default()));
     let notification_models = model_api.clone();

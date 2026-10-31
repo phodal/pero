@@ -481,7 +481,7 @@ fn launch_mcp(
     let config: AgentConfig = serde_json::from_value(json!({
         "id": "mcp-fixture", "name": "MCP fixture", "command": "node",
         "args": [root.join("tests/runtime/lifecycle-agent.mjs")],
-        "env": {"PERO_FIXTURE_SCENARIO": scenario, "PERO_EXPECT_MCP": servers.to_string()},
+        "env": {"PERO_FIXTURE_SCENARIO": scenario, "PERO_EXPECT_MCP": servers.to_string(), "PERO_CONNECTORS_TOKEN": "fixture-master-key"},
         "mcp_servers": servers
     }))
     .unwrap();

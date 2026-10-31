@@ -32,6 +32,7 @@ model EnableApp { action: "enable"; name: AppName; ...RequestBase; }
 model DisableApp { action: "disable"; name: AppName; ...RequestBase; }
 model UninstallApp { action: "uninstall"; name: AppName; ...RequestBase; }
 model ResolveApp { action: "resolve"; name: AppName; ...RequestBase; }
+model ConnectorsApp { action: "connectors"; name: AppName; ...RequestBase; }
 model AgentInfoRequest { operation: "info"; ...AppClosed; }
 model AgentStartRequest { operation: "start"; @minLength(1) @maxLength(48) @pattern("^[a-zA-Z0-9_-]+$") requestId: string; @minLength(1) @maxLength(128000) prompt: string; agentId: string; ...AppClosed; }
 model AgentEventsRequest { operation: "events"; sessionId: string; after: uint32; ...AppClosed; }
@@ -46,7 +47,8 @@ model AppAgentEvent { kind: AppAgentStatus; text: string; ...AppClosed; }
 model AppAgentTranscript { events: AppAgentEvent[]; cursor: uint32; status: AppAgentStatus; text: string; ...AppClosed; }
 model AppAgentCancelled { cancelled: true; ...AppClosed; }
 model AppSessionBinding { app: AppName; requestId: string; agentId: string; prompt: string; ...AppClosed; }
-@oneOf union AppRequest { ListApps, InstallApp, EnableApp, DisableApp, UninstallApp, ResolveApp, AgentApp }
-model AppSuccess { ok: true; value: AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled; ...AppClosed; }
+@oneOf union AppRequest { ListApps, InstallApp, EnableApp, DisableApp, UninstallApp, ResolveApp, AgentApp, ConnectorsApp }
+model AppGrant { permitted: true; ...AppClosed; }
+model AppSuccess { ok: true; value: AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }

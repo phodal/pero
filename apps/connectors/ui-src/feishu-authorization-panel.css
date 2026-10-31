@@ -1,0 +1,28 @@
+.point-feishu-authorization{display:flex;flex-direction:column;gap:var(--pero-space-7, 14px);min-width:0;font-size:var(--pero-font-size-md, 13px);line-height:var(--pero-line-height-normal, 1.5)}
+.point-feishu-account{display:flex;align-items:center;justify-content:flex-start;gap:var(--pero-space-5, 10px);flex-wrap:wrap}
+.point-feishu-account h3{margin:0;font-size:var(--pero-font-size-md, 13px);font-weight:var(--pero-font-weight-semibold, 600)}
+.point-feishu-account>span{overflow-wrap:anywhere;color:var(--pero-text-secondary)}
+.point-feishu-permissions{border:0;padding:0;margin:0;min-width:0}
+.point-feishu-permissions legend{padding:0;font-size:var(--pero-font-size-md, 13px);font-weight:var(--pero-font-weight-semibold, 600)}
+.point-feishu-permissions p{margin:var(--pero-space-2, 4px) 0 var(--pero-space-4, 8px);color:var(--pero-text-secondary);font-size:var(--pero-font-size-sm, 12px)}
+.point-feishu-permission-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 var(--pero-space-8, 16px)}
+.point-feishu-authorization label.point-feishu-permission{display:flex;align-items:center;gap:var(--pero-space-4, 8px);min-height:44px;margin:0;border-bottom:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);font-weight:var(--pero-font-weight-regular, 400);font-size:var(--pero-font-size-sm-plus, 12.5px);cursor:pointer}
+.point-feishu-permission>span{flex:1;min-width:0}
+.point-feishu-permission small{flex:none;font-size:var(--pero-font-size-xs, 11px);color:var(--pero-text-secondary)}
+.point-feishu-permission small[data-granted=true]{color:var(--pero-success)}
+.point-feishu-auth-actions{display:flex;align-items:center;gap:var(--pero-space-4, 8px);flex-wrap:wrap}
+.point-feishu-auth-attempt{display:flex;align-items:center;gap:var(--pero-space-8, 16px);flex-wrap:wrap}
+/* point-color-literal: QR codes require a fixed white quiet zone for scanning in every theme. */
+.point-feishu-auth-attempt img{flex:none;background:white;border-radius:var(--pero-radius-md, 8px)}
+.point-feishu-diagnostics{color:var(--pero-text-secondary);font-size:var(--pero-font-size-sm, 12px);overflow-wrap:anywhere}
+.point-feishu-diagnostics summary{cursor:pointer;padding:var(--pero-space-2, 4px) 0}
+.point-feishu-diagnostics dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--pero-space-2, 4px) var(--pero-space-6, 12px)}
+.point-feishu-diagnostics dd{margin:0}
+.point-feishu-connection .point-connectors-advanced{border:0;border-radius:0;border-top:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);padding:var(--pero-space-6, 12px) 0;margin:var(--pero-space-8, 16px) 0 0}
+.point-feishu-connection .point-connectors-advanced>summary{padding:var(--pero-space-2, 4px) 0}
+.point-feishu-connection .point-connectors-advanced[open]>summary{margin-bottom:var(--pero-space-6, 12px)}
+@media(max-width:520px){.point-feishu-permission-list{grid-template-columns:1fr}.point-feishu-authorization .point-ui-button{min-height:44px}.point-feishu-connection summary{min-height:44px;align-content:center}}
+
+.point-connector-detail.point-feishu-connection.point-ui-dialog[data-size=lg]{width:min(680px,calc(100vw - 32px));max-height:min(88dvh,760px)}
+.point-feishu-runtime-details{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--pero-space-4, 8px) var(--pero-space-8, 16px);font-size:var(--pero-font-size-sm, 12px);color:var(--pero-text-secondary)}
+.point-feishu-runtime-details dd{margin:0;overflow-wrap:anywhere}

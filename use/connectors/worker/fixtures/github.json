@@ -1,0 +1,179 @@
+{
+  "schema": "point.repo-delivery-fixtures.v1",
+  "providerId": "github",
+  "apiVersion": "2026-03-10",
+  "errorCases": [
+    {
+      "status": 401,
+      "headers": {},
+      "body": "",
+      "code": "GITHUB_AUTH_REQUIRED"
+    },
+    {
+      "status": 403,
+      "headers": {},
+      "body": "denied",
+      "code": "GITHUB_PERMISSION_DENIED"
+    },
+    {
+      "status": 403,
+      "headers": {
+        "x-ratelimit-remaining": "0"
+      },
+      "body": "denied",
+      "code": "GITHUB_RATE_LIMITED"
+    },
+    {
+      "status": 403,
+      "headers": {},
+      "body": "secondary rate limit",
+      "code": "GITHUB_RATE_LIMITED"
+    },
+    {
+      "status": 429,
+      "headers": {},
+      "body": "",
+      "code": "GITHUB_RATE_LIMITED"
+    },
+    {
+      "status": 404,
+      "headers": {},
+      "body": "",
+      "code": "GITHUB_NOT_FOUND"
+    },
+    {
+      "status": 422,
+      "headers": {},
+      "body": "",
+      "code": "GITHUB_INVALID_ARGUMENT"
+    },
+    {
+      "status": 502,
+      "headers": {},
+      "body": "",
+      "code": "GITHUB_TEMPORARY"
+    }
+  ],
+  "pagination": [
+    {
+      "link": "<https://api.github.com/repos/o/r/issues?page=2>; rel=\"next\"",
+      "path": "/repos/o/r/issues",
+      "cursor": "page:2"
+    },
+    {
+      "link": "<https://evil.example/repos/o/r/issues?page=2>; rel=\"next\"",
+      "path": "/repos/o/r/issues",
+      "cursor": null
+    },
+    {
+      "link": "<https://api.github.com/repos/o/other/issues?page=2>; rel=\"next\"",
+      "path": "/repos/o/r/issues",
+      "cursor": null
+    }
+  ],
+  "checkCases": [
+    {
+      "checks": [
+        {
+          "state": "completed",
+          "conclusion": "success"
+        }
+      ],
+      "result": "passed",
+      "pending": false
+    },
+    {
+      "checks": [
+        {
+          "state": "completed",
+          "conclusion": "failure"
+        },
+        {
+          "state": "in_progress"
+        }
+      ],
+      "result": "failed",
+      "pending": true
+    },
+    {
+      "checks": [
+        {
+          "state": "completed",
+          "conclusion": "cancelled"
+        }
+      ],
+      "result": "errored",
+      "pending": false
+    },
+    {
+      "checks": [
+        {
+          "state": "completed",
+          "conclusion": "neutral"
+        }
+      ],
+      "result": "skipped",
+      "pending": false
+    },
+    {
+      "checks": [
+        {
+          "state": "completed",
+          "conclusion": "failure",
+          "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "result": "skipped",
+      "pending": false
+    }
+  ],
+  "objects": [
+    {
+      "kind": "issue",
+      "raw": {
+        "id": 1,
+        "number": 1,
+        "title": "Closed issue",
+        "state": "closed",
+        "html_url": "https://github.com/o/r/issues/1",
+        "updated_at": "2026-10-13T00:00:00Z",
+        "labels": [
+          {
+            "name": "status:blocked"
+          }
+        ],
+        "assignees": [
+          {
+            "login": "alice"
+          }
+        ],
+        "body": "BODY_SECRET",
+        "comments_url": "COMMENT_SECRET"
+      },
+      "expectedState": "closed"
+    },
+    {
+      "kind": "change_request",
+      "raw": {
+        "id": 2,
+        "number": 2,
+        "title": "Merged change",
+        "state": "closed",
+        "merged_at": "2026-10-13T00:00:00Z",
+        "html_url": "https://github.com/o/r/pull/2",
+        "updated_at": "2026-10-13T00:00:00Z",
+        "head": {
+          "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "requested_reviewers": [
+          {
+            "login": "bob"
+          }
+        ],
+        "body": "BODY_SECRET"
+      },
+      "expectedState": "merged"
+    }
+  ]
+}
