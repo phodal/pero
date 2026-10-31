@@ -23,6 +23,11 @@
   const snapshot = await request({ operation: 'snapshot' });
   await until(() => document.querySelectorAll('.point-connectors-tile').length === window.nativeCardCount);
   const directory = snapshot.directory.map(entry => entry.providerId).sort();
+  state.step = 'category';
+  button('Simulation & computation').click();
+  await until(() => document.querySelectorAll('.point-connectors-section').length === 1 && document.querySelector('.point-connectors-section-title').textContent.includes('Simulation & computation'));
+  button('All').click();
+  await until(() => document.querySelectorAll('.point-connectors-tile').length === window.nativeCardCount);
   const search = document.querySelector('input[type=search]');
   state.step = 'search';
   fill(search, 'GitHub');
@@ -90,5 +95,6 @@
     await request({ operation: 'verify', connectorId: 'fixture' });
   }
   check(!JSON.stringify(await request({ operation: 'snapshot' })).includes('native-fixture-private-value'), 'Secret leaked to App projection');
-  Object.assign(state, { passed: true, pending: false, directory, logos: logos.length, maxCardHeight, bridge: typeof window.pero });
+  const maxGuideHeight = Math.max(...[...document.querySelectorAll('.point-connectors-guide')].map(guide => guide.getBoundingClientRect().height));
+  Object.assign(state, { passed: true, pending: false, directory, logos: logos.length, maxCardHeight, maxGuideHeight, bridge: typeof window.pero });
 })().catch(error => { window.nativeConnectors = { passed: false, error: String(error), step: window.nativeConnectors?.step }; });

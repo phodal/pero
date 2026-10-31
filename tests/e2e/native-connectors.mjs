@@ -46,7 +46,10 @@ try {
   }
   assert.equal(remote.metrics.calls, 2); assert.equal(remote.metrics.publicHeader, true);
   const evidence = { passed: true, directory: expected.length, calls: remote.metrics.calls, restart: true, realKeychain: true,
-    sha256: Object.fromEntries(await Promise.all(['target/debug/pero-native', 'target/debug/pero-host', 'target/debug/pero-connector-worker', 'apps/connectors/dist/index.js', 'packages/connectors/helpers/pero-connectors-host.mjs'].map(async name => [name, createHash('sha256').update(await readFile(resolve(root, name))).digest('hex')]))),
+    sha256: Object.fromEntries(await Promise.all([
+      ['pero-native', binary], ['pero-host', resolve(temp, 'pero-host')], ['pero-connector-worker', resolve(temp, 'pero-connector-worker')],
+      ['connectors-app', resolve(root, 'apps/connectors/dist/index.js')], ['connectors-owner', resolve(root, 'packages/connectors/helpers/pero-connectors-host.mjs')],
+    ].map(async ([name, path]) => [name, createHash('sha256').update(await readFile(path)).digest('hex')]))),
   };
   await writeFile(resolve(out, 'result.json'), JSON.stringify(evidence, null, 2));
   console.log(`Native Connectors passed: ${expected.length} providers, real keychain restart, grants, two actual ACP calls, dark/zh/narrow.`);
