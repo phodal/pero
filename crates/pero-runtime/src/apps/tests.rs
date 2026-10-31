@@ -382,3 +382,19 @@ fn point_config_uses_the_enabled_app_data_and_declared_storage_permission() {
     fs::write(workspace.0.join("installed/virtual-cell/point-source/app.json"), r#"{"permissions":{"storage":false,"api":["/api/apps/virtual-cell/config"]}}"#).unwrap();
     assert!(store.point_config(&name, None).is_err());
 }
+
+#[test]
+fn point_projects_require_enabled_declared_scope() {
+    let workspace = Workspace::new();
+    let source = workspace.package(None);
+    fs::create_dir(source.join("point-source")).unwrap();
+    fs::write(source.join("point-source/app.json"), r#"{"permissions":{"api":["/api/projects"]}}"#).unwrap();
+    let mut store = AppStore::open(workspace.0.join("installed"), Default::default()).unwrap();
+    let name = store.install(&source).unwrap()[0].name.clone();
+    assert!(store.point_project_root(&name, "/api/projects").is_err());
+    store.set_enabled(&name, true).unwrap();
+    assert_eq!(store.point_project_root(&name, "/api/projects?view=local").unwrap(), dunce::canonicalize(&workspace.0).unwrap().join("point-projects"));
+    assert!(store.point_project_root(&name, "/api/workspaces").is_err());
+    fs::write(workspace.0.join("installed/virtual-cell/point-source/app.json"), r#"{"permissions":{"api":[]}}"#).unwrap();
+    assert!(store.point_project_root(&name, "/api/projects").is_err());
+}

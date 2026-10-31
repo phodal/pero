@@ -63,8 +63,13 @@ requests and transport selection, including publishing the requested Task with
 its loading state. Workbench route selection is a separate UI concern. Ordinary
 polling refreshes the remote snapshot without selecting a Workbench route;
 explicit navigation and Task actions use the action/event path above.
-The Apps navigation entry always opens the library. An already-open App is
-restored from its content tab, retaining the same iframe document.
+The Manage apps navigation entry always opens the library. Enabled Apps also
+have global sidebar shortcuts. An already-open App is restored from its shortcut
+or content tab, retaining the same iframe document. Sessions presents the
+existing conversation selection in a searchable list beside shared Chat;
+the global sidebar no longer contains individual conversations. This is a
+presentation change, with the same route and Host history owners. See
+[Sessions and App navigation](../fitness/sessions-apps.md) for verification.
 
 A tab is a view. Closing it does not delete a conversation, cancel a running
 session or Task, uninstall an App, or stop an App backend. Those actions retain

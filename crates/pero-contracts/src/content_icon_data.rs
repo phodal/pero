@@ -223,6 +223,11 @@ pub fn lookup(section: &str, value: &str) -> Option<&'static str> {
         ("extensions", "webp") => Some("image"),
         ("apps", "virtual-cell") => Some("network"),
         ("apps", "paper-agent") => Some("book-open-text"),
+        ("apps", "control-lab") => Some("activity"),
+        ("apps", "data") => Some("database"),
+        ("apps", "data-agent") => Some("chart-line"),
+        ("apps", "insights") => Some("layout-list"),
+        ("apps", "connectors") => Some("plug"),
         _ => None,
     }
 }

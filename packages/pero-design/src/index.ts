@@ -3,5 +3,5 @@
 import './tokens.css';
 import './components.css';
 
-export { ActionButton, Badge, ChatMarkdown, EmptyState, Kbd, LibraryHeader, ListRow, OutlineBadge, ReaderFrame, SearchField, SettingsGroup, SettingsRow, SidebarRow } from './components';
+export { ActionButton, Badge, ChatMarkdown, Composer, EmptyState, Kbd, LibraryHeader, ListRow, OutlineBadge, ReaderFrame, SearchField, SettingsGroup, SettingsRow, SidebarRow } from './components';
 export { chatProse, colorRoles, designContract, metrics, radii, space, typePx, typeWeight } from './tokens.generated';

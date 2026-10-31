@@ -54,7 +54,7 @@ const bridge = {
 const unavailable = () => { throw new Error('This Point Host operation is unavailable in Pero'); };
 const prefix = `/apps/${app.name}`;
 const backendFetch: typeof fetch = (input, init) => {
-  if (typeof input !== 'string' || !(input.startsWith(prefix + '/api/') || app.permissions?.storage && input === `/api/apps/${app.name}/config`))
+  if (typeof input !== 'string' || !(input === '/api/projects' || input.startsWith('/api/projects/') || input.startsWith(prefix + '/api/') || app.permissions?.storage && input === `/api/apps/${app.name}/config`))
     throw new Error('Only this App backend is available');
   return fetch(input, { ...init, redirect: 'error' });
 };

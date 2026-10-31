@@ -33,3 +33,31 @@ impl Prepared {
 impl Drop for Prepared {
     fn drop(&mut self) { if self.temporary { let _ = std::fs::remove_dir_all(&self.path); } }
 }
+
+/// Private HTTP-shaped operation; no App-selected binary, filesystem root or URL.
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectRequest {
+    pub method: String,
+    pub path: String,
+    #[serde(default)]
+    pub headers: std::collections::BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body: Option<serde_json::Value>,
+}
+pub fn projects(root: &Path, request: ProjectRequest) -> Result<serde_json::Value, String> {
+    use std::io::Write;
+    let runtime = std::env::var_os("PERO_POINT_RUNTIME_ROOT").map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("packages/point-app/dist"));
+    let binary = runtime.join(if cfg!(windows) { "point-host.exe" } else { "point-host" });
+    let bytes = serde_json::to_vec(&request).map_err(|e| e.to_string())?;
+    if bytes.len() > 1048576 { return Err("Point Project request exceeds 1 MiB".into()); }
+    let mut child = Command::new(binary).arg("--root").arg(root)
+        .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped())
+        .spawn().map_err(|e| format!("Point Project domain is unavailable in this Pero build: {e}"))?;
+    let write = child.stdin.take().ok_or("Point Project input unavailable")?.write_all(&bytes);
+    let output = child.wait_with_output().map_err(|e| e.to_string())?;
+    write.map_err(|e| e.to_string())?;
+    if !output.status.success() { return Err(String::from_utf8_lossy(&output.stderr).chars().take(2000).collect()); }
+    serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())
+}

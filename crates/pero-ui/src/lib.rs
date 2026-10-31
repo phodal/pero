@@ -1,4 +1,6 @@
 #[cfg(any(target_family = "wasm", feature = "native"))]
+mod terminal;
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod view_bounds;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod settings_harness;
@@ -16,6 +18,8 @@ mod components;
 use pero_chat_ui::theme;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod view;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod sessions_view;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod documents;
 #[cfg(any(target_family="wasm",feature="native"))]

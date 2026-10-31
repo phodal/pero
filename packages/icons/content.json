@@ -45,5 +45,5 @@
     "c": "file-code", "h": "file-code", "cc": "file-code", "cpp": "file-code", "hpp": "file-code", "go": "file-code", "java": "file-code", "rb": "file-code", "swift": "file-code", "kt": "file-code", "cob": "file-code", "cbl": "file-code",
     "ipynb": "notebook", "png": "image", "jpg": "image", "jpeg": "image", "gif": "image", "webp": "image"
   },
-  "apps": { "virtual-cell": "network", "paper-agent": "book-open-text" }
+  "apps": { "virtual-cell": "network", "paper-agent": "book-open-text", "control-lab": "activity", "data": "database", "data-agent": "chart-line", "insights": "layout-list", "connectors": "plug" }
 }

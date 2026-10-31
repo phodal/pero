@@ -1,4 +1,8 @@
 {
+  "sessions.no_matches": "没有匹配的会话。",
+  "apps.actions": "应用操作",
+  "apps.manage": "管理应用",
+  "sessions.search": "搜索会话…",
   "mcp.import": "导入 JSON",
   "mcp.import_save": "导入为停用",
   "mcp.import_hint": "追加 JSON 连接器数组，所有导入项均为停用。格式：[{\"name\":\"example\",\"transport\":{\"type\":\"http\",\"url\":\"https://example.com/mcp\"}}]。不接受 env、headers 等额外字段。请勿粘贴密钥。",
@@ -826,5 +830,13 @@
   "harness.invalid_endpoint": "请输入 HTTPS API 地址，本机回环地址可使用 HTTP。",
   "harness.invalid_model": "请输入不含空白字符的模型 ID。",
   "harness.invalid_key": "API Key 含有无效字符。",
-  "harness.confirm_remove": "确认移除"
+  "harness.confirm_remove": "确认移除",
+  "terminal.title": "终端",
+  "terminal.starting": "正在启动 shell…",
+  "terminal.exited": "Shell 已退出",
+  "terminal.close": "关闭终端",
+  "terminal.new": "新建终端",
+  "terminal.hide": "收起终端",
+  "terminal.copy": "复制可见输出",
+  "terminal.close_confirm": "关闭此终端并停止其中的命令？"
 }

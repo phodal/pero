@@ -25,5 +25,8 @@ test('Point install preserves executable inputs and starts with fresh domain dat
     await assert.rejects(access(resolve(output,'point-source/data')));
     await assert.rejects(access(resolve(output,'point-source/installed.json')));
     await assert.rejects(preparePointApp({source,runtime,destination:output}), /EEXIST/);
+    await writeFile(resolve(source,'ui/dist/index.mjs'), 'const pages = globalThis.__point_modules?.["@point/pages-ui"];');
+    await assert.rejects(preparePointApp({source,runtime,destination:resolve(root,"missing-module")}), /Unsupported Point shared module: @point\/pages-ui/);
+    await assert.rejects(access(resolve(root,"missing-module")));
   } finally { await rm(root,{recursive:true,force:true}); }
 });

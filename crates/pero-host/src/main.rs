@@ -2,6 +2,7 @@ use pero_contracts::{
     EchoRequest, HostEvent, RemoteConnectionPreference, SetRemoteSettingsRequest,
 };
 use std::io::{self, BufRead, Write};
+mod terminal;
 mod agents;
 mod apps;
 mod local_repo;
@@ -25,6 +26,7 @@ fn main() -> io::Result<()> {
         eprintln!("Usage: pero-host --stdio (bootstrap probe only)");
         std::process::exit(2);
     }
+    let mut terminals = terminal::Terminals::default();
     let mut agents = agents::Manager::new(std::env::current_dir()?);
     let settings_path = std::env::var_os("PERO_SETTINGS_PATH").map(std::path::PathBuf::from);
     let apps = apps::Apps::new(settings_path.as_deref());
@@ -53,6 +55,10 @@ fn main() -> io::Result<()> {
     for line in io::stdin().lock().lines() {
         let line = line?;
         let value: serde_json::Value = serde_json::from_str(&line).unwrap_or_default();
+        if value.get("method").and_then(|v| v.as_str()) == Some("terminal") {
+            terminals.dispatch(value);
+            continue;
+        }
         if value
             .get("method")
             .and_then(|value| value.as_str())

@@ -30,6 +30,10 @@ model ListApps { action: "list"; ...RequestBase; }
 model InstallApp { action: "install"; path: string; ...RequestBase; }
 model PointConfig { action: "pointconfig"; name: AppName; config?: AppDocumentSchema; ...RequestBase; }
 model PointConfigReply { config: AppDocumentSchema; ...AppClosed; }
+model PointProjectHeaders is Record<string>;
+model PointProjectRequest { method: "GET" | "POST"; path: string; headers?: PointProjectHeaders; body?: unknown; ...AppClosed; }
+model PointProjects { action: "pointprojects"; name: AppName; request: PointProjectRequest; ...RequestBase; }
+model PointProjectReply { status: int32; headers: PointProjectHeaders; body: unknown; ...AppClosed; }
 model EnableApp { action: "enable"; name: AppName; ...RequestBase; }
 model DisableApp { action: "disable"; name: AppName; ...RequestBase; }
 model UninstallApp { action: "uninstall"; name: AppName; ...RequestBase; }
@@ -49,9 +53,9 @@ model AppAgentEvent { kind: AppAgentStatus; text: string; ...AppClosed; }
 model AppAgentTranscript { events: AppAgentEvent[]; cursor: uint32; status: AppAgentStatus; text: string; ...AppClosed; }
 model AppAgentCancelled { cancelled: true; ...AppClosed; }
 model AppSessionBinding { app: AppName; requestId: string; agentId: string; prompt: string; ...AppClosed; }
-@oneOf union AppRequest { ListApps, InstallApp, PointConfig, EnableApp, DisableApp, UninstallApp, ResolveApp, AgentApp, ConnectorsApp }
+@oneOf union AppRequest { ListApps, InstallApp, PointConfig, PointProjects, EnableApp, DisableApp, UninstallApp, ResolveApp, AgentApp, ConnectorsApp }
 model AppGrant { permitted: true; ...AppClosed; }
-model AppSuccess { ok: true; value: PointConfigReply | AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant; ...AppClosed; }
+model AppSuccess { ok: true; value: PointProjectReply | PointConfigReply | AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }
 

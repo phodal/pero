@@ -41,6 +41,7 @@ extern "C" {
 }
 
 pub(crate) struct Workbench {
+    pub terminal: crate::terminal::TerminalDock,
     pub view_bounds: crate::view_bounds::WorkbenchBounds,
     pub workspace_focus:FocusHandle,
     pub input: Entity<InputState>,
@@ -111,6 +112,7 @@ pub(crate) struct Workbench {
     pub error: Option<String>,
     pub events: Vec<HostEvent>,
     pub chat: Entity<ChatPanel>,
+    pub session_search: Entity<InputState>,
     pub spotlight: Option<Entity<crate::spotlight::SpotlightList>>,
     pub spotlight_query: String,
     pub workspace: String,
@@ -280,6 +282,10 @@ impl Workbench {
                 this.workspace_focus.focus(window,cx);
             }
         }));
+        let session_search = cx.new(|cx| InputState::new(window, cx));
+        subscriptions.push(cx.subscribe(&session_search, |_, _, event: &InputEvent, cx| {
+            if matches!(event, InputEvent::Change) { cx.notify(); }
+        }));
         let project_binding = cx.new(|cx| InputState::new(window, cx));
         subscriptions.push(cx.subscribe(&project_binding, |this, _, event, cx| {
             if matches!(event, InputEvent::Change) {
@@ -300,6 +306,8 @@ impl Workbench {
             None,
         );
         Self {
+            session_search,
+            terminal: Default::default(),
             view_bounds: Default::default(),
             workspace_focus,
             #[cfg(not(target_family="wasm"))]
@@ -505,7 +513,7 @@ impl Workbench {
         #[cfg(not(target_family="wasm"))]
         self.receive_native_app(&event,window,cx);
         let event_kind = event.kind.clone();
-        let feature_handled = self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
+        let feature_handled = self.receive_terminal(&event,cx) || self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
             || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
             || self.receive_local_execution(&event, window, cx)
             || self.receive_contribution(&event, cx)
@@ -773,6 +781,8 @@ pub fn snapshot() -> String {
             "locale": ui.locale, "labels": { "tasks": ui.t("nav.tasks"), "send": ui.t("probe.send") },
             "tab": ui.tab.legacy_index(), "events": ui.events, "workspace": ui.workspace,
         });
+        value["terminal"] = ui.terminal.snapshot(cx);
+        value["terminalControls"] = ui.view_bounds.terminal.snapshot();
         value["sidebarButtonBounds"] = ui.view_bounds.sidebar.snapshot();
         value["newChatButtonBounds"] = ui.view_bounds.new_chat.snapshot()["new-chat"].clone();
         value["sessionRowBounds"] = ui.view_bounds.sessions.snapshot();

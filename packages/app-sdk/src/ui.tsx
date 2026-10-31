@@ -10,7 +10,7 @@ export { Input, Textarea, FilePicker, type FilePickerProps } from './components/
 export { Feedback } from './components/feedback';
 export { Field, type FieldProps, type FieldControlProps } from './components/field';
 export { Toolbar, PageHeader } from './components/layout';
-export { ActionButton, Badge, ChatMarkdown, EmptyState, Kbd, LibraryHeader, ListRow, OutlineBadge, ReaderFrame, SearchField, SettingsGroup, SettingsRow, SidebarRow } from '../../pero-design/src/components';
+export { ActionButton, Badge, ChatMarkdown, Composer, EmptyState, Kbd, LibraryHeader, ListRow, OutlineBadge, ReaderFrame, SearchField, SettingsGroup, SettingsRow, SidebarRow } from '../../pero-design/src/components';
 
 export type { IconName } from './icons.generated';
 

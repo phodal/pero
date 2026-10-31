@@ -87,3 +87,21 @@ export function SearchField({ className = '', ...props }: React.InputHTMLAttribu
 export function ChatMarkdown({ className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return <div {...props} className={`pero-chat ${className}`} />;
 }
+
+/** The workbench chat field: one border, focus changes that border, actions sit on the toolbar. */
+export function Composer({
+  id, label, value, placeholder, disabled, maxLength, rows = 2, onChange, onKeyDown, attachments, toolbar, submit, className = '',
+}: {
+  id: string; label: string; value: string; placeholder?: string; disabled?: boolean; maxLength?: number; rows?: number;
+  onChange(value: string): void; onKeyDown?: React.KeyboardEventHandler<HTMLTextAreaElement>;
+  attachments?: React.ReactNode; toolbar?: React.ReactNode; submit?: React.ReactNode; className?: string;
+}) {
+  return <div className={`pero-composer ${className}`} role="group" aria-label={label}>
+    {attachments && <div className="pero-composer-attachments">{attachments}</div>}
+    <div className="pero-composer-field">
+      <label className="pero-visually-hidden" htmlFor={id}>{label}</label>
+      <textarea id={id} className="pero-composer-input" rows={rows} value={value} placeholder={placeholder} disabled={disabled} maxLength={maxLength} onChange={event => onChange(event.target.value)} onKeyDown={onKeyDown}/>
+      {(toolbar || submit) && <div className="pero-composer-bar">{toolbar}<span className="pero-composer-spacer"/>{submit}</div>}
+    </div>
+  </div>;
+}

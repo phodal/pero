@@ -167,6 +167,14 @@ export class DesktopApps {
       }
       const access = await this.request<AppAccess>('resolve', { name: url.hostname });
       const point = await readPointApp(access.root);
+      if (point && (url.pathname === '/api/projects' || url.pathname.startsWith('/api/projects/'))) {
+        if (!['GET', 'POST'].includes(request.method)) return new Response('Method refused', {status:405});
+        const raw = request.method === 'GET' ? '' : await request.text();
+        if (Buffer.byteLength(raw) > 65536) return new Response('Project request exceeds 64 KiB', {status:413});
+        const operation = {method:request.method, path:url.pathname + url.search, headers:Object.fromEntries(appProxyHeaders(request.headers)), ...(raw ? {body:JSON.parse(raw)} : {})};
+        const value = await this.request<{status:number;headers:Record<string,string>;body:unknown}>('pointprojects', {name:url.hostname,request:operation});
+        return new Response(JSON.stringify(value.body), {status:value.status,headers:value.headers});
+      }
       if (point && url.pathname === `/api/apps/${url.hostname}/config`) {
         if (!point.permissions?.storage || !point.permissions.api?.includes(url.pathname)) return new Response('App storage denied', { status: 403 });
         if (!['GET', 'PUT'].includes(request.method)) return new Response('Method refused', { status: 405 });

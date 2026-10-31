@@ -16,6 +16,16 @@ HTML iframe。`apps/virtual-cell` 是首个接入实例，`apps/paper-agent` 提
 Host 管理；Paper 的领域读取与研究台账经声明路由接入 Agent。
 Task/Run 与远程 App 部署尚未与此机制连接。
 
+Point App 的直接目录安装通过现有 Host App 安装入口接入；共享 SDK 在构建期
+来自 Point，运行时不需要 Point 服务。安装适配器保留原 UI/后端代码，Node/Python
+后端使用 Point 的数据、端口和 HMAC 契约，Desktop 与 native 壳在已有私有代理
+中执行 App API 权限检查。配置读写仍由 Rust Host 持有；App Use 与聊天草稿复用
+现有桥接。本地 Project 的列表、创建、读取、版本与上下文更新复用构建时编译
+的 Point 领域库，由 Rust 串行调用并使用 Pero 数据目录；不启动第二套 Agent、
+Session 或调度器。共享 Hub、交付与执行接口仍未接通。兼容范围及尚未对齐的 Host/Project/设备能力见
+[Point App 验证记录](fitness/point-apps.md)。这些能力的目标权威为 Pero 自身，
+不能用第二套会话/任务状态或静默丢弃权限来替代兼容。
+
 [ADR 0025](adr/0025-connectors-app.md) 将 Connectors 管理界面作为 Workbench App
 接入。App 声明 `connectors` 权限，Rust Host 校验其启用状态；Electron Main
 和 Native 壳装配同一个管理器、系统凭据与便携 MCP 驱动。Native 经私有 stdio
