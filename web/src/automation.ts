@@ -1,5 +1,5 @@
 import type { AutomationCommand, AutomationDefinition, AutomationResult, AutomationTrigger } from '../../protocol/generated/host';
-import { cancellationLabel, checkInput, currentDefinitions, inputPresentation, requestIdentity } from './automation-model';
+import { canReviewOutcome, cancellationLabel, checkInput, checkReconciliation, currentDefinitions, inputPresentation, requestIdentity, requestStatus } from './automation-model';
 import './automation.css';
 
 type Event = {kind:string; request_id:string|null; text:string; data?:unknown};
@@ -28,11 +28,22 @@ export function installAutomation(send:(command:object)=>Promise<void>) {
     <section data-detail hidden aria-label="Automation details"><h2 data-detail-title></h2><p class="automation-muted" data-detail-binding></p><p class="automation-muted" data-pinned hidden></p>
       <form data-input><div class="automation-fields"><label>Subject<input name="subject" required maxlength="128" value="default"></label></div><label>Input<textarea name="content" required rows="3"></textarea></label><div class="automation-actions"><button type="button" data-submit-input>Run</button></div></form>
       <table data-requests><thead><tr><th>Request</th><th>State</th><th>Input / execution</th><th></th></tr></thead><tbody></tbody></table>
-    </section>`;
+    </section>
+    <form data-review hidden aria-label="Review execution outcome">
+      <h2>Review outcome</h2><p class="automation-muted">Manual attestation, not platform verification. Recording pauses this automation; resume it separately.</p>
+      <p class="automation-muted" data-review-identity></p>
+      <label><span id="automation-disposition-label">Reported outcome</span><select name="disposition" aria-labelledby="automation-disposition-label" required><option value="">Choose checked outcome</option><option value="not_started">Not started</option><option value="completed">Completed</option><option value="failed">Failed</option><option value="cancelled">Cancelled</option></select></label>
+      <label>Evidence<textarea name="evidence" required rows="3" maxlength="4096" placeholder="What did you check? (4096 bytes maximum)"></textarea></label>
+      <label><input type="checkbox" name="execution_stopped" required>I checked that this execution and its child processes are no longer running.</label>
+      <label><input type="checkbox" name="effects_checked" required>I checked its outputs and side effects against the reported outcome.</label>
+      <div class="automation-actions"><button type="button" data-review-cancel>Back</button><button type="button" data-reconcile>Record outcome</button></div>
+    </form>`;
   document.body.append(modal);
   const find = <T extends Element = HTMLElement>(selector:string) => modal.querySelector<T>(selector)!;
   const create = find<HTMLFormElement>('form[data-create]');
   const input = find<HTMLFormElement>('form[data-input]');
+  const review = find<HTMLFormElement>('form[data-review]');
+  let reviewTarget: { requestId:string; executionId:string } | undefined;
   const error = find<HTMLElement>('[role="alert"]');
   let result:AutomationResult|undefined, selected='', busy=false, timer:ReturnType<typeof setTimeout>|undefined;
   let manualIntent = crypto.randomUUID(), seedRevision = crypto.randomUUID();
@@ -80,19 +91,33 @@ export function installAutomation(send:(command:object)=>Promise<void>) {
       const subject=input.elements.namedItem('subject') as HTMLInputElement;
       if(definition.trigger.kind==='time'){subject.value=definition.trigger.subject;subject.readOnly=true;}else subject.readOnly=false;
       find<HTMLButtonElement>('[data-submit-input]').textContent=definition.trigger.kind==='manual'?'Run':'Publish latest input';
-      const rows=find<HTMLTableSectionElement>('[data-requests] tbody');rows.replaceChildren();
+      const rows=find<HTMLTableSectionElement>('[data-requests] tbody');
+      const expanded=new Set([...rows.querySelectorAll<HTMLDetailsElement>('details[open]')].map(element=>element.dataset.request));rows.replaceChildren();
       for(const request of result.state.requests.filter(value=>value.definition.id===definition.id).reverse()){
-        const row=rows.insertRow();cell(row,requestIdentity(request));cell(row,[request.status.kind,result.attention[request.id],request.status.kind==='reconcile'?'Cancellation requests do not confirm the execution has stopped.':null].filter(Boolean).join(' · '));
+        const row=rows.insertRow();cell(row,requestIdentity(request));cell(row,[requestStatus(request),result.attention[request.id],request.status.kind==='reconcile'?'Cancellation requests do not confirm the execution has stopped.':null].filter(Boolean).join(' · '));
         const references=[request.snapshot?.revision,request.snapshot?.digest,request.execution_id].filter((value):value is string=>!!value);
         const evidence=cell(row,references.map(value=>value.length>24?`${value.slice(0,12)}…${value.slice(-6)}`:value).join(' · ')||request.subject);
         evidence.title=references.join('\n')||request.subject;
         const actions=cell(row,'');
+        if(request.operator_reconciliation){
+          const record=request.operator_reconciliation, details=document.createElement('details'), summary=document.createElement('summary'), evidence=document.createElement('p'), metadata=document.createElement('p');
+          details.dataset.request=request.id;details.open=expanded.has(request.id);summary.textContent='Operator record';evidence.textContent=record.evidence;
+          metadata.textContent=`${record.authority} · ${new Date(record.recorded_at*1000).toISOString()} · previous state: ${record.previous_status.kind}`;
+          details.append(summary,evidence,metadata);actions.append(details);
+        }
+        if(canReviewOutcome(request))actions.append(button('Review outcome',()=>{
+          reviewTarget={requestId:request.id,executionId:request.execution_id!};review.reset();review.hidden=false;
+          find<HTMLElement>('[data-review-identity]').textContent=`Request ${request.id} · Execution ${request.execution_id} · ${request.definition.id} revision ${request.definition.revision} · Binding ${request.snapshot?.binding_id??request.definition.input_binding_id} · Subject ${request.subject} · Input ${request.snapshot?.revision??'unavailable'} · Digest ${request.snapshot?.digest??'unavailable'}`;
+          render();review.scrollIntoView({block:'nearest'});
+        }));
         const cancelLabel=cancellationLabel(request.status.kind);
         if(cancelLabel)actions.append(button(cancelLabel,()=>void run(async()=>{result=await command({action:'cancel',request_id:request.id});})));
         if(request.status.kind==='definition_changed')actions.append(button('Continue original',()=>void run(async()=>{result=await command({action:'continue_old',request_id:request.id});})));
       }
     }
     for(const action of modal.querySelectorAll<HTMLButtonElement>('[data-save],[data-submit-input]'))action.disabled=busy||!result.capabilities.available;
+    const reviewing=result.state.requests.find(request=>request.id===reviewTarget?.requestId&&request.execution_id===reviewTarget.executionId);
+    find<HTMLButtonElement>('[data-reconcile]').disabled=busy||!result.capabilities.available||!reviewing||!canReviewOutcome(reviewing);
     find<HTMLElement>('[data-workspace]').textContent=`Local workspace: ${result.capabilities.workspace}`;
   }
   const changeTrigger=()=>{
@@ -100,6 +125,15 @@ export function installAutomation(send:(command:object)=>Promise<void>) {
     find<HTMLElement>('[data-event]').hidden=kind!=='event';find<HTMLElement>('[data-time]').hidden=kind!=='time';find<HTMLElement>('[data-seed]').hidden=kind!=='time';
     for(const name of ['anchor','interval','lateness','subject','content']) (create.elements.namedItem(name) as HTMLInputElement).required=kind==='time';
   };
+  review.addEventListener('submit',event=>event.preventDefault());
+  find('[data-review-cancel]').addEventListener('click',()=>{if(!busy){review.hidden=true;reviewTarget=undefined;}});
+  find('[data-reconcile]').addEventListener('click',()=>void run(async()=>{
+    if(!result||!reviewTarget||!review.reportValidity())return;
+    const fields=new FormData(review), evidence=String(fields.get('evidence'));
+    checkReconciliation(evidence,fields.get('execution_stopped')==='on',fields.get('effects_checked')==='on');
+    result=await command({action:'reconcile',request_id:reviewTarget.requestId,expected_execution_id:reviewTarget.executionId,disposition:String(fields.get('disposition')) as 'not_started'|'completed'|'failed'|'cancelled',evidence,execution_stopped:true,effects_checked:true});
+    review.hidden=true;reviewTarget=undefined;
+  }));
   create.addEventListener('submit',event=>event.preventDefault());input.addEventListener('submit',event=>event.preventDefault());
   find<HTMLSelectElement>('[name="trigger"]').addEventListener('change',changeTrigger);
   find('[data-new]').addEventListener('click',()=>{

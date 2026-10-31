@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { cancellationLabel, checkInput, currentDefinitions, inputPresentation, requestIdentity } from './automation-model.ts';
+import { canReviewOutcome, cancellationLabel, checkInput, checkReconciliation, currentDefinitions, inputPresentation, requestIdentity, requestStatus } from './automation-model.ts';
 import type { AutomationDefinition, AutomationState } from '../../protocol/generated/host';
 const definition = (id:string, revision:number):AutomationDefinition => ({ id, revision, owner:'host', trigger:{kind:'manual'}, input:'process_exact', input_binding_id:'local', method:{kind:'agent',agent_id:'fixture',workspace:'/workspace',prompt:'Inspect'},target:{kind:'local_host',owner:'host'} });
 test('definition projection retains highest immutable revision per identity',()=>{
@@ -31,4 +31,18 @@ test('reconciliation offers a cancellation request, not retry or confirmed stop'
 test('explicit reprocess retains its source identity without implying a retry',()=>{
   assert.equal(requestIdentity({id:'new',reprocess_of:'original'}),'new · Reprocess of original');
   assert.equal(requestIdentity({id:'original',reprocess_of:null}),'original');
+});
+
+test('operator review is offered only for unresolved executions, never a retry',()=>{
+  for(const kind of ['reconcile','cancel_requested'] as const) assert.equal(canReviewOutcome({status:{kind},execution_id:'e'}),true);
+  for(const kind of ['running','completed','reconciled'] as const) assert.equal(canReviewOutcome({status:{kind},execution_id:'e'}),false);
+  assert.equal(canReviewOutcome({status:{kind:'reconcile'},execution_id:null}),false);
+  assert.equal(requestStatus({status:{kind:'reconciled'},operator_reconciliation:{execution_id:'e',disposition:'not_started',evidence:'checked',recorded_at:1,previous_status:{kind:'reconcile'},authority:'local_operator'}}),'Reconciled · operator-reported not started');
+});
+test('operator evidence has a UTF-8 limit and requires both explicit attestations',()=>{
+  assert.doesNotThrow(()=>checkReconciliation('温'.repeat(1365),true,true));
+  assert.throws(()=>checkReconciliation('温'.repeat(1366),true,true),/4096/);
+  assert.throws(()=>checkReconciliation(' ',true,true),/evidence/);
+  assert.throws(()=>checkReconciliation('checked',false,true),/both/);
+  assert.throws(()=>checkReconciliation('checked',true,false),/both/);
 });

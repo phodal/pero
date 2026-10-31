@@ -27,3 +27,17 @@ export function cancellationLabel(status: string): string | null {
 export function requestIdentity(request: Pick<AutomationRunRequest, 'id' | 'reprocess_of'>): string {
   return request.reprocess_of ? `${request.id} · Reprocess of ${request.reprocess_of}` : request.id;
 }
+
+export function canReviewOutcome(request: Pick<AutomationRunRequest, 'status' | 'execution_id'>): boolean {
+  return !!request.execution_id && ['reconcile', 'cancel_requested'].includes(request.status.kind);
+}
+export function requestStatus(request: Pick<AutomationRunRequest, 'status' | 'operator_reconciliation'>): string {
+  return request.status.kind === 'reconciled' && request.operator_reconciliation
+    ? `Reconciled · operator-reported ${request.operator_reconciliation.disposition.replaceAll('_', ' ')}`
+    : request.status.kind;
+}
+export function checkReconciliation(evidence: string, executionStopped: boolean, effectsChecked: boolean): void {
+  if (!evidence.trim()) throw new Error('Describe the evidence for this outcome.');
+  if (new TextEncoder().encode(evidence).length > 4096) throw new Error('Evidence exceeds 4096 bytes.');
+  if (!executionStopped || !effectsChecked) throw new Error('Confirm both execution and side-effect checks.');
+}
