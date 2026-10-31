@@ -69,3 +69,30 @@ execution, standalone Connectors Product composition, signed/notarized packages
 and release/production deployment were not verified in this run. Workbench
 package staging includes the driver and bundled helpers; source wiring alone
 does not prove an installed release.
+
+## Independent pre-push verification
+
+2026-10-31, macOS arm64 development environment. Rechecked the committed migration
+at `a168ef1ff09048339f486662cd0c64c5f639e79f`, independently of the earlier results:
+
+- Repository and App type/contract generation checks passed.
+- `npm run test:connectors` rebuilt the local driver/helpers with the isolated
+  locked workspace: 46 JS/TS tests and 44 native tests passed, none skipped.
+- The repository Cargo wrapper passed 47 contracts, 62 runtime (including ACP
+  lifecycle) and seven Host tests. Host build and actual App stdio/schema checks
+  passed; the Connectors App and Electron Main were rebuilt.
+- Background Electron passed the full Connectors flow with temporary profiles,
+  loopback MCP and mock Keychain. The four documented screenshots were inspected.
+
+The remote advanced with the Data App during verification. Merge
+`8d140baf5ef09ad5091dee607375f3469fa52175` integrates remote
+`61639714` without replacing its changes. Repository checks, Wasm/Web and Desktop
+builds, seven Product composition tests and the full background Connectors E2E
+passed after that merge. Fresh screenshots confirm the updated Data sidebar and
+Connectors surface together. Existing Wasm eval/unused-method warnings remained.
+
+No product or test assertion changes were needed. Test-owned profile/listener
+cleanup completed; only the seven local GPUI path-patch source/checksum removals
+were restored in Cargo.lock. No personal-account authorization, third-party
+runtime installation, real Agent tool execution or release-package acceptance
+was performed. The remaining boundaries above still apply.
