@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 REPORT_SCHEMA = "pero.paper-agent-report.v1"
 INPUT_SCHEMA = "pero.paper-agent-input.v1"
+MAX_PAPER_TEXT = 1_000_000
 ID = re.compile(r"^[a-f0-9]{64}$")
 
 
@@ -75,8 +76,8 @@ class PaperSnapshot:
     def from_reading(cls, value, fetched_at):
         value = mapping(value, "paper reading")
         content = value.get("content")
-        if not isinstance(content, str) or not content.strip() or len(content) > 120000:
-            raise Invalid("No readable paper text is available, or text exceeds 120,000 characters")
+        if not isinstance(content, str) or not content.strip() or len(content) > MAX_PAPER_TEXT:
+            raise Invalid("No readable paper text is available, or text exceeds 1,000,000 characters")
         kind = value.get("contentKind")
         if kind not in ("abstract", "report", "full-text"):
             raise Invalid("Invalid source content kind")

@@ -28,7 +28,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   const paper = await post('/api/papers/import', { title: fixture.realPdf ? 'Attention Is All You Need · PDF' : 'Synthetic PDF reading', sourceId: '1706.03762',
     url: 'https://arxiv.org/abs/1706.03762', pdfUrl: 'https://arxiv.org/pdf/1706.03762', authors: [], contentKind: 'full-text', content: fixture.text });
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
-  await frame.getByRole('button', { name: paper.title, exact: true }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true }), nav = frame.locator('.pa-reading-bar');
   await expect(viewer).toBeVisible({ timeout: 30000 });
   await expect(frame.getByRole('complementary', { name: 'Ask', exact: true })).toHaveCount(0);
@@ -113,7 +113,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await backToLibrary(frame);
   const unavailable = await post('/api/papers/import', { title: 'Synthetic unavailable PDF', sourceId: 'unavailable-pdf', url: 'https://example.invalid/source', pdfUrl: 'https://example.invalid/paper.pdf', authors: [], contentKind: 'abstract', content: 'Synthetic source remains readable.' });
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
-  await frame.getByRole('button', { name: unavailable.title, exact: true }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(unavailable.title, { exact: true }) }).click();
   await expect(frame.locator('.pa-pdf-reading [role="alert"]')).toContainText('PDF URL');
   await expect(frame.locator('.pa-pdf-reading').getByRole('button', { name: 'Retry', exact: true })).toBeEnabled();
   await frame.getByRole('button', { name: 'Text', exact: true }).click();
@@ -139,7 +139,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
 }
 
 export async function reopenPdf({ frame, saved }) {
-  await frame.getByRole('button', { name: saved.paper.title, exact: true }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(saved.paper.title, { exact: true }) }).click();
   await frame.getByRole('button', { name: 'Ask', exact: true }).click();
   await frame.locator('.pa-output-matrix>summary').click();
   const cell = frame.locator(`[data-matrix-annotation="${saved.figure.id}"]`);

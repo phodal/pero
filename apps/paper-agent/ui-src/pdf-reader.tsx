@@ -46,9 +46,9 @@ export function PdfReader({ paper, api, focus, t, onDiscuss, onMatrixAdded, chil
   }
   return <div className="pa-pdf-reading">
     {mode === 'text' && !busy && (paper.pdfUrl || reading.document) && <Toolbar><Button disabled={busy} onClick={() => void open()}>{busy ? t('pdfDownloading') : 'PDF'}</Button><Button variant="ghost" aria-pressed={mode === 'text'} onClick={() => { setMode('text'); setError(''); }}>{t('pdfText')}</Button></Toolbar>}
-    {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => void open()} disabled={busy}>{t('retry')}</Button></Feedback>}
+    {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => void open()} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
     {busy && <p className="pa-loading" role="status">{t('pdfDownloading')}</p>}
-    {mode === 'pdf' && reading.document ? <PdfViewer chrome={chrome} onText={() => setMode('text')} key={reading.document.id} document={reading.document} annotations={reading.annotations} api={api} focus={focus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/> : !busy && children}
+    {mode === 'pdf' && reading.document ? <PdfViewer chrome={chrome} onText={() => setMode('text')} key={reading.document.id} document={reading.document} annotations={reading.annotations} api={api} focus={focus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/> : children}
   </div>;
 }
 
