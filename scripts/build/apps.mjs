@@ -1,4 +1,5 @@
 import { build } from 'esbuild';
+import { buildScientificViewer } from './scientific-viewer.mjs';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
@@ -12,6 +13,7 @@ const appNames = args.includes('--app') ? [args[args.indexOf('--app') + 1]] : JS
 const readerDirectory = args.includes('--reader-dist') ? resolve(args[args.indexOf('--reader-dist') + 1]) : resolve(root, 'web/dist-reader');
 if (!args.includes('--reader-dist')) await buildReader();
 for (const appName of appNames) {
+if (appName === 'scientific-viewer') { await buildScientificViewer(); continue; }
 if (appName === 'automations') { await buildAutomationApp({pointRoot:process.env.PERO_POINT_ROOT}); continue; }
 if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(appName)) throw new Error('Invalid App name');
 const appRoot = resolve(root, 'apps', appName);

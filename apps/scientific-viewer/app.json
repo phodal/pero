@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "name": "scientific-viewer",
+  "version": "0.3.0",
+  "displayName": "Scientific Viewer",
+  "description": "检索与阅读公共文献，导出带来源的阅读成果，预览科研数据与 PDF 证据。",
+  "permissions": {
+    "host": [
+      "agent"
+    ]
+  },
+  "contributes": {
+    "panels": [
+      {
+        "id": "viewer",
+        "title": "Scientific Viewer",
+        "entry": "dist/index.html"
+      }
+    ]
+  },
+  "backend": {
+    "type": "node",
+    "entry": "point-backend.mjs"
+  }
+}

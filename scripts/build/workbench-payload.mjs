@@ -22,7 +22,7 @@ export async function stageWorkbench(payload, product) {
   cpSync(resolve(root, 'desktop/dist'), join(payload, 'desktop/dist'), { recursive: true });
   stageWorkbenchWeb(resolve(root, 'web/dist'), join(payload, 'web/dist'));
   // Builtin Apps include runnable assets and stdlib Python, never development dependencies.
-  for (const appName of product.apps) for (const entry of ['app.json', 'dist', 'backend', 'examples', 'evidence', 'THIRD_PARTY_NOTICES.md', 'README.md', 'licenses']) {
+  for (const appName of product.apps) for (const entry of ['app.json', 'dist', 'backend', 'point-source', 'point-backend.mjs', 'point-build.json', 'examples', 'evidence', 'THIRD_PARTY_NOTICES.md', 'README.md', 'licenses']) {
     const source = resolve(root, 'apps', appName, entry);
     if (existsSync(source)) cpSync(source, join(payload, 'apps', appName, entry), { recursive: true, filter: path => !path.includes('__pycache__') });
   }
