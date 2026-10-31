@@ -83,6 +83,8 @@ export default function Insights() {
   const locale = t('locale') === 'zh' ? 'zh' : 'en';
   const agent = useAppAgent();
   const [recap, setRecap] = useState<WorkRecap | null>(null);
+  const [repositories, setRepositories] = useState<unknown[]>([]);
+  const [conflicts, setConflicts] = useState<unknown[]>([]);
   const [error, setError] = useState('');
   const [brief, setBrief] = useState<ResultBrief | null>(null);
   const [generatedAt, setGeneratedAt] = useState('');
@@ -96,9 +98,14 @@ export default function Insights() {
     fetch('/host/insights', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', signal: controller.signal })
       .then(async response => {
         if (!response.ok) throw new Error((await response.text()).slice(0, 500) || 'Insights failed');
-        return response.json() as Promise<{ sessions?: HostSession[] }>;
+        return response.json() as Promise<{ sessions?: HostSession[]; repositories?: unknown[]; conflicts?: unknown[] }>;
       })
-      .then(body => { if (!controller.signal.aborted) setRecap(toRecap(body.sessions ?? [])); })
+      .then(body => {
+        if (controller.signal.aborted) return;
+        setRepositories(Array.isArray(body.repositories) ? body.repositories : []);
+        setConflicts(Array.isArray(body.conflicts) ? body.conflicts : []);
+        setRecap(toRecap(body.sessions ?? []));
+      })
       .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Insights failed'); });
     return () => controller.abort();
   }, [attempt]);
@@ -138,8 +145,8 @@ export default function Insights() {
   useEffect(() => {
     if (analysisRequest({ recapReady: !!recap, modelReady, started: started.current }) !== 'start' || !recap) return;
     started.current = true;
-    runAnalysis(briefResultPrompt(recap, locale));
-  }, [recap, modelReady, locale]);
+    runAnalysis(briefResultPrompt(recap, repositories, conflicts, locale));
+  }, [recap, repositories, conflicts, modelReady, locale]);
   return <div className="point-pulse-page">
     {error && <p className="point-pulse-banner" role="alert">{error} <button type="button" onClick={() => { started.current = false; setAttempt(value => value + 1); }}>{locale === 'zh' ? '重试' : 'Retry'}</button></p>}
     <PulseHomeResult brief={brief} createdAt={generatedAt || undefined} running={running} locale={locale} />

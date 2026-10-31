@@ -4,6 +4,7 @@ use pero_contracts::{
 use std::io::{self, BufRead, Write};
 mod agents;
 mod apps;
+mod local_repo;
 mod contributions;
 mod documents;
 mod icons;

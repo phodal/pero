@@ -44,6 +44,14 @@ export function cardKind(card) {
   return LEGACY_KINDS[kind] ?? (card?.handled ? 'done' : 'change');
 }
 
+/** For me is what only this person can move. Popular is the notable edition. Recent is the feed without noise. */
+export function pulseFeed(cards, tab = 'for-me') {
+  const list = (Array.isArray(cards) ? cards : []).filter(card => !card?.dismissed && cardKind(card) !== 'filtered');
+  if (tab === 'popular') return list.filter(card => ['change', 'done'].includes(cardKind(card)));
+  if (tab === 'recent') return list;
+  return list.filter(card => ['needs_you', 'risk'].includes(cardKind(card)));
+}
+
 /** needs_you is lifted into 需要你. The edition below only keeps the other cards. */
 export function projectBrief(brief) {
   const cards = Array.isArray(brief?.cards) ? brief.cards : [];
@@ -102,7 +110,9 @@ export function briefFromReply(text) {
  * Point's brief instructions, with the context inlined. This Host has no
  * pulse_context or pulse_publish tool, so the reply is that tool's arguments.
  */
-export function briefResultPrompt(recap, locale = 'zh') {
+export function briefResultPrompt(recap, repositories = [], conflicts = [], locale = 'zh') {
+  const repos = Array.isArray(repositories) ? repositories : [];
+  const noted = Array.isArray(conflicts) ? conflicts : [];
   const note = locale === 'en'
     ? 'This Host has no pulse_context or pulse_publish tool. The JSON below is the whole context for this run. Do not call tools. The entire reply must be one JSON object: the pulse_publish arguments.'
     : '此 Host 没有 pulse_context 和 pulse_publish 工具。下面的 JSON 就是这次能读到的全部上下文。不要调用工具。整段回复只能是一个 JSON 对象，即 pulse_publish 的参数。';
@@ -111,8 +121,13 @@ export function briefResultPrompt(recap, locale = 'zh') {
     workRecap: recap ? { ...recap, sessions } : null,
     memoryContext: { items: [], coverage: { examined: 0, matched: 0, shown: 0, unreadable: 0, omitted: 0, complete: true }, policy: '' },
     decisions: [],
-    conflicts: [],
-    sourceStatus: { repository: 'not_read', gmail: 'unsupported', information: 'unsupported' },
+    repositories: repos,
+    conflicts: noted,
+    sourceStatus: {
+      gmail: 'unsupported',
+      information: 'unsupported',
+      repositories: { count: repos.length, scope: "this Host's registered repositories only; absent repositories do not establish clean local work" },
+    },
   };
   return `${pulseBriefPrompt}\n\n${note}\n\n${JSON.stringify(context)}`;
 }
