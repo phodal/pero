@@ -34,3 +34,17 @@ impl AppStore {
         serde_json::from_slice(&bytes).map_err(|e| e.to_string())
     }
 }
+
+impl AppStore {
+    /// One local Project journal shared by Apps, under the Pero data home.
+    pub fn point_project_root(&self, name: &AppName, path: &str) -> Result<std::path::PathBuf, String> {
+        let app = self.installed.get(name).ok_or("App is not installed")?;
+        if !app.enabled { return Err("App is disabled".into()); }
+        let pathname = path.split('?').next().unwrap_or(path);
+        if pathname != "/api/projects" && !pathname.starts_with("/api/projects/") { return Err("Unsupported Point Host API".into()); }
+        let metadata = self.root.join(name.as_str()).join("point-source/app.json");
+        let manifest: Manifest = serde_json::from_slice(&std::fs::read(metadata).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        if !manifest.permissions.api.iter().any(|route| pathname == route || pathname.starts_with(&format!("{route}/"))) { return Err("Point Project permission denied".into()); }
+        Ok(self.root.parent().ok_or("App root needs a parent")?.join("point-projects"))
+    }
+}

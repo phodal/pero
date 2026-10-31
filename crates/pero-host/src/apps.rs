@@ -31,6 +31,12 @@ enum Request {
         #[serde(default)]
         config: Option<serde_json::Value>,
     },
+    Pointprojects {
+        method: Method,
+        id: String,
+        name: AppName,
+        request: point_apps::ProjectRequest,
+    },
     Enable {
         method: Method,
         id: String,
@@ -181,6 +187,11 @@ impl Apps {
                 Request::Pointconfig { method, id, name, config } => {
                     let _ = (method, id);
                     serde_json::to_value(serde_json::json!({"config": store.point_config(&name, config)?}))
+                }
+                Request::Pointprojects { method, id, name, request } => {
+                    let _ = (method, id);
+                    let root = store.point_project_root(&name, &request.path)?;
+                    return point_apps::projects(&root, request);
                 }
                 Request::Enable { method, id, name } => {
                     let _ = (method, id);

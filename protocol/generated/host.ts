@@ -69,7 +69,16 @@ export type ContextKind =
 export type ThreadId = string;
 export type ContextContent = TextContextContent | ImageContextContent;
 export type AppRequest =
-  ListApps | InstallApp | PointConfig | EnableApp | DisableApp | UninstallApp | ResolveApp | AgentApp | ConnectorsApp;
+  | ListApps
+  | InstallApp
+  | PointConfig
+  | PointProjects
+  | EnableApp
+  | DisableApp
+  | UninstallApp
+  | ResolveApp
+  | AgentApp
+  | ConnectorsApp;
 export type RequestId = string;
 export type AppName = string;
 export type AgentRequest = AgentInfoRequest | AgentStartRequest | AgentEventsRequest | AgentCancelRequest;
@@ -773,6 +782,22 @@ export interface PointConfig {
  */
 export interface AppDocumentSchema {
   [k: string]: unknown | undefined;
+}
+export interface PointProjects {
+  action: "pointprojects";
+  name: AppName;
+  request: PointProjectRequest;
+  method: "apps";
+  id: RequestId;
+}
+export interface PointProjectRequest {
+  method: "GET" | "POST";
+  path: string;
+  headers?: PointProjectHeaders;
+  body?: unknown;
+}
+export interface PointProjectHeaders {
+  [k: string]: string | undefined;
 }
 export interface EnableApp {
   action: "enable";
@@ -1634,6 +1659,7 @@ export interface AppsResultEvent {
 export interface AppSuccess {
   ok: true;
   value:
+    | PointProjectReply
     | PointConfigReply
     | AppRecord[]
     | AppAccess
@@ -1642,6 +1668,11 @@ export interface AppSuccess {
     | AppAgentTranscript
     | AppAgentCancelled
     | AppGrant;
+}
+export interface PointProjectReply {
+  status: number;
+  headers: PointProjectHeaders;
+  body: unknown;
 }
 export interface PointConfigReply {
   config: AppDocumentSchema;
