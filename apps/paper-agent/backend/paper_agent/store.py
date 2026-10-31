@@ -119,7 +119,7 @@ class ResearchStore:
             except Invalid as error:
                 if error.status != 404:
                     raise
-            self._write('pdfs', document.id, document.to_dict())
+            self._write('pdfs', document.id, document.to_record())
         return document
 
     def annotations(self, document_id):
@@ -243,7 +243,7 @@ class ResearchStore:
             except Invalid as error:
                 if error.status != 404:
                     raise
-            self._write("papers", paper.id, paper.to_dict())
+            self._write("papers", paper.id, paper.to_record())
             return paper
 
     def search(self, query: SearchQuery):

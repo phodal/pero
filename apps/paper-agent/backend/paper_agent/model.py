@@ -110,10 +110,19 @@ class PaperSnapshot:
 
     @classmethod
     def from_record(cls, value):
+        if 'lines' in value:
+            from .source_text import SourceText
+            value = {**value, 'content': SourceText.from_lines(value['lines']).content}
         paper = cls.from_reading(value, value.get("fetchedAt"))
         if paper.id != value.get("id"):
             raise Invalid("Stored source snapshot integrity check failed")
         return paper
+
+    def to_record(self):
+        from .source_text import SourceText
+        value = self.to_dict()
+        value['lines'] = list(SourceText(value.pop('content')).lines)
+        return value
 
     def to_dict(self, include_content=True):
         value = dict(id=self.id, source=self.source, sourceId=self.source_id, title=self.title,
