@@ -18,14 +18,15 @@ import type { Translator } from './i18n';
 
 export type ReaderChrome = { toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null> };
 
-export function PdfReader({ paper, api, focus, t, onDiscuss, onMatrixAdded, children, chrome }: {
-  paper: Paper; api: Api; focus?: PdfFocus | null; t: Translator; children: React.ReactNode; chrome: ReaderChrome;
+export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome }: {
+  paper: Paper; api: Api; focus?: PdfFocus | null; lockText?: boolean; t: Translator; children: React.ReactNode; chrome: ReaderChrome;
   onDiscuss?(text: string, source?: PdfSource): void;
   onMatrixAdded(): Promise<void>;
 }) {
   const [reading, setReading] = useState<PdfReading>({ document: null, annotations: [] });
   const [mode, setMode] = useState<'text' | 'pdf'>('text'), [busy, setBusy] = useState(false), [error, setError] = useState('');
   useEffect(() => {
+    if (lockText) return;
     if (focus && reading.document?.id === focus.documentId) return;
     let alive = true;
     setReading({ document: null, annotations: [] }); setMode('text'); setError('');
@@ -35,8 +36,9 @@ export function PdfReader({ paper, api, focus, t, onDiscuss, onMatrixAdded, chil
       if (alive) { setReading(value); if (value.document) setMode('pdf'); }
     }).catch(e => { if (alive) setError(String(e.message ?? e)); }).finally(() => { if (alive) setBusy(false); });
     return () => { alive = false; };
-  }, [api, paper.id, focus?.documentId]);
-  useEffect(() => { if (focus) setMode('pdf'); }, [focus]);
+  }, [api, paper.id, focus?.documentId, lockText]);
+  useEffect(() => { if (lockText) setMode('text'); else if (focus) setMode('pdf'); }, [focus, lockText]);
+  const view = lockText ? 'text' : mode;
   async function open() {
     if (reading.document) { setMode('pdf'); return; }
     setBusy(true); setError('');
@@ -45,10 +47,10 @@ export function PdfReader({ paper, api, focus, t, onDiscuss, onMatrixAdded, chil
     finally { setBusy(false); }
   }
   return <div className="pa-pdf-reading">
-    {mode === 'text' && !busy && (paper.pdfUrl || reading.document) && <Toolbar><Button disabled={busy} onClick={() => void open()}>{busy ? t('pdfDownloading') : 'PDF'}</Button><Button variant="ghost" aria-pressed={mode === 'text'} onClick={() => { setMode('text'); setError(''); }}>{t('pdfText')}</Button></Toolbar>}
+    {view === 'text' && !lockText && !busy && (paper.pdfUrl || reading.document) && <Toolbar><Button disabled={busy} onClick={() => void open()}>{busy ? t('pdfDownloading') : 'PDF'}</Button><Button variant="ghost" aria-pressed={view === 'text'} onClick={() => { setMode('text'); setError(''); }}>{t('pdfText')}</Button></Toolbar>}
     {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => void open()} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
     {busy && <p className="pa-loading" role="status">{t('pdfDownloading')}</p>}
-    {mode === 'pdf' && reading.document ? <PdfViewer chrome={chrome} onText={() => setMode('text')} key={reading.document.id} document={reading.document} annotations={reading.annotations} api={api} focus={focus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/> : children}
+    {view === 'pdf' && reading.document ? <PdfViewer chrome={chrome} onText={() => setMode('text')} key={reading.document.id} document={reading.document} annotations={reading.annotations} api={api} focus={focus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/> : children}
   </div>;
 }
 

@@ -66,3 +66,10 @@ three outputs, avoiding stale local build artifacts as hidden prerequisites.
 The incident remains open until real Actions measurements demonstrate the target
 and full coverage on the new exact head. See `docs/fitness/ci-feedback.md` for the
 baseline, coverage mapping, cold/warm distinction and measurement procedure.
+
+New master changed workspace lock inputs back to patched GPUI. Core supplies the
+same pinned public manifests through the existing wrapper while compiling only
+core crates. Self-contained Automations/Scientific Viewer unit/type and actual
+Host stdio contracts run in ordinary CI. Full acceptance retains the original
+fifteen shards plus real Scientific Viewer and a separately labeled mock
+Automation iframe; the mock does not establish scheduling or Agent correctness.

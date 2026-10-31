@@ -40,22 +40,30 @@ claims cannot substitute for observed results.
 
 The user then authorized moving complete Desktop compilation and GUI acceptance
 to daily/manual runs. No test is physically deleted. Ordinary PR/push now runs
-Linux core contracts, not Desktop smokes; full runs retain all fifteen scenarios.
+Linux core contracts, not Desktop smokes; full runs retain the original fifteen scenarios and add Scientific Viewer plus an explicitly mocked Automation iframe smoke (seventeen shards).
 Moving a failing scenario to daily is not a fix or a passing result.
 
 | Tier | Coverage | Explicit limitation |
 | --- | --- | --- |
 | Ordinary + daily | Contracts/Runtime/Host/Worker Rust, actual Host stdio, SQLite/ACP recovery, App Use permissions, MCP ownership, science/Go/Bazel/AST checks | No rendered Desktop or native GUI acceptance |
 | Ordinary + daily | Independent Desktop and Web TypeScript graph in `scripts/ci/tsconfig.core.json`, model/unit tests | Excludes Wasm-dependent frontend entrypoints and Product shell; no fake declarations |
-| Daily/manual | Complete three-platform build/typecheck and fifteen real Desktop scenarios | Required to establish rendering, scientific workflows and GUI recovery behavior |
+| Daily/manual | Complete three-platform build/typecheck, sixteen real Desktop scenarios and one mocked Automation iframe smoke | Required to establish rendering, scientific workflows and GUI recovery behavior |
 
-Master `9af37ba4` restored the normal registry checksums in the committed
-workspace lock. Core now uses directly validated `cargo test/build --locked`
-without a GPUI checkout or temporary lock edits. It compiles only
-Contracts/Runtime/Host/Worker, not GPUI, Reader or Wasm. Full Desktop builds still
-use the existing pinned GPUI source preparation and wrapper. The generated Host binary
-is exercised directly; its real Node MCP provider and two HTTP assets are built
-separately with esbuild (no Electron/GPUI compilation); no cached GUI runtime is accepted as a substitute.
+Master `7dffe662` again records patched GPUI workspace packages in the lock.
+Core checks out the same pinned public `longbridge/gpui-kit` revision as Desktop
+and uses `scripts/cargo.mjs test/build --locked` for workspace manifest resolution.
+It compiles only Contracts/Runtime/Host/Worker, not GPUI, Reader or Wasm. Actual
+Host stdio is exercised; the real MCP provider and two HTTP assets are built
+separately with esbuild. No cached GUI substitutes for these contracts.
+
+Automations and Scientific Viewer install their frozen public npm dependencies
+for ordinary model/transport/unit and type checks without building App bundles.
+`automation-app.mjs` and `point-agent.mjs` test actual Host/SQLite/ACP grants with
+local synthetic fixtures; the latter filename does not imply a private checkout.
+Daily Scientific Viewer renders actual public engines and tests Host evidence.
+The separate `automations-ui` smoke runs built React in a no-forms iframe with a
+loopback mock Host; it is UI evidence, not scheduling or Agent execution evidence.
+It uses Playwright Chromium, while Scientific Viewer retains real Electron.
 Ordinary checks do not prove UI correctness or complete frontend type safety.
 Both cold and warm latency require actual exact-head Actions measurements.
 
@@ -91,7 +99,7 @@ Both cold and warm latency require actual exact-head Actions measurements.
 - `Linux CI gate` requires every ordinary Linux contract job, including core.
   Only Desktop Linux build, other-OS Desktop builds, Desktop acceptance and
   Windows ACL jobs may be skipped in normal mode.
-  `Full-platform CI gate` requires all fifteen acceptance shards and all jobs,
+  `Full-platform CI gate` requires all seventeen acceptance shards and all jobs,
   including Windows positive ACL and macOS/Windows builds. Failure/cancellation of any required job rejects the gate;
   the Linux result is not represented as proof of cross-platform acceptance.
 

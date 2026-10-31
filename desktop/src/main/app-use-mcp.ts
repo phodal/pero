@@ -75,6 +75,7 @@ export class DesktopAppUse {
   };
   private send: (event: Event) => void;
   readonly computer?: DesktopComputer;
+  private readonly uiAvailable: boolean;
   constructor(
     surface: (() => BrowserWindow) | AppUsePorts,
     send: (event: Event) => void,
@@ -86,6 +87,7 @@ export class DesktopAppUse {
     computer?: DesktopComputer,
   ) {
     this.computer = computer;
+    this.uiAvailable = typeof surface === 'function';
     this.results = new ContentArtifacts(join(evidenceRoot, 'content'));
     this.writes = writes;
     this.send = send;
@@ -243,6 +245,11 @@ export class DesktopAppUse {
           chunks.push(chunk);
         }
         const message = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if(message.method==='tools/call' && typeof message.params?.name==='string' && message.params.name.startsWith('app__') && this.writes) {
+          const definition=(await this.writes.describe()).find(d=>`app__${d.app}__${d.name}`===message.params.name);
+          if(!definition)throw new AppUseError('APP_WRITE_UNKNOWN','This enabled App has no such declared tool');
+          message.params={name:'app_write',arguments:{app:definition.app,tool:definition.name,document:message.params.arguments}};
+        }
         id = message.id ?? null;
         let result: unknown;
         if (message.method === 'initialize')
@@ -254,12 +261,13 @@ export class DesktopAppUse {
               : '2025-03-26',
             capabilities: { tools: {} },
             serverInfo: { name: 'pero-app-use', version: '0.1.0' },
-            instructions: TOOL.description + (this.computer ? '\n' + COMPUTER_INSTRUCTIONS : ''),
+            instructions: (this.uiAvailable ? TOOL.description : 'Use app_describe and app_write for declared App data tools. Native App UI operation and capture are unavailable.') + (this.computer ? '\n' + COMPUTER_INSTRUCTIONS : ''),
           };
         else if (message.method === 'tools/list')
           result = {
             tools: [
-              TOOL,
+              ...(this.writes ? (await this.writes.describe()).filter(d=>`app__${d.app}__${d.name}`.length<=64).map(d=>({name:`app__${d.app}__${d.name}`,description:d.description,inputSchema:d.schema})) : []),
+              ...(this.uiAvailable ? [TOOL] : []),
               ...(this.computer ? [COMPUTER_TOOL] : []),
               {
                 name: 'content_read',
@@ -341,7 +349,12 @@ export class DesktopAppUse {
             controller.signal,
             'app-data',
           );
-          result = { content: [{ type: 'text', text: await this.results.select(thread, value) }], isError: false };
+          const selected=JSON.parse(await this.results.select(thread,value));
+          const links=(value.result as {links?:{label:string;location:string}[]}|null)?.links;
+          if(Array.isArray(links) && links.length<=64 && links.every(link=>link && typeof link.label==='string' && link.label.length>0 && link.label.length<=200 && typeof link.location==='string' && /^[a-zA-Z0-9/_-]{1,512}$/.test(link.location))) {
+            selected.appLinks=links.map(link=>({label:link.label,url:`pero-app-location://${definition.app}/${definition.panel}/${link.location}`}));
+          }
+          result = { content: [{ type: 'text', text: JSON.stringify(selected) }], isError: false };
         } else if (message.method === 'tools/call' && message.params?.name === 'content_read') {
           const value = await this.results.read(thread, ContentRead.parse(message.params.arguments));
           const next = value.nextRead ? `Next read: ${JSON.stringify(value.nextRead)}` : 'End of selection.';
@@ -362,7 +375,7 @@ export class DesktopAppUse {
             value.image = undefined;
           }
           result = {content:[{type:'text',text:await this.results.select(thread,value)},...images],isError:value.kind==='receipt'&&value.receipt.outcome.status!=='executed'};
-        } else if (message.method === 'tools/call' && message.params?.name === 'app_use') {
+        } else if (message.method === 'tools/call' && message.params?.name === 'app_use' && this.uiAvailable) {
           const value = await this.authority.call(thread, message.params.arguments, controller.signal);
           const content: object[] = [];
           const extract = (value: unknown): unknown => {

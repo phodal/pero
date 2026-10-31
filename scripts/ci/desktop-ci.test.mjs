@@ -13,7 +13,7 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   assert.deepEqual(Object.values(suites).map(([name]) => name).sort(), [
     'workbench', 'automation', 'toolcalls', 'data', 'data-product', 'control-lab', 'control-lab-app-use', 'control-lab-live',
     'virtual-cell-comparison', 'virtual-cell-dataset-download', 'app-use', 'app-use-workbench',
-    'mcp-settings', 'mcp-settings', 'mcp-settings',
+    'mcp-settings', 'mcp-settings', 'mcp-settings', 'scientific-viewer', 'apps/automations/test/ui-smoke.mjs',
   ].sort());
   const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
   const acceptance = workflow.jobs['desktop-acceptance'];
@@ -51,12 +51,17 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
     'tests/fixtures/owned-electron-close.test.mjs', 'node tests/runtime/automation.mjs']) assert.ok(commands.includes(command), command);
   const core = workflow.jobs.core.steps.map(step => step.run || '').join('\n');
   for (const command of ['npx tsc -p scripts/ci/tsconfig.core.json',
-    'cargo test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker',
-    'cargo build --locked -p pero-host -p pero-worker',
+    'node scripts/cargo.mjs test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker',
+    'node scripts/cargo.mjs build --locked -p pero-host -p pero-worker',
     'node scripts/build/mcp.mjs', 'node tests/contracts/host.mjs', 'node tests/runtime/automation.mjs',
     'node tests/contracts/mcp-settings.mjs', 'node tests/contracts/mcp-ownership.mjs',
     'tests/fixtures/owned-electron-close.test.mjs', 'npm run test:app-use:unit']) assert.ok(core.includes(command), command);
-  assert.doesNotMatch(core, /npm run build|xvfb-run|build:wasm|scripts\/cargo.mjs|PERO_GPUI_KIT_PATH/);
+  assert.doesNotMatch(core, /npm run build|xvfb-run|build:wasm|scripts\/build\/(?:apps|wasm|reader|automation-app|scientific-viewer)\.mjs/);
+  for (const command of ['ec89cfc36404667b7947aeb3d40b1c2859d729dd', 'https://github.com/longbridge/gpui-kit.git',
+    'npm ci --prefix apps/automations --ignore-scripts', 'npm ci --prefix apps/scientific-viewer --ignore-scripts',
+    'npm test --prefix apps/automations', 'npm test --prefix apps/scientific-viewer',
+    'node tests/runtime/automation-app.mjs', 'node tests/contracts/point-agent.mjs']) assert.ok(core.includes(command), command);
+  assert.equal(Object.keys(suites).length, 17);
   const native = YAML.parse(readFileSync('.github/workflows/computer-use.yml', 'utf8'));
   assert.match(native.jobs.native.strategy.matrix.os, /schedule.*workflow_dispatch/);
   assert.equal(native.on.schedule[0].cron, '0 20 * * *');

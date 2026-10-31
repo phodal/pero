@@ -30,7 +30,7 @@ async function launch(){
  app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});
  page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));
  await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
- await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('automation').click());
+ await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('automation-operations').click());
  panel=page.getByRole('dialog',{name:'Automation',exact:true});
  await expect(panel).toBeVisible();
  await expect(panel.getByRole('button',{name:'New',exact:true})).toBeEnabled();

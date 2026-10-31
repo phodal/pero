@@ -12,6 +12,7 @@ pub(crate) struct NativeAppPage {
     view: Option<Entity<WebView>>,
     error: Option<String>,
     ready: bool,
+    location: Option<String>,
     context: Value,
     pending: std::collections::HashSet<String>,
 }
@@ -22,7 +23,7 @@ addEventListener('message',event=>{
  if(event.source!==window)return;
  const message=event.data;
  if(!message||typeof message.type!=='string')return;
- if(message.type==='pero:app:ready'||message.type==='pero:app:chat'||message.type==='pero:app-use:result')window.ipc.postMessage(JSON.stringify(message));
+ if(message.type==='pero:app:examples'||message.type==='pero:app:ready'||message.type==='pero:app:chat'||message.type==='pero:app-use:result'||message.type==='pero:app:open-session')window.ipc.postMessage(JSON.stringify(message));
  if(message.type==='pero:app:chat-slot')window.postMessage({type:'pero:app:chat-slot-result',id:message.id,active:false},'*');
 });
 addEventListener('pointerdown',()=>window.ipc.postMessage('{"type":"focus"}'),true);
@@ -81,6 +82,7 @@ impl NativeAppPage {
                         match message["type"].as_str() {
                             Some("loaded" | "pero:app:ready") => {
                                 this.ready = true;
+                                if let Some(location)=this.location.take() {this.navigate(location,cx);}
                                 this.send(
                                     json!({"type":"pero:app:context","context":this.context}),
                                     cx,
@@ -116,9 +118,14 @@ impl NativeAppPage {
             view,
             error,
             ready: false,
+            location:None,
             context: Value::Null,
             pending: Default::default(),
         }
+    }
+    pub fn navigate(&mut self, location:String, cx:&App) {
+        if self.ready {self.send(json!({"type":"pero:app:location","location":location}),cx);}
+        else {self.location=Some(location);}
     }
     pub fn send(&self, message: Value, cx: &App) {
         if let Some(view) = &self.view {
@@ -128,7 +135,8 @@ impl NativeAppPage {
                 .evaluate_script(&format!("window.postMessage({message},'*')"));
         }
     }
-    fn sync(&mut self, context: Value, cx: &mut Context<Self>) {
+    fn sync(&mut self, mut context: Value, cx: &mut Context<Self>) {
+        context["titlebar"]=json!(true);
         if !context["active"].as_bool().unwrap_or(false) || self.error.is_some() {
             if let Some(view) = &self.view {
                 view.update(cx, |view, _| view.hide());
@@ -270,9 +278,14 @@ impl Workbench {
             app: key.0.clone(),
             panel: key.1.clone(),
         };
+        if self.pending_app_location.as_ref().is_some_and(|address|address.scope==scope) {
+            let address=self.pending_app_location.take().unwrap();
+            view.update(cx,|view,cx|view.navigate(address.location,cx));
+        }
         let subscription = cx.subscribe_in(&view, window, move |this, view, event: &NativeAppMessage, window, cx| {
             let message = &event.0;
             let item = WorkspaceItem::App { name: scope.app.clone(), panel: scope.panel.clone() };
+            if message["type"] == "pero:app:examples" {this.receive_app_examples(scope.clone(),message["state"].clone(),cx);}
             if message["type"] == "focus" { this.focus_surface_item(&item, window, cx); }
             if message["type"] == "link" {this.web_command(json!({"action":"web_open","url":message["url"]}),window,cx);}
             if message["type"] == "pero:app-use:result" {
@@ -283,6 +296,9 @@ impl Workbench {
                         crate::native::apps().shell_reply(id,result);
                     }
                 }
+            }
+            if message["type"] == "pero:app:open-session" && scope.app=="automations" && this.navigation.current()==Some(&item) {
+                if let Some(id)=message["sessionId"].as_str() {this.open_automation_session(id,cx);}
             }
             if message["type"] == "pero:app:chat" {
                 let result = (|| -> anyhow::Result<String> {

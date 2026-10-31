@@ -384,9 +384,9 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
         div().w_full().flex().justify_center().child(element)
     };
     use crate::apps::AppPlacement;
-    let mut workspace = Vec::new(); let mut catalog = Vec::new(); let mut customize = Vec::new();
+    let mut automation = Vec::new(); let mut primary = Vec::new(); let mut workspace = Vec::new(); let mut catalog = Vec::new(); let mut customize = Vec::new();
     for (index, app) in props.apps.into_iter().enumerate() {
-        match app.placement { AppPlacement::Workspace => workspace.push((index, app)), AppPlacement::Customize => customize.push((index, app)), AppPlacement::Catalog => catalog.push((index, app)) }
+        match app.placement { AppPlacement::Automation => automation.push((index, app)), AppPlacement::Primary => primary.push((index, app)), AppPlacement::Workspace => workspace.push((index, app)), AppPlacement::Customize => customize.push((index, app)), AppPlacement::Catalog => catalog.push((index, app)) }
     }
     workspace.sort_by_key(|(_, app)| if app.name == "paper-agent" { 0 } else { 1 });
     let app_rows = |apps: Vec<(usize, AppShortcut)>| apps.into_iter().map(|(index, app)| {
@@ -407,24 +407,30 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
         .child(nav("sidebar-sessions", ui.t("nav.sessions"), "icons/message-circle.svg", props.navigation == WorkbenchPage::Conversation, SidebarAction::Navigate(WorkbenchPage::Conversation))
             .relative().child(props.shortcut_bounds.probe("sessions".into())))
         .child(nav("sidebar-projects", ui.t("nav.projects"), "icons/folder.svg", matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks), SidebarAction::Navigate(WorkbenchPage::Projects)))
+        .children(app_rows(primary))
         .child(div().id("sidebar-app-scroll").flex_1().min_h_0().overflow_y_scroll()
-            .when(!collapsed, |el| el.child(div().px(px(8.)).pt(px(16.)).pb(px(4.)).text_color(p.text_muted).text_size(px(12.)).child(ui.t("nav.workspace"))))
+            .when(!collapsed, |el| el.child(div().px(px(8.)).pt(px(8.)).pb(px(4.)).text_color(p.text_muted).text_size(px(12.)).child(ui.t("nav.workspace"))))
             .children(app_rows(workspace))
-            .when(!collapsed, |el| el.child(div().px(px(8.)).py(px(6.)).flex().justify_between().text_color(p.disabled_text)
-                .child(ui.t("nav.environment")).child(div().text_size(px(12.)).child(ui.t("nav.todo")))))
-            .when(!collapsed, |el| el.child(div().px(px(8.)).pt(px(16.)).pb(px(4.)).text_color(p.text_muted).text_size(px(12.)).child(ui.t("nav.apps"))))
+            .children([
+                ("sidebar-environment", ui.t("nav.environment"), "icons/server.svg"),
+                ("sidebar-compute", ui.t("nav.compute"), pero_chat_ui::assets::UiIcon::Cpu.path()),
+            ].into_iter().map(|(id, label, icon)| div().w_full().flex().justify_center().child(
+                pero_theme::ghost_icon_button(id, chrome, cx)
+                    .disabled(true).accessibility_label(label)
+                    .icon(Icon::default().path(icon))
+                    .when(collapsed, |button| button.tooltip(label))
+                    .when(!collapsed, |button| button.w_full().h(chrome.geo(pero_theme::ROW_NAV))
+                        .px(px(8.)).text_size(chrome.text(pero_theme::TYPE_BODY))
+                        .child(div().w_full().flex().items_center().justify_between()
+                            .child(label)
+                            .child(div().text_size(px(12.)).child(ui.t("nav.todo"))))))))
+            .when(!collapsed, |el| el.child(div().px(px(8.)).pt(px(8.)).pb(px(4.)).text_color(p.text_muted).text_size(px(12.)).child(ui.t("nav.apps"))))
             .child(nav("sidebar-apps", ui.t("apps.manage"), "icons/layout-grid.svg", props.navigation == WorkbenchPage::Apps && props.catalog_open, SidebarAction::Navigate(WorkbenchPage::Apps)).relative().child(props.shortcut_bounds.probe("apps".into())))
             .children(app_rows(catalog)))
         .child(nav("sidebar-terminal", ui.t("terminal.title"), "icons/terminal.svg", props.terminal_open, SidebarAction::Terminal).relative().child(props.shortcut_bounds.probe("terminal".into())))
         .when(!props.local_connected && !collapsed, |el| el.child(div().px(px(8.)).py(px(6.)).text_color(p.warning).text_size(px(12.)).child(ui.t("status.disconnected"))))
         .children(app_rows(customize))
-        .child(pero_theme::ghost_icon_button("sidebar-automations", chrome, cx)
-            .w_full().h(chrome.geo(pero_theme::ROW_NAV)).px(px(8.)).text_size(chrome.text(pero_theme::TYPE_BODY))
-            .disabled(true).accessibility_label(ui.t("nav.automations"))
-            .icon(Icon::default().path("icons/clock.svg"))
-            .when(!collapsed, |button| button.child(div().w_full().flex().items_center().justify_between()
-                .child(ui.t("nav.automations"))
-                .child(div().text_size(px(12.)).child(ui.t("nav.todo"))))))
+        .children(app_rows(automation))
         .child(settings)
         .when(!collapsed, |el| el.child(div().mt(px(4.)).border_t_1().border_color(p.border).px(px(8.)).py(px(8.))
             .text_ellipsis().child(props.identity)))

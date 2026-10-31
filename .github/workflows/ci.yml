@@ -4,8 +4,8 @@
 # gpui-kit ec89cfc (desktop/README.md, scripts/build/fonts.manifest.json)
 # Go 1.26.4 (MODULE.bazel). server/go.mod's `go 1.24` is the language version.
 # Bazel 9.2.0 (.bazelversion). pnpm-lock.yaml is the Bazel translation of the npm lock.
-# PR/push runs Linux contracts and three critical Desktop smokes. Daily/manual
-# runs all Desktop scenarios and platforms; Worker Unix cfg gates remain intact.
+# PR/push runs Linux core contracts without Desktop compilation or GUI.
+# Daily/manual/full-label retains every Desktop scenario and platform.
 name: CI
 
 on:
@@ -336,6 +336,24 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+      # Public path patches are manifest inputs, not a GPUI/Wasm compilation.
+      - name: Checkout pinned GPUI manifest inputs
+        run: |
+          kit="$RUNNER_TEMP/gpui-kit"
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+          git init --quiet "$kit"
+          git -C "$kit" config core.autocrlf false
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin ec89cfc36404667b7947aeb3d40b1c2859d729dd
+          git -C "$kit" checkout --detach FETCH_HEAD
+      - name: Independent App contracts with frozen dependencies
+        run: |
+          npm ci --prefix apps/automations --ignore-scripts
+          npm ci --prefix apps/scientific-viewer --ignore-scripts
+          npm test --prefix apps/automations
+          npm test --prefix apps/scientific-viewer
+          npm run typecheck --prefix apps/automations
+          npm run typecheck --prefix apps/scientific-viewer
       - name: Independent TypeScript and generated contracts
         run: |
           npx tsc -p scripts/ci/tsconfig.core.json
@@ -345,8 +363,8 @@ jobs:
           node scripts/check/locales.mjs
       - name: Core Rust without GPUI or WASM compilation
         run: |
-          cargo test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker
-          cargo build --locked -p pero-host -p pero-worker
+          node scripts/cargo.mjs test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker
+          node scripts/cargo.mjs build --locked -p pero-host -p pero-worker
       - name: Permission, cancellation and fixture contracts
         run: |
           npm run test:app-use:unit
@@ -363,6 +381,8 @@ jobs:
           node tests/contracts/mcp-settings.mjs
           node tests/contracts/mcp-ownership.mjs
           node tests/runtime/automation.mjs
+          node tests/runtime/automation-app.mjs
+          PERO_HOST_EXECUTABLE="$PWD/target/debug/pero-host" node tests/contracts/point-agent.mjs
       - name: Core failure and recovery evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -399,7 +419,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [workbench, automation, toolcalls, data, data-product, control-lab, control-lab-app-use, control-lab-live, virtual-cell-comparison, virtual-cell-dataset-download, app-use, app-use-workbench, mcp-lifecycle, mcp-persistence, mcp-transport]
+        suite: [workbench, automation, toolcalls, data, data-product, control-lab, control-lab-app-use, control-lab-live, virtual-cell-comparison, virtual-cell-dataset-download, app-use, app-use-workbench, mcp-lifecycle, mcp-persistence, mcp-transport, scientific-viewer, automations-ui]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -428,6 +448,12 @@ jobs:
           sudo apt-get install --yes ngspice
           python -m venv "$RUNNER_TEMP/control-lab-python"
           "$RUNNER_TEMP/control-lab-python/bin/python" -m pip install --only-binary=:all: -r apps/control-lab/requirements.txt
+      - name: Scientific Viewer fixture import dependency
+        if: matrix.suite == 'scientific-viewer'
+        run: npm ci --prefix apps/scientific-viewer --ignore-scripts
+      - name: Browser for the explicitly mocked Automation iframe smoke
+        if: matrix.suite == 'automations-ui'
+        run: npx playwright install --with-deps chromium
       - name: Run independent acceptance with bounded cleanup
         env:
           PERO_TEST_HEADED: '1'

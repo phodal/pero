@@ -493,12 +493,12 @@ test('MCP writes use Agent approval and still reject invalid or foreign document
     const described = await tool('app_describe', {});
     assert.equal(JSON.parse(described.content[0].text).apps[0].tool, 'import');
     for (const value of [1, 2]) {
-      const result = await tool('app_write', { app: 'demo', tool: 'import', document: { value } });
+      const result = value===1 ? await tool('app__demo__import', {value}) : await tool('app_write', { app: 'demo', tool: 'import', document: { value } });
       assert.equal(result.isError, false);
       assert.deepEqual(JSON.parse(result.content[0].text).result, { value });
     }
     assert.equal(effects, 2);
-    const invalid = await tool('app_write', { app: 'demo', tool: 'import', document: { value: 'bad' } });
+    const invalid = await tool('app__demo__import', {});
     assert.equal(invalid.isError, true);
     assert.equal(effects, 2);
     const foreign = await tool('app_write', { app: 'other', tool: 'import', document: { value: 1 } });

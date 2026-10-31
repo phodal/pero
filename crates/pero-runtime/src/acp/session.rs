@@ -71,7 +71,7 @@ pub fn start(
     thread: String,
     tx: Sender<HostEvent>,
 ) -> SessionHandle {
-    start_with_workspace_access(config, cwd, thread, tx, true, None)
+    start_with_workspace_access(config, cwd, thread, tx, true, None, None)
 }
 
 /// A scoped Desktop conversation may use the Host-selected App Use endpoint.
@@ -82,7 +82,7 @@ pub fn start_app(
     tx: Sender<HostEvent>,
     endpoint: super::AppUseEndpoint,
 ) -> SessionHandle {
-    start_with_workspace_access(config, cwd, thread, tx, true, Some(endpoint))
+    start_with_workspace_access(config, cwd, thread, tx, true, Some(endpoint), None)
 }
 
 /// The independent Worker supervisor already owns this checkout's write lease.
@@ -92,7 +92,12 @@ pub fn start_supervised(
     thread: String,
     tx: Sender<HostEvent>,
 ) -> SessionHandle {
-    start_with_workspace_access(config, cwd, thread, tx, false, None)
+    start_with_workspace_access(config, cwd, thread, tx, false, None, None)
+}
+
+/// Explicitly resume an existing ACP Session; never fall back to session/new.
+pub fn resume_app(config:AgentConfig,cwd:PathBuf,thread:String,tx:Sender<HostEvent>,app_use:Option<super::AppUseEndpoint>,session_id:String)->SessionHandle {
+    start_with_workspace_access(config,cwd,thread,tx,true,app_use,Some(session_id))
 }
 
 fn start_with_workspace_access(
@@ -102,6 +107,7 @@ fn start_with_workspace_access(
     tx: Sender<HostEvent>,
     acquire_workspace: bool,
     app_use: Option<super::AppUseEndpoint>,
+    resume_id: Option<String>,
 ) -> SessionHandle {
     let (commands, rx) = mpsc::unbounded_channel();
     let permissions: Permissions = Arc::default();
@@ -120,6 +126,7 @@ fn start_with_workspace_access(
             pending.clone(),
             acquire_workspace,
             app_use,
+            resume_id,
         ));
         pending.lock().unwrap().clear();
         if let Err(error) = result {
@@ -204,6 +211,7 @@ async fn run(
     permissions: Permissions,
     acquire_workspace: bool,
     app_use: Option<super::AppUseEndpoint>,
+    resume_id: Option<String>,
 ) -> Result<(), String> {
     config.validate_mcp()?;
     event(
@@ -309,6 +317,7 @@ async fn run(
             }
             config.validate_mcp_capabilities(&initialized.agent_capabilities.mcp_capabilities)
                 .map_err(|message| failure(&message))?;
+            if resume_id.is_some() && !initialized.agent_capabilities.load_session { return Err(failure("This Harness cannot resume existing ACP Sessions; no new Session was started")); }
             let auth_methods = initialized.auth_methods.clone();
             event(&tx, &thread, "agent_info", "", serde_json::to_value(&initialized).unwrap_or_default());
             let mut session_data = loop {
@@ -318,9 +327,11 @@ async fn run(
                         mcp_servers.push(endpoint.server(&thread));
                     }
                 }
-                let request = NewSessionRequest::new(cwd.clone()).mcp_servers(mcp_servers);
+                let (method, request) = if let Some(id) = &resume_id {
+                    ("session/load",json!({"sessionId":id,"cwd":cwd,"mcpServers":mcp_servers}))
+                } else { ("session/new",serde_json::to_value(NewSessionRequest::new(cwd.clone()).mcp_servers(mcp_servers)).map_err(agent_client_protocol::Error::into_internal_error)?) };
                 let result = setup_request(
-                    connection.send_request(UntypedMessage::new("session/new", request)?).block_task(),
+                    connection.send_request(UntypedMessage::new(method, request)?).block_task(),
                     &mut commands, &mut deferred, &tx, &thread, "Session creation",
                 ).await;
                 match result {
@@ -361,6 +372,7 @@ async fn run(
                     Err(error) => return Err(error),
                 }
             };
+            if let Some(id)=&resume_id {session_data["sessionId"]=json!(id);}
             // Validate the standard fields without dropping legacy `models` from the raw response.
             let session: NewSessionResponse = serde_json::from_value(session_data.clone()).map_err(agent_client_protocol::Error::into_internal_error)?;
             let session_id = session.session_id.clone();

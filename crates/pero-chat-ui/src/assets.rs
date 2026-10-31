@@ -6,6 +6,7 @@ gpui_kit::assets::icon_assets!(
     SelectedKitIcons,
     [
         Pin,
+        Microscope,
         Square,
         LayoutGrid,
         ChevronLeft,
@@ -48,6 +49,7 @@ gpui_kit::assets::icon_assets!(
 pub enum UiIcon {
     Settings,
     Pin,
+    Microscope,
     AlertCircle,
     Database,
     Languages,
@@ -132,6 +134,7 @@ impl UiIcon {
         match name {
             "settings" => Some(Self::Settings),
             "pin" => Some(Self::Pin),
+            "microscope" => Some(Self::Microscope),
             "alert-circle" => Some(Self::AlertCircle),
             "database" => Some(Self::Database),
             "languages" => Some(Self::Languages),
@@ -213,6 +216,7 @@ impl UiIcon {
         match self {
             Self::Settings => "settings",
             Self::Pin => "pin",
+            Self::Microscope => "microscope",
             Self::AlertCircle => "alert-circle",
             Self::Database => "database",
             Self::Languages => "languages",
@@ -325,6 +329,7 @@ impl UiIcon {
         match self {
             Self::Settings => "icons/settings.svg",
             Self::Pin => "icons/pin.svg",
+            Self::Microscope => "icons/microscope.svg",
             Self::AlertCircle => "icons/alert-circle.svg",
             Self::Database => "icons/database.svg",
             Self::Languages => "icons/languages.svg",
@@ -424,6 +429,7 @@ impl AssetSource for UiAssets {
                 "../../../web/public/icons/settings.svg"
             ))),
             Some(UiIcon::Pin) => SelectedKitIcons.load("icons/pin.svg")?,
+            Some(UiIcon::Microscope) => SelectedKitIcons.load("icons/microscope.svg")?,
             Some(UiIcon::AlertCircle) => Some(Cow::Borrowed(include_bytes!(
                 "../../../web/public/icons/alert-circle.svg"
             ))),
@@ -585,6 +591,7 @@ impl AssetSource for UiAssets {
         Ok([
             UiIcon::Settings,
             UiIcon::Pin,
+            UiIcon::Microscope,
             UiIcon::AlertCircle,
             UiIcon::Database,
             UiIcon::Languages,

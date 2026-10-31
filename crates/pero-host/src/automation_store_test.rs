@@ -147,3 +147,19 @@ fn operator_reconciliation_and_definition_pause_are_one_durable_commit() {
     assert_eq!(store.evidence().unwrap(), original_evidence);
     drop(store); std::fs::remove_file(path).unwrap();
 }
+
+#[test]
+fn app_catalog_and_definition_change_commit_together() {
+    let path=path(); let mut store=Store::open(&path).unwrap();
+    let entry=domain::catalog::CatalogEntry{id:"named".into(),name:"Daily research".into(),deleted:false,created_at:10};
+    store.db.execute_batch("CREATE TRIGGER fail_catalog BEFORE INSERT ON app_catalog BEGIN SELECT RAISE(ABORT,'disk fixture'); END;").unwrap();
+    assert!(store.apply_catalog(vec![acceptance()],10,None,None,None,Some(&entry)).is_err());
+    assert!(store.state().unwrap().events.is_empty());
+    assert!(store.catalog().unwrap().is_empty());
+    store.db.execute_batch("DROP TRIGGER fail_catalog").unwrap();
+    store.apply_catalog(vec![acceptance()],10,None,None,None,Some(&entry)).unwrap();
+    drop(store);let store=Store::open(&path).unwrap();
+    assert_eq!(store.state().unwrap().events.len(),1);
+    assert_eq!(store.catalog().unwrap(),vec![entry]);
+    drop(store);std::fs::remove_file(path).unwrap();
+}

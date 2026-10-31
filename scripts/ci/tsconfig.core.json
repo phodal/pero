@@ -19,6 +19,7 @@
     "../../web/src/content-results.ts",
     "../../web/src/content-results.test.ts",
     "../../web/src/wasm/**",
-    "../../web/src/*-wasm/**"
+    "../../web/src/*-wasm/**",
+    "../../web/src/app-examples.ts"
   ]
 }

@@ -33,6 +33,8 @@ pub struct AppSessionBinding {
     pub request_id: String,
     pub agent_id: String,
     pub prompt: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub point: Option<super::point_agent::Binding>,
 }
 
 impl AppSessionBinding {
@@ -66,6 +68,7 @@ impl AppSessionBinding {
             request_id,
             agent_id,
             prompt,
+            point: None,
         })
     }
 

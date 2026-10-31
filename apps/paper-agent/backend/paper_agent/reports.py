@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import json
 import re
 
+from .source_text import SourceText
 from .model import REPORT_SCHEMA, Invalid, ResearchInput, canonical, mapping, sequence, text
 
 
@@ -18,6 +19,19 @@ class EvidenceReference:
         for item in sequence(value, 8, "evidence list (maximum 8 references)"):
             item = mapping(item, "evidence reference")
             quote = item.get("quote")
+            if 'startLine' in item or 'endLine' in item:
+                passage = next((p for p in passages if p.id == item.get('passageId') and p.paper_id == item.get('paperId')), None)
+                if passage is None:
+                    raise Invalid('Citation lines require an observed passageId and its paperId')
+                source = SourceText(passage.content)
+                try:
+                    _, original = source.range(item.get('startLine'), item.get('endLine'), limit=4000)
+                except Invalid as error:
+                    raise Invalid(f'{error}; passageId {passage.id} has citationLines 1..{len(source.lines)}. '
+                                  'Use recall with this passageId and select its explicit citationLines numbers, not PDF page lines.') from error
+                if quote is not None and quote != original:
+                    raise Invalid('Citation quotation does not exactly match the selected original lines')
+                quote = original
             text(quote, 4000, "evidence quotation")
             ref = cls(text(item.get("paperId"), 64, "evidence source"), quote, item.get("passageId"))
             if ref.paper_id not in cited_ids:

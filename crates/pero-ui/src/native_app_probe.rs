@@ -174,12 +174,14 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
             1=>{
                 let ready=query(root,"paper-agent","!!document.querySelector('.pa-library-screen .pero-ui-page-header button')",cx).await.unwrap_or(Value::Null);
                 if ready==true {
+                    let pdf=std::fs::read(std::env::var("PERO_NATIVE_PAPER_PDF")?)?;
+                    query(root,"paper-agent",&format!("window.paperProbePdf={}",json!(pdf)),cx).await?;
                     query(root,"paper-agent",r#"(()=>{
                       window.paperProbe={pending:true};
                       (async()=>{
                         const get=async(path,body)=>{const r=await fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw Error(await r.text());return r.json();};
-                        const sample=await get('/api/example');
-                        const paper=await get('/api/papers/import',sample);
+                        const reply=await fetch('/api/pdf/import?filename=Native-fixture.pdf',{method:'POST',headers:{'Content-Type':'application/pdf'},body:new Uint8Array(window.paperProbePdf)});
+                        if(!reply.ok)throw Error(await reply.text());const paper=await reply.json();
                         document.querySelector('.pa-library-screen button[aria-label="Refresh"]').click();
                         window.paperProbe={paperId:paper.id};
                       })().catch(error=>window.paperProbe={error:String(error)});
@@ -224,8 +226,27 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
                 if value["library"]["reports"].as_array().is_some_and(|r|!r.is_empty()) {
                     let active=last["activeChat"].as_u64().unwrap_or(0) as usize;
                     if last["chats"][active]["state"]=="idle" {
-                        return Ok(json!({"passed":true,"realModel":false,"checks":["native Paper Ask freezes App context in the shared Chat without auto-send","same Host ACP session discovers declared Paper tools and prepares/saves an evidence-validated report","native App receives data-changed and retains source records"],"library":value["library"],"chat":last}));
+                        stage=7;
                     }
+                }
+            }
+            7=>{
+                last=cx.update(|cx|root.read(cx).chat.read(cx).snapshot(cx));
+                if let Some(bounds)=last["appLinkBounds"][0]["bounds"].as_object() {
+                    let x=bounds["x"].as_f64().unwrap() as f32+bounds["width"].as_f64().unwrap() as f32/2.;
+                    let y=bounds["y"].as_f64().unwrap() as f32+bounds["height"].as_f64().unwrap() as f32/2.;
+                    window.update(cx,|_,window,cx|{
+                        window.dispatch_event(PlatformInput::MouseDown(MouseDownEvent{button:MouseButton::Left,position:point(px(x),px(y)),click_count:1,..Default::default()}),cx);
+                        window.dispatch_event(PlatformInput::MouseUp(MouseUpEvent{button:MouseButton::Left,position:point(px(x),px(y)),click_count:1,..Default::default()}),cx);
+                    })?;
+                    stage=8;
+                }
+            }
+            8=>{
+                let highlighted=query(root,"paper-agent","!!document.querySelector('[data-citation-region=\"true\"]')",cx).await?;
+                if highlighted==true {
+                    let value=query(root,"paper-agent","window.paperProbeLibrary",cx).await?;
+                    return Ok(json!({"passed":true,"realModel":false,"checks":["native Paper Ask freezes App context without auto-send","shared Host saves an exact PDF evidence report","native Chat source button receives real pointer events and highlights PDF"],"library":value,"chat":last}));
                 }
             }
             _=>unreachable!(),

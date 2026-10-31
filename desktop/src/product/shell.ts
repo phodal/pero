@@ -214,6 +214,7 @@ bridge.connect().then(value => {
     context: { dark: value.dark, locale: value.locale, active: chatOpen, scope: { app: selected.app, panel: selected.panel || 'main' } },
     command:command=>{
       const intent=command as {action?:string;thread_id?:string};
+      if(intent.action==='app_location'){const address=command as {app:string;panel:string;location:string};if(context.product.apps.includes(address.app)){selected={app:address.app,panel:address.panel};update();surface.openLocation(address.app,address.panel,address.location);return bridge.open(address.app);}return Promise.resolve();}
       if(intent.action==='chat_expand') { if(chatOpen && !chatSlot) { chatExpanded = true; update(); } return Promise.resolve(); }
       if(intent.action==='prompt' && chatOpen && !chatSlot) { chatExpanded = true; update(); }
       if(intent.action==='app_use_selection')return bridge.appUseCommand({action:'select',thread_id:intent.thread_id}).then(()=>{});

@@ -19,6 +19,7 @@ use std::collections::{HashMap, HashSet};
 pub enum ChatAction {
     Command(HostCommand),
     Content(crate::artifact_read::ContentReadIntent),
+    AppLink(String),
     OpenDocument(pero_contracts::content_document::ContentDocument),
     ChooseWorkspace,
     ChooseContext {
@@ -80,6 +81,7 @@ pub struct ChatPanel {
     pub(crate) visible: bool,
     pub(crate) next_request: u64,
     pub(crate) retired_chats: HashMap<String, String>,
+    link_subscriptions: HashMap<gpui_kit::EntityId, Subscription>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -118,6 +120,7 @@ impl ChatPanel {
             cx.observe(&composer, |this, _, cx| this.update_composer_completion(cx)),
         ];
         Self {
+            link_subscriptions: HashMap::new(),
             locale,
             connected: false,
             error: None,
@@ -358,6 +361,7 @@ impl ChatPanel {
             "permissionBounds":self.chats.iter().flat_map(|chat|chat.permission_bounds.iter().enumerate().map(move |(index,bounds)|json!({"chat":chat.id,"index":index,"bounds":bounds.snapshot()}))).collect::<Vec<_>>(),
             "reasoningBounds":self.chats.iter().flat_map(|chat|chat.messages.iter().enumerate().filter(|(_,m)|m.role=="thought").map(move |(index,message)|json!({"chat":chat.id,"index":index,"open":chat.thinking.open(index),"bounds":message.toggle_bounds.snapshot()}))).collect::<Vec<_>>(),
             "inputBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().map(move |tool|json!({"chat":chat.id,"tool":tool.id,"bounds":tool.input_bounds.snapshot()}))).collect::<Vec<_>>(),
+            "appLinkBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().flat_map(move |tool|tool.app_links.iter().map(move |link|json!({"chat":chat.id,"url":link.url,"label":link.label,"bounds":link.bounds.snapshot()})))).collect::<Vec<_>>(),
             "toolBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().map(move |tool|json!({"chat":chat.id,"tool":tool.id,"bounds":tool.toggle_bounds.snapshot(),"artifact":tool.artifact_bounds.snapshot()}))).collect::<Vec<_>>(),
             "chartBounds":self.chats.iter().flat_map(|chat|chat.tools.iter()).filter_map(|tool|tool.chart.as_ref().map(|chart|json!({"id":chart.artifact_id,"data":chart.data_bounds.snapshot(),"source":chart.source_bounds.snapshot()}))).collect::<Vec<_>>(),
             "contentReaders":self.chats.iter().flat_map(|chat|chat.tools.iter()).filter_map(|tool|tool.reader.as_ref().map(|reader|reader.read(cx).snapshot(cx))).collect::<Vec<_>>(),
@@ -371,6 +375,13 @@ impl ChatPanel {
 impl Render for ChatPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.composer_focused = self.composer.read(cx).focus_handle(cx).is_focused(window);
+        let views: Vec<_> = self.chats.iter().flat_map(|chat| chat.messages.iter().map(|message|message.view.clone()).chain(chat.tools.iter().filter_map(|tool|tool.view.clone()))).collect();
+        for view in views {
+            if self.link_subscriptions.contains_key(&view.entity_id()) { continue; }
+            view.update(cx,|view,_|view.capture_links=true);
+            let subscription=cx.subscribe(&view,|_,_,link:&crate::stream::MarkdownLink,cx|cx.emit(ChatAction::AppLink(link.0.clone())));
+            self.link_subscriptions.insert(view.entity_id(),subscription);
+        }
         self.apply_composer_context(window, cx);
         for insertion in std::mem::take(&mut self.pending_prompts) {
             let Some(index) = self

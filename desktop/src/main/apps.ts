@@ -116,6 +116,12 @@ export class DesktopApps {
         const file=await this.input(url.hostname,url.pathname.split('/').at(-1)!);
         return new Response(new Uint8Array(file.data),{headers:{'Content-Type':file.mediaType,'Content-Disposition':`inline; filename*=UTF-8''${encodeURIComponent(file.name).replace(/['()*]/g,char=>'%'+char.charCodeAt(0).toString(16).toUpperCase())}`,'Cache-Control':'no-store'}});
       }
+      if (url.pathname === '/host/automation') {
+        if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
+        const raw = await request.text();
+        if (Buffer.byteLength(raw) > 256_000) return new Response('Request too large', { status: 413 });
+        return Response.json(await this.request('automation', { name: url.hostname, request: JSON.parse(raw) }), { headers: { 'Cache-Control': 'no-store' } });
+      }
       if (url.pathname === '/host/connectors') {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
         await this.requireConnectorsGrant(url.hostname);
@@ -133,6 +139,12 @@ export class DesktopApps {
         if (operation.threadId) fields.threadId = operation.threadId;
         return Response.json(await this.request('insights', fields), { headers: { 'Cache-Control': 'no-store' } });
       }
+      if (url.pathname === '/host/point-agent') {
+        if (request.method !== 'POST') return new Response('Method refused', {status:405});
+        const body = await request.text();
+        if (Buffer.byteLength(body) > 256_000) return new Response('Point Agent request too large', {status:413});
+        return Response.json(await this.request('pointagent', {name:url.hostname,request:JSON.parse(body)}), {headers:{'Cache-Control':'no-store'}});
+      }
       if (url.pathname === '/host/agent') {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
         const body = await request.text();
@@ -144,6 +156,10 @@ export class DesktopApps {
         return Response.json(result, { headers: { 'Cache-Control': 'no-store' } });
       }
       const access = await this.request<AppAccess>('resolve', { name: url.hostname });
+      if (['/api/workspaces','/api/harnesses'].includes(url.pathname)) {
+        if (request.method !== 'GET' || url.search) return new Response('Method refused', {status:405});
+        return Response.json(await this.request('pointcatalog', {name:url.hostname,path:url.pathname}), {headers:{'Cache-Control':'no-store'}});
+      }
       if (url.pathname.startsWith('/api/')) {
         if (!access.backend) return new Response('This App has no backend', { status: 503 });
         const body = request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.arrayBuffer();
@@ -158,7 +174,8 @@ export class DesktopApps {
       }
       if (request.method !== 'GET') return new Response('Method refused', { status: 405 });
       const root = await realpath(access.root);
-      const file = await realpath(resolve(root, '.' + decodeURIComponent(url.pathname)));
+      const assetPath = url.pathname;
+      const file = await realpath(resolve(root, '.' + decodeURIComponent(assetPath)));
       const assets = resolve(root, dirname(access.entry));
       if (!file.startsWith(assets + sep) || !(await stat(file)).isFile()) return new Response('Not found', { status: 404 });
       const response = await net.fetch(pathToFileURL(file).href);

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "name": "automations",
+  "version": "0.1.0",
+  "displayName": "Automations",
+  "description": "Local automation schedules, templates and run history.",
+  "permissions": {
+    "host": [
+      "automation"
+    ]
+  },
+  "contributes": {
+    "panels": [
+      {
+        "id": "main",
+        "title": "Automations",
+        "entry": "dist/index.html"
+      }
+    ]
+  }
+}

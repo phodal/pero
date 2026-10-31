@@ -80,7 +80,7 @@ pub(crate) fn window_titlebar(
             .bg(p.bg)
             .pr(px(8.))
             .when_some(tabs, |el, tabs| {
-                el.child(keep_click(div()).flex_1().min_w_0().child(tabs))
+                el.child(keep_click(div()).flex_1().min_w_0().h_full().child(tabs))
             })
             .when(show_title, |el| {
                 el.child(

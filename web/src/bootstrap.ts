@@ -24,6 +24,7 @@ declare global {
     peroSetLocale(locale: string): void;
     peroSessionCommand(json: string): void;
     peroAppSurface(json: string): void;
+    peroOpenAppLocation(json:string):void;
     peroAppChatOverlay(json: string): void;
     peroDiagnostics: { snapshot: typeof snapshot };
   }
@@ -75,7 +76,20 @@ try {
     },
     deliver:(thread_id,contexts,text,replace)=>receive_host_event(JSON.stringify({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}})),
   });
-  const apps = mountAppSurfaces(value=>window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser'))),launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})),pane=>receive_host_event(JSON.stringify({version:1,kind:'pane_focus',request_id:null,text:'',data:{id:pane}})),async slot=>{
+  const apps = mountAppSurfaces(async value=>{
+    if ('action' in value && value.action === 'scientific_paper_open') {
+      const before = JSON.parse(snapshot());
+      if (!before.apps?.some((app: { name: string; enabled: boolean; panels: { id: string }[] }) => app.name === 'paper-agent' && app.enabled && app.panels.some(panel => panel.id === 'main'))) throw new Error('Paper App is not installed and enabled in this product');
+      receive_host_event(JSON.stringify({ version: 1, kind: 'scientific_paper_open', request_id: null, text: '', data: {} }));
+      const deadline = performance.now() + 5000;
+      while (performance.now() < deadline) {
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        const current = JSON.parse(snapshot());
+        if (current.activeApp?.name === 'paper-agent' && current.activeApp?.panel === 'main') return;
+      }
+      throw new Error('Paper App did not open');
+    }
+    if('action' in value && value.action==='automation_session_open'){receive_host_event(JSON.stringify({version:1,kind:'automation_session_open',request_id:null,text:'',data:value}));return Promise.resolve();}return window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser')));},launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})),pane=>receive_host_event(JSON.stringify({version:1,kind:'pane_focus',request_id:null,text:'',data:{id:pane}})),async slot=>{
     receive_host_event(JSON.stringify({version:1,kind:'app_chat_slot',request_id:null,text:'',data:slot}));
     if(!slot)return false;
     const deadline=performance.now()+5000;
@@ -91,6 +105,7 @@ try {
     return false;
   });
   window.peroAppUseRevoke = async(thread,scope) => {await window.pero!.appUseCommand({action:'revoke',thread_id:thread,scope});};
+  window.peroOpenAppLocation = input => {const value=JSON.parse(input);apps.openLocation(value.app,value.panel,value.location);};
   window.peroAppSurface = json => apps.surface(JSON.parse(json) as AppSurface|AppSurfaceBatch);
   window.peroAppChatOverlay = json => apps.overlay(JSON.parse(json));
   window.peroSendProbe = (json) => {
@@ -101,9 +116,12 @@ try {
     }
     window.pero.sendProbe(request).catch(() => receive_host_event(JSON.stringify({ version: 1, kind: 'error', request_id: request.id, text: '', message_key: 'error.connection' })));
   };
-  const automation = installAutomation(command => window.pero ? window.pero.sessionCommand(command) : Promise.reject(new Error(t('error.browser'))));
+  // Workbench operator controls are not exposed through App write routes.
+  const automationOperations = installAutomation(command => window.pero
+    ? window.pero.sessionCommand(command) : Promise.reject(new Error('Desktop Host required')));
   const onEvent = (event: HostEvent) => {
-    automation.event(event);
+    automationOperations.event(event);
+    if (event.kind === 'automation_operations_open') return;
     if (event.kind === 'settings') { locale = normalizeLocale(event.text); updateDocument(); }
     receive_host_event(JSON.stringify(event));
     if (event.kind === 'workbench_settings') applyAppearance(JSON.parse(snapshot()).appearance);
@@ -115,6 +133,7 @@ try {
   };
   window.peroSessionCommand = (json) => {
     const command = JSON.parse(json);
+    if(command.action==='automation_open'){onEvent({version:1,kind:'automation_open',request_id:null,text:''});return;}
     if(typeof command.action==='string'&&command.action.startsWith('web_')) {if(window.pero)void window.pero.webCommand(command).catch(()=>onEvent({version:1,kind:'web_error',request_id:null,text:t('error.connection')}));else onEvent({version:1,kind:'web_error',request_id:null,text:t('error.browser')});return;}
     if(command.action==='cancel_read_result'){cancelContentResult(command.request_id);return;}
     if(command.action==='read_result'){void loadContentResult(command,request=>window.pero?window.pero.readContent(request):Promise.reject(new Error(t('error.browser'))),onEvent);return;}

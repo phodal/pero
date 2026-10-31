@@ -10,11 +10,14 @@
     "virtual-cell",
     "paper-agent",
     "control-lab",
-    "connectors"
+    "scientific-viewer",
+    "connectors",
+    "automations"
   ],
   "required": [
     "insights",
-    "data"
+    "data",
+    "automations"
   ],
   "python": "system"
 }

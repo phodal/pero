@@ -12,12 +12,20 @@ export const suites = Object.freeze({
   'mcp-lifecycle': ['mcp-settings', '--scenario', 'lifecycle'],
   'mcp-persistence': ['mcp-settings', '--scenario', 'persistence'],
   'mcp-transport': ['mcp-settings', '--scenario', 'transport'],
+  'scientific-viewer': ['scientific-viewer'],
+  // Explicit mock Host envelope; real Host contracts remain in core.
+  'automations-ui': ['apps/automations/test/ui-smoke.mjs'],
 });
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const name = process.argv[2];
   if (!Object.hasOwn(suites, name)) throw new Error(`Unknown acceptance suite: ${name}`);
   const [script, ...args] = suites[name];
   const env = { ...process.env };
+  if (name === 'automations-ui') {
+    const { chromium } = await import('@playwright/test');
+    env.PERO_CHROMIUM_PATH = chromium.executablePath();
+  }
+  const scriptPath = name === 'automations-ui' ? script : `tests/e2e/${script}.mjs`;
   if (name.startsWith('control-lab')) env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'control-lab-python/bin/python');
   if (name === 'control-lab-live') {
     const agent = resolve('target/debug/pero-agent-acp');
@@ -28,7 +36,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   }
   // A deadline diagnoses a stuck test; it does not turn the ten-minute goal into a timeout.
   const result = spawnSync(process.execPath, ['scripts/ci/run-acceptance.mjs', '--name', name, '--timeout-seconds', '360', '--',
-    'xvfb-run', '-a', '-s', '-screen 0 1920x1200x24', process.execPath, `tests/e2e/${script}.mjs`, ...args], { env, stdio: 'inherit' });
+    'xvfb-run', '-a', '-s', '-screen 0 1920x1200x24', process.execPath, scriptPath, ...args], { env, stdio: 'inherit' });
   if (result.error) throw result.error;
   process.exitCode = result.status ?? 1;
 }

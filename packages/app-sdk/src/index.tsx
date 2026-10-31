@@ -10,6 +10,7 @@ export { AppSurface, appSurface } from './app-use';
 export type { AppObject, AppObjectAction, AppObjectSnapshot } from './app-use';
 export { appObjectProps } from './app-use';
 export { useAppAgent } from './agent';
+export { openPaperApp } from './navigation';
 export { openDocument } from './document';
 export type { AppDocumentInput } from './document';
 export {ContentIconRegistry,contentIcons,contentIcon} from '../../icons/content';

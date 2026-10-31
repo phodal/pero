@@ -62,7 +62,7 @@ async function callTool(name, args, pointer, signal) {
     selected = pointer.split('/').slice(1).reduce((value, key) => value[key], envelope);
   }
   send({ method: 'session/update', params: { sessionId, update: { sessionUpdate: 'tool_call_update', toolCallId,
-    status: 'completed', rawOutput: { synthetic: true, selected: pointer, action: args.document?.action,
+    status: 'completed', ...(envelope.appLinks ? {content:[{type:'content',content:{type:'text',text}}]} : {}), rawOutput: { synthetic: true, selected: pointer, action: args.document?.action,
       page: args.document?.page, passageCount: selected?.passages?.length, reportId: typeof selected === 'string' ? selected : selected?.reportId } } } });
   return selected;
 }

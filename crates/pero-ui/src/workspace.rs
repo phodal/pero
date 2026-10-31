@@ -456,6 +456,12 @@ mod tests {
 
         let cases = [
             Case {
+                name: "compute shares ordinary tab navigation and remains available after close",
+                actions: vec![Open(WorkspaceItem::Compute), Open(app.clone()), Select(WorkspaceItem::Compute), Close(WorkspaceItem::Compute), Open(WorkspaceItem::Compute), Reconcile(vec![app.clone(), WorkspaceItem::Compute])],
+                items: vec![app.clone(), WorkspaceItem::Compute],
+                route: WorkspaceRoute::Content(WorkspaceItem::Compute),
+            },
+            Case {
                 name: "workspace history walks sources and utility pages without opening duplicates",
                 actions: vec![
                     Open(document.clone()),

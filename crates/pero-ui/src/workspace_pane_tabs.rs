@@ -20,6 +20,13 @@ use pero_contracts::{
 };
 use std::{cell::RefCell, collections::HashMap};
 
+/// Window chrome owns the outer height and separator; split panes own theirs.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TabBarPlacement {
+    WindowChrome,
+    Pane,
+}
+
 gpui_kit::actions!(
     pane_tabs,
     [
@@ -202,7 +209,7 @@ impl Workbench {
             self.confirm_pane_tab_switch(window, cx);
         }
     }
-    pub(crate) fn pane_tab_bar(&self, leaf: &PaneLeaf, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn pane_tab_bar(&self, leaf: &PaneLeaf, placement: TabBarPlacement, cx: &mut Context<Self>) -> AnyElement {
         let appearance = pero_theme::UiAppearance::global(cx);
         let p = appearance.palette.clone();
         let height = W::TAB.max(appearance.typography.row_height() + 4.);
@@ -287,11 +294,12 @@ impl Workbench {
             .id(("pane-tab-bar", pane.0 as usize))
             .relative()
             .flex_shrink_0()
-            .h(px(height))
+            .when(placement == TabBarPlacement::WindowChrome, |bar| bar.h(px(crate::components::sidebar::WINDOW_CHROME - 1.)))
+            .when(placement == TabBarPlacement::Pane, |bar| {
+                bar.h(px(height)).border_b_1().border_color(p.border)
+            })
             .flex()
             .items_center()
-            .border_b_1()
-            .border_color(p.border)
             .bg(p.bg)
             .when(count > 0, |bar| {
                 bar.child(
@@ -338,6 +346,7 @@ impl Workbench {
                             })),
                     ),
             )
+            .children(self.app_examples_button(leaf,cx))
             .children((!connector).then(||
                 Button::new(("pane-tab-list", pane.0 as usize))
                     .ghost()

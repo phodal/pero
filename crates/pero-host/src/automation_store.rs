@@ -23,6 +23,7 @@ impl Store {
         // Host cannot recover live reservations or act as an automatic failover.
         db.execute_batch("PRAGMA locking_mode=EXCLUSIVE; PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA max_page_count=32768;
             CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY CHECK(id=1), body TEXT NOT NULL, sequence INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS app_catalog (id TEXT PRIMARY KEY, body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS inputs (id TEXT PRIMARY KEY, content TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS admissions (execution_id TEXT PRIMARY KEY, body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS effects (sequence INTEGER NOT NULL, ordinal INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY(sequence,ordinal));
@@ -70,6 +71,15 @@ impl Store {
     /// Nothing returned from this function may be executed before COMMIT succeeds.
     pub fn apply(&mut self, commands: Vec<Command>, now: u64, input: Option<(&str, &str)>,
                  admission: Option<(&str, &Value)>, observation: Option<(&str, &Value)>) -> Result<Commit, String> {
+        self.apply_catalog(commands, now, input, admission, observation, None)
+    }
+    pub fn catalog(&self) -> Result<Vec<domain::catalog::CatalogEntry>, String> {
+        let mut query = self.db.prepare("SELECT body FROM app_catalog ORDER BY id").map_err(failure)?;
+        query.query_map([], |row| row.get::<_, String>(0)).map_err(failure)?
+            .map(|row| serde_json::from_str(&row.map_err(failure)?).map_err(failure)).collect()
+    }
+    pub fn apply_catalog(&mut self, commands: Vec<Command>, now: u64, input: Option<(&str, &str)>,
+                 admission: Option<(&str, &Value)>, observation: Option<(&str, &Value)>, entry: Option<&domain::catalog::CatalogEntry>) -> Result<Commit, String> {
         let tx = self.db.transaction_with_behavior(TransactionBehavior::Immediate).map_err(failure)?;
         let (body, mut sequence): (String, i64) = tx.query_row("SELECT body,sequence FROM state WHERE id=1", [], |row| Ok((row.get(0)?, row.get(1)?))).map_err(failure)?;
         let mut state: State = serde_json::from_str(&body).map_err(failure)?;
@@ -109,6 +119,9 @@ impl Store {
         let bytes: i64 = tx.query_row("SELECT COALESCE(sum(length(CAST(content AS BLOB))),0) FROM inputs", [], |row| row.get(0)).map_err(failure)?;
         if bytes + body.len() as i64 > STORE_LIMIT { return Err("Automation storage capacity reached; existing responsibility retained".into()); }
         tx.execute("UPDATE state SET body=?1,sequence=?2 WHERE id=1", params![body, sequence]).map_err(failure)?;
+        if let Some(entry) = entry {
+            tx.execute("INSERT INTO app_catalog VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET body=excluded.body", params![entry.id, serde_json::to_string(entry).map_err(failure)?]).map_err(failure)?;
+        }
         tx.commit().map_err(failure)?;
         Ok(Commit { receipt, effects })
     }

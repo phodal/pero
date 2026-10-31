@@ -295,7 +295,8 @@ impl WorkspaceRoute {
         matches!(
             self,
             Self::Content(
-                WorkspaceItem::Document { .. }
+                WorkspaceItem::Compute
+                    | WorkspaceItem::Document { .. }
                     | WorkspaceItem::App { .. }
                     | WorkspaceItem::Web(_)
                     | WorkspaceItem::Conversation(_)

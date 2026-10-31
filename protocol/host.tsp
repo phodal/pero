@@ -69,7 +69,8 @@ model ReaderState {source_revision?:safeint|null;source:boolean;selection:Reader
 model WorkspaceSimpleItem {kind:"conversation"|"web"|"project"|"task";value:string;...Closed}
 model WorkspaceDocumentItem {kind:"document";value:{origin:ContentOrigin;source:string;...Closed};...Closed}
 model WorkspaceAppItem {kind:"app";value:{name:string;panel:string;...Closed};...Closed}
-@oneOf union WorkspaceItem {WorkspaceSimpleItem,WorkspaceDocumentItem,WorkspaceAppItem}
+model WorkspaceComputeItem {kind:"compute";...Closed}
+@oneOf union WorkspaceItem {WorkspaceSimpleItem,WorkspaceDocumentItem,WorkspaceAppItem,WorkspaceComputeItem}
 scalar WorkbenchPage extends string;
 model WorkspacePageRoute {kind:"page";value:"conversation"|"document"|"web"|"projects"|"agents"|"tasks"|"workers"|"apps"|"insights"|"connections";...Closed}
 model WorkspaceContentRoute {kind:"content";value:WorkspaceItem;...Closed}
@@ -381,6 +382,12 @@ model AppsErrorEvent { kind: "apps_error"; ...EventBase }
 model AppOpenedData { name: string; panel: string; url: string; ...Closed; }
 model AppsOpenedEvent { kind: "apps_opened"; ...EventBase; data: AppOpenedData }
 
+model PointSessionOpenData {scope:AppChatScope;sessionId:string;...Closed}
+model PointSessionOpenEvent {kind:"point_app_session_open";...EventBase;data:PointSessionOpenData}
+model PointAttemptData {attempt:Pero.Apps.PointAttempt;pointTime?:string;...Closed}
+model PointAttemptEvent {kind:"app_agent_attempt";...ThreadEventBase;data:PointAttemptData}
+model PointCancelData {pointTime?:string;...Closed}
+model PointCancelEvent {kind:"app_agent_cancel";...ThreadEventBase;data:PointCancelData}
 model SessionCreatedData { agent: string; workspace: string; scope?: AppChatScope; appBinding?: Pero.Apps.AppSessionBinding; ...Closed }
 model SessionCreatedEvent { kind: "session_created"; ...ThreadEventBase; data: SessionCreatedData }
 model UserMessageContext {contexts: ContextReference[]; ...Closed}
@@ -453,6 +460,9 @@ model InsightsEvent { kind: "insights"; ...ThreadEventBase; data: InsightsSummar
 @oneOf
 union ThreadEvent {
   TurnStartedEvent,
+  PointSessionOpenEvent,
+  PointAttemptEvent,
+  PointCancelEvent,
   SessionCreatedEvent,
   UserMessageEvent,
   SessionUpdateEvent,

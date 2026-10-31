@@ -1,4 +1,6 @@
 {
+  "apps.examples": "示例",
+  "apps.example_source": "示例来源",
   "sessions.no_matches": "没有匹配的会话。",
   "apps.actions": "应用操作",
   "apps.manage": "应用商店",
@@ -833,6 +835,7 @@
   "harness.invalid_model": "请输入不含空白字符的模型 ID。",
   "harness.invalid_key": "API Key 含有无效字符。",
   "harness.confirm_remove": "确认移除",
+  "automation.operations": "自动化运行管理…",
   "automation.title": "自动化",
   "terminal.title": "终端",
   "terminal.starting": "正在启动 shell…",
@@ -854,5 +857,6 @@
   "apps.category_data": "数据分析",
   "apps.category_tools": "工具",
   "nav.automations": "自动化",
-  "apps.category_empty": "此分类暂无应用"
+  "apps.category_empty": "此分类暂无应用",
+  "nav.compute": "科学计算"
 }

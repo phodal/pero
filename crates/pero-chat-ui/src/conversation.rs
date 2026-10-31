@@ -100,6 +100,7 @@ pub struct Tool {
     pub cancelled: bool,
     pub document: Option<ContentDocument>,
     pub artifact: Option<ArtifactView>,
+    pub app_links:Vec<crate::app_links::AppResultLink>,
     #[serde(skip)]
     pub(crate) artifact_bounds: crate::view_bounds::ViewBounds,
     #[serde(skip)]
@@ -317,6 +318,7 @@ impl Conversation {
                             cancelled: false,
                             document: None,
                             artifact: None,
+                            app_links:vec![],
                             artifact_bounds: Default::default(),
                             reader: None,
                             toggle_bounds: Default::default(),
@@ -376,6 +378,7 @@ impl Conversation {
                     tool.source_revision+=1;
                     let revision=tool.source_revision;
                     tool.artifact = ArtifactView::from_content(&next);
+                    tool.app_links = crate::app_links::AppResultLink::from_content(&next);
                     tool.document = ContentDocument::from_tool(
                         DocumentSource {id:format!("{}/{}",self.id,tool.id),title:tool.title.clone(),origin:ContentOrigin::Conversation {thread_id:self.id.clone()}}, revision, &next,
                     );

@@ -22,6 +22,8 @@ enum Request {
         id: String,
         path: PathBuf,
     },
+    Pointagent { method: Method, id: String, name: AppName, request: pero_runtime::apps::point_agent::Request },
+    Pointcatalog { method: Method, id: String, name: AppName, path: String },
     Enable {
         method: Method,
         id: String,
@@ -116,11 +118,16 @@ impl Apps {
         }
     }
 
+    pub(crate) fn require_grant(&self, name: &AppName, grant: &str) -> Result<(), String> {
+        let guard=self.store.try_lock().map_err(|_|"An App environment is being prepared; retry when installation finishes".to_string())?;
+        guard.as_ref().map_err(Clone::clone)?.require_grant(name,grant)
+    }
+
     /// Installers run outside the stdio input loop so Agent traffic and
     /// cancellation remain responsive while pip downloads packages.
     pub fn dispatch_async(&self, value: serde_json::Value, agents: &mut crate::agents::Manager) {
         let action = value["action"].as_str().unwrap_or("");
-        if matches!(action, "agent" | "insights" | "connectors" | "disable" | "uninstall") {
+        if matches!(action, "pointagent" | "pointcatalog" | "agent" | "insights" | "connectors" | "disable" | "uninstall") {
             let mut this = self.clone();
             let event = this.dispatch(value, Some(agents));
             let _ = crate::emit(event);
@@ -167,6 +174,15 @@ impl Apps {
                 Request::Install { method, id, path } => {
                     let _ = (method, id);
                     serde_json::to_value(store.install(&path)?)
+                }
+                Request::Pointagent { method,id,name,request } => {
+                    let _=(method,id);let panel=store.point_agent_panel(&name)?;
+                    let revision=store.agent_declaration_revision(&name)?;
+                    return agents.as_deref_mut().expect("Host manager").point_request(name,panel,revision,request);
+                }
+                Request::Pointcatalog { method,id,name,path } => {
+                    let _=(method,id);store.point_catalog_permission(&name,&path)?;
+                    return agents.as_deref_mut().expect("Host manager").point_catalog(&path);
                 }
                 Request::Enable { method, id, name } => {
                     let _ = (method, id);

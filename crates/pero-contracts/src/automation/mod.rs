@@ -2,6 +2,9 @@
 //! delivering effects. This module performs no I/O and never replays a reservation.
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+mod calendar;
+mod manual;
+pub use calendar::CalendarSchedule;
 
 const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 
@@ -33,6 +36,7 @@ pub enum Trigger {
     Manual,
     Event { binding_id: String, event_kind: String },
     Time { subject: String, exact: Option<ExactRef>, anchor: u64, interval_seconds: u64, max_lateness_seconds: u64 },
+    Calendar { schedule: CalendarSchedule, subject: String, exact: Option<ExactRef> },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -141,7 +145,7 @@ impl RequestStatus {
     fn waiting(&self) -> bool {
         matches!(self, Self::Pending | Self::InputUnavailable | Self::DefinitionChanged)
     }
-    fn active(&self) -> bool {
+    pub fn active(&self) -> bool {
         matches!(self, Self::Reserved | Self::Running | Self::CancelRequested | Self::Reconcile)
     }
     fn covers_event(&self) -> bool {
@@ -220,6 +224,8 @@ pub struct State {
     pub decisions: Vec<Decision>,
     pub requests: Vec<RunRequest>,
     pub dispatch_count: u64,
+    #[serde(default)]
+    pub calendar_slots: BTreeMap<String, u64>,
 }
 impl State {
     /// Observation only: counts retain completed identities and reserved budgets.
@@ -248,7 +254,7 @@ impl State {
         }
         Ok(Self { owner, limits, bindings: vec![], definitions: vec![], controls: BTreeMap::new(),
             revoked_bindings: vec![], snapshots: vec![], latest: vec![], events: vec![], decisions: vec![],
-            requests: vec![], dispatch_count: 0 })
+            requests: vec![], dispatch_count: 0, calendar_slots: BTreeMap::new() })
     }
     /// Validate once when opening persisted state. Parsing JSON is not proof of
     /// domain validity; malformed records must fail closed before scheduling.
@@ -260,6 +266,7 @@ impl State {
         for definition in &self.definitions {
             validated = apply(&validated, Command::PutDefinition { definition: definition.clone() }, 0, Ids::default())?.state;
         }
+        self.validate_calendar_cursors()?;
         for candidate in &self.snapshots {
             validated = apply(&validated, Command::PublishSnapshot { candidate: candidate.clone(), latest: false }, 0, Ids::default())?.state;
         }
@@ -296,10 +303,12 @@ impl State {
                 || (request.definition.input == InputContract::ProcessExact && request.exact.is_none()) { return Err(Error::Invalid); }
             match (&request.intent, &request.definition.trigger) {
                 (Intent::Event, Trigger::Event { .. }) if request.through_position > 0 => (),
-                (Intent::Manual { id }, Trigger::Manual) if identifier(id) && request.through_position == 0 => (),
+                (Intent::Manual { id }, trigger) if identifier(id) && request.through_position == 0
+                    && manual::accepts(trigger, &request.subject, &request.exact) => (),
                 (Intent::Time { slot }, Trigger::Time { subject, exact, anchor, interval_seconds, .. })
                     if request.through_position == 0 && request.subject == *subject && request.exact == *exact
                         && *slot >= *anchor && *slot <= MAX_SAFE_INTEGER && (slot - anchor) % interval_seconds == 0 => (),
+                (Intent::Time { .. }, Trigger::Calendar { .. }) if calendar::valid_restored_intent(request) => (),
                 _ => return Err(Error::Invalid),
             }
             if let Some(candidate) = &request.snapshot {
@@ -389,6 +398,7 @@ pub enum Command {
     Manual { definition_id: String, intent_id: String, subject: String, exact: Option<ExactRef> },
     ManualInput { definition_id: String, intent_id: String, candidate: CandidateRef },
     Time { definition_id: String, revision: u64, slot: u64, subject: String, exact: Option<ExactRef> },
+    CalendarTime { definition_id: String, revision: u64, slot: u64, next_slot: Option<u64> },
     Reserve { request_id: String, execution_id: String },
     Observe { request_id: String, execution_id: String, outcome: Outcome },
     Reconcile { request_id: String, execution_id: String, disposition: ReconciliationDisposition, evidence: String, execution_stopped: bool, effects_checked: bool },
@@ -512,6 +522,7 @@ pub fn apply(state: &State, command: Command, now: u64, ids: Ids) -> Result<Tran
                 Trigger::Time { subject, exact, anchor, interval_seconds, max_lateness_seconds } if *interval_seconds == 0 || !identifier(subject)
                     || [anchor, interval_seconds, max_lateness_seconds].iter().any(|v| **v > MAX_SAFE_INTEGER)
                     || !exact_valid(exact) || (definition.input == InputContract::ProcessExact && exact.is_none()) => return Err(Error::Invalid),
+                Trigger::Calendar { schedule, subject, exact } => calendar::validate_trigger(schedule, subject, exact, definition.input)?,
                 _ => (),
             }
             let Method::Agent { agent_id, workspace, prompt } = &definition.method;
@@ -528,6 +539,7 @@ pub fn apply(state: &State, command: Command, now: u64, ids: Ids) -> Result<Tran
                         request.continued_revision = false;
                     }
                 }
+                next.reset_calendar_cursor(&definition);
                 next.definitions.push(definition);
             }
         }
@@ -594,7 +606,7 @@ pub fn apply(state: &State, command: Command, now: u64, ids: Ids) -> Result<Tran
         }
         Command::Manual { definition_id, intent_id, subject, exact } => {
             let definition = state.latest_definition(&definition_id).ok_or(Error::NotFound)?;
-            if !identifier(&intent_id) || (!matches!(definition.trigger, Trigger::Manual)
+            if !identifier(&intent_id) || (!manual::accepts(&definition.trigger, &subject, &exact)
                 && !state.requests.iter().any(|r| r.definition.id == definition_id && r.intent == (Intent::Manual { id: intent_id.clone() }))) { return Err(Error::Invalid); }
             let intent = Intent::Manual { id: intent_id };
             receipt = create_intent(&mut next, definition, intent, subject, exact, now, &ids, false)?;
@@ -604,6 +616,9 @@ pub fn apply(state: &State, command: Command, now: u64, ids: Ids) -> Result<Tran
             let Trigger::Time { subject: fixed_subject, exact: fixed_exact, anchor, interval_seconds, max_lateness_seconds } = &definition.trigger else { return Err(Error::Invalid); };
             if &subject != fixed_subject || &exact != fixed_exact || slot < *anchor || slot > now || (slot - anchor) % interval_seconds != 0 { return Err(Error::Invalid); }
             receipt = create_intent(&mut next, definition, Intent::Time { slot }, subject, exact, now, &ids, now - slot > *max_lateness_seconds)?;
+        }
+        Command::CalendarTime { definition_id, revision, slot, next_slot } => {
+            receipt = next.calendar_time(&definition_id, revision, slot, next_slot, now, &ids)?;
         }
         Command::Reserve { request_id, execution_id } => {
             let index = state.requests.iter().position(|r| r.id == request_id).ok_or(Error::NotFound)?;
@@ -764,3 +779,5 @@ pub fn due_slots(state: &State, now: u64) -> Vec<Command> {
 
 #[cfg(test)]
 mod tests;
+
+pub mod catalog;

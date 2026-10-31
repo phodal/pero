@@ -358,3 +358,25 @@ fn required_tenure_rejects_disable_and_reinstalls_a_tampered_record() {
         }
     }
 }
+
+#[test]
+fn app_run_access_uses_enabled_pero_agent_grants() {
+    for granted in [false, true] {
+        let workspace = Workspace::new(); let source = workspace.package(None);
+        let path = source.join("app.json");
+        let mut declaration: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        if granted { declaration["permissions"] = serde_json::json!({"host":["agent"]}); }
+        fs::write(path, serde_json::to_vec(&declaration).unwrap()).unwrap();
+        let mut store = AppStore::open(workspace.0.join("installed"), PythonEnvironments::default()).unwrap();
+        store.install(&source).unwrap();
+        let name = AppName::try_from("virtual-cell".to_owned()).unwrap();
+        store.set_enabled(&name, true).unwrap();
+        assert_eq!(store.point_agent_panel(&name).is_ok(), granted);
+        assert_eq!(store.agent_declaration_revision(&name).is_ok(), granted);
+        for path in ["/api/workspaces", "/api/harnesses"] { assert_eq!(store.point_catalog_permission(&name, path).is_ok(), granted); }
+        assert!(store.point_catalog_permission(&name, "/api/projects").is_err());
+        store.set_enabled(&name, false).unwrap();
+        assert!(store.point_agent_panel(&name).is_err());
+        assert!(store.agent_declaration_revision(&name).is_err());
+    }
+}
