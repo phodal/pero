@@ -2,7 +2,7 @@
 // This is development workbench acceptance, not live source/model or installer acceptance.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { clickAppOpen, setAppearance } from './sidebar-controls.mjs';
+import { clickAppOpen, clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -34,8 +34,8 @@ async function openData() {
     const canvas = document.querySelector('canvas');
     return canvas?.width === Math.round(innerWidth * devicePixelRatio) && canvas.height === Math.round(innerHeight * devicePixelRatio);
   });
-  // The existing bottom Apps menu exposes measured Open button bounds.
-  await page.mouse.click(80, await page.evaluate(() => innerHeight - 55));
+  // Open the catalog through the visible sidebar control measured by GPUI.
+  await clickAppShortcut(page, 'apps');
   await expect.poll(async () => (await desktop()).navigation).toBe(7);
   await expect.poll(async () => (await desktop()).appsLoading).toBe(false);
   await clickAppOpen(page, 'data');
