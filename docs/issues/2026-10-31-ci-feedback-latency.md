@@ -42,6 +42,18 @@ the build check or copying external source. Ordinary Pero App installation,
 preparation, backend permissions and Terminal remain. Desktop builds and runtime
 artifacts no longer require a Point checkout.
 
+The first independent-core run exposed a real Worker journal ownership race:
+closing the owner's file descriptor does not release a Unix flock while a
+forked/duplicated descriptor still refers to the same open-file description.
+A deterministic duplicate-descriptor regression fails on the prior code without
+sleep or parallel scheduling assumptions. A private non-cloneable lock guard
+now explicitly unlocks at the owner boundary, including errors after acquisition;
+a failed acquisition never creates that guard. The regression retains exclusive
+ownership and proves an old alias cannot release a subsequent owner's lock.
+The original durable-claim and cross-platform reopening assertions remain.
+See the [flock ownership contract](https://man7.org/linux/man-pages/man2/flock.2.html).
+This is a correctness repair, not a retry or removal of the failing test.
+
 The incident remains open until real Actions measurements demonstrate the target
 and full coverage on the new exact head. See `docs/fitness/ci-feedback.md` for the
 baseline, coverage mapping, cold/warm distinction and measurement procedure.
