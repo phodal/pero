@@ -34,6 +34,7 @@ struct Reply {
 
 #[derive(Clone)]
 pub(crate) struct NativeApps {
+    connectors: Option<std::sync::Weak<crate::native_connectors::NativeConnectors>>,
     host: mpsc::Sender<String>,
     pending: Arc<Mutex<BTreeMap<String, mpsc::Sender<Reply>>>>,
     next: Arc<AtomicU64>,
@@ -41,8 +42,9 @@ pub(crate) struct NativeApps {
     client: reqwest::blocking::Client,
 }
 impl NativeApps {
-    pub fn new(host: mpsc::Sender<String>, events: async_channel::Sender<HostEvent>) -> Self {
+    pub fn new(host: mpsc::Sender<String>, events: async_channel::Sender<HostEvent>, connectors: Option<std::sync::Weak<crate::native_connectors::NativeConnectors>>) -> Self {
         Self {
+            connectors,
             host,
             events,
             pending: Default::default(),
@@ -54,6 +56,10 @@ impl NativeApps {
                 .build()
                 .expect("App HTTP client"),
         }
+    }
+    pub fn require_connectors(&self) -> anyhow::Result<()> {
+        self.request::<Value>("connectors", json!({"name":"connectors"}))?;
+        Ok(())
     }
     pub fn accept(&self, event: &HostEvent) -> bool {
         if event.kind != "apps_result" {
@@ -163,6 +169,24 @@ impl NativeApps {
         let path = uri.path();
         let method = request.method();
         let body = request.body();
+        if path == "/host/connectors" {
+            let response = |status, value: Value| Response::builder().status(status)
+                .header("Content-Type", "application/json").header("Cache-Control", "no-store")
+                .body(serde_json::to_vec(&value).unwrap()).unwrap();
+            if method != "POST" { return Ok(response(405, json!({"ok":false,"code":"MCP_HOST_METHOD"}))); }
+            if body.len() > 131072 { return Ok(response(413, json!({"ok":false,"code":"MCP_ARGUMENT"}))); }
+            if self.request::<Value>("connectors", json!({"name":name})).is_err() {
+                return Ok(response(403, json!({"ok":false,"code":"MCP_HOST_FORBIDDEN"})));
+            }
+            let operation: Value = match serde_json::from_slice(body) {
+                Ok(value) => value,
+                Err(_) => return Ok(response(400, json!({"ok":false,"code":"MCP_ARGUMENT"}))),
+            };
+            return Ok(match self.connectors.as_ref().and_then(std::sync::Weak::upgrade).map(|owner| owner.request(operation)) {
+                Some(Ok(value)) => response(200, value),
+                _ => response(503, json!({"ok":false,"code":"MCP_HOST_UNAVAILABLE"})),
+            });
+        }
         let (status, content_type, data) = if matches!(path, "/host/agent" | "/host/insights") {
             anyhow::ensure!(
                 method == "POST" && body.len() <= 256_000,

@@ -99,7 +99,9 @@ pub(crate) struct Workbench {
     pub floating_chat_expanded: bool,
     pub layout: WorkspaceLayout,
     pub resizing_chat: bool,
+    pub resizing_sidebar: bool,
     pub chat_resize_focus: FocusHandle,
+    pub sidebar_resize_focus: FocusHandle,
     pub tab: ConversationTab,
     pub connected: bool,
     pub pending: Option<String>,
@@ -318,7 +320,9 @@ impl Workbench {
             floating_chat_expanded: false,
             layout,
             resizing_chat: false,
+            resizing_sidebar: false,
             chat_resize_focus: cx.focus_handle().tab_stop(true),
+            sidebar_resize_focus: cx.focus_handle().tab_stop(true),
             input,
             documents:vec![],pane_views:vec![],pane_tabs:Default::default(),pane_surfaces:vec![],pane_split_bounds:vec![],pane_resize:None,pending_close:None,pending_save_as:None,save_as_feedback:None,
             input_locale: String::new(),
@@ -770,6 +774,7 @@ pub fn snapshot() -> String {
             "locale": ui.locale, "labels": { "tasks": ui.t("nav.tasks"), "send": ui.t("probe.send") },
             "tab": ui.tab.legacy_index(), "events": ui.events, "workspace": ui.workspace,
         });
+        value["sidebarButtonBounds"] = ui.view_bounds.sidebar.snapshot();
         value["newChatButtonBounds"] = ui.view_bounds.new_chat.snapshot()["new-chat"].clone();
         value["sessionRowBounds"] = ui.view_bounds.sessions.snapshot();
         value["appOpenButtonBounds"] = ui.view_bounds.app_open.snapshot();

@@ -46,7 +46,8 @@ so retained callbacks cannot write into later attempts or reused sessions.
 
 `--model a --selectable-model b` enables the ACP v1 `model` select option.
 Repeat `--selectable-model` for at most 32 additional model IDs. The default
-single-model launch still returns an empty `configOptions` list. These are
+single-model launch still returns no model selector. Every session also
+advertises a `permission` selector, defaulting to `auto-review`. These are
 operator declarations, not model discovery: the existing compatible adapter
 returns detached metadata from its configured catalog without HTTP requests.
 The existing ProviderRegistry validates metadata and Agent.SelectModel validates
@@ -65,8 +66,9 @@ The shared TokenMeter invalidates the prior usage anchor when the next request
 header changes model; the compactor resolves that request's model metadata.
 
 New/load/resume responses include the current model and complete option list.
-`session/set_config_option` accepts only `configId: "model"` and an advertised
-string value. Selection is session-local, serialized against prompt admission,
+`session/set_config_option` accepts `configId: "model"` when model selection is
+enabled, and `configId: "permission"` for an advertised permission mode.
+Selection is session-local, serialized against prompt admission,
 and rejected during active prompts, commands or closure. Unknown models,
 sessions, config IDs and fields fail closed. Experimental `session/set_model`
 is not claimed. Successful selection is durably flushed; load/resume validates

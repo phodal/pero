@@ -109,6 +109,8 @@ try {
     // Synthetic content is explicit test input, imported through the real UI.
     const sample = await frame.locator('body').evaluate(async () => (await fetch('/api/example')).json());
     await frame.getByRole('button', { name: 'Add papers', exact: true }).click();
+    await expect(frame.getByLabel('Sort', { exact: true })).toHaveValue('recency');
+    expect(await frame.locator('.pero-ui-page-header').evaluate(element => element.getBoundingClientRect().height)).toBeLessThanOrEqual(56);
     await page.screenshot({ path: resolve(out, 'import-search-light.png') });
     await frame.getByRole('combobox', { name: 'Literature source', exact: true }).selectOption('openalex');
     await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).fill('attention');
@@ -118,6 +120,28 @@ try {
     await expect(searchResult).toContainText('2026-01-01');
     await expect(searchResult).toContainText('2 citations (OpenAlex)');
     await expect(searchResult.getByRole('link', { name: 'Original', exact: true })).toHaveAttribute('href', 'https://doi.org/10.1234/W1');
+    // Hold only the external fetch seam; observe actual busy/error/retry controls.
+    await frame.locator('body').evaluate(() => {
+      window.paperFetch = window.fetch;
+      window.fetch = (path, options) => path === '/api/papers'
+        ? new Promise(resolve => { window.finishPaperAdd = () => resolve(new Response(JSON.stringify({ detail: 'Synthetic source unavailable. Retry or open the original.' }), { status: 400, headers: { 'Content-Type': 'application/json' } })); })
+        : window.paperFetch(path, options);
+    });
+    try {
+      await searchResult.getByRole('button', { name: 'Add', exact: true }).click();
+      await expect(searchResult.getByRole('status')).toHaveText('Reading paper…');
+      await expect(searchResult.getByRole('button', { name: 'Reading paper…', exact: true })).toBeDisabled();
+      await frame.locator('body').evaluate(() => window.finishPaperAdd());
+      await expect(searchResult.getByRole('alert')).toContainText('Synthetic source unavailable');
+      await expect(searchResult.getByRole('link', { name: 'Original', exact: true })).toBeVisible();
+      await searchResult.getByRole('button', { name: 'Retry', exact: true }).click();
+      await expect(searchResult.getByRole('status')).toHaveText('Reading paper…');
+      await expect(searchResult.getByRole('alert')).toHaveCount(0);
+      await frame.locator('body').evaluate(() => window.finishPaperAdd());
+      await expect(searchResult.getByRole('button', { name: 'Retry', exact: true })).toBeEnabled();
+      await page.screenshot({ path: resolve(out, 'import-inline-error.png') });
+    } finally { await frame.locator('body').evaluate(() => { window.fetch = window.paperFetch; delete window.paperFetch; delete window.finishPaperAdd; }); }
+
     await frame.getByLabel('Sort', { exact: true }).selectOption('popular');
     const searchReply = page.waitForResponse(response => response.url().endsWith('/api/search') && response.request().method() === 'POST');
     await frame.getByRole('button', { name: 'Search papers', exact: true }).click();

@@ -5,10 +5,10 @@ import { EvidencePanel, Experiments, ReportView, type Citation } from './documen
 import { PaperList } from './library';
 import { ReadingMatrix } from './reading-matrix';
 import type { useResearch } from './use-research';
-import type { Agent, Api, EvidenceLocation, Intent, Library, Paper, PdfAnnotation, Report, ResearchStudy } from './types';
+import type { Agent, Api, EvidenceLocation, Intent, Library, Paper, PdfAnnotation, PdfSource, Report, ResearchStudy } from './types';
 import type { Translator } from './i18n';
 
-export type QuestionDraft = { question: string; fullText: boolean; verifyCode: boolean; verificationPlan: string; selected: string[]; context: string; parentIntentId?: string };
+export type QuestionDraft = { question: string; fullText: boolean; verifyCode: boolean; verificationPlan: string; selected: string[]; context: string; contextSource?: PdfSource & { paperId: string }; parentIntentId?: string };
 type Task = ReturnType<typeof useResearch>;
 
 function StudyRecord({ study, complete, t }: { study: ResearchStudy; complete: boolean; t: Translator }) {
@@ -53,9 +53,9 @@ function SavedTurn({ entry, reports, api, onCite, onResume, disabled, t }: { ent
   </details>;
 }
 
-export function Conversation({ api, agent, agentId, onAgent, task, library, paper, draft, onDraft, onSend, onClose, onCite, citation, evidence, evidenceBusy, onCloseEvidence, onReadEvidence, onOpenChat, matrixOpen, onMatrixOpen, onAnnotation, t }: {
+export function Conversation({ api, agent, agentId, onAgent, task, library, paper, draft, onDraft, onReadContext, onSend, onClose, onCite, citation, evidence, evidenceBusy, onCloseEvidence, onReadEvidence, onOpenChat, matrixOpen, onMatrixOpen, onAnnotation, t }: {
   api: Api; agent: Agent; agentId: string; onAgent(id: string): void; task: Task; library: Library; paper: Paper | null;
-  draft: QuestionDraft; onDraft(value: Partial<QuestionDraft>): void; onSend(execute?: boolean): void; onClose(): void;
+  onReadContext(): void; draft: QuestionDraft; onDraft(value: Partial<QuestionDraft>): void; onSend(execute?: boolean): void; onClose(): void;
   onCite(citation: Citation, intent: Intent): void; citation: (Citation & { intent: Intent }) | null; evidence: EvidenceLocation | null; evidenceBusy: boolean;
   onCloseEvidence(): void; onReadEvidence(page?: number): void; onOpenChat(): void;
   matrixOpen: boolean; onMatrixOpen(value: boolean): void; onAnnotation(annotation: PdfAnnotation): void; t: Translator;
@@ -88,8 +88,8 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
         {task.report && current && <Answer report={task.report} intent={current} api={api} onCite={onCite} t={t}/>}
         {task.working && <p role="status" className="pa-run-status">{t(task.status === 'needs_input' ? 'needsInput' : task.phase === 'research' ? 'researching' : 'running')}{task.status === 'needs_input' && <Button onClick={onOpenChat}>{t('openChat')}</Button>}</p>}
         {task.study && <StudyRecord study={task.study} complete={!!task.report} t={t}/>}
-        {task.status === 'failed' && !task.repair && <Feedback kind="error">{t('failed')}{!task.study && <Button onClick={task.retryPoll}>{t('retry')}</Button>}</Feedback>}
-        {task.status === 'cancelled' && <p role="status">{t('cancelled')}</p>}
+        {task.status === 'failed' && !task.repair && !task.report && <Feedback kind="error">{t('failed')}{!task.study && <Button onClick={task.retryPoll}>{t('retry')}</Button>}</Feedback>}
+        {task.status === 'cancelled' && !task.report && <p role="status">{t('cancelled')}</p>}
         {task.study && !task.report && !locked && <Button disabled={!agent.available || !agentId} onClick={() => void task.continueStudy(agentId)}>{t('continueStudy')}</Button>}
         {task.repair && <Feedback kind="error">{t('invalidReport')}</Feedback>}
       </section>}
@@ -110,7 +110,7 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
       <div ref={bottom}/>
     </div>
     <div className="pa-composer" role="group" aria-label={t('question')}>
-      {!!draft.context && <div className="pa-question-context"><blockquote>{draft.context}</blockquote><Button variant="ghost" aria-label={t('removeContext')} onClick={() => onDraft({ context: '' })}>×</Button></div>}
+      {!!draft.context && <div className="pa-question-context"><blockquote>{draft.context}</blockquote>{draft.contextSource && <Button variant="ghost" onClick={onReadContext}>{t('pdfPage')} {draft.contextSource.page} ↗</Button>}<Button variant="ghost" aria-label={t('removeContext')} onClick={() => onDraft({ context: '', contextSource: undefined })}>×</Button></div>}
       {!agent.available && <Feedback>{t('noAgentChoice')}<Button onClick={() => void agent.refresh()}>{t('refresh')}</Button></Feedback>}
       <label className="pa-sr-only" htmlFor="paper-question">{t('question')}</label><Textarea id="paper-question" rows={2} value={draft.question} maxLength={2000} disabled={locked} placeholder={t('askPlaceholder')} onChange={event => onDraft({ question: event.target.value })} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (draft.question.trim() && !locked && agent.available) onSend(); } }}/>
       {task.working ? <Button aria-label={t('cancel')} disabled={task.busy || task.status === 'cancelling'} onClick={() => void task.cancel()}>{t('cancel')}</Button> : <Button onClick={() => onSend()} variant="primary" aria-label={t(task.pending ? 'retryStart' : 'sendQuestion')} disabled={task.busy || !agent.available || !agentId || (!task.pending && (!draft.question.trim() || !draft.selected.length || (draft.verifyCode && !draft.verificationPlan.trim())))}>{task.busy ? t('preparing') : task.pending ? t('retryStart') : '↑'}</Button>}

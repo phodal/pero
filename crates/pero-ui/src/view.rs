@@ -3,7 +3,7 @@ use crate::{
     app::Workbench,
     components::{
         ActionHandler, Ui,
-        sidebar::{self, DeleteAffordance, SidebarAction, SidebarProps},
+        chrome, sidebar::{self, DeleteAffordance, SidebarAction, SidebarProps},
         workspace::{self, AgentRow, WorkspaceAction},
     },
 };
@@ -229,9 +229,11 @@ impl Workbench {
             ui,
             width,
             SidebarProps {
+                shortcut_bounds: &self.view_bounds.sidebar,
                 new_chat_bounds: &self.view_bounds.new_chat,
                 navigation: self.navigation.page(),
                 insights_open: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == "insights"),
+                connectors_open: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == "connectors"),
                 data_open: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == "data"),
                 local_connected: self.connected,
                 collapsed: self.sidebar_collapsed,
@@ -252,34 +254,85 @@ impl Workbench {
         cx.notify();
     }
 
+    fn chrome_title(&self, cx: &App) -> String {
+        if let Some(item) = self.navigation.current() {
+            return self.content_label(item, cx).0;
+        }
+        let panel = self.chat.read(cx);
+        panel
+            .active_chat
+            .and_then(|index| panel.chats.get(index))
+            .map(|chat| chat.title.display().to_string())
+            .filter(|title| !title.is_empty())
+            .unwrap_or_default()
+    }
+
     fn content_chrome(
         &self,
         has_tabs: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> impl IntoElement {
+    ) -> AnyElement {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
-        let spill = if self.sidebar_collapsed {
-            (sidebar::traffic_inset(window) - crate::layout::SIDEBAR_RAIL).max(0.)
-        } else {
-            0.
-        };
         let dragging = window.use_keyed_state("content-chrome", cx, |_, _| false);
-        sidebar::window_drag(
-            div()
-                .id("content-chrome")
-                .h(px(sidebar::WINDOW_CHROME))
-                .w_full()
-                .flex_shrink_0()
-                .flex()
-                .items_center()
-                .bg(p.bg)
-                .when(!has_tabs, |el| el.border_b_1().border_color(p.border))
-                .when(spill > 0., |el| el.pl(px(spill))),
-            &dragging,
-            window,
-        )
-        .when(has_tabs, |el| el.child(self.content_tabs(cx)))
+        if self.sidebar_collapsed {
+            let tabs = has_tabs.then(|| self.content_tabs(false, cx).into_any_element());
+            let title = if has_tabs {
+                SharedString::default()
+            } else {
+                self.chrome_title(cx).into()
+            };
+            let on_expand = cx.listener(|this, _, _, cx| this.toggle_sidebar(cx));
+            return chrome::collapsed_titlebar(
+                self.ui(cx),
+                title,
+                tabs,
+                on_expand,
+                &dragging,
+                window,
+                cx,
+            )
+            .into_any_element();
+        }
+        let tabs = has_tabs.then(|| self.content_tabs(true, cx).into_any_element());
+        chrome::expanded_content_chrome(tabs, &dragging, p.bg, p.border, window).into_any_element()
+    }
+
+    fn sidebar_resize(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+        div()
+            .id("sidebar-resize")
+            .track_focus(&self.sidebar_resize_focus)
+            .role(Role::Splitter)
+            .aria_label(self.t("workspace.resize_sidebar"))
+            .aria_numeric_value(self.preferences.layout.sidebar_width().into())
+            .when(self.sidebar_resize_focus.is_focused(window), |el| el.bg(p.focus))
+            .absolute()
+            .top_0()
+            .right_0()
+            .w(px(6.))
+            .h_full()
+            .cursor(CursorStyle::ResizeLeftRight)
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _, window, cx| {
+                    this.sidebar_resize_focus.focus(window, cx);
+                    this.resizing_sidebar = true;
+                    cx.stop_propagation();
+                    cx.notify();
+                }),
+            )
+            .on_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
+                let delta = match event.keystroke.key.as_str() {
+                    "left" => -20.,
+                    "right" => 20.,
+                    _ => return,
+                };
+                let width = this.preferences.layout.sidebar_width() + delta;
+                this.preferences.layout.resize_sidebar(width);
+                this.save_preferences(this.preferences.clone(), cx);
+                cx.stop_propagation();
+            }))
     }
 
     fn detail(&self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -388,6 +441,7 @@ impl Render for Workbench {
             &self.preferences.layout,
             self.settings_menu_open
                 || self.resizing_chat
+                || self.resizing_sidebar
                 || self.settings_panel.is_some()
                 || self.pane_tabs.switching()
                 || window.has_active_dialog(cx)
@@ -400,6 +454,7 @@ impl Render for Workbench {
             .is_none_or(|layout| layout.leaves().len() <= 1);
         let covered = self.settings_menu_open
             || self.resizing_chat
+            || self.resizing_sidebar
             || self.settings_panel.is_some()
             || self.pane_tabs.switching()
             || window.has_active_dialog(cx)
@@ -423,6 +478,7 @@ impl Render for Workbench {
             layout.content_visible = true;
             layout.embedded_surface_visible = !(self.settings_menu_open
                 || self.resizing_chat
+                || self.resizing_sidebar
                 || self.settings_panel.is_some()
                 || self.pane_tabs.switching()
                 || window.has_active_dialog(cx)
@@ -439,7 +495,9 @@ impl Render for Workbench {
         let chat_width = layout.chat_width;
         let dock = layout.chat == ChatPlacement::Dock;
         let narrow = layout.narrow;
-        let has_tabs = !self.navigation.items().is_empty();
+        let has_tabs = self.navigation.items().iter().any(|item| {
+            matches!(item, WorkspaceItem::Project(_) | WorkspaceItem::Task(_))
+        });
         if !layout.embedded_surface_visible
             || !matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }))
         {
@@ -679,6 +737,13 @@ impl Render for Workbench {
                     this.preferences.layout.resize_chat(width - x);
                     cx.notify();
                 }
+                if this.resizing_sidebar {
+                    let viewport: f32 = window.viewport_size().width.into();
+                    let x: f32 = event.position.x.into();
+                    let width = WorkspaceLayout::sidebar_span(viewport, x);
+                    this.preferences.layout.resize_sidebar(width);
+                    cx.notify();
+                }
             }))
             .on_mouse_up(
                 MouseButton::Left,
@@ -692,6 +757,11 @@ impl Render for Workbench {
                         this.save_preferences(this.preferences.clone(), cx);
                         cx.notify();
                     }
+                    if this.resizing_sidebar {
+                        this.resizing_sidebar = false;
+                        this.save_preferences(this.preferences.clone(), cx);
+                        cx.notify();
+                    }
                 }),
             )
             .when_some(slot, |el, slot| el.child(self.embedded_app_chat(&slot, cx)))
@@ -702,7 +772,16 @@ impl Render for Workbench {
             .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
             .font_weight(FontWeight::NORMAL)
             .line_height(relative(1.3))
-            .child(self.sidebar(sidebar_width, window, cx))
+            .child(
+                div()
+                    .relative()
+                    .h_full()
+                    .flex_shrink_0()
+                    .child(self.sidebar(sidebar_width, window, cx))
+                    .when(!self.sidebar_collapsed, |el| {
+                        el.child(self.sidebar_resize(window, cx))
+                    }),
+            )
             .child(
                 div()
                     .flex_1()

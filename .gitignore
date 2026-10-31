@@ -185,3 +185,6 @@ fonts/*.ttf
 /apps/data-agent/backend/_core/
 /packages/connectors/helpers/
 /apps/connectors/dist/
+
+# Connector product marks are source assets, separate from test screenshots.
+!apps/connectors/ui-src/assets/connectors/*.png

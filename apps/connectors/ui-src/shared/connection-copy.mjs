@@ -183,6 +183,11 @@ export const REGISTRATION_TEXT = {
 
 /** @type {Record<string, string>} */
 export const ERROR_TEXT = {
+  MCP_HOST_UNAVAILABLE: '连接管理暂时不可用。请重新加载；若仍失败，请重启 Pero 并检查 Host 日志。',
+  MCP_HOST_FORBIDDEN: '连接管理未获授权。请在应用中启用 Connectors 后重新加载。',
+  MCP_HOST_ROUTE_UNAVAILABLE: '当前 Host 缺少连接管理接口。请更新并重新启动 Pero。',
+  MCP_HOST_INVALID_RESPONSE: 'Host 返回了无效的连接管理响应。请重新加载并检查 Host 日志。',
+
   MCP_CREDENTIAL_RELEASE_FAILED: '凭据会话的释放尚未确认。请检查本机状态后重试；未自动重放。',
   MCP_CONTROL_RELEASE_UNCERTAIN: '配置操作可能已生效，但锁的释放尚未确认。请刷新检查实际状态；未自动重放。',
   MCP_CREDENTIAL_STORE_UNAVAILABLE: '系统凭据存储不可用，请检查系统加密存储；Pero 不会把密钥保存为明文。',
@@ -299,6 +304,11 @@ export function toolSummary(tools, locale = 'zh') {
 }
 
 const PORTABLE_ERRORS_EN = {
+  MCP_HOST_UNAVAILABLE: 'Connection management is unavailable. Reload; if it still fails, restart Pero and check the Host log.',
+  MCP_HOST_FORBIDDEN: 'Connection management was denied. Enable Connectors in Apps, then reload.',
+  MCP_HOST_ROUTE_UNAVAILABLE: 'This Host has no connection management route. Update and restart Pero.',
+  MCP_HOST_INVALID_RESPONSE: 'The Host returned an invalid connection management response. Reload and check the Host log.',
+
   MCP_CREDENTIAL_RELEASE_FAILED: 'Credential session release is unconfirmed. Check the local state before retrying; no automatic replay.',
   MCP_CONTROL_RELEASE_UNCERTAIN: 'The configuration may have changed, but lock release is unconfirmed. Refresh and reconcile the actual state; no automatic replay.',
   MCP_CREDENTIAL_STORE_UNAVAILABLE: 'System credential storage is unavailable. Check the operating system encryption; Pero will not save secrets as plaintext.',

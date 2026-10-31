@@ -31,6 +31,21 @@ opening, executable/helper locations and the enabled App's `connectors` grant.
 not an Agent tool. Credentials never enter the App projection. The OS protection
 seam fails closed when encryption is unavailable, including Linux `basic_text`.
 
+The Native GPUI/Wry composition starts that same owner through a private stdio
+adapter. Rust admits `/host/connectors` against the enabled App grant, supplies
+system credential operations and forwards actual Host session lifecycle events
+to the shared MCP endpoint. On macOS connector credentials persist in Keychain,
+including the developer preview; its process-local Cloud/provider credentials
+remain a separate setting. Both shells retire the owner and its worker on exit.
+There is no separately installed management-service prerequisite. A missing
+route, denied grant and stopped owner have distinct recoverable UI errors.
+
+The sidebar opens the Connectors App directly above Apps, through the same
+catalog, retained panel, content-tab and authorization paths as the library.
+Both sidebar widths retain a keyboard-accessible entry. Product marks are
+bundled from the original Point assets with their source/license records;
+domain glyphs use the shared icon catalog.
+
 `use/connectors/worker` compiles an independent portable Rust MCP worker from
 local source and Cargo.lock. It owns protocol connections and child process
 lifetime. stdio definitions pin executables/files; credential fields use secret

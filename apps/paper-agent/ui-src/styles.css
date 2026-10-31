@@ -78,3 +78,7 @@
 
 @media print{.pa-cell-editor{display:none!important}}
 .pa-study-record{font-size:12px;line-height:1.7;margin-block:12px;overflow-wrap:anywhere}.pa-study-record summary{cursor:pointer;color:var(--pero-text-muted)}.pa-study-record h3{font-size:12px;margin-block:10px 4px}.pa-study-record ol,.pa-study-record ul{padding-inline-start:20px;margin-block:6px}.pa-study-record li{margin-block:4px}
+
+/* Compact SDK header, aligned with the import form. */
+.pa-library-screen>.pero-ui-page-header{min-height:44px;padding:8px var(--pero-page-gutter);gap:8px}
+.pa-library-screen>.pero-ui-page-header h1{font-size:var(--pero-font-heading)}

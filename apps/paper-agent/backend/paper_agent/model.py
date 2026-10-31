@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 REPORT_SCHEMA = "pero.paper-agent-report.v1"
 INPUT_SCHEMA = "pero.paper-agent-input.v1"
+MAX_PAPER_TEXT = 1_000_000
 ID = re.compile(r"^[a-f0-9]{64}$")
 
 
@@ -75,8 +76,8 @@ class PaperSnapshot:
     def from_reading(cls, value, fetched_at):
         value = mapping(value, "paper reading")
         content = value.get("content")
-        if not isinstance(content, str) or not content.strip() or len(content) > 120000:
-            raise Invalid("No readable paper text is available, or text exceeds 120,000 characters")
+        if not isinstance(content, str) or not content.strip() or len(content) > MAX_PAPER_TEXT:
+            raise Invalid("No readable paper text is available, or text exceeds 1,000,000 characters")
         kind = value.get("contentKind")
         if kind not in ("abstract", "report", "full-text"):
             raise Invalid("Invalid source content kind")
@@ -109,10 +110,19 @@ class PaperSnapshot:
 
     @classmethod
     def from_record(cls, value):
+        if 'lines' in value:
+            from .source_text import SourceText
+            value = {**value, 'content': SourceText.from_lines(value['lines']).content}
         paper = cls.from_reading(value, value.get("fetchedAt"))
         if paper.id != value.get("id"):
             raise Invalid("Stored source snapshot integrity check failed")
         return paper
+
+    def to_record(self):
+        from .source_text import SourceText
+        value = self.to_dict()
+        value['lines'] = list(SourceText(value.pop('content')).lines)
+        return value
 
     def to_dict(self, include_content=True):
         value = dict(id=self.id, source=self.source, sourceId=self.source_id, title=self.title,

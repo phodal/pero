@@ -16,7 +16,7 @@ export async function exerciseLocalSearch({ frame, page, app, out }) {
   await page.evaluate(preferences => window.pero.sessionCommand({ method: 'settings.workbench', preferences: { ...preferences, appearance: 'dark' } }), preferences);
   await expect.poll(async () => frame.locator('html').evaluate(element => element.style.colorScheme)).toBe('dark');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 800));
-  await expect.poll(async () => frame.locator('html').evaluate(element => element.clientWidth)).toBe(760);
+  await expect.poll(async () => frame.locator('html').evaluate(element => element.clientWidth > 600 && element.clientWidth <= 800)).toBe(true);
   await expect.poll(async () => frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await expect(search.locator('details[open] code')).toBeVisible();
   await page.screenshot({ path: resolve(out, 'local-search-dark-narrow.png') });

@@ -39,7 +39,7 @@ class SearchQuery:
     sources: tuple[str, ...] = ("alphaxiv",)
     strategy: str = "keyword"
     limit: int = 10
-    priority: str = "default"
+    priority: str = "recency"
     published_after: str | None = None
     published_before: str | None = None
 
@@ -54,7 +54,7 @@ class SearchQuery:
                 or any(not isinstance(source, str) or source not in SOURCES for source in sources)
                 or len(set(sources)) != len(sources)):
             raise Invalid("Invalid literature sources")
-        strategy, priority, limit = value.get("strategy", "keyword"), value.get("priority", "default"), value.get("limit", 10)
+        strategy, priority, limit = value.get("strategy", "keyword"), value.get("priority", "recency"), value.get("limit", 10)
         if strategy not in ("keyword", "embedding") or priority not in ("default", "recency", "historical", "popular"):
             raise Invalid("Invalid retrieval strategy or priority")
         if type(limit) is not int or not 1 <= limit <= 20:
@@ -430,7 +430,7 @@ class LiteratureClient:
             if query.published_after or query.published_before:
                 terms += f' AND ("{query.published_after or "1000/01/01"}"[Date - Publication] : "{query.published_before or "3000/12/31"}"[Date - Publication])'
             response = self._request(self._endpoint("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",
-                                                   db="pubmed", term=terms, sort="relevance", retmode="json",
+                                                   db="pubmed", term=terms, sort="pub_date" if query.priority == "recency" else "relevance", retmode="json",
                                                    retmax=query.limit if query.priority == "default" else min(query.limit * 4, 80)))
             result = response.get("esearchresult", {})
             ids = result.get("idlist")
@@ -446,7 +446,8 @@ class LiteratureClient:
             filters.append("to_publication_date:" + query.published_before)
         result = self._request(self._endpoint("https://api.openalex.org/works", search=query.query,
                                              per_page=query.limit if query.priority == "default" else min(max(query.limit * 4, 50), 200),
-                                             filter=",".join(filters) or None))
+                                             filter=",".join(filters) or None,
+                                             sort="publication_date:desc" if query.priority == "recency" else "publication_date:asc" if query.priority == "historical" else "cited_by_count:desc" if query.priority == "popular" else None))
         if not isinstance(result.get("results"), list):
             raise Invalid("Invalid OpenAlex response")
         return _rerank([_openalex(work, source) for work in result["results"]], query.priority)[:query.limit]

@@ -44,7 +44,7 @@ export type PdfDocument = { id: string; paperId: string; fileDigest: string; sou
 export type PdfAnnotation = { id: string; documentId: string; paperId: string; page: number; kind: 'highlight' | 'figure'; rects: PdfRect[]; quote: string; note: string; createdAt: string };
 export type PdfReading = { document: PdfDocument | null; annotations: PdfAnnotation[] };
 export type PdfFocus = { documentId: string; page: number; annotationId?: string; rects?: PdfRect[] };
-export type PdfSource = { documentId: string; page: number; fileDigest: string };
+export type PdfSource = { documentId: string; page: number; fileDigest: string; rects?: PdfRect[] };
 export type Api = { get<T>(path: string): Promise<T>; post<T>(path: string, body: unknown): Promise<T> };
 export type Agent = {
   available: boolean; agents: { id: string; name: string; available: boolean }[]; workspace: string;

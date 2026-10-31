@@ -78,7 +78,11 @@ impl ChatPanel {
             for (index, tool) in chat.tools.iter_mut().enumerate() {
                 let open = open_tools.contains(&index);
                 tool.set_body_open(open, cx);
-                if let Some(reader)=&tool.reader {reader.update(cx,|reader,cx|reader.set_scroll_handle(open.then(||self.chat_scroll.clone()),cx));}
+                if let Some(reader) = &tool.reader {
+                    reader.update(cx, |reader, cx| {
+                        reader.set_scroll_handle(open.then(|| self.chat_scroll.clone()), cx)
+                    });
+                }
                 if let Some(view) = &tool.view {
                     view.update(cx, |view, _| {
                         view.set_scroll_handle(open.then(|| self.chat_scroll.clone()))
@@ -105,10 +109,15 @@ impl ChatPanel {
                 self.composer_restore = Some(gpui_kit::component::input::InputContent::new(""));
             }
         }
-        let previous=self.active_chat.and_then(|i|self.chats.get(i)).map(|c|c.id.clone());
+        let previous = self
+            .active_chat
+            .and_then(|i| self.chats.get(i))
+            .map(|c| c.id.clone());
         self.active_chat = index;
-        let thread_id=index.and_then(|i|self.chats.get(i)).map(|c|c.id.clone());
-        if previous!=thread_id {cx.emit(crate::ChatAction::Selected{thread_id});}
+        let thread_id = index.and_then(|i| self.chats.get(i)).map(|c| c.id.clone());
+        if previous != thread_id {
+            cx.emit(crate::ChatAction::Selected { thread_id });
+        }
         self.prepare_chat(cx);
         self.sync_follow(cx);
         cx.notify();
@@ -153,7 +162,9 @@ impl ChatPanel {
     }
     pub fn new_chat(&mut self, cx: &mut Context<Self>) {
         let empty = self.chats.iter().enumerate().rposition(|(index, chat)| {
-            chat.scope == self.scope && chat.workspace == self.workspace && chat.can_retarget()
+            chat.scope == self.scope
+                && chat.workspace == self.workspace
+                && chat.can_retarget()
                 && if self.active_chat == Some(index) {
                     self.composer.read(cx).value().trim().is_empty() && self.attachments.is_empty()
                 } else {
@@ -201,7 +212,10 @@ impl ChatPanel {
         }
         if let Some(i) = self.active_chat {
             if self.chats[i].state == SessionState::Draft
-                && self.agents.iter().any(|agent| agent.id == self.chats[i].agent && agent.available)
+                && self
+                    .agents
+                    .iter()
+                    .any(|agent| agent.id == self.chats[i].agent && agent.available)
             {
                 self.chats[i].state = SessionState::Connecting;
                 self.chats[i].workspace = self.workspace.clone();
@@ -211,9 +225,15 @@ impl ChatPanel {
     }
 
     pub(crate) fn select_agent(&mut self, index: usize, cx: &mut Context<Self>) {
-        let Some(agent) = self.agents.get(index).filter(|agent| agent.available) else { return; };
+        let Some(agent) = self.agents.get(index).filter(|agent| agent.available) else {
+            return;
+        };
         let id = agent.id.clone();
-        if self.active_chat.and_then(|i| self.chats.get(i)).is_some_and(|chat| !chat.can_retarget()) {
+        if self
+            .active_chat
+            .and_then(|i| self.chats.get(i))
+            .is_some_and(|chat| !chat.can_retarget())
+        {
             return;
         }
         self.agent_index = index;
@@ -227,7 +247,9 @@ impl ChatPanel {
     }
 
     pub(crate) fn retry_chat(&mut self, cx: &mut Context<Self>) {
-        let Some(chat) = self.active_chat.and_then(|i| self.chats.get(i)) else { return; };
+        let Some(chat) = self.active_chat.and_then(|i| self.chats.get(i)) else {
+            return;
+        };
         if chat.state == SessionState::Closed && chat.can_retarget() {
             self.replace_empty_session(chat.agent.clone(), cx);
         }
@@ -238,25 +260,42 @@ impl ChatPanel {
     }
 
     fn replace_empty_session(&mut self, agent: String, cx: &mut Context<Self>) {
-        let Some(index) = self.active_chat else { return; };
-        if !self.chats[index].can_retarget() { return; }
-        let mut replacement = Conversation::new(self.next_chat_id(), agent, self.t("chat.new").into());
+        let Some(index) = self.active_chat else {
+            return;
+        };
+        if !self.chats[index].can_retarget() {
+            return;
+        }
+        let mut replacement =
+            Conversation::new(self.next_chat_id(), agent, self.t("chat.new").into());
         replacement.workspace = self.workspace.clone();
         replacement.scope = self.chats[index].scope.clone();
-        replacement.draft = self.composer_restore.clone().unwrap_or_else(|| self.composer.read(cx).content());
+        replacement.draft = self
+            .composer_restore
+            .clone()
+            .unwrap_or_else(|| self.composer.read(cx).content());
         replacement.draft_references = self.composer_state.references.clone();
         let old = std::mem::replace(&mut self.chats[index], replacement);
         for replacement in self.retired_chats.values_mut() {
-            if *replacement == old.id { *replacement = self.chats[index].id.clone(); }
+            if *replacement == old.id {
+                *replacement = self.chats[index].id.clone();
+            }
         }
-        self.retired_chats.insert(old.id.clone(), self.chats[index].id.clone());
+        self.retired_chats
+            .insert(old.id.clone(), self.chats[index].id.clone());
         for insertion in &mut self.pending_prompts {
-            if insertion.thread_id == old.id { insertion.thread_id = self.chats[index].id.clone(); }
+            if insertion.thread_id == old.id {
+                insertion.thread_id = self.chats[index].id.clone();
+            }
         }
         for selected in self.scope_selection.values_mut() {
-            if *selected == old.id { *selected = self.chats[index].id.clone(); }
+            if *selected == old.id {
+                *selected = self.chats[index].id.clone();
+            }
         }
-        cx.emit(crate::ChatAction::Selected { thread_id: Some(self.chats[index].id.clone()) });
+        cx.emit(crate::ChatAction::Selected {
+            thread_id: Some(self.chats[index].id.clone()),
+        });
         if old.state != SessionState::Draft {
             self.command(json!({"action":"delete","thread_id":old.id}), cx);
         }
@@ -264,32 +303,50 @@ impl ChatPanel {
         cx.notify();
     }
     pub fn send_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.composer_state.loading && self.composer_state.resolve_range.is_some() { return; }
+        if self.composer_state.loading && self.composer_state.resolve_range.is_some() {
+            return;
+        }
         let text = self.composer.read(cx).value().trim_end().to_string();
         let draft = crate::conversation::ComposerDraft {
-            content: self.composer.read(cx).content(), references: self.composer_state.references.clone(),
+            content: self.composer.read(cx).content(),
+            references: self.composer_state.references.clone(),
         };
-        if !self.submit_prompt(text, self.attachments.clone(), cx) { return; }
+        if !self.submit_prompt(text, self.attachments.clone(), cx) {
+            return;
+        }
         self.attachments.clear();
         self.composer_state = Default::default();
         if let Some(chat) = self.active_chat.and_then(|i| self.chats.get_mut(i)) {
-            if chat.queued.is_some() { chat.queued_draft = Some(draft); }
+            if chat.queued.is_some() {
+                chat.queued_draft = Some(draft);
+            }
             chat.draft = gpui_kit::component::input::InputContent::new("");
             chat.draft_references.clear();
         }
-        self.composer.update(cx, |input, cx| input.set_value("", window, cx));
+        self.composer
+            .update(cx, |input, cx| input.set_value("", window, cx));
         crate::stream::scroll_after_layout(&self.chat_scroll, window);
     }
 
     fn restore_queued_prompt(&mut self, index: usize, cx: &mut Context<Self>) {
         let chat = &mut self.chats[index];
-        let Some(text) = chat.queued.take() else { return; };
+        let Some(text) = chat.queued.take() else {
+            return;
+        };
         let contexts = std::mem::take(&mut chat.queued_contexts);
         if let Some(draft) = chat.queued_draft.take() {
             let active = self.active_chat == Some(index);
             let tail = crate::conversation::ComposerDraft {
-                content: if active { self.composer.read(cx).content() } else { chat.draft.clone() },
-                references: if active { self.composer_state.references.clone() } else { chat.draft_references.clone() },
+                content: if active {
+                    self.composer.read(cx).content()
+                } else {
+                    chat.draft.clone()
+                },
+                references: if active {
+                    self.composer_state.references.clone()
+                } else {
+                    chat.draft_references.clone()
+                },
             };
             let restored = draft.prepend_to(tail);
             chat.draft = restored.content.clone();
@@ -300,11 +357,21 @@ impl ChatPanel {
                 self.composer_state.references = restored.references;
             }
         } else {
-            self.pending_prompts.push(crate::panel::ComposerInsertion { thread_id: chat.id.clone(), text, contexts, replace: false });
+            self.pending_prompts.push(crate::panel::ComposerInsertion {
+                thread_id: chat.id.clone(),
+                text,
+                contexts,
+                replace: false,
+            });
         }
     }
 
-    pub fn submit_prompt(&mut self, text: String, contexts: Vec<pero_contracts::context::ContextReference>, cx: &mut Context<Self>) -> bool {
+    pub fn submit_prompt(
+        &mut self,
+        text: String,
+        contexts: Vec<pero_contracts::context::ContextReference>,
+        cx: &mut Context<Self>,
+    ) -> bool {
         if text.trim().is_empty() && contexts.is_empty()
             || text.chars().count() > 64000
             || !self.connected
@@ -315,7 +382,11 @@ impl ChatPanel {
             self.new_chat(cx);
         }
         let index = self.active_chat.unwrap();
-        if !self.agents.iter().any(|agent| agent.id == self.chats[index].agent && agent.available) {
+        if !self
+            .agents
+            .iter()
+            .any(|agent| agent.id == self.chats[index].agent && agent.available)
+        {
             return false;
         }
         let chat = &mut self.chats[index];
@@ -325,7 +396,8 @@ impl ChatPanel {
         if contexts
             .iter()
             .any(|r| r.kind == pero_contracts::context::ContextKind::Image)
-            && !chat.session_id.is_empty() && !chat.capabilities.images
+            && !chat.session_id.is_empty()
+            && !chat.capabilities.images
         {
             chat.error =
                 Some(pero_contracts::i18n::text(&self.locale, "composer.image_unsupported").into());
@@ -344,12 +416,20 @@ impl ChatPanel {
             chat.state = SessionState::Running;
             Some(json!({"action":"prompt","thread_id":chat.id,"text":text,"contexts":contexts}))
         };
-        if let Some(value) = value { self.command(value, cx); } else { self.prepare_chat(cx); }
+        if let Some(value) = value {
+            self.command(value, cx);
+        } else {
+            self.prepare_chat(cx);
+        }
         cx.notify();
         true
     }
     pub fn receive_chat(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
-        if event.thread_id.as_ref().is_some_and(|id| self.retired_chats.contains_key(id)) {
+        if event
+            .thread_id
+            .as_ref()
+            .is_some_and(|id| self.retired_chats.contains_key(id))
+        {
             return true;
         }
         if event.kind == "replay" {
@@ -392,27 +472,40 @@ impl ChatPanel {
                     chat.flush(cx);
                 }
             }
-            let interrupted = self.chats.iter().enumerate()
-                .filter_map(|(index, chat)| (chat.state == SessionState::Closed && chat.queued.is_some()).then_some(index))
+            let interrupted = self
+                .chats
+                .iter()
+                .enumerate()
+                .filter_map(|(index, chat)| {
+                    (chat.state == SessionState::Closed && chat.queued.is_some()).then_some(index)
+                })
                 .collect::<Vec<_>>();
-            for index in interrupted { self.restore_queued_prompt(index, cx); }
+            for index in interrupted {
+                self.restore_queued_prompt(index, cx);
+            }
             // Preparing a draft must not turn unused sessions into history entries
             // after a Host restart. Retained drafts still own their local input.
-            self.chats.retain(|chat| retained.contains(&chat.id)
-                || !chat.messages.is_empty()
-                || event.data["active"].as_array().is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(&chat.id))));
+            self.chats.retain(|chat| {
+                retained.contains(&chat.id)
+                    || !chat.messages.is_empty()
+                    || event.data["active"]
+                        .as_array()
+                        .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(&chat.id)))
+            });
             let initial_empty = !self.replayed
                 && self.pending_prompts.is_empty()
                 && self.composer.read(cx).value().is_empty()
                 && selected
                     .as_ref()
                     .and_then(|id| self.chats.iter().find(|chat| &chat.id == id))
-                    .is_some_and(|chat| chat.state == SessionState::Draft && chat.draft.text().is_empty());
+                    .is_some_and(|chat| {
+                        chat.state == SessionState::Draft && chat.draft.text().is_empty()
+                    });
             let restored = initial_empty
                 .then(|| {
-                    self.chats
-                        .iter()
-                        .rposition(|chat| chat.scope == self.scope && chat.state != SessionState::Draft)
+                    self.chats.iter().rposition(|chat| {
+                        chat.scope == self.scope && chat.state != SessionState::Draft
+                    })
                 })
                 .flatten();
             let next = restored
@@ -425,20 +518,35 @@ impl ChatPanel {
             let first_replay = !self.replayed;
             self.replayed = true;
             self.focus_chat(next, cx);
-            if next.is_none() && self.visible { self.new_draft(cx); }
-            if first_replay && self.visible { self.retry_chat(cx); }
+            if next.is_none() && self.visible {
+                self.new_draft(cx);
+            }
+            if first_replay && self.visible {
+                self.retry_chat(cx);
+            }
             cx.notify();
             return true;
         }
         if event.kind == "agents" {
-            let selected = self.agents.get(self.agent_index).map(|agent| agent.id.clone());
+            let selected = self
+                .agents
+                .get(self.agent_index)
+                .map(|agent| agent.id.clone());
             self.agents = serde_json::from_value(event.data.clone()).unwrap_or_default();
-            self.agent_index = selected.and_then(|id| self.agents.iter().position(|agent| agent.id == id && agent.available))
-                .or_else(|| self.agents.iter().position(|agent| agent.available)).unwrap_or(0);
+            self.agent_index = selected
+                .and_then(|id| {
+                    self.agents
+                        .iter()
+                        .position(|agent| agent.id == id && agent.available)
+                })
+                .or_else(|| self.agents.iter().position(|agent| agent.available))
+                .unwrap_or(0);
             self.workspace = event.text.clone();
             if let Some(index) = self.active_chat {
                 if self.chats[index].state == SessionState::Draft {
-                    if let Some(agent) = self.agents.get(self.agent_index) { self.chats[index].agent = agent.id.clone(); }
+                    if let Some(agent) = self.agents.get(self.agent_index) {
+                        self.chats[index].agent = agent.id.clone();
+                    }
                 }
             }
             self.prepare_chat(cx);
@@ -517,14 +625,17 @@ impl ChatPanel {
                         &event.data,
                     )
                     .unwrap_or_default();
-                chat.auth_methods = serde_json::from_value(event.data["authMethods"].clone()).unwrap_or_default()
+                chat.auth_methods =
+                    serde_json::from_value(event.data["authMethods"].clone()).unwrap_or_default()
             }
             "session_authenticated" => {
                 chat.state = SessionState::Idle;
                 chat.error = None;
             }
             "session_auth_required" | "session_auth_error" => {
-                if let Ok(methods) = serde_json::from_value(event.data["authMethods"].clone()) { chat.auth_methods = methods; }
+                if let Ok(methods) = serde_json::from_value(event.data["authMethods"].clone()) {
+                    chat.auth_methods = methods;
+                }
                 chat.error = Some(event.text.clone());
                 chat.state = SessionState::AuthRequired;
             }
@@ -547,8 +658,17 @@ impl ChatPanel {
                 chat.session_id = event.data["sessionId"].as_str().unwrap_or_default().into();
                 chat.config(&event.data);
                 chat.state = SessionState::Idle;
-                if chat.queued.is_some() && !chat.capabilities.images && chat.queued_contexts.iter().any(|r|r.kind==pero_contracts::context::ContextKind::Image) {
-                    chat.error=Some(pero_contracts::i18n::text(&self.locale,"composer.image_unsupported").into());
+                if chat.queued.is_some()
+                    && !chat.capabilities.images
+                    && chat
+                        .queued_contexts
+                        .iter()
+                        .any(|r| r.kind == pero_contracts::context::ContextKind::Image)
+                {
+                    chat.error = Some(
+                        pero_contracts::i18n::text(&self.locale, "composer.image_unsupported")
+                            .into(),
+                    );
                     restore_queue = true;
                 } else if let Some(text) = chat.queued.take() {
                     chat.state = SessionState::Running;
@@ -586,16 +706,25 @@ impl ChatPanel {
                 chat.permission = None;
             }
             "permission" => {
-                chat.permission_bounds = event.data["options"].as_array().into_iter().flatten().map(|_|Default::default()).collect();
+                chat.permission_bounds = event.data["options"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|_| Default::default())
+                    .collect();
                 chat.permission = Some(event.data.clone());
-            },
+            }
             "session_error" => {
                 chat.thinking.streaming(None);
                 chat.pending_setting = None;
                 chat.pending_model = None;
                 chat.flush(cx);
-                chat.error = Some(event.text.clone());
-                chat.state = if chat.session_id.is_empty() { SessionState::Closed } else { SessionState::Idle };
+                chat.error = Some(Self::localized_notice(&self.locale, event));
+                chat.state = if chat.session_id.is_empty() {
+                    SessionState::Closed
+                } else {
+                    SessionState::Idle
+                };
                 chat.permission = None;
             }
             "session_closed" => {
@@ -608,9 +737,16 @@ impl ChatPanel {
             }
             _ => {}
         }
-        restore_queue |= matches!(chat.state, SessionState::Closed | SessionState::AuthRequired);
-        if restore_queue { self.restore_queued_prompt(index, cx); }
-        if let Some(value) = followup { self.command(value, cx); }
+        restore_queue |= matches!(
+            chat.state,
+            SessionState::Closed | SessionState::AuthRequired
+        );
+        if restore_queue {
+            self.restore_queued_prompt(index, cx);
+        }
+        if let Some(value) = followup {
+            self.command(value, cx);
+        }
         if self.composer_state.open
             && matches!(
                 self.composer_state.completion.as_ref().map(|q| &q.kind),
@@ -624,18 +760,27 @@ impl ChatPanel {
         cx.notify();
         true
     }
+    fn localized_notice(locale: &str, event: &HostEvent) -> String {
+        event
+            .message_key
+            .as_deref()
+            .map(|key| pero_contracts::i18n::text(locale, key))
+            .filter(|text| *text != "[missing translation]")
+            .map(str::to_string)
+            .unwrap_or_else(|| event.text.clone())
+    }
+
     pub fn chat_view(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if crate::stream::near_bottom(&self.chat_scroll) {
             crate::stream::scroll_after_layout(&self.chat_scroll, window);
         }
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+        let credential_text = self.t("chat.credential_required");
         let chat = self.active_chat.and_then(|i| self.chats.get(i));
         let busy = chat.is_some_and(|c| c.busy());
         let id = chat.map(|c| c.id.clone()).unwrap_or_default();
-        let agent = chat
-            .map(|c| c.agent.clone())
-            .or_else(|| self.agents.get(self.agent_index).map(|a| a.id.clone()))
-            .unwrap_or_else(|| "codex".into());
+        let credential_reminder = chat
+            .is_some_and(|c| c.messages.is_empty() && c.error.as_deref() == Some(credential_text));
         div().flex_1().min_h_0().min_w_0().flex().flex_col()
             .when(self.show_return_to_review,|el|el.child(
                 div().px(px(12.)).py(px(8.)).border_b_1().border_color(p.border).child(
@@ -646,7 +791,7 @@ impl ChatPanel {
                 .child(div().id("session-column").w_full().max_w(px(pero_theme::COMPOSER_MAX)).min_w_0().mx_auto().px(px(12.)).overflow_x_scroll()
                 .when(chat.is_none_or(|c|c.messages.is_empty()),|el|el.child(pero_theme::empty_state(
                     self.t("chat.welcome"),
-                    Some(self.t(if self.connected && !self.agents.iter().any(|agent|agent.available){"chat.install_agent"}else{"chat.description"}).into()),
+                    Some(self.t(if self.connected && !self.agents.iter().any(|agent|agent.available){"chat.install_agent"}else if credential_reminder{"chat.credential_required"}else{"chat.description"}).into()),
                     pero_theme::Chrome::from_app(cx))))
                 .children(chat.into_iter().flat_map(render_items).enumerate().filter_map(|(i,item)|{
                     let conversation=chat?;
@@ -669,9 +814,9 @@ impl ChatPanel {
                                         })))
                                     .when(open,|el|el.child(div().pl(px(20.)).child(message.view.clone()))).into_any_element());
                             }
-                            Some(div().id(("message",i)).mb(px(10.)).flex().flex_col().gap(px(3.))
-                                .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).font_weight(FontWeight::MEDIUM).text_color(p.text_muted).child(if message.role=="user"{self.t("chat.you").to_string()}else{agent.clone()}))
-                                .child(message.view.clone())
+                            let user = message.role == "user";
+                            Some(div().id(("message",i)).mb(px(pero_theme::SPACE_12)).flex().flex_col().gap(px(pero_theme::SPACE_8))
+                                .child(div().when(user, |el| el.w_full().px(px(pero_theme::SPACE_12)).py(px(pero_theme::SPACE_8)).bg(p.surface).border_1().border_color(p.border).rounded(px(pero_theme::RADIUS_PANEL))).child(message.view.clone()))
                                 .when(!message.attached_files.is_empty(),|el|el.child(div().flex().flex_wrap().gap(px(8.)).text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted)
                                     .children(message.attached_files.iter().map(|name|div().flex().items_center().gap(px(4.)).child(self.icon("file").size(px(13.))).child(name.clone())))))
                                 .into_any_element())
@@ -685,7 +830,7 @@ impl ChatPanel {
                     }
                 }))
                 .when(busy,|el|el.child(div().text_color(p.text_muted).child(self.t(if chat.is_some_and(|c|c.state==SessionState::Connecting){"chat.preparing"}else{"chat.thinking"}))))
-                .when(chat.is_some_and(|c|c.error.is_some() && c.state!=SessionState::AuthRequired),|el|el.child(div().p(px(14.)).bg(p.error_bg).text_color(p.error).rounded(px(6.)).child(chat.and_then(|c|c.error.clone()).unwrap_or_default()))))))
+                .when(chat.is_some_and(|c|c.error.is_some() && c.state!=SessionState::AuthRequired) && !credential_reminder,|el|el.child(div().p(px(14.)).bg(p.error_bg).text_color(p.error).rounded(px(6.)).child(chat.and_then(|c|c.error.clone()).unwrap_or_default()))))))
             .children(chat.filter(|c|c.state==SessionState::AuthRequired).into_iter().map(|chat|{
                 div().w_full().max_w(px(pero_theme::COMPOSER_MAX)).min_w_0().mx_auto().mb(px(10.)).p(px(12.)).bg(p.warning_bg).rounded(px(4.))
                     .child(div().font_weight(FontWeight::MEDIUM).child(self.t("chat.signin")))

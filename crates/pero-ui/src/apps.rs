@@ -91,6 +91,14 @@ mod surface {
     }
 
     impl Workbench {
+        pub(crate) fn installed_app_title(&self, name: &str, display_name: &str) -> String {
+            if name == "connectors" {
+                self.t("nav.connectors").to_string()
+            } else {
+                display_name.to_string()
+            }
+        }
+
         pub(crate) fn refresh_apps(&mut self, cx: &mut Context<Self>) {
             self.apps.error = None;
             self.apps.loading = true;
@@ -265,7 +273,7 @@ mod surface {
                         .child(div().flex().items_center().gap(px(10.))
                             .child(div().flex_1().min_w_0().flex().flex_col().gap(px(5.))
                                 .child(div().flex().items_center().gap(px(8.))
-                                    .child(div().font_weight(FontWeight::SEMIBOLD).child(app.display_name.clone()))
+                                    .child(div().font_weight(FontWeight::SEMIBOLD).child(self.installed_app_title(&app.name, &app.display_name)))
                                     .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted).child(app.version.clone())))
                                 .child(div().text_color(p.text_muted).whitespace_normal().child(app.description.clone())))
                             .child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted)

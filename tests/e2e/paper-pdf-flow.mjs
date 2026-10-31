@@ -28,7 +28,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   const paper = await post('/api/papers/import', { title: fixture.realPdf ? 'Attention Is All You Need · PDF' : 'Synthetic PDF reading', sourceId: '1706.03762',
     url: 'https://arxiv.org/abs/1706.03762', pdfUrl: 'https://arxiv.org/pdf/1706.03762', authors: [], contentKind: 'full-text', content: fixture.text });
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
-  await frame.getByRole('button', { name: paper.title, exact: true }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true }), nav = frame.locator('.pa-reading-bar');
   await expect(viewer).toBeVisible({ timeout: 30000 });
   await expect(frame.getByRole('complementary', { name: 'Ask', exact: true })).toHaveCount(0);
@@ -58,6 +58,13 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
   await viewer.getByRole('button', { name: 'Discuss selection', exact: true }).click();
   await expect(frame.locator('.pa-question-context')).toContainText(fixture.quote);
+  const selectionContext = frame.locator('.pa-question-context');
+  await nav.getByRole('spinbutton', { name: 'Page', exact: true }).fill('2');
+  await selectionContext.getByRole('button', { name: 'Page 1 ↗', exact: true }).click();
+  await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('1');
+  await expect(first.locator('[data-citation-region="true"]').first()).toBeVisible();
+  await expect(first.locator('img,canvas').first()).toHaveAttribute('data-reading-identity', 'retained');
+  await page.screenshot({ path: resolve(out, 'pdf-selection-return.png') });
   await frame.getByRole('button', { name: 'Close Agent', exact: true }).click();
   await viewer.getByRole('textbox', { name: 'Note (optional)' }).fill('Saved source evidence');
   await viewer.getByRole('button', { name: 'Highlight', exact: true }).click();
@@ -105,6 +112,14 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await expect(frame.locator('.pa-reading-main')).toHaveAttribute('inert', '');
   await expect(frame.getByRole('textbox', { name: 'Research question', exact: true })).toBeFocused();
   await page.screenshot({ path: resolve(out, 'pdf-dark-narrow.png') });
+  await frame.locator('.pa-question-context').getByRole('button', { name: 'Page 1 ↗', exact: true }).click();
+  await expect(frame.getByRole('complementary', { name: 'Ask', exact: true })).toHaveCount(0);
+  await expect(frame.locator('.pa-reading-main')).not.toHaveAttribute('inert', '');
+  await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('1');
+  await expect(first.locator('[data-citation-region="true"]').first()).toBeVisible();
+  await page.screenshot({ path: resolve(out, 'pdf-selection-return-narrow.png') });
+  await nav.getByRole('button', { name: 'Ask', exact: true }).click();
+  await expect(frame.locator('.pa-question-context')).toContainText(fixture.quote);
   await frame.getByRole('button', { name: 'Close Agent', exact: true }).press('Escape');
   await expect(nav.getByRole('button', { name: 'Ask', exact: true })).toBeFocused();
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900));
@@ -113,7 +128,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await backToLibrary(frame);
   const unavailable = await post('/api/papers/import', { title: 'Synthetic unavailable PDF', sourceId: 'unavailable-pdf', url: 'https://example.invalid/source', pdfUrl: 'https://example.invalid/paper.pdf', authors: [], contentKind: 'abstract', content: 'Synthetic source remains readable.' });
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
-  await frame.getByRole('button', { name: unavailable.title, exact: true }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(unavailable.title, { exact: true }) }).click();
   await expect(frame.locator('.pa-pdf-reading [role="alert"]')).toContainText('PDF URL');
   await expect(frame.locator('.pa-pdf-reading').getByRole('button', { name: 'Retry', exact: true })).toBeEnabled();
   await frame.getByRole('button', { name: 'Text', exact: true }).click();
@@ -130,6 +145,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await frame.getByRole('textbox', { name: 'Research question', exact: true }).fill(fixture.realPdf ? 'attention mechanism' : 'Second page');
   await frame.getByRole('button', { name: 'Send question', exact: true }).click();
   await expect(frame.getByRole('heading', { name: 'PDF answer fixture', exact: true })).toBeVisible({ timeout: 30000 });
+  await expect(frame.locator('.pa-turn .pa-citations button').first()).toContainText(/Page [0-9]+/);
   await frame.locator('.pa-turn .pa-report .pa-scientific').getByRole('button', { name: 'Citation evidence 1', exact: true }).click();
   await expect(viewer.locator('[data-citation-region="true"]').first()).toBeVisible();
   await expect(viewer.locator('[data-citation-identity="retained"]')).toHaveCount(1);
@@ -139,7 +155,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
 }
 
 export async function reopenPdf({ frame, saved }) {
-  await frame.getByRole('button', { name: saved.paper.title, exact: true }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(saved.paper.title, { exact: true }) }).click();
   await frame.getByRole('button', { name: 'Ask', exact: true }).click();
   await frame.locator('.pa-output-matrix>summary').click();
   const cell = frame.locator(`[data-matrix-annotation="${saved.figure.id}"]`);

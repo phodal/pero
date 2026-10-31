@@ -446,14 +446,14 @@ impl Workbench {
                     .entries
                     .iter()
                     .find(|app| &app.name == name)
-                    .map(|app| app.display_name.clone())
-                    .unwrap_or_else(|| name.clone()),
+                    .map(|app| self.installed_app_title(&app.name, &app.display_name))
+                    .unwrap_or_else(|| self.installed_app_title(name, name)),
                 pero_chat_ui::icon_theme::app_icon(name, pero_theme::UiAppearance::global(cx).dark),
             ),
         }
     }
 
-    pub(crate) fn content_tabs(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(crate) fn content_tabs(&self, ruled: bool, cx: &mut Context<Self>) -> impl IntoElement {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let current = self.navigation.current();
         let chat = self.chat.read(cx);
@@ -487,9 +487,8 @@ impl Workbench {
             .h_full()
             .flex()
             .items_center()
-            .border_b_1()
-            .border_color(p.border)
-            .bg(p.bg)
+            .when(ruled, |el| el.border_b_1().border_color(p.border))
+            .bg(p.color(if ruled { "bg" } else { "surface-muted" }))
             .child(
                 div()
                     .id("workspace-tab-scroll")
@@ -517,8 +516,10 @@ impl Workbench {
                                     .h_full()
                                     .bg(p.color(if current == Some(item) {
                                         "surface"
-                                    } else {
+                                    } else if ruled {
                                         "bg"
+                                    } else {
+                                        "surface-muted"
                                     }))
                                     .flex_shrink_0()
                                     .flex()
@@ -528,8 +529,10 @@ impl Workbench {
                                     .border_b_2()
                                     .border_color(p.color(if current == Some(item) {
                                         "action"
-                                    } else {
+                                    } else if ruled {
                                         "bg"
+                                    } else {
+                                        "surface-muted"
                                     }))
                                     .child(
                                         Button::new(SharedString::from(format!(

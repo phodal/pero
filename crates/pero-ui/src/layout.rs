@@ -57,7 +57,7 @@ impl WorkspaceLayout {
         covered: bool,
         panes: Option<&pero_contracts::workspace_panes::PaneLayout>,
     ) -> Self {
-        let sidebar_width = if viewport_width < 1150. { 240. } else { 260. };
+        let sidebar_width = Self::sidebar_span(viewport_width, preferences.sidebar_width());
         let narrow = viewport_width < 1050.;
         let available = (viewport_width - sidebar_width).max(0.);
         let panes = panes.filter(|layout| layout.is_active(route));
@@ -93,6 +93,14 @@ impl WorkspaceLayout {
             content_visible,
             embedded_surface_visible,
         }
+    }
+
+    /// Saved sidebar width, narrowed when the viewport cannot keep 480px of content.
+    pub(crate) fn sidebar_span(viewport_width: f32, preferred: f32) -> f32 {
+        let min = pero_contracts::workbench::LayoutPreferences::MIN_SIDEBAR_WIDTH as f32;
+        let max = pero_contracts::workbench::LayoutPreferences::MAX_SIDEBAR_WIDTH as f32;
+        let max = (viewport_width - 480.).clamp(min, max);
+        preferred.clamp(min, max)
     }
 
     fn dock_width(available: f32, narrow: bool, preferences: &LayoutPreferences) -> f32 {
@@ -199,7 +207,7 @@ mod tests {
                 true,
                 420.,
                 false,
-                (240., true, Dock, 760., false, false),
+                (260., true, Dock, 740., false, false),
             ),
             (
                 "Web and dock share the available viewport",
@@ -219,7 +227,7 @@ mod tests {
                 true,
                 420.,
                 false,
-                (240., true, Dock, 760., false, false),
+                (260., true, Dock, 740., false, false),
             ),
             (
                 "closing the narrow dock reveals the retained Web engine",
@@ -229,7 +237,7 @@ mod tests {
                 false,
                 420.,
                 false,
-                (240., true, Hidden, 0., true, true),
+                (260., true, Hidden, 0., true, true),
             ),
             (
                 "an overlay hides the native Web child without hiding the dock",
@@ -309,7 +317,7 @@ mod tests {
                 false,
                 512.,
                 false,
-                (240., true, Hidden, 0., true, true),
+                (260., true, Hidden, 0., true, true),
             ),
             (
                 "narrow App chat replaces the App view without resizing its preference",
@@ -319,7 +327,7 @@ mod tests {
                 true,
                 512.,
                 false,
-                (240., true, Dock, 809., false, false),
+                (260., true, Dock, 789., false, false),
             ),
             (
                 "the dock fits the available proportion at the narrow breakpoint",
@@ -329,7 +337,7 @@ mod tests {
                 true,
                 640.,
                 false,
-                (240., false, Dock, 445.5, true, true),
+                (260., false, Dock, 434.5, true, true),
             ),
             (
                 "the sidebar uses its full width at the compact breakpoint",
@@ -417,7 +425,7 @@ mod tests {
 
         let narrow = WorkspaceLayout::resolve(1000., &app, Chat, &preferences, false, None);
         let narrow_hidden = narrow.hide_sidebar(1000., &preferences);
-        assert_eq!(narrow.chat_width, 760.);
+        assert_eq!(narrow.chat_width, 740.);
         assert_eq!(narrow_hidden.sidebar_width, SIDEBAR_RAIL);
         assert_eq!(narrow_hidden.chat_width, 1000. - SIDEBAR_RAIL);
         assert!(narrow_hidden.narrow);

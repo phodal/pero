@@ -199,6 +199,26 @@ const artwork = {
   "hash": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><line x1="4" x2="20" y1="9" y2="9" /> <line x1="4" x2="20" y1="15" y2="15" /> <line x1="10" x2="8" y1="3" y2="21" /> <line x1="16" x2="14" y1="3" y2="21" /></> },
   // gpui-kit/assets/icons/notebook.svg (Lucide, LICENSE-LUCIDE)
   "notebook": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M2 6h4" /> <path d="M2 10h4" /> <path d="M2 14h4" /> <path d="M2 18h4" /> <rect width="16" height="20" x="4" y="2" rx="2" /> <path d="M16 2v20" /></> },
+  // gpui-kit/assets/icons/plug.svg (Lucide, LICENSE-LUCIDE)
+  "plug": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M12 22v-5" /> <path d="M15 8V2" /> <path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z" /> <path d="M9 8V2" /></> },
+  // gpui-kit/assets/icons/activity.svg (Lucide, LICENSE-LUCIDE)
+  "activity": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" /></> },
+  // gpui-kit/assets/icons/target.svg (Lucide, LICENSE-LUCIDE)
+  "target": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><circle cx="12" cy="12" r="10" /> <circle cx="12" cy="12" r="6" /> <circle cx="12" cy="12" r="2" /></> },
+  // gpui-kit/assets/icons/chart-line.svg (Lucide, LICENSE-LUCIDE)
+  "chart-line": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M3 3v16a2 2 0 0 0 2 2h16" /> <path d="m19 9-5 5-4-4-3 3" /></> },
+  // gpui-kit/assets/icons/columns-2.svg (Lucide, LICENSE-LUCIDE)
+  "columns-2": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M12 3v18" /></> },
+  // gpui-kit/assets/icons/test-tubes.svg (Lucide, LICENSE-LUCIDE)
+  "test-tubes": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M9 2v17.5A2.5 2.5 0 0 1 6.5 22A2.5 2.5 0 0 1 4 19.5V2" /> <path d="M20 2v17.5a2.5 2.5 0 0 1-2.5 2.5a2.5 2.5 0 0 1-2.5-2.5V2" /> <path d="M3 2h7" /> <path d="M14 2h7" /> <path d="M9 16H4" /> <path d="M20 16h-5" /></> },
+  // gpui-kit/assets/icons/factory.svg (Lucide, LICENSE-LUCIDE)
+  "factory": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M12 16h.01" /> <path d="M16 16h.01" /> <path d="M3 19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5a.5.5 0 0 0-.769-.422l-4.462 2.844A.5.5 0 0 1 15 10.5v-2a.5.5 0 0 0-.769-.422L9.77 10.922A.5.5 0 0 1 9 10.5V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z" /> <path d="M8 16h.01" /></> },
+  // gpui-kit/assets/icons/cpu.svg (Lucide, LICENSE-LUCIDE)
+  "cpu": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M12 20v2" /> <path d="M12 2v2" /> <path d="M17 20v2" /> <path d="M17 2v2" /> <path d="M2 12h2" /> <path d="M2 17h2" /> <path d="M2 7h2" /> <path d="M20 12h2" /> <path d="M20 17h2" /> <path d="M20 7h2" /> <path d="M7 20v2" /> <path d="M7 2v2" /> <rect x="4" y="4" width="16" height="16" rx="2" /> <rect x="8" y="8" width="8" height="8" rx="1" /></> },
+  // gpui-kit/assets/icons/dna.svg (Lucide, LICENSE-LUCIDE)
+  "dna": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="m10 16 1.5 1.5" /> <path d="m14 8-1.5-1.5" /> <path d="M15 2c-1.798 1.998-2.518 3.995-2.807 5.993" /> <path d="m16.5 10.5 1 1" /> <path d="m17 6-2.891-2.891" /> <path d="M2 15c6.667-6 13.333 0 20-6" /> <path d="m20 9 .891.891" /> <path d="M3.109 14.109 4 15" /> <path d="m6.5 12.5 1 1" /> <path d="m7 18 2.891 2.891" /> <path d="M9 22c1.798-1.998 2.518-3.995 2.807-5.993" /></> },
+  // gpui-kit/assets/icons/rotate-ccw.svg (Lucide, LICENSE-LUCIDE)
+  "rotate-ccw": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /> <path d="M3 3v5h5" /></> },
   // web/public/icons/dots.svg (LICENSE.txt)
   "dots": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M4 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /> <path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /> <path d="M18 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /></> },
 } satisfies Record<string, { props: React.SVGProps<SVGSVGElement>; children: React.ReactNode }>;
@@ -214,6 +234,15 @@ const aliases = {
   "fit": "maximize",
   "nodes": "network",
   "models": "box",
+  "cube": "box",
+  "connector": "plug",
+  "simulation": "chart-line",
+  "gateway": "columns-2",
+  "test": "test-tubes",
+  "manufacturing": "factory",
+  "circuit": "cpu",
+  "protein": "dna",
+  "replay": "rotate-ccw",
 } as const;
 
 export type IconName = keyof typeof artwork | keyof typeof aliases;

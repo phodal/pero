@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { HostConnectors } from '../../../packages/connectors/src/host.mjs';
-import { ConnectorMcp } from './connector-mcp.ts';
+import { ConnectorMcp } from '../../../packages/connectors/src/mcp.ts';
 
 test('MCP admits only registered Host conversations and their own derived token; deletion revokes it', async t => {
   const root = await mkdtemp(join(tmpdir(), 'pero-connector-mcp-'));

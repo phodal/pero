@@ -1,14 +1,14 @@
 .point-connectors-page{container-type:inline-size}
 .point-connectors-notice{color:var(--pero-text-secondary);font-size:var(--pero-font-size-sm-plus, 12.5px)}
-.point-connectors-guides{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--pero-space-5, 10px);margin:0 0 var(--pero-space-8, 16px)}
-.point-connectors-page button.point-connectors-guide{position:relative;display:flex;align-items:stretch;gap:var(--pero-space-6, 12px);width:100%;min-height:126px;padding:var(--pero-space-7, 14px);border:0;border-radius:var(--pero-radius-xl, 12px);background:var(--pero-page);color:var(--pero-text);text-align:left;white-space:normal;cursor:pointer}
+.point-connectors-guides{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 12px}
+.point-connectors-page button.point-connectors-guide{position:relative;display:flex;align-items:stretch;gap:8px;width:100%;min-height:0;padding:8px 10px;border:0;border-radius:var(--pero-radius-xl, 12px);background:var(--pero-page);color:var(--pero-text);text-align:left;white-space:normal;cursor:pointer}
 .point-connectors-page button.point-connectors-guide:hover:not(:disabled){background:var(--pero-hover)}
 .point-connectors-page button.point-connectors-guide:focus-visible{outline: 2px solid var(--pero-focus);outline-offset: var(--pero-focus-offset, 1px)}
-.point-connectors-guide-copy{display:flex;flex-direction:column;align-items:flex-start;gap:var(--pero-space-2, 4px);min-width:0;flex:1}
-.point-connectors-guide-badge{padding-right:42px;font-size:var(--pero-font-size-sm, 12px);color:var(--pero-text-secondary)}
-.point-connectors-guide-title{padding-right:42px;font-size:var(--pero-font-size-base-plus, 15px);font-weight:var(--pero-font-weight-semibold, 600);line-height:var(--pero-line-height-tight, 1.3)}
-.point-connectors-guide-summary{font-size:var(--pero-font-size-sm-plus, 12.5px);line-height:var(--pero-line-height-normal, 1.5);color:var(--pero-text-secondary);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
-.point-connectors-guide-art{position:absolute;top:14px;right:14px;box-sizing:border-box;flex:none;width:38px;border-radius:var(--pero-radius-lg, 10px);background:var(--pero-surface);box-shadow:inset 0 0 0 1px var(--pero-border-subtle);display:flex;flex-direction:column;gap:var(--pero-space-2, 4px);padding:7px;align-self:center}
+.point-connectors-guide-copy{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;flex:1}
+.point-connectors-guide-badge{padding-right:32px;line-height:1.3;font-size:var(--pero-font-size-sm, 12px);color:var(--pero-text-secondary)}
+.point-connectors-guide-title{padding-right:32px;font-size:14px;font-weight:var(--pero-font-weight-semibold, 600);line-height:var(--pero-line-height-tight, 1.3)}
+.point-connectors-guide-summary{font-size:12px;line-height:1.4;color:var(--pero-text-secondary);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.point-connectors-guide-art{position:absolute;top:10px;right:10px;box-sizing:border-box;flex:none;width:28px;border-radius:var(--pero-radius-lg, 10px);background:var(--pero-surface);box-shadow:inset 0 0 0 1px var(--pero-border-subtle);display:flex;flex-direction:column;gap:var(--pero-space-2, 4px);padding:5px;align-self:center}
 .point-connectors-guide-art-bar{height:4px;width:46%;border-radius:99px;background:color-mix(in srgb,var(--pero-text-secondary) 45%,transparent)}
 .point-connectors-guide-art-line{height:3px;border-radius:99px;background:color-mix(in srgb,var(--pero-text-secondary) 22%,transparent)}
 .point-connectors-guide-art-line[data-short=true]{width:68%}
@@ -27,25 +27,25 @@
 .point-connectors-example span{display:flex;flex-direction:column;gap:var(--pero-space-1, 2px);min-width:0}
 .point-connectors-guide-prompt{color:var(--pero-text-secondary);font-size:var(--pero-font-size-sm, 12px);line-height:1.45;white-space:normal}
 @container (max-width:800px){.point-connectors-guides{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@container (max-width:440px){.point-connectors-guides{grid-template-columns:1fr}.point-connectors-page button.point-connectors-guide{min-height:104px}}
+@container (max-width:440px){.point-connectors-guides{grid-template-columns:1fr}.point-connectors-page button.point-connectors-guide{min-height:0}}
 .point-connectors-categories{margin-bottom:var(--pero-space-8, 16px)}
 .point-connectors-hint{color:var(--pero-text-secondary);font-size:var(--pero-font-size-sm, 12px);margin:0 0 var(--pero-space-4, 8px)}
-.point-connectors-section{margin-bottom:var(--pero-space-12, 24px)}
+.point-connectors-section{margin-bottom:16px}
 .point-connectors-page .point-connectors-section-title{display:flex;align-items:baseline;gap:var(--pero-space-3, 6px);font-size:var(--pero-font-size-md, 13px);font-weight:var(--pero-font-weight-semibold, 600);margin:0 0 var(--pero-space-5, 10px)}
 .point-connectors-section-title span{font-size:var(--pero-font-size-sm, 12px);font-weight:var(--pero-font-weight-regular, 400);color:var(--pero-text-secondary)}
-.point-connectors-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--pero-space-5, 10px)}
-.point-connectors-tile{border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-lg, 10px);padding:var(--pero-space-6, 12px) var(--pero-space-7, 14px);display:flex;flex-direction:column;gap:var(--pero-space-3, 6px);min-width:0}
+.point-connectors-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.point-connectors-tile{border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-lg, 10px);padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0}
 .point-connectors-tile:hover{border-color:var(--pero-text-secondary)}
 .point-connectors-tile-heading{flex:1;min-width:0}
 .point-connectors-tile-heading>div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .point-connectors-page button.point-connectors-tile-action{flex:none;min-height:28px;padding:3px var(--pero-space-6, 12px);font-size:var(--pero-font-size-sm-plus, 12.5px);border-radius:7px}
-.point-connectors-tile .point-connectors-summary{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;line-height:1.55}
+.point-connectors-tile .point-connectors-summary{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;line-height:1.4}
 .point-connectors-logo{display:block;width:22px;height:22px;object-fit:contain}
 .point-connectors-card{border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-xl, 12px);padding:var(--pero-space-8, 16px);display:flex;flex-direction:column;gap:var(--pero-space-4, 8px)}
-.point-connectors-card-head{display:flex;align-items:center;gap:var(--pero-space-5, 10px)}
-.point-connectors-symbol{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:var(--pero-radius-md, 8px);background:var(--pero-hover);flex:none}
+.point-connectors-card-head{display:flex;align-items:center;gap:8px}
+.point-connectors-symbol{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--pero-radius-md, 8px);background:var(--pero-hover);flex:none}
 /* Preserve official brand colors on a neutral plate, including dark marks. */
-.point-connectors-symbol:has(>.point-connectors-logo){background:var(--pero-surface, #fff);box-shadow:inset 0 0 0 1px var(--pero-domain-dsh-go-web-point-connectors-symbol-has-point, #00000014)}
+.point-connectors-symbol:has(>.point-connectors-logo){background:#fff;box-shadow:inset 0 0 0 1px var(--pero-border-subtle)}
 .point-connectors-card-title{font-size:var(--pero-font-size-md-plus, 13.5px);font-weight:var(--pero-font-weight-semibold, 600)}
 .point-connectors-card-meta{font-size:var(--pero-font-size-xs-plus, 11.5px);color:var(--pero-text-secondary)}
 .point-connectors-summary{font-size:var(--pero-font-size-sm-plus, 12.5px);color:var(--pero-text-secondary);margin:0}

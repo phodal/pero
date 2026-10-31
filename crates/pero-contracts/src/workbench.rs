@@ -41,6 +41,11 @@ pub struct LayoutPreferences {
     #[serde(deserialize_with = "LayoutPreferences::deserialize_chat_width")]
     chat_width: u16,
     pub chat_open: bool,
+    #[serde(
+        default = "LayoutPreferences::default_sidebar_width",
+        deserialize_with = "LayoutPreferences::deserialize_sidebar_width"
+    )]
+    sidebar_width: u16,
 }
 
 impl Default for LayoutPreferences {
@@ -48,6 +53,7 @@ impl Default for LayoutPreferences {
         Self {
             chat_width: 420,
             chat_open: false,
+            sidebar_width: Self::DEFAULT_SIDEBAR_WIDTH,
         }
     }
 }
@@ -55,6 +61,9 @@ impl Default for LayoutPreferences {
 impl LayoutPreferences {
     const MIN_CHAT_WIDTH: u16 = 320;
     const MAX_CHAT_WIDTH: u16 = 640;
+    pub const MIN_SIDEBAR_WIDTH: u16 = 200;
+    pub const MAX_SIDEBAR_WIDTH: u16 = 480;
+    const DEFAULT_SIDEBAR_WIDTH: u16 = 260;
 
     pub fn chat_width(&self) -> f32 {
         self.chat_width.into()
@@ -75,6 +84,34 @@ impl LayoutPreferences {
         if !(Self::MIN_CHAT_WIDTH..=Self::MAX_CHAT_WIDTH).contains(&width) {
             return Err(serde::de::Error::custom(
                 "Chat width must be between 320 and 640",
+            ));
+        }
+        Ok(width)
+    }
+
+    pub fn sidebar_width(&self) -> f32 {
+        self.sidebar_width.into()
+    }
+
+    /// Dragging beyond either edge keeps the nearest supported preference.
+    pub fn resize_sidebar(&mut self, width: f32) {
+        self.sidebar_width = width
+            .round()
+            .max(Self::MIN_SIDEBAR_WIDTH.into())
+            .min(Self::MAX_SIDEBAR_WIDTH.into()) as u16;
+    }
+
+    fn default_sidebar_width() -> u16 {
+        Self::DEFAULT_SIDEBAR_WIDTH
+    }
+
+    fn deserialize_sidebar_width<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<u16, D::Error> {
+        let width = u16::deserialize(deserializer)?;
+        if !(Self::MIN_SIDEBAR_WIDTH..=Self::MAX_SIDEBAR_WIDTH).contains(&width) {
+            return Err(serde::de::Error::custom(
+                "Sidebar width must be between 200 and 480",
             ));
         }
         Ok(width)
@@ -243,5 +280,30 @@ mod layout_tests {
             layout.resize_chat(requested);
             assert_eq!(layout.chat_width(), expected);
         }
+    }
+
+    #[test]
+    fn sidebar_width_restores_and_stays_inside_the_drag_range() {
+        let missing = serde_json::from_value::<LayoutPreferences>(serde_json::json!({})).unwrap();
+        assert_eq!(missing.sidebar_width(), 260.);
+        let saved =
+            serde_json::from_value::<LayoutPreferences>(serde_json::json!({"sidebar_width":360}))
+                .unwrap();
+        assert_eq!(saved.sidebar_width(), 360.);
+        assert!(
+            serde_json::from_value::<LayoutPreferences>(serde_json::json!({"sidebar_width":199}))
+                .is_err()
+        );
+        assert!(
+            serde_json::from_value::<LayoutPreferences>(serde_json::json!({"sidebar_width":481}))
+                .is_err()
+        );
+        let mut layout = LayoutPreferences::default();
+        layout.resize_sidebar(100.);
+        assert_eq!(layout.sidebar_width(), 200.);
+        layout.resize_sidebar(900.);
+        assert_eq!(layout.sidebar_width(), 480.);
+        layout.resize_sidebar(360.4);
+        assert_eq!(layout.sidebar_width(), 360.);
     }
 }

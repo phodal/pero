@@ -4,10 +4,10 @@
 //! stays in the preview secret store and is not written into that file.
 use crate::native_secrets::SecretStore;
 use pero_contracts::{
-    HostEvent,
     harness_settings::{HarnessControl, HarnessSettings, HarnessState},
+    HostEvent,
 };
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::path::Path;
 
 const DEFAULT_ENDPOINT: &str = "https://api.deepseek.com";
@@ -47,11 +47,14 @@ pub(crate) struct HarnessOutcome {
 }
 
 impl NativeHarness {
-    pub(crate) fn open(data: &Path, settings: &Path, ephemeral: bool) -> Self {
+    pub(crate) fn open(data: &Path, settings: &Path, env_file: &Path, ephemeral: bool) -> Self {
+        let dotenv = std::fs::read_to_string(env_file)
+            .map(|text| provider_dotenv(&text))
+            .unwrap_or_default();
         Self::restore(
             settings,
             SecretStore::open(data, "harness", ephemeral),
-            |key| std::env::var(key).unwrap_or_default(),
+            move |key| provider_setting(key, std::env::var(key).ok().as_deref(), &dotenv),
         )
     }
 
@@ -64,7 +67,10 @@ impl NativeHarness {
             let value: Value = serde_json::from_slice(&bytes).ok()?;
             let harness = value.get("harness")?;
             route(
-                harness.get("endpoint").and_then(Value::as_str).unwrap_or(""),
+                harness
+                    .get("endpoint")
+                    .and_then(Value::as_str)
+                    .unwrap_or(""),
                 harness.get("model").and_then(Value::as_str).unwrap_or(""),
             )
             .ok()
@@ -81,7 +87,11 @@ impl NativeHarness {
             Some(_) => String::new(),
             None => {
                 let key = env("DEEPSEEK_API_KEY");
-                if invalid_key(&key) { String::new() } else { key }
+                if invalid_key(&key) {
+                    String::new()
+                } else {
+                    key
+                }
             }
         };
         Self {
@@ -104,13 +114,19 @@ impl NativeHarness {
     pub(crate) fn handle(&mut self, value: &Value) -> HarnessOutcome {
         let command = match value["action"].as_str() {
             Some("harness_get") => Command::Read,
-            Some("native_harness_result") => {
-                Command::Host(value["ok"].as_bool().unwrap_or(false))
-            }
+            Some("native_harness_result") => Command::Host(value["ok"].as_bool().unwrap_or(false)),
             Some("harness_save") => match serde_json::from_value::<HarnessControl>(value.clone()) {
-                Ok(HarnessControl::Save { endpoint, model, api_key, clear_key }) => {
-                    Command::Save { endpoint, model, api_key, clear_key }
-                }
+                Ok(HarnessControl::Save {
+                    endpoint,
+                    model,
+                    api_key,
+                    clear_key,
+                }) => Command::Save {
+                    endpoint,
+                    model,
+                    api_key,
+                    clear_key,
+                },
                 _ => Command::Invalid,
             },
             _ => Command::Invalid,
@@ -125,7 +141,12 @@ impl NativeHarness {
                 self.fail("harness.save_error");
                 HarnessOutcome::event(self.state_event())
             }
-            Command::Save { endpoint, model, api_key, clear_key } => self.save(endpoint, model, api_key, clear_key),
+            Command::Save {
+                endpoint,
+                model,
+                api_key,
+                clear_key,
+            } => self.save(endpoint, model, api_key, clear_key),
         }
     }
 
@@ -133,7 +154,13 @@ impl NativeHarness {
         self.finish(false).event
     }
 
-    fn save(&mut self, endpoint: String, model: String, api_key: String, clear_key: bool) -> HarnessOutcome {
+    fn save(
+        &mut self,
+        endpoint: String,
+        model: String,
+        api_key: String,
+        clear_key: bool,
+    ) -> HarnessOutcome {
         if self.pending.is_some() {
             return HarnessOutcome::empty();
         }
@@ -186,7 +213,13 @@ impl NativeHarness {
         self.saved = true;
         self.status = "saved".into();
         self.error = None;
-        if self.secrets.save(&StoredKey { api_key: pending.key }).is_err() {
+        if self
+            .secrets
+            .save(&StoredKey {
+                api_key: pending.key,
+            })
+            .is_err()
+        {
             self.fail("harness.storage_error");
         }
         HarnessOutcome::event(self.state_event())
@@ -215,17 +248,28 @@ impl NativeHarness {
 
 enum Command {
     Read,
-    Save { endpoint: String, model: String, api_key: String, clear_key: bool },
+    Save {
+        endpoint: String,
+        model: String,
+        api_key: String,
+        clear_key: bool,
+    },
     Host(bool),
     Invalid,
 }
 
 impl HarnessOutcome {
     fn empty() -> Self {
-        Self { event: None, host: None }
+        Self {
+            event: None,
+            host: None,
+        }
     }
     fn event(event: HostEvent) -> Self {
-        Self { event: Some(event), host: None }
+        Self {
+            event: Some(event),
+            host: None,
+        }
     }
 }
 
@@ -246,7 +290,9 @@ fn configure_message(endpoint: &str, model: &str, api_key: &str) -> String {
 fn route(endpoint: &str, model: &str) -> Result<Route, &'static str> {
     if model.is_empty()
         || model.len() > 256
-        || model.chars().any(|character| character.is_whitespace() || character <= '\u{1f}')
+        || model
+            .chars()
+            .any(|character| character.is_whitespace() || character <= '\u{1f}')
     {
         return Err("harness.invalid_model");
     }
@@ -268,11 +314,90 @@ fn route(endpoint: &str, model: &str) -> Result<Route, &'static str> {
     if endpoint.ends_with('/') {
         endpoint.pop();
     }
-    Ok(Route { endpoint, model: model.to_owned() })
+    Ok(Route {
+        endpoint,
+        model: model.to_owned(),
+    })
 }
 
 fn invalid_key(key: &str) -> bool {
-    key.len() > 4096 || key.chars().any(|character| character.is_whitespace() || character <= '\u{1f}')
+    key.len() > 4096
+        || key
+            .chars()
+            .any(|character| character.is_whitespace() || character <= '\u{1f}')
+}
+
+const PROVIDER_ENV: [&str; 3] = ["DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "DEEPSEEK_MODEL"];
+
+/// Process values win, including an explicit empty string. The file supplies a
+/// key only when the process does not define it. Other dotenv names stay out.
+fn provider_setting(
+    key: &str,
+    process: Option<&str>,
+    file: &std::collections::BTreeMap<String, String>,
+) -> String {
+    process
+        .map(str::to_owned)
+        .unwrap_or_else(|| file.get(key).cloned().unwrap_or_default())
+}
+
+fn provider_dotenv(text: &str) -> std::collections::BTreeMap<String, String> {
+    let mut values = std::collections::BTreeMap::new();
+    for line in text.lines() {
+        let line = line
+            .trim()
+            .strip_prefix("export ")
+            .unwrap_or(line.trim())
+            .trim_start();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((key, raw)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim();
+        if PROVIDER_ENV.contains(&key) {
+            values.insert(key.to_owned(), dotenv_value(raw));
+        }
+    }
+    values
+}
+
+fn dotenv_value(raw: &str) -> String {
+    let raw = raw.trim_start();
+    if let Some(rest) = raw.strip_prefix('"') {
+        if let Some(value) = quoted(rest, '"') {
+            return value;
+        }
+    }
+    if let Some(rest) = raw.strip_prefix('\'') {
+        if let Some(end) = rest.find('\'') {
+            return rest[..end].to_owned();
+        }
+    }
+    raw.split('#').next().unwrap_or("").trim().to_owned()
+}
+
+fn quoted(raw: &str, quote: char) -> Option<String> {
+    let mut out = String::new();
+    let mut chars = raw.chars();
+    while let Some(character) = chars.next() {
+        if character == quote {
+            return Some(out);
+        }
+        if character == '\\' && quote == '"' {
+            match chars.next() {
+                Some('n') => out.push('\n'),
+                Some('r') => out.push('\r'),
+                Some('t') => out.push('\t'),
+                Some(other) => out.push(other),
+                None => out.push('\\'),
+            }
+        } else {
+            out.push(character);
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -296,17 +421,86 @@ mod tests {
     }
 
     #[test]
+    fn provider_dotenv_uses_the_file_only_when_the_process_value_is_absent() {
+        let file = provider_dotenv("DEEPSEEK_API_KEY=\"file-key\"\nDEEPSEEK_MODEL=custom-model\nDEEPSEEK_BASE_URL=\"a\\nb\"\nGITHUB_KEY=private\nPERO_OPERATOR_TOKEN=private\n# DEEPSEEK_API_KEY=commented\n");
+        assert!(file.get("GITHUB_KEY").is_none());
+        assert!(file.get("PERO_OPERATOR_TOKEN").is_none());
+        assert_eq!(
+            file.get("DEEPSEEK_BASE_URL").map(String::as_str),
+            Some("a\nb")
+        );
+        let cases = [
+            (None, None, "file-key", "custom-model"),
+            (Some("process-key"), None, "process-key", "custom-model"),
+            (Some(""), None, "", "custom-model"),
+            (None, Some("process-model"), "file-key", "process-model"),
+        ];
+        for (process_key, process_model, expected_key, expected_model) in cases {
+            assert_eq!(
+                provider_setting("DEEPSEEK_API_KEY", process_key, &file),
+                expected_key
+            );
+            assert_eq!(
+                provider_setting("DEEPSEEK_MODEL", process_model, &file),
+                expected_model
+            );
+        }
+        assert_eq!(dotenv_value("value # comment"), "value");
+        assert_eq!(
+            dotenv_value("\"value # not comment\" # tail"),
+            "value # not comment"
+        );
+        assert_eq!(dotenv_value("' spaced '"), " spaced ");
+    }
+
+    #[test]
     fn provider_routes_accept_https_and_loopback_and_reject_invalid_input() {
         let cases = [
             ("https://api.deepseek.com/", "deepseek-chat", "", false, ""),
             ("http://127.0.0.1:1234/v1", "local-model", "", false, ""),
             ("http://[::1]:9/v1", "local-model", "", false, ""),
-            ("http://example.com", "model", "", false, "harness.invalid_endpoint"),
-            ("https://user:secret@example.com", "model", "", false, "harness.invalid_endpoint"),
-            ("https://api.deepseek.com?key=secret", "model", "", false, "harness.invalid_endpoint"),
-            ("https://api.deepseek.com", "", "", false, "harness.invalid_model"),
-            ("https://api.deepseek.com", "bad model", "", false, "harness.invalid_model"),
-            ("https://api.deepseek.com", "model", "bad key", false, "harness.invalid_key"),
+            (
+                "http://example.com",
+                "model",
+                "",
+                false,
+                "harness.invalid_endpoint",
+            ),
+            (
+                "https://user:secret@example.com",
+                "model",
+                "",
+                false,
+                "harness.invalid_endpoint",
+            ),
+            (
+                "https://api.deepseek.com?key=secret",
+                "model",
+                "",
+                false,
+                "harness.invalid_endpoint",
+            ),
+            (
+                "https://api.deepseek.com",
+                "",
+                "",
+                false,
+                "harness.invalid_model",
+            ),
+            (
+                "https://api.deepseek.com",
+                "bad model",
+                "",
+                false,
+                "harness.invalid_model",
+            ),
+            (
+                "https://api.deepseek.com",
+                "model",
+                "bad key",
+                false,
+                "harness.invalid_key",
+            ),
         ];
         let path = Path::new("/no/such/pero-harness-route");
         for (endpoint, model, api_key, clear_key, error) in cases {
@@ -337,7 +531,8 @@ mod tests {
 
     #[test]
     fn a_model_change_is_kept_only_after_the_host_saves_it() {
-        let path = std::env::temp_dir().join(format!("pero-harness-save-{}.json", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("pero-harness-save-{}.json", std::process::id()));
         let mut provider = harness(&path, "env-key", "env-model");
         let outcome = provider.handle(&json!({
             "action": "harness_save",
@@ -371,7 +566,15 @@ mod tests {
         assert_eq!(view.model, "saved-model");
         assert_eq!(view.source, "settings");
         assert!(view.credential_configured);
-        assert_eq!(provider.secrets.load::<StoredKey>().unwrap().unwrap().api_key, "next-key");
+        assert_eq!(
+            provider
+                .secrets
+                .load::<StoredKey>()
+                .unwrap()
+                .unwrap()
+                .api_key,
+            "next-key"
+        );
 
         provider.handle(&json!({
             "action": "harness_save",
@@ -381,13 +584,22 @@ mod tests {
             "clear_key": true,
         }));
         provider.handle(&json!({"action":"native_harness_result","ok":true}));
-        assert_eq!(provider.secrets.load::<StoredKey>().unwrap().unwrap().api_key, "");
+        assert_eq!(
+            provider
+                .secrets
+                .load::<StoredKey>()
+                .unwrap()
+                .unwrap()
+                .api_key,
+            ""
+        );
         let _ = std::fs::remove_file(path);
     }
 
     #[test]
     fn a_saved_model_overrides_the_environment_and_an_empty_key_does_not_fall_back() {
-        let path = std::env::temp_dir().join(format!("pero-harness-restore-{}.json", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("pero-harness-restore-{}.json", std::process::id()));
         std::fs::write(
             &path,
             r#"{"other":{"enabled":true},"harness":{"endpoint":"https://api.deepseek.com/","model":"saved-model","encrypted_api_key":"ciphertext"}}"#,
@@ -403,7 +615,11 @@ mod tests {
         assert!(view.credential_configured);
 
         let secrets = SecretStore::memory();
-        secrets.save(&StoredKey { api_key: String::new() }).unwrap();
+        secrets
+            .save(&StoredKey {
+                api_key: String::new(),
+            })
+            .unwrap();
         let mut cleared = NativeHarness::restore(&path, secrets, |_| "env-key".into());
         assert_eq!(cleared.process_env().2, "");
         assert!(!state(&cleared.handle(&json!({"action":"harness_get"}))).credential_configured);

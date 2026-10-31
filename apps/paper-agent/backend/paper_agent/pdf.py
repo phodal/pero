@@ -37,8 +37,9 @@ class PdfDocument:
 
     @classmethod
     def from_record(cls, value):
+        from .source_text import SourceText
         return cls(value['id'], value['paperId'], value['fileDigest'], value['sourceUrl'],
-                   tuple(PdfPage(**page) for page in value['pages']), value['createdAt'])
+                   tuple(PdfPage(page['number'], page['width'], page['height'], SourceText.from_lines(page['lines']).content if 'lines' in page else page['text']) for page in value['pages']), value['createdAt'])
 
     def page(self, number):
         if type(number) is not int or not 1 <= number <= len(self.pages):
@@ -47,6 +48,13 @@ class PdfDocument:
 
     def matching_pages(self, quote):
         return tuple(page.number for page in self.pages if page.contains_quote(quote))
+
+    def to_record(self):
+        from .source_text import SourceText
+        value = self.to_dict()
+        for page in value['pages']:
+            page['lines'] = list(SourceText(page.pop('text')).lines)
+        return value
 
     def to_dict(self):
         return dict(id=self.id, paperId=self.paper_id, fileDigest=self.file_digest,

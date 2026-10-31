@@ -18,6 +18,37 @@ thread_local! {
     static HOST_COMMANDS: RefCell<Option<mpsc::Sender<String>>> = const { RefCell::new(None) };
 }
 
+/// AppKit draws its own titlebar rule under a transparent titlebar. The content
+/// header already has one edge, so the system rule would be a second line.
+#[cfg(target_os = "macos")]
+fn hide_titlebar_separator(window: &mut gpui_kit::Window) {
+    use objc2::runtime::{AnyObject, Bool};
+    use objc2::{msg_send, sel};
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    let Ok(handle) = window.window_handle() else {
+        return;
+    };
+    let RawWindowHandle::AppKit(appkit) = handle.as_raw() else {
+        return;
+    };
+    unsafe {
+        let view = &*appkit.ns_view.as_ptr().cast::<AnyObject>();
+        let ns_window: *mut AnyObject = msg_send![view, window];
+        if ns_window.is_null() {
+            return;
+        }
+        let ns_window = &*ns_window;
+        let selector = sel!(setTitlebarSeparatorStyle:);
+        let responds: Bool = msg_send![ns_window, respondsToSelector: selector];
+        if responds.as_bool() {
+            let _: () = msg_send![ns_window, setTitlebarSeparatorStyle: 1isize];
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn hide_titlebar_separator(_window: &mut gpui_kit::Window) {}
+
 pub(crate) fn session_command(json: &str) -> Result<(), String> {
     let value: serde_json::Value = serde_json::from_str(json).map_err(|error| error.to_string())?;
     let action = value["action"].as_str().unwrap_or_default();
@@ -87,7 +118,8 @@ pub fn run() -> anyhow::Result<()> {
             anyhow::bail!("Build with native-probe to run Web view acceptance");
         }
     }
-    let app_probe = std::env::args().nth(1).as_deref() == Some("--verify-apps");
+    let connector_probe = std::env::args().nth(1).as_deref() == Some("--verify-connectors");
+    let app_probe = connector_probe || std::env::args().nth(1).as_deref() == Some("--verify-apps");
     #[cfg(not(feature = "native-probe"))]
     if app_probe {
         anyhow::bail!("Build with native-probe to run App acceptance");
@@ -124,8 +156,18 @@ pub fn run() -> anyhow::Result<()> {
         &std::env::var_os("PATH").unwrap_or_default(),
     ));
     let settings_path = data.join("settings.json");
-    let harness =
-        crate::native_harness::NativeHarness::open(&data, &settings_path, ephemeral_secrets);
+    if let Err(error) = crate::native_python::prepare(&settings_path, &home.join(".pero")) {
+        eprintln!("App Python preparation: {error:#}");
+    }
+    let env_file = std::env::var_os("PERO_ENV_FILE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join(".env"));
+    let harness = crate::native_harness::NativeHarness::open(
+        &data,
+        &settings_path,
+        &env_file,
+        ephemeral_secrets,
+    );
     let (provider_endpoint, provider_model, provider_key) = harness.process_env();
     #[derive(serde::Deserialize)]
     struct NativeProduct {
@@ -135,8 +177,17 @@ pub fn run() -> anyhow::Result<()> {
     }
     let product: NativeProduct =
         serde_json::from_slice(&std::fs::read(root.join("products/pero.json"))?)?;
-    let mut host = Command::new(executable)
+    let (connector_owner, connector_environment) =
+        match crate::native_connectors::NativeConnectors::start(&root, &data, &executable) {
+            Ok((owner, environment)) => (Some(owner), environment),
+            Err(error) => {
+                eprintln!("Native Connectors: {error:#}");
+                (None, Default::default())
+            }
+        };
+    let mut host = Command::new(&executable)
         .arg("--stdio")
+        .envs(connector_environment)
         .current_dir(&root)
         .env("PERO_AGENT_ROOT", &root)
         .env("PATH", std::env::join_paths(paths)?)
@@ -173,7 +224,14 @@ pub fn run() -> anyhow::Result<()> {
     // own writer so they never wait for a remote response.
     let (host_commands, host_incoming) = mpsc::channel::<String>();
     HOST_COMMANDS.with(|slot| *slot.borrow_mut() = Some(host_commands.clone()));
-    let app_client = crate::native_apps::NativeApps::new(host_commands.clone(), events.clone());
+    let app_client = crate::native_apps::NativeApps::new(
+        host_commands.clone(),
+        events.clone(),
+        connector_owner.as_ref().map(std::sync::Arc::downgrade),
+    );
+    if let Some(owner) = &connector_owner {
+        owner.bind(app_client.clone());
+    }
     APPS.with(|slot| *slot.borrow_mut() = Some(app_client.clone()));
     let writer_events = events.clone();
     std::thread::spawn(move || {
@@ -193,11 +251,15 @@ pub fn run() -> anyhow::Result<()> {
     });
     let reader_events = events.clone();
     let worker_states = commands.clone();
+    let session_connectors = connector_owner.clone();
     std::thread::spawn(move || {
         for line in BufReader::new(stdout).lines() {
             let Ok(line) = line else { break };
             match serde_json::from_str::<HostEvent>(&line) {
                 Ok(event) if event.version == pero_contracts::PROTOCOL_VERSION => {
+                    if let Some(owner) = &session_connectors {
+                        owner.accept(&event);
+                    }
                     if app_client.accept(&event) {
                         continue;
                     }
@@ -239,6 +301,9 @@ pub fn run() -> anyhow::Result<()> {
             None,
             "error.host_stopped",
         ));
+        if let Some(owner) = &session_connectors {
+            owner.close();
+        }
     });
     let reply = commands.clone();
     std::thread::spawn(move || {
@@ -397,6 +462,7 @@ pub fn run() -> anyhow::Result<()> {
             titlebar.traffic_light_position = Some(point(px(12.), px(13.)));
         }
         let (window, view) = gpui_kit::open_window(options, cx, move |window, cx| {
+            hide_titlebar_separator(window);
             window.set_window_title("Pero Native Preview — local sessions");
             cx.new(|cx| {
                 let mut view = Workbench::new(palettes, system_dark, locale, window, cx);
@@ -411,7 +477,8 @@ pub fn run() -> anyhow::Result<()> {
         #[cfg(feature="native-probe")]
         if app_probe {
             let receipt = PathBuf::from(std::env::args().nth(2).expect("App acceptance receipt path"));
-            crate::native_app_probe::attach(view.clone(),window,receipt,cx);
+            if connector_probe { crate::native_connector_probe::attach(view.clone(),window,receipt,cx); }
+            else { crate::native_app_probe::attach(view.clone(),window,receipt,cx); }
         }
         let close_view=view.downgrade();
         let _=window.update(cx,|_,window,cx| {
@@ -521,6 +588,9 @@ pub fn run() -> anyhow::Result<()> {
         .detach();
         if !app_probe { cx.activate(true); }
     });
+    if let Some(owner) = &connector_owner {
+        owner.close();
+    }
     Ok(())
 }
 

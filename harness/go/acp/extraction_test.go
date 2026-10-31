@@ -105,6 +105,18 @@ func TestExtractedACPWireLifecyclePermissionAndResume(t *testing.T) {
 	cwd := t.TempDir()
 	created := rpc("session/new", map[string]any{"cwd": cwd, "mcpServers": []any{}})
 	id := created["sessionId"].(string)
+	var permission string
+	for _, option := range created["configOptions"].([]any) {
+		item := option.(map[string]any)
+		if item["id"] == "permission" {
+			permission = item["currentValue"].(string)
+		}
+	}
+	if permission != "auto-review" {
+		t.Fatalf("new session permission=%q config=%v", permission, created["configOptions"])
+	}
+	// Full access still asks. Auto-review would allow the guarded tool without this prompt.
+	rpc("session/set_config_option", map[string]any{"sessionId": id, "configId": "permission", "value": "full-access"})
 	result := rpc("session/prompt", map[string]any{"sessionId": id, "prompt": []any{map[string]any{"type": "text", "text": "do it"}}})
 	if result["stopReason"] != "end_turn" || permissions != 1 || toolCalls != 0 || updates == 0 {
 		t.Fatalf("result=%v permissions=%d tools=%d updates=%d", result, permissions, toolCalls, updates)

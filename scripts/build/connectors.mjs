@@ -24,5 +24,8 @@ if (!test) {
       bundle: true, format: 'esm', platform: 'node',
       banner: { js: 'import { createRequire as __peroRequire } from "node:module"; const require = __peroRequire(import.meta.url);' } });
   }
+  await build({ entryPoints: [resolve(source, 'src/native.mjs')], outfile: resolve(source, 'helpers/pero-connectors-host.mjs'),
+    bundle: true, format: 'esm', platform: 'node',
+    banner: { js: 'import { createRequire as __peroRequire } from "node:module"; const require = __peroRequire(import.meta.url);' } });
   console.log(`Connectors driver and pinned helpers built from Pero source (${profile}).`);
 }

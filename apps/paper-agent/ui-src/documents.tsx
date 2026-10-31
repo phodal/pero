@@ -41,7 +41,10 @@ function Citations({ paperIds, evidence, intent, onCite, t }: { paperIds: string
   return <div className="pa-citations" aria-label={t('evidence')}>{paperIds.flatMap(id => {
     const paper = intent.papers.find(paper => paper.id === id), refs = evidence?.filter(item => item.paperId === id) ?? [];
     const quotes = refs.length ? refs.map(ref => ref.quote) : [undefined];
-    return quotes.map((quote, index) => <Button key={`${id}:${index}`} variant="ghost" onClick={() => onCite({ paperId: id, quote, passageId: refs[index]?.passageId })}><span className="pa-citation-number">{intent.papers.findIndex(paper => paper.id === id) + 1}{quotes.length > 1 && `.${index + 1}`}</span><span>{paper?.title ?? id}</span>{quote && <span aria-label={t('exactQuote')}>↗</span>}</Button>);
+    return quotes.map((quote, index) => {
+      const page = intent.passages?.find(passage => passage.id === refs[index]?.passageId)?.page;
+      return <Button key={`${id}:${index}`} variant="ghost" onClick={() => onCite({ paperId: id, quote, passageId: refs[index]?.passageId })}><span className="pa-citation-number">{intent.papers.findIndex(paper => paper.id === id) + 1}{quotes.length > 1 && `.${index + 1}`}</span><span>{page && intent.papers.length === 1 ? `${t('pdfPage')} ${page}` : paper?.title ?? id}</span>{page && intent.papers.length > 1 && <span>{t('pdfPage')} {page}</span>}{quote && <span aria-label={t('exactQuote')}>↗</span>}</Button>;
+    });
   })}</div>;
 }
 function PrintedEvidence({ evidence, paperIds, intent }: { evidence?: Evidence[]; paperIds: string[]; intent: Intent }) {

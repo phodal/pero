@@ -442,6 +442,10 @@ func (s *Server) newSession(ctx context.Context, params NewSessionParams) (harne
 		s.retireAgent(agent)
 		return "", err
 	}
+	if err := ensureAutoReview(agent); err != nil {
+		s.retireAgent(agent)
+		return "", err
+	}
 	if err := s.activate(ctx, agent); err != nil {
 		s.retireAgent(agent)
 		return "", err
@@ -698,6 +702,10 @@ func (s *Server) resumeSession(ctx context.Context, params ResumeSessionParams) 
 		return err
 	}
 	if _, err := agent.Session().Append("session/acp-controller", map[string]any{"version": 1, "requiresClientMCP": len(servers) != 0}); err != nil {
+		s.retireAgent(agent)
+		return err
+	}
+	if err := ensureAutoReview(agent); err != nil {
 		s.retireAgent(agent)
 		return err
 	}

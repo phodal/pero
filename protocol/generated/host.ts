@@ -757,6 +757,7 @@ export interface ProjectBinding {
 export interface LayoutPreferences {
   chat_width?: number;
   chat_open?: boolean;
+  sidebar_width?: number;
 }
 export interface ListAgentsCommand {
   action: "list_agents";

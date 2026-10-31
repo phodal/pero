@@ -1,6 +1,63 @@
 import React from 'react';
 import { Icon as SharedIcon, type ShellIconName, type UiIconName } from './ui';
 import type { DirectoryEntry } from './connector-types.ts';
+import ansysLogo from './assets/connectors/ansys.png';
+import matlabLogo from './assets/connectors/matlab.png';
+import microsoft365Logo from './assets/connectors/microsoft-365.png';
+import simulinkLogo from './assets/connectors/simulink.png';
+import freecadLogo from './assets/connectors/freecad.svg';
+import kicadLogo from './assets/connectors/kicad.svg';
+import carbonLogo from './assets/connectors/carbon-light.png';
+import comsolLogo from './assets/connectors/comsol.png';
+import fmuLogo from './assets/connectors/fmu-runtime.png';
+import foxgloveLogo from './assets/connectors/foxglove.png';
+import highbyteLogo from './assets/connectors/highbyte.png';
+import nominalLogo from './assets/connectors/nominal.png';
+import opcuaLogo from './assets/connectors/opc-ua.png';
+import openbomLogo from './assets/connectors/openbom.png';
+import pyvisaLogo from './assets/connectors/pyvisa.png';
+import benchlingLogo from './assets/connectors/benchling.png';
+import biocontextLogo from './assets/connectors/biocontext.png';
+import biomcpLogo from './assets/connectors/biomcp.png';
+import elabftwLogo from './assets/connectors/elabftw.png';
+import labkeyLogo from './assets/connectors/labkey.png';
+import openTargetsLogo from './assets/connectors/open-targets.png';
+import pylabrobotLogo from './assets/connectors/pylabrobot.png';
+import wolframLogo from './assets/connectors/wolfram.png';
+import wandbLogo from './assets/connectors/wandb.png';
+import mlflowLogo from './assets/connectors/mlflow.png';
+import galaxyLogo from './assets/connectors/galaxy.png';
+import jupyterLogo from './assets/connectors/jupyter.png';
+import rmcptoolsLogo from './assets/connectors/r-mcptools.png';
+import autodeskfusionLogo from './assets/connectors/autodesk-fusion.png';
+import sciteLogo from './assets/connectors/scite.png';
+import synapseLogo from './assets/connectors/synapse.png';
+import zoteroLogo from './assets/connectors/zotero.png';
+import onshapeLogo from './assets/connectors/onshape.png';
+import quiltLogo from './assets/connectors/quilt.png';
+import wileyLogo from './assets/connectors/wiley.png';
+import biorenderLogo from './assets/connectors/biorender.png';
+import seqeraLogo from './assets/connectors/seqera.png';
+import arxivLogo from './assets/connectors/arxiv.png';
+import brapiLogo from './assets/connectors/brapi.png';
+import cdcLogo from './assets/connectors/cdc.png';
+import chemblLogo from './assets/connectors/chembl.png';
+import crossrefLogo from './assets/connectors/crossref.png';
+import dataciteLogo from './assets/connectors/datacite.png';
+import ensemblLogo from './assets/connectors/ensembl.png';
+import faoLogo from './assets/connectors/fao.png';
+import gbifLogo from './assets/connectors/gbif.png';
+import ncbiLogo from './assets/connectors/ncbi.png';
+import noaaLogo from './assets/connectors/noaa.png';
+import nwsLogo from './assets/connectors/nws.png';
+import openMeteoLogo from './assets/connectors/open-meteo.png';
+import openalexLogo from './assets/connectors/openalex.png';
+import openchargemapLogo from './assets/connectors/openchargemap.png';
+import openfdaLogo from './assets/connectors/openfda.png';
+import orcidLogo from './assets/connectors/orcid.png';
+import paleobiologyLogo from './assets/connectors/paleobiology.png';
+import pubchemLogo from './assets/connectors/pubchem.png';
+import uniprotLogo from './assets/connectors/uniprot.png';
 
 const pointColor = (token: string, fallback: string): string => { try { const v = getComputedStyle(document.body ?? document.documentElement).getPropertyValue(`--pero-${token}`).trim(); return v || fallback; } catch { return fallback; } }; // design tokens v3: concrete colour for canvas/SVG attributes, literal is the token's default
 export const PROVIDER_SUMMARIES: Record<string, string> = {
@@ -44,7 +101,7 @@ const namedDomainIcons: Record<string, { family?: 'shell'; name: UiIconName | Sh
   cad: { name: 'cube' },
   signal: { name: 'activity' },
   replay: { family: 'shell', name: 'replay' },
-  evidence: { name: 'document' },
+  evidence: { name: 'file' },
   target: { name: 'target' },
   simulation: { name: 'simulation' },
   notebook: { name: 'notebook' },
@@ -54,19 +111,38 @@ const namedDomainIcons: Record<string, { family?: 'shell'; name: UiIconName | Sh
   circuit: { name: 'circuit' },
   workflow: { name: 'nodes' },
   protein: { name: 'protein' },
-  bom: { name: 'table' },
+  bom: { name: 'file-spreadsheet' },
   instrument: { name: 'activity' },
-  robot: { family: 'shell', name: 'agent' },
+  robot: { name: 'sparkles' },
 };
 function namedConnectorIcon(entry: DirectoryEntry) {
   const domain = namedDomainIcons[entry.iconId ?? ''];
   if (domain) return domain;
-  if (entry.transport === 'stdio') return { family: 'shell' as const, name: 'ssh' as const };
-  if (entry.transport === 'builtin') return { family: 'shell' as const, name: 'computer' as const };
+  if (entry.transport === 'stdio') return { family: 'shell' as const, name: 'terminal' as const };
+  if (entry.transport === 'builtin') return { family: 'shell' as const, name: 'devices' as const };
   return { name: 'connector' as const };
 }
 // Official marks from Wikimedia Commons or the vendors; see assets/connectors/SOURCES.md.
 // Bundled as data URIs so the catalog works offline and fits the workbench CSP.
+const BRAND_LOGOS: Record<string, string> = {
+  'wolfram': wolframLogo, 'wandb': wandbLogo, 'mlflow': mlflowLogo, 'galaxy': galaxyLogo, 'jupyter': jupyterLogo, 'r-mcptools': rmcptoolsLogo, 'autodesk-fusion': autodeskfusionLogo,
+  scite: sciteLogo, synapse: synapseLogo, zotero: zoteroLogo, onshape: onshapeLogo, quilt: quiltLogo, wiley: wileyLogo, biorender: biorenderLogo,
+  benchling: benchlingLogo, biocontext: biocontextLogo, biomcp: biomcpLogo, elabftw: elabftwLogo,
+  labkey: labkeyLogo, 'open-targets': openTargetsLogo, pylabrobot: pylabrobotLogo, seqera: seqeraLogo,
+  carbon: carbonLogo, comsol: comsolLogo, 'fmu-runtime': fmuLogo, foxglove: foxgloveLogo,
+  freecad: freecadLogo, highbyte: highbyteLogo, kicad: kicadLogo, nominal: nominalLogo,
+  'opc-ua': opcuaLogo, openbom: openbomLogo, pyvisa: pyvisaLogo,
+  matlab: matlabLogo, simulink: simulinkLogo, 'microsoft-365': microsoft365Logo,
+  'ansys-mechanical': ansysLogo, 'ansys-fluent': ansysLogo, 'ansys-mapdl': ansysLogo, 'ansys-aedt': ansysLogo,
+  'cyanheads-arxiv': arxivLogo, 'cyanheads-brapi': brapiLogo, 'cyanheads-cdc-health': cdcLogo,
+  'cyanheads-chembl': chemblLogo, 'cyanheads-clinicaltrialsgov': ncbiLogo, 'cyanheads-crossref': crossrefLogo,
+  'cyanheads-datacite': dataciteLogo, 'cyanheads-ensembl': ensemblLogo, 'cyanheads-faostat': faoLogo,
+  'cyanheads-gbif-biodiversity': gbifLogo, 'cyanheads-noaa-climate': noaaLogo, 'cyanheads-noaa-marine': noaaLogo,
+  'cyanheads-noaa-spaceweather': noaaLogo, 'cyanheads-nws-weather': nwsLogo, 'cyanheads-open-meteo': openMeteoLogo,
+  'cyanheads-openalex': openalexLogo, 'cyanheads-openchargemap': openchargemapLogo, 'cyanheads-openfda': openfdaLogo,
+  'cyanheads-orcid': orcidLogo, 'cyanheads-paleobiology': paleobiologyLogo, 'cyanheads-pubchem': pubchemLogo,
+  'cyanheads-pubmed': ncbiLogo, 'cyanheads-uniprot': uniprotLogo,
+};
 export function GuideArt({ tone }: { tone: string }) {
   return <span className="point-connectors-guide-art" data-tone={tone} aria-hidden="true">
     <span className="point-connectors-guide-art-bar" />
@@ -75,9 +151,12 @@ export function GuideArt({ tone }: { tone: string }) {
   </span>;
 }
 export function ProviderIcon({ entry }: { entry: DirectoryEntry }) {
+  const logo = BRAND_LOGOS[entry.providerId];
+  if (logo) return <img className="point-connectors-logo" src={logo} width={22} height={22} alt="" aria-hidden="true" />;
   const brand = entry.brand ? BRAND_GLYPHS[entry.brand] : undefined;
   if (brand) return <SharedIcon size={18} stroke="none" style={brand.color ? { color: brand.color } : undefined} glyph={{ viewBox: '0 0 24 24', children: <path d={brand.path} fill="currentColor" /> }} />;
-  return <span className="connector-provider-initial" aria-hidden="true">{entry.displayName.slice(0, 1)}</span>;
+  const named = namedConnectorIcon(entry);
+  return <SharedIcon name={named.name} family={named.family} size={18} />;
 }
 
 export const IMPORT_EXAMPLES: Record<string, string> = {

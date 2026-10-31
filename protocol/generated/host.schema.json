@@ -5379,6 +5379,12 @@
         "chat_open": {
           "type": "boolean",
           "default": false
+        },
+        "sidebar_width": {
+          "type": "integer",
+          "minimum": 200,
+          "maximum": 480,
+          "default": 260
         }
       },
       "additionalProperties": false

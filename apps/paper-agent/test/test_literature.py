@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, urlsplit
 sys.path.insert(0, str(Path(__file__).parents[1] / "backend"))
 
 from paper_agent.literature import LiteratureClient, PaperIdentity, SearchQuery, deduplicate
-from paper_agent.model import Invalid, canonical
+from paper_agent.model import Invalid, PaperSnapshot, canonical
 
 
 class Response(BytesIO):
@@ -159,6 +159,14 @@ class LiteratureTest(unittest.TestCase):
         self.assertEqual(unchanged["content"], source)
         self.assertEqual(unchanged["contentDigest"], reading["contentDigest"])
         self.assertEqual(unchanged["title"], "1706.03762")
+        # Long online papers must remain intact through the add/reload boundary.
+        for size in (124773, 302129):
+            with self.subTest(size=size):
+                content = "# Long paper\n" + "Evidence. " * (size // 10)
+                client = LiteratureClient(lambda url, **kw: Response(status=503) if urlsplit(url).hostname == "arxiv.org" else Response(content))
+                snapshot = PaperSnapshot.from_reading(client.read({"id": "2610.14224", "full": True}), NOW)
+                self.assertEqual(snapshot.content, content)
+                self.assertEqual(PaperSnapshot.from_record(snapshot.to_dict()), snapshot)
 
     def test_abstract_sources_reconstruct_content_and_retain_full_text_limitations(self):
         def fetch(url, **_options):

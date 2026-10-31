@@ -224,3 +224,23 @@ correct restored conversation selected, with no renderer errors. Original paint
 latency was not instrumented, so this is not a proven product root cause. The
 readiness wait logs elapsed time and success/failure, uses no fixed sleep or
 retry, and changes no production deadline.
+
+## Paper Agent 真实场景
+
+`e2e/paper-live.mjs` 是显式启用的 L2 验收：实时搜索 Harness²，从结果添加并
+下载真实 PDF，使用当前 Codex 登录通过 Host/App MCP 阅读方法章节、回答与追问，
+点击引用核对 PDF 高亮，并检查窄窗口返回原文及重启恢复。它不替换论文服务或
+Agent 输出，使用一次性 profile，不修改日常资料库。会发送真实模型请求。
+
+```sh
+PERO_PAPER_LIVE=1 PERO_APP_PYTHON=/path/to/prepared/bin/python node tests/e2e/paper-live.mjs
+```
+
+需要当前 App/Host/Desktop 构建、Codex 登录与公网访问。截图、真实回答、证据台账
+和耗时保存在 `test-results/paper-live-agent/`。单轮回答等待上限为十分钟，失败时
+保留已完成步骤和界面截图；引用匹配通过仍需人工核对回答是否忠于原文。
+
+可通过 `PERO_PAPER_LIVE_PROFILE=/path/to/disposable/profile` 重开该套件保留的真实
+profile，检查报告并继续真实追问。`PERO_PAPER_LIVE_QUESTION` 指定追问；
+`PERO_PAPER_LIVE_RESTORE_ONLY=1` 仅重开真实报告并核对 PDF，不发模型请求。
+`PERO_PAPER_LIVE_OUTPUT` 可为每次运行保留独立证据目录。

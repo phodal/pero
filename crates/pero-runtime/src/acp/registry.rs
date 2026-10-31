@@ -20,7 +20,31 @@ pub struct AgentConfig {
     #[serde(default, deserialize_with = "deserialize_mcp_servers")]
     pub mcp_servers: Vec<McpServer>,
 }
+/// Chat translates this key. The built-in agent exits before any session exists
+/// when the named provider credential is missing.
+pub const CREDENTIAL_REQUIRED: &str = "chat.credential_required";
+
 impl AgentConfig {
+    /// `--api-key-env` names the variable the built-in agent reads. An agent
+    /// environment entry replaces the host process value, including an empty one.
+    /// Other agents do not use this flag and are unaffected.
+    pub fn provider_credential_missing(&self, mut process_env: impl FnMut(&str) -> String) -> bool {
+        let Some(name) = self
+            .args
+            .windows(2)
+            .find(|pair| pair[0] == "--api-key-env")
+            .map(|pair| pair[1].as_str())
+        else {
+            return false;
+        };
+        let value = self
+            .env
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| process_env(name));
+        value.trim().is_empty()
+    }
+
     pub fn available(&self) -> bool {
         let p = Path::new(&self.command);
         if p.is_absolute() {
@@ -39,34 +63,59 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
         .unwrap_or_else(|| root.to_path_buf());
     let home = std::env::var_os("HOME").map(PathBuf::from);
     let local_cli = |relative: &str, command: &str| {
-        home.as_ref().map(|home| home.join(relative)).filter(|path| path.is_file())
-            .map(|path| path.to_string_lossy().into_owned()).unwrap_or_else(|| command.to_owned())
+        home.as_ref()
+            .map(|home| home.join(relative))
+            .filter(|path| path.is_file())
+            .map(|path| path.to_string_lossy().into_owned())
+            .unwrap_or_else(|| command.to_owned())
     };
     // The Homebrew `grok` is a different program. Only use xAI's own installation
     // location (or its unambiguous grok-build command), never a bare `grok` lookup.
-    let grok = home.as_ref().map(|home| home.join(".grok/bin/grok"))
-        .filter(|path| path.is_file()).map(|path| path.to_string_lossy().into_owned())
+    let grok = home
+        .as_ref()
+        .map(|home| home.join(".grok/bin/grok"))
+        .filter(|path| path.is_file())
+        .map(|path| path.to_string_lossy().into_owned())
         .unwrap_or_else(|| "grok-build".into());
     let sessions = std::env::var_os("PERO_SETTINGS_PATH")
-        .map(PathBuf::from).and_then(|path| path.parent().map(Path::to_path_buf))
+        .map(PathBuf::from)
+        .and_then(|path| path.parent().map(Path::to_path_buf))
         .unwrap_or_else(|| agent_root.join("target"))
         .join("harness/sessions");
-    let binary = if cfg!(windows) { "pero-agent-acp.exe" } else { "pero-agent-acp" };
+    let binary = if cfg!(windows) {
+        "pero-agent-acp.exe"
+    } else {
+        "pero-agent-acp"
+    };
     let packaged = agent_root.join("bin").join(binary);
-    let builtin = if packaged.is_file() { packaged } else { agent_root.join("target/debug").join(binary) };
+    let builtin = if packaged.is_file() {
+        packaged
+    } else {
+        agent_root.join("target/debug").join(binary)
+    };
     let mut agents = vec![
         AgentConfig {
-            id: "pero".into(), name: "Pero (DeepSeek)".into(),
+            id: "pero".into(),
+            name: "Pero (DeepSeek)".into(),
             command: builtin.to_string_lossy().into_owned(),
             args: vec![
-                "--endpoint".into(), std::env::var("DEEPSEEK_BASE_URL").unwrap_or_else(|_| "https://api.deepseek.com".into()),
-                "--model".into(), std::env::var("DEEPSEEK_MODEL").unwrap_or_else(|_| "deepseek-chat".into()),
-                "--api-key-env".into(), "DEEPSEEK_API_KEY".into(),
-                "--session-dir".into(), sessions.to_string_lossy().into_owned(),
-                "--workspace".into(), "{workspace}".into(),
-                "--enable-agent-instructions".into(), "--enable-todos".into(),
+                "--endpoint".into(),
+                std::env::var("DEEPSEEK_BASE_URL")
+                    .unwrap_or_else(|_| "https://api.deepseek.com".into()),
+                "--model".into(),
+                std::env::var("DEEPSEEK_MODEL").unwrap_or_else(|_| "deepseek-chat".into()),
+                "--api-key-env".into(),
+                "DEEPSEEK_API_KEY".into(),
+                "--session-dir".into(),
+                sessions.to_string_lossy().into_owned(),
+                "--workspace".into(),
+                "{workspace}".into(),
+                "--enable-agent-instructions".into(),
+                "--enable-todos".into(),
             ],
-            env: BTreeMap::new(), model: None, mcp_servers: vec![],
+            env: BTreeMap::new(),
+            model: None,
+            mcp_servers: vec![],
         },
         AgentConfig {
             id: "codex".into(),
@@ -93,26 +142,39 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
         AgentConfig {
-            id: "copilot".into(), name: "GitHub Copilot".into(), command: "copilot".into(),
-            args: vec!["--acp".into(), "--stdio".into()], env: BTreeMap::new(), model: None,
+            id: "copilot".into(),
+            name: "GitHub Copilot".into(),
+            command: "copilot".into(),
+            args: vec!["--acp".into(), "--stdio".into()],
+            env: BTreeMap::new(),
+            model: None,
             mcp_servers: vec![],
         },
         AgentConfig {
-            id: "grok".into(), name: "Grok".into(), command: grok,
+            id: "grok".into(),
+            name: "Grok".into(),
+            command: grok,
             args: vec!["--no-auto-update".into(), "agent".into(), "stdio".into()],
-            env: BTreeMap::new(), model: None,
+            env: BTreeMap::new(),
+            model: None,
             mcp_servers: vec![],
         },
         AgentConfig {
-            id: "qoder".into(), name: "Qoder".into(),
+            id: "qoder".into(),
+            name: "Qoder".into(),
             command: local_cli(".local/bin/qodercli", "qodercli"),
-            args: vec!["--acp".into()], env: BTreeMap::new(), model: None,
+            args: vec!["--acp".into()],
+            env: BTreeMap::new(),
+            model: None,
             mcp_servers: vec![],
         },
         AgentConfig {
-            id: "opencode".into(), name: "OpenCode".into(),
+            id: "opencode".into(),
+            name: "OpenCode".into(),
             command: local_cli(".opencode/bin/opencode", "opencode"),
-            args: vec!["acp".into()], env: BTreeMap::new(), model: None,
+            args: vec!["acp".into()],
+            env: BTreeMap::new(),
+            model: None,
             mcp_servers: vec![],
         },
     ];
@@ -124,13 +186,25 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
     if let Some(node) = std::env::var_os("PERO_ADAPTER_NODE") {
         for (id, script, key, cli) in [
             ("codex", "codex-acp.mjs", "CODEX_PATH", "codex"),
-            ("claude", "claude-agent-acp.mjs", "CLAUDE_CODE_EXECUTABLE", "claude"),
+            (
+                "claude",
+                "claude-agent-acp.mjs",
+                "CLAUDE_CODE_EXECUTABLE",
+                "claude",
+            ),
         ] {
             let agent = agents.iter_mut().find(|agent| agent.id == id).unwrap();
             agent.command = node.to_string_lossy().into_owned();
-            agent.args = vec![agent_root.join("adapters").join(script).to_string_lossy().into_owned()];
+            agent.args = vec![agent_root
+                .join("adapters")
+                .join(script)
+                .to_string_lossy()
+                .into_owned()];
             agent.env.insert("ELECTRON_RUN_AS_NODE".into(), "1".into());
-            agent.env.insert(key.into(), std::env::var(key).unwrap_or_else(|_| cli.into()));
+            agent.env.insert(
+                key.into(),
+                std::env::var(key).unwrap_or_else(|_| cli.into()),
+            );
         }
     }
     let file = std::env::var_os("PERO_AGENTS_FILE")
@@ -268,5 +342,77 @@ impl std::fmt::Debug for AgentConfig {
             .field("name", &self.name)
             .field("mcp_server_count", &self.mcp_servers.len())
             .finish_non_exhaustive()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn agent(args: &[&str], env: &[(&str, &str)]) -> AgentConfig {
+        AgentConfig {
+            id: "pero".into(),
+            name: "Pero".into(),
+            command: "pero-agent-acp".into(),
+            args: args.iter().map(|arg| (*arg).to_owned()).collect(),
+            env: env
+                .iter()
+                .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+                .collect(),
+            model: None,
+            mcp_servers: vec![],
+        }
+    }
+
+    #[test]
+    fn provider_credential_uses_the_named_variable_only() {
+        let cases = [
+            (vec!["--model", "deepseek-chat"], vec![], "", false),
+            (vec!["--api-key-env", "DEEPSEEK_API_KEY"], vec![], "", true),
+            (
+                vec!["--api-key-env", "DEEPSEEK_API_KEY"],
+                vec![],
+                "  ",
+                true,
+            ),
+            (
+                vec!["--api-key-env", "DEEPSEEK_API_KEY"],
+                vec![],
+                "sk-test",
+                false,
+            ),
+            (
+                vec!["--api-key-env", "DEEPSEEK_API_KEY"],
+                vec![("DEEPSEEK_API_KEY", "")],
+                "sk-test",
+                true,
+            ),
+            (
+                vec!["--api-key-env", "DEEPSEEK_API_KEY"],
+                vec![("DEEPSEEK_API_KEY", "  ")],
+                "sk-test",
+                true,
+            ),
+            (
+                vec!["--api-key-env", "DEEPSEEK_API_KEY"],
+                vec![("DEEPSEEK_API_KEY", "sk-saved")],
+                "",
+                false,
+            ),
+        ];
+        for (args, env, process, missing) in cases {
+            let agent = agent(&args, &env);
+            assert_eq!(
+                agent.provider_credential_missing(|name| {
+                    if name == "DEEPSEEK_API_KEY" {
+                        process.to_owned()
+                    } else {
+                        String::new()
+                    }
+                }),
+                missing,
+                "{args:?} env={env:?} process={process:?}"
+            );
+        }
     }
 }
