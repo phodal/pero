@@ -99,8 +99,20 @@ local execution, at most 2,048 dispatches/requests/events, 512 snapshots, 128
 semantic definition revisions, fan-out 16, and 65,536 bytes per frozen input.
 Payload metadata/input capacity is 64 MiB; SQLite's page ceiling additionally
 bounds its database. Identity records are not automatically expired or evicted.
-At capacity new responsibility is rejected; accepted work is retained. Timers
-catch up only within their explicit lateness window and never invent event work.
+These are lifetime limits for this **bounded local first slice**, not a claim of
+long-term unattended production operation. For example, one run per minute uses
+2,048 request slots in about 34 hours, even if every run completes successfully.
+The UI shows current counts and operation-specific capacity blocks. At capacity
+new responsibility is rejected; accepted work and identity records are retained.
+An exhausted request budget stops new scheduled slots; an exhausted dispatch
+budget stops new executions. Input/definition/event limits affect their respective
+admissions, not every already-accepted task. Timers catch up only within their
+explicit lateness window and never invent event work.
+
+Safe retention is follow-up work: archive large terminal evidence while retaining
+compact durable intent/coverage identities and unresolved responsibility. Deleting
+history, resetting a profile, or increasing limits is not an automatic recovery
+mechanism; none is implemented here.
 
 Polling the UI does not drive scheduling: the Host event pump wakes independently
 of stdin. Interval schedules are UTC epoch seconds; the UI uses a bounded future

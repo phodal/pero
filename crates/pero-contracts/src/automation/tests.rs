@@ -678,3 +678,49 @@ fn manual_reprocessing_can_reference_a_proven_not_started_attempt() {
     assert_eq!(dispatch.effects.len(), 1);
     assert_eq!(dispatch.state.requests[1].reprocess_of.as_deref(), Some("r1"));
 }
+
+#[test]
+fn capacity_projection_reports_fixed_lifetime_counts_without_dropping_identity() {
+    let mut state = configured(InputContract::RecheckLatest);
+    state.limits.max_requests = 1; state.limits.max_events = 1;
+    state.limits.max_snapshots = 1; state.limits.max_definitions = 2; state.limits.max_dispatches = 1;
+    let mut timed = definition("timer", InputContract::RecheckLatest);
+    timed.trigger = Trigger::Time { subject: "s".into(), exact: None, anchor: 0, interval_seconds: 10, max_lateness_seconds: 30 };
+    state = step(&state, Command::PutDefinition { definition: timed });
+    state = publish(&state, "s", "v1");
+    state = accept(&state, event("e1", "s", None), &["r1"]);
+    state = observe(&reserve(&state, "r1").state, "r1", Outcome::NotStarted);
+    let original = state.clone();
+    let capacity = state.capacity();
+    assert_eq!(capacity.requests, CapacityCount { used: 1, limit: 1 });
+    assert_eq!(capacity.events, CapacityCount { used: 1, limit: 1 });
+    assert_eq!(capacity.snapshots, CapacityCount { used: 1, limit: 1 });
+    assert_eq!(capacity.definitions, CapacityCount { used: 2, limit: 2 });
+    assert_eq!(capacity.dispatches, CapacityCount { used: 1, limit: 1 });
+    assert_eq!(capacity.exhausted, vec![CapacityKind::Requests, CapacityKind::Events, CapacityKind::Snapshots, CapacityKind::Definitions, CapacityKind::Dispatches]);
+    assert_eq!(state, original);
+    assert!(due_slots(&state, 100).is_empty());
+    let duplicate = apply(&state, Command::Accept { event: event("e1", "s", None) }, 200, Ids::default()).unwrap();
+    assert_eq!(duplicate.state, original);
+    assert!(matches!(duplicate.receipt, Receipt::Acceptance { duplicate: true, .. }));
+    assert_eq!(apply(&state, Command::Accept { event: event("e2", "s", None) }, 200, ids("e2", &["r2"])), Err(Error::Capacity));
+    let restored: State = serde_json::from_str(&serde_json::to_string(&state).unwrap()).unwrap();
+    restored.validate_restored().unwrap();
+    assert_eq!(restored.capacity(), capacity);
+}
+
+#[test]
+fn exhausted_dispatch_budget_is_visible_even_with_pending_request_capacity() {
+    let mut state = configured(InputContract::RecheckLatest);
+    state.limits.max_dispatches = 1;
+    state = publish(&state, "s", "v1");
+    state = accept(&state, event("e1", "s", None), &["r1"]);
+    state = observe(&reserve(&state, "r1").state, "r1", Outcome::NotStarted);
+    state = accept(&state, event("e2", "s", None), &["r2"]);
+    assert_eq!(state.capacity().exhausted, vec![CapacityKind::Dispatches]);
+    assert_eq!(apply(&state, Command::Reserve { request_id: "r2".into(), execution_id: "exec-r2".into() }, 200, Ids::default()), Err(Error::Budget));
+    let pumped = apply(&state, Command::Pump { execution_id: "exec-r2".into(), skip_request_ids: vec![] }, 200, Ids::default()).unwrap();
+    assert_eq!(pumped.state, state);
+    assert!(pumped.effects.is_empty());
+    assert_eq!(state.requests[1].status, RequestStatus::Pending);
+}

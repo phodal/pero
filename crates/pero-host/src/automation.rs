@@ -68,7 +68,7 @@ impl Automation {
         capabilities["supportedMethods"] = json!(["agent"]);
         capabilities["available"] = json!(self.fault.is_none());
         capabilities["unsupported"] = json!(["shared_handoff", "cloud_run", "public_webhooks", "app_methods", "deterministic_methods", "always_on_service", "external_latest_resolver"]);
-        Ok(json!({"state":state,"capabilities":capabilities,"attention":self.attention,
+        Ok(json!({"capacity":state.capacity(),"state":state,"capabilities":capabilities,"attention":self.attention,
                   "fault":self.fault,"evidence":self.store.evidence()?}))
     }
 

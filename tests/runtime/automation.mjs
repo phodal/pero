@@ -58,7 +58,15 @@ async function launch() {
     const id = `test-${++serial}`; send({ method: 'automation', id, command });
     const event = await wait(event => event.request_id === id);
     assert.equal(event.kind, error ? 'automation_error' : 'automation_result', event.text);
-    if (!error) assert.equal(validateResult(event), true, JSON.stringify(validateResult.errors));
+    if (!error) {
+      assert.equal(validateResult(event), true, JSON.stringify(validateResult.errors));
+      const { state, capacity } = event.data;
+      for (const name of ['requests', 'events', 'snapshots', 'definitions', 'dispatches']) {
+        assert.equal(capacity[name].used, name === 'dispatches' ? state.dispatch_count : state[name].length);
+        assert.equal(capacity[name].limit, state.limits[`max_${name}`]);
+      }
+      assert.deepEqual([...capacity.exhausted].sort(), Object.keys(capacity).filter(name => name !== 'exhausted' && capacity[name].used >= capacity[name].limit).sort());
+    }
     return error ? event : event.data;
   };
   const query = () => call({ action: 'query' });

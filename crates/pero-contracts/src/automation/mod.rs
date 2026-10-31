@@ -190,6 +190,23 @@ pub struct RunRequest {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct CapacityCount { pub used: u64, pub limit: u64 }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CapacityKind { Requests, Events, Snapshots, Definitions, Dispatches }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CapacityStatus {
+    pub requests: CapacityCount,
+    pub events: CapacityCount,
+    pub snapshots: CapacityCount,
+    pub definitions: CapacityCount,
+    pub dispatches: CapacityCount,
+    pub exhausted: Vec<CapacityKind>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct State {
     pub owner: String,
     pub limits: Limits,
@@ -205,6 +222,20 @@ pub struct State {
     pub dispatch_count: u64,
 }
 impl State {
+    /// Observation only: counts retain completed identities and reserved budgets.
+    pub fn capacity(&self) -> CapacityStatus {
+        let mut exhausted = Vec::new();
+        let mut count = |kind, used, limit| {
+            if used >= limit { exhausted.push(kind); }
+            CapacityCount { used, limit }
+        };
+        let requests = count(CapacityKind::Requests, self.requests.len() as u64, self.limits.max_requests as u64);
+        let events = count(CapacityKind::Events, self.events.len() as u64, self.limits.max_events as u64);
+        let snapshots = count(CapacityKind::Snapshots, self.snapshots.len() as u64, self.limits.max_snapshots as u64);
+        let definitions = count(CapacityKind::Definitions, self.definitions.len() as u64, self.limits.max_definitions as u64);
+        let dispatches = count(CapacityKind::Dispatches, self.dispatch_count, self.limits.max_dispatches);
+        CapacityStatus { requests, events, snapshots, definitions, dispatches, exhausted }
+    }
     pub fn new(owner: String, limits: Limits) -> Result<Self, Error> {
         if !identifier(&owner) || limits.max_events == 0 || limits.max_requests == 0
             || limits.max_snapshots == 0 || limits.max_definitions == 0
