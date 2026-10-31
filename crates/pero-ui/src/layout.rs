@@ -11,6 +11,9 @@ pub(crate) enum ChatPlacement {
     Slot,
 }
 
+/// Collapsed sidebar. Wide enough for one icon, narrower than the macOS traffic lights.
+pub(crate) const SIDEBAR_RAIL: f32 = 48.;
+
 /// Effective layout for one viewport. Saved preferences remain unchanged when
 /// the available space requires a smaller dock or a chat-only view.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -100,15 +103,16 @@ impl WorkspaceLayout {
         }
     }
 
-    /// Release the sidebar column. Saved dock width and the narrow breakpoint stay.
+    /// Fold the sidebar down to an icon rail. Saved dock width and the narrow breakpoint stay.
     pub(crate) fn hide_sidebar(
         mut self,
         viewport_width: f32,
         preferences: &LayoutPreferences,
     ) -> Self {
-        self.sidebar_width = 0.;
+        self.sidebar_width = SIDEBAR_RAIL;
         if self.chat == ChatPlacement::Dock {
-            self.chat_width = Self::dock_width(viewport_width.max(0.), self.narrow, preferences);
+            let available = (viewport_width - SIDEBAR_RAIL).max(0.);
+            self.chat_width = Self::dock_width(available, self.narrow, preferences);
         }
         self
     }
@@ -405,7 +409,7 @@ mod tests {
         let open = WorkspaceLayout::resolve(1488., &app, Chat, &preferences, false, None);
         let hidden = open.hide_sidebar(1488., &preferences);
         assert_eq!(open.sidebar_width, 260.);
-        assert_eq!(hidden.sidebar_width, 0.);
+        assert_eq!(hidden.sidebar_width, SIDEBAR_RAIL);
         assert_eq!(hidden.chat, Dock);
         assert_eq!(hidden.chat_width, 420.);
         assert!(hidden.content_visible);
@@ -414,8 +418,8 @@ mod tests {
         let narrow = WorkspaceLayout::resolve(1000., &app, Chat, &preferences, false, None);
         let narrow_hidden = narrow.hide_sidebar(1000., &preferences);
         assert_eq!(narrow.chat_width, 760.);
-        assert_eq!(narrow_hidden.sidebar_width, 0.);
-        assert_eq!(narrow_hidden.chat_width, 1000.);
+        assert_eq!(narrow_hidden.sidebar_width, SIDEBAR_RAIL);
+        assert_eq!(narrow_hidden.chat_width, 1000. - SIDEBAR_RAIL);
         assert!(narrow_hidden.narrow);
         assert!(!narrow_hidden.content_visible);
 
@@ -429,7 +433,7 @@ mod tests {
         );
         let conversation_hidden = conversation.hide_sidebar(1488., &LayoutPreferences::default());
         assert_eq!(conversation.chat, Main);
-        assert_eq!(conversation_hidden.sidebar_width, 0.);
+        assert_eq!(conversation_hidden.sidebar_width, SIDEBAR_RAIL);
         assert_eq!(conversation_hidden.chat, Main);
         assert_eq!(conversation_hidden.chat_width, 0.);
     }

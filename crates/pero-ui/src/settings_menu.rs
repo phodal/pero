@@ -1,7 +1,6 @@
 use crate::app::{Workbench, request_locale};
 use gpui_kit::{
     component::{
-        button::*,
         menu::{DropdownMenu, PopupMenuItem},
         *,
     },
@@ -36,7 +35,7 @@ impl Workbench {
         self.sync_settings_panel(cx);
     }
 
-    pub(crate) fn settings_menu(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(crate) fn settings_menu(&self, icon_only: bool, cx: &mut Context<Self>) -> impl IntoElement {
         let workbench = cx.entity().downgrade();
         let menu_owner = workbench.clone();
         let locale = self.locale.clone();
@@ -70,21 +69,20 @@ impl Workbench {
         );
         let appearance_choices = [Appearance::Light, Appearance::Dark, Appearance::System]
             .map(|mode| (mode, t(mode.label_key())));
-        Button::new("sidebar-settings")
-            .ghost()
-            .small()
-            .w_full()
-            .h(px(pero_theme::UiAppearance::global(cx)
-                .typography
-                .row_height()))
-            .justify_start()
+        let label = if identity.is_empty() {
+            t("settings.title")
+        } else {
+            identity.clone()
+        };
+        let chrome = pero_theme::Chrome::from_app(cx);
+        let button = if icon_only {
+            pero_theme::ghost_icon_button("sidebar-settings", chrome, cx)
+                .tooltip(label.clone())
+        } else {
+            pero_theme::menu_button("sidebar-settings", label.clone(), false, chrome, cx)
+        };
+        button
             .icon(Icon::default().path("icons/settings.svg"))
-            .label(if identity.is_empty() {
-                t("settings.title")
-            } else {
-                identity.clone()
-            })
-            .child(div().flex_1())
             .accessibility_label(t("settings.title"))
             .dropdown_caret(false)
             .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, window, cx| {

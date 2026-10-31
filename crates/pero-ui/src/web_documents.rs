@@ -338,21 +338,8 @@ impl Workbench {
             .border_b_1()
             .border_color(cx.theme().border);
         if let Some(page) = current {
-            for (action, icon, label, disabled) in [
-                (
-                    "web_back",
-                    "chevron-left",
-                    "web.back",
-                    !page.observation.can_back,
-                ),
-                (
-                    "web_forward",
-                    "chevron-right",
-                    "web.forward",
-                    !page.observation.can_forward,
-                ),
-                ("web_reload", "refresh", "web.reload", false),
-            ] {
+            for (action, icon, label, disabled) in [("web_reload", "refresh", "web.reload", false)]
+            {
                 let source = page.id.clone();
                 toolbar = toolbar.child(
                     Button::new(action)
@@ -376,8 +363,6 @@ impl Workbench {
                 .small()
                 .flex_1(),
         );
-        toolbar = toolbar.child(Button::new("mcp-sources").ghost().small().label("MCP Apps")
-            .on_click(cx.listener(|this, _, _, cx| this.choose_mcp(cx))));
         if let Some(page) = current {
             match &page.observation.load {
                 WebLoad::Loading => {
