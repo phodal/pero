@@ -526,7 +526,7 @@ impl Workbench {
                     )
                 },
             )
-            .when(self.layout.chat == ChatPlacement::Dock && self.navigation.pane_layout().is_none_or(|layout| layout.leaves().len() <= 1) && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. })), |el| {
+            .when(cfg!(target_family="wasm") && self.layout.chat == ChatPlacement::Dock && self.navigation.pane_layout().is_none_or(|layout| layout.leaves().len() <= 1) && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. })), |el| {
                 el.child(Button::new("workspace-chat-floating").ghost().small().label(self.t(if self.floating_chat { "chat.dock" } else { "chat.float" }))
                     .on_click(cx.listener(|this, _, _, cx| { this.floating_chat = !this.floating_chat; this.floating_chat_expanded = false; this.sync_follow(cx); cx.notify(); })))
             })

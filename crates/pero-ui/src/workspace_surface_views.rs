@@ -206,13 +206,12 @@ impl Workbench {
             Some(WorkspaceRoute::Content(WorkspaceItem::Conversation(_))) => {
                 self.chat.clone().into_any_element()
             }
-            Some(WorkspaceRoute::Content(WorkspaceItem::App { .. })) => div()
-                .flex_1()
-                .min_h_0()
-                .when(!cfg!(target_family = "wasm"), |view| {
-                    view.child(self.t("apps.native_unavailable"))
-                })
-                .into_any_element(),
+            Some(WorkspaceRoute::Content(WorkspaceItem::App { name, panel })) => {
+                #[cfg(not(target_family="wasm"))]
+                { self.native_app_content(name,panel,cx) }
+                #[cfg(target_family="wasm")]
+                { let _=(name,panel); div().flex_1().min_h_0().into_any_element() }
+            },
             Some(WorkspaceRoute::Content(WorkspaceItem::Web(id))) => {
                 #[cfg(target_family = "wasm")]
                 {

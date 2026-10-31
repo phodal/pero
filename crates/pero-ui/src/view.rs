@@ -67,14 +67,9 @@ impl Workbench {
                     }
                     SidebarAction::OpenApp { name, panel } => {
                         this.chat.update(cx, |panel_state, _| panel_state.deleting_chat = None);
-                        if cfg!(target_family = "wasm") {
-                            this.pending_app = Some((name.clone(), panel.clone()));
-                            this.refresh_apps(cx);
-                            this.open_app(name.clone(), panel.clone(), cx);
-                        } else {
-                            this.apps.error = Some(this.t("apps.native_unavailable").into());
-                            this.navigate(WorkbenchPage::Apps, cx);
-                        }
+                        this.pending_app = Some((name.clone(), panel.clone()));
+                        this.refresh_apps(cx);
+                        this.open_app(name.clone(), panel.clone(), cx);
                     }
                     SidebarAction::Navigate(index) => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
@@ -345,7 +340,7 @@ impl Render for Workbench {
         let single_pane = self.navigation.pane_layout().is_none_or(|layout| layout.leaves().len() <= 1);
         let covered = self.settings_menu_open || self.resizing_chat || self.settings_panel.is_some() || self.pane_tabs.switching() || window.has_active_dialog(cx) || gpui_kit::component::GlobalState::is_in_deferred_context(cx);
         let slot = self.active_app_chat_slot().cloned().filter(|_| !covered);
-        let floating = slot.is_none() && self.floating_chat && single_pane && layout.chat == ChatPlacement::Dock && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }));
+        let floating = cfg!(target_family="wasm") && slot.is_none() && self.floating_chat && single_pane && layout.chat == ChatPlacement::Dock && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }));
         if slot.is_some() {
             layout.chat = ChatPlacement::Slot;
             layout.chat_width = 0.;

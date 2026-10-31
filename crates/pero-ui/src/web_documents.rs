@@ -308,6 +308,7 @@ impl Workbench {
         }
         #[cfg(not(target_family = "wasm"))]
         {
+            self.sync_native_apps(cx);
             let _ = bounds; // Kit measures the selected native view during prepaint.
             let visible = if self.layout.embedded_surface_visible {
                 if self.navigation.pane_layout_visible() {self.navigation.pane_layout().map(|layout|layout.active_items().into_iter().filter_map(|leaf|if let crate::workspace::WorkspaceRoute::Content(WorkspaceItem::Web(id))=&leaf.route {Some(id.clone())}else{None}).collect::<Vec<_>>()).unwrap_or_default()}
