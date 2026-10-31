@@ -9,7 +9,7 @@ export function runtimePaths(directory) {
   const product = JSON.parse(readFileSync(resolve(directory, 'products/pero.json'), 'utf8'));
   return ['desktop/dist', 'web/dist', ...product.apps.map(name => `apps/${name}/dist`),
     ...['pero-host', 'pero-worker', 'pero-agent-acp', 'pero-computer', 'pero-connector-worker', 'computer-source.json'].map(name => `target/debug/${name}`),
-    'packages/connectors/helpers'];
+    'packages/connectors/helpers', 'packages/point-app/dist'];
 }
 function files(directory, path) {
   const full = resolve(directory, path);

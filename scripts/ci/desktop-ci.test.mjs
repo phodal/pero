@@ -67,6 +67,7 @@ test('runtime archive is tied to exact revision, retains executable mode and ver
       mkdirSync(dirname(resolve(source, file)), { recursive: true });
       writeFileSync(resolve(source, file), `fixture ${path}`, { mode: 0o755 });
     }
+    assert.ok(runtimePaths(source).includes('packages/point-app/dist'));
     const sha = 'a'.repeat(40);
     pack(source, archive, sha);
     assert.throws(() => unpack(destination, archive, 'b'.repeat(40)), /revision or platform mismatch/);
