@@ -7,6 +7,8 @@ use pero_runtime::apps::agent::AppSessionBinding;
 use pero_runtime::context::ContextSources;
 #[path = "app_agent.rs"]
 mod app_agent;
+#[path = "automation_agent.rs"]
+pub mod automation_agent;
 #[path = "mcp_settings.rs"]
 mod mcp_settings;
 use std::{
@@ -29,6 +31,9 @@ pub struct Manager {
     app_use: Option<acp::AppUseEndpoint>,
     settings_path: Option<PathBuf>,
     history_path: PathBuf,
+    automation_threads: std::collections::HashSet<String>,
+    automation_tx: mpsc::SyncSender<automation_agent::AutomationReceipt>,
+    automation_rx: Option<mpsc::Receiver<automation_agent::AutomationReceipt>>,
 }
 impl Manager {
     pub fn new(root: PathBuf) -> Self {
@@ -124,7 +129,9 @@ impl Manager {
                 agents.insert(0, preferred);
             }
         }
+        let (automation_tx, automation_rx) = mpsc::sync_channel(64);
         Self {
+            automation_threads: Default::default(), automation_tx, automation_rx: Some(automation_rx),
             workspace: root,
             agents,
             sessions: HashMap::new(),
@@ -250,6 +257,10 @@ impl Manager {
     }
 
     fn command(&mut self, command: HostCommand) {
+        if self.automation_owns_command(&command) {
+            self.send("error", "Automation executions are controlled through Automation", serde_json::Value::Null);
+            return;
+        }
         match command {
             HostCommand::LoadRoadmap => self.publish_roadmap(),
             HostCommand::ListAgents => {
