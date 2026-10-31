@@ -42,7 +42,14 @@ export async function setAppearance(page, appearance) {
   await page.keyboard.press('ArrowRight');
   for (let i = 0; i < ['light', 'dark', 'system'].indexOf(appearance); i++) await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
-  await expect.poll(async () => (await state(page)).preferences.appearance).toBe(appearance);
+  let applied;
+  await expect.poll(async () => {
+    applied = await state(page);
+    return { preference: applied.preferences.appearance,
+      resolved: applied.dark === applied.appearance.dark
+        && (appearance === 'system' || applied.dark === (appearance === 'dark')) };
+  }).toEqual({ preference: appearance, resolved: true });
+  return applied;
 }
 export async function setSidebarLocale(page, locale) {
   await openSettings(page);

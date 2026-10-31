@@ -141,8 +141,9 @@ try{
  await page.screenshot({path:resolve(out,'english.png')});
  await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click());
  await expect.poll(async()=>(await state()).locale).toBe('zh-CN');
- await setAppearance(page,'dark');
- await expect.poll(async()=>(await state()).dark).toBe(true);
+ const darkState=await setAppearance(page,'dark');
+ // Reuse the verified observation instead of serializing retained history again.
+ expect(darkState.dark).toBe(true);
  await page.screenshot({path:resolve(out,'dark.png')});
  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1000,788));
  await page.screenshot({path:resolve(out,'narrow.png')});
