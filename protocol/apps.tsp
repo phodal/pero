@@ -17,6 +17,7 @@ model AppRecord {
   displayName: string;
   description: string;
   enabled: boolean;
+  tenure: "optional" | "required";
   panels: AppPanel[];
   writes?: AppWriteRoute[];
   ...AppClosed;

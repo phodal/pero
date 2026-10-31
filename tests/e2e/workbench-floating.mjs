@@ -4,7 +4,7 @@ import { electron } from './electron.mjs';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { setAppearance } from './sidebar-controls.mjs';
+import { clickAppOpen, setAppearance } from './sidebar-controls.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const out = resolve(root, 'test-results/workspace');
@@ -66,10 +66,7 @@ async function openAppFromCatalog() {
   await expect.poll(async () => (await state()).apps?.some(item => item.name === 'virtual-cell')).toBe(true);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await paint();
-  const snapshot = await state();
-  // Compact catalog rows start below the workspace tab strip.
-  const row = snapshot.apps.findIndex(item => item.name === 'virtual-cell');
-  await page.mouse.click(1305, 76 + (snapshot.contentTabs.length ? 30 : 0) + 58 * row);
+  await clickAppOpen(page, 'virtual-cell');
   await expect.poll(async () => (await state()).activeContent).toEqual(appItem);
   const frame = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(frame.getByRole('tab', { name: 'Reactions & simulation', exact: true })).toBeVisible({ timeout: 20000 });

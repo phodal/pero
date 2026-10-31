@@ -97,7 +97,7 @@ app.whenReady().then(async () => {
     });
     globalShortcut.register('CommandOrControl+Shift+Escape',()=>{void computer?.command({action:'computer_stop'}).catch(error=>console.error(error));});
   }
-  appUse = product.chat ? new DesktopAppUse(() => window, event => window.webContents.send('product:event', event), resolve(profile, 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal)=>apps.applyWrite(write,signal)},computer) : undefined;
+  appUse = product.chat ? new DesktopAppUse(() => window, event => window.webContents.send('product:event', event), resolve(profile, 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer) : undefined;
   const appUseEnvironment = await appUse?.start();
   host = spawn(resolve(root, 'bin', process.platform === 'win32' ? 'pero-host.exe' : 'pero-host'), ['--stdio'], { cwd: app.getPath('home'), env: {
     ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PERO_'))),
@@ -190,7 +190,7 @@ app.whenReady().then(async () => {
       return;
     }
     if ((!['list_agents', 'workspace', 'new_session', 'prompt', 'cancel', 'permission', 'model', 'configure', 'authenticate', 'close', 'delete', 'search_context', 'resolve_context', 'attach_files'].includes(value.action || '') && !['settings.workbench', 'settings.workbench.get', 'documents'].includes(value.method || '')) || JSON.stringify(value).length > 16_000_000) throw new Error('Invalid session command');
-    appUse?.authority.command(value as {action?:string;thread_id?:string});
+    appUse?.command(value as {action?:string;thread_id?:string});
     host.stdin!.write(JSON.stringify(value) + '\n');
   });
   ipcMain.handle('product:open', async (event, name: unknown) => {

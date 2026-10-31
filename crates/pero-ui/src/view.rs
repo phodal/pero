@@ -123,6 +123,7 @@ impl Workbench {
         };
         let session_row =
             |i: usize, chat: &pero_chat_ui::conversation::Conversation| sidebar::RecentRow {
+                bounds: Some(self.view_bounds.sessions.probe(chat.id.clone()).into_any_element()),
                 label: chat.title.display().to_owned(),
                 icon: "terminal",
                 active: self.navigation.page() == WorkbenchPage::Conversation
@@ -172,6 +173,7 @@ impl Workbench {
                         })
                         .take(4)
                         .map(|task| sidebar::RecentRow {
+                            bounds: None,
                             label: crate::remote::string(task, "title").to_string(),
                             icon: "layout-list",
                             active: selected_task.is_some_and(|id| task["id"].as_str() == Some(id)),
@@ -227,6 +229,7 @@ impl Workbench {
             ui,
             width,
             SidebarProps {
+                new_chat_bounds: &self.view_bounds.new_chat,
                 navigation: self.navigation.page(),
                 insights_open: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == "insights"),
                 local_connected: self.connected,
@@ -329,6 +332,7 @@ impl Workbench {
 
 impl Render for Workbench {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.view_bounds.clear();
         self.leave_settings_route(window, cx);
         if self.input_locale != self.locale {
             self.input_locale = self.locale.clone();

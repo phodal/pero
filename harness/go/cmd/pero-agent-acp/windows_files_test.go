@@ -79,8 +79,8 @@ func TestWindowsFileCLIReadCreateApprovalBoundary(t *testing.T) {
 		for _, tool := range request.Tools {
 			names[tool.Function.Name] = tool.Function.Description
 		}
-		if len(names) != 4 || names["read_file"] == "" || names["list_directory"] == "" || names["search_files"] == "" || names["write_file"] == "" || names["edit_file"] != "" || names["shell"] != "" {
-			t.Errorf("CLI must expose exactly bounded reads and create-only writes: %+v", names)
+		if len(names) != 5 || names["chart_render"] == "" || names["read_file"] == "" || names["list_directory"] == "" || names["search_files"] == "" || names["write_file"] == "" || names["edit_file"] != "" || names["shell"] != "" {
+			t.Errorf("CLI must expose only charts, bounded reads and create-only writes: %+v", names)
 		}
 		description := strings.ToLower(names["write_file"])
 		if !strings.Contains(description, "new") || !strings.Contains(description, "existing") {

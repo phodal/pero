@@ -8,8 +8,10 @@ import type { AppObjectSnapshot } from '../../../packages/app-sdk/src/app-use.ts
 /** A frozen App context is owned by the draft selected before an asynchronous capture. */
 export class AppChatContext {
   private ports: AppUsePorts;
-  constructor(ports: AppUsePorts) {
+  private approveGoal?: (scope: AppScope, thread: string, references: ContextReference[]) => void;
+  constructor(ports: AppUsePorts, approveGoal?: (scope: AppScope, thread: string, references: ContextReference[]) => void) {
     this.ports = ports;
+    this.approveGoal = approveGoal;
   }
   async freeze(scope: AppScope, thread: string, options: unknown): Promise<ContextReference[]> {
     if (
@@ -134,6 +136,10 @@ export class AppChatContext {
         'APP_CONTEXT_LIMIT',
         'App context exceeds the current draft budget. Choose fewer objects.',
       );
+    if (input.approveGoal) {
+      if (!this.approveGoal) throw new AppUseError('APP_GOAL_UNAVAILABLE', 'Goal approval is unavailable.');
+      this.approveGoal(scope, thread, contexts);
+    }
     return contexts;
   }
 }

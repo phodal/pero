@@ -1,4 +1,6 @@
 #[cfg(any(target_family = "wasm", feature = "native"))]
+mod view_bounds;
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod settings_harness;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod settings_section;

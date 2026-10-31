@@ -27,3 +27,22 @@ failure is from the Windows CI run above). With the documented pending receipt
 accepted, 100 race runs and the full `subagents` package race suite pass. The PR
 still requires its Windows CI check before merge; no Windows execution is
 inferred from the macOS runs.
+
+## Approval acceptance recurrence
+
+The same incorrect synchronous-disposal assumption also exists in
+`TestApprovalIsScopedDurableAndFailClosed`. It failed in
+CI job 124198996658.
+Before this follow-up, the unchanged test reproduced the identical pending
+sentinel 11 times in 10,000 local race runs (Go 1.26.4; 46.889 seconds), without
+a race-detector finding. A short 100-run sample had passed.
+
+The approval test now accepts only `ErrHarnessDisposalInProgress` and then
+requires successful `Drain`. Its approval event order, tool effect count,
+scope and fail-closed assertions are unchanged. This is a test lifecycle
+correction, not a change to production disposal semantics.
+
+The follow-up passed [CI 41142498082](https://github.com/phodal/pero/actions/runs/41142498082)
+on exact head `076bbdba196beb9ab14ff0c298148ecfc4b8dffd`: all 18 checks were
+green, including the Windows Harness Go job. This records CI execution, not an
+additional local test run.

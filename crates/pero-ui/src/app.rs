@@ -41,6 +41,7 @@ extern "C" {
 }
 
 pub(crate) struct Workbench {
+    pub view_bounds: crate::view_bounds::WorkbenchBounds,
     pub workspace_focus:FocusHandle,
     pub input: Entity<InputState>,
     pub documents:Vec<crate::documents::WorkspaceDocument>,
@@ -299,6 +300,7 @@ impl Workbench {
             None,
         );
         Self {
+            view_bounds: Default::default(),
             workspace_focus,
             #[cfg(not(target_family="wasm"))]
             native_web_pages:Default::default(),
@@ -768,6 +770,9 @@ pub fn snapshot() -> String {
             "locale": ui.locale, "labels": { "tasks": ui.t("nav.tasks"), "send": ui.t("probe.send") },
             "tab": ui.tab.legacy_index(), "events": ui.events, "workspace": ui.workspace,
         });
+        value["newChatButtonBounds"] = ui.view_bounds.new_chat.snapshot()["new-chat"].clone();
+        value["sessionRowBounds"] = ui.view_bounds.sessions.snapshot();
+        value["appOpenButtonBounds"] = ui.view_bounds.app_open.snapshot();
         value["chatVisible"] = serde_json::json!(ui.chat_visible());
         value["webDocuments"]=json!(ui.web_documents);
         value["webAddress"]=json!(ui.web_address.read(cx).value().as_ref());

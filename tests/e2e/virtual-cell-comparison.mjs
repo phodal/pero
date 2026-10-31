@@ -20,7 +20,7 @@ const python = process.env.PERO_APP_PYTHON || 'python3';
 const checks = [], errors = [], requests = [], runEvidence = {}, cleanup = [];
 const sampleText = 'Sample data. Demonstration only, not a real Norman validation.';
 const activeStatuses = ['starting', 'running', 'cancelling'];
-let expect, electron, setAppearance, temp, profile, app, page, frame, manifest, failure;
+let expect, electron, clickAppOpen, setAppearance, temp, profile, app, page, frame, manifest, failure;
 
 const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const read = path => frame.locator('body').evaluate(async (_body, path) => {
@@ -66,11 +66,7 @@ async function openComparison() {
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await painted();
-  const catalog = await state();
-  const row = catalog.apps.findIndex(item => item.name === 'virtual-cell');
-  expect(row).toBeGreaterThanOrEqual(0);
-  // Current 88px GPUI library header; same verified geometry as app-use-workbench.
-  await page.mouse.click(await page.evaluate(() => innerWidth - 183), 130 + (catalog.contentTabs.length ? 30 : 0) + 58 * row);
+  await clickAppOpen(page, 'virtual-cell');
   await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'app', value: { name: 'virtual-cell', panel: 'main' } });
   frame = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(frame.getByLabel('Data view', { exact: true })).toBeVisible({ timeout: 20000 });
@@ -204,7 +200,7 @@ async function saveFailure(error) {
 try {
   ({ expect } = await import('@playwright/test'));
   ({ electron } = await import('./electron.mjs'));
-  ({ setAppearance } = await import('./sidebar-controls.mjs'));
+  ({ clickAppOpen, setAppearance } = await import('./sidebar-controls.mjs'));
   if (!['linux', 'darwin'].includes(process.platform)) throw new Error('Comparison CPU execution currently requires Linux or macOS. This is not a skipped success.');
   temp = await mkdtemp(resolve(tmpdir(), 'pero-comparison-e2e-'));
   profile = resolve(temp, 'desktop');

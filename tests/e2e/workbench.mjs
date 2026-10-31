@@ -1,4 +1,4 @@
-import { setAppearance } from './sidebar-controls.mjs';
+import { clickNewChat, clickSessionRow, setAppearance } from './sidebar-controls.mjs';
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { resolve } from 'node:path';
@@ -25,7 +25,7 @@ try{
  await expect.poll(async()=>(await state()).agents?.length||0,{timeout:15000}).toBeGreaterThan(2);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await page.screenshot({path:resolve(out,'overview.png')});
- await page.mouse.click(100,28);
+ await clickNewChat(page);
  await expect.poll(async()=>(await state()).navigation).toBe(0);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await expect.poll(async()=>(await state()).chats.length).toBe(1);
@@ -50,7 +50,12 @@ try{
  await expect.poll(async()=>(await state()).chats[0].state).toBe('idle');
  await input('wait');
  await expect.poll(async()=>(await state()).chats[0].state).toBe('running');
- await page.mouse.click(1430,1030);
+ // Read the rendered Stop button: the composer is centered and width-limited.
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ await expect.poll(async()=>{const bounds=(await state()).stopButtonBounds;return !!bounds && bounds.width>0 && bounds.height>0;}).toBe(true);
+ const stop=(await state()).stopButtonBounds;
+ await page.screenshot({path:resolve(out,'stop-button.png')});
+ await page.mouse.click(stop.x+stop.width/2,stop.y+stop.height/2);
  await expect.poll(async()=>(await state()).chats[0].state).toBe('idle');
  await input('permission');
  await expect.poll(async()=>(await state()).chats[0].permission!==null).toBe(true);
@@ -103,7 +108,7 @@ try{
  await page.waitForFunction(()=>window.peroDiagnostics && !document.getElementById('loading'));
  await app.evaluate(()=>{globalThis.workspaceReplayTrace.rendererReadyMs=performance.now()-globalThis.workspaceReplayStartedAt;});
  await expect.poll(()=>app.evaluate(()=>typeof globalThis.releaseWorkspaceReplay)).toBe('function');
- await page.mouse.click(100,28);
+ await clickNewChat(page);
  await expect.poll(async()=>(await state()).activeContent?.kind).toBe('conversation');
  const draftItem=(await state()).activeContent;
  await app.evaluate(()=>{globalThis.releaseWorkspaceReplay();delete globalThis.releaseWorkspaceReplay;});
@@ -112,10 +117,7 @@ try{
  expect((await state()).activeContent).toEqual(draftItem);
  await page.screenshot({path:resolve(out,'history-retained-draft.png')});
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
- // Shared sidebar geometry: 8px inset + three 32px controls and 4px gaps,
- // then the 32px project header. Select the first 26px session row, not its project.
- const firstHistoryRowY=8+3*(32+4)+32+26/2;
- await page.mouse.click(100,firstHistoryRowY);
+ await clickSessionRow(page, restoredThread.id);
  // Selecting retained long history schedules real GPUI layout/paint before observations.
  const historyPaintStarted=performance.now();
  let historyPaintTimer;

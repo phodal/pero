@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "name": "control-lab",
+  "version": "0.1.0",
+  "displayName": "Control Lab",
+  "description": "Design and independently verify controllers and active filters.",
+  "contributes": {
+    "panels": [
+      {
+        "id": "main",
+        "title": "Control Lab",
+        "entry": "dist/index.html"
+      }
+    ],
+    "writes": [
+      {
+        "name": "experiment-step",
+        "description": "Read a frozen experiment, evaluate its baseline, advance bounded search by one candidate, run batch search, lock a candidate, independently verify, cancel, or re-evaluate saved observations. Batch search fills remaining candidate slots. Backend owns numeric bounds and immutable policy; execution success never implies engineering PASS.",
+        "path": "/api/agent-step",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "read",
+                "baseline",
+                "search-next",
+                "search",
+                "cancel",
+                "lock",
+                "verify",
+                "reevaluate"
+              ]
+            },
+            "experimentId": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "candidateId": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          "required": [
+            "action",
+            "experimentId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "name": "propose-candidate",
+        "description": "Propose bounded controller gains (kp, ki, kd) or active-filter components (r, c, gain), then evaluate on search scenarios. Consumes the frozen candidate budget. Cannot modify the specification, verification policy, or a locked candidate.",
+        "path": "/api/agent-step",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "propose"
+              ]
+            },
+            "experimentId": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "kp": {
+                  "type": "number"
+                },
+                "ki": {
+                  "type": "number"
+                },
+                "kd": {
+                  "type": "number"
+                },
+                "r": {
+                  "type": "number"
+                },
+                "c": {
+                  "type": "number"
+                },
+                "gain": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "action",
+            "experimentId",
+            "parameters"
+          ],
+          "additionalProperties": false
+        }
+      }
+    ]
+  },
+  "backend": {
+    "type": "python",
+    "entry": "backend/server.py"
+  }
+}

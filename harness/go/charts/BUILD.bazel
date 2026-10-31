@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "charts",
+    srcs = ["tool.go"],
+    embedsrcs = [
+        "python/chart_document.py",
+        "python/dataset.py",
+        "python/render.py",
+        "python/view.py",
+    ],
+    importpath = "github.com/phodal/pero/harness/go/charts",
+    visibility = ["//visibility:public"],
+    deps = ["//harness"],
+)
+
+go_test(
+    name = "charts_test",
+    srcs = ["tool_test.go"],
+    embed = [":charts"],
+)

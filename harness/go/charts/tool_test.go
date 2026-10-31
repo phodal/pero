@@ -57,6 +57,9 @@ func TestChartReceiptPreservesSourceAndRejectsInvalidData(t *testing.T) {
 				if err = json.Unmarshal([]byte(receipt.Content), &doc); err != nil {
 					t.Fatal(err)
 				}
+				if receipt.SourceDocument == nil || receipt.SourceDocument.Text != `[{"group":"甲","n":9007199254740993},{"group":"乙","n":2}]` {
+					t.Fatalf("lost UTF-8 source text: %s", output)
+				}
 				if len(doc.Source.ExactValues) != 1 || doc.Source.ExactValues[0] != "9007199254740993" || doc.Source.Records[0].Pointer != "/0" || receipt.SourceDocument == nil {
 					t.Fatalf("lost exact source: %s", output)
 				}

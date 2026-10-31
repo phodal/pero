@@ -594,6 +594,18 @@
         "enabled": {
           "type": "boolean"
         },
+        "tenure": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "optional"
+            },
+            {
+              "type": "string",
+              "const": "required"
+            }
+          ]
+        },
         "panels": {
           "type": "array",
           "items": {
@@ -613,6 +625,7 @@
         "displayName",
         "description",
         "enabled",
+        "tenure",
         "panels"
       ],
       "additionalProperties": false

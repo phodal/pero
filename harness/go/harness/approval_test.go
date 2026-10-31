@@ -86,7 +86,10 @@ func TestApprovalIsScopedDurableAndFailClosed(t *testing.T) {
 	if len(types) != 2 || types[0] != "approval/asked" || types[1] != "approval/decided" {
 		t.Fatalf("approval events = %v", types)
 	}
-	if err := h.Dispose(ctx); err != nil {
+	if err := h.Dispose(ctx); err != nil && !errors.Is(err, ErrHarnessDisposalInProgress) {
+		t.Fatal(err)
+	}
+	if err := h.Drain(ctx); err != nil {
 		t.Fatal(err)
 	}
 }

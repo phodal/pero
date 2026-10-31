@@ -1,4 +1,4 @@
-import { setAppearance } from './sidebar-controls.mjs';
+import { clickNewChat, setAppearance } from './sidebar-controls.mjs';
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { resolve } from 'node:path';
@@ -22,7 +22,7 @@ try{
  await page.waitForFunction(()=>!document.getElementById('loading'));
  await expect.poll(async()=>(await state()).agents?.map(agent=>agent.id)||[]).toEqual(expect.arrayContaining(['codex','fixture']));
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
- await page.mouse.click(100,28);
+ await clickNewChat(page);
  await expect.poll(async()=>(await state()).navigation).toBe(0);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await expect.poll(async()=>(await state()).chats?.length).toBe(1);

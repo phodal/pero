@@ -95,11 +95,13 @@ export class DesktopApps {
     const records=await this.request<AppRecord[]>('list');
     return records.filter(record=>record.enabled).flatMap(record=>(record.writes||[]).map(route=>({app:record.name,panel:record.panels[0].id,version:record.version,...route})));
   }
-  async applyWrite(prepared:PreparedAppWrite,signal:AbortSignal):Promise<unknown>{
+  async applyWrite(prepared:PreparedAppWrite,signal:AbortSignal,goal?:import('./control-lab-goal.ts').ControlLabGoal):Promise<unknown>{
     const route=prepared.definition;prepared.requireCurrent((await this.describeWrites()).find(current=>current.app===route.app&&current.name===route.name));
     const access=await this.request<AppAccess>('resolve',{name:route.app});
     if(!access.backend)throw new Error('The App write backend is unavailable');
-    const response=await net.fetch(access.backend.url+route.path,{method:'POST',headers:{'Content-Type':'application/json','X-Pero-App-Token':access.backend.token},body:JSON.stringify(prepared.document),redirect:'error',signal:AbortSignal.any([signal,AbortSignal.timeout(15000)])});
+    if(route.app==='control-lab'&&route.path==='/api/agent-step'&&!goal)throw new Error('Control Lab goal is required');
+    const body=goal?{...(prepared.document as Record<string,unknown>),specHash:goal.specHash}:prepared.document;
+    const response=await net.fetch(access.backend.url+route.path,{method:'POST',headers:{'Content-Type':'application/json','X-Pero-App-Token':access.backend.token},body:JSON.stringify(body),redirect:'error',signal:AbortSignal.any([signal,AbortSignal.timeout(15000)])});
     const text=await response.text();if(Buffer.byteLength(text)>1000000)throw new Error('App write response exceeds 1 MiB');
     if(!response.ok)throw new Error(text.slice(0,1000)||`App write failed (${response.status})`);
     const value=JSON.parse(text);this.send({version:1,kind:'app_written',request_id:null,text:'',data:{app:route.app,tool:route.name,digest:prepared.digest}});return value;
@@ -113,6 +115,8 @@ export class DesktopApps {
       const origin = `pero-app://${url.host}`;
       const caller = request.headers.get('Origin');
       if (caller && caller !== origin) return new Response('App origin refused', { status: 403 });
+      if (url.hostname === 'control-lab' && url.pathname === '/api/agent-step')
+        return new Response('Agent route is reserved for the Host', { status: 403 });
       if(url.pathname.startsWith('/host/inputs/')){
         if(request.method!=='GET'||!this.input||!/^\/host\/inputs\/[a-f0-9]{64}$/.test(url.pathname))return new Response('App input unavailable',{status:404});
         const file=await this.input(url.hostname,url.pathname.split('/').at(-1)!);

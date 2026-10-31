@@ -1,4 +1,4 @@
-import { setAppearance, openSettings } from './sidebar-controls.mjs';
+import { clickAppOpen, setAppearance, openSettings } from './sidebar-controls.mjs';
 // Real Electron, real Host installation and real Virtual Cell Python computation.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
@@ -31,7 +31,7 @@ try {
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await page.screenshot({ path: resolve(out, 'catalog.png') });
   // GPUI buttons are canvas-rendered; select the catalog's Open button.
-  await page.mouse.click(1305, 110 + 79 * (await state()).apps.findIndex(app => app.name === 'virtual-cell'));
+  await clickAppOpen(page, 'virtual-cell');
   await expect.poll(async () => (await state()).activeApp?.name).toBe('virtual-cell');
   const frame = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(frame.getByRole('tab', { name: 'Cells & perturbations' })).toBeVisible({ timeout: 20000 });
@@ -136,7 +136,7 @@ try {
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await page.evaluate(() => new Promise(resolvePaint => requestAnimationFrame(() => requestAnimationFrame(resolvePaint))));
-  await page.mouse.click(1305, 110 + 79 * (await state()).apps.findIndex(app => app.name === 'virtual-cell'));
+  await clickAppOpen(page, 'virtual-cell');
   const restored = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(restored.getByRole('tab', { name: 'Cells & perturbations' })).toBeVisible();
   await expect.poll(async () => restored.locator('body').evaluate(async () => (await (await fetch('/api/inputs')).json()).items.length)).toBe(1);

@@ -1,0 +1,13 @@
+[project]
+name = "pero-control-lab"
+version = "0.1.0"
+description = "Frozen numerical experiments with Python Control and ngspice"
+requires-python = ">=3.10"
+dependencies = ["control==0.10.2", "numpy==2.2.6", "scipy==1.15.3", "matplotlib==3.10.3"]
+license = "Apache-2.0"
+
+[tool.setuptools]
+package-dir = {"" = "backend"}
+
+[tool.setuptools.packages.find]
+where = ["backend"]

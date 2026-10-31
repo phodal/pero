@@ -362,6 +362,7 @@ impl ChatPanel {
                     .when(chat.is_some_and(|c| c.state == SessionState::Running || c.state == SessionState::Stopping || c.queued.is_some()), |el| {
                         el.child(
                             Button::new("stop-agent")
+                                .relative().children([self.stop_button_bounds.probe()])
                                 .outline()
                                 .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
                                 .icon(IconName::Square)

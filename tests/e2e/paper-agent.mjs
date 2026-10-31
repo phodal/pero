@@ -1,3 +1,4 @@
+import { clickAppOpen } from './sidebar-controls.mjs';
 import { exerciseLocalSearch } from './paper-search-flow.mjs';
 // Real Electron -> Rust Host -> Python App; Agent output is a labelled ACP fixture.
 import { expect } from '@playwright/test';
@@ -79,10 +80,7 @@ async function openPaper(page, name = 'paper-agent') {
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).navigation)).toBe(7);
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).appsLoading)).toBe(false);
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
-  const catalog = await page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
-  const row = catalog.apps.findIndex(app => app.name === name);
-  expect(row).toBeGreaterThanOrEqual(0);
-  await page.mouse.click(await page.evaluate(() => innerWidth - 172), 76 + (catalog.contentTabs.length ? 30 : 0) + row * 58);
+  await clickAppOpen(page, name);
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).activeApp?.name)).toBe(name);
   const frame = page.frameLocator(`iframe[title="${name}"]`);
   await expect(frame.locator('body')).toBeAttached({ timeout: 20000 });

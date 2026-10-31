@@ -58,6 +58,38 @@ func event(w http.ResponseWriter, s string) {
 		f.Flush()
 	}
 }
+
+func TestHTTPAttemptAuditGatesNetwork(t *testing.T) {
+	var received, recorded atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received.Add(1)
+		w.Header().Set("Content-Type", "text/event-stream")
+		event(w, `{"choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}`)
+		event(w, "[DONE]")
+	}))
+	defer server.Close()
+	deny := true
+	a, err := New(Config{Endpoint: server.URL, APIKey: "fixture", ProviderName: "fixture", Models: []ModelConfig{{ID: "fixture-model"}}, BeforeHTTPAttempt: func() error {
+		if deny {
+			return errors.New("audit unavailable")
+		}
+		recorded.Add(1)
+		return nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Generate(context.Background(), request(), nil); err == nil || received.Load() != 0 {
+		t.Fatalf("failed audit reached provider: error=%v requests=%d", err, received.Load())
+	}
+	deny = false
+	if _, err := a.Generate(context.Background(), request(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if recorded.Load() != 1 || received.Load() != 1 {
+		t.Fatalf("recorded=%d received=%d", recorded.Load(), received.Load())
+	}
+}
 func TestExplicitConfiguration(t *testing.T) {
 	for _, c := range []Config{{}, {Endpoint: "https://example.com", APIKey: "test", ProviderName: "x"}, {Endpoint: "http://example.com", APIKey: "test", ProviderName: "x", Models: []ModelConfig{{ID: "m"}}}, {Endpoint: "https://u:p@example.com", APIKey: "test", ProviderName: "x", Models: []ModelConfig{{ID: "m"}}}, {Endpoint: "https://example.com", APIKey: "test", ProviderName: "x", Models: []ModelConfig{{ID: "m", InputModalities: []string{"image"}}}}} {
 		if _, err := New(c); err == nil {

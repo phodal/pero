@@ -1,3 +1,4 @@
+import { clickAppOpen } from './sidebar-controls.mjs';
 // Real PDF + installed Python backend + Host Agent. Fixture and real-provider modes are explicit.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
@@ -70,11 +71,8 @@ async function openApp() {
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).appsLoading)).toBe(false);
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).apps.some(app => app.name === 'paper-agent'))).toBe(true);
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
-  const catalog = await page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
-  const row = catalog.apps.findIndex(app => app.name === 'paper-agent');
-  // The retained content tab strip adds 30px after restart; the catalog uses 58px rows.
   await page.screenshot({ path: resolve(out, '00-app-catalog.png') });
-  await page.mouse.click(await page.evaluate(() => innerWidth - 172), 76 + (catalog.contentTabs.length ? 30 : 0) + row * 58);
+  await clickAppOpen(page, 'paper-agent');
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).activeApp?.name)).toBe('paper-agent');
   frame = page.frameLocator('iframe[title="paper-agent"]');
   await expect(frame.locator('.pa-workbench')).toBeVisible({ timeout: 20000 });

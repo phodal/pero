@@ -47,7 +47,8 @@ func Render(ctx context.Context, python string, input json.RawMessage) (json.Raw
 			return nil, err
 		}
 	}
-	command := exec.CommandContext(ctx, python, "-I", filepath.Join(directory, "render.py"))
+	// JSON crosses pipes as UTF-8, independently of the Windows locale.
+	command := exec.CommandContext(ctx, python, "-I", "-X", "utf8", filepath.Join(directory, "render.py"))
 	command.Stdin = bytes.NewReader(input)
 	var output, diagnostic bytes.Buffer
 	command.Stdout, command.Stderr = &output, &diagnostic
