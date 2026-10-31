@@ -1723,6 +1723,7 @@ export interface PointBinding {
   requestId: string;
   harnessId: string;
   panel: string;
+  runtimeDigest: string;
   createdAt: string;
   context?: AppDocumentSchema;
 }

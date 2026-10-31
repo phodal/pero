@@ -7519,6 +7519,9 @@
         "panel": {
           "type": "string"
         },
+        "runtimeDigest": {
+          "type": "string"
+        },
         "createdAt": {
           "type": "string"
         },
@@ -7531,6 +7534,7 @@
         "requestId",
         "harnessId",
         "panel",
+        "runtimeDigest",
         "createdAt"
       ],
       "additionalProperties": false
