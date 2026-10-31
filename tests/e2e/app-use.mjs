@@ -73,6 +73,9 @@ try {
   await expect.poll(async()=>{try{return await readFile(join(temp,'host-held'),'utf8');}catch{return '';}}).toBe('ready');
   await expect.poll(()=>page.frames().some(frame=>frame.url().startsWith('pero://chat/'))).toBe(true);
   const startingChat=page.frames().find(frame=>frame.url().startsWith('pero://chat/'));
+  // ba816bc made Product chat a floating panel that starts closed; open it to get the draft.
+  await page.locator('#product-chat-toggle').click();
+  await expect(page.locator('#product-chat-toggle')).toHaveAttribute('aria-expanded','true');
   await startingChat.waitForFunction(()=>window.peroChatDiagnostics&&JSON.parse(window.peroChatDiagnostics.snapshot()).chats.length===1,undefined,{timeout:60000});
   const initialDraft=await startingChat.evaluate(()=>{const state=JSON.parse(window.peroChatDiagnostics.snapshot());return state.chats[state.activeChat];});
   expect(initialDraft.state).toBe('draft');
@@ -84,6 +87,7 @@ try {
   await writeFile(join(temp,'release-host'),'release');
   }
   const frame = page.frameLocator('iframe[title="virtual-cell"]');
+  if(await page.locator('#product-chat-toggle').getAttribute('aria-expanded')!=='true')await page.locator('#product-chat-toggle').click();
   await expect(frame.getByRole('tab', { name: 'Cells & perturbations' })).toBeVisible({ timeout: 20000 });
   await expect(frame.getByText('660 / 660 Cells', { exact: false }).first()).toBeVisible();
   await expect.poll(() => page.frames().some(frame => frame.url().startsWith('pero://chat/'))).toBe(true);
