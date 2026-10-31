@@ -1,11 +1,11 @@
 //! Local settings admission. This path never reaches a remote Worker or starts MCP clients.
 use super::Manager;
 use pero_contracts::{
-    HostEvent,
     mcp::{
         McpConfiguration, McpSettingsError, McpSettingsErrorProjection, McpSettingsProjection,
         McpSettingsRequest,
     },
+    HostEvent,
 };
 use pero_runtime::settings;
 

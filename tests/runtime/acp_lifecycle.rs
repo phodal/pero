@@ -32,9 +32,8 @@ fn unsupported_protocol_never_creates_a_ready_session() {
 struct Workspace(PathBuf);
 impl Workspace {
     fn new() -> Self {
-        let workspace = Self(
-            std::env::temp_dir().join(format!("pero-acp-test-{}", uuid::Uuid::new_v4())),
-        );
+        let workspace =
+            Self(std::env::temp_dir().join(format!("pero-acp-test-{}", uuid::Uuid::new_v4())));
         std::fs::create_dir(&workspace.0).unwrap();
         workspace
     }
@@ -61,11 +60,10 @@ fn launch_with_access(
         id: "fixture".into(),
         name: "Lifecycle fixture".into(),
         command: "node".into(),
-        args: vec![
-            root.join("tests/runtime/lifecycle-agent.mjs")
-                .to_string_lossy()
-                .into(),
-        ],
+        args: vec![root
+            .join("tests/runtime/lifecycle-agent.mjs")
+            .to_string_lossy()
+            .into()],
         env: BTreeMap::from([("PERO_FIXTURE_SCENARIO".into(), scenario.into())]),
         model: model.map(str::to_owned),
         mcp_servers: vec![],
@@ -73,7 +71,13 @@ fn launch_with_access(
     let (tx, rx) = mpsc::channel();
     let workspace = Workspace::new();
     let handle = if let Some(endpoint) = app_use {
-        start_app(config, workspace.0.clone(), "fixture-thread".into(), tx, endpoint)
+        start_app(
+            config,
+            workspace.0.clone(),
+            "fixture-thread".into(),
+            tx,
+            endpoint,
+        )
     } else if supervised {
         start_supervised(config, workspace.0.clone(), "fixture-thread".into(), tx)
     } else {
@@ -88,7 +92,8 @@ fn app_use_prefix_is_interpreted_only_by_explicit_app_use_sessions() {
     let url = format!("http://{}/mcp", listener.local_addr().unwrap());
     for mode in ["app", "supervised", "ordinary"] {
         let endpoint = (mode == "app").then(|| crate::acp::AppUseEndpoint::fixture(url.clone()));
-        let (handle, rx, _workspace) = launch_with_access("app_use_boundary", None, mode == "supervised", endpoint);
+        let (handle, rx, _workspace) =
+            launch_with_access("app_use_boundary", None, mode == "supervised", endpoint);
         until(&rx, "session_ready");
         for contextual in [false, true] {
             for (literal, app_text) in [
@@ -97,20 +102,33 @@ fn app_use_prefix_is_interpreted_only_by_explicit_app_use_sessions() {
                 ("/app-useful keep literal", "/app-useful keep literal"),
             ] {
                 let command = if contextual {
-                    SessionCommand::PromptWithContext { text: literal.into(), context: vec![] }
+                    SessionCommand::PromptWithContext {
+                        text: literal.into(),
+                        context: vec![],
+                    }
                 } else {
                     SessionCommand::Prompt(literal.into())
                 };
                 handle.tx.send(command).unwrap();
                 let update = until(&rx, "session_update");
-                let wire: Value = serde_json::from_str(update.data["content"]["text"].as_str().unwrap()).unwrap();
+                let wire: Value =
+                    serde_json::from_str(update.data["content"]["text"].as_str().unwrap()).unwrap();
                 let expected = if mode == "app" { app_text } else { literal };
-                assert_eq!(wire["prompt"][0]["text"], expected, "mode={mode}, contextual={contextual}");
+                assert_eq!(
+                    wire["prompt"][0]["text"], expected,
+                    "mode={mode}, contextual={contextual}"
+                );
                 if mode == "app" {
                     assert_eq!(wire["mcpServers"].as_array().unwrap().len(), 1);
                     assert_eq!(wire["mcpServers"][0]["name"], "pero-app-use");
                     assert_eq!(wire["mcpServers"][0]["url"], url);
-                    assert_eq!(wire["prompt"][1]["text"], format!("Host-provided App Use workflow:\n{}", crate::acp::APP_USE_SKILL));
+                    assert_eq!(
+                        wire["prompt"][1]["text"],
+                        format!(
+                            "Host-provided App Use workflow:\n{}",
+                            crate::acp::APP_USE_SKILL
+                        )
+                    );
                 } else {
                     assert_eq!(wire["mcpServers"], json!([]));
                     assert_eq!(wire["prompt"].as_array().unwrap().len(), 1);
@@ -173,7 +191,11 @@ fn until(rx: &mpsc::Receiver<HostEvent>, kind: &str) -> HostEvent {
             return event;
         }
         if kind == "configuration_changed" {
-            assert_ne!(event.kind,"session_error","setting acknowledgement failed: {}",event.text);
+            assert_ne!(
+                event.kind, "session_error",
+                "setting acknowledgement failed: {}",
+                event.text
+            );
         }
         assert_ne!(
             event.kind, "session_closed",
@@ -190,28 +212,67 @@ fn close(handle: &SessionHandle, rx: &mpsc::Receiver<HostEvent>) {
 #[test]
 fn session_settings_follow_agent_acknowledgements() {
     for scenario in ["settings", "legacy_modes"] {
-        let (handle, rx, _workspace) = launch(scenario,None);
-        let ready = until(&rx,"session_ready");
-        assert!(ready.data["peroSettings"]["options"].as_array().unwrap().iter().any(|option|
-            option["id"]=="mode" && option["current"]=="agent"));
-        handle.tx.send(SessionCommand::Configure{id:"mode".into(),value:"plan".into()}).unwrap();
-        let confirmed = until(&rx,"configuration_changed");
-        assert!(confirmed.data["options"].as_array().unwrap().iter().any(|option|
-            option["id"]=="mode" && option["current"]=="plan"));
-        handle.tx.send(SessionCommand::Configure{id:"mode".into(),value:"injected".into()}).unwrap();
-        assert!(until(&rx,"session_error").text.contains("not advertised"));
-        if scenario=="settings" {
-            handle.tx.send(SessionCommand::Configure{id:"effort".into(),value:"low".into()}).unwrap();
-            let confirmed=until(&rx,"configuration_changed");
-            assert!(confirmed.data["options"].as_array().unwrap().iter().any(|option|
-                option["id"]=="effort" && option["current"]=="low"));
-            handle.tx.send(SessionCommand::Configure{id:"effort".into(),value:"high".into()}).unwrap();
-            assert!(until(&rx,"session_error").text.contains("rejected"));
+        let (handle, rx, _workspace) = launch(scenario, None);
+        let ready = until(&rx, "session_ready");
+        assert!(ready.data["peroSettings"]["options"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|option| option["id"] == "mode" && option["current"] == "agent"));
+        handle
+            .tx
+            .send(SessionCommand::Configure {
+                id: "mode".into(),
+                value: "plan".into(),
+            })
+            .unwrap();
+        let confirmed = until(&rx, "configuration_changed");
+        assert!(confirmed.data["options"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|option| option["id"] == "mode" && option["current"] == "plan"));
+        handle
+            .tx
+            .send(SessionCommand::Configure {
+                id: "mode".into(),
+                value: "injected".into(),
+            })
+            .unwrap();
+        assert!(until(&rx, "session_error").text.contains("not advertised"));
+        if scenario == "settings" {
+            handle
+                .tx
+                .send(SessionCommand::Configure {
+                    id: "effort".into(),
+                    value: "low".into(),
+                })
+                .unwrap();
+            let confirmed = until(&rx, "configuration_changed");
+            assert!(confirmed.data["options"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|option| option["id"] == "effort" && option["current"] == "low"));
+            handle
+                .tx
+                .send(SessionCommand::Configure {
+                    id: "effort".into(),
+                    value: "high".into(),
+                })
+                .unwrap();
+            assert!(until(&rx, "session_error").text.contains("rejected"));
         }
-        handle.tx.send(SessionCommand::Prompt("still-usable".into())).unwrap();
-        assert_eq!(until(&rx,"session_update").data["content"]["text"],"turn-1:still-usable");
-        until(&rx,"turn_finished");
-        close(&handle,&rx);
+        handle
+            .tx
+            .send(SessionCommand::Prompt("still-usable".into()))
+            .unwrap();
+        assert_eq!(
+            until(&rx, "session_update").data["content"]["text"],
+            "turn-1:still-usable"
+        );
+        until(&rx, "turn_finished");
+        close(&handle, &rx);
     }
 }
 #[test]
@@ -232,11 +293,9 @@ fn authentication_is_explicit_and_keeps_the_connection_for_retry() {
         .tx
         .send(SessionCommand::Authenticate("terminal-login".into()))
         .unwrap();
-    assert!(
-        until(&rx, "session_auth_error")
-            .text
-            .contains("interactive terminal")
-    );
+    assert!(until(&rx, "session_auth_error")
+        .text
+        .contains("interactive terminal"));
     handle
         .tx
         .send(SessionCommand::Authenticate("login".into()))
@@ -329,11 +388,9 @@ fn unacknowledged_cancellation_closes_the_session_after_a_bound() {
     until(&rx, "turn_started");
     let started = Instant::now();
     handle.tx.send(SessionCommand::Cancel).unwrap();
-    assert!(
-        until(&rx, "session_error")
-            .text
-            .contains("did not acknowledge cancellation")
-    );
+    assert!(until(&rx, "session_error")
+        .text
+        .contains("did not acknowledge cancellation"));
     until(&rx, "session_closed");
     assert!(started.elapsed() < Duration::from_secs(3));
 }
@@ -550,12 +607,30 @@ fn mcp_defaults_forward_empty_list() {
 #[test]
 fn mcp_invalid_config_fails_before_connecting_or_child_spawn() {
     let invalid = [
-        (json!([{"name":"bad","command":"relative","args":[],"env":[]}]), "Invalid MCP stdio command or arguments"),
-        (json!([{"type":"http","name":"bad","url":"file:///fixture-header-secret","headers":[]}]), "Invalid MCP HTTP/SSE URL"),
-        (json!([{"type":"http","name":"bad","url":"http://[broken","headers":[]}]), "Invalid MCP HTTP/SSE URL"),
-        (json!([{"type":"http","name":"bad","url":"https://fixture.invalid","headers":[{"name":"Authorization","value":"fixture-header-secret\r\nInjected: yes"}]}]), "Invalid MCP header"),
-        (json!([{"name":"bad","command":mcp_stdio_command(),"args":[],"env":[{"name":"BAD=KEY","value":"fixture-env-secret"}]}]), "Invalid MCP environment"),
-        (json!([{"name":"same","command":mcp_stdio_command(),"args":[],"env":[]},{"name":"same","command":mcp_stdio_command(),"args":[],"env":[]}]), "Invalid or duplicate MCP server name"),
+        (
+            json!([{"name":"bad","command":"relative","args":[],"env":[]}]),
+            "Invalid MCP stdio command or arguments",
+        ),
+        (
+            json!([{"type":"http","name":"bad","url":"file:///fixture-header-secret","headers":[]}]),
+            "Invalid MCP HTTP/SSE URL",
+        ),
+        (
+            json!([{"type":"http","name":"bad","url":"http://[broken","headers":[]}]),
+            "Invalid MCP HTTP/SSE URL",
+        ),
+        (
+            json!([{"type":"http","name":"bad","url":"https://fixture.invalid","headers":[{"name":"Authorization","value":"fixture-header-secret\r\nInjected: yes"}]}]),
+            "Invalid MCP header",
+        ),
+        (
+            json!([{"name":"bad","command":mcp_stdio_command(),"args":[],"env":[{"name":"BAD=KEY","value":"fixture-env-secret"}]}]),
+            "Invalid MCP environment",
+        ),
+        (
+            json!([{"name":"same","command":mcp_stdio_command(),"args":[],"env":[]},{"name":"same","command":mcp_stdio_command(),"args":[],"env":[]}]),
+            "Invalid or duplicate MCP server name",
+        ),
     ];
     for (servers, expected_error) in invalid {
         let (_handle, rx, _workspace) = launch_mcp("mcp", servers);
@@ -611,39 +686,86 @@ fn initialization_timeout_remains_bounded() {
 
 #[test]
 fn composer_commands_permissions_and_structured_context_cross_the_acp_wire() {
-    use pero_contracts::{composer_capabilities::AgentCommand, context::{ContextContent, ContextKind, ContextReference}};
+    use pero_contracts::{
+        composer_capabilities::AgentCommand,
+        context::{ContextContent, ContextKind, ContextReference},
+    };
     let (handle, rx, _workspace) = launch("composer", None);
     let info = until(&rx, "agent_info");
-    assert_eq!(info.data["agentCapabilities"]["promptCapabilities"]["image"], true);
+    assert_eq!(
+        info.data["agentCapabilities"]["promptCapabilities"]["image"],
+        true
+    );
     let mut ready = false;
     let mut commands = None;
     let deadline = Instant::now() + Duration::from_secs(5);
     while !ready || commands.is_none() {
-        let event = rx.recv_timeout(deadline.saturating_duration_since(Instant::now())).unwrap();
+        let event = rx
+            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+            .unwrap();
         if event.kind == "session_ready" {
-            assert_eq!(event.data["peroCapabilities"], json!({"images":true,"embedded_context":true}));
+            assert_eq!(
+                event.data["peroCapabilities"],
+                json!({"images":true,"embedded_context":true})
+            );
             ready = true;
         }
-        if event.kind == "session_update" && event.data["sessionUpdate"] == "available_commands_update" {
+        if event.kind == "session_update"
+            && event.data["sessionUpdate"] == "available_commands_update"
+        {
             commands = Some(AgentCommand::from_update(&event.data).unwrap());
         }
     }
     assert_eq!(commands.unwrap()[0].name, "compact");
-    handle.tx.send(SessionCommand::Configure {id:"approval".into(),value:"read".into()}).unwrap();
+    handle
+        .tx
+        .send(SessionCommand::Configure {
+            id: "approval".into(),
+            value: "read".into(),
+        })
+        .unwrap();
     let confirmed = until(&rx, "configuration_changed");
-    assert!(confirmed.data["options"].as_array().unwrap().iter().any(|option| option["id"]=="approval" && option["current"]=="read"));
-    handle.tx.send(SessionCommand::PromptWithContext {
-        text:"Review selected context".into(),
-        context:vec![
-            ContextReference {id:"snapshot-1".into(),kind:ContextKind::File,label:"example.rs".into(),source:"example.rs".into(),content:ContextContent::Text{text:"frozen file".into()}},
-            ContextReference {id:"snapshot-2".into(),kind:ContextKind::Image,label:"example.png".into(),source:"example.png".into(),content:ContextContent::Image{data:"aGVsbG8=".into(),mime_type:"image/png".into()}},
-        ],
-    }).unwrap();
+    assert!(confirmed.data["options"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|option| option["id"] == "approval" && option["current"] == "read"));
+    handle
+        .tx
+        .send(SessionCommand::PromptWithContext {
+            text: "Review selected context".into(),
+            context: vec![
+                ContextReference {
+                    id: "snapshot-1".into(),
+                    kind: ContextKind::File,
+                    label: "example.rs".into(),
+                    source: "example.rs".into(),
+                    content: ContextContent::Text {
+                        text: "frozen file".into(),
+                    },
+                },
+                ContextReference {
+                    id: "snapshot-2".into(),
+                    kind: ContextKind::Image,
+                    label: "example.png".into(),
+                    source: "example.png".into(),
+                    content: ContextContent::Image {
+                        data: "aGVsbG8=".into(),
+                        mime_type: "image/png".into(),
+                    },
+                },
+            ],
+        })
+        .unwrap();
     let rendered = until(&rx, "session_update");
-    let blocks: Value = serde_json::from_str(rendered.data["content"]["text"].as_str().unwrap()).unwrap();
+    let blocks: Value =
+        serde_json::from_str(rendered.data["content"]["text"].as_str().unwrap()).unwrap();
     assert_eq!(blocks[0]["text"], "Review selected context");
     assert_eq!(blocks[1]["type"], "resource");
-    assert!(blocks[1]["resource"]["text"].as_str().unwrap().ends_with("frozen file"));
+    assert!(blocks[1]["resource"]["text"]
+        .as_str()
+        .unwrap()
+        .ends_with("frozen file"));
     assert_eq!(blocks[2]["type"], "image");
     assert_eq!(blocks[2]["mimeType"], "image/png");
     until(&rx, "turn_finished");
@@ -652,17 +774,25 @@ fn composer_commands_permissions_and_structured_context_cross_the_acp_wire() {
 
 #[test]
 fn local_turns_and_worker_execution_share_the_workspace_write_lease() {
-    let (handle,rx,workspace)=launch("",None);
-    until(&rx,"session_ready");
-    let worker_lease=crate::workspace_lease::WorkspaceLease::acquire(&workspace.0).unwrap();
-    handle.tx.send(SessionCommand::Prompt("blocked".into())).unwrap();
-    assert!(until(&rx,"session_error").text.contains("Workspace is busy"));
+    let (handle, rx, workspace) = launch("", None);
+    until(&rx, "session_ready");
+    let worker_lease = crate::workspace_lease::WorkspaceLease::acquire(&workspace.0).unwrap();
+    handle
+        .tx
+        .send(SessionCommand::Prompt("blocked".into()))
+        .unwrap();
+    assert!(until(&rx, "session_error")
+        .text
+        .contains("Workspace is busy"));
     drop(worker_lease);
-    handle.tx.send(SessionCommand::Prompt("wait".into())).unwrap();
-    until(&rx,"turn_started");
+    handle
+        .tx
+        .send(SessionCommand::Prompt("wait".into()))
+        .unwrap();
+    until(&rx, "turn_started");
     assert!(crate::workspace_lease::WorkspaceLease::acquire(&workspace.0).is_err());
     handle.tx.send(SessionCommand::Cancel).unwrap();
-    until(&rx,"turn_finished");
+    until(&rx, "turn_finished");
     assert!(crate::workspace_lease::WorkspaceLease::acquire(&workspace.0).is_ok());
-    close(&handle,&rx);
+    close(&handle, &rx);
 }
