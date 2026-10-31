@@ -1,5 +1,5 @@
 import type { AutomationCommand, AutomationDefinition, AutomationResult, AutomationTrigger } from '../../protocol/generated/host';
-import { canReviewOutcome, cancellationLabel, checkInput, checkReconciliation, currentDefinitions, inputPresentation, requestIdentity, requestStatus } from './automation-model';
+import { canReviewOutcome, capacityPresentation, cancellationLabel, checkInput, checkReconciliation, currentDefinitions, definitionStatus, inputPresentation, requestIdentity, requestStatus } from './automation-model';
 import './automation.css';
 
 type Event = {kind:string; request_id:string|null; text:string; data?:unknown};
@@ -12,6 +12,7 @@ export function installAutomation(send:(command:object)=>Promise<void>) {
   modal.setAttribute('aria-labelledby', 'automation-title');
   modal.innerHTML = `<header><h1 id="automation-title">Automation</h1><button type="button" aria-label="Close Automation">×</button></header>
     <div class="automation-toolbar"><span data-scope>Local published inputs · runs while open</span><button type="button" data-new disabled>New</button><button type="button" data-refresh>Refresh</button></div>
+    <details data-capacity><summary>Capacity</summary><p class="automation-muted" data-capacity-counts></p><p class="automation-muted">Fixed capacity; no automatic history deletion or limit reset.</p></details><p class="automation-muted" data-capacity-note hidden></p>
     <p role="alert" class="automation-error" hidden></p>
     <form data-create hidden>
       <h2>New Automation</h2>
@@ -66,9 +67,12 @@ export function installAutomation(send:(command:object)=>Promise<void>) {
   const cell = (row:HTMLTableRowElement,text:string) => {const element=row.insertCell();element.textContent=text;return element;};
   function render() {
     if (!result) return;
-    const definitions=currentDefinitions(result.state);
+    const definitions=currentDefinitions(result.state), capacity=capacityPresentation(result.capacity);
+    find<HTMLElement>('[data-capacity-counts]').textContent=capacity.counts;
+    const capacityNote=find<HTMLElement>('[data-capacity-note]');capacityNote.textContent=capacity.notes;capacityNote.hidden=!capacity.notes;
+    const definitionsFull=result.capacity.exhausted.includes('definitions');
     if(result.fault)showError(result.fault);
-    find<HTMLButtonElement>('[data-new]').disabled=busy||!result.capabilities.available;
+    find<HTMLButtonElement>('[data-new]').disabled=busy||!result.capabilities.available||definitionsFull;
     const body=find<HTMLTableSectionElement>('[data-catalog] tbody');body.replaceChildren();
     find<HTMLElement>('[data-empty]').hidden=definitions.length>0;
     find<HTMLElement>('[data-empty]').textContent='No automations yet.';
@@ -77,7 +81,7 @@ export function installAutomation(send:(command:object)=>Promise<void>) {
       const control=result.state.controls[definition.id];const row=body.insertRow();
       cell(row,'').append(button(definition.id,()=>{selected=definition.id;manualIntent=crypto.randomUUID();render();}));
       cell(row,definition.trigger.kind);cell(row,definition.input==='process_exact'?'Exact':'Latest');
-      cell(row,control?.revoked?'Revoked':control?.paused?'Paused':'Enabled');
+      cell(row,definitionStatus(definition,control,result.capacity));
       const toggle=button(control?.paused?'Resume':'Pause',()=>void run(async()=>{result=await command({action:'control',definition_id:definition.id,paused:!control?.paused,revoked:false});}));
       toggle.disabled=busy||!!control?.revoked||!result.capabilities.available;cell(row,'').append(toggle);
     }
@@ -116,6 +120,7 @@ export function installAutomation(send:(command:object)=>Promise<void>) {
       }
     }
     for(const action of modal.querySelectorAll<HTMLButtonElement>('[data-save],[data-submit-input]'))action.disabled=busy||!result.capabilities.available;
+    find<HTMLButtonElement>('[data-save]').disabled=busy||!result.capabilities.available||definitionsFull;
     const reviewing=result.state.requests.find(request=>request.id===reviewTarget?.requestId&&request.execution_id===reviewTarget.executionId);
     find<HTMLButtonElement>('[data-reconcile]').disabled=busy||!result.capabilities.available||!reviewing||!canReviewOutcome(reviewing);
     find<HTMLElement>('[data-workspace]').textContent=`Local workspace: ${result.capabilities.workspace}`;

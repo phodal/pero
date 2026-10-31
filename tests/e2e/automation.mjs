@@ -47,7 +47,12 @@ async function ownedChildren(pid){
 }
 try{
  await launch();
- expect((await query()).state.definitions).toEqual([]);
+ const initial=await query();
+ expect(initial.state.definitions).toEqual([]);
+ await panel.getByText('Capacity',{exact:true}).click();
+ await expect(panel.locator('[data-capacity-counts]')).toContainText(`requests: ${initial.capacity.requests.used}/${initial.capacity.requests.limit}`);
+ await expect(panel.locator('[data-capacity-note]')).toBeHidden();
+ await panel.getByText('Capacity',{exact:true}).click();
  await panel.getByRole('button',{name:'New',exact:true}).click();
  const create=panel.locator('form[data-create]');
  await create.getByLabel('Name',{exact:true}).fill('Fixture inspection');

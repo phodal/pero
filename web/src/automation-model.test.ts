@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { canReviewOutcome, cancellationLabel, checkInput, checkReconciliation, currentDefinitions, inputPresentation, requestIdentity, requestStatus } from './automation-model.ts';
-import type { AutomationDefinition, AutomationState } from '../../protocol/generated/host';
+import { canReviewOutcome, capacityPresentation, cancellationLabel, checkInput, checkReconciliation, currentDefinitions, definitionStatus, inputPresentation, requestIdentity, requestStatus } from './automation-model.ts';
+import type { AutomationCapacityStatus, AutomationDefinition, AutomationState } from '../../protocol/generated/host';
 const definition = (id:string, revision:number):AutomationDefinition => ({ id, revision, owner:'host', trigger:{kind:'manual'}, input:'process_exact', input_binding_id:'local', method:{kind:'agent',agent_id:'fixture',workspace:'/workspace',prompt:'Inspect'},target:{kind:'local_host',owner:'host'} });
 test('definition projection retains highest immutable revision per identity',()=>{
   const a=definition('A',1), newer=definition('A',3), stale=definition('A',2), b=definition('B',1);
@@ -45,4 +45,32 @@ test('operator evidence has a UTF-8 limit and requires both explicit attestation
   assert.throws(()=>checkReconciliation(' ',true,true),/evidence/);
   assert.throws(()=>checkReconciliation('checked',false,true),/both/);
   assert.throws(()=>checkReconciliation('checked',true,false),/both/);
+});
+
+const capacity = (exhausted:AutomationCapacityStatus['exhausted']=[]):AutomationCapacityStatus => ({
+  requests:{used:1,limit:1}, events:{used:1,limit:1}, snapshots:{used:1,limit:1},
+  definitions:{used:1,limit:1}, dispatches:{used:1,limit:1}, exhausted,
+});
+test('automatic not-started remains distinct from operator-reported outcome',()=>{
+  assert.equal(requestStatus({status:{kind:'not_started'},operator_reconciliation:null}),'Not started');
+  assert.equal(canReviewOutcome({status:{kind:'not_started'},execution_id:'e'}),false);
+});
+test('exhausted request and dispatch capacities cannot silently show enabled schedules',()=>{
+  const scheduled={...definition('Timer',1),trigger:{kind:'time',subject:'sample',exact:null,anchor:1,interval_seconds:60,max_lateness_seconds:60}} as AutomationDefinition;
+  assert.equal(definitionStatus(scheduled,undefined,capacity(['requests'])),'Enabled · new runs blocked');
+  assert.equal(definitionStatus(scheduled,undefined,capacity(['dispatches'])),'Enabled · new executions blocked');
+  assert.equal(definitionStatus(scheduled,{paused:true,revoked:false},capacity(['requests','dispatches'])),'Paused');
+  assert.equal(definitionStatus(scheduled,{paused:true,revoked:true},capacity(['requests','dispatches'])),'Revoked');
+});
+test('capacity presentation distinguishes new intake from already accepted work',()=>{
+  const manual=definition('Manual',1), event={...manual,trigger:{kind:'event',binding_id:'local',event_kind:'changed'}} as AutomationDefinition;
+  assert.equal(definitionStatus(manual,undefined,capacity(['events','snapshots','definitions'])),'Enabled');
+  assert.equal(definitionStatus(event,undefined,capacity(['events'])),'Enabled · new events blocked');
+  const view=capacityPresentation(capacity(['requests','events','snapshots','definitions','dispatches']));
+  assert.equal(view.counts,'requests: 1/1 · events: 1/1 · snapshots: 1/1 · definitions: 1/1 · dispatches: 1/1');
+  assert.match(view.notes,/accepted pending work can still run/);
+  assert.match(view.notes,/existing inputs remain usable/);
+  assert.match(view.notes,/existing automations are unaffected/);
+  assert.match(view.notes,/existing running work is unaffected/);
+  assert.equal(capacityPresentation(capacity()).notes,'');
 });
