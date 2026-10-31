@@ -25,3 +25,4 @@
 - [0022: Required App tenure](0022-required-app-tenure.md)
 
 - [0023: Conversation charts from the harness](0023-conversation-charts.md)
+- [0024: Reliable, composable event-driven Automation](0024-event-driven-automation.md)
