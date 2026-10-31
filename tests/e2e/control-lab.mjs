@@ -119,7 +119,7 @@ async function exportEvidence(id) {
   const path = resolve(out, `${id}-export.json`);
   await rm(path, { force: true });
   await app.evaluate(({ session }, path) => session.defaultSession.once('will-download', (_event, item) => item.setSavePath(path)), path);
-  await frame.getByRole('button', { name: 'Export evidence', exact: true }).click();
+  await frame.getByRole('button', { name: 'Export', exact: true }).click();
   let document, downloadedText;
   await expect.poll(async () => {
     try { downloadedText = await readFile(path, 'utf8'); document = JSON.parse(downloadedText); return true; }
@@ -143,7 +143,7 @@ async function selectExperiment(id) {
   await button.focus();
   await button.press('Enter');
   await expect(button).toHaveAttribute('aria-current', 'true');
-  await expect(frame.getByRole('button', { name: 'Export evidence', exact: true })).toBeEnabled();
+  await expect(frame.getByRole('button', { name: 'Export', exact: true })).toBeEnabled();
 }
 try {
   ({ expect } = await import('@playwright/test'));
