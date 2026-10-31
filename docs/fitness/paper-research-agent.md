@@ -145,3 +145,53 @@ The default live run uses the configured model and login. The explicit model
 override is isolated to the disposable test Agent and is checked against the
 actual session-ready model receipt. Neither development acceptance nor exact
 source matching establishes scientific correctness or signed-package acceptance.
+
+## 2026-10-31 Harness² live user journey
+
+L2, macOS arm64 development Electron, real alphaXiv/arXiv and authenticated Codex
+through the real Rust Host/App MCP path. Source: `29e0c32` (the live sequence started at `0c1bcc3` and exercised the
+scoped follow-up/navigation/delivery changes before they were committed). The first session receipt
+reported `gpt-6.1-sol` with `max` reasoning. No literature responses or Agent
+answers were replaced in these runs.
+
+- Searched the exact Harness² title, added it from live results, downloaded and
+  rendered all 37 pages. Queried the two recursion levels, then followed up about
+  evaluation without ground-truth verifiers. Both reports saved with exact
+  original evidence; clicking references opened and highlighted their source.
+- The initial broad answers took 293,783 ms / 13 study steps and 392,362 ms / 22
+  steps. These are individual observations, not a latency benchmark. The latter
+  also reread evidence instead of retaining the previous observed sources.
+- Added version-bound original-passage carryover. A real KEEP_BASE follow-up
+  retained 55 prior passages and saved a report in 156,208 ms. This run exposed
+  repeated quote-validation probes because errors did not identify the failing
+  quotation. Error messages now identify the passage/page/quote and direct the
+  Agent to recall the source; exact matching is unchanged.
+- A subsequent short real question saved in 6,432 ms using one recall and one
+  finalization, but the Host turn continued using tools and the composer stayed
+  disabled beyond 30 seconds. Added post-delivery Host cancellation. A repeat
+  saved in 12,626 ms and the composer was ready at 12,631 ms, with no new read
+  steps. Questions and available carried evidence differ across these runs, so
+  these times do not establish a controlled speedup or a general latency SLA.
+- Reopened the actual saved reports after Desktop restart and checked the
+  original PDF digest, page-specific buttons and fully rendered source-page
+  highlights. Narrow-window citation navigation exposed the PDF rather than
+  leaving it behind the conversation. Source navigation centers the quote so
+  the page counter remains consistent when quoting near a page boundary.
+
+Evidence: `test-results/paper-live-agent/answer-{1,2}.json`,
+`test-results/paper-live-followup/`, `test-results/paper-live-final-delivery/`,
+and `test-results/paper-live-final-render/`. The initial full script stopped on
+an incorrect assumption that history reopens as an expanded active turn. The
+persisted profile was reopened through the actual history controls and passed;
+that initial failure is retained in its original directory.
+
+Manual review checked the distinction between task-level and harnessing-level
+recursion against quoted method pages, and KEEP_BASE against the original
+Composer prompt. This is source/interaction acceptance, not independent
+scientific reproduction, a signed package, or native Wry runtime acceptance.
+Deep questions with max reasoning remain minute-scale.
+
+Final regression: 33 Python cases, App TypeScript/build and root checks pass.
+The complete 16-group Desktop suite passes with zero unexpected browser errors;
+after centering source navigation, the focused PDF journey and an actual saved
+report render were rechecked, including matching the page counter to its source.

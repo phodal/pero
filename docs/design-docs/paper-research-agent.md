@@ -118,3 +118,24 @@ continue to use observed passage IDs and original offsets.
 line view for saved online text, with source digest, total line count and next
 line. Agent PDF research uses the scoped `research-step` tool and frozen PDF
 identity; it does not use that HTTP route to bypass its evidence ledger.
+
+## Follow-up evidence and delivery
+
+A `StudyCarryover` retains original observed passages from the parent input only
+when paper ID, PDF document ID and file digest match the newly frozen sources.
+It never treats earlier answer prose as evidence. Reused passages appear in the
+initial observation catalog with short previews and can be recalled through the
+existing tool without consuming a reading step. Replacing a PDF excludes its old
+passages; old study records without carryover keep their previous behavior.
+
+A persisted finalized report is the App delivery. The UI requests cancellation
+of the owned Host turn if it continues afterward, waits for the Host terminal
+status, and retains the report. This prevents post-delivery tool use and a locked
+composer. A successful saved report is not presented as a cancelled research
+result just because the shell stopped the remaining execution.
+
+Discussed selections retain their source paper, PDF version, page and rectangle.
+The composer can reveal the original selection, and includes the paper title and
+page in the submitted context. Citation, annotation and selection navigation use
+one reveal operation; narrow layouts close the covering conversation. Source
+buttons show PDF page numbers instead of repeating one long paper title.

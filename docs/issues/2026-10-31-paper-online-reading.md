@@ -71,3 +71,19 @@ zero unexpected browser errors. Both cached real Harness PDFs also passed a
 line read through the persisted study ledger, reload, and PDFium quotation
 location yielding selectable highlight rectangles. Receipt:
 `test-results/paper-live/line-reads.json`. Real model output was not requested.
+
+## Real user-flow polish
+
+Live questions exposed repeated reading on follow-up, ambiguous quote errors,
+and an Agent continuing to call tools after a finalized report while the input
+remained locked. Version-bound `StudyCarryover`, precise quote recovery messages
+and cancellation of the remaining Host turn address these observed problems.
+Selection contexts now retain a return-to-source action; narrow navigation
+reveals the document, and source buttons expose page numbers. Import waiting,
+errors and retry stay beside the result being added.
+
+Real runs, timings, original failures and remaining limits are recorded in
+`docs/fitness/paper-research-agent.md`. Screenshots were inspected. The bounded
+short follow-up delivered and unlocked in about 12.6 seconds; deep max-reasoning
+questions still take minutes. No production or signed/native package claim is
+made.
