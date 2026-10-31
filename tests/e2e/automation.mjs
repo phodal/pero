@@ -67,6 +67,18 @@ try{
  expect(prompts[0].workspace).toBe(request.definition.method.workspace);
  expect(prompts[0].text).toContain('sample=17');
  checks.push('native menu creates a fixed local definition; UI Run enters existing ACP owner with frozen input/workspace');
+ // A fresh Run click is an explicit intent even when its input bytes are unchanged.
+ await detail.getByLabel('Subject',{exact:true}).fill('fixture-sample');
+ await detail.getByLabel('Input',{exact:true}).fill('sample=17');
+ await detail.getByRole('button',{name:'Run',exact:true}).click();
+ let rerun;
+ await expect.poll(async()=>{const projection=await query();rerun=projection.state.requests.find(value=>value.id!==request.id);return rerun?.status.kind;},{timeout:30000}).toBe('completed');
+ expect(rerun.reprocess_of).toBe(request.id);
+ expect(rerun.execution_id).not.toBe(request.execution_id);
+ expect(rerun.snapshot).toEqual(request.snapshot);
+ await expect(detail.locator('[data-requests] tbody')).toContainText(`Reprocess of ${request.id}`);
+ expect((await readFile(capture,'utf8')).trim().split('\n')).toHaveLength(2);
+ checks.push('two explicit UI Run clicks with identical input produce two linked executions');
  await panel.getByRole('button',{name:'Pause',exact:true}).click();
  await expect(panel.locator('[data-catalog] tbody')).toContainText('Paused');
  await page.screenshot({path:resolve(output,'automation.png')});
@@ -91,7 +103,7 @@ try{
  await expect(detail.locator('[data-pinned]')).toHaveText(`Pinned revision: ${schedule.trigger.exact.revision}`);
  await expect(detail.locator('form[data-input]')).toBeHidden();
  await expect(detail.getByRole('button',{name:'Publish latest input',exact:true})).toBeHidden();
- expect((await query()).state.requests).toHaveLength(1);
+ expect((await query()).state.requests).toHaveLength(2);
  checks.push('real exact schedule displays its frozen revision and offers no misleading latest-input edit');
  const before=await query();
  await close();await launch();
@@ -100,7 +112,7 @@ try{
  expect(restored.state.controls['Fixture inspection'].paused).toBe(true);
  expect(restored.state.requests).toEqual(before.state.requests);
  await expect(panel.locator('[data-catalog] tbody')).toContainText('Paused');
- expect((await readFile(capture,'utf8')).trim().split('\n')).toHaveLength(1);
+ expect((await readFile(capture,'utf8')).trim().split('\n')).toHaveLength(2);
  expect(errors).toEqual([]);
  checks.push('pause and completed input/execution references survive restart without prompt replay');
  await close();
