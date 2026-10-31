@@ -37,7 +37,7 @@ delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT;
 const launch = () => electron.launch({ args: [...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []), resolve(root, 'desktop')], cwd: root, env });
 let app;
 const errors = [], stages = [], checks = [], agentTrace = [], agentStarts = [];
-let page, frame;
+let page, frame, provider;
 const api = async (path, data) => frame.locator('body').evaluate(async (_element, { path, data }) => {
   const response = await fetch(path, data === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
   const value = await response.json();
@@ -71,6 +71,20 @@ async function openApp() {
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
   await clickAppShortcut(page, 'paper-agent');
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).activeApp?.name)).toBe('paper-agent');
+  if(realAgent==='pero'&&!provider) {
+    await page.evaluate(()=>{
+      window.paperHarnessState=null;
+      const stop=window.pero.onEvent(event=>{
+        if(event.kind!=='harness_state')return;
+        const {model,endpoint,credentialConfigured}=event.data;
+        window.paperHarnessState={model,endpoint,credentialConfigured};stop();
+      });
+      void window.pero.sessionCommand({action:'harness_get'});
+    });
+    await page.waitForFunction(()=>window.paperHarnessState,undefined,{timeout:10000});
+    provider=await page.evaluate(()=>window.paperHarnessState);
+    expect(provider.credentialConfigured).toBe(true);
+  }
   frame = page.frameLocator('iframe[title="paper-agent"]');
   await expect(frame.locator('.pa-workbench')).toBeVisible({ timeout: 20000 });
 }
@@ -124,7 +138,7 @@ try {
   app = await launch(); await openApp();
   await frame.getByRole('button', { name: 'Add papers', exact: true }).click();
   await frame.getByRole('tab', { name: 'PDF', exact: true }).click();
-  await frame.getByLabel('Import PDF', { exact: true }).setInputFiles({ name: process.env.PERO_PAPER_JOURNEY_SYNTHETIC ? 'Synthetic PDF.pdf' : 'Meta-Harness.pdf', mimeType: 'application/pdf', buffer: pdf });
+  await frame.getByLabel('Import PDF', { exact: true }).setInputFiles({ name: process.env.PERO_PAPER_JOURNEY_SYNTHETIC ? 'Synthetic PDF.pdf' : process.env.PERO_PAPER_JOURNEY_PDF_NAME || 'Meta-Harness.pdf', mimeType: 'application/pdf', buffer: pdf });
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
   await expect(viewer.locator('img,canvas').first()).toBeVisible({ timeout: 30000 });
   const paper = (await api('/api/library')).papers[0], reading = await api(`/api/pdf?paperId=${paper.id}`);
@@ -206,7 +220,7 @@ try {
     expect(fixtureMcp).toHaveLength(3);
     expect(fixtureMcp.find(turn => turn.studyId === continuation.resumed.id).steps.some(step => step.action === 'recall')).toBe(true);
   }
-  const result = { realPdf: !process.env.PERO_PAPER_JOURNEY_SYNTHETIC, realAgent: !!realAgent, agent: agentId,
+  const result = { realPdf: !process.env.PERO_PAPER_JOURNEY_SYNTHETIC, realAgent: !!realAgent, agent: agentId, provider,
     sha256: reading.document.fileDigest, checks, first, second, continuation, fixtureMcp, errors, agentStarts };
   await writeFile(resolve(out, 'result.json'), JSON.stringify(result, null, 2));
   console.log(JSON.stringify({ checks, errors, realAgent: !!realAgent }));

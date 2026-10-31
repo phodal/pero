@@ -22,7 +22,7 @@ class EvidenceReference:
             if 'startLine' in item or 'endLine' in item:
                 passage = next((p for p in passages if p.id == item.get('passageId') and p.paper_id == item.get('paperId')), None)
                 if passage is None:
-                    raise Invalid('Citation lines require an observed passageId and its paperId')
+                    raise Invalid(f"Citation passageId {item.get('passageId')} with paperId {item.get('paperId')} is not observed in this study. Use current observedPassages IDs; recall one before selecting citationLines.")
                 source = SourceText(passage.content)
                 try:
                     _, original = source.range(item.get('startLine'), item.get('endLine'), limit=4000)
@@ -186,7 +186,7 @@ class EvidenceMatrix:
                 raise Invalid('Matrix cell is outside the frozen sources or columns')
             key = (paper_id, column_id)
             if key in seen:
-                raise Invalid('Duplicate matrix cell')
+                raise Invalid(f'Duplicate matrix cell for paperId {paper_id}, columnId {column_id}; combine its claims into one cell')
             seen.add(key)
             if status not in ('supported', 'missing', 'conflict'):
                 raise Invalid('Invalid matrix evidence status')

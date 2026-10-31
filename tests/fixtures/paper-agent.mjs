@@ -154,8 +154,8 @@ readline.createInterface({ input: process.stdin }).on('line', async line => {
         assert.ok(declarations.some(tool => tool.app === 'paper-agent' && tool.tool === 'prepare-research'));
         const selection = snapshot.selection;
         const prepared = await callTool('app_write', { app: 'paper-agent',
-          tool: selection.studyId ? 'continue-research' : 'prepare-research',
-          document: selection.studyId ? { id: selection.studyId, requestId: crypto.randomUUID() } : {
+          tool: selection.studyId ? 'continue-research' : selection.parentIntentId ? 'follow-up-research' : 'prepare-research',
+          document: selection.studyId ? { id: selection.studyId, requestId: crypto.randomUUID() } : selection.parentIntentId ? {parentIntentId:selection.parentIntentId,question:blocks[0],requestId:crypto.randomUUID()} : {
             question: blocks[0], paperIds: selection.paperIds, fullText: selection.fullText,
             requestId: crypto.randomUUID(), ...(selection.contextId ? { contextId: selection.contextId } : {}),
             ...(selection.parentIntentId ? { parentIntentId: selection.parentIntentId } : {}),
