@@ -32,8 +32,11 @@ class EvidenceReference:
             raise Invalid("Evidence source is outside the frozen input")
         if passages or self.passage_id:
             passage = next((p for p in passages if p.id == self.passage_id and p.paper_id == self.paper_id), None)
-            if passage is None or self.quote not in passage.content:
-                raise Invalid('Evidence is outside the frozen PDF passages')
+            if passage is None:
+                raise Invalid(f'Evidence is outside the frozen PDF passages: unknown passageId {self.passage_id}. Use an observed passage ID.')
+            if self.quote not in passage.content:
+                raise Invalid(f'Evidence is outside the frozen PDF passages: quote {self.quote[:160]!r} does not exactly match passage {passage.id} on page {passage.page}. '
+                              'Use recall with this passageId and copy a contiguous quotation, preserving original line endings; a shorter same-line quote is also valid.')
             offset = passage.content.index(self.quote)
             return dict(paperId=paper.id, start=offset, end=offset + len(self.quote), heading=f'Page {passage.page}',
                         before=passage.content[max(0, offset - 500):offset], quote=self.quote,

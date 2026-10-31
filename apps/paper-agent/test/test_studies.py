@@ -76,6 +76,12 @@ class ResearchStudies(unittest.TestCase):
             self.assertEqual((step.start_line, step.end_line), (3, 3))
             passage = step.passages[0]
             self.assertEqual(content[passage.start:passage.start + len(passage.content)], passage.content)
+            with self.assertRaises(Invalid) as mismatch:
+                StudyCommand.parse(dict(action='note', text='A source finding', evidence=[dict(
+                    paperId=paper.id, passageId=passage.id, quote=passage.content.replace('\r\n', '\n'))]), reopened)
+            self.assertIn(passage.id, str(mismatch.exception))
+            self.assertIn('page 1', str(mismatch.exception))
+            self.assertIn('recall', str(mismatch.exception))
             command = StudyCommand.parse(dict(studyId=study.id, action='finalize',
                                              report=final_report(reopened, passage)), reopened)
             self.assertEqual(command.report.sections[0].evidence[0].quote, passage.content[:40])
