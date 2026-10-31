@@ -1,6 +1,9 @@
 // Native shell composition. Same manager and MCP authority as Electron Main.
 import { createInterface } from 'node:readline';
 import { HostConnectors } from './host.mjs';
+import { DesktopAppUse } from '../../../desktop/src/main/app-use-mcp.ts';
+import { AppWriteRoutes } from '../../../desktop/src/main/app-write-routes.ts';
+import { join, dirname } from 'node:path';
 import { ConnectorMcp } from './mcp.ts';
 
 // stdout carries private protocol replies; management diagnostics use stderr.
@@ -24,10 +27,20 @@ const owner = new HostConnectors({ root, executable, helpers, nodeExecutable: pr
   },
 });
 const mcp = new ConnectorMcp(owner);
+const routes = new AppWriteRoutes((action, fields = {}) => effect('apps', { value: { action, ...fields } }),
+  event => effect('surface', { value: { action: 'written', event } }), fetch, join(dirname(root), 'apps'));
+const appUse = new DesktopAppUse({
+  selectedThread: () => effect('surface', { value: { action: 'selected' } }),
+  page: (scope, request) => effect('surface', { value: { action: 'page', scope, request } }),
+  capture: async () => { throw new Error('Native App capture is unavailable'); },
+  presence: () => {},
+}, () => {}, join(dirname(root), 'app-evidence'), { describe: () => routes.describe(), apply: (write, signal, goal) => routes.apply(write, signal, goal) });
+
 let closing;
 const close = () => closing ??= (async () => {
   for (const promise of pending.values()) promise.reject(Object.assign(new Error('MCP_CONTROL_DISPOSED'), { code: 'MCP_CONTROL_DISPOSED' }));
   pending.clear();
+  await appUse.close();
   await mcp.close();
   process.exit(0);
 })();
@@ -44,14 +57,18 @@ input.on('line', line => {
     else promise?.reject(Object.assign(new Error(message.code), { code: message.code }));
   } else if (message.event) {
     mcp.accept(message.event);
+    appUse.accept(message.event);
   } else if (message.shutdown) {
     void close();
   } else if (message.id) {
-    void owner.request(message.request).then(
+    const result = message.request?.operation === 'app-context'
+      ? appUse.draftContext.freeze(message.request.scope, message.request.thread, message.request.options)
+      : owner.request(message.request);
+    void result.then(
       value => send({ id: message.id, value }),
-      () => send({ id: message.id, value: { ok: false, code: 'MCP_OPERATION_FAILED' } }),
+      error => send({ id: message.id, value: { ok: false, code: 'MCP_OPERATION_FAILED', ...(message.request?.operation === 'app-context' ? { message: String(error.message) } : {}) } }),
     );
   }
 });
 await owner.start();
-send({ ready: await mcp.start() });
+send({ ready: { ...await mcp.start(), ...await appUse.start() } });

@@ -493,6 +493,10 @@ pub fn run() -> anyhow::Result<()> {
         let view = view.downgrade();
         cx.spawn(async move |cx| {
             while let Ok(event) = received.recv().await {
+                if event.kind == "native_app_rpc" {
+                    let _ = window.update(cx, |_, window, cx|view.update(cx, |view,cx|view.native_app_rpc(event,window,cx)));
+                    continue;
+                }
                 if event.kind=="native_choose_document_save" {
                     let suggested=std::path::Path::new(event.data["suggested"].as_str().unwrap_or("untitled.txt"));
                     let directory=suggested.parent().filter(|path|!path.as_os_str().is_empty()).map(std::path::Path::to_path_buf).unwrap_or_else(||std::path::PathBuf::from("."));

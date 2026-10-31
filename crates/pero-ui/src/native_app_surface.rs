@@ -13,6 +13,7 @@ pub(crate) struct NativeAppPage {
     error: Option<String>,
     ready: bool,
     context: Value,
+    pending: std::collections::HashSet<String>,
 }
 pub(crate) struct NativeAppMessage(pub Value);
 impl EventEmitter<NativeAppMessage> for NativeAppPage {}
@@ -21,7 +22,7 @@ addEventListener('message',event=>{
  if(event.source!==window)return;
  const message=event.data;
  if(!message||typeof message.type!=='string')return;
- if(message.type==='pero:app:ready'||message.type==='pero:app:chat')window.ipc.postMessage(JSON.stringify(message));
+ if(message.type==='pero:app:ready'||message.type==='pero:app:chat'||message.type==='pero:app-use:result')window.ipc.postMessage(JSON.stringify(message));
  if(message.type==='pero:app:chat-slot')window.postMessage({type:'pero:app:chat-slot-result',id:message.id,active:false},'*');
 });
 addEventListener('pointerdown',()=>window.ipc.postMessage('{"type":"focus"}'),true);
@@ -116,6 +117,7 @@ impl NativeAppPage {
             error,
             ready: false,
             context: Value::Null,
+            pending: Default::default(),
         }
     }
     pub fn send(&self, message: Value, cx: &App) {
@@ -197,6 +199,41 @@ pub(crate) struct RetainedApp {
     _subscription: Subscription,
 }
 impl Workbench {
+    pub(crate) fn native_app_rpc(&mut self,event:HostEvent,_window:&mut Window,cx:&mut Context<Self>) {
+        let id=event.request_id.unwrap_or_default();
+        let input=event.data;
+        let apps=crate::native::apps();
+        let result=(|| -> anyhow::Result<Option<Value>> {
+            match input["action"].as_str() {
+                Some("selected")=>{
+                    let chat=self.chat.read(cx);
+                    Ok(Some(chat.active_chat.and_then(|index|chat.chats.get(index)).map(|chat|json!(chat.id)).unwrap_or(Value::Null)))
+                }
+                Some("written")=>{
+                    let app=input["event"]["data"]["app"].as_str().unwrap_or_default();
+                    for ((name,_),view) in &self.native_app_pages { if name==app { view.view.read(cx).send(json!({"type":"pero:app:data-changed"}),cx); } }
+                    Ok(Some(Value::Null))
+                }
+                Some("page")=>{
+                    let app=input["scope"]["app"].as_str().ok_or_else(||anyhow::anyhow!("Choose an App"))?;
+                    let panel=input["scope"]["panel"].as_str().ok_or_else(||anyhow::anyhow!("Choose a panel"))?;
+                    let view=self.native_app_pages.get(&(app.into(),panel.into())).ok_or_else(||anyhow::anyhow!("App not mounted"))?;
+                    match input["request"]["action"].as_str() {
+                        Some("status")=>Ok(Some(json!({"app":app,"panel":panel,"instance":format!("{:?}",view.view.entity_id()),"visible":view.view.read(cx).context["active"],"active":view.view.read(cx).context["active"],"operable":false,"capturable":false,"rect":{"x":0,"y":0,"width":0,"height":0}}))),
+                        Some("semantic")=>{
+                            anyhow::ensure!(input["request"]["instance"]==format!("{:?}",view.view.entity_id()),"App instance changed");
+                            view.view.update(cx,|view,cx|{view.pending.insert(id.clone());view.send(json!({"type":"pero:app-use:request","id":id,"request":input["request"]}),cx);});
+                            Ok(None)
+                        }
+                        _=>anyhow::bail!("Native App UI operation is unavailable"),
+                    }
+                }
+                _=>anyhow::bail!("Unknown native App request"),
+            }
+        })();
+        match result { Ok(None)=>{}, Ok(Some(value))=>apps.shell_reply(&id,Ok(value)), Err(error)=>{eprintln!("Native App request failed: {error}");apps.shell_reply(&id,Err(error))} }
+    }
+
     pub(crate) fn receive_native_app(
         &mut self,
         event: &HostEvent,
@@ -238,35 +275,49 @@ impl Workbench {
             let item = WorkspaceItem::App { name: scope.app.clone(), panel: scope.panel.clone() };
             if message["type"] == "focus" { this.focus_surface_item(&item, window, cx); }
             if message["type"] == "link" {this.web_command(json!({"action":"web_open","url":message["url"]}),window,cx);}
+            if message["type"] == "pero:app-use:result" {
+                if let Some(id) = message["id"].as_str() {
+                    let expected = view.update(cx,|view,_|view.pending.remove(id));
+                    if expected {
+                        let result = if message["ok"] == true { Ok(message["value"].clone()) } else { Err(anyhow::anyhow!("{}", message["error"])) };
+                        crate::native::apps().shell_reply(id,result);
+                    }
+                }
+            }
             if message["type"] == "pero:app:chat" {
-                #[derive(serde::Deserialize,Default)]
-                #[serde(default,deny_unknown_fields)]
-                struct Launch { message: Option<String>, mode: Option<Mode>, capture: bool, attachments: Vec<Value> }
-                #[derive(serde::Deserialize)]
-                #[serde(rename_all="lowercase")]
-                enum Mode { Append, Replace }
-                let result = (|| -> anyhow::Result<Value> {
-                    let options: Launch = serde_json::from_value(message["options"].clone())?;
-                    anyhow::ensure!(!options.capture && options.attachments.is_empty(), "Native App object references and capture are unavailable");
-                    anyhow::ensure!(options.message.as_ref().is_none_or(|text|text.chars().count()<=64000), "App chat message exceeds 64000 characters");
+                let result = (|| -> anyhow::Result<String> {
                     anyhow::ensure!(this.navigation.current()==Some(&item), "Show the App before opening its conversation");
-                    this.set_chat_dock(true,cx);
                     this.chat.update(cx, |chat,cx| {
                         chat.open_app_draft(scope.clone(),cx);
-                        let thread = chat.active_chat.and_then(|index|chat.chats.get(index)).ok_or_else(||anyhow::anyhow!("Open Chat and retry"))?.id.clone();
-                        if let Some(text) = options.message {
-                            let mut insertion = HostEvent::new("compose_context",None,text);
-                            insertion.data=json!({"thread_id":thread,"contexts":[],"replace":matches!(options.mode,Some(Mode::Replace))});
-                            chat.receive(&insertion,cx);
-                        }
-                        Ok(json!({"threadId":thread,"references":[]}))
+                        Ok(chat.active_chat.and_then(|index|chat.chats.get(index)).ok_or_else(||anyhow::anyhow!("Open Chat and retry"))?.id.clone())
                     })
                 })();
-                let reply = match result {
-                    Ok(value)=>json!({"type":"pero:app:chat-result","id":message["id"],"ok":true,"value":value}),
-                    Err(error)=>json!({"type":"pero:app:chat-result","id":message["id"],"ok":false,"error":error.to_string()}),
-                };
-                view.read(cx).send(reply,cx);
+                let id = message["id"].clone();
+                let options = message["options"].clone();
+                match result {
+                    Err(error) => view.read(cx).send(json!({"type":"pero:app:chat-result","id":id,"ok":false,"error":error.to_string()}),cx),
+                    Ok(thread) => {
+                        let scope=scope.clone(); let page=view.clone(); let apps=crate::native::apps();
+                        cx.spawn_in(window,async move |this,cx| {
+                            let request=json!({"operation":"app-context","scope":scope,"thread":thread,"options":options.clone()});
+                            let result=cx.background_executor().spawn(async move {apps.context(request)}).await;
+                            let _=this.update_in(cx,|this,_,cx| {
+                                let reply=match result {
+                                    Ok(contexts)=>{
+                                        this.set_chat_dock(true,cx);
+                                        let mut insertion=HostEvent::new("compose_context",None,options["message"].as_str().unwrap_or_default().to_owned());
+                                        insertion.data=json!({"thread_id":thread,"contexts":contexts,"replace":options["mode"]=="replace"});
+                                        this.chat.update(cx,|chat,cx|chat.receive(&insertion,cx));
+                                        json!({"type":"pero:app:chat-result","id":id,"ok":true,"value":{"threadId":thread}})
+                                    }
+                                    Err(error)=>json!({"type":"pero:app:chat-result","id":id,"ok":false,"error":error.to_string()}),
+                                };
+                                page.read(cx).send(reply,cx);
+                                cx.notify();
+                            });
+                        }).detach();
+                    }
+                }
             }
         });
         self.native_app_pages.insert(
