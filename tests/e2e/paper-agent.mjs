@@ -1,4 +1,5 @@
-import { clickAppOpen } from './sidebar-controls.mjs';
+import { chatState, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
+import { clickAppShortcut } from './sidebar-controls.mjs';
 import { exerciseLocalSearch } from './paper-search-flow.mjs';
 // Real Electron -> Rust Host -> Python App; Agent output is a labelled ACP fixture.
 import { expect } from '@playwright/test';
@@ -13,7 +14,7 @@ import { exercisePdf, reopenPdf, backToLibrary, setPaperAppearance as setAppeara
 const root = resolve(import.meta.dirname, '../..');
 const out = resolve(root, process.env.PERO_PAPER_TEST_OUTPUT || 'test-results/paper-agent');
 await mkdir(out, { recursive: true });
-await rm(resolve(out, 'failure.png'), { force: true });
+await Promise.all(['failure.png', 'failure-chat.json', 'fixture-errors.jsonl'].map(file => rm(resolve(out, file), { force: true })));
 const profile = await realpath(await mkdtemp(resolve(tmpdir(), 'pero-paper-e2e-')));
 const pdfPath = resolve(profile, 'source.pdf');
 const pdfFixture = JSON.parse(execFileSync(process.env.PERO_APP_PYTHON || 'python3', ['-c', `
@@ -39,6 +40,7 @@ await writeFile(agents, JSON.stringify([
   ...['pero', 'codex', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({ id, name: id, command: resolve(profile, `unavailable-${id}`) })),
   { id: 'paper-fixture', name: 'Synthetic Paper fixture', command: process.execPath,
   args: [resolve(root, 'tests/fixtures/paper-agent.mjs'), `--capture=${capture}`] }]));
+await writeFile(resolve(profile, 'settings.json'), JSON.stringify({ chat_agent: 'paper-fixture' }));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop'), PERO_LOCALE: 'en',
   PERO_SETTINGS_PATH: resolve(profile, 'settings.json'), PERO_HISTORY_PATH: resolve(profile, 'sessions.jsonl'), PERO_AGENTS_FILE: agents };
 delete env.ELECTRON_RUN_AS_NODE;
@@ -76,11 +78,7 @@ async function openPaper(page, name = 'paper-agent') {
     const canvas = document.querySelector('canvas');
     return canvas?.width === Math.round(innerWidth * devicePixelRatio) && canvas.height === Math.round(innerHeight * devicePixelRatio);
   });
-  await page.mouse.click(80, await page.evaluate(() => innerHeight - 60));
-  await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).navigation)).toBe(7);
-  await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).appsLoading)).toBe(false);
-  await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
-  await clickAppOpen(page, name);
+  await clickAppShortcut(page, name);
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).activeApp?.name)).toBe(name);
   const frame = page.frameLocator(`iframe[title="${name}"]`);
   await expect(frame.locator('body')).toBeAttached({ timeout: 20000 });
@@ -247,55 +245,40 @@ try {
     await frame.getByRole('button', { name: 'Related papers', exact: true }).click();
     await page.screenshot({ path: resolve(out, 'discovery-browse.png') });
     await discovered.getByRole('button', { name: 'Compare', exact: true }).click();
-    await expect(frame.getByRole('complementary', { name: 'Ask', exact: true })).toBeVisible();
-    await expect(frame.getByRole('textbox', { name: 'Research question', exact: true })).toContainText('Compare the selected papers');
+    await expect.poll(async () => (await chatState(page)).composer).toContain('Compare the selected papers');
+    await expect.poll(async () => (await chatState(page)).attachments.length).toBe(1);
+    await expect(frame.locator('#paper-question')).toHaveCount(0);
     expect(await fixtureTurns()).toHaveLength(0);
-    checks.push('discovery remains in library: confirmation, related/reference/citing directions, pagination, retry, metadata favorites and explicit comparison');
-    await frame.getByRole('button', { name: 'Research settings', exact: true }).click();
-    await expect(frame.getByLabel('Agent', { exact: true })).toContainText('Synthetic Paper fixture');
-    await frame.getByLabel('Agent', { exact: true }).selectOption('paper-fixture');
-    await frame.locator('.pa-conversation-settings details>summary').filter({hasText:'Choose papers'}).click();
-    await expect(frame.locator('.pa-conversation-settings input[type=checkbox]:checked')).toHaveCount(2);
-    await frame.getByRole('button', { name: 'Research settings', exact: true }).click();
-    await frame.getByRole('textbox', { name: 'Research question', exact: true }).fill('What does this synthetic source establish?');
-    await frame.getByRole('button', { name: 'Send question', exact: true }).click();
-    await expect(frame.getByRole('heading', { name: 'Synthetic research report', exact: true })).toBeVisible({ timeout: 30000 });
-    expect(await savedCount(frame)).toBe(1);
-    await expect(frame.locator('.pa-turn .pa-scientific table')).toBeVisible();
-    await expect(frame.locator('.pa-turn .pa-scientific .katex-display')).toBeVisible();
-    await expect(frame.locator('.pa-turn .pa-scientific code .hljs-built_in')).toContainText('print');
-    await expect(frame.locator('.pa-turn .pa-matrix td[data-status="missing"]').first()).toContainText('Not provided');
-    await expect(frame.locator('.pa-turn .pa-matrix')).toContainText('Synthetic W2');
+    checks.push('comparison opens the shared Host draft with frozen source references and never auto-sends');
+    await fillPaperChat(page, 'What does this synthetic source establish?');
+    await expect.poll(async () => (await chatState(page)).attachments.length).toBeGreaterThan(0);
+    await page.keyboard.press('Enter');
+    await expect.poll(() => savedCount(frame), { timeout: 30000 }).toBe(1);
+    await expect.poll(async () => { const s = await chatState(page); return s.chats[s.activeChat].state; }).toBe('idle');
+    const firstReport = (await library(frame)).reports[0];
+    const turn = await showPaperReport(frame, page, firstReport.intentId);
+    await expect(turn.locator('.pa-scientific table')).toBeVisible();
+    await expect(turn.locator('.pa-scientific .katex-display')).toBeVisible();
+    await expect(turn.locator('.pa-scientific code .hljs-built_in')).toContainText('print');
+    await expect(turn.locator('.pa-matrix td[data-status="missing"]').first()).toContainText('Not provided');
     await frame.getByRole('button', { name: 'Scope Citation evidence 1', exact: true }).click();
     await expect(frame.getByRole('complementary', { name: 'Citation evidence', exact: true }).locator('mark')).toBeVisible();
-    await frame.getByRole('complementary', { name: 'Citation evidence', exact: true }).getByRole('button', {name:'Close',exact:true}).press('Escape');
+    await frame.getByRole('complementary', { name: 'Citation evidence', exact: true }).getByRole('button', { name: 'Close', exact: true }).press('Escape');
     await expect(frame.getByRole('button', { name: 'Scope Citation evidence 1', exact: true })).toBeFocused();
     await page.screenshot({ path: resolve(out, 'scientific-matrix.png') });
-    checks.push('inline answers, GFM/math/code, evidence matrices, exact source citations and keyboard focus restoration');
-
-    await frame.getByRole('textbox', { name: 'Research question', exact: true }).fill('paper-fixture-invalid: What does this synthetic source establish?');
-    await frame.getByRole('button', { name: 'Send question', exact: true }).click();
-    await expect(frame.getByText('The report was not saved. Correct the output below and validate again.', { exact: true })).toBeVisible({timeout:30000});
-    await expect(frame.getByRole('alert').filter({hasText:'Evidence quotation'})).toBeVisible();
+    checks.push('shared Chat calls declared prepare/submit tools; records render GFM, math, code, exact citations and focus restoration');
+    await turn.getByRole('button', { name: 'Continue from here', exact: true }).click();
+    await fillPaperChat(page, 'paper-fixture-invalid: reject invented evidence');
+    await page.keyboard.press('Enter');
+    await expect.poll(async () => { const s = await chatState(page); return s.chats[s.activeChat].state; }).toBe('idle');
     expect(await savedCount(frame)).toBe(1);
-    const raw = frame.getByLabel('Report JSON', {exact:true});
-    const output = JSON.parse(await raw.inputValue());
-    await raw.fill('{broken JSON');
-    await frame.getByRole('button', { name: 'Validate and save report', exact: true }).click();
-    await expect(frame.getByRole('alert').filter({hasText:'No valid JSON report'})).toBeVisible();
-    output.title = 'Corrected synthetic report';
-    output.sections[0].content += '\n\n<script>window.paperInjected = true</script>\n\n[unsafe](javascript:alert(1))';
-    output.sections[0].evidence[0].quote = paper.content.split('\n').find(line => line.trim() && !line.startsWith('#'));
-    await raw.fill(JSON.stringify(output));
-    await frame.getByRole('button', { name: 'Validate and save report', exact: true }).click();
-    await expect(frame.getByRole('heading', { name: 'Corrected synthetic report', exact: true })).toBeVisible();
-    expect(await savedCount(frame)).toBe(2);
-    expect(await frame.locator('body').evaluate(() => window.paperInjected)).toBeUndefined();
-    await expect(frame.locator('.pa-scientific script,.pa-scientific a[href^="javascript:"]')).toHaveCount(0);
-    await frame.getByRole('button', {name:'Dismiss error',exact:true}).click();
-    await frame.getByRole('button', { name: 'Research settings', exact: true }).click();
-    checks.push('invalid Agent evidence rejected, editable output retained, explicit JSON repair and safe rendering');
-    await frame.locator('.pa-turn .pa-answer-actions>summary').click();
+    await expect(frame.locator('#paper-question')).toHaveCount(0);
+    checks.push('invalid quotation is rejected by Paper through the shared MCP tool; no duplicate report parser or composer');
+    await closePaperChat(page);
+    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Research record', exact: true }).click();
+    // Opening Chat closed the records drawer; reopen the selected saved answer.
+    const exportTurn = await showPaperReport(frame, page, firstReport.intentId);
+    await exportTurn.locator('.pa-answer-actions>summary').click();
     for (const [label, filename] of [['Export Markdown','research.md'],['Export JSON','research.json']]) {
       const destination=resolve(out,filename); await rm(destination,{force:true});
       await app.evaluate(({session},path)=>session.defaultSession.once('will-download',(_event,item)=>item.setSavePath(path)),destination);
@@ -304,19 +287,23 @@ try {
     }
     expect(await readFile(resolve(out,'research.md'),'utf8')).toContain('Acceptance: unverified');
     await page.emulateMedia({media:'print'});
-    await expect(frame.locator('.pa-turn .pa-print-appendix')).toContainText(paper.contentDigest);
-    await expect(frame.locator('.pa-turn .pa-print-appendix')).toBeVisible();
+    await expect(exportTurn.locator('.pa-print-appendix')).toBeVisible();
     await page.emulateMedia({media:'screen'});
-    checks.push('report exports and print appendix preserve evidence and source versions');
-    await frame.getByRole('textbox',{name:'Research question',exact:true}).fill('paper-fixture-wait: cancellation acceptance');
-    await frame.getByRole('button',{name:'Send question',exact:true}).click();
-    await frame.getByRole('button',{name:'Cancel research',exact:true}).click();
-    await expect(frame.getByText('Research cancelled',{exact:true})).toBeVisible({timeout:15000});
-    expect(await savedCount(frame)).toBe(2);
-    checks.push('Host cancellation works from the conversation without committing an answer');
+    checks.push('persisted report exports retain source versions and unverified acceptance');
+    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask', exact: true }).click();
+    await fillPaperChat(page, 'paper-fixture-wait: cancellation acceptance');
+    await page.keyboard.press('Enter');
+    await expect.poll(async () => { const s = await chatState(page); return s.chats[s.activeChat].state; }).toBe('running');
+    const bounds = (await chatState(page)).stopButtonBounds;
+    await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await expect.poll(async () => { const s = await chatState(page); return s.chats[s.activeChat].state; }).toBe('idle');
+    expect(await savedCount(frame)).toBe(1);
+    await closePaperChat(page);
+    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Research record', exact: true }).click();
+    checks.push('cancellation uses the shared Host Chat stop control');
     await setAppearance(page,'dark');
     await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click());
-    await expect(frame.getByRole('button',{name:'关闭 Agent',exact:true})).toBeVisible();
+    await expect(frame.getByRole('button',{name:'关闭研究记录',exact:true})).toBeVisible();
     await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1000,800));
     await expect.poll(async()=>frame.locator('html').evaluate(element=>element.scrollWidth<=element.clientWidth+1)).toBe(true);
     await page.screenshot({path:resolve(out,'dark-zh-narrow.png')});
@@ -332,14 +319,14 @@ try {
   await app.close();app=await launch();page=await app.firstWindow();observe(page);
   await app.evaluate(({Menu,BrowserWindow})=>{Menu.getApplicationMenu().getMenuItemById('locale-en').click();BrowserWindow.getAllWindows()[0].setSize(1440,900);});
   frame=await openPaper(page);
-  await reopenPdf({frame,saved:savedPdf});
+  await reopenPdf({frame,page,saved:savedPdf});
   const state=await library(frame),pdfIntent=state.reports.find(report=>report.title==='PDF answer fixture').intentId;
   await frame.locator(`[data-turn-id="${pdfIntent}"]>summary`).click();
   await expect(frame.getByRole('heading',{name:'PDF answer fixture',exact:true})).toBeVisible();
   await frame.locator(`[data-turn-id="${pdfIntent}"] .pa-scientific`).getByRole('button',{name:'Citation evidence 1',exact:true}).click();
   await expect(frame.locator('[data-citation-region="true"]').first()).toBeVisible();
   expect((await fixtureTurns()).length).toBe(beforeRestart);
-  checks.push('conversation history, reports, PDF bytes, annotations, matrices and exact citations survive Desktop restart without Agent replay');
+  checks.push('research records, reports, PDF bytes, annotations, matrices and exact citations survive Desktop restart without Agent replay');
   await page.screenshot({path:resolve(out,'conversation-reopened.png')});
   const other=await openPaper(page, 'virtual-cell');
   const denied=await other.locator('body').evaluate(async()=>{const response=await fetch('/host/agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'info'})});return{status:response.status,text:await response.text()};});
@@ -354,6 +341,8 @@ try {
   if (app) {
     const page = await app.firstWindow();
     await page.screenshot({ path: resolve(out, 'failure.png') }).catch(() => {});
+    await writeFile(resolve(out, 'failure-chat.json'), await page.evaluate(() => window.peroDiagnostics.snapshot()));
+    await writeFile(resolve(out, 'fixture-errors.jsonl'), await readFile(capture + '.errors.jsonl', 'utf8').catch(() => ''));
     console.error('Paper Agent failure state', { errors, agentTrace: agentTrace.slice(-8), fixtureTurns: await fixtureTurns(), state: await page.evaluate(() => {
       const value = JSON.parse(window.peroDiagnostics?.snapshot() ?? '{}');
       return { navigation: value.navigation, activeApp: value.activeApp, appError: value.appError,
