@@ -86,6 +86,7 @@ export const messages = {
   findLabel: { zh: '关键词、论文 ID 或链接', en: 'Keywords, paper ID or URL' },
   searchPlaceholder: { zh: '例如：single-cell perturbation', en: 'For example: single-cell perturbation' },
   searchAction: { zh: '搜索文献', en: 'Search papers' }, fetchPaper: { zh: '读取 ID / 链接', en: 'Read ID / URL' },
+  addingPaper: { zh: '正在读取论文…', en: 'Reading paper…' },
   searching: { zh: '正在检索…', en: 'Searching…' }, loading: { zh: '正在加载…', en: 'Loading…' },
   source: { zh: '来源', en: 'Source' }, sourceLabel: { zh: '文献来源', en: 'Literature source' },
   allSources: { zh: '全部来源', en: 'All sources' },
