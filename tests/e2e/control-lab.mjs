@@ -13,7 +13,7 @@ await mkdir(out, { recursive: true });
 for (const name of ['result.json', 'failure.json']) await rm(resolve(out, name), { force: true });
 const execute = promisify(execFile);
 const checks = [], requests = [], errors = [], consoleErrors = [], cleanup = [], experiments = {};
-let expect, electron, clickAppOpen, setAppearance, temp, app, page, frame, failure;
+let expect, electron, clickAppOpen, clickAppShortcut, setAppearance, temp, app, page, frame, failure;
 const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const read = path => frame.locator('body').evaluate(async (_body, path) => {
   const response = await fetch(path);
@@ -33,7 +33,7 @@ async function openLab() {
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await expect.poll(async () => (await state()).apps?.some(item => item.name === 'control-lab')).toBe(true);
   await painted();
-  await page.mouse.click(80, await page.evaluate(() => innerHeight - 55));
+  await clickAppShortcut(page, 'apps');
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await painted();
@@ -148,7 +148,7 @@ async function selectExperiment(id) {
 try {
   ({ expect } = await import('@playwright/test'));
   ({ electron } = await import('./electron.mjs'));
-  ({ clickAppOpen, setAppearance } = await import('./sidebar-controls.mjs'));
+  ({ clickAppOpen, clickAppShortcut, setAppearance } = await import('./sidebar-controls.mjs'));
   if (!['linux', 'darwin'].includes(process.platform)) throw new Error('Control Lab numerical Desktop gate requires supported Unix process cleanup; unsupported platforms are not a skipped PASS.');
   // Fail before launching if either real engine is missing. A dependency absence
   // must not silently convert this two-engine acceptance into a mocked/one-engine run.

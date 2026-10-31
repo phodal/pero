@@ -38,7 +38,7 @@ let app, page, frame, frozen, final, transcript, failure, provider, cleanup = {}
 const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } };
 const { expect } = await import('@playwright/test');
-const { clickAppOpen } = await import('./sidebar-controls.mjs');
+const { clickAppOpen, clickAppShortcut } = await import('./sidebar-controls.mjs');
 const { electron } = await import('./electron.mjs');
 try {
   if (fixture) {
@@ -60,7 +60,7 @@ try {
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await expect.poll(async () => (await state()).apps?.some(item => item.name === 'control-lab')).toBe(true);
   await page.waitForFunction(() => { const c = document.querySelector('canvas'); return c?.width === Math.round(innerWidth * devicePixelRatio) && c.height === Math.round(innerHeight * devicePixelRatio); });
-  await page.mouse.click(80, await page.evaluate(() => innerHeight - 55));
+  await clickAppShortcut(page, 'apps');
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
