@@ -31,6 +31,7 @@ pub(crate) struct ProjectGroup {
     pub rows: Vec<RecentRow>,
 }
 pub(crate) struct AppShortcut {
+    pub placement: crate::apps::AppPlacement,
     pub name: String, pub panel: String, pub label: String, pub icon: String, pub active: bool,
 }
 pub(crate) struct SidebarProps<'a> {
@@ -38,6 +39,7 @@ pub(crate) struct SidebarProps<'a> {
     pub navigation: WorkbenchPage,
     pub catalog_open: bool,
     pub terminal_open: bool,
+    pub identity: String,
     pub local_connected: bool,
     pub collapsed: bool,
     pub apps: Vec<AppShortcut>,
@@ -381,16 +383,13 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
         };
         div().w_full().flex().justify_center().child(element)
     };
-    div().id("sidebar").w(px(width)).h_full().flex_shrink_0().flex().flex_col()
-        .bg(p.surface_muted).text_color(p.text).text_size(chrome.text(pero_theme::TYPE_BODY))
-        .border_r_1().border_color(p.border).p(px(8.)).gap(px(4.))
-        .child(nav("sidebar-sessions", ui.t("nav.sessions"), "icons/message-circle.svg", props.navigation == WorkbenchPage::Conversation, SidebarAction::Navigate(WorkbenchPage::Conversation))
-            .relative().child(props.shortcut_bounds.probe("sessions".into())))
-        .child(nav("sidebar-projects", ui.t("nav.projects"), "icons/folder.svg", matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks), SidebarAction::Navigate(WorkbenchPage::Projects)))
-        .when(!collapsed, |el| el.child(div().px(px(8.)).pt(px(16.)).pb(px(4.)).text_color(p.text_muted).text_size(px(12.)).child(ui.t("nav.apps"))))
-        .child(nav("sidebar-apps", ui.t("apps.manage"), "icons/layout-grid.svg", props.navigation == WorkbenchPage::Apps && props.catalog_open, SidebarAction::Navigate(WorkbenchPage::Apps)).relative().child(props.shortcut_bounds.probe("apps".into())))
-        .child(div().id("sidebar-app-scroll").flex_1().min_h_0().overflow_y_scroll()
-            .children(props.apps.into_iter().enumerate().map(|(index, app)| {
+    use crate::apps::AppPlacement;
+    let mut workspace = Vec::new(); let mut catalog = Vec::new(); let mut customize = Vec::new();
+    for (index, app) in props.apps.into_iter().enumerate() {
+        match app.placement { AppPlacement::Workspace => workspace.push((index, app)), AppPlacement::Customize => customize.push((index, app)), AppPlacement::Catalog => catalog.push((index, app)) }
+    }
+    workspace.sort_by_key(|(_, app)| if app.name == "paper-agent" { 0 } else { 1 });
+    let app_rows = |apps: Vec<(usize, AppShortcut)>| apps.into_iter().map(|(index, app)| {
                 let action = SidebarAction::OpenApp { name: app.name.clone(), panel: app.panel };
                 let element = if collapsed {
                     pero_theme::ghost_icon_button(("sidebar-app", index), chrome, cx)
@@ -401,8 +400,32 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
                         Some(Icon::default().path(app.icon).into_any_element()), chrome, click(&on_action, action)).into_any_element()
                 };
                 div().relative().w_full().flex().justify_center().child(element).child(props.shortcut_bounds.probe(app.name))
-            })))
+            }).collect::<Vec<_>>();
+    div().id("sidebar").w(px(width)).h_full().flex_shrink_0().flex().flex_col()
+        .bg(p.surface_muted).text_color(p.text).text_size(chrome.text(pero_theme::TYPE_BODY))
+        .border_r_1().border_color(p.border).p(px(8.)).gap(px(4.))
+        .child(nav("sidebar-sessions", ui.t("nav.sessions"), "icons/message-circle.svg", props.navigation == WorkbenchPage::Conversation, SidebarAction::Navigate(WorkbenchPage::Conversation))
+            .relative().child(props.shortcut_bounds.probe("sessions".into())))
+        .child(nav("sidebar-projects", ui.t("nav.projects"), "icons/folder.svg", matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks), SidebarAction::Navigate(WorkbenchPage::Projects)))
+        .child(div().id("sidebar-app-scroll").flex_1().min_h_0().overflow_y_scroll()
+            .when(!collapsed, |el| el.child(div().px(px(8.)).pt(px(16.)).pb(px(4.)).text_color(p.text_muted).text_size(px(12.)).child(ui.t("nav.workspace"))))
+            .children(app_rows(workspace))
+            .when(!collapsed, |el| el.child(div().px(px(8.)).py(px(6.)).flex().justify_between().text_color(p.disabled_text)
+                .child(ui.t("nav.environment")).child(div().text_size(px(12.)).child(ui.t("nav.todo")))))
+            .when(!collapsed, |el| el.child(div().px(px(8.)).pt(px(16.)).pb(px(4.)).text_color(p.text_muted).text_size(px(12.)).child(ui.t("nav.apps"))))
+            .child(nav("sidebar-apps", ui.t("apps.manage"), "icons/layout-grid.svg", props.navigation == WorkbenchPage::Apps && props.catalog_open, SidebarAction::Navigate(WorkbenchPage::Apps)).relative().child(props.shortcut_bounds.probe("apps".into())))
+            .children(app_rows(catalog)))
         .child(nav("sidebar-terminal", ui.t("terminal.title"), "icons/terminal.svg", props.terminal_open, SidebarAction::Terminal).relative().child(props.shortcut_bounds.probe("terminal".into())))
         .when(!props.local_connected && !collapsed, |el| el.child(div().px(px(8.)).py(px(6.)).text_color(p.warning).text_size(px(12.)).child(ui.t("status.disconnected"))))
+        .children(app_rows(customize))
+        .child(pero_theme::ghost_icon_button("sidebar-automations", chrome, cx)
+            .w_full().h(chrome.geo(pero_theme::ROW_NAV)).px(px(8.)).text_size(chrome.text(pero_theme::TYPE_BODY))
+            .disabled(true).accessibility_label(ui.t("nav.automations"))
+            .icon(Icon::default().path("icons/clock.svg"))
+            .when(!collapsed, |button| button.child(div().w_full().flex().items_center().justify_between()
+                .child(ui.t("nav.automations"))
+                .child(div().text_size(px(12.)).child(ui.t("nav.todo"))))))
         .child(settings)
+        .when(!collapsed, |el| el.child(div().mt(px(4.)).border_t_1().border_color(p.border).px(px(8.)).py(px(8.))
+            .text_ellipsis().child(props.identity)))
 }

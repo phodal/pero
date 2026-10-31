@@ -133,10 +133,18 @@ mod shell {
             window: &mut Window,
             cx: &mut Context<Self>,
         ) {
-            if self.pending_close.is_some() {
+            self.close_pane_tabs(vec![view], window, cx);
+        }
+        pub(crate) fn close_pane_tabs(
+            &mut self,
+            views: Vec<ViewId>,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            if views.is_empty() || self.pending_close.is_some() {
                 return;
             }
-            self.pending_close = Some(ClosePlan::new(vec![view], None));
+            self.pending_close = Some(ClosePlan::new(views, None));
             self.advance_workspace_close(window, cx);
         }
         pub(crate) fn request_close_pane(

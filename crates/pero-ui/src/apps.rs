@@ -22,6 +22,27 @@ pub(crate) struct InstalledApp {
     pub panels: Vec<AppPanel>,
 }
 
+/// Workbench-owned destinations stay outside the optional App catalog.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AppPlacement { Workspace, Customize, Catalog }
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum AppCategory { #[default] All, Research, Data, Tools }
+impl AppCategory {
+    pub const ALL: [Self; 4] = [Self::All, Self::Research, Self::Data, Self::Tools];
+    pub fn label_key(self) -> &'static str {
+        match self { Self::All => "apps.category_all", Self::Research => "apps.category_research", Self::Data => "apps.category_data", Self::Tools => "apps.category_tools" }
+    }
+}
+impl InstalledApp {
+    pub fn placement(&self) -> AppPlacement {
+        match self.name.as_str() { "paper-agent" | "data" => AppPlacement::Workspace, "connectors" => AppPlacement::Customize, _ => AppPlacement::Catalog }
+    }
+    pub fn category(&self) -> AppCategory {
+        match self.name.as_str() { "virtual-cell" | "control-lab" => AppCategory::Research, "data-agent" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
+    }
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 pub(crate) struct AppSelection {
     pub name: String,
@@ -55,6 +76,7 @@ pub(crate) struct AppPreparationView {
 #[derive(Default)]
 pub(crate) struct AppCatalog {
     pub entries: Vec<InstalledApp>,
+    pub category: AppCategory,
     pub loading: bool,
     pub error: Option<String>,
     pub removing: Option<String>,
@@ -126,8 +148,10 @@ mod surface {
         }
 
         pub(crate) fn installed_app_title(&self, name: &str, display_name: &str) -> String {
-            if name == "connectors" {
-                self.t("nav.connectors").to_string()
+            if name == "paper-agent" {
+                self.t("nav.papers").to_string()
+            } else if name == "connectors" {
+                self.t("nav.customize").to_string()
             } else {
                 display_name.to_string()
             }
@@ -254,7 +278,7 @@ mod surface {
             let _ = (bounds, cx);
         }
 
-        pub(crate) fn apps_view(&self, cx: &mut Context<Self>) -> AnyElement {
+        pub(crate) fn apps_view(&self, content_width: f32, cx: &mut Context<Self>) -> AnyElement {
             let p = &pero_theme::UiAppearance::global(cx).palette.clone();
             let busy = self.apps.loading;
             if let Some(WorkspaceItem::App { name, panel }) = self.navigation.current() {
@@ -287,9 +311,14 @@ mod surface {
             #[cfg(target_family = "wasm")]
             let preparation: Option<AnyElement> = None;
             let chrome = pero_theme::Chrome::from_app(cx);
-            div().id("apps-library").flex_1().min_w_0().h_full().overflow_y_scroll().bg(chrome.list()).p(px(pero_theme::WorkbenchStyle::PAGE))
-                .child(div().id("apps-library-header").flex().flex_shrink_0().items_center().justify_end()
-                    .gap(px(pero_theme::ICON_GAP)).mb(px(pero_theme::WorkbenchStyle::PAGE))
+            let rail_width = if content_width < 720. { 148. } else { 200. };
+            let grid_width = (content_width - 48. - rail_width - 24.).max(120.);
+            let columns = if grid_width >= 720. { 2. } else { 1. };
+            let card_width = (grid_width - (columns - 1.) * 14.) / columns;
+            div().id("apps-library").flex_1().min_w_0().h_full().overflow_y_scroll().bg(p.bg).p(px(24.))
+                .child(div().id("apps-library-header").flex().flex_shrink_0().items_center()
+                    .child(div().flex_1().font_weight(FontWeight::SEMIBOLD).text_size(px(22.)).child(self.t("apps.manage")))
+                    .gap(px(pero_theme::ICON_GAP)).mb(px(24.))
                     .child(pero_theme::action_button("apps-refresh", self.t("apps.refresh"), pero_theme::ActionKind::Ghost, chrome, cx)
                         .icon(Icon::default().path(pero_chat_ui::assets::UiIcon::Refresh.path()))
                         .disabled(busy)
@@ -320,8 +349,19 @@ mod surface {
                                     this.command(json!({"action":"apps_uninstall","name":name}), cx);
                                 })))))
                 })
-                .child(div().id("apps-launchpad").w_full().flex().flex_wrap().items_start().gap(px(16.))
-                    .children(self.apps.entries.iter().enumerate().map(|(index, app)| {
+                .child(div().flex().gap(px(24.)).w_full()
+                    .child(div().id("apps-categories").w(px(rail_width)).flex_shrink_0().flex().flex_col().gap(px(4.))
+                        .child(div().px(px(8.)).py(px(8.)).text_color(p.text_muted).child(self.t("apps.categories")))
+                        .children(AppCategory::ALL.into_iter().enumerate().map(|(index, category)| {
+                            let count = self.apps.entries.iter().filter(|app| app.placement() == AppPlacement::Catalog && (category == AppCategory::All || app.category() == category)).count();
+                            Button::new(("app-category", index)).ghost().w_full().selected(self.apps.category == category)
+                                .accessibility_label(format!("{} ({})", self.t(category.label_key()), count))
+                                .child(div().w_full().flex().justify_between().child(self.t(category.label_key())).child(count.to_string()))
+                                .on_click(cx.listener(move |this, _, _, cx| { this.apps.category = category; cx.notify(); }))
+                        })))
+                    .child(div().id("apps-launchpad").flex_1().min_w_0().flex().flex_wrap().items_start().gap(px(14.))
+                    .when(!busy && !self.apps.entries.iter().any(|app| app.placement() == AppPlacement::Catalog && (self.apps.category == AppCategory::All || app.category() == self.apps.category)), |el| el.child(div().p(px(12.)).text_color(p.text_muted).child(self.t("apps.category_empty"))))
+                    .children(self.apps.entries.iter().enumerate().filter(|(_, app)| app.placement() == AppPlacement::Catalog && (self.apps.category == AppCategory::All || app.category() == self.apps.category)).map(|(index, app)| {
                         let title = self.installed_app_title(&app.name, &app.display_name);
                         let name = app.name.clone();
                         let required = app.tenure == "required";
@@ -335,27 +375,25 @@ mod surface {
                         let toggle_label = self.t(if enabled { "apps.disable" } else { "apps.enable" });
                         let remove_label = self.t("apps.remove");
                         let menu_caption = format!("{}  {}", title, app.version);
-                        div().w(px(160.)).min_w_0().flex().flex_col().items_center().gap(px(4.)).pb(px(12.))
-                            .child(Button::new(("app-open", index)).ghost().w_full().h(px(112.)).px(px(8.))
-                                .accessibility_label(title.clone()).tooltip(format!("{} {}\n{}", title, app.version, app.description))
-                                .disabled(busy || !enabled)
-                                .relative().children((enabled && !busy).then(|| self.view_bounds.app_open.probe(name.clone())))
-                                .child(div().flex().flex_col().items_center().gap(px(10.)).w_full()
-                                    .child(div().size(px(56.)).rounded(px(12.)).bg(p.surface).flex().items_center().justify_center()
-                                        .when(!enabled, |el| el.opacity(0.45))
-                                        .child(svg().path(icon).size(px(30.)).text_color(p.text)))
-                                    .child(div().w_full().text_ellipsis().text_center().font_weight(FontWeight::SEMIBOLD).child(title.clone())))
-                                .on_click(cx.listener(move |this, _, _, cx| { this.open_app(open_name.clone(), panel.clone(), cx); cx.notify(); })))
-                            .child(div().h(px(24.)).flex().items_center().justify_center().gap(px(8.))
-                                .when(enabled, |el| el.child(div().text_size(px(12.)).text_color(p.text_muted).child(app.version.clone())))
-                                .when(!enabled, |el| {
-                                    let name = name.clone();
-                                    el.child(Button::new(("app-enable", index)).ghost().small().label(self.t("apps.enable")).disabled(busy)
-                                        .on_click(cx.listener(move |this, _, _, cx| {
-                                            this.apps.loading = true;
-                                            this.command(json!({"action":"apps_enable","name":name}), cx);
-                                        })))
-                                })
+                        div().w(px(card_width)).min_w_0().min_h(px(112.)).flex().items_center().gap(px(14.)).p(px(16.))
+                            .rounded(px(12.)).border_1().border_color(p.border).bg(p.surface)
+                            .child(div().size(px(44.)).flex_shrink_0().rounded(px(8.)).bg(p.surface_muted)
+                                .border_1().border_color(p.border).flex().items_center().justify_center()
+                                .child(svg().path(icon).size(px(28.)).text_color(p.text)))
+                            .child(div().flex_1().min_w_0().flex().flex_col().gap(px(4.))
+                                .child(div().overflow_hidden().whitespace_nowrap().text_ellipsis().font_weight(FontWeight::SEMIBOLD).child(title.clone()))
+                                .child(div().text_size(px(12.)).text_color(p.text_muted).child(format!("{}   {}", self.t(app.category().label_key()), app.version)))
+                                .child(div().overflow_hidden().whitespace_nowrap().text_ellipsis().text_size(px(12.)).text_color(p.text_muted).child(app.description.clone())))
+                            .child(div().flex_shrink_0().flex().flex_col().items_end().gap(px(4.))
+                                .child(Button::new(("app-open", index)).small()
+                                    .label(self.t(if enabled { "apps.open" } else { "apps.enable" }))
+                                    .disabled(busy)
+                                    .relative().children((enabled && !busy).then(|| self.view_bounds.app_open.probe(name.clone())))
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        if enabled { this.open_app(open_name.clone(), panel.clone(), cx); }
+                                        else { this.apps.loading = true; this.command(json!({"action":"apps_enable","name":open_name}), cx); }
+                                        cx.notify();
+                                    })))
                                 .when(!required, |el| el.child(pero_theme::ghost_icon_button(("app-menu", index), chrome, cx)
                                     .icon(Icon::default().path("icons/dots.svg")).accessibility_label(format!("{}: {}", title, self.t("apps.actions")))
                                     .tooltip(self.t("apps.actions")).disabled(busy).dropdown_caret(false)
@@ -374,7 +412,7 @@ mod surface {
                                                 let _ = remove.update(cx, |this, cx| { this.apps.removing = Some(remove_name.clone()); cx.notify(); });
                                             }))
                                     }))))
-                    }))).into_any_element()
+                    })))).into_any_element()
         }
     }
 }

@@ -1,7 +1,7 @@
 {
   "sessions.no_matches": "No matching sessions.",
   "apps.actions": "App actions",
-  "apps.manage": "Manage apps",
+  "apps.manage": "App Store",
   "sessions.search": "Search sessions…",
   "mcp.import": "Import JSON",
   "mcp.import_save": "Import as disabled",
@@ -676,6 +676,8 @@
   "chat.usage_input": "Input tokens",
   "chat.usage_output": "Output tokens",
   "workspace.close_tab": "Close tab",
+  "workspace.close_other_tabs": "Close other tabs",
+  "workspace.close_all_tabs": "Close all tabs",
   "workspace.resize_chat": "Resize chat. Use Left and Right arrow keys.",
   "workspace.resize_sidebar": "Resize sidebar. Use Left and Right arrow keys.",
   "composer.app_object": "App objects",
@@ -839,5 +841,18 @@
   "terminal.new": "New terminal",
   "terminal.hide": "Hide terminal",
   "terminal.copy": "Copy visible output",
-  "terminal.close_confirm": "Close this terminal and stop its commands?"
+  "terminal.close_confirm": "Close this terminal and stop its commands?",
+  "nav.customize": "Customize",
+  "nav.papers": "Papers",
+  "nav.workspace": "Workspace",
+  "nav.environment": "Environment",
+  "nav.todo": "Coming soon",
+  "nav.local_user": "Local user",
+  "apps.categories": "Categories",
+  "apps.category_all": "All apps",
+  "apps.category_research": "Research",
+  "apps.category_data": "Data & analysis",
+  "apps.category_tools": "Tools",
+  "nav.automations": "Automations",
+  "apps.category_empty": "No apps in this category"
 }

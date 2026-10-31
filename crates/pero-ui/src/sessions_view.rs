@@ -47,8 +47,13 @@ impl Workbench {
                         this.chat
                             .update(cx, |panel_state, _| panel_state.deleting_chat = None);
                         this.pending_app = Some((name.clone(), panel.clone()));
-                        this.refresh_apps(cx);
-                        this.open_app(name.clone(), panel.clone(), cx);
+                        if this.apps.entries.iter().any(|app| &app.name == name && !app.enabled) {
+                            this.apps.loading = true;
+                            this.command(serde_json::json!({"action":"apps_enable","name":name}), cx);
+                        } else {
+                            this.refresh_apps(cx);
+                            this.open_app(name.clone(), panel.clone(), cx);
+                        }
                     }
                     SidebarAction::Navigate(index) => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
