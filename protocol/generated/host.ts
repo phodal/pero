@@ -5,7 +5,6 @@
  */
 export type HostProtocol = HostInput | HostEvent | WebCommand;
 export type HostInput =
-  | TerminalRequest
   | McpSettingsRequest
   | IconThemeRequest
   | McpSourceRequest
@@ -20,7 +19,6 @@ export type HostInput =
   | HostCommand
   | AppRequest
   | ContributionRequest;
-export type TerminalRequest = OpenTerminal | WriteTerminal | ResizeTerminal | CloseTerminal;
 export type McpSettingsRequest = GetMcpSettingsRequest | SetMcpSettingsRequest;
 export type McpTransport = McpStdioTransport | McpHttpTransport;
 export type IconThemeRequest = GetIconThemes | InstallIconTheme | SelectIconTheme | RemoveIconTheme;
@@ -75,7 +73,6 @@ export type AppName = string;
 export type AgentRequest = AgentInfoRequest | AgentStartRequest | AgentEventsRequest | AgentCancelRequest;
 export type ContributionRequest = ContributionPrepare | ContributionReview | ContributionPublish;
 export type HostEvent =
-  | TerminalEvent
   | McpSettingsEvent
   | McpSettingsErrorEvent
   | DocumentSaveChooseEvent
@@ -144,7 +141,6 @@ export type HostEvent =
   | PromptQueuedEvent
   | CommandRejectedEvent
   | InsightsEvent;
-export type TerminalData = TerminalOpened | TerminalOutput | TerminalExited | TerminalError;
 export type WebLoad = WebLoading | WebReady | WebFailed;
 /**
  * Catalog key resolved by the UI from locales/*.json.
@@ -180,34 +176,6 @@ export type WebCommand =
   | WebSurfaceCommand
   | WebSurfacesCommand;
 
-export interface OpenTerminal {
-  method: "terminal";
-  action: "open";
-  id: number;
-  cwd: string;
-  size: TerminalSize;
-}
-export interface TerminalSize {
-  rows: number;
-  cols: number;
-}
-export interface WriteTerminal {
-  method: "terminal";
-  action: "write";
-  id: number;
-  bytes: number[];
-}
-export interface ResizeTerminal {
-  method: "terminal";
-  action: "resize";
-  id: number;
-  size: TerminalSize;
-}
-export interface CloseTerminal {
-  method: "terminal";
-  action: "close";
-  id: number;
-}
 export interface GetMcpSettingsRequest {
   method: "settings.mcp.get";
   request_id: string;
@@ -854,33 +822,6 @@ export interface ContributionPublish {
   operation: "publish";
   workspace: string;
   review_token: string;
-}
-export interface TerminalEvent {
-  kind: "terminal";
-  version: 1;
-  request_id: string | null;
-  text: string;
-  data: TerminalData;
-}
-export interface TerminalOpened {
-  kind: "opened";
-  id: number;
-  cwd: string;
-}
-export interface TerminalOutput {
-  kind: "output";
-  id: number;
-  bytes: number[];
-}
-export interface TerminalExited {
-  kind: "exited";
-  id: number;
-  code: number;
-}
-export interface TerminalError {
-  kind: "error";
-  id: number;
-  message: string;
 }
 export interface McpSettingsEvent {
   kind: "mcp_settings";
