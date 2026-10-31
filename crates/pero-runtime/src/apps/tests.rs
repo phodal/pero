@@ -358,3 +358,27 @@ fn required_tenure_rejects_disable_and_reinstalls_a_tampered_record() {
         }
     }
 }
+
+
+#[test]
+fn point_config_uses_the_enabled_app_data_and_declared_storage_permission() {
+    let workspace = Workspace::new();
+    let source = workspace.package(None);
+    fs::create_dir(source.join("point-source")).unwrap();
+    let metadata = source.join("point-source/app.json");
+    fs::write(&metadata, r#"{"permissions":{"storage":true,"api":["/api/apps/virtual-cell/config"]}}"#).unwrap();
+    let mut store = AppStore::open(workspace.0.join("installed"), Default::default()).unwrap();
+    let name = store.install(&source).unwrap()[0].name.clone();
+    assert!(store.point_config(&name, None).is_err());
+    store.set_enabled(&name, true).unwrap();
+    assert_eq!(store.point_config(&name, None).unwrap(), serde_json::json!({}));
+    let config = serde_json::json!({"pythonExecutable":"/explicit/python","nested":{"mode":"review"}});
+    assert_eq!(store.point_config(&name, Some(config.clone())).unwrap(), config);
+    assert!(store.point_config(&name, Some(serde_json::json!([]))).is_err());
+    assert!(store.point_config(&name, Some(serde_json::json!({"large":"x".repeat(1048576)}))).is_err());
+    drop(store);
+    let mut store = AppStore::open(workspace.0.join("installed"), Default::default()).unwrap();
+    assert_eq!(store.point_config(&name, None).unwrap(), config);
+    fs::write(workspace.0.join("installed/virtual-cell/point-source/app.json"), r#"{"permissions":{"storage":false,"api":["/api/apps/virtual-cell/config"]}}"#).unwrap();
+    assert!(store.point_config(&name, None).is_err());
+}

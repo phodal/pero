@@ -157,6 +157,7 @@ app.whenReady().then(async () => {
   });
   protocol.handle('pero-app', request => apps.serve(request));
   const home = prepareWorkbenchHome(process.env, app.getPath('userData'));
+  apps.installedRoot = home.apps;
   runtimeSettingsPath = home.settings;
   harness = new HarnessPreferences(process.env.PERO_ENV_FILE || resolve(app.isPackaged ? app.getPath('userData') : root, '.env'), runtimeSettingsPath, send, fields => savePreference('settings.harness', fields));
   await harness.initialize();
@@ -199,7 +200,7 @@ app.whenReady().then(async () => {
   } else {
     apps.connectors = async () => ({ ok: false, code: 'MCP_PLATFORM_UNSUPPORTED' });
   }
-  host = spawn(resolve(root, `${app.isPackaged ? 'bin' : 'target/debug'}/pero-host${process.platform === 'win32' ? '.exe' : ''}`), ['--stdio'], { cwd: app.isPackaged ? app.getPath('home') : root, stdio: 'pipe', env: {
+  host = spawn(process.env.PERO_HOST_EXECUTABLE || resolve(root, `${app.isPackaged ? 'bin' : 'target/debug'}/pero-host${process.platform === 'win32' ? '.exe' : ''}`), ['--stdio'], { cwd: app.isPackaged ? app.getPath('home') : root, stdio: 'pipe', env: {
     ...hostEnvironment, ...harness.environment(), ...appUseEnvironment, ...connectorEnvironment, PATH: [resolve(root,'bin'),resolve(root,'node_modules/.bin'),process.env.PATH,resolve(app.getPath('home'),'.opencode/bin'),'/opt/homebrew/bin',resolve(app.getPath('home'),'.local/bin')].filter(Boolean).join(delimiter), PERO_LOCALE: locale,
     PERO_AGENT_ROOT: root,
     ...(app.isPackaged ? { PERO_ADAPTER_NODE: process.execPath } : {}),
@@ -207,6 +208,7 @@ app.whenReady().then(async () => {
     PERO_SETTINGS_PATH: runtimeSettingsPath,
     PERO_MCP_EXTERNAL:'1',
     PERO_APPS_ROOT: home.apps,
+    PERO_POINT_RUNTIME_ROOT: resolve(root, 'packages/point-app/dist'),
     PERO_BUILTIN_APPS_ROOT: resolve(root, 'apps'),
     // A source checkout holds test-only Apps too; seed only those the Pero product builds.
     // Required names stay enabled. They are not a field of the App manifest.
@@ -218,7 +220,7 @@ app.whenReady().then(async () => {
         ...(app.isPackaged ? {} : { PERO_BUILTIN_APPS: process.env.PERO_BUILTIN_APPS || (product.apps || []).join(',') }),
       };
     })(),
-    ...(process.env.PERO_APP_NODE ? { PERO_APP_NODE: process.env.PERO_APP_NODE } : {}),
+    PERO_APP_NODE: process.env.PERO_APP_NODE || process.execPath,
     ...(process.env.PERO_APP_PYTHON ? { PERO_APP_PYTHON: process.env.PERO_APP_PYTHON } : {}),
     PERO_HISTORY_PATH: process.env.PERO_HISTORY_PATH || resolve(app.getPath('userData'), 'sessions.jsonl'),
   } });
@@ -380,7 +382,7 @@ app.whenReady().then(async () => {
         host.stdin.write(JSON.stringify(command)+'\n',error=>{if(error){clearTimeout(timer);preferenceWrites.delete(id);rejectWrite(error);}});
       });return;
     }
-    if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'settings.mcp.get', 'settings.mcp.set', 'documents','icons'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
+    if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'settings.mcp.get', 'settings.mcp.set', 'documents','icons','terminal'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
     appUse?.command(command as {action?:string;thread_id?:string});
     host.stdin.write(JSON.stringify(command) + '\n');
   });

@@ -697,6 +697,9 @@
           "$ref": "#/$defs/InstallApp"
         },
         {
+          "$ref": "#/$defs/PointConfig"
+        },
+        {
           "$ref": "#/$defs/EnableApp"
         },
         {
@@ -953,6 +956,9 @@
         "value": {
           "anyOf": [
             {
+              "$ref": "#/$defs/PointConfigReply"
+            },
+            {
               "type": "array",
               "items": {
                 "$ref": "#/$defs/AppRecord"
@@ -1195,6 +1201,31 @@
       "properties": {},
       "additionalProperties": false,
       "description": "Spread into a model to reject unknown fields, matching serde `deny_unknown_fields`."
+    },
+    "CloseTerminal": {
+      "title": "CloseTerminal",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "terminal"
+        },
+        "action": {
+          "type": "string",
+          "const": "close"
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "id"
+      ],
+      "additionalProperties": false
     },
     "CodeContentFormat": {
       "title": "CodeContentFormat",
@@ -3107,6 +3138,9 @@
       "title": "HostEvent",
       "oneOf": [
         {
+          "$ref": "#/$defs/TerminalEvent"
+        },
+        {
           "$ref": "#/$defs/McpSettingsEvent"
         },
         {
@@ -3315,6 +3349,9 @@
     "HostInput": {
       "title": "HostInput",
       "oneOf": [
+        {
+          "$ref": "#/$defs/TerminalRequest"
+        },
         {
           "$ref": "#/$defs/McpSettingsRequest"
         },
@@ -4924,6 +4961,39 @@
       ],
       "additionalProperties": false
     },
+    "OpenTerminal": {
+      "title": "OpenTerminal",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "terminal"
+        },
+        "action": {
+          "type": "string",
+          "const": "open"
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "size": {
+          "$ref": "#/$defs/TerminalSize"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "id",
+        "cwd",
+        "size"
+      ],
+      "additionalProperties": false
+    },
     "PaneItem": {
       "title": "PaneItem",
       "type": "object",
@@ -5270,6 +5340,49 @@
       },
       "required": [
         "kind"
+      ],
+      "additionalProperties": false
+    },
+    "PointConfig": {
+      "title": "PointConfig",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "pointconfig"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "config": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "PointConfigReply": {
+      "title": "PointConfigReply",
+      "type": "object",
+      "properties": {
+        "config": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "config"
       ],
       "additionalProperties": false
     },
@@ -5948,6 +6061,35 @@
         "method",
         "action",
         "request_id"
+      ],
+      "additionalProperties": false
+    },
+    "ResizeTerminal": {
+      "title": "ResizeTerminal",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "terminal"
+        },
+        "action": {
+          "type": "string",
+          "const": "resize"
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "size": {
+          "$ref": "#/$defs/TerminalSize"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "id",
+        "size"
       ],
       "additionalProperties": false
     },
@@ -7238,6 +7380,202 @@
         "version",
         "request_id",
         "text"
+      ],
+      "additionalProperties": false
+    },
+    "TerminalData": {
+      "title": "TerminalData",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TerminalOpened"
+        },
+        {
+          "$ref": "#/$defs/TerminalOutput"
+        },
+        {
+          "$ref": "#/$defs/TerminalExited"
+        },
+        {
+          "$ref": "#/$defs/TerminalError"
+        }
+      ]
+    },
+    "TerminalError": {
+      "title": "TerminalError",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "error"
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "TerminalEvent": {
+      "title": "TerminalEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "terminal"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/TerminalData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "TerminalExited": {
+      "title": "TerminalExited",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "exited"
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "code": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "code"
+      ],
+      "additionalProperties": false
+    },
+    "TerminalOpened": {
+      "title": "TerminalOpened",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "opened"
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "cwd": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "cwd"
+      ],
+      "additionalProperties": false
+    },
+    "TerminalOutput": {
+      "title": "TerminalOutput",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "output"
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "bytes": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "bytes"
+      ],
+      "additionalProperties": false
+    },
+    "TerminalRequest": {
+      "title": "TerminalRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/OpenTerminal"
+        },
+        {
+          "$ref": "#/$defs/WriteTerminal"
+        },
+        {
+          "$ref": "#/$defs/ResizeTerminal"
+        },
+        {
+          "$ref": "#/$defs/CloseTerminal"
+        }
+      ]
+    },
+    "TerminalSize": {
+      "title": "TerminalSize",
+      "type": "object",
+      "properties": {
+        "rows": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "cols": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
+      },
+      "required": [
+        "rows",
+        "cols"
       ],
       "additionalProperties": false
     },
@@ -9035,6 +9373,40 @@
         "version",
         "request_id",
         "text"
+      ],
+      "additionalProperties": false
+    },
+    "WriteTerminal": {
+      "title": "WriteTerminal",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "terminal"
+        },
+        "action": {
+          "type": "string",
+          "const": "write"
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "bytes": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          }
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "id",
+        "bytes"
       ],
       "additionalProperties": false
     }

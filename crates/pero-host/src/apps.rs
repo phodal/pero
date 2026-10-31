@@ -1,4 +1,6 @@
 //! Stdio adapter. App rules, installed state and backend lifetime belong to the runtime.
+#[path = "point_apps.rs"]
+mod point_apps;
 use pero_contracts::HostEvent;
 use pero_runtime::apps::agent::AgentRequest;
 use pero_runtime::apps::{AppName, AppStore};
@@ -21,6 +23,13 @@ enum Request {
         method: Method,
         id: String,
         path: PathBuf,
+    },
+    Pointconfig {
+        method: Method,
+        id: String,
+        name: AppName,
+        #[serde(default)]
+        config: Option<serde_json::Value>,
     },
     Enable {
         method: Method,
@@ -166,7 +175,12 @@ impl Apps {
                 }
                 Request::Install { method, id, path } => {
                     let _ = (method, id);
-                    serde_json::to_value(store.install(&path)?)
+                    let prepared = point_apps::Prepared::new(path)?;
+                    serde_json::to_value(store.install(prepared.path())?)
+                }
+                Request::Pointconfig { method, id, name, config } => {
+                    let _ = (method, id);
+                    serde_json::to_value(serde_json::json!({"config": store.point_config(&name, config)?}))
                 }
                 Request::Enable { method, id, name } => {
                     let _ = (method, id);

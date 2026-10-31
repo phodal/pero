@@ -93,6 +93,7 @@ impl AppProcess {
             );
         }
         command
+            .env("ELECTRON_RUN_AS_NODE", "1")
             .env("PERO_APP_DATA", data)
             .env("PERO_APP_TOKEN", &token)
             .env("PERO_APP_NAME", definition.name.as_str())

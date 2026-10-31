@@ -1,3 +1,5 @@
+#[path = "point_storage.rs"]
+mod point_storage;
 use serde::{Deserialize, Serialize};
 use std::path::{Component, Path};
 
@@ -173,8 +175,8 @@ impl AppDefinition {
                 );
             }
         }
-        if value.contributes.panels.len() != 1 {
-            return Err("This Host requires exactly one App panel".into());
+        if value.contributes.panels.is_empty() || value.contributes.panels.len() > 8 {
+            return Err("This Host supports one to eight App panels".into());
         }
         for panel in &value.contributes.panels {
             if panel.title.trim().is_empty()
