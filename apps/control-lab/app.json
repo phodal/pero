@@ -103,6 +103,7 @@
   },
   "backend": {
     "type": "python",
-    "entry": "backend/server.py"
+    "entry": "backend/server.py",
+    "dependencies": ["control==0.10.2", "numpy==2.2.6", "scipy==1.18.1", "matplotlib==3.10.3"]
   }
 }

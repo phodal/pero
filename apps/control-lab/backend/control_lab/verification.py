@@ -85,6 +85,22 @@ def upper(name, actual, limit, message=''):
     return Check(name, 'PASS' if actual <= limit else 'FAIL', float(actual), float(limit), message)
 
 
+def lower(name, actual, limit, message=''):
+    return Check(name, 'PASS' if actual >= limit else 'FAIL', float(actual), float(limit), message)
+
+
+def margin_check(metrics, label, measured_key, unbounded_key, limit):
+    """Solver-reported input-output margin. Missing or undefined is inconclusive."""
+    actual = metrics.get(measured_key)
+    note = 'Input-output margin from python-control. It does not replace the internal Hurwitz check.'
+    if isinstance(actual, bool) or not isinstance(actual, (int, float)) or not math.isfinite(actual):
+        if metrics.get(unbounded_key) == 1:
+            return Check(label, 'PASS', None, float(limit),
+                         'No crossover; the margin is unbounded and meets the frozen minimum. This is not a finite measured margin. ' + note)
+        return unknown(label, 'No finite classical margin was saved. The crossover is undefined or the frequency response could not support it.')
+    return lower(label, actual, limit, note)
+
+
 def unknown(name, message):
     return Check(name, 'INCONCLUSIVE', None, None, message)
 
@@ -193,6 +209,11 @@ def verify_observation(spec, candidate_id, observation, scenario, candidate_over
             tail = [abs(y) for t,y in zip(disturbance.x,disturbance.y) if t >= .9*disturbance.x[-1]]
             checks.append(upper('Plant-input disturbance final residual', max(tail), rules['disturbanceMax'],
                                 'Unit step injected at plant input at t=0; finite final-window residual.'))
+        metrics = dict(observation.metrics)
+        if 'gainMarginMin' in rules:
+            checks.append(margin_check(metrics, 'Gain margin', 'gainMarginDb', 'gainMarginUnbounded', rules['gainMarginMin']))
+        if 'phaseMarginMin' in rules:
+            checks.append(margin_check(metrics, 'Phase margin', 'phaseMarginDeg', 'phaseMarginUnbounded', rules['phaseMarginMin']))
     return VerificationReport(tuple(checks), (observation.id,), spec.hash, candidate_id)
 
 

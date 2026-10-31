@@ -1,4 +1,6 @@
 //! Stdio adapter. App rules, installed state and backend lifetime belong to the runtime.
+#[path = "point_apps.rs"]
+mod point_apps;
 use pero_contracts::HostEvent;
 use pero_runtime::apps::agent::AgentRequest;
 use pero_runtime::apps::{AppName, AppStore};
@@ -21,6 +23,19 @@ enum Request {
         method: Method,
         id: String,
         path: PathBuf,
+    },
+    Pointconfig {
+        method: Method,
+        id: String,
+        name: AppName,
+        #[serde(default)]
+        config: Option<serde_json::Value>,
+    },
+    Pointprojects {
+        method: Method,
+        id: String,
+        name: AppName,
+        request: point_apps::ProjectRequest,
     },
     Enable {
         method: Method,
@@ -62,8 +77,9 @@ enum Request {
     },
 }
 
+#[derive(Clone)]
 pub struct Apps {
-    store: Result<AppStore, String>,
+    store: std::sync::Arc<std::sync::Mutex<Result<AppStore, String>>>,
     builtins: Option<PathBuf>,
     names: Option<Vec<String>>,
 }
@@ -100,22 +116,39 @@ impl Apps {
                 required_names.insert(pero_runtime::apps::AppName::try_from(name.to_owned())?);
             }
             let mut store = AppStore::open_required(root, python, required_names)?;
+            if let Some(path) = settings {
+                store.remember_settings(path);
+            }
             if let Some(catalog) = &builtins {
                 store.seed_builtins_only(catalog, names.as_deref())?;
             }
             Ok(store)
         })();
         Self {
-            store,
+            store: std::sync::Arc::new(std::sync::Mutex::new(store)),
             builtins,
             names,
+        }
+    }
+
+    /// Installers run outside the stdio input loop so Agent traffic and
+    /// cancellation remain responsive while pip downloads packages.
+    pub fn dispatch_async(&self, value: serde_json::Value, agents: &mut crate::agents::Manager) {
+        let action = value["action"].as_str().unwrap_or("");
+        if matches!(action, "agent" | "insights" | "connectors" | "disable" | "uninstall") {
+            let mut this = self.clone();
+            let event = this.dispatch(value, Some(agents));
+            let _ = crate::emit(event);
+        } else {
+            let mut this = self.clone();
+            std::thread::spawn(move || { let event = this.dispatch(value, None); let _ = crate::emit(event); });
         }
     }
 
     pub fn dispatch(
         &mut self,
         value: serde_json::Value,
-        agents: &mut crate::agents::Manager,
+        mut agents: Option<&mut crate::agents::Manager>,
     ) -> HostEvent {
         let id = value
             .get("id")
@@ -129,7 +162,15 @@ impl Apps {
             }
             let request: Request =
                 serde_json::from_value(value).map_err(|error| error.to_string())?;
-            let store = self.store.as_mut().map_err(|error| error.clone())?;
+            let mut guard = if agents.is_some() {
+                self.store.try_lock().map_err(|_| "An App environment is being prepared; retry when installation finishes".to_string())?
+            } else { self.store.lock().map_err(|error| error.to_string())? };
+            let store = guard.as_mut().map_err(|error| error.clone())?;
+            let mut progress = |value: pero_runtime::apps::AppPreparation| {
+                let mut event = HostEvent::new("apps_preparation", id.clone(), value.message.clone());
+                event.data = serde_json::to_value(value).expect("App preparation event");
+                let _ = crate::emit(event);
+            };
             match request {
                 Request::List { method, id } => {
                     let _ = (method, id);
@@ -140,32 +181,43 @@ impl Apps {
                 }
                 Request::Install { method, id, path } => {
                     let _ = (method, id);
-                    serde_json::to_value(store.install(&path)?)
+                    let prepared = point_apps::Prepared::new(path)?;
+                    serde_json::to_value(store.install(prepared.path())?)
+                }
+                Request::Pointconfig { method, id, name, config } => {
+                    let _ = (method, id);
+                    serde_json::to_value(serde_json::json!({"config": store.point_config(&name, config)?}))
+                }
+                Request::Pointprojects { method, id, name, request } => {
+                    let _ = (method, id);
+                    let root = store.point_project_root(&name, &request.path)?;
+                    return point_apps::projects(&root, request);
                 }
                 Request::Enable { method, id, name } => {
                     let _ = (method, id);
+                    store.prepare(&name, &mut progress)?;
                     serde_json::to_value(store.set_enabled(&name, true).map_err(|error| error.to_string())?)
                 }
                 Request::Disable { method, id, name } => {
                     let _ = (method, id);
                     let catalog = store.set_enabled(&name, false).map_err(|error| error.to_string())?;
-                    agents.stop_app_sessions(&name);
+                    agents.as_deref_mut().expect("Host manager").stop_app_sessions(&name);
                     serde_json::to_value(catalog)
                 }
                 Request::Uninstall { method, id, name } => {
                     let _ = (method, id);
                     let catalog = store.uninstall(&name).map_err(|error| error.to_string())?;
-                    agents.stop_app_sessions(&name);
+                    agents.as_deref_mut().expect("Host manager").stop_app_sessions(&name);
                     serde_json::to_value(catalog)
                 }
                 Request::Insights { method, id, name, thread_id } => {
                     let _ = (method, id);
                     store.require_grant(&name, "insights")?;
                     let sessions = match thread_id {
-                        Some(thread) => vec![agents.insights_value(&thread)?],
-                        None => agents.insights_catalog(),
+                        Some(thread) => vec![agents.as_deref_mut().expect("Host manager").insights_value(&thread)?],
+                        None => agents.as_deref_mut().expect("Host manager").insights_catalog(),
                     };
-                    let (repositories, conflicts) = agents.repository_snapshot();
+                    let (repositories, conflicts) = agents.as_deref_mut().expect("Host manager").repository_snapshot();
                     serde_json::to_value(serde_json::json!({
                         "sessions": sessions,
                         "repositories": repositories,
@@ -179,7 +231,7 @@ impl Apps {
                 }
                 Request::Resolve { method, id, name } => {
                     let _ = (method, id);
-                    serde_json::to_value(store.resolve(&name)?)
+                    serde_json::to_value(store.resolve_with_progress(&name, &mut progress)?)
                 }
                 Request::Agent {
                     method,
@@ -189,7 +241,7 @@ impl Apps {
                 } => {
                     let _ = (method, id);
                     store.require_agent(&name)?;
-                    return agents.app_request(name, request);
+                    return agents.as_deref_mut().expect("Host manager").app_request(name, request);
                 }
             }
             .map_err(|error| error.to_string())

@@ -108,6 +108,11 @@ class ExperimentStore:
                                    'No arbitrary Python, netlist, remote execution, or automatic model calls.'])
         if spec.template_id == 'active-filter':
             record['limitations'].append('Idealized Sallen–Key amplifier: no supply rails, bandwidth, component noise, or real-device guarantee.')
+        if spec.template_id == 'robust-pid':
+            record['limitations'].extend([
+                'Search compares nominal, gain ±20% and damping ±20%. Final verification repeats nominal and damping -20% as separate trials; those traces are not drawn on the search chart.',
+                'Gain and phase margins come from python-control. They are input-output margins, not an independent recomputation, and they do not replace internal stability. An undefined crossover is inconclusive.',
+            ])
         with self.lock:
             self.save(record)
             return deepcopy(record)

@@ -13,9 +13,11 @@ async function clickBounds(page, select) {
   await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
 }
 export async function clickNewChat(page) {
+  if (!(await state(page)).newChatButtonBounds) await clickAppShortcut(page, 'sessions');
   await clickBounds(page, snapshot => snapshot.newChatButtonBounds);
 }
 export async function clickSessionRow(page, sessionId) {
+  if (!(await state(page)).sessionRowBounds?.[sessionId]) await clickAppShortcut(page, 'sessions');
   await clickBounds(page, snapshot => snapshot.sessionRowBounds?.[sessionId]);
 }
 export async function clickAppOpen(page, appName) {

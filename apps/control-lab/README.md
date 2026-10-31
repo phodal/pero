@@ -16,12 +16,16 @@ weighted score. Final human acceptance is not automated.
 
 ## Prepare the computation environment
 
-Use the existing [App Python environment](../README.md#python-environments)
-settings to select a prepared environment for `control-lab`. Install this App's
-locked `requirements.txt` into that environment explicitly. Install ngspice
-from its official distribution or an operating-system package manager and make
-its executable available on the Host's inherited PATH. Opening or installing
-this App never installs a solver or downloads a runtime automatically.
+Installing or enabling Control Lab selects a CPython 3.12 App Python
+environment — the same minor version as the bundled runtime — and installs this
+App's locked `requirements.txt` when those packages are not already present.
+Opening the App does not reinstall a satisfied environment. A failed install
+stays visible; restart Pero to retry it. An older shared environment is left
+on disk and is not used for this App.
+
+ngspice is not a Python package. Install it from its official distribution or
+an operating-system package manager and make its executable available on the
+Host's inherited PATH. The App does not download ngspice.
 
 The availability panel reports the observed engine version or an actionable
 unavailable state. The backend does not substitute hand-coded analytic curves
@@ -43,10 +47,15 @@ explicitly distinguish Hz from rad/s. Finite sampled-window criteria do not
 prove asymptotic behavior, and idealized filter results do not prove real
 op-amp bandwidth, supply-rail, noise or hardware performance.
 
-Search and final verification scenarios are fixed independently. The same local
-backend can read both, so this is a methodological separation, not a security-
-isolated or blind evaluator. App-bound Agent operations reuse Host permissions;
-there is no second Agent runtime or paid model call in a numerical trial.
+Search and final verification scenarios are fixed independently. The robust-PID
+search set is nominal, gain ±20% and damping ±20%. Final verification repeats
+nominal and damping −20% as separate trials; those traces are not the search
+chart. python-control stores classical gain and phase margins when the
+frequency response supports them. An undefined crossover is inconclusive and
+does not replace internal stability. The same local backend can read both
+phases, so this is a methodological separation, not a security-isolated or
+blind evaluator. App-bound Agent operations reuse Host permissions; there is
+no second Agent runtime or paid model call in a numerical trial.
 
 ## Development
 

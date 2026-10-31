@@ -1,0 +1,73 @@
+// Real PTY, shell and keyboard through Desktop; no model or network requests.
+import { expect } from '@playwright/test';
+import { electron } from './electron.mjs';
+import { clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+const root=resolve(import.meta.dirname,'../..'),out=resolve(root,'test-results/terminal');
+await mkdir(out,{recursive:true});
+const temp=await mkdtemp(resolve(tmpdir(),'pero-terminal-'));
+const settings=resolve(temp,'settings.json');
+await writeFile(settings,JSON.stringify({workbench:{appearance:'light'}}));
+const env={...process.env,SHELL:'/bin/sh',PERO_DESKTOP_DATA_DIR:resolve(temp,'desktop'),PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_APPS_ROOT:resolve(temp,'apps'),PERO_BUILTIN_APPS:'data,insights,connectors',PERO_LOCALE:'en'};
+delete env.ELECTRON_RUN_AS_NODE;
+let desktop,page,savedClipboard;const errors=[];
+const state=()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()));
+const terminal=async()=> (await state()).terminal;
+const text=async()=>{const t=await terminal();return t.tabs[t.active]?.text||'';};
+const control=async name=>{await expect.poll(async()=>Boolean((await state()).terminalControls[name])).toBe(true);const b=(await state()).terminalControls[name];await page.mouse.click(b.x+b.width/2,b.y+b.height/2);};
+const focus=async()=>{const t=await terminal(),b=t.tabs[t.active].bounds;await page.mouse.click(b.x+60,b.y+50);};
+const command=async command=>{await focus();await page.keyboard.type(command);await page.keyboard.press('Enter');};
+const shot=async name=>{await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));await page.screenshot({path:resolve(out,name)});};
+try {
+ desktop=await electron.launch({args:[...(process.platform==='darwin'?['--use-mock-keychain']:[]),resolve(root,'desktop')],cwd:root,env});page=await desktop.firstWindow();page.on('pageerror',e=>errors.push(e.message));
+ await page.waitForFunction(()=>window.peroDiagnostics&&JSON.parse(window.peroDiagnostics.snapshot()).connected,undefined,{timeout:60000});
+ await expect.poll(async()=>(await state()).apps?.length||0).toBeGreaterThan(0);
+ await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));
+ await clickAppShortcut(page,'terminal');
+ await expect.poll(async()=> (await terminal()).tabs[0]?.bounds.width||0).toBeGreaterThan(100);
+ await expect.poll(async()=> (await terminal()).tabs[0]?.status).toBe('');
+ await command(`printf 'terminal-%s\\n' ready; pwd; printf 'written' > '${resolve(temp,'effect.txt')}'`);
+ await expect.poll(text).toContain('terminal-ready');
+ await expect.poll(async()=>readFile(resolve(temp,'effect.txt'),'utf8')).toBe('written');
+ await expect.poll(text).toContain(root);
+ await command("printf '\\033[31mCOLOR_OK\\033[0m\\n'");await expect.poll(text).toContain('COLOR_OK');
+ savedClipboard=await desktop.evaluate(({clipboard})=>clipboard.readText());
+ await desktop.evaluate(({clipboard})=>clipboard.writeText("printf 'paste-%s\\n' 中文"));
+ await focus();await page.keyboard.press(process.platform==='darwin'?'Meta+v':'Control+Shift+v');await expect.poll(text).toContain("printf 'paste-%s");await page.keyboard.press('Enter');
+ await expect.poll(text).toContain('paste-中文');
+ await desktop.evaluate(({clipboard},text)=>clipboard.writeText(text),savedClipboard);savedClipboard=undefined;
+ await shot('terminal-light.png');
+ // The shell must persist state while hidden.
+ await command('export PERO_TERMINAL_CHECK=retained');
+ await control('hide');await expect.poll(async()=>(await terminal()).visible).toBe(false);
+ await clickAppShortcut(page,'apps');await clickAppShortcut(page,'terminal');
+ await command('printf "state-%s\\n" "$PERO_TERMINAL_CHECK"');await expect.poll(text).toContain('state-retained');
+ await command('sleep 60');await page.keyboard.press('Control+c');
+ await command("printf 'interrupt-%s\\n' recovered");await expect.poll(text).toContain('interrupt-recovered');
+ const first=(await terminal()).tabs[0].id;
+ await control('new');await expect.poll(async()=>(await terminal()).tabs.length).toBe(2);
+ await command("printf 'second-%s\\n' shell");await expect.poll(text).toContain('second-shell');
+ const second=(await terminal()).tabs[1].id;
+ await control(`close-${second}`);await shot('terminal-close-confirmation.png');await control('cancel-close');expect((await terminal()).tabs.length).toBe(2);
+ await control(`close-${second}`);await control('confirm-close');await expect.poll(async()=>(await terminal()).tabs.length).toBe(1);
+ await command('printf "original-%s\\n" "$PERO_TERMINAL_CHECK"');await expect.poll(text).toContain('original-retained');
+ await setAppearance(page,'dark');await clickAppShortcut(page,'terminal');
+ // Settings navigation does not terminate the PTY; ensure the dock is open.
+ if(!(await terminal()).visible) await clickAppShortcut(page,'terminal');
+ await shot('terminal-dark.png');
+ await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1000,788));
+ await command("printf 'columns-'; stty size");
+ await expect.poll(text).toContain('columns-');
+ const size=(await terminal()).tabs[0].size;
+ await expect.poll(text).toContain(`columns-${size[0]} ${size[1]}`);
+ await shot('terminal-narrow.png');
+ await command('exit 7');await expect.poll(async()=>(await terminal()).tabs[0].closed).toBe(true);
+ await expect.poll(async()=>(await terminal()).tabs[0].status).toContain('(7)');await shot('terminal-exited.png');
+ await control(`close-${first}`);await expect.poll(async()=>(await terminal()).visible).toBe(false);
+ expect(errors).toEqual([]);
+ await writeFile(resolve(out,'result.json'),JSON.stringify({passed:true,checks:['real PTY command and file effect','workspace cwd','ANSI output','Unicode clipboard paste','shell retained while hidden','Ctrl+C interrupts command','independent terminal tabs','resized PTY dimensions','exit status and close','light/dark and narrow window'],errors},null,2));
+ await rm(resolve(out,'failure.png'),{force:true});console.log('Terminal passed.');
+} catch(error){if(page){await shot('failure.png').catch(()=>{});console.error(await state().catch(()=>({})));}throw error;}
+finally{if(desktop&&savedClipboard!==undefined)await desktop.evaluate(({clipboard},text)=>clipboard.writeText(text),savedClipboard).catch(()=>{});if(desktop)await desktop.close();await rm(temp,{recursive:true,force:true});}

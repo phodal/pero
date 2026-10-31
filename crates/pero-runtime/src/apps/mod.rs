@@ -7,6 +7,8 @@ mod process;
 mod tenure;
 use tenure::{StoreError, Tenure, TenureAsk, permit};
 mod python;
+mod preparation;
+pub use preparation::AppPreparation;
 pub use definition::{AppDefinition, AppName, AppSummary};
 use process::AppProcess;
 pub use process::BackendAccess;
@@ -47,6 +49,7 @@ pub struct AppStore {
     python: PythonEnvironments,
     builtins: BuiltinDiscovery,
     required: std::collections::BTreeSet<AppName>,
+    settings: Option<PathBuf>,
 }
 
 impl AppStore {
@@ -131,7 +134,12 @@ impl AppStore {
             python,
             builtins,
             required,
+            settings: None,
         })
+    }
+
+    pub fn remember_settings(&mut self, path: &Path) {
+        self.settings = Some(path.to_path_buf());
     }
 
     pub fn list(&self) -> Vec<AppSummary> {
@@ -436,11 +444,44 @@ impl AppStore {
         Ok(self.list())
     }
 
+    /// Prepare before enable/open. A satisfied 3.12 environment is not reinstalled.
+    /// An older selected environment, including the existing 3.14 default, is left
+    /// on disk and is not the target.
+    pub fn prepare(&mut self, name: &AppName, progress: &mut impl FnMut(AppPreparation)) -> Result<(), String> {
+        let app = self.installed.get(name).ok_or("App is not installed")?;
+        if self.processes.contains_key(name) { return Ok(()); }
+        let Some(backend) = &app.definition.backend else { return Ok(()); };
+        if !matches!(backend.kind, definition::BackendKind::Python) || backend.dependencies.is_empty() && self.python.select(name).is_none() { return Ok(()); }
+        let managed = self.root.parent().ok_or("App root needs a parent")?.join("environment/pero-python312");
+        if backend.dependencies.is_empty() && self.python.select(name).is_none_or(|env| env.root() != managed) { return Ok(()); }
+        let dependencies = backend.dependencies.clone();
+        let selected_matches = self.python.select(name).is_some_and(|env| python::environment_matches_bundle(env.root()));
+        let selected = if dependencies.is_empty() || selected_matches {
+            self.python.select(name).cloned().unwrap_or(PythonEnvironment::try_from(managed)?)
+        } else {
+            // Keep the previously selected directory. Bind the bundled minor instead.
+            self.python.bind(name.clone(), managed.clone())?;
+            if let Some(path) = &self.settings {
+                if let Err(error) = crate::settings::save_app_python_binding(path, name.as_str(), &managed) {
+                    eprintln!("warning: Could not record the {} Python environment: {error}", name.as_str());
+                }
+            }
+            PythonEnvironment::try_from(managed)?
+        };
+        preparation::prepare(name, &selected, &dependencies, progress)
+    }
+
     pub fn resolve(&mut self, name: &AppName) -> Result<AppAccess, String> {
+        self.resolve_with_progress(name, &mut |_| {})
+    }
+
+    pub fn resolve_with_progress(&mut self, name: &AppName, progress: &mut impl FnMut(AppPreparation)) -> Result<AppAccess, String> {
         let app = self.installed.get(name).ok_or("App is not installed")?;
         if !app.enabled {
             return Err("App is disabled; enable it before opening".into());
         }
+        self.prepare(name, progress)?;
+        let app = self.installed.get(name).ok_or("App is not installed")?;
         let root = self.root.join(name.as_str());
         let entry = app.definition.contributes.panels[0].entry.clone();
         if self
@@ -451,13 +492,16 @@ impl AppStore {
             self.processes.remove(name);
         }
         if app.definition.backend.is_some() && !self.processes.contains_key(name) {
+            let managed = PythonEnvironment::try_from(self.root.parent().ok_or("App root needs a parent")?.join("environment/pero-python312"))?;
+            let python = self.python.select(name).or_else(||
+                app.definition.backend.as_ref().filter(|b| !b.dependencies.is_empty()).map(|_| &managed));
             self.processes.insert(
                 name.clone(),
                 AppProcess::start(
                     &app.definition,
                     &root,
                     &self.data.join(name.as_str()),
-                    self.python.select(name),
+                    python,
                 )?,
             );
         }

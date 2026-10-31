@@ -265,9 +265,24 @@ union HostCommand {
   InsightsCommand,
 }
 
+// Local terminal lifecycle is independent from Agent history.
+model TerminalSize {@minValue(1) @maxValue(1000) rows:uint16;@minValue(1) @maxValue(1000) cols:uint16;...Closed}
+model OpenTerminal {method:"terminal";action:"open";id:uint32;cwd:string;size:TerminalSize;...Closed}
+model WriteTerminal {method:"terminal";action:"write";id:uint32;bytes:uint8[];...Closed}
+model ResizeTerminal {method:"terminal";action:"resize";id:uint32;size:TerminalSize;...Closed}
+model CloseTerminal {method:"terminal";action:"close";id:uint32;...Closed}
+@oneOf union TerminalRequest {OpenTerminal,WriteTerminal,ResizeTerminal,CloseTerminal}
+model TerminalOpened {kind:"opened";id:uint32;cwd:string;...Closed}
+model TerminalOutput {kind:"output";id:uint32;bytes:uint8[];...Closed}
+model TerminalExited {kind:"exited";id:uint32;code:uint32;...Closed}
+model TerminalError {kind:"error";id:uint32;message:string;...Closed}
+@oneOf union TerminalData {TerminalOpened,TerminalOutput,TerminalExited,TerminalError}
+model TerminalEvent {kind:"terminal";...EventBase;data:TerminalData}
+
 @oneOf
 union HostInput {
   Pero.Automation.AutomationRequest,
+  TerminalRequest,
   McpSettingsRequest,
   IconThemeRequest,
   McpSourceRequest,
@@ -359,6 +374,7 @@ model AutomationOpenEvent { kind:"automation_open"; ...EventBase }
 model AutomationResultEvent { kind:"automation_result"; ...EventBase; data:Pero.Automation.AutomationResult }
 model AutomationErrorEvent { kind:"automation_error"; ...EventBase }
 /** Private acknowledgements intercepted by Desktop main. */
+model AppsPreparationEvent { kind: "apps_preparation"; ...EventBase; data: Pero.Apps.AppPreparation }
 model AppsResultEvent { kind: "apps_result"; ...EventBase; data: Pero.Apps.AppResult }
 model AppsCatalogEvent { kind: "apps_catalog"; ...EventBase; data: Pero.Apps.AppRecord[] }
 model AppsErrorEvent { kind: "apps_error"; ...EventBase }
@@ -456,6 +472,7 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 
 @oneOf
 union HostEvent {
+  TerminalEvent,
   McpSettingsEvent, McpSettingsErrorEvent,
   DocumentSaveChooseEvent,DocumentSavePathEvent,DocumentSaveCancelledEvent,
   WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,WorkspaceSourceEvent,WorkspaceSourceErrorEvent,WorkspaceResetEvent,WorkspaceSourceStoredEvent,DraftStoredEvent,
@@ -494,6 +511,7 @@ union HostEvent {
   AutomationResultEvent,
   AutomationErrorEvent,
   AppsResultEvent,
+  AppsPreparationEvent,
   AppsCatalogEvent,
   AppsErrorEvent,
   AppsOpenedEvent,

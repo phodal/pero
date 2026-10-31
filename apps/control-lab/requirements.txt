@@ -1,5 +1,5 @@
 # Direct numerical dependencies. No Slycot or network/model service is required.
 control==0.10.2
 numpy==2.2.6
-scipy==1.15.3
+scipy==1.18.1
 matplotlib==3.10.3

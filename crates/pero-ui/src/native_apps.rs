@@ -1,4 +1,6 @@
 //! Native App transport. The stdio Host remains the catalog/backend authority.
+#[path = "native_point_apps.rs"]
+mod point;
 use pero_contracts::HostEvent;
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
@@ -94,7 +96,7 @@ impl NativeApps {
             .map_err(anyhow::Error::from)
             .and_then(|_| {
                 receiver
-                    .recv_timeout(Duration::from_secs(15))
+                    .recv_timeout(Duration::from_secs(660))
                     .map_err(anyhow::Error::from)
             });
         self.pending.lock().unwrap().remove(&id);
@@ -126,8 +128,12 @@ impl NativeApps {
                 );
                 if action == "open" {
                     let access: Access = this.request("resolve", json!({"name":value["name"]}))?;
-                    event.data =
-                        json!({"name":value["name"],"panel":value["panel"],"entry":access.entry});
+                    let catalog: Vec<Value> = this.request("list", json!({}))?;
+                    let panel = catalog.iter().find(|app| app["name"] == value["name"] && app["enabled"] == true)
+                        .and_then(|app| app["panels"].as_array()).and_then(|panels| panels.iter().find(|panel| panel["id"] == value["panel"]));
+                    let entry = panel.and_then(|panel| panel["entry"].as_str()).ok_or_else(|| anyhow::anyhow!("Unknown App panel"))?;
+                    let _ = access;
+                    event.data = json!({"name":value["name"],"panel":value["panel"],"entry":entry});
                 } else {
                     let fields = match action {
                         "list" => json!({}),
@@ -187,6 +193,7 @@ impl NativeApps {
                 _ => response(503, json!({"ok":false,"code":"MCP_HOST_UNAVAILABLE"})),
             });
         }
+        let mut response_headers = Vec::new();
         let (status, content_type, data) = if matches!(path, "/host/agent" | "/host/insights") {
             anyhow::ensure!(
                 method == "POST" && body.len() <= 256_000,
@@ -210,26 +217,55 @@ impl NativeApps {
             )
         } else {
             let access: Access = self.request("resolve", json!({"name":name}))?;
-            if path.starts_with("/api/") {
-                anyhow::ensure!(body.len() <= 16 * 1024 * 1024, "Request too large");
+            let point = point::PointApp::read(&access.root)?;
+            if let Some(point) = &point {
+                if path == "/api/projects" || path.starts_with("/api/projects/") {
+                    anyhow::ensure!(method == "GET" || method == "POST", "Method refused");
+                    anyhow::ensure!(body.len() <= 65536, "Project request exceeds 64 KiB");
+                    let mut headers = serde_json::Map::new();
+                    for key in ["idempotency-key", "if-match"] {
+                        if let Some(value) = request.headers().get(key) { headers.insert(key.into(), Value::String(value.to_str()?.into())); }
+                    }
+                    let mut operation = json!({"method":method.as_str(),"path":format!("{path}{}",uri.query().map(|q|format!("?{q}")).unwrap_or_default()),"headers":headers});
+                    if !body.is_empty() { operation["body"] = serde_json::from_slice(body)?; }
+                    let value: Value = self.request("pointprojects", json!({"name":name,"request":operation}))?;
+                    let mut response = Response::builder().status(value["status"].as_u64().ok_or_else(||anyhow::anyhow!("Invalid Project status"))? as u16);
+                    if let Some(headers) = value["headers"].as_object() { for (key,value) in headers { response = response.header(key, value.as_str().ok_or_else(||anyhow::anyhow!("Invalid Project header"))?); } }
+                    return Ok(response.body(serde_json::to_vec(&value["body"])?)?);
+                }
+                if path == format!("/api/apps/{name}/config") {
+                    anyhow::ensure!(point.permissions.storage && point.permissions.api.iter().any(|route| route == path), "App storage permission denied");
+                    anyhow::ensure!(method == "GET" || method == "PUT", "Method refused");
+                    let mut fields = json!({"name":name});
+                    if method == "PUT" {
+                        anyhow::ensure!(body.len() <= 1048576, "Config exceeds 1 MiB");
+                        let config: Value = serde_json::from_slice(body)?;
+                        anyhow::ensure!(config.is_object(), "Config must be an object");
+                        fields["config"] = config;
+                    }
+                    let value: Value = self.request("pointconfig", fields)?;
+                    return Ok(Response::builder().status(200).header("Content-Type", "application/json").header("Cache-Control", "no-store").body(serde_json::to_vec(&value["config"])?)?);
+                }
+            }
+            if path.starts_with("/api/") || point.is_some() && path.starts_with(&format!("/apps/{name}/api/")) {
+                anyhow::ensure!(body.len() <= point.as_ref().map_or(16 * 1024 * 1024, |point| point.limit()), "Request too large");
                 let backend = access
                     .backend
                     .ok_or_else(|| anyhow::anyhow!("This App has no backend"))?;
-                let target = format!(
-                    "{}{}{}",
-                    backend.url,
-                    path,
-                    uri.query()
-                        .map(|query| format!("?{query}"))
-                        .unwrap_or_default()
-                );
-                let response = self
+                let raw = format!("{path}{}", uri.query().map(|query| format!("?{query}")).unwrap_or_default());
+                let local = point.as_ref().map(|point| point.target(&raw)).transpose()?.unwrap_or(raw);
+                let target = format!("{}{local}", backend.url);
+                let (auth_header, auth_value) = if point.is_some() {
+                    let seconds = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs();
+                    ("X-Point-App-Proxy", point::signature(&backend.token, method.as_str(), &local, body, seconds))
+                } else { ("X-Pero-App-Token", backend.token) };
+                let mut outgoing = self
                     .client
                     .request(
                         reqwest::Method::from_bytes(method.as_str().as_bytes())?,
                         target,
                     )
-                    .header("X-Pero-App-Token", backend.token)
+                    .header(auth_header, auth_value)
                     .header(
                         "Content-Type",
                         request
@@ -238,8 +274,16 @@ impl NativeApps {
                             .and_then(|value| value.to_str().ok())
                             .unwrap_or("application/json"),
                     )
-                    .body(body.clone())
-                    .send()?;
+                    .body(body.clone());
+                if point.is_some() {
+                    for (name, value) in request.headers() {
+                        if name.as_str() != "content-type" && point::forward_header(name.as_str(), false) { outgoing = outgoing.header(name.as_str(), value.to_str()?); }
+                    }
+                }
+                let response = outgoing.send()?;
+                for (name, value) in response.headers() {
+                    if point::forward_header(name.as_str(), true) { response_headers.push((name.as_str().to_string(), value.to_str()?.to_string())); }
+                }
                 let status = response.status().as_u16();
                 let content_type = response
                     .headers()
@@ -274,9 +318,11 @@ impl NativeApps {
                 )
             }
         };
-        Ok(Response::builder().status(status).header("Content-Type", content_type).header("Cache-Control", "no-store")
+        let mut response = Response::builder().status(status).header("Content-Type", content_type).header("Cache-Control", "no-store")
             .header("X-Content-Type-Options", "nosniff")
             .header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'")
-            .body(data)?)
+            .body(data)?;
+        for (name, value) in response_headers { response.headers_mut().insert(wry::http::header::HeaderName::from_bytes(name.as_bytes())?, value.parse()?); }
+        Ok(response)
     }
 }

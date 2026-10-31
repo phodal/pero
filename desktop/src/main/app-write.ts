@@ -6,6 +6,8 @@ export type AppWriteDefinition = Readonly<{
   app: string;
   panel: string;
   version: string;
+  method?: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  maxBodyBytes?: number;
   name: string;
   description: string;
   path: string;
@@ -19,8 +21,8 @@ export class PreparedAppWrite {
   private fingerprint: string;
   constructor(definition: AppWriteDefinition, document: unknown) {
     const text = JSON.stringify(document);
-    if (!text || Buffer.byteLength(text) > 1000000)
-      throw new AppUseError('APP_WRITE_INVALID', 'App documents must fit in 1 MiB');
+    if (!text || Buffer.byteLength(text) > (definition.maxBodyBytes ?? 1000000))
+      throw new AppUseError('APP_WRITE_INVALID', 'App document exceeds its declared body limit');
     const value = JSON.parse(text) as AppJson;
     AppParameterSchema.parse(definition.schema).validate(value);
     this.definition = definition;

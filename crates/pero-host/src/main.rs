@@ -2,6 +2,7 @@ use pero_contracts::{
     EchoRequest, HostEvent, RemoteConnectionPreference, SetRemoteSettingsRequest,
 };
 use std::io::{self, BufRead, Write};
+mod terminal;
 mod agents;
 mod automation;
 mod automation_store;
@@ -27,9 +28,10 @@ fn main() -> io::Result<()> {
         eprintln!("Usage: pero-host --stdio (bootstrap probe only)");
         std::process::exit(2);
     }
+    let mut terminals = terminal::Terminals::default();
     let mut agents = agents::Manager::new(std::env::current_dir()?);
     let settings_path = std::env::var_os("PERO_SETTINGS_PATH").map(std::path::PathBuf::from);
-    let mut apps = apps::Apps::new(settings_path.as_deref());
+    let apps = apps::Apps::new(settings_path.as_deref());
     let mut workspace_store = settings_path
         .as_deref()
         .map(pero_runtime::workspace_store::WorkspaceStore::new);
@@ -75,6 +77,10 @@ fn main() -> io::Result<()> {
                 Err(error) => HostEvent::new("automation_error", value.get("id").and_then(|v|v.as_str()).map(str::to_owned), error.clone()),
             };
             emit(event)?;
+            continue;
+        }
+        if value.get("method").and_then(|v| v.as_str()) == Some("terminal") {
+            terminals.dispatch(value);
             continue;
         }
         if value
@@ -205,7 +211,7 @@ fn main() -> io::Result<()> {
             continue;
         }
         if value.get("method").and_then(|v| v.as_str()) == Some("apps") {
-            emit(apps.dispatch(value, &mut agents))?;
+            apps.dispatch_async(value, &mut agents);
             continue;
         }
         if value

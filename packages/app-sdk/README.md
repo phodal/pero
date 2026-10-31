@@ -23,7 +23,9 @@ translated `label` and `emptyLabel` strings and emits a selected File; the App
 owns validation and import. It supports keyboard activation and selecting the
 same file again. Shared controls follow the workbench's compact geometry and
 inherit the Host's appearance. Apps should consume these variables rather than
-redefine the base palette or UI font size.
+redefine the base palette or UI font size. `Composer` is that shared question
+field: one border, focus changes the border, and agent or send actions sit on
+its toolbar. Do not restyle a private textarea into a second composer.
 
 The frame announces `{type:'pero:app:ready'}` to its parent. The parent replies
 with `{type:'pero:app:context',context:{locale,dark,active}}`. The provider accepts

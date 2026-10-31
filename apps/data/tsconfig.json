@@ -24,6 +24,9 @@
       ],
       "@pero/app-sdk/ui": [
         "../../packages/app-sdk/src/ui.tsx"
+      ],
+      "@pero/app-sdk/chart": [
+        "../../packages/app-sdk/src/chart.ts"
       ]
     },
     "allowImportingTsExtensions": true

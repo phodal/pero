@@ -689,6 +689,26 @@ impl Workbench {
             .relative()
             .border_l_1()
             .border_color(p.border)
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_end()
+                    .px(px(6.))
+                    .h(px(pero_chat_ui::theme::WorkbenchStyle::TAB.max(
+                        pero_theme::UiAppearance::global(cx).typography.row_height() + 4.,
+                    )))
+                    .flex_shrink_0()
+                    .child(
+                        Button::new("workspace-chat-close")
+                            .ghost()
+                            .small()
+                            .icon(Icon::default().path("icons/panel-right-close.svg"))
+                            .tooltip(self.t("chat.close_panel"))
+                            .accessibility_label(self.t("chat.close_panel"))
+                            .on_click(cx.listener(|this, _, _, cx| this.set_chat_dock(false, cx))),
+                    ),
+            )
             .child(self.chat.clone())
             .when(!narrow, |el| {
                 el.child(

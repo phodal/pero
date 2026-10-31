@@ -18,6 +18,7 @@ export function stageWorkbenchWeb(source, destination) {
 export async function stageWorkbench(payload, product) {
   mkdirSync(join(payload, 'desktop/dist'), { recursive: true });
   mkdirSync(join(payload, 'bin'), { recursive: true });
+  cpSync(resolve(root, 'packages/point-app/dist'), join(payload, 'packages/point-app/dist'), { recursive: true });
   cpSync(resolve(root, 'desktop/dist'), join(payload, 'desktop/dist'), { recursive: true });
   stageWorkbenchWeb(resolve(root, 'web/dist'), join(payload, 'web/dist'));
   // Builtin Apps include runnable assets and stdlib Python, never development dependencies.

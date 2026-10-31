@@ -58,5 +58,24 @@ class VerificationTest(unittest.TestCase):
         self.assertEqual(aggregate(spec,'baseline',[trial],'verification','old').to_dict()['verdict'],'PASS')
         self.assertEqual(aggregate(spec,'baseline',[trial],'verification','new').to_dict()['verdict'],'INCONCLUSIVE')
 
+    def test_classical_margins_follow_frozen_limits(self):
+        spec=ExperimentSpec.parse({'templateId':'robust-pid','candidateBudget':1,'parameters':{'horizon':6,'samples':601}})
+        scenario=spec.scenarios[0]
+        cases=(
+            (dict(gainMarginDb=8, phaseMarginDeg=40), 'PASS', 'PASS'),
+            (dict(gainMarginDb=1, phaseMarginDeg=40), 'FAIL', 'FAIL'),
+            (dict(gainMarginUnbounded=1, phaseMarginUnbounded=1), 'PASS', 'PASS'),
+            ({}, 'INCONCLUSIVE', 'INCONCLUSIVE'),
+        )
+        for extra, overall, margin in cases:
+            with self.subTest(extra=extra):
+                def mutate(result, extra=extra):
+                    result['metrics'].update(extra)
+                report=verify_observation(spec,'baseline',observed(spec,scenario,mutate=mutate),scenario).to_dict()
+                self.assertEqual(report['verdict'], overall)
+                self.assertEqual(next(c for c in report['checks'] if c['name']=='Gain margin')['verdict'], margin)
+        golden=verify_observation(ExperimentSpec.parse({'templateId':'pi-golden'}),'baseline',observed(ExperimentSpec.parse({'templateId':'pi-golden'})),ExperimentSpec.parse({'templateId':'pi-golden'}).scenarios[0]).to_dict()
+        self.assertNotIn('Gain margin', [c['name'] for c in golden['checks']])
+
 
 if __name__=='__main__':unittest.main()

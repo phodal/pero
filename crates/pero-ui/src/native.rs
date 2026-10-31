@@ -190,6 +190,7 @@ pub fn run() -> anyhow::Result<()> {
         .envs(connector_environment)
         .current_dir(&root)
         .env("PERO_AGENT_ROOT", &root)
+        .env("PERO_POINT_RUNTIME_ROOT", root.join("packages/point-app/dist"))
         .env("PATH", std::env::join_paths(paths)?)
         .env("PERO_LOCALE", &locale)
         .env("PERO_SETTINGS_PATH", &settings_path)

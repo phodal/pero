@@ -1,3 +1,4 @@
+import { mountAppPreparation } from './app-preparation';
 import { translate, normalizeLocale } from '../../locales';
 import type { HostEvent } from './bootstrap';
 import themes from './theme.generated.json';
@@ -29,6 +30,7 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   region.hidden = true;
   document.body.append(region);
   let surface: AppSurface = { visible: false, dark: false, locale: 'en' };
+  const preparation = mountAppPreparation(command, () => normalizeLocale(surface.locale) === 'zh-CN');
   let chatOverlay: {x:number;y:number;width:number;height:number}|null = null;
   let chatOverlaySuspended = false;
   const slotRequests = new Map<Frame, SlotRequest>();
@@ -253,6 +255,16 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
       update();
     },
     event(event: HostEvent) {
+      preparation.event(event);
+      if (event.kind === 'apps_preparation') {
+        const value = event.data as { name: string; phase: string };
+        if (value.phase === 'ready') for (const slot of mounts.values()) {
+          if (slot.surface.name === value.name && slot.error && slot.surface.visible) {
+            slot.error = ''; renderStatus(slot);
+            void command({ action: 'apps_open', name: value.name, panel: slot.surface.panel });
+          }
+        }
+      }
       if(event.kind==='icon_themes'||event.kind==='icon_themes_error'){iconTheme=(event.data as {theme:IconThemePackage|null}).theme;for(const frame of frames.values())frame.element.contentWindow?.postMessage({type:'pero:app:icon-theme',theme:iconTheme},'*');}
       if(event.kind==='app_written'){for(const frame of frames.values())if(frame.name===(event.data as {app:string}).app)frame.element.contentWindow?.postMessage({type:'pero:app:data-changed'},'*');}
       if (event.kind === 'apps_opened') {

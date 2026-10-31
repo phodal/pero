@@ -6,6 +6,7 @@
 export type HostProtocol = HostInput | HostEvent | WebCommand;
 export type HostInput =
   | AutomationRequest
+  | TerminalRequest
   | McpSettingsRequest
   | IconThemeRequest
   | McpSourceRequest
@@ -41,6 +42,7 @@ export type AutomationCounter = number;
 export type AutomationInputContract = "process_exact" | "recheck_latest";
 export type AutomationTarget = AutomationLocalTarget | AutomationUnsupportedTarget;
 export type AutomationReconciliationDisposition = "not_started" | "completed" | "failed" | "cancelled";
+export type TerminalRequest = OpenTerminal | WriteTerminal | ResizeTerminal | CloseTerminal;
 export type McpSettingsRequest = GetMcpSettingsRequest | SetMcpSettingsRequest;
 export type McpTransport = McpStdioTransport | McpHttpTransport;
 export type IconThemeRequest = GetIconThemes | InstallIconTheme | SelectIconTheme | RemoveIconTheme;
@@ -89,12 +91,22 @@ export type ContextKind =
 export type ThreadId = string;
 export type ContextContent = TextContextContent | ImageContextContent;
 export type AppRequest =
-  ListApps | InstallApp | EnableApp | DisableApp | UninstallApp | ResolveApp | AgentApp | ConnectorsApp;
+  | ListApps
+  | InstallApp
+  | PointConfig
+  | PointProjects
+  | EnableApp
+  | DisableApp
+  | UninstallApp
+  | ResolveApp
+  | AgentApp
+  | ConnectorsApp;
 export type RequestId = string;
 export type AppName = string;
 export type AgentRequest = AgentInfoRequest | AgentStartRequest | AgentEventsRequest | AgentCancelRequest;
 export type ContributionRequest = ContributionPrepare | ContributionReview | ContributionPublish;
 export type HostEvent =
+  | TerminalEvent
   | McpSettingsEvent
   | McpSettingsErrorEvent
   | DocumentSaveChooseEvent
@@ -152,6 +164,7 @@ export type HostEvent =
   | AutomationResultEvent
   | AutomationErrorEvent
   | AppsResultEvent
+  | AppsPreparationEvent
   | AppsCatalogEvent
   | AppsErrorEvent
   | AppsOpenedEvent
@@ -165,6 +178,7 @@ export type HostEvent =
   | PromptQueuedEvent
   | CommandRejectedEvent
   | InsightsEvent;
+export type TerminalData = TerminalOpened | TerminalOutput | TerminalExited | TerminalError;
 export type WebLoad = WebLoading | WebReady | WebFailed;
 /**
  * Catalog key resolved by the UI from locales/*.json.
@@ -329,6 +343,34 @@ export interface AutomationReconcile {
   evidence: string;
   execution_stopped: true;
   effects_checked: true;
+}
+export interface OpenTerminal {
+  method: "terminal";
+  action: "open";
+  id: number;
+  cwd: string;
+  size: TerminalSize;
+}
+export interface TerminalSize {
+  rows: number;
+  cols: number;
+}
+export interface WriteTerminal {
+  method: "terminal";
+  action: "write";
+  id: number;
+  bytes: number[];
+}
+export interface ResizeTerminal {
+  method: "terminal";
+  action: "resize";
+  id: number;
+  size: TerminalSize;
+}
+export interface CloseTerminal {
+  method: "terminal";
+  action: "close";
+  id: number;
 }
 export interface GetMcpSettingsRequest {
   method: "settings.mcp.get";
@@ -883,6 +925,35 @@ export interface InstallApp {
   method: "apps";
   id: RequestId;
 }
+export interface PointConfig {
+  action: "pointconfig";
+  name: AppName;
+  config?: AppDocumentSchema;
+  method: "apps";
+  id: RequestId;
+}
+/**
+ * Public catalog: no local paths or backend credentials.
+ */
+export interface AppDocumentSchema {
+  [k: string]: unknown | undefined;
+}
+export interface PointProjects {
+  action: "pointprojects";
+  name: AppName;
+  request: PointProjectRequest;
+  method: "apps";
+  id: RequestId;
+}
+export interface PointProjectRequest {
+  method: "GET" | "POST";
+  path: string;
+  headers?: PointProjectHeaders;
+  body?: unknown;
+}
+export interface PointProjectHeaders {
+  [k: string]: string | undefined;
+}
 export interface EnableApp {
   action: "enable";
   name: AppName;
@@ -963,6 +1034,33 @@ export interface ContributionPublish {
   operation: "publish";
   workspace: string;
   review_token: string;
+}
+export interface TerminalEvent {
+  kind: "terminal";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: TerminalData;
+}
+export interface TerminalOpened {
+  kind: "opened";
+  id: number;
+  cwd: string;
+}
+export interface TerminalOutput {
+  kind: "output";
+  id: number;
+  bytes: number[];
+}
+export interface TerminalExited {
+  kind: "exited";
+  id: number;
+  code: number;
+}
+export interface TerminalError {
+  kind: "error";
+  id: number;
+  message: string;
 }
 export interface McpSettingsEvent {
   kind: "mcp_settings";
@@ -1925,9 +2023,6 @@ export interface AutomationErrorEvent {
   request_id: string | null;
   text: string;
 }
-/**
- * Private acknowledgements intercepted by Desktop main.
- */
 export interface AppsResultEvent {
   kind: "apps_result";
   version: 1;
@@ -1937,7 +2032,24 @@ export interface AppsResultEvent {
 }
 export interface AppSuccess {
   ok: true;
-  value: AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant;
+  value:
+    | PointProjectReply
+    | PointConfigReply
+    | AppRecord[]
+    | AppAccess
+    | AppAgentInfo
+    | AppAgentStarted
+    | AppAgentTranscript
+    | AppAgentCancelled
+    | AppGrant;
+}
+export interface PointProjectReply {
+  status: number;
+  headers: PointProjectHeaders;
+  body: unknown;
+}
+export interface PointConfigReply {
+  config: AppDocumentSchema;
 }
 export interface AppRecord {
   name: AppName;
@@ -1959,12 +2071,6 @@ export interface AppWriteRoute {
   description: string;
   path: string;
   schema: AppDocumentSchema;
-}
-/**
- * Public catalog: no local paths or backend credentials.
- */
-export interface AppDocumentSchema {
-  [k: string]: unknown | undefined;
 }
 export interface AppAccess {
   root: string;
@@ -2010,6 +2116,24 @@ export interface AppGrant {
 export interface AppFailure {
   ok: false;
   error: string;
+}
+/**
+ * Private acknowledgements intercepted by Desktop main.
+ */
+export interface AppsPreparationEvent {
+  kind: "apps_preparation";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: AppPreparation;
+}
+/**
+ * Dependency preparation is separate from backend startup.
+ */
+export interface AppPreparation {
+  name: AppName;
+  phase: "checking" | "creating" | "installing" | "ready" | "failed";
+  message: string;
 }
 export interface AppsCatalogEvent {
   kind: "apps_catalog";

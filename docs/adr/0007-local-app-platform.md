@@ -21,10 +21,9 @@ App port; its existing scientific methods and source attribution stay in the App
   second installation or backend lifecycle owner. Go Task/Run authority is unchanged.
 - The workbench keeps that catalog at `~/.pero/apps`, domain data at
   `~/.pero/app-data`, and runtime settings at `~/.pero/config/runtime-settings.json`.
-  The shared Python environment is `~/.pero/environment/pero-default`.
+  The shared Python environment is `~/.pero/environment/pero-python312`.
   `PERO_DESKTOP_DATA_DIR`, `PERO_APPS_ROOT` and `PERO_SETTINGS_PATH` keep isolated
-  profiles and explicit overrides. The Desktop shell prepares the default
-  environment; the Host still does not install packages itself.
+  profiles and explicit overrides. The Desktop shell records the default binding; the Host prepares the environment and declared dependencies before enable/open (2026-10-31 extension).
 - Installation copies a selected local package into the managed App root and
   leaves it disabled until explicitly enabled. Installation state is durable.
   Builtins are pretrusted by the composition root. Startup and catalog requests
@@ -46,15 +45,14 @@ App port; its existing scientific methods and source attribution stay in the App
   `PERO_APP_NAME` and a fresh `PERO_APP_TOKEN`, plus a small allowlist of host
   environment variables. Host shutdown, disable and uninstall clean up the
   owned backend. The trusted `PERO_APP_PYTHON` setting selects the interpreter;
-  App manifests cannot choose an arbitrary command or install dependencies.
+  App manifests cannot choose an arbitrary command. Python backends may declare pinned package requirements in `backend.dependencies`.
   Host runtime settings may select one prepared shared venv through
   `app_python.default`; `app_python.apps` provides optional App-specific overrides.
   Selection uses the App override, shared venv, then existing Host default.
   Explicit environments require absolute paths and disabled system-site packages,
   and fail without interpreter fallback if unusable.
   Python starts with ambient Python settings and user-site packages disabled.
-  Environment preparation and dependency installation remain explicit external
-  steps; see [App environment setup](../../apps/README.md#python-environments).
+  Host preparation uses pinned uv, managed Python 3.12 and binary wheels; it emits progress independently of backend readiness. Both shells present installation and retry. See [App environment setup](../../apps/README.md#python-environments).
 - Private `apps_result` replies carry installed paths and optional backend
   URL/token only to Electron main. Main consumes every such reply rather than
   publishing it to the renderer. Public catalog events contain display metadata,
@@ -85,7 +83,7 @@ Rendering the App or completing a calculation does not establish scientific
 validity or research acceptance.
 
 Task/Run creation, domain Agent tools, MCP injection, Project artifact registration,
-remote Worker environments and automatic dependency provisioning remain outside
+remote Worker environments remain outside
 this slice. It does not claim binary compatibility with Point App bundles,
 portable packaged-Desktop acceptance or production hosting.
 
@@ -120,3 +118,29 @@ See [App platform verification](../fitness/apps.md). Contracts are defined in
 shared Desktop App Use MCP path, declared SDK objects, task authorization and
 panel evidence. This is distinct from the App-initiated research sessions above.
 See [App Use verification](../fitness/app-use.md) for actual acceptance scope.
+
+
+## Point package input (2026-10-31)
+
+The existing Host `install` operation also accepts a built Point App directory.
+A Host-owned preparation adapter uses the bundled shared Point SDK runtime and
+returns files to the same Rust App store; it owns no catalog, enable state or
+process supervisor. Original App modules/backends and stable panel IDs are
+preserved. Source data and installation records are not imported.
+
+The private shells carry Point's original API namespace and HMAC authentication,
+including method/query/body binding and App-scoped permissions. Config remains
+under Rust Host authority. A private, compiled Point Project-domain operation
+provides bounded local list/create/read/revision/context endpoints under a
+Pero-owned journal; the Rust store serializes requests and checks the installed
+App scope. It owns no second Session runtime, planner or scheduler.
+SDK objects, examples and chat drafts use the existing
+App surfaces. The SDK source checkout is a build input only.
+
+The owner decision is independent Pero execution, not forwarding these APIs to
+a running Point installation. Full Project delivery/shared-Hub semantics,
+Session/Workspace APIs, specialized
+Host grants/events, `exec` backends and agent plugins still require independent
+Pero implementations; they are rejected until that work exists. Acceptance of
+nine domain Apps is not acceptance of every Point App. See
+[the current matrix](../fitness/point-apps.md).

@@ -75,6 +75,8 @@ class PythonControlOracles(unittest.TestCase):
         self.assertAlmostEqual(nominal["series"][2]["y"][0], parameters["kp"]+parameters["kd"]*parameters["n"])
         self.assertNotEqual(nominal["series"][0]["y"], changed["series"][0]["y"])
         self.assertEqual(len(nominal["metrics"]["characteristicDenominator"]), 5)
+        self.assertTrue("gainMarginDb" in nominal["metrics"] or nominal["metrics"].get("gainMarginUnbounded") == 1)
+        self.assertTrue("phaseMarginDeg" in nominal["metrics"] or nominal["metrics"].get("phaseMarginUnbounded") == 1)
 
     def test_unstable_internal_dynamics_are_not_called_stable(self):
         for kp in (0, 1):

@@ -11,3 +11,12 @@ body > input, body > textarea { font-size: var(--pero-font-body); }
 .app-panel-status button { box-sizing: border-box; min-height: var(--pero-control-height); padding: 0 var(--pero-space-3); border: 0; border-radius: var(--pero-radius-button); color: var(--pero-on-action); background: var(--pero-action); cursor: pointer; }
 .app-panel-status button:hover { background: var(--pero-action-hover); }
 .app-panel-status button:focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
+
+.app-preparation { position: fixed; z-index: 100; right: 12px; bottom: 12px; box-sizing: border-box; width: min(520px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto; padding: 12px; background: var(--pero-surface); color: var(--pero-text); border: 1px solid var(--pero-border); font: 14px system-ui, sans-serif; }
+.app-preparation[hidden] { display: none; }
+.app-preparation-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.app-preparation p { margin: 12px 0; overflow-wrap: anywhere; }
+.app-preparation progress { width: 100%; }
+.app-preparation pre { max-height: 240px; overflow: auto; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.app-preparation button { min-height: 24px; font: inherit; color: var(--pero-text); background: var(--pero-surface); border: 1px solid var(--pero-input-border); border-radius: 3px; padding: 2px 8px; cursor: pointer; }
+.app-preparation button:focus-visible, .app-preparation summary:focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }

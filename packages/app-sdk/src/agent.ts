@@ -13,8 +13,15 @@ async function request<T>(body: object): Promise<T> {
 export function useAppAgent() {
   const [info, setInfo] = useState<Info>({ available: false, agents: [], workspace: '' });
   const refresh = useCallback(async () => {
-    try { setInfo(await request<Info>({ operation: 'info' })); }
-    catch { setInfo({ available: false, agents: [], workspace: '' }); }
+    try {
+      const next = await request<Info>({ operation: 'info' });
+      setInfo(next);
+      return next;
+    } catch {
+      const next: Info = { available: false, agents: [], workspace: '' };
+      setInfo(next);
+      return next;
+    }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
   return useMemo(() => ({ ...info, refresh,
