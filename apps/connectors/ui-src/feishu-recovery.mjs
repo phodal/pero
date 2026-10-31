@@ -1,0 +1,25 @@
+const messages = {
+ FEISHU_NODE_MISSING:['Pero 运行环境不可用，请修复或更新应用。','Pero runtime unavailable. Repair or update the app.'],
+ FEISHU_CLI_MISSING:['未找到官方飞书 CLI，请安装后重新检测。','Official Feishu CLI not found. Install it and check again.'],
+ FEISHU_BUNDLE_MISSING:['Pero 飞书组件不可用，请更新应用。','The Pero Feishu component is unavailable. Update the app.'],
+ FEISHU_STATE_LIMIT:['本机事件日志已达到容量上限，监听已停止。','The local event journal reached its capacity. Listening stopped.'],
+ FEISHU_EVENT_LOSS:['消息超出分页预算或订阅报告丢失，请检查后重新启用。','Messages exceeded the page budget or subscription loss was reported. Review and enable again.'],
+ FEISHU_EVENT_CONFLICT:['已有消息内容发生变化，已停止当前处理，请检查来源。','A recorded message changed. Processing stopped; review its source.'],
+ FEISHU_VERSION_CONFLICT:['来源已修改或撤回，已停止写入，请检查原消息。','The source changed or was recalled. Writing stopped; review the message.'],
+ FEISHU_ROUTE_CONFLICT:['已有事件绑定其他流程，请先核对它的执行回执。','An existing event belongs to another route. Reconcile its receipt first.'],
+ FEISHU_AUTH_REQUIRED:['飞书登录已失效或被撤回，请重新授权。','Feishu sign-in expired or was revoked. Authorize again.'],
+ FEISHU_AUTH_EXPIRED:['这次授权已过期，请重新开始。','This authorization attempt expired. Start again.'],
+ FEISHU_ACCOUNT_CHANGED:['飞书账号发生变化，请重新检测并确认连接。','The Feishu account changed. Detect and confirm the connection again.'],
+ FEISHU_PERMISSION:['当前账号未授予这项能力，或无法访问所选资源。','This account lacks consent or access to the selected resource.'],
+ FEISHU_TOOL_DENIED:['所需工具尚未允许，请在连接设置中检查白名单。','The required tool is not admitted. Review the allowlist in connection settings.'],
+ FEISHU_CONFIG:['连接已停用或需要重新配置。','The connection is disabled or needs configuration.'],
+ FEISHU_INTEGRITY:['本机工具已更新，请重新检测并保存连接。','Local tools changed. Detect and save the connection again.'],
+ FEISHU_BINDING_REQUIRED:['需要重新检测飞书用户和租户。','Detect the Feishu user and tenant again.'],
+ FEISHU_BASE_SCHEMA_CHANGED:['表结构已变化，请重新选择字段并确认自动化。','The table schema changed. Select fields and confirm the automation again.'],
+ FEISHU_EVENT_GAP:['轮询中断超过时间预算，请确认后重新启用。','Polling exceeded its time budget. Review and enable it again.'],
+ FEISHU_WRITE_UNKNOWN:['外部写入结果待核对，已停止重复写入。','The external write outcome needs reconciliation. Duplicate writes are stopped.'],
+ FEISHU_TARGET_REFUSED:['Project 权限或自动化版本已变化，请重新选择并确认。','Project permissions or the automation revision changed. Select and confirm again.'],
+ FEISHU_CLASSIFICATION_FAILED:['分类运行未成功，尚未写入多维表格。','Classification did not succeed. No Base record was written.'],
+};
+export const recoveryRequired = code => ['FEISHU_AUTH_REQUIRED','FEISHU_AUTH_EXPIRED','FEISHU_ACCOUNT_CHANGED','FEISHU_PERMISSION','FEISHU_TOOL_DENIED','FEISHU_CONFIG','FEISHU_INTEGRITY','FEISHU_BINDING_REQUIRED'].includes(code);
+export function feishuMessage(code,locale='zh'){return messages[code]?.[locale==='zh'?0:1]??(locale==='zh'?'暂时无法完成，请检查连接后重试。':'Unable to complete this request. Check the connection and retry.');}
