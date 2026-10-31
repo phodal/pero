@@ -230,7 +230,8 @@ func TestModelSelectionDefaultDisabled(t *testing.T) {
 		t.Fatal(err)
 	}
 	r, e := s.sessionConfiguration(id, true)
-	if e != nil || len(r.(map[string]any)["configOptions"].([]any)) != 0 {
+	options, _ := r.(map[string]any)["configOptions"].([]any)
+	if e != nil || len(options) != 1 || options[0].(map[string]any)["id"] != "permission" || options[0].(map[string]any)["currentValue"] != "auto-review" {
 		t.Fatal(r, e)
 	}
 	if _, e := s.setConfigOption(context.Background(), setConfigOptionParams{SessionID: string(id), ConfigID: "model", Value: "b"}); e == nil {

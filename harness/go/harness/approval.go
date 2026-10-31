@@ -171,9 +171,16 @@ func (b *ApprovalBroker) SetPolicy(agent *Agent, policy ApprovalPolicy) error {
 	}}})
 }
 
-func approvalPolicyPrompt(policy ApprovalPolicy, _ *Session) string {
+func approvalPolicyPrompt(policy ApprovalPolicy, session *Session) string {
 	if policy == ApprovalNever {
 		return approvalNeverPrompt
+	}
+	if session != nil {
+		if mode, found, err := PermissionModeOverride(session.Events()); err == nil && found {
+			if extra := permissionModePrompt(mode); extra != "" {
+				return extra
+			}
+		}
 	}
 	return approvalAskPrompt
 }
@@ -274,16 +281,15 @@ func (b *ApprovalBroker) Decide(ctx context.Context, request ApprovalRequest) (A
 }
 
 func (b *ApprovalBroker) resolve(ctx context.Context, request ApprovalRequest, policy ApprovalPolicy) ApprovalOutcome {
-	switch {
-	case ctx.Err() != nil:
+	if ctx.Err() != nil {
 		return ApprovalCancelled
-	case policy == ApprovalNever:
-		// Sandbox confinement and approval are independent capabilities. The
-		// fixed DSH never policy rejects every ask, including in full access.
-		return ApprovalRejected
-	default:
-		return b.decide(ctx, request, b.visibleHandlers(request.Agent.Scope()))
 	}
+	// ApprovalNever stays fail-closed, including when a session mode would
+	// otherwise allow the call. A recorded mode decides the rest.
+	if outcome, ask := permissionDecision(policy, request); !ask {
+		return outcome
+	}
+	return b.decide(ctx, request, b.visibleHandlers(request.Agent.Scope()))
 }
 
 func hasOpenApprovalTurn(events []Event) bool {

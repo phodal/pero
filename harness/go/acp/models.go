@@ -82,50 +82,34 @@ func (s *Server) checkRestoredModel(ctx context.Context, session *harness.Sessio
 	return s.validateModelChoice(ctx, selection)
 }
 
-func (s *Server) configOptions(selection harness.AgentModelSelection) []any {
-	if len(s.modelChoices) == 0 {
-		return []any{}
+func (s *Server) configOptions(agent *harness.Agent) ([]any, error) {
+	options := []any{}
+	if len(s.modelChoices) != 0 {
+		selection := agent.ModelSelection()
+		choices := make([]any, 0, len(s.modelChoices))
+		for _, choice := range s.modelChoices {
+			choices = append(choices, map[string]any{"value": choice.ID, "name": choice.Name})
+		}
+		options = append(options, map[string]any{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": selection.Model, "options": choices})
 	}
-	options := make([]any, 0, len(s.modelChoices))
-	for _, choice := range s.modelChoices {
-		options = append(options, map[string]any{"value": choice.ID, "name": choice.Name})
+	permission, err := permissionConfig(agent.Session())
+	if err != nil {
+		return nil, err
 	}
-	return []any{map[string]any{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": selection.Model, "options": options}}
+	return append(options, permission), nil
 }
 
-func (s *Server) sessionConfiguration(id harness.SessionID, includeID bool) (any, *rpcError) {
-	record, err := s.currentRecord(id)
-	if err != nil {
-		return nil, classify(err)
-	}
-	result := map[string]any{"configOptions": s.configOptions(record.agent.ModelSelection())}
-	if includeID {
-		result["sessionId"] = id
-	}
-	return result, nil
-}
-
-func (s *Server) setConfigOption(ctx context.Context, p setConfigOptionParams) (any, *rpcError) {
-	if p.ConfigID != "model" || len(s.modelChoices) == 0 {
-		return nil, invalid("unsupported config option")
-	}
-	record, err := s.currentRecord(harness.SessionID(p.SessionID))
-	if err != nil {
-		return nil, classify(err)
-	}
+func (s *Server) beginIdleConfig(record *activeSession, reason string) (func(), *rpcError) {
 	record.mu.Lock()
 	if record.closing || record.inflight || record.commandActive != 0 || record.agent.Status() != harness.AgentIdle {
 		record.mu.Unlock()
-		return nil, invalid("model may only change while the session is idle")
+		return nil, invalid(reason)
 	}
-	// Reserve the existing command lifecycle receipt so close drains this change.
-	// Do not hold record.mu across resolver, session subscribers or persistence:
-	// streaming projection reenters record.mu synchronously during Append.
 	record.modelChanging = true
 	record.commandActive++
 	record.commandsIdle = make(chan struct{})
 	record.mu.Unlock()
-	defer func() {
+	return func() {
 		record.mu.Lock()
 		record.modelChanging = false
 		record.commandActive--
@@ -133,21 +117,65 @@ func (s *Server) setConfigOption(ctx context.Context, p setConfigOptionParams) (
 			close(record.commandsIdle)
 		}
 		record.mu.Unlock()
-	}()
-	next := record.agent.ModelSelection()
-	next.Provider = s.provider
-	next.Model = p.Value
-	// Reasoning selection is a provider default, not carried from a different model.
-	next.ReasoningEffort = ""
-	if err = s.validateModelChoice(ctx, next); err != nil {
+	}, nil
+}
+
+func (s *Server) sessionConfiguration(id harness.SessionID, includeID bool) (any, *rpcError) {
+	record, err := s.currentRecord(id)
+	if err != nil {
 		return nil, classify(err)
 	}
-	err = record.agent.SelectModel(ctx, next)
-	options := s.configOptions(record.agent.ModelSelection())
+	options, err := s.configOptions(record.agent)
 	if err != nil {
+		return nil, classify(err)
+	}
+	result := map[string]any{"configOptions": options}
+	if includeID {
+		result["sessionId"] = id
+	}
+	return result, nil
+}
+
+func (s *Server) setConfigOption(ctx context.Context, p setConfigOptionParams) (any, *rpcError) {
+	record, err := s.currentRecord(harness.SessionID(p.SessionID))
+	if err != nil {
+		return nil, classify(err)
+	}
+	switch p.ConfigID {
+	case "permission":
+		return s.setPermissionOption(record, p.Value)
+	case "model":
+		if len(s.modelChoices) == 0 {
+			return nil, invalid("unsupported config option")
+		}
+		return s.setModelOption(ctx, record, p.Value)
+	default:
+		return nil, invalid("unsupported config option")
+	}
+}
+
+func (s *Server) setModelOption(ctx context.Context, record *activeSession, value string) (any, *rpcError) {
+	finish, denied := s.beginIdleConfig(record, "model may only change while the session is idle")
+	if denied != nil {
+		return nil, denied
+	}
+	defer finish()
+	next := record.agent.ModelSelection()
+	next.Provider = s.provider
+	next.Model = value
+	// Reasoning selection is a provider default, not carried from a different model.
+	next.ReasoningEffort = ""
+	if err := s.validateModelChoice(ctx, next); err != nil {
+		return nil, classify(err)
+	}
+	if err := record.agent.SelectModel(ctx, next); err != nil {
 		// Append may have succeeded before a durability failure. Never acknowledge
 		// rollback or keep using uncertain state; close and require explicit restore.
 		s.requestRecordClose(record)
+		return nil, classify(err)
+	}
+	options, err := s.configOptions(record.agent)
+	if err != nil {
 		return nil, classify(err)
 	}
 	return map[string]any{"configOptions": options}, nil

@@ -170,6 +170,10 @@ func TestNativeApprovalMetadataWireAuthority(t *testing.T) {
 			rpc("initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{}})
 			created := rpc("session/new", map[string]any{"cwd": t.TempDir(), "mcpServers": mcpServers})
 			id := created["result"].(map[string]any)["sessionId"].(string)
+			// This fixture proves the permission wire. Auto-review would allow the call without asking.
+			if configured := rpc("session/set_config_option", map[string]any{"sessionId": id, "configId": "permission", "value": "full-access"}); configured["error"] != nil {
+				t.Fatal(configured["error"])
+			}
 			response := rpc("session/prompt", map[string]any{"sessionId": id, "prompt": []any{map[string]any{"type": "text", "text": "run"}}})
 			if mode == "native" || mode == "ordinary_spoof" || mode == "mcp_spoof" {
 				if permissions != 1 || bodies != 1 || response["error"] != nil {

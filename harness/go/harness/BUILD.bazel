@@ -48,6 +48,7 @@ go_library(
         "media_compat.go",
         "model_info.go",
         "owned_followup.go",
+        "permission_mode.go",
         "profile_owner_admission.go",
         "profile_owner_commands.go",
         "profile_owner_tools.go",
@@ -136,6 +137,7 @@ go_test(
     name = "harness_test",
     srcs = [
         "approval_test.go",
+        "permission_mode_test.go",
         "extraction_test.go",
         "harness_test.go",
         "mcp_list_changed_test.go",

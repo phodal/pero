@@ -38,9 +38,10 @@ anonymous identity or telemetry initialization is inherited by this entrypoint.
   are not supported. The Go server supports its session persistence/load APIs,
   but the Worker does **not** automatically resume or replay interrupted prompts.
   Its existing journal reconciles uncertain Runs and reuses completion receipts.
-- Keep `AgentConfig.model` absent/null: this Agent returns empty `configOptions`
-  and does not implement `session/set_model`. Model selection is an explicit
-  startup argument, not an invented ACP extension.
+- Keep `AgentConfig.model` absent/null: this Agent does not advertise a model
+  selector unless selectable models are configured, and does not implement
+  `session/set_model`. Every session advertises `permission`, defaulting to
+  `auto-review`. Model selection remains an explicit startup argument.
 - The provider requires an explicit endpoint, credential, provider and model.
   HTTPS is required except numeric-loopback HTTP fixtures. Redirects and SDK
   retries are disabled; retry policy remains owned by the harness.

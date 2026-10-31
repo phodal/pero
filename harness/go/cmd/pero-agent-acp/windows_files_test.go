@@ -186,6 +186,7 @@ func TestWindowsFileCLIReadCreateApprovalBoundary(t *testing.T) {
 	if !ok || id == "" {
 		t.Fatalf("missing session: %v", created)
 	}
+	rpc("session/set_config_option", map[string]any{"sessionId": id, "configId": "permission", "value": "full-access"})
 	rpc("session/prompt", map[string]any{"sessionId": id, "prompt": []any{map[string]any{"type": "text", "text": "Exercise only the local read, create and rejection fixtures."}}})
 	rpc("session/close", map[string]any{"sessionId": id})
 	_ = input.Close()
