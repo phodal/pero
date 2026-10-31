@@ -213,7 +213,11 @@ impl Process {
         // cleanup joins the watchdog. Lease expiry can race with an HTTP reply
         // or executor EOF after the loop's initial check; its final authority
         // must override a stale ordinary result, even after confirmed cleanup.
-        if self.expired.load(Ordering::SeqCst) {
+        // Cleanup stops the watchdog before reaping, so also check the final
+        // deadline directly: it may elapse without the watchdog setting its flag.
+        if self.expired.load(Ordering::SeqCst)
+            || Instant::now() >= *self.deadline.lock().unwrap()
+        {
             return Outcome::new(
                 "reconcile",
                 "Execution lease lost before settlement; effects require reconciliation",
@@ -387,7 +391,13 @@ mod tests {
     use super::*;
     use std::os::unix::process::CommandExt;
 
-    fn controlled_process(expire_during_cleanup: bool) -> Process {
+    enum CleanupLease {
+        Valid,
+        WatchdogExpired,
+        DeadlineElapsed,
+    }
+
+    fn controlled_process(lease: CleanupLease) -> Process {
         // This child only waits for stdin; it has its own process group and no tools.
         let child = Command::new("/bin/sh")
             .args(["-c", "read value"])
@@ -410,6 +420,7 @@ mod tests {
         };
         let finished = process.finished.clone();
         let expired = process.expired.clone();
+        let limit = process.deadline.clone();
         let (ready_tx, ready_rx) = mpsc::sync_channel(0);
         process.watchdog = Some(std::thread::spawn(move || {
             ready_tx.send(()).unwrap();
@@ -420,8 +431,12 @@ mod tests {
                 assert!(Instant::now() < deadline, "cleanup did not reach its watchdog barrier");
                 std::thread::yield_now();
             }
-            if expire_during_cleanup {
-                expired.store(true, Ordering::SeqCst);
+            match lease {
+                CleanupLease::Valid => {}
+                CleanupLease::WatchdogExpired => expired.store(true, Ordering::SeqCst),
+                // Freeze the lease at this observed cleanup boundary without
+                // setting the watchdog flag; no scheduling delay is assumed.
+                CleanupLease::DeadlineElapsed => *limit.lock().unwrap() = Instant::now(),
             }
         }));
         ready_rx.recv_timeout(Duration::from_secs(10)).unwrap();
@@ -431,7 +446,7 @@ mod tests {
     #[test]
     fn lease_expiry_during_cleanup_overrides_every_stale_executor_result() {
         for status in ["failed", "succeeded", "cancelled"] {
-            let mut process = controlled_process(true);
+            let mut process = controlled_process(CleanupLease::WatchdogExpired);
             assert!(!process.expired.load(Ordering::SeqCst));
             let stale = Outcome::new(status, "Selected before watchdog expiry");
             let outcome = process.finish(stale);
@@ -442,8 +457,22 @@ mod tests {
     }
 
     #[test]
+    fn elapsed_deadline_during_cleanup_overrides_results_without_watchdog_flag() {
+        for status in ["failed", "succeeded", "cancelled"] {
+            let mut process = controlled_process(CleanupLease::DeadlineElapsed);
+            assert!(Instant::now() < *process.deadline.lock().unwrap());
+            let outcome = process.finish(Outcome::new(status, "Selected while lease valid"));
+            assert!(!process.expired.load(Ordering::SeqCst));
+            assert!(Instant::now() >= *process.deadline.lock().unwrap());
+            assert_eq!(outcome.outcome, "reconcile", "stale {status} escaped elapsed deadline");
+            assert!(outcome.needs_attention);
+            assert!(process.child.try_wait().unwrap().is_some());
+        }
+    }
+
+    #[test]
     fn confirmed_cleanup_without_lease_expiry_preserves_executor_result() {
-        let mut process = controlled_process(false);
+        let mut process = controlled_process(CleanupLease::Valid);
         let outcome = process.finish(Outcome::new("failed", "Executor failure"));
         assert_eq!(outcome.outcome, "failed");
         assert_eq!(outcome.summary, "Executor failure");
