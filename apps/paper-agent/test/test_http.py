@@ -99,6 +99,17 @@ class ResearchHTTP(unittest.TestCase):
                 self.assertEqual(call("GET", "/api/library")[1]["papers"], [])
                 paper = call("POST", "/api/papers/import", reading())[1]
                 self.assertEqual(paper["source"], "import")
+                selected = 'Selected source text. ' * 2000
+                status, context = call('POST', '/api/contexts', dict(content=selected, paperId=paper['id']))
+                self.assertEqual(status, 201)
+                from pathlib import Path
+                self.assertEqual(Path(context['path']).read_text('utf-8'), selected)
+                status, with_context = call('POST', '/api/intents', dict(question='Q' * 2000,
+                    paperIds=[paper['id']], requestId='file-context-request', contextId=context['id']))
+                self.assertEqual(status, 201)
+                self.assertIn(context['path'], with_context['prompt'])
+                self.assertNotIn(selected, with_context['prompt'])
+                self.assertEqual(call('POST', '/api/contexts', dict(content=selected, paperId=paper['id']), token='wrong')[0], 401)
                 status, lines = call('GET', f"/api/papers/{paper['id']}/lines?startLine=1&endLine=1")
                 self.assertEqual(status, 200)
                 self.assertEqual(lines['content'], reading()['content'].splitlines(keepends=True)[0])

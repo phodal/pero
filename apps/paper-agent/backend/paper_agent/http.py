@@ -16,6 +16,7 @@ from .pdf_files import PdfFiles
 from .retrieval import SearchQuery
 from .local_pdf import LocalPdf, MAX_PDF_BYTES
 from .source_text import SourceText
+from .context_file import ContextSelection
 from .research import ResearchPlan
 from .thumbnails import PaperThumbnails
 
@@ -151,6 +152,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, record.to_dict())
                 if self.command == "POST":
+                    if path == '/api/contexts':
+                        return self.reply(201, store.save_context(ContextSelection.parse(data)).to_dict())
                     if path == '/api/studies':
                         return self.reply(201, store.create_study(ResearchRequest.parse(data), now()).to_dict())
                     if path == '/api/studies/step':

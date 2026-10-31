@@ -18,7 +18,9 @@ from .reading_matrix import ReadingCell
 from .retrieval import METHOD, SearchQuery, SourceVersion, chunks, terms
 from .research import ResearchPlan, RetrievalBatch, QueryProposal, EvidenceSelection
 from .search_index import SearchIndex
-from .studies import ResearchStudy, ResearchStep, StudyCommand, StudyContinuation
+from .context_file import ContextFile, ContextSelection
+from .source_text import SourceText
+from .studies import ResearchStudy, ResearchStep, StudyCommand, StudyContinuation, READ_LENGTH
 
 
 @dataclass(frozen=True)
@@ -85,6 +87,30 @@ class ResearchStore:
             finally:
                 if os.path.exists(name):
                     os.unlink(name)
+
+    def save_context(self, selection: ContextSelection):
+        self.paper(selection.paper_id)
+        if selection.document_id:
+            document = self.pdf(selection.document_id)
+            if document.paper_id != selection.paper_id:
+                raise Invalid('Context PDF does not belong to the source')
+            document.page(selection.page)
+        path = (self.root / 'context-files' / (selection.id + '.txt')).resolve()
+        data = selection.content.encode('utf-8')
+        record = ContextFile(selection.id, str(path), digest(data), selection.paper_id,
+                             selection.document_id, selection.page)
+        with self.lock:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if not path.exists():
+                path.write_bytes(data)
+            self._write('contexts', record.id, record.to_dict())
+        return record
+
+    def context_file(self, request):
+        if not request.context_id:
+            return None
+        record = ContextFile.from_record(self._read('contexts', request.context_id))
+        return record.for_sources(request.paper_ids)
 
     def paper(self, identity):
         return PaperSnapshot.from_record(self._read("papers", identity))
@@ -282,7 +308,7 @@ class ResearchStore:
                 label = 'Matrix (manually corrected)' if revisions else 'Matrix (Agent output)'
                 values = [dict(column=c.column_id, value=c.value, status=c.status) for c in matrix.cells]
                 answer += '\n' + label + ': ' + json.dumps(values, ensure_ascii=False)[:1000]
-            turns.append(ConversationTurn(intent.id, intent.question[:1000], answer))
+            turns.append(ConversationTurn(intent.id, intent.question[:1000], answer, intent.context_file))
             parent = intent.parent_intent_id
         return tuple(reversed(turns))
 
@@ -293,7 +319,7 @@ class ResearchStore:
             if not request.full_text or any(d is None for d in documents):
                 raise Invalid('Model-assisted retrieval needs saved PDFs for the selected papers')
             plan = ResearchPlan(request, papers, self.conversation(request),
-                                tuple(SourceVersion.of(p, d) for p, d in zip(papers, documents)), now)
+                                tuple(SourceVersion.of(p, d) for p, d in zip(papers, documents)), now, self.context_file(request))
             self._write('research-plans', plan.id, plan.to_dict())
             return plan
 
@@ -308,7 +334,7 @@ class ResearchStore:
             papers = tuple(self.paper(i) for i in request.paper_ids)
             documents = tuple(self.paper_pdf(p.id) for p in papers)
             parent = self.intent(request.parent_intent_id) if request.parent_intent_id else None
-            study = ResearchStudy.create(request, papers, documents, self.conversation(request), now, parent)
+            study = ResearchStudy.create(request, papers, documents, self.conversation(request), now, parent, self.context_file(request))
             self._write('studies', study.id, study.to_record())
             return study
 
@@ -342,6 +368,25 @@ class ResearchStore:
         with self.lock:
             study = self.study(value.get('studyId'))
             command = StudyCommand.parse(value, study)
+            if command.action == 'context':
+                record = command.context_file
+                content = Path(record.path).read_bytes().decode('utf-8')
+                if digest(content.encode('utf-8')) != record.content_digest:
+                    raise Invalid('Context file integrity check failed')
+                if command.start_line is None:
+                    if command.start > len(content):
+                        raise Invalid('Context offset is outside the file')
+                    end = min(command.start + READ_LENGTH, len(content))
+                    return dict(**study.compact(), observation=dict(contextFile=record.to_dict(),
+                        content=content[command.start:end], start=command.start,
+                        nextStart=end if end < len(content) else None, totalCharacters=len(content)))
+                source = SourceText(content)
+                first = command.start_line
+                last = command.end_line or min(first + 19, len(source.lines))
+                start, selected = source.range(first, last)
+                return dict(**study.compact(), observation=dict(contextFile=record.to_dict(), content=selected,
+                    start=start, startLine=first, endLine=last, totalLines=len(source.lines),
+                    nextLine=last + 1 if last < len(source.lines) else None))
             if command.action == 'recall':
                 passage = command.passage
                 return dict(**study.compact(), observation=dict(passages=[passage.to_dict()],
@@ -417,7 +462,7 @@ class ResearchStore:
                 tuple(p.id for p in batch.plan.papers if p.id not in matched),
                 tuple(dict.fromkeys(t for q in batch.queries for t in terms(q)))[:64], False, batch.queries, gaps)
             intent = ResearchInput.prepare(batch.plan.request, batch.plan.papers, batch.plan.created_at,
-                passages=passages, retrieval=retrieval, conversation=batch.plan.conversation)
+                passages=passages, retrieval=retrieval, conversation=batch.plan.conversation, context_file=batch.plan.context_file)
             self._write('intents', intent.id, intent.to_dict(False))
             return intent
 
@@ -444,7 +489,7 @@ class ResearchStore:
                 retrieval = found.freeze()
             result = ResearchInput.prepare(request, papers, existing.created_at if existing else now, passages,
                                            existing.frozen_prompt if existing else None, retrieval,
-                                           existing.conversation if existing else self.conversation(request))
+                                           existing.conversation if existing else self.conversation(request), self.context_file(request))
             self._write("intents", result.id, result.to_dict(False))
             return result
 

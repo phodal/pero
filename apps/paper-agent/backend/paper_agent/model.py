@@ -8,6 +8,10 @@ import hashlib
 import json
 import re
 from urllib.parse import urlsplit
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .context_file import ContextFile
 
 REPORT_SCHEMA = "pero.paper-agent-report.v1"
 INPUT_SCHEMA = "pero.paper-agent-input.v1"
@@ -168,13 +172,17 @@ class ConversationTurn:
     intent_id: str
     question: str
     answer: str
+    context_file: 'ContextFile | None' = None
 
     def to_dict(self):
-        return dict(intentId=self.intent_id, question=self.question, answer=self.answer)
+        return dict(intentId=self.intent_id, question=self.question, answer=self.answer,
+                    **(dict(contextFile=self.context_file.to_dict()) if self.context_file else {}))
 
     @classmethod
     def from_record(cls, value):
-        return cls(value['intentId'], value['question'], value['answer'])
+        from .context_file import ContextFile
+        return cls(value['intentId'], value['question'], value['answer'],
+                   ContextFile.from_record(value['contextFile']) if value.get('contextFile') else None)
 
 
 @dataclass(frozen=True)
@@ -186,6 +194,7 @@ class ResearchRequest:
     verification_plan: str
     full_text: bool = False
     parent_intent_id: str | None = None
+    context_id: str | None = None
 
     @classmethod
     def parse(cls, value):
@@ -207,12 +216,16 @@ class ResearchRequest:
         parent = value.get('parentIntentId')
         if parent is not None and (not isinstance(parent, str) or not ID.fullmatch(parent)):
             raise Invalid('Invalid preceding research input')
-        return cls(question, tuple(selected), request_id, verify, plan, full_text, parent)
+        context_id = value.get('contextId')
+        if context_id is not None and (not isinstance(context_id, str) or not ID.fullmatch(context_id)):
+            raise Invalid('Invalid context file reference')
+        return cls(question, tuple(selected), request_id, verify, plan, full_text, parent, context_id)
 
     def to_dict(self):
         return dict(question=self.question, paperIds=list(self.paper_ids), requestId=self.request_id,
                     verifyCode=self.verify_code, verificationPlan=self.verification_plan, fullText=self.full_text,
-                    **(dict(parentIntentId=self.parent_intent_id) if self.parent_intent_id else {}))
+                    **(dict(parentIntentId=self.parent_intent_id) if self.parent_intent_id else {}),
+                    **(dict(contextId=self.context_id) if self.context_id else {}))
 
 
 @dataclass(frozen=True)
@@ -254,9 +267,10 @@ class ResearchInput:
     retrieval: RetrievalSnapshot | None = None
     parent_intent_id: str | None = None
     conversation: tuple[ConversationTurn, ...] = ()
+    context_file: 'ContextFile | None' = None
 
     @classmethod
-    def prepare(cls, request, papers, now, passages=(), frozen_prompt=None, retrieval=None, conversation=()):
+    def prepare(cls, request, papers, now, passages=(), frozen_prompt=None, retrieval=None, conversation=(), context_file=None):
         if tuple(paper.id for paper in papers) != request.paper_ids:
             raise Invalid("Frozen papers do not match the selected research sources")
         if not request.full_text and sum(len(paper.content) for paper in papers) > 80000:
@@ -271,7 +285,7 @@ class ResearchInput:
             raise Invalid('Retrieval record does not match the frozen passages')
         result = cls(digest(request.request_id.encode("utf-8")), request.question, request.request_id,
                      tuple(papers), request.verify_code, request.verification_plan, now, tuple(passages), retrieval=retrieval,
-                     parent_intent_id=request.parent_intent_id, conversation=tuple(conversation))
+                     parent_intent_id=request.parent_intent_id, conversation=tuple(conversation), context_file=context_file)
         if passages:
             result = replace(result, frozen_prompt=frozen_prompt or result.prompt())
         if len(result.prompt().encode("utf-8")) > 128000:
@@ -280,10 +294,12 @@ class ResearchInput:
 
     @classmethod
     def from_record(cls, value):
+        from .context_file import ContextFile
         request = ResearchRequest.parse({**value, "paperIds": [paper["id"] for paper in value["papers"]]})
         result = cls.prepare(request, tuple(PaperSnapshot.from_record(paper) for paper in value["papers"]), value["createdAt"], tuple(PdfPassage.from_record(p) for p in value.get("passages", [])), value.get("frozenPrompt"),
                              RetrievalSnapshot.from_record(value['retrieval']) if value.get('retrieval') else None,
-                             tuple(ConversationTurn.from_record(turn) for turn in value.get('conversation', [])))
+                             tuple(ConversationTurn.from_record(turn) for turn in value.get('conversation', [])),
+                             ContextFile.from_record(value['contextFile']) if value.get('contextFile') else None)
         if value.get("schema") != INPUT_SCHEMA or result.id != value.get("id"):
             raise Invalid("Stored research input integrity check failed")
         return result
@@ -292,6 +308,8 @@ class ResearchInput:
         value = dict(schema=INPUT_SCHEMA, id=self.id, question=self.question, requestId=self.request_id,
                      papers=[paper.to_dict() for paper in self.papers], verifyCode=self.verify_code,
                      verificationPlan=self.verification_plan, createdAt=self.created_at)
+        if self.context_file:
+            value['contextFile'] = self.context_file.to_dict()
         if self.parent_intent_id:
             value.update(parentIntentId=self.parent_intent_id, conversation=[turn.to_dict() for turn in self.conversation])
         if self.passages:
@@ -364,4 +382,6 @@ class ResearchInput:
             "Do not infer matrix values without evidence. Do not duplicate the structured matrix as a Markdown table in sections. "
             "Use the user's language. Acceptance stays unverified; Agent-reported results are not independent verification."
         )
+        if self.context_file:
+            prompt = self.context_file.prompt() + prompt
         return prompt.replace('"paperId":string,"quote":string', '"paperId":string,"passageId":string,"quote":string').replace('evidence:[{paperId,quote}]', 'evidence:[{paperId,passageId,quote}]') if self.passages else prompt
