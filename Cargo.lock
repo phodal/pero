@@ -5545,6 +5545,8 @@ dependencies = [
  "gpui-webview",
  "js-sys",
  "lb-wry",
+ "mime_guess",
+ "percent-encoding",
  "pero-chat-ui",
  "pero-contracts",
  "pero-theme",
