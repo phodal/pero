@@ -18,7 +18,10 @@ and retains complete mode-specific gates. The user subsequently requested normal
 Linux-only CI, with all platforms retained in daily/manual full runs. Each scenario has its own timing/failure
 receipt and bounded test-owned cleanup. The first split run still took 16m07s with cold build caches and found three
 Control Lab failures. The user then authorized ordinary critical smokes with
-slow complete scenarios in daily/manual runs. All tests remain in the full tier;
+slow complete scenarios in daily/manual runs. A later cold run still took 14m58s, so the user authorized moving complete
+Desktop compilation and GUI to daily/manual too. Ordinary runs now check
+independent types, core runtime and real stdio/permission/recovery contracts.
+All tests remain in the full tier;
 moving a failing test is not treated as fixing it.
 
 Baseline fixes included here do not reduce coverage: Windows npm is launched via

@@ -33,22 +33,28 @@ boundary is bypassed. All 14 acceptance jobs started together after the producer
 11 passed, three Control Lab scenarios failed and require actual fixes. MCP
 persistence/transport were the longest shards, about four minutes including setup.
 
-After this measurement, the user explicitly authorized a smaller ordinary tier.
-No test is physically deleted: ordinary PR/push runs the three critical real
-Desktop smokes below; daily/manual (`workflow_dispatch` or PR `ci:full`) runs preserve all fourteen scenarios. Moving a
-failing scenario to daily is not a fix or a passing result.
+The later run `41209081679` again missed both Cargo and bindgen caches:
+its build job took about 12m25s and the complete run 14m58s. Its three GUI
+failures exposed stale navigation clicks, not a successful fast tier. Cache-hit
+claims cannot substitute for observed results.
 
-| Tier | Real Desktop scenarios | Boundary retained |
+The user then authorized moving complete Desktop compilation and GUI acceptance
+to daily/manual runs. No test is physically deleted. Ordinary PR/push now runs
+Linux core contracts, not Desktop smokes; full runs retain all fifteen scenarios.
+Moving a failing scenario to daily is not a fix or a passing result.
+
+| Tier | Coverage | Explicit limitation |
 | --- | --- | --- |
-| Ordinary + daily | Workbench | Actual session, permission and cancellation/reload behavior |
-| Ordinary + daily | Data | Import, SHA256, type/search/details, persistence and no automatic download |
-| Ordinary + daily | App Use Workbench | Actual ACP/MCP/App connection and hidden-surface read-only boundary |
-| Daily/manual | Toolcalls; Data Product; three Control Lab suites; two Virtual Cell suites; App Use Product; three MCP GUI scenarios | Full rendering, domain workflows, multi-round scientific work and detailed settings recovery |
+| Ordinary + daily | Contracts/Runtime/Host/Worker Rust, actual Host stdio, SQLite/ACP recovery, App Use permissions, MCP ownership, science/Go/Bazel/AST checks | No rendered Desktop or native GUI acceptance |
+| Ordinary + daily | Independent Desktop and Web TypeScript graph in `scripts/ci/tsconfig.core.json`, model/unit tests | Excludes Wasm-dependent frontend entrypoints and Product shell; no fake declarations |
+| Daily/manual | Complete three-platform build/typecheck and fifteen real Desktop scenarios | Required to establish rendering, scientific workflows and GUI recovery behavior |
 
-Every ordinary run still executes the full low-level Host/Rust contracts,
-scientific Python checks, App Use authorization/context/goal tests, and MCP
-settings/ownership contracts. These do not pretend to replace the daily GUI
-assertions. Warm-cache latency needs a new exact-head Actions measurement.
+Core Cargo uses the normal pinned public GPUI source preparation because the
+committed workspace lock contains path-patched dependencies. It compiles only
+Contracts/Runtime/Host/Worker, not GPUI, Reader or Wasm. The generated Host binary
+is exercised directly; no cached GUI runtime is accepted as a substitute.
+Ordinary checks do not prove UI correctness or complete frontend type safety.
+Both cold and warm latency require actual exact-head Actions measurements.
 
 ## Execution graph
 
@@ -62,8 +68,9 @@ assertions. Warm-cache latency needs a new exact-head Actions measurement.
   other label changes rerun the currently selected tier, rather than emitting a
   misleading skipped required gate; they cannot cancel an active main CI run.
   Native Computer Use has no PR path filter, so manual full works for every PR.
-- Each selected OS retains its complete build, typechecks, generated checks, Rust
-  tests, Host contracts and transport tests. Daily full builds keep every platform.
+- Daily/manual selected OS jobs retain complete build, typechecks, generated
+  checks, Rust tests, Host contracts and transport tests. Ordinary core jobs
+  do not depend on a Desktop build or runtime artifact.
 - An exact-version bindgen cache and all three Rust target directories avoid
   recompiling independent tools. The bindgen executable is probed before use;
   a damaged or mismatched cache is rebuilt with the pinned version.
@@ -78,13 +85,14 @@ assertions. Warm-cache latency needs a new exact-head Actions measurement.
   actual add/grant/edit/remove; persistence covers write failure, restart,
   conflict/import and visual states; transport covers rejected/unrelated IPC,
   unknown save reload and disconnection. The default command still runs all.
-- `Linux CI gate` requires every Linux contract job and all three critical smokes. Only the
-  two explicitly full-platform-only job groups may be skipped in normal mode.
+- `Linux CI gate` requires every ordinary Linux contract job, including core.
+  Only Desktop Linux build, other-OS Desktop builds, Desktop acceptance and
+  Windows ACL jobs may be skipped in normal mode.
   `Full-platform CI gate` requires all fifteen acceptance shards and all jobs,
   including Windows positive ACL and macOS/Windows builds. Failure/cancellation of any required job rejects the gate;
   the Linux result is not represented as proof of cross-platform acceptance.
 
-Daily acceptance parity and the explicit ordinary subset are pinned by `scripts/ci/desktop-ci.test.mjs`: Workbench,
+Daily acceptance parity and the independent core command coverage are pinned by `scripts/ci/desktop-ci.test.mjs`: Workbench,
 Automation, Toolcalls, Data, Data Product, three Control Lab suites, two Virtual Cell suites,
 two App Use suites and all three MCP scenarios. MCP settings/ownership protocol
 contracts and all fixture/control-lab unit tests remain in Linux build contracts.
