@@ -56,7 +56,7 @@ model Metrics {
   ghostIconButton: 28;
   searchFieldHeight: 32;
   readerMaxWidth: 720;
-  /** Centered conversation composer. Width is the minimum of this value and the pane minus its horizontal inset. */
+  /** Centered conversation composer and ACP session stream. Width is the minimum of this value and the pane minus its horizontal inset. */
   composerMax: 800;
   sidebarWidth: 224;
   listColumn: 336;
