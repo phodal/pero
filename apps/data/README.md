@@ -1,20 +1,25 @@
 # Data
 
-A small independent App for local scientific dataset and model files. Data is a
-first-level entry after Insights and also the entry of `products/data/product.json`.
-It does not depend on Data Agent.
+Browse datasets and inspect the selected file. Data is a first-level entry after
+Insights and also the entry of `products/data/product.json`. It does not depend
+on Data Agent.
 
 ## Use
 
-- **Import** a dataset or model file, up to **10 MiB**. The browser uploads a copy;
-  a server filesystem path is never accepted. Choose Dataset or Model explicitly.
-- **Sources** offers two pinned public files. Downloads start only when clicked,
-  show byte progress, and can be cancelled. No credentials are requested.
-- Search by name, source, type or format. Select a row for file metadata, license,
-  source revision, managed file location and content SHA256. Model files remain opaque: no model loading,
-  Python execution, package installation or inference.
+The page is a dataset browser: a search field, a table, and a preview of the
+selected file.
 
-The App stores immutable file copies under `PERO_APP_DATA/files` and atomically
+- Sample files are synthetic servo measurements, so the preview has records and a chart.
+- **Add data** parses CSV, TSV, JSON, or JSONL in the browser, up to **5 MiB** and
+  10,000 records. Added files stay in the browser tab.
+- Search matches names, types, sources, descriptions, and field names. The preview
+  shows records, fields, source, and format, plus a chart when the file has a
+  numeric series. Missing values stay visible in the row view.
+
+The Python backend still serves the catalog import and pinned-source download API.
+This page does not call it.
+
+The backend stores immutable file copies under `PERO_APP_DATA/files` and atomically
 updates `catalog.json`. Metadata is App-private, not project-isolated. The standalone
 Product uses its own profile: its catalog is **not automatically shared** with Pero.
 There is no external cache scan, automatic import, startup download or remote sync.
@@ -63,16 +68,19 @@ signed macOS/Windows package acceptance. Full Host/navigation builds require Rus
 and the normal project toolchain. No Agent permissions are requested in this MVP.
 
 Hosted Linux CI also runs `node tests/e2e/data.mjs` in an isolated display with the
-real development Desktop/Host/backend: import tiny CSV and opaque model bytes via
-the UI, filter/search, inspect SHA256, capture light/dark screenshots, restart and
-check persistence. It never clicks preset Download. Synthetic download unit tests
-are separate evidence, not live Zenodo/Hugging Face acceptance. The receipt and
-screenshots are uploaded under `test-results/data/`; a configured test is not a
-claim it has passed before the hosted run completes.
+real development Desktop/Host/backend. The page shows the sample library, search,
+and preview, and adds a tiny CSV in the browser. The catalog stays empty: the page
+does not call `/api/import` or download a source. The run captures light/dark
+screenshots, checks the narrow layout, and confirms a restart shows the sample
+library again. Synthetic download unit tests are separate evidence, not live
+Zenodo/Hugging Face acceptance. The receipt and screenshots are uploaded under
+`test-results/data/`; a configured test is not a claim it has passed before the
+hosted run completes.
 
 The separate `tests/e2e/data-product.mjs` hosted smoke stages the actual Data App,
-Host and standalone shell. It opens Data directly, imports a tiny CSV and checks
-restart persistence in its own profile. Only its disposable product manifest uses
-`python: system`; `products/data/product.json` remains `python: bundled`. Receipts
-and screenshots under `test-results/data-product/` establish development-shell
-behavior, not bundled Python, signed installer or live-source acceptance.
+Host and standalone shell. It opens Data directly and adds a tiny CSV in the
+browser. That file is not written to the catalog, so a restart shows the sample
+library again. Only its disposable product manifest uses `python: system`;
+`products/data/product.json` remains `python: bundled`. Receipts and screenshots
+under `test-results/data-product/` establish development-shell behavior, not
+bundled Python, signed installer or live-source acceptance.

@@ -3,7 +3,6 @@
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { clickAppOpen, setAppearance } from './sidebar-controls.mjs';
-import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -19,10 +18,7 @@ const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(temp, 'desktop'), P
   PERO_AGENTS_FILE: agents, PERO_SETTINGS_PATH: resolve(temp, 'settings.json'), PERO_HISTORY_PATH: resolve(temp, 'history.jsonl') };
 delete env.ELECTRON_RUN_AS_NODE;
 delete env.PERO_APPS_ROOT;
-const fixtures = [
-  { name: 'measurements.csv', kind: 'dataset', buffer: Buffer.from('time,voltage\n0,12.1\n1,12.2\n'), mimeType: 'text/csv' },
-  { name: 'opaque-weights.model', kind: 'model', buffer: Buffer.from([0x80, 4, 0, 255, 65, 66]), mimeType: 'application/octet-stream' },
-];
+const csv = { name: 'measurements.csv', mimeType: 'text/csv', buffer: Buffer.from('time,voltage\n0,12.1\n1,12.2\n2,12.3\n') };
 const errors = [], requests = [], checks = [];
 let app, page, frame;
 const desktop = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
@@ -70,40 +66,24 @@ try {
   await launch();
   expect((await catalog()).assets).toEqual([]);
   expect((await catalog()).download).toBeNull();
-  await frame.getByRole('button', { name: 'Sources', exact: true }).click();
-  await expect(frame.getByRole('dialog').getByRole('button', { name: 'Download', exact: true })).toHaveCount(2);
-  await frame.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
-  for (const fixture of fixtures) {
-    await frame.getByRole('button', { name: 'Import', exact: true }).click();
-    const dialog = frame.getByRole('dialog');
-    await expect(dialog.getByText('Up to 10 MiB', { exact: true })).toBeVisible();
-    await dialog.getByLabel('Type', { exact: true }).selectOption(fixture.kind);
-    await dialog.locator('input[type="file"]').setInputFiles({ name: fixture.name, mimeType: fixture.mimeType, buffer: fixture.buffer });
-    if (fixture.kind === 'dataset') await dialog.getByRole('button', { name: 'Import', exact: true }).click();
-    else await dialog.getByRole('button', { name: 'Import', exact: true }).press('Enter');
-    await expect(dialog).toBeHidden();
-    await expect(frame.getByRole('button', { name: fixture.name, exact: true })).toBeVisible();
-  }
-  const before = await catalog();
-  expect(before.assets).toHaveLength(2);
-  for (const fixture of fixtures) {
-    const asset = before.assets.find(item => item.name === fixture.name);
-    expect(asset.kind).toBe(fixture.kind);
-    expect(asset.localAvailable).toBe(true);
-    expect(asset.sha256).toBe(createHash('sha256').update(fixture.buffer).digest('hex'));
-    await frame.getByRole('button', { name: fixture.name, exact: true }).click();
-    await expect(frame.getByRole('complementary', { name: 'Asset details' }).getByText(asset.sha256, { exact: true })).toBeVisible();
-    await expect(frame.getByRole('complementary', { name: 'Asset details' }).getByText(asset.location, { exact: true })).toBeVisible();
-  }
-  checks.push('sandbox-safe click and Enter import tiny CSV and opaque model; metadata and SHA256 match original bytes');
-  await frame.getByRole('button', { name: 'Models', exact: true }).click();
+  await expect(frame.getByRole('button', { name: 'servo-response.csv', exact: true })).toBeVisible();
+  await frame.getByRole('searchbox', { name: 'Search data' }).fill('motor');
   await expect(frame.locator('tbody tr')).toHaveCount(1);
-  await expect(frame.locator('tbody')).toContainText('opaque-weights.model');
-  await frame.getByRole('button', { name: 'All', exact: true }).click();
-  await frame.getByRole('searchbox').fill('measurements');
-  await expect(frame.locator('tbody tr')).toHaveCount(1);
-  await expect(frame.locator('tbody')).toContainText('measurements.csv');
-  await frame.getByRole('searchbox').fill('');
+  await expect(frame.locator('tbody')).toContainText('motor-telemetry.csv');
+  await frame.getByRole('button', { name: 'motor-telemetry.csv', exact: true }).click();
+  const preview = frame.getByRole('complementary', { name: 'Preview' });
+  await expect(preview).toContainText('motor-telemetry.csv');
+  await expect(preview).toContainText('72');
+  await expect(preview).toContainText('5');
+  await frame.getByRole('searchbox', { name: 'Search data' }).fill('');
+  await frame.getByRole('button', { name: 'Add data', exact: true }).click();
+  const dialog = frame.getByRole('dialog');
+  await dialog.locator('input[type="file"]').setInputFiles(csv);
+  await expect(dialog).toBeHidden();
+  await expect(frame.getByRole('button', { name: csv.name, exact: true })).toBeVisible();
+  expect((await catalog()).assets).toEqual([]);
+  expect((await catalog()).download).toBeNull();
+  checks.push('sample library, search, preview, and in-browser CSV add leave the catalog empty');
   await setAppearance(page, 'light');
   await expect.poll(() => frame.locator('html').evaluate(element => element.style.colorScheme)).toBe('light');
   await page.screenshot({ path: resolve(out, 'data-light.png') });
@@ -112,17 +92,16 @@ try {
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 700));
   expect(await frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await page.screenshot({ path: resolve(out, 'data-dark-narrow.png') });
-  checks.push('kind filter, name search, selected details, light and dark narrow layout');
+  checks.push('search, preview, light and dark narrow layout');
   await close();
   await launch();
-  expect((await catalog()).assets).toEqual(before.assets);
+  expect((await catalog()).assets).toEqual([]);
   expect((await catalog()).download).toBeNull();
-  await expect(frame.locator('tbody tr')).toHaveCount(2);
-  expect(requests.filter(request => request.method === 'POST')).toEqual([
-    { method: 'POST', path: '/api/import' }, { method: 'POST', path: '/api/import' },
-  ]);
+  await expect(frame.getByRole('button', { name: 'servo-response.csv', exact: true })).toBeVisible();
+  await expect(frame.getByRole('button', { name: csv.name, exact: true })).toHaveCount(0);
+  expect(requests.filter(request => request.method === 'POST')).toEqual([]);
   expect(errors).toEqual([]);
-  checks.push('restart restores files and metadata; Sources browsing and startup never issue download requests');
+  checks.push('restart shows the sample library again; the page never posts an import or download');
   await close();
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ scope: 'development-workbench-local-files', checks, requests, errors,
     exclusions: ['live upstream downloads', 'model execution', 'standalone bundled runtime or signed installer'] }, null, 2));
