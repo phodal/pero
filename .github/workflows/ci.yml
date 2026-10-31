@@ -355,6 +355,8 @@ jobs:
           node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs
           node --test tests/runtime/control-lab/*.test.mjs tests/runtime/control-lab/host-goal.test.ts
           node tests/e2e/computer-transport.mjs
+      - name: Build the actual Host MCP sidecar and HTTP assets
+        run: node scripts/build/mcp.mjs
       - name: Actual Host stdio and durable ownership
         run: |
           node tests/contracts/host.mjs

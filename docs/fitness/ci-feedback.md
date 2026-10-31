@@ -54,7 +54,8 @@ workspace lock. Core now uses directly validated `cargo test/build --locked`
 without a GPUI checkout or temporary lock edits. It compiles only
 Contracts/Runtime/Host/Worker, not GPUI, Reader or Wasm. Full Desktop builds still
 use the existing pinned GPUI source preparation and wrapper. The generated Host binary
-is exercised directly; no cached GUI runtime is accepted as a substitute.
+is exercised directly; its real Node MCP provider and two HTTP assets are built
+separately with esbuild (no Electron/GPUI compilation); no cached GUI runtime is accepted as a substitute.
 Ordinary checks do not prove UI correctness or complete frontend type safety.
 Both cold and warm latency require actual exact-head Actions measurements.
 

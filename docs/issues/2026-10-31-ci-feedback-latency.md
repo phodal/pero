@@ -54,6 +54,15 @@ The original durable-claim and cross-platform reopening assertions remain.
 See the [flock ownership contract](https://man7.org/linux/man-pages/man2/flock.2.html).
 This is a correctness repair, not a retry or removal of the failing test.
 
+The core-only ownership run also exposed an undeclared build prerequisite:
+Host MCP Apps needs its real Node provider plus panel/sandbox HTTP assets, which
+previously came from the complete Desktop build. Core now builds those three
+small JavaScript outputs through the same shared builder as Desktop. A correlated
+Host MCP error fails the ownership test immediately instead of being discarded
+until timeout; all real configuration, HTTP and teardown assertions remain.
+The positive reproduction starts with no Desktop dist directory and only these
+three outputs, avoiding stale local build artifacts as hidden prerequisites.
+
 The incident remains open until real Actions measurements demonstrate the target
 and full coverage on the new exact head. See `docs/fitness/ci-feedback.md` for the
 baseline, coverage mapping, cold/warm distinction and measurement procedure.

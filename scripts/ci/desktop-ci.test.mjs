@@ -53,7 +53,7 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   for (const command of ['npx tsc -p scripts/ci/tsconfig.core.json',
     'cargo test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker',
     'cargo build --locked -p pero-host -p pero-worker',
-    'node tests/contracts/host.mjs', 'node tests/runtime/automation.mjs',
+    'node scripts/build/mcp.mjs', 'node tests/contracts/host.mjs', 'node tests/runtime/automation.mjs',
     'node tests/contracts/mcp-settings.mjs', 'node tests/contracts/mcp-ownership.mjs',
     'tests/fixtures/owned-electron-close.test.mjs', 'npm run test:app-use:unit']) assert.ok(core.includes(command), command);
   assert.doesNotMatch(core, /npm run build|xvfb-run|build:wasm|scripts\/cargo.mjs|PERO_GPUI_KIT_PATH/);
