@@ -73,11 +73,10 @@ export class DesktopAppUse {
     describe(): Promise<AppWriteDefinition[]>;
     apply(write: PreparedAppWrite, signal: AbortSignal, goal?: ControlLabGoal): Promise<unknown>;
   };
-  private window: () => BrowserWindow;
   private send: (event: Event) => void;
   readonly computer?: DesktopComputer;
   constructor(
-    window: () => BrowserWindow,
+    surface: (() => BrowserWindow) | AppUsePorts,
     send: (event: Event) => void,
     evidenceRoot: string,
     writes?: {
@@ -89,12 +88,12 @@ export class DesktopAppUse {
     this.computer = computer;
     this.results = new ContentArtifacts(join(evidenceRoot, 'content'));
     this.writes = writes;
-    this.window = window;
     this.send = send;
-    const ports: AppUsePorts = {
+    const electronWindow = typeof surface === 'function' ? surface : undefined;
+    const ports: AppUsePorts = typeof surface !== 'function' ? surface : {
       page: async (scope, request) => {
         const input = JSON.stringify({ scope, request });
-        const result = await this.window().webContents.executeJavaScript(
+        const result = await electronWindow!().webContents.executeJavaScript(
           `window.peroAppUse ? window.peroAppUse(${input}) : {ok:false,error:{code:'APP_USE_UNAVAILABLE',message:'Open an App panel first.'}}`,
         );
         if (!result?.ok)
@@ -105,7 +104,7 @@ export class DesktopAppUse {
         return result.value;
       },
       selectedThread: async () => {
-        const contents = this.window().webContents;
+        const contents = electronWindow!().webContents;
         // Product Chat owns its current selection in a separate trusted frame.
         // Read it fresh, without a parent postMessage query whose timeout looks
         // identical to a genuine empty selection. Never consult an App frame.
@@ -119,7 +118,7 @@ export class DesktopAppUse {
         );
       },
       capture: async (rect, id) => {
-        const window = this.window();
+        const window = electronWindow!();
         if (!window.isVisible() || window.isMinimized())
           throw new AppUseError('APP_CAPTURE_HIDDEN', 'Show the application window before capturing.');
         const image = await window.webContents.capturePage({

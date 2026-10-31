@@ -1,0 +1,8 @@
+[
+  {"source": "East", "target": "Online", "orders": 420},
+  {"source": "East", "target": "Store", "orders": 260},
+  {"source": "West", "target": "Online", "orders": 310},
+  {"source": "West", "target": "Store", "orders": 180},
+  {"source": "North", "target": "Online", "orders": 150},
+  {"source": "North", "target": "Store", "orders": 90}
+]

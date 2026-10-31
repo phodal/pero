@@ -80,7 +80,7 @@ impl NativeApps {
         }
         true // Private paths and backend credentials never become Workbench events.
     }
-    fn request<T: DeserializeOwned>(&self, action: &str, fields: Value) -> anyhow::Result<T> {
+    pub(super) fn request<T: DeserializeOwned>(&self, action: &str, fields: Value) -> anyhow::Result<T> {
         let id = format!("native-app-{}", self.next.fetch_add(1, Ordering::Relaxed));
         let mut command = fields;
         command["method"] = json!("apps");
@@ -106,6 +106,34 @@ impl NativeApps {
             );
         }
         Ok(serde_json::from_value(reply.value.unwrap_or(Value::Null))?)
+    }
+    pub(super) fn shell_request(&self, data: Value) -> anyhow::Result<Value> {
+        let id = format!("native-surface-{}", self.next.fetch_add(1, Ordering::Relaxed));
+        let (sender, receiver) = mpsc::channel();
+        self.pending.lock().unwrap().insert(id.clone(), sender);
+        let mut event = HostEvent::new("native_app_rpc", Some(id.clone()), String::new());
+        event.data = data;
+        let result = self.events.send_blocking(event).map_err(anyhow::Error::from)
+            .and_then(|_| Ok(receiver.recv_timeout(Duration::from_secs(65))?));
+        self.pending.lock().unwrap().remove(&id);
+        let reply = result?;
+        anyhow::ensure!(reply.ok, "{}", reply.error.unwrap_or_default());
+        Ok(reply.value.unwrap_or(Value::Null))
+    }
+    pub(super) fn shell_reply(&self, id: &str, result: anyhow::Result<Value>) {
+        if let Some(sender) = self.pending.lock().unwrap().remove(id) {
+            let reply = match result {
+                Ok(value) => Reply { ok: true, value: Some(value), error: None },
+                Err(error) => Reply { ok: false, value: None, error: Some(error.to_string()) },
+            };
+            let _ = sender.send(reply);
+        }
+    }
+    pub(super) fn context(&self, request: Value) -> anyhow::Result<Value> {
+        let value = self.connectors.as_ref().and_then(std::sync::Weak::upgrade)
+            .ok_or_else(||anyhow::anyhow!("Native App tools are unavailable"))?.request(request)?;
+        anyhow::ensure!(value.is_array(), "{}", value["message"].as_str().unwrap_or("Native App context is unavailable"));
+        Ok(value)
     }
     pub fn command(&self, value: Value) {
         let this = self.clone();

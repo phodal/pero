@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, EmptyState, Feedback, FilePicker, LibraryHeader, SearchField } from '@pero/app-sdk/ui';
+import { AppFrame, Button, EmptyState, Feedback, FilePicker, SearchField } from '@pero/app-sdk/ui';
 import { chartEligible, formatInt, IMPORT_LIMIT, parseImported, visibleAssets, type Asset, type PreviewMode } from './model';
 import { Preview } from './preview';
 import { seedAssets } from './sample';
@@ -60,8 +60,7 @@ export default function Data() {
     }
   }
 
-  return <main className="data-page">
-    <LibraryHeader title="Data" actions={<Button variant="primary" onClick={openAdd}>Add data</Button>} />
+  return <AppFrame className="data-page" label="Data" actions={<Button variant="primary" onClick={openAdd}>Add data</Button>}>
     <div className="data-split">
       <section className="data-list" aria-label="Datasets">
         <div className="data-tools">
@@ -93,5 +92,5 @@ export default function Data() {
         <FilePicker key={picker} label="Choose file" emptyLabel="No file chosen" accept=".csv,.tsv,.json,.jsonl,.ndjson,text/csv,text/tab-separated-values,application/json" onFile={file => { void addFile(file); }} />
       </form>
     </dialog>
-  </main>;
+  </AppFrame>;
 }

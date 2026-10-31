@@ -9,7 +9,7 @@ import {
   useAppObject,
 } from "@pero/app-sdk";
 import type { Capability, Experiment, Field, Summary, Template } from "./types";
-import { applyTranscriptDraft, draftRangeError, generationPrompt, matchingCandidate, parseGeneratedDraft } from "./presentation";
+import { applyTranscriptDraft, draftRangeError, generationPrompt, matchingCandidate, parseGeneratedDraft, unsavedExperiment } from "./presentation";
 import { Results, Evidence } from "./results";
 import "./styles.css";
 const emptySchema = {
@@ -374,17 +374,42 @@ export default function ControlLab() {
     setSelectedId(id);
     setDraft(null);
   }
+  async function runSaved(current: Experiment, proposed: Record<string, number>) {
+    if (pending.current) throw new Error("An operation is already pending.");
+    pending.current = true;
+    const revision = selection.current;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api.post<Experiment>(
+        `/api/experiments/${encodeURIComponent(current.id)}/propose`,
+        { parameters: proposed },
+      );
+      if (revision === selection.current) setExperiment(result);
+      await refreshHistory();
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  }
   async function runDraft() {
-    if (!experiment) throw new Error("Freeze a specification first.");
-    const names = Object.keys(experiment.searchSpace);
-    const parameters = Object.fromEntries(names.map((name) => [name, currentDraft[name]]));
-    const problem = draftRangeError(parameters, experiment.searchSpace);
+    let current = experiment;
+    let proposed = currentDraft;
+    if (!current) {
+      current = (await create()) ?? null;
+      if (!current) return;
+      const names = Object.keys(current.searchSpace);
+      proposed = Object.fromEntries(names.map((name) => [name, current!.parameters[name]]));
+    }
+    const names = Object.keys(current.searchSpace);
+    const parameters = Object.fromEntries(names.map((name) => [name, proposed[name]]));
+    const problem = draftRangeError(parameters, current.searchSpace);
     if (problem) {
       setError(problem);
       setNotice(problem);
       return;
     }
-    const existing = matchingCandidate(experiment.candidates, parameters, names);
+    const existing = matchingCandidate(current.candidates, parameters, names);
     if (existing) {
       setSelectedId(existing.id);
       setDraft(null);
@@ -396,7 +421,8 @@ export default function ControlLab() {
     setNotice("Run started");
     pendingSelect.current = parameters;
     try {
-      await act("propose", { parameters });
+      if (experiment) await act("propose", { parameters });
+      else await runSaved(current, parameters);
     } catch (error) {
       pendingSelect.current = null;
       setNotice("");
@@ -498,13 +524,14 @@ export default function ControlLab() {
   const selected = experiment?.candidates.find(
     (item) => item.id === selectedId,
   );
-  const tunable = Object.keys(experiment?.searchSpace ?? {});
+  const preview = !experiment && template ? unsavedExperiment(template, parameters, criteria, budget) : null;
+  const tunable = Object.keys(experiment?.searchSpace ?? preview?.searchSpace ?? {});
   const savedDraft = selected?.parameters ?? experiment?.parameters ?? {};
   const currentDraft = draft ?? Object.fromEntries(tunable.map((name) => [name, savedDraft[name]]));
   const capability = capabilities.find(
     (item) => item.engine === (experiment ? templates.find((item) => item.id === experiment.templateId)?.engine : template?.engine),
   );
-  const canRun = Boolean(experiment && tunable.length && !busy && !running && !experiment.lockedCandidateId);
+  const canRun = Boolean((experiment || preview) && tunable.length && !busy && !running && !experiment?.lockedCandidateId);
   return (
     <div className="control-lab" {...appObjectProps("control-lab")}>
       <header>
@@ -599,6 +626,19 @@ export default function ControlLab() {
           </details>
         </aside>
         <main aria-busy={loading || busy || generating}>
+          {!experiment && preview && (
+            <>
+              <p className="muted">Example setup from this template. Run saves it and records the response with the local solver.</p>
+              <Results
+                experiment={preview}
+                selectedId="baseline"
+                template={template}
+                draft={parameters}
+                onDraft={(values) => setParameters((prior) => ({ ...prior, ...values }))}
+                onSelect={() => {}}
+              />
+            </>
+          )}
           {!experiment ? (
             <section>
               <div className="spec-heading">
@@ -664,7 +704,7 @@ export default function ControlLab() {
                     <fieldset disabled={busy || generating}>
                       <legend>Plant and simulation</legend>
                       <Fields
-                        fields={template.parameters}
+                        fields={template.parameters.filter((field) => !preview?.searchSpace[field.name])}
                         values={parameters}
                         change={(name, value) =>
                           setParameters((prior) => ({

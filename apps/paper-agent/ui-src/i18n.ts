@@ -1,4 +1,6 @@
 export const messages = {
+  closeRecords: { zh: '关闭研究记录', en: 'Close research records' },
+  noResearchRecords: { zh: '暂无研究记录', en: 'No research records yet' },
   editCell: { zh: '修改单元格', en: 'Edit cell' }, matrixValue: { zh: '值', en: 'Value' },
   evidenceStatus: { zh: '证据状态', en: 'Evidence status' }, sourcePassage: { zh: '原文片段', en: 'Source passage' },
   choosePassage: { zh: '选择原文片段', en: 'Choose a source passage' }, addEvidence: { zh: '添加证据', en: 'Add evidence' },

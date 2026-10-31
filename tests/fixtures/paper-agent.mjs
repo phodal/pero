@@ -147,6 +147,30 @@ readline.createInterface({ input: process.stdin }).on('line', async line => {
     if (capture) appendFileSync(capture, JSON.stringify({ synthetic: true, wait: question.includes('paper-fixture-wait'), invalid: question.includes('paper-fixture-invalid') }) + '\n');
     if (question.includes('paper-fixture-wait')) return;
     try {
+      const snapshot = blocks.filter(block => block.includes('pero.app-object.v1')).map(block => JSON.parse(block.slice(block.indexOf('\n\n') + 2))).find(value => value.objectId === 'paper-agent');
+      if (snapshot) {
+        await rpc('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'synthetic-paper-fixture', version: '3' } }, controller.signal);
+        const declarations = await callTool('app_describe', {}, '/apps', controller.signal);
+        assert.ok(declarations.some(tool => tool.app === 'paper-agent' && tool.tool === 'prepare-research'));
+        const selection = snapshot.selection;
+        const prepared = await callTool('app_write', { app: 'paper-agent',
+          tool: selection.studyId ? 'continue-research' : 'prepare-research',
+          document: selection.studyId ? { id: selection.studyId, requestId: crypto.randomUUID() } : {
+            question: blocks[0], paperIds: selection.paperIds, fullText: selection.fullText,
+            requestId: crypto.randomUUID(), ...(selection.contextId ? { contextId: selection.contextId } : {}),
+            ...(selection.parentIntentId ? { parentIntentId: selection.parentIntentId } : {}),
+          } }, '/result', controller.signal);
+        if (selection.fullText) {
+          const result = await researchStudy(prepared.prompt, controller.signal);
+          if (active === id) respond(result);
+        } else {
+          const sources = JSON.parse(/\nSources:\n([\s\S]*?)\nReturn ONLY JSON:/.exec(prepared.prompt)[1]);
+          const report = fixtureReport(prepared.id, sources[0], sources[0].passages?.[0], question);
+          const saved = await callTool('app_write', { app: 'paper-agent', tool: 'submit-report', document: { intentId: prepared.id, text: JSON.stringify(report) } }, '/result', controller.signal);
+          if (active === id) respond({ synthetic: true, reportId: saved.id });
+        }
+        return;
+      }
       if (prompt.includes('ResearchStudy:')) {
         const result = await researchStudy(blocks.find(block => block.includes('ResearchStudy:')), controller.signal);
         if (active === id) respond(result);
@@ -167,6 +191,7 @@ readline.createInterface({ input: process.stdin }).on('line', async line => {
       if (!intentId || !papers.length) throw new Error('Missing frozen research input');
       respond(fixtureReport(intentId, papers[0], papers[0].passages?.[0], question));
     } catch (error) {
+      if (capture) appendFileSync(capture + '.errors.jsonl', JSON.stringify({error:error.stack,blocks}) + '\n');
       if (active !== id) return;
       send({ id, error: { code: -32602, message: error.message } }); active = undefined;
     }

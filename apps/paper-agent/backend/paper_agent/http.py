@@ -152,6 +152,16 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, record.to_dict())
                 if self.command == "POST":
+                    if path == '/api/research/prepare':
+                        request = ResearchRequest.parse(data)
+                        if request.full_text:
+                            for identity in request.paper_ids:
+                                paper = store.paper(identity)
+                                if store.paper_pdf(identity) is None:
+                                    content = pdf_files.download(paper)
+                                    store.save_pdf(pdf_files.inspect(paper, content, now()), content)
+                            return self.reply(201, dict(mode='study', **store.create_study(request, now()).to_dict()))
+                        return self.reply(201, dict(mode='answer', **store.prepare(request, now()).to_dict()))
                     if path == '/api/contexts/read':
                         record = store.stored_context(data.get('contextId'))
                         return self.reply(200, dict(observation=store.read_context(record, ContextRead.parse(data))))
@@ -207,8 +217,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         return self.reply(201, store.save_paper(paper).to_dict())
                     if path == "/api/intents":
                         return self.reply(201, store.prepare(ResearchRequest.parse(data), now()).to_dict())
-                    if path == "/api/reports":
-                        saved = store.save_report(data.get("intentId"), data.get("text"), now(), data.get("sessionId"))
+                    if path in ("/api/reports", "/api/reports/submit"):
+                        saved = store.save_report(data.get("intentId"), data.get("text"), now(), data.get("sessionId"), "app-submitted" if path.endswith("/submit") else None)
                         return self.reply(201, saved.to_dict())
                     if path == "/api/evidence":
                         intent = store.intent(data.get("intentId"))

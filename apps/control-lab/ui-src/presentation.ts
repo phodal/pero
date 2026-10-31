@@ -1,4 +1,4 @@
-import type { Check, Experiment, Field, Series, Trial, Verdict } from "./types.ts";
+import type { Check, Experiment, Field, Series, Template, Trial, Verdict } from "./types.ts";
 /** The denominator is the frozen final scenario set, never only successful trials. */
 export function verificationRows(experiment: Experiment) {
   return experiment.scenarios
@@ -77,6 +77,46 @@ export function responseComparison(experiment: Experiment, selectedId: string, s
   const baseline = latest(experiment.candidates[0]?.id);
   const selected = latest(selectedId);
   return { scenarios, scenario, baseline, selected, series: pairedSeries(baseline, selected) };
+}
+
+const TUNABLE: Record<string, string[]> = {
+  "robust-pid": ["kp", "ki", "kd"],
+  "active-filter": ["r", "c", "gain"],
+};
+
+/** Unsaved template setup. It carries no observations and is not a frozen experiment. */
+export function unsavedExperiment(
+  template: Template,
+  parameters: Record<string, number>,
+  criteria: Record<string, number>,
+  budget: number,
+): Experiment {
+  const names = new Set(TUNABLE[template.id] ?? []);
+  return {
+    id: "",
+    templateId: template.id,
+    title: template.title,
+    createdAt: "",
+    specHash: "",
+    candidateBudget: budget,
+    parameters,
+    criteria,
+    scenarios: template.scenarios,
+    status: "idle",
+    operation: null,
+    progress: { completed: 0, total: 0 },
+    error: null,
+    candidates: [],
+    searchSpace: Object.fromEntries(
+      template.parameters
+        .filter((field) => names.has(field.name))
+        .map((field) => [field.name, { min: field.min, max: field.max }]),
+    ),
+    lockedCandidateId: null,
+    trials: [],
+    report: null,
+    limitations: [],
+  };
 }
 
 /** Group existing FAIL evidence for display; never recompute the verifier's verdict. */

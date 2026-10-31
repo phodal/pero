@@ -27,9 +27,10 @@ sources receive none of this App transport.
 
 The SDK receives locale, appearance and active state. Engine theme also updates
 so CSS media queries agree with the workbench. Ordinary native uses docked
-conversation; its floating-chat control is omitted. Basic App chat open/compose
-uses the existing draft insertion path. Capture and App object references return
-an explicit unsupported response. Source links open in the workspace Web view.
+conversation; its floating-chat control is omitted. App chat open/compose uses the existing draft insertion path and freezes App
+object references through the same context owner as Electron. Capture and general
+native App UI operation return an explicit unsupported response. Declared App
+data tools use the shared MCP authority and installed-route boundary. Source links open in the workspace Web view.
 App-local standalone document readers remain inside the App.
 
 ## Automated acceptance

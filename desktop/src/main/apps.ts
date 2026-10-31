@@ -3,6 +3,7 @@ import { realpath, stat } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { net } from 'electron';
+import { AppWriteRoutes } from './app-write-routes.ts';
 import { PreparedAppWrite, type AppWriteDefinition } from './app-write.ts';
 
 // These are transport values, generated from the same contract as the Rust Host.
@@ -96,23 +97,9 @@ export class DesktopApps {
     }
   }
 
-  async describeWrites():Promise<AppWriteDefinition[]>{
-    const records=await this.request<AppRecord[]>('list');
-    return records.filter(record=>record.enabled).flatMap(record=>(record.writes||[]).map(route=>({app:record.name,panel:record.panels[0].id,version:record.version,...route})));
-  }
-  async applyWrite(prepared:PreparedAppWrite,signal:AbortSignal,goal?:import('./control-lab-goal.ts').ControlLabGoal):Promise<unknown>{
-    const route=prepared.definition;prepared.requireCurrent((await this.describeWrites()).find(current=>current.app===route.app&&current.name===route.name));
-    const access=await this.request<AppAccess>('resolve',{name:route.app});
-    if(!access.backend)throw new Error('The App write backend is unavailable');
-    if(route.app==='control-lab'&&route.path==='/api/agent-step'&&!goal)throw new Error('Control Lab goal is required');
-    const body=goal?{...(prepared.document as Record<string,unknown>),specHash:goal.specHash}:prepared.document;
-    const encoded = JSON.stringify(body), method = route.method || 'POST';
-    const headers = { 'X-Pero-App-Token': access.backend.token };
-    const response=await net.fetch(access.backend.url+route.path,{method,headers:{'Content-Type':'application/json',...headers},body:encoded,redirect:'error',signal:AbortSignal.any([signal,AbortSignal.timeout(15000)])});
-    const text=await response.text();if(Buffer.byteLength(text)>1000000)throw new Error('App write response exceeds 1 MiB');
-    if(!response.ok)throw new Error(text.slice(0,1000)||`App write failed (${response.status})`);
-    const value=JSON.parse(text);this.send({version:1,kind:'app_written',request_id:null,text:'',data:{app:route.app,tool:route.name,digest:prepared.digest}});return value;
-  }
+  async describeWrites():Promise<AppWriteDefinition[]>{ return this.writeRoutes().describe(); }
+  async applyWrite(prepared:PreparedAppWrite,signal:AbortSignal,goal?:import('./control-lab-goal.ts').ControlLabGoal):Promise<unknown>{ return this.writeRoutes().apply(prepared,signal,goal); }
+  private writeRoutes() { return new AppWriteRoutes((action, fields) => this.request(action, fields), this.send, net.fetch); }
 
   /** App origins have no Electron preload. Their /api is always this App's backend. */
   async serve(request: Request): Promise<Response> {

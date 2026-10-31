@@ -1,14 +1,19 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {AppConversation, downloadFile, openDocument, useAppApi, useAppChat, useAppI18n, useAppObject, useAppDataChanged} from '@pero/app-sdk';
-import {Button, Checkbox, EmptyState, Feedback, FilePicker, Input, LibraryHeader, Select, Toolbar} from '@pero/app-sdk/ui';
+import {AppFrame, Button, Checkbox, EmptyState, Feedback, FilePicker, Input, Select, Toolbar} from '@pero/app-sdk/ui';
 import {emptyView, fieldRule, querySchema, summary, type Dataset, type Export, type Result, type ViewSpec} from './model';
 import {messages} from './i18n';
 import {ChartPanel} from './chart-panel';
 import './styles.css';
 
+type Example = { id: string; name: string; format: Dataset['format']; records: number; fields: string[] };
+const exampleSummary: Record<string, 'exampleObservations' | 'exampleSeries' | 'examplePrices' | 'exampleFlows'> = {
+  observations: 'exampleObservations', 'response-series': 'exampleSeries', 'price-bars': 'examplePrices', 'region-flows': 'exampleFlows',
+};
+
 export default function DataAgent() {
   const api=useAppApi(),chat=useAppChat(),{t}=useAppI18n(messages);
-  const [catalog,setCatalog]=useState<Dataset[]>([]),[data,setData]=useState<Result|null>(null);
+  const [catalog,setCatalog]=useState<Dataset[]>([]),[examples,setExamples]=useState<Example[]>([]),[examplesReady,setExamplesReady]=useState(false),[data,setData]=useState<Result|null>(null);
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[fieldSearch,setFieldSearch]=useState('');
   const [showChat,setShowChat]=useState(false);
   const [filterField,setFilterField]=useState(''),[operator,setOperator]=useState('contains'),[filterValue,setFilterValue]=useState('');
@@ -32,10 +37,12 @@ export default function DataAgent() {
   }
   async function reload() {
     setError('');
-    try { const value=await api.get<{datasets:Dataset[]}>('/api/datasets');setCatalog(value.datasets);
+    try { const [listed,value]=await Promise.all([api.get<{examples:Example[]}>('/api/examples'),api.get<{datasets:Dataset[]}>('/api/datasets')]);
+      setExamples(listed.examples);setCatalog(value.datasets);
       const current=value.datasets.find(item=>item.id===data?.dataset.id)||value.datasets[0];
       if(current)await choose(current);
     }catch(error){setError(String(error));}
+    finally{setExamplesReady(true);}
   }
   useEffect(()=>{void reload();},[]);
   useAppDataChanged(()=>{void reload();});
@@ -44,6 +51,10 @@ export default function DataAgent() {
     try {const result=await api.post<{dataset:Dataset}>('/api/import',{name,content,format});
       setCatalog(previous=>[result.dataset,...previous.filter(item=>item.id!==result.dataset.id)]);await choose(result.dataset);
     }catch(error){setError(String(error));}finally{setBusy(false);}
+  }
+  async function openListed(example: Example) {
+    const value=await api.get<{name:string;content:string;format:Dataset['format']}>(`/api/examples/${example.id}`);
+    await importSource(value.name,value.content,value.format);
   }
   async function source(record?:number) {
     if(!data)throw new Error('Choose a dataset first');
@@ -86,19 +97,32 @@ export default function DataAgent() {
   }});
   const fields=data?.dataset.fields||[],fieldOptions=fields.map(field=>({value:field.name,label:field.name}));
   const selected=new Set(view.selection);
-  return <main className="data-agent" aria-busy={busy}>
-    <LibraryHeader className="data-header" title={t('title')} actions={<>
+  return <AppFrame className="data-agent" label={t('title')} aria-busy={busy} actions={<>
       <FilePicker label={t('import')} emptyLabel={t('noFile')} accept=".json,.jsonl,.ndjson,application/json" disabled={busy} busy={busy} onFile={file=>act(async()=>{
         if(file.size>16*1024*1024)throw new Error(t('noFile'));
         await importSource(file.name,await file.text(),/\.(jsonl|ndjson)$/i.test(file.name)?'json_lines':'json');
       })}/>
       <Button disabled={busy} onClick={()=>act(async()=>{const value=await api.get<{content:string}>('/api/example');await importSource('observations.json',value.content,'json');})}>{t('example')}</Button>
       {data&&window.parent!==window&&<Button onClick={()=>setShowChat(value=>!value)} aria-expanded={showChat}>{t(showChat?'closeChat':'openChat')}</Button>}
-    </>}/>
+    </>}>
     {error&&<Feedback kind="error"><span>{error}</span><Button onClick={()=>{void reload();}}>{t('retry')}</Button></Feedback>}
     {busy&&<p className="data-status" role="status">{t('loading')}</p>}
-    {!data?<div className="data-empty"><EmptyState heading={t('empty')}/><section className="data-chart"><h2>{t('chart')}</h2><ChartPanel data={null} busy={busy}/></section></div>:<>
+    {!data?<div className="data-home">
+      <section className="data-examples" aria-label={t('examples')}>
+        {examples.length?<table>
+          <thead><tr><th scope="col">{t('name')}</th><th scope="col">{t('recordCount')}</th><th scope="col">{t('fields')}</th><th scope="col"><span className="pero-visually-hidden">{t('open')}</span></th></tr></thead>
+          <tbody>{examples.map(example=><tr key={example.id}>
+            <td><span className="data-example-name">{example.name}</span>{exampleSummary[example.id]&&<span className="data-example-summary">{t(exampleSummary[example.id])}</span>}</td>
+            <td>{example.records.toLocaleString()}</td>
+            <td>{example.fields.join(', ')}</td>
+            <td><Button disabled={busy} aria-label={`${t('open')} ${example.name}`} onClick={()=>act(()=>openListed(example))}>{t('open')}</Button></td>
+          </tr>)}</tbody>
+        </table>:examplesReady&&!error?<EmptyState heading={t('empty')}/>:null}
+      </section>
+      <section className="data-chart" aria-label={t('chart')}><ChartPanel data={null} busy={busy}/></section>
+    </div>:<>
       <Toolbar className="data-toolbar" actions={<><Button disabled={busy} onClick={()=>act(()=>source())}>{t('source')}</Button><Button disabled={busy} onClick={()=>act(()=>exportRows())}>{t('export')}</Button><Button disabled={busy||window.parent===window} onClick={()=>act(()=>chat.compose(t('prompt'),{attachments:[chat.objectReference('dataset-view',{dataset:data.dataset.id,sourceRevision:data.dataset.revision,viewId:data.viewId,selectedCount:data.selected})]}))}>{t('ask')}</Button></>}>
+        <Select label={t('examples')} value="" options={[{value:'',label:t('examples')},...examples.map(item=>({value:item.id,label:item.name}))]} disabled={busy} onChange={id=>{const found=examples.find(item=>item.id===id);if(found)act(()=>openListed(found));}}/>
         <Select label={t('dataset')} value={data.dataset.id} options={catalog.map(item=>({value:item.id,label:item.name}))} disabled={busy} onChange={id=>{const found=catalog.find(item=>item.id===id);if(found)act(()=>choose(found));}}/>
         <span>{data.dataset.rowCount.toLocaleString()} {t('rows')} · {data.matching.toLocaleString()} {t('matching')}{view.selection.length?` · ${view.selection.length} ${t('selected')}`:''}</span>
       </Toolbar>
@@ -123,5 +147,5 @@ export default function DataAgent() {
         {!data.chart&&<p>{t('noChart')}</p>}
       </section></div>{showChat&&<AppConversation className="data-chat" fallback={<p role="status">{t('chatUnavailable')}</p>}/>}</div><footer className="data-provenance"><span>{t('provenance')}: <code title={data.dataset.id}>{data.dataset.id}</code></span><span>{data.dataset.bytes.toLocaleString()} bytes</span></footer>
     </>}
-  </main>;
+  </AppFrame>;
 }

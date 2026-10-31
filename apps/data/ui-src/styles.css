@@ -1,18 +1,5 @@
 html, body, #app { height: 100%; }
 #app { display: flex; flex-direction: column; min-height: 0; }
-.data-page {
-  flex: 1;
-  width: 100%;
-  height: 100%;
-  height: 100dvh;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--pero-material-chrome);
-  color: var(--pero-text);
-}
 .data-split {
   flex: 1;
   min-height: 0;
@@ -21,7 +8,7 @@ html, body, #app { height: 100%; }
 }
 .data-list, .data-preview { min-width: 0; min-height: 0; }
 .data-list { display: flex; flex-direction: column; overflow: hidden; }
-.data-tools { padding: var(--pero-space-3) var(--pero-space-4); border-bottom: var(--pero-hairline); }
+.data-tools { padding: var(--pero-space-2) var(--pero-space-3); border-bottom: var(--pero-hairline); }
 .data-table-scroll { flex: 1; min-height: 0; overflow: auto; }
 .data-table, .data-rows { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .data-table th, .data-table td, .data-rows th, .data-rows td {

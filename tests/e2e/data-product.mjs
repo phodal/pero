@@ -37,7 +37,7 @@ async function launch() {
   });
   await expect(page).toHaveTitle('Data');
   frame = page.frameLocator('iframe[title="data"]');
-  await expect(frame.getByRole('heading', { name: 'Data', exact: true })).toBeVisible({ timeout: 30000 });
+  await expect(frame.getByRole('button', { name: 'Add data', exact: true })).toBeVisible({ timeout: 30000 });
   await expect.poll(async () => (await state()).sources.length).toBe(2);
 }
 async function close() {

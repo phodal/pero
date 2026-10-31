@@ -122,13 +122,11 @@ impl NativeConnectors {
         result
     }
     pub fn accept(&self, event: &HostEvent) {
-        if matches!(
-            event.kind.as_str(),
-            "session_created" | "session_deleted" | "session_closed"
-        ) {
-            let _ = self.send(json!({"event":{"kind":event.kind,"thread_id":event.thread_id}}));
+        if matches!(event.kind.as_str(), "session_created" | "session_deleted" | "session_closed" | "turn_started" | "turn_finished" | "user_message" | "session_error" | "command_rejected" | "disconnected") {
+            let _ = self.send(json!({"event":event}));
         }
     }
+
     fn effect(&self, message: &Message) -> Result<Value, &'static str> {
         let store = || {
             SecretStore::new(
@@ -140,6 +138,15 @@ impl NativeConnectors {
             )
         };
         match message.effect.as_deref() {
+            Some("apps" | "surface") => {
+                let apps = self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?;
+                if message.effect.as_deref() == Some("surface") {
+                    apps.shell_request(message.value.clone()).map_err(|error| { eprintln!("Native App surface: {error}"); "APP_SURFACE_UNAVAILABLE" })
+                } else {
+                    let action = message.value["action"].as_str().ok_or("APP_REQUEST_INVALID")?;
+                    apps.request(action, message.value.clone()).map_err(|_| "APP_REQUEST_FAILED")
+                }
+            }
             Some("authorize") => {
                 self.apps
                     .lock()

@@ -163,6 +163,19 @@ class ResearchHTTP(unittest.TestCase):
                 self.assertEqual(candidate['contentKind'], 'abstract')
                 self.assertEqual(store.intent(frozen['id']), intent)
                 pdf_paper = call('POST', '/api/papers/import', {**reading(), 'pdfUrl': 'https://arxiv.org/pdf/1706.03762'})[1]
+                prepared_context = call('POST', '/api/contexts', dict(content=selected, paperId=pdf_paper['id']))[1]
+                for full_text in (False, True):
+                    request = dict(question='Read the evidence', paperIds=[pdf_paper['id']], fullText=full_text,
+                                   requestId='chat-prepare-' + str(full_text), contextId=prepared_context['id'])
+                    status, prepared = call('POST', '/api/research/prepare', request)
+                    self.assertEqual(status, 201)
+                    self.assertEqual(prepared['mode'], 'study' if full_text else 'answer')
+                    self.assertIn('ResearchStudy:' if full_text else 'Frozen input:', prepared['prompt'])
+                    self.assertIn(prepared_context['path'], prepared['prompt'])
+                    self.assertEqual(store.library()['reports'][-1]['acceptance'], 'unverified')
+                    self.assertEqual(call('POST', '/api/research/prepare', request, token='wrong')[0], 401)
+                self.assertEqual(call('POST', '/api/research/prepare', dict(request, verifyCode=True, verificationPlan='Explicit boundary'))[0], 400)
+
                 pdf_reading = call('POST', '/api/pdf', dict(paperId=pdf_paper['id']))[1]
                 document = pdf_reading['document']
                 self.assertEqual(len(document['pages']), 2)

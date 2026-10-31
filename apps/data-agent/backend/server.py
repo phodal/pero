@@ -17,6 +17,37 @@ from store import DatasetId, DatasetStore
 from view import DatasetView, metadata
 
 
+_EXAMPLES = (
+    ("observations", "observations.json", "json"),
+    ("response-series", "response-series.json", "json"),
+    ("price-bars", "price-bars.json", "json"),
+    ("region-flows", "region-flows.json", "json"),
+)
+
+
+def _example_file(example_id):
+    match = next((item for item in _EXAMPLES if item[0] == example_id), None)
+    if match is None:
+        return None
+    _ident, filename, fmt = match
+    content = (Path(__file__).resolve().parents[1] / "examples" / filename).read_text(encoding="utf-8")
+    return filename, fmt, content
+
+
+def example_catalog():
+    items = []
+    for example_id, _filename, _fmt in _EXAMPLES:
+        filename, fmt, content = _example_file(example_id)
+        records = json.loads(content)
+        fields = []
+        for record in records:
+            for key in record:
+                if key not in fields:
+                    fields.append(key)
+        items.append({"id": example_id, "name": filename, "format": fmt, "records": len(records), "fields": fields})
+    return items
+
+
 def handler(store: DatasetStore, secret: str):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -63,7 +94,16 @@ def handler(store: DatasetStore, secret: str):
                                        "type": document["chart"]["type"], "source": document["source"]["label"]})
                     return self.reply(200, {"charts": charts})
                 if self.command == "GET" and self.path == "/api/example":
-                    return self.reply(200, {"content": (Path(__file__).parents[1] / "examples/observations.json").read_text()})
+                    _filename, _fmt, content = _example_file("observations")
+                    return self.reply(200, {"content": content})
+                if self.command == "GET" and self.path == "/api/examples":
+                    return self.reply(200, {"examples": example_catalog()})
+                if self.command == "GET" and self.path.startswith("/api/examples/"):
+                    opened = _example_file(self.path.removeprefix("/api/examples/"))
+                    if opened is None:
+                        return self.reply(404, {"detail": "Unknown example"})
+                    filename, fmt, content = opened
+                    return self.reply(200, {"name": filename, "format": fmt, "content": content})
                 if self.command == "GET" and self.path.startswith("/api/source/"):
                     dataset = store.read(DatasetId(self.path.removeprefix("/api/source/")))
                     return self.reply(200, {"dataset": metadata(dataset), "content": dataset.source})

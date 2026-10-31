@@ -120,6 +120,7 @@ pub fn run() -> anyhow::Result<()> {
     }
     let connector_probe = std::env::args().nth(1).as_deref() == Some("--verify-connectors");
     let app_probe = connector_probe || std::env::args().nth(1).as_deref() == Some("--verify-apps");
+    let paper_chat_probe = app_probe && std::env::args().nth(3).as_deref()==Some("paper-chat");
     #[cfg(not(feature = "native-probe"))]
     if app_probe {
         anyhow::bail!("Build with native-probe to run App acceptance");
@@ -450,8 +451,8 @@ pub fn run() -> anyhow::Result<()> {
         let system_dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
         pero_theme::ResolvedAppearance::resolve(&Default::default(), system_dark, &palettes).install(cx);
         let mut options = gpui_kit::component::TitleBar::window_options();
-        options.show = !app_probe;
-        options.focus = !app_probe;
+        options.show = !app_probe || paper_chat_probe;
+        options.focus = !app_probe || paper_chat_probe;
         options.window_bounds = Some(WindowBounds::Windowed(Bounds::centered(
             None,
             size(px(1440.), px(960.)),
@@ -492,6 +493,10 @@ pub fn run() -> anyhow::Result<()> {
         let view = view.downgrade();
         cx.spawn(async move |cx| {
             while let Ok(event) = received.recv().await {
+                if event.kind == "native_app_rpc" {
+                    let _ = window.update(cx, |_, window, cx|view.update(cx, |view,cx|view.native_app_rpc(event,window,cx)));
+                    continue;
+                }
                 if event.kind=="native_choose_document_save" {
                     let suggested=std::path::Path::new(event.data["suggested"].as_str().unwrap_or("untitled.txt"));
                     let directory=suggested.parent().filter(|path|!path.as_os_str().is_empty()).map(std::path::Path::to_path_buf).unwrap_or_else(||std::path::PathBuf::from("."));
@@ -586,7 +591,7 @@ pub fn run() -> anyhow::Result<()> {
             }
         })
         .detach();
-        if !app_probe { cx.activate(true); }
+        if !app_probe || paper_chat_probe { cx.activate(true); }
     });
     if let Some(owner) = &connector_owner {
         owner.close();

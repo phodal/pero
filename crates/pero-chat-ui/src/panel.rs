@@ -200,6 +200,14 @@ impl ChatPanel {
         self.new_chat(cx);
     }
 
+    /// An explicit App launch needs an editable destination, including after restart.
+    pub fn open_app_draft(&mut self, scope: pero_contracts::AppChatScope, cx: &mut Context<Self>) {
+        self.set_scope(Some(scope), cx);
+        if self.active_chat.and_then(|index|self.chats.get(index)).is_some_and(|chat|chat.state==crate::session_state::SessionState::Closed) {
+            self.new_draft(cx);
+        }
+    }
+
     pub fn set_scope(
         &mut self,
         scope: Option<pero_contracts::AppChatScope>,
@@ -288,7 +296,7 @@ impl ChatPanel {
                 if let Ok(scope) = serde_json::from_value::<Option<pero_contracts::AppChatScope>>(
                     event.data.clone(),
                 ) {
-                    self.set_scope(scope, cx);
+                    if let Some(scope)=scope { self.open_app_draft(scope,cx); } else { self.set_scope(None,cx); }
                 }
             }
             "compose_context" => {

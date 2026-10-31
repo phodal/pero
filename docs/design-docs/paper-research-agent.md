@@ -162,5 +162,55 @@ and Host-turn cleanup. The currently read paper owns its source selection;
 another paper's finishing task must not replace it. Saved answers offer an
 explicit follow-up target. The transcript follows new output only while the
 reader remains near the bottom, and Enter shares the visible Send action's
-disabled conditions. The custom Paper conversation remains; this change does
-not implement the proposed standard/side/App Chat view switch.
+disabled conditions. The custom conversation described in this historical implementation was replaced
+by the shared Host conversation below.
+
+
+## Shared conversation and declared Paper capabilities (2026-10-31)
+
+Paper Ask, PDF/page selections and comparison actions now freeze a
+`PaperResearchSelection` into the existing Host Chat draft. The React registry
+is updated before a reference is captured. A selection carries saved paper IDs,
+PDF-reading mode and optional context-file, parent-input or unfinished-study ID;
+it grants no tool permission. The SDK opens or fills the draft without sending. An explicit App launch creates
+a new draft when the remembered conversation is closed after restart; the old
+conversation remains in history.
+The person chooses the Agent, sends, approves or cancels in the shared GPUI
+ChatPanel. Paper has no composer, session launcher, transcript polling or
+closing-message parser. Research records are a separate read-only domain view,
+with exports, citations, editable matrix revisions and explicit follow-up or
+continuation links. Existing immutable records stay readable.
+
+The extension boundary is the installed App's `contributes.writes` schema:
+
+| Tool | Domain effect |
+| --- | --- |
+| `prepare-research` | Parse `ResearchRequest` once, prepare missing PDFs when requested, freeze a study or bounded text input, and return its prompt/schema. Start no Agent. |
+| `research-step` | Read/search/recall observations, record findings and gaps, finalize evidence-validated PDF reports using the existing ledger. |
+| `read-context` | Read the selected UTF-8 context file on demand, without making it source evidence. |
+| `continue-research` | Freeze an explicit continuation prompt while retaining the study, evidence and step budget. |
+| `submit-report` | Validate and persist a non-study report against its frozen input. Tool JSON text is bounded at 64 KiB; PDF reports continue through the structured `research-step` document. |
+
+The Agent discovers schemas with `app_describe` and calls them through
+`app_write` in the same conversation. The returned frozen prompt owns the
+research instructions. On success it summarizes the saved report and ends the
+turn. Source text and earlier answer prose remain untrusted data. Domain report
+validation remains in Python; neither shell introduces a Paper-specific tool
+switch, report parser, scheduler or permission system.
+
+Both Electron and native compose the same MCP authority, AppChatContext and
+AppWriteRoutes. The native stdio adapter supplies selected-draft and semantic
+snapshot ports and private Host route resolution. Only the managed sending
+WebView determines App/panel identity. Native semantic snapshots can read a
+retained panel; they do not claim that a hidden panel is operable or capturable.
+Native UI operation/capture remains unavailable. Shared conversation data calls
+follow the existing selected/running-session rule; switching conversations does
+not grant background App data access merely because an App scope exists.
+Reports record `app-submitted` provenance (submission origin, not a trusted Host
+session attestation) without inventing a Host session ID from a
+Paper request ID; older imported/client-reported records retain their digests.
+
+To extend Paper, add a named domain command and its existing App API transport,
+declare its schema here in `app.json`, and cover its behavior in the owning
+Python concept's table. Add semantic App actions only for UI operations. The
+chat and native shells require no Paper-specific extension code.

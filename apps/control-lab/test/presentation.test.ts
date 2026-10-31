@@ -16,6 +16,7 @@ import {
   responseComparison,
   verdictSummary,
   verificationRows,
+  unsavedExperiment,
   worstMetrics,
   applyTranscriptDraft,
   generationPrompt,
@@ -273,6 +274,24 @@ test("candidate rows show design parameters and units, retaining source metadata
 function draftField(name: string, min: number, max: number, step = 0.1, unit = ""): Field {
   return { name, label: name, value: min, min, max, step, unit };
 }
+
+test("unsaved example exposes only the template search space and no observations", () => {
+  const template = {
+    id: "robust-pid",
+    title: "Robust filtered PID",
+    description: "",
+    engine: "python-control",
+    parameters: [draftField("kp", 0, 8), draftField("n", 12, 12, 1, "rad/s")],
+    criteria: [draftField("overshootMax", 0, 2, 0.01)],
+    scenarios: [{ id: "nominal", label: "Nominal", role: "search" as const, parameters: { gain: 1, damping: 1 } }],
+  };
+  const example = unsavedExperiment(template, { kp: 2, n: 12 }, { overshootMax: 0.1 }, 8);
+  assert.deepEqual(Object.keys(example.searchSpace), ["kp"]);
+  assert.equal(example.candidates.length, 0);
+  assert.equal(example.trials.length, 0);
+  assert.equal(example.scenarios[0].id, "nominal");
+  assert.deepEqual(unsavedExperiment({ ...template, id: "p-golden" }, { n: 12 }, { overshootMax: 0.1 }, 1).searchSpace, {});
+});
 
 test("generated draft accepts only the selected template fields inside their bounds", () => {
   const pid = {

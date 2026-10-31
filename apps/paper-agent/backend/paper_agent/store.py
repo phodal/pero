@@ -29,17 +29,19 @@ class SavedReport:
     input_digest: str
     created_at: str
     session_id: str | None = None
+    provenance: str = "user-imported"
 
     @classmethod
-    def create(cls, report, intent, now, session_id=None):
-        binding = dict(provenance="client-reported", sessionId=session_id) if session_id else dict(provenance="user-imported")
+    def create(cls, report, intent, now, session_id=None, provenance=None):
+        origin = provenance or ("client-reported" if session_id else "user-imported")
+        binding = dict(provenance=origin, sessionId=session_id) if session_id else dict(provenance=origin)
         input_digest = "sha256:" + digest(intent.to_dict(False))
         identity = digest({**report.to_dict(), "binding": binding, "inputDigest": input_digest})
-        return cls(identity, report, input_digest, now, session_id)
+        return cls(identity, report, input_digest, now, session_id, origin)
 
     def to_dict(self):
         return {**self.report.to_dict(), "id": self.id, "inputDigest": self.input_digest, "createdAt": self.created_at,
-                "binding": dict(provenance="client-reported", sessionId=self.session_id) if self.session_id else dict(provenance="user-imported")}
+                "binding": dict(provenance=self.provenance, sessionId=self.session_id) if self.session_id else dict(provenance=self.provenance)}
 
 
 class ResearchStore:
@@ -207,7 +209,7 @@ class ResearchStore:
         intent = self.intent(value["intentId"])
         report = ResearchReport.parse(value, intent)
         binding = value.get("binding", {})
-        result = SavedReport.create(report, intent, value["createdAt"], binding.get("sessionId"))
+        result = SavedReport.create(report, intent, value["createdAt"], binding.get("sessionId"), binding.get("provenance"))
         if result.id != value.get("id") or result.input_digest != value.get("inputDigest"):
             raise Invalid("Stored report integrity check failed")
         return result
@@ -402,7 +404,7 @@ class ResearchStore:
             elif command.action == 'note':
                 step = ResearchStep(**common, finding=command.finding, gaps=command.gaps, evidence=command.evidence)
             else:
-                saved = SavedReport.create(command.report, command.intent, now, 'app:paper-agent:' + study.request_id)
+                saved = SavedReport.create(command.report, command.intent, now, provenance='app-submitted')
                 step = ResearchStep(**common, report_id=saved.id)
                 self._write('intents', command.intent.id, command.intent.to_dict(False))
                 self._write('reports', saved.id, saved.to_dict())
@@ -484,12 +486,12 @@ class ResearchStore:
             self._write("intents", result.id, result.to_dict(False))
             return result
 
-    def save_report(self, intent_id, source, now, session_id=None):
+    def save_report(self, intent_id, source, now, session_id=None, provenance=None):
         intent = self.intent(intent_id)
         if session_id is not None:
             session_id = text(session_id, 250, "session reference")
         report = ResearchReport.from_text(source, intent)
-        result = SavedReport.create(report, intent, now, session_id)
+        result = SavedReport.create(report, intent, now, session_id, provenance)
         with self.lock:
             try:
                 return self.report(result.id)

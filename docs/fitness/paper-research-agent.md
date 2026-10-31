@@ -251,3 +251,30 @@ unexpected browser errors. Fixture output is not real-provider acceptance.
 The screenshots were inspected. Manual native-app inspection was unavailable
 because the Mac was locked; these results do not establish native Wry or signed
 package acceptance. Standard/side/App Chat view unification remains unimplemented.
+
+
+## Shared Chat integration — 2026-10-31
+
+Paper no longer owns a React composer, Agent selection, transcript poller or
+closing-message report parser. Ask, comparison, selection and saved-record
+continuation use the shared Host draft and frozen App references. Declared
+prepare/continue/submit tools complement the existing evidence ledger and
+context reader. Electron and native share AppChatContext, MCP authorization and
+AppWriteRoutes; native still does not provide general App UI operation/capture.
+
+Development checks on macOS arm64: Paper TypeScript/build, root checks, native
+feature build, 35 Python tests, 32 Chat/Workbench Rust tests and 15 context/MCP
+tests pass. Actual Electron passes 16 groups with zero unexpected browser errors.
+The explicit synthetic PDF study journey passes four groups, including
+cancellation, restart and recall-based continuation in shared Chat. Native
+passes three fixture checks through Wry, GPUI, stdio Host, Python and MCP.
+
+Receipts: `test-results/paper-agent/result.json`,
+`test-results/paper-study/shared-chat/result.json` and
+`test-results/native-paper-chat/result.json`. The study journey used a synthetic
+two-page PDF; the earlier publication-PDF/real-model evidence above remains
+historical and is not a verification of this Chat integration. Signed package,
+real-provider output quality and scientific acceptance are separate.
+
+See [the integration record](../issues/2026-10-31-paper-shared-chat.md) and
+[the capability boundary](../design-docs/paper-research-agent.md#shared-conversation-and-declared-paper-capabilities-2026-10-31).

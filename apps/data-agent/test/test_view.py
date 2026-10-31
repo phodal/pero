@@ -90,6 +90,20 @@ class DatasetViews(unittest.TestCase):
                 self.assertIn('9007199254740993', export["content"])
                 self.assertEqual((Path(directory)/(export["id"]+'.export.json')).read_text(), export["content"])
                 self.assertEqual(call('/api/datasets')["datasets"][0]["id"], ref.value)
+                listed = call('/api/examples')["examples"]
+                self.assertEqual([item["id"] for item in listed], ["observations", "response-series", "price-bars", "region-flows"])
+                observations = next(item for item in listed if item["id"] == "observations")
+                self.assertEqual((observations["name"], observations["records"]), ("observations.json", 6))
+                opened = call('/api/examples/observations')
+                self.assertEqual(opened["content"], call('/api/example')["content"])
+                for item in listed:
+                    body = call('/api/examples/' + item["id"])
+                    parsed = Dataset.parse(body["content"], body["name"], body["format"] == "json_lines")
+                    self.assertEqual((item["records"], item["fields"]), (len(parsed.records), [field.name for field in parsed.fields]))
+                with self.assertRaises(HTTPError) as missing_example:
+                    call('/api/examples/not-an-example')
+                self.assertEqual(missing_example.exception.code, 404)
+                missing_example.exception.close()
             finally:
                 server.shutdown();server.server_close();thread.join(5)
 

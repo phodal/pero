@@ -60,6 +60,57 @@ textarea.pero-ui-input { height: auto; }
 .pero-ui-card { border: 0; border-radius: var(--pero-radius-panel); background: var(--pero-material-reading); min-width: 0; }
 .pero-ui-card-header { display: flex; align-items: center; justify-content: space-between; gap: var(--pero-space-2); padding: var(--pero-space-2) var(--pero-space-3); }
 .pero-ui-card-actions { display: flex; gap: var(--pero-space-1); }
+.pero-app {
+  box-sizing: border-box;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--pero-material-chrome);
+  color: var(--pero-text);
+}
+.pero-app-bar {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: none;
+  flex-wrap: wrap;
+  gap: var(--pero-icon-gap);
+  min-width: 0;
+  min-height: 0;
+  padding: 2px var(--pero-space-3);
+  border-bottom: var(--pero-hairline);
+  background: var(--pero-material-chrome);
+}
+.pero-app-bar-tools { display: flex; align-items: center; gap: var(--pero-icon-gap); min-width: 0; flex: 1; }
+.pero-app-bar-title { min-width: 0; }
+.pero-app-bar-title h1 {
+  margin: 0;
+  overflow: hidden;
+  font: 600 var(--pero-font-heading)/1.25 system-ui, sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pero-app-bar-title p { margin: 0; color: var(--pero-text-muted); font: var(--pero-font-caption)/1.3 system-ui, sans-serif; }
+.pero-app-bar-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: var(--pero-icon-gap); max-width: 100%; margin-inline-start: auto; }
+.pero-app-bar .pero-ui-file-picker { position: relative; }
+.pero-app-bar .pero-ui-file-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 .pero-ui-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pero-icon-gap); min-width: 0; }
 .pero-ui-toolbar > * { min-width: 0; max-width: 100%; }
 .pero-ui-toolbar-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pero-icon-gap); margin-inline-start: auto; max-width: 100%; }

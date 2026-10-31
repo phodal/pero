@@ -99,8 +99,10 @@ Host 内置 `/app-use` 工作流，完整回执保存会话、任务、实例、
 具体证据和剩余平台边界见
 [App Use 验证](fitness/app-use.md)。
 
-Paper App 的全文研究通过同一 Host Agent 会话调用声明的 `research-step`
-数据路由，逐步读取冻结 PDF、检索、回读已观察片段、保存发现与缺口并提交报告。
+Paper App 的提问、选区与比较通过 SDK 冻结引用进入共享 Chat 草稿，用户提交后在
+同一 Host Agent 会话内调用声明的研究准备、`research-step`、续研与报告保存路由，
+逐步读取冻结 PDF、检索、回读已观察片段、保存发现与缺口并提交报告。
+Paper 只展示持久研究记录、报告、引用与矩阵，不再拥有第二个 Composer 或会话轮询。
 Python `ResearchStudy` 保存领域台账，执行、取消和授权仍由 Host 拥有；
 它不增加研究调度器。Host 创建的 App 绑定会话可在后台访问本 App 的声明
 数据路由，UI 操作与截图继续受选中会话和可见性约束。范围及验证分别见
