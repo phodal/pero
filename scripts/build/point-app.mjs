@@ -1,4 +1,5 @@
 import { build } from 'esbuild';
+import { buildPointHost } from './point-host.mjs';
 import { cp, mkdir, readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
@@ -30,7 +31,9 @@ export async function buildPointRuntime({ pointRoot, destination }) {
   const hash = createHash('sha256');
   for (const path of Object.keys(built.metafile.inputs).sort()) { hash.update(path); hash.update(await readFile(resolve(root, path))); }
   const pointRevision = execFileSync('git', ['-C', pointRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-  await writeFile(resolve(destination, 'runtime.json'), JSON.stringify({ schema: 'pero.point-app-runtime.v1', pointRevision, buildInputsSha256: hash.digest('hex') }, null, 2));
+  await buildPointHost({ pointRoot, destination });
+  const pointHostSha256 = createHash('sha256').update(await readFile(resolve(destination, process.platform === 'win32' ? 'point-host.exe' : 'point-host'))).digest('hex');
+  await writeFile(resolve(destination, 'runtime.json'), JSON.stringify({ schema: 'pero.point-app-runtime.v1', pointRevision, pointHostSha256, buildInputsSha256: hash.digest('hex') }, null, 2));
   return destination;
 }
 export async function buildPointApp({ pointRoot, source, destination }) {
