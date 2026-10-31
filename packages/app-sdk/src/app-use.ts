@@ -269,7 +269,9 @@ export class AppSurface {
 /** One registry per App document, independent of React and Desktop initialization. */
 export const appSurface = new AppSurface();
 
-export function installAppUseBridge(surface = appSurface, frame: Window = window) {
+export type AppUseSurface = Pick<AppSurface, 'observe' | 'verify' | 'invoke'>;
+
+export function installAppUseBridge(surface: AppUseSurface = appSurface, frame: Window = window) {
   const dom = new AppUseDom(surface, frame.document);
   let parentOrigin = '*';
   let reportedAt = -Infinity;
@@ -323,6 +325,9 @@ export function installAppUseBridge(surface = appSurface, frame: Window = window
 }
 
 
+const objectMarker = '[data-app-object],[data-point-object]';
+const markedObject = (element: Element | null) => element?.getAttribute('data-app-object') ?? element?.getAttribute('data-point-object');
+
 const controls = 'button,a[href],input,textarea,select,summary,[contenteditable="true"],[role="button"],[role="checkbox"],[role="switch"],[role="tab"],[role="radio"],[role="menuitem"],[role="option"],[role="slider"],[role="link"]';
 const textInputs = new Set(['text', 'search', 'url', 'tel', 'email']);
 const clip = (value: unknown, limit: number) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, limit);
@@ -374,7 +379,7 @@ function describe(element: Element, ref: string) {
     ...(['checkbox', 'radio'].includes(type) ? { checked: input.checked } : {}),
     ...(input.disabled || element.getAttribute('aria-disabled') === 'true' ? { disabled: true } : {}),
     ...(input.readOnly ? { readonly: true } : {}),
-    ...(element.closest('[data-app-object]')?.getAttribute('data-app-object') ? { object: element.closest('[data-app-object]')!.getAttribute('data-app-object')! } : {}),
+    ...(markedObject(element.closest(objectMarker)) ? { object: markedObject(element.closest(objectMarker))! } : {}),
   };
 }
 
@@ -382,9 +387,9 @@ function describe(element: Element, ref: string) {
 export class AppUseDom {
   private snapshot = 0;
   private readonly refs = new Map<string, { element: Element; fingerprint: string }>();
-  private readonly surface: AppSurface;
+  private readonly surface: AppUseSurface;
   private readonly document: Document;
-  constructor(surface: AppSurface, document: Document) { this.surface = surface; this.document = document; }
+  constructor(surface: AppUseSurface, document: Document) { this.surface = surface; this.document = document; }
 
   invalidate() { ++this.snapshot; this.refs.clear(); }
 
@@ -435,7 +440,7 @@ export class AppUseDom {
     let element: Element = this.document.body;
     if (target !== undefined) {
       this.surface.observe(target);
-      const found = [...this.document.querySelectorAll('[data-app-object]')].find(node => node.getAttribute('data-app-object') === target);
+      const found = [...this.document.querySelectorAll(objectMarker)].find(node => markedObject(node) === target);
       if (!found || !visible(found)) throw new AppUseError('APP_OBJECT_NOT_RENDERED', 'The declared App object has no visible data-app-object element');
       element = found;
     }
@@ -450,13 +455,13 @@ export class AppUseDom {
 
   annotation() {
     const { rect } = this.geometry();
-    const elements = [...this.document.querySelectorAll(`[data-app-object],${controls}`)].filter(visible).slice(0, 300);
+    const elements = [...this.document.querySelectorAll(`[data-app-object],[data-point-object],${controls}`)].filter(visible).slice(0, 300);
     return {
       ...this.surface.observe(), rect, viewport: { width: rect.width, height: rect.height },
       annotationDom: elements.map((element, index) => {
         const box = element.getBoundingClientRect();
         return { id: `element-${index}`, kind: element.tagName.toLowerCase(), label: label(element), role: role(element),
-          ...(element.getAttribute('data-app-object') ? { semanticId: element.getAttribute('data-app-object')! } : {}),
+          ...((element.getAttribute('data-app-object') ?? element.getAttribute('data-point-object')) ? { semanticId: (element.getAttribute('data-app-object') ?? element.getAttribute('data-point-object'))! } : {}),
           bounds: { x: box.left - rect.x, y: box.top - rect.y, width: box.width, height: box.height } };
       }),
     };
