@@ -10,9 +10,11 @@ const root = resolve(import.meta.dirname, '../..');
 const scenarios = ['lifecycle', 'persistence', 'transport'];
 const scenarioChecks = {
   lifecycle: ['actual GPUI add disabled', 'explicit server-wide enable confirmation', 'real ACP injection',
+    'Host connector builtin has scoped loopback HTTP identity and auth shape; user-managed assertions remain exact',
     'edit revokes grant for new sessions', 'confirmed removal', 'configured state does not imply connected or discovered tools',
     'no operator credential disclosure', 'cleanup completes before success receipt'],
   persistence: ['write failure and retry', 'dark/narrow/Chinese',
+    'Host connector builtin has scoped loopback HTTP identity and auth shape; user-managed assertions remain exact',
     'restart persistence and visible MCP category navigation without search', 'stale-write conflict and refresh recovery',
     'import is disabled', 'confirmed removal', 'no operator credential disclosure', 'cleanup completes before success receipt'],
   transport: ['correlated IPC rejection settles busy and preserves draft', 'unrelated error does not settle pending save',
