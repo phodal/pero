@@ -88,8 +88,8 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
         {task.report && current && <Answer report={task.report} intent={current} api={api} onCite={onCite} t={t}/>}
         {task.working && <p role="status" className="pa-run-status">{t(task.status === 'needs_input' ? 'needsInput' : task.phase === 'research' ? 'researching' : 'running')}{task.status === 'needs_input' && <Button onClick={onOpenChat}>{t('openChat')}</Button>}</p>}
         {task.study && <StudyRecord study={task.study} complete={!!task.report} t={t}/>}
-        {task.status === 'failed' && !task.repair && <Feedback kind="error">{t('failed')}{!task.study && <Button onClick={task.retryPoll}>{t('retry')}</Button>}</Feedback>}
-        {task.status === 'cancelled' && <p role="status">{t('cancelled')}</p>}
+        {task.status === 'failed' && !task.repair && !task.report && <Feedback kind="error">{t('failed')}{!task.study && <Button onClick={task.retryPoll}>{t('retry')}</Button>}</Feedback>}
+        {task.status === 'cancelled' && !task.report && <p role="status">{t('cancelled')}</p>}
         {task.study && !task.report && !locked && <Button disabled={!agent.available || !agentId} onClick={() => void task.continueStudy(agentId)}>{t('continueStudy')}</Button>}
         {task.repair && <Feedback kind="error">{t('invalidReport')}</Feedback>}
       </section>}

@@ -7,6 +7,7 @@ type ResearchStage = { stage: 'research' | 'answer'; requestId: string; prompt: 
 
 export function useResearch(api: Api, agent: Agent, active: boolean, refresh: () => Promise<void>, onError: (error: unknown) => void, t: Translator) {
   const [plannedQuestion, setPlannedQuestion] = useState(''), [phase, setPhase] = useState<ResearchStage['stage']>('answer');
+  const stoppingSession = useRef('');
   const stage = useRef<ResearchStage | null>(null), selectedAgent = useRef(''), savedReport = useRef('');
   const [intent, setIntent] = useState<Intent | null>(null), [report, setReport] = useState<Report | null>(null);
   const [study, setStudy] = useState<ResearchStudy | null>(null);
@@ -41,7 +42,7 @@ export function useResearch(api: Api, agent: Agent, active: boolean, refresh: ()
     return full;
   }
   async function launchStage(next: ResearchStage, agentId: string) {
-    stage.current = next; selectedAgent.current = agentId;
+    stage.current = next; selectedAgent.current = agentId; stoppingSession.current = '';
     setPhase(next.stage); setPlannedQuestion(next.question); setRaw(''); setPending(true); setBusy(true);
     if (next.intent) setIntent(next.intent);
     try {
@@ -88,7 +89,17 @@ export function useResearch(api: Api, agent: Agent, active: boolean, refresh: ()
         const studyId = stage.current?.studyId;
         const next = studyId ? await readStudy(studyId, id) : null;
         if (stopped || !current(id) || identity !== pollIdentity.current) return;
-        if (reply.status === 'failed') onError(new Error(reply.text || t('failed')));
+        // The persisted report is the App delivery. Stop the owned Host turn
+        // instead of waiting for further commentary or unrelated tool calls.
+        if (next?.reportId && ['running', 'needs_input'].includes(reply.status) && stoppingSession.current !== sessionId) {
+          stoppingSession.current = sessionId;
+          await agent.cancel({ sessionId });
+          if (stopped || !current(id)) return;
+          setStatus('cancelling');
+          timer = setTimeout(poll, 1000);
+          return;
+        }
+        if (reply.status === 'failed' && !next?.reportId) onError(new Error(reply.text || t('failed')));
         if (reply.status === 'completed') {
           if (next) {
             if (!next.reportId) { setStatus('failed'); onError(new Error(t('studyIncomplete'))); }
