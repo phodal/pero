@@ -51,3 +51,20 @@ test('Product artifact names survive release host normalization', () => {
     assert.equal(Product.parse({ ...base, name }).artifactStem(), expected);
   }
 });
+
+test('Data ships as the same required App in the workbench and standalone product', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const readProduct = async (path: string) => Product.parse(JSON.parse(
+    await readFile(new URL(path, import.meta.url), 'utf8'),
+  ));
+  const workbench = await readProduct('../../products/pero.json');
+  const standalone = await readProduct('../../products/data/product.json');
+  assert.equal(workbench.apps[workbench.apps.indexOf('insights') + 1], 'data');
+  assert.ok(workbench.required.includes('data'));
+  assert.equal(standalone.id, 'com.openpero.data');
+  assert.deepEqual(standalone.selectApp(), { app: 'data', panel: 'main' });
+  assert.deepEqual(standalone.apps, ['data']);
+  assert.deepEqual(standalone.required, ['data']);
+  assert.equal(standalone.python, 'bundled');
+  assert.equal(standalone.chat, false);
+});

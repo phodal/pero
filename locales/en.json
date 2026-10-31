@@ -486,6 +486,7 @@
   "composer.browse_image": "Choose image…",
   "composer.browse_directory": "Choose directory…",
   "nav.insights": "Insights",
+  "nav.data": "Data",
   "insights.section": "Session record",
   "insights.evidence": "Records and sources",
   "insights.goal": "Goal at the time",

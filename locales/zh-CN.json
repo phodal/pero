@@ -486,6 +486,7 @@
   "composer.browse_image": "选择图片…",
   "composer.browse_directory": "选择目录…",
   "nav.insights": "Insights",
+  "nav.data": "Data",
   "insights.section": "会话记录",
   "insights.evidence": "记录与来源",
   "insights.goal": "当时的目标",
