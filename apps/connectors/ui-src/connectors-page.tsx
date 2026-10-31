@@ -192,7 +192,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
       await reload();
       return { result: reply.result ?? null };
     } catch (e: any) {
-      say(e?.code === 'MCP_SERVICE_NOT_INSTALLED' ? copy('此环境尚未安装 MCP 管理服务，无法安装连接器。', 'The MCP management service is not installed here, so this connector cannot be installed.') : errorText(e?.code, locale) ?? (errorMessage(e)), true);
+      say(errorText(e?.code, locale) ?? errorMessage(e), true);
       return null;
     } finally { mutationBusy.current = false; setBusy(''); }
   };
@@ -327,7 +327,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
   };
 
   return <section className={dialogOnly ? 'point-connectors-dialog-only' : 'point-page point-connectors-page'} aria-label={copy('连接器', 'Connectors')}>
-    {error && <p className="point-error" role="alert">{error}</p>}
+    {error && <div role="alert"><p className="point-error">{error}</p><button type="button" onClick={() => void reload()} disabled={loading}>{copy('重新加载', 'Reload')}</button></div>}
     {loading && !directory.length && <p className="point-page-note" role="status">{copy('正在加载…', 'Loading…')}</p>}
     {!dialogOnly && <>
 
@@ -336,7 +336,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
         <button type="button" aria-pressed={mode === 'manage'} onClick={() => { setMode(mode === 'manage' ? 'catalog' : 'manage'); setSearch(''); }}>{copy('已安装连接', 'Installed connections')}{connections.length ? ` ${connections.length}` : ''}</button>
       </div>
       <input type="search" placeholder={mode === 'manage' ? copy('搜索已安装连接', 'Search installed connections') : copy('搜索服务', 'Search services')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} />
-      <div className="point-page-actions"><button type="button" onClick={openImport}>{copy('添加自定义 MCP', 'Add custom MCP')}</button></div>
+      <div className="point-page-actions"><button type="button" onClick={openImport} disabled={!!error || loading}>{copy('添加自定义 MCP', 'Add custom MCP')}</button></div>
     </PointToolbar>
 
     {notice && !detailOpen && !importOpen && <p className={noticeError ? 'point-error' : 'point-connectors-notice'} role={noticeError ? 'alert' : 'status'}>{notice}</p>}
@@ -384,7 +384,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
           })}
         </div>
       </section>)}
-      {!matchesCatalog.length && !loading && <PointEmptyState as="p" unstyled className="point-page-empty">{copy('没有匹配的服务。', 'No matching services.')}</PointEmptyState>}
+      {!matchesCatalog.length && !loading && !error && <PointEmptyState as="p" unstyled className="point-page-empty">{copy('没有匹配的服务。', 'No matching services.')}</PointEmptyState>}
     </div>}
 
     {mode === 'manage' && <div className="point-connectors-manage">
@@ -411,7 +411,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
           </div>
         </article>)}
       </div>}
-      {!matchesManage.length && <PointEmptyState as="p" unstyled className="point-page-empty">{connections.length ? copy('没有匹配的连接。', 'No matching connections.') : copy('还没有连接。从目录安装一个，或添加自定义 MCP。', 'No connections yet. Install from the catalog or add a custom MCP.')}</PointEmptyState>}
+      {!matchesManage.length && !loading && !error && <PointEmptyState as="p" unstyled className="point-page-empty">{connections.length ? copy('没有匹配的连接。', 'No matching connections.') : copy('还没有连接。从目录安装一个，或添加自定义 MCP。', 'No connections yet. Install from the catalog or add a custom MCP.')}</PointEmptyState>}
     </div>}
     </>}
 

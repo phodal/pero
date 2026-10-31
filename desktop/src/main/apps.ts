@@ -130,7 +130,7 @@ export class DesktopApps {
       if (url.pathname === '/host/connectors') {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
         await this.requireConnectorsGrant(url.hostname);
-        if (!this.connectors) return Response.json({ ok: false, code: 'MCP_SERVICE_NOT_INSTALLED' }, { status: 503 });
+        if (!this.connectors) return Response.json({ ok: false, code: 'MCP_HOST_UNAVAILABLE' }, { status: 503 });
         const body = await request.text();
         if (Buffer.byteLength(body) > 131072) return new Response('Request too large', { status: 413 });
         return Response.json(await this.connectors(JSON.parse(body)), { headers: { 'Cache-Control': 'no-store' } });
