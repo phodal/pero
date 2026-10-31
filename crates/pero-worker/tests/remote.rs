@@ -390,7 +390,11 @@ fn lease_loss_stops_silent_agent_and_descendants() {
     let fixture = Fixture::new("wait", false, true);
     let started = Instant::now();
     let output = fixture.run();
-    assert!(!output.status.success());
+    assert!(
+        !output.status.success(),
+        "lease-loss Worker unexpectedly succeeded: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(started.elapsed() < Duration::from_secs(9));
     fixture.descendant_gone();
     let state = fixture.state.lock().unwrap();
