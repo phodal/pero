@@ -374,7 +374,7 @@ class ResearchStudy:
 
     def to_dict(self):
         return dict(**self.compact(), requestId=self.request_id, question=self.request.question,
-                    sessionId='app:paper-agent:' + self.request_id, createdAt=self.created_at,
+                    createdAt=self.created_at,
                     paperIds=list(self.request.paper_ids), sourceCatalog=[s.to_dict() for s in self.sources],
                     steps=[s.to_dict() for s in self.steps], passages=[p.to_dict() for p in self.passages], prompt=self.prompt())
 
