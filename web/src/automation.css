@@ -1,0 +1,18 @@
+.automation { box-sizing:border-box; width:min(1080px,calc(100vw - 40px)); max-height:calc(100vh - 40px); padding:20px; color:var(--pero-text); background:var(--pero-surface); border:1px solid var(--pero-border); border-radius:8px; font:var(--pero-font-body)/1.4 system-ui,sans-serif; }
+.automation::backdrop { background:#0006; }
+.automation [hidden] { display:none!important; }
+.automation header,.automation-toolbar,.automation-actions { display:flex; align-items:center; gap:8px; }
+.automation header { justify-content:space-between; margin-bottom:16px; }
+.automation h1 { margin:0; font-size:22px; }.automation h2 { margin:12px 0; font-size:16px; }
+.automation-toolbar { margin-bottom:12px; }.automation-toolbar span { flex:1; }
+.automation button,.automation input,.automation select,.automation textarea { box-sizing:border-box; font:inherit; color:inherit; background:var(--pero-surface); border:1px solid var(--pero-input-border); border-radius:4px; padding:5px 8px; }
+.automation button { cursor:pointer; white-space:nowrap; }.automation button:disabled { opacity:.5; cursor:default; }
+.automation button:hover { background:var(--pero-surface-muted); }.automation :focus-visible { outline:2px solid var(--pero-focus); outline-offset:2px; }
+.automation label { display:grid; gap:4px; margin-bottom:10px; }.automation textarea { resize:vertical; width:100%; }
+.automation-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 16px; }
+.automation-actions { justify-content:flex-end; margin:10px 0; }
+.automation table { width:100%; border-collapse:collapse; text-align:left; }.automation th { font-size:12px; font-weight:500; color:var(--pero-text-muted); }
+.automation th,.automation td { border-bottom:1px solid var(--pero-border); padding:7px; overflow-wrap:anywhere; max-width:320px; }
+.automation td button { margin-right:4px; }.automation form { padding:12px 0; border-bottom:1px solid var(--pero-border); }
+.automation-muted { color:var(--pero-text-muted); font-size:12px; overflow-wrap:anywhere; }.automation-error { color:var(--pero-error); }
+@media(max-width:700px){.automation {padding:12px;width:calc(100vw - 16px);}.automation-fields {grid-template-columns:1fr;}.automation table {font-size:12px;}.automation th,.automation td {padding:5px;}}

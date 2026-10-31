@@ -831,6 +831,7 @@
   "harness.invalid_model": "Enter a model ID without whitespace.",
   "harness.invalid_key": "The API key contains invalid characters.",
   "harness.confirm_remove": "Confirm removal",
+  "automation.title": "Automation",
   "terminal.title": "Terminal",
   "terminal.starting": "Starting shell…",
   "terminal.exited": "Shell exited",

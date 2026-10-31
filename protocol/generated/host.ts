@@ -5,6 +5,7 @@
  */
 export type HostProtocol = HostInput | HostEvent | WebCommand;
 export type HostInput =
+  | AutomationRequest
   | TerminalRequest
   | McpSettingsRequest
   | IconThemeRequest
@@ -20,6 +21,27 @@ export type HostInput =
   | HostCommand
   | AppRequest
   | ContributionRequest;
+/**
+ * Internal execution receipts, reservations and clock ticks are never client commands.
+ */
+export type AutomationCommand =
+  | AutomationQuery
+  | AutomationCreateLocal
+  | AutomationPutDefinition
+  | AutomationPutBinding
+  | AutomationPublishInput
+  | AutomationAccept
+  | AutomationManualInput
+  | AutomationCancel
+  | AutomationSetControl
+  | AutomationRevokeBinding
+  | AutomationContinueOld
+  | AutomationReconcile;
+export type AutomationTrigger = AutomationManualTrigger | AutomationEventTrigger | AutomationTimeTrigger;
+export type AutomationCounter = number;
+export type AutomationInputContract = "process_exact" | "recheck_latest";
+export type AutomationTarget = AutomationLocalTarget | AutomationUnsupportedTarget;
+export type AutomationReconciliationDisposition = "not_started" | "completed" | "failed" | "cancelled";
 export type TerminalRequest = OpenTerminal | WriteTerminal | ResizeTerminal | CloseTerminal;
 export type McpSettingsRequest = GetMcpSettingsRequest | SetMcpSettingsRequest;
 export type McpTransport = McpStdioTransport | McpHttpTransport;
@@ -129,6 +151,9 @@ export type HostEvent =
   | ContextErrorEvent
   | RemoteStateEvent
   | RemoteOpenEvent
+  | AutomationOpenEvent
+  | AutomationResultEvent
+  | AutomationErrorEvent
   | AppsResultEvent
   | AppsPreparationEvent
   | AppsCatalogEvent
@@ -166,6 +191,10 @@ export type ThreadEvent =
   | SessionErrorEvent
   | SessionClosedEvent
   | SessionDeletedEvent;
+export type AutomationIntent = AutomationEventIntent | AutomationManualIntent | AutomationTimeIntent;
+export type AutomationRequestStatus = AutomationSimpleRequestStatus | AutomationCoveredRequestStatus;
+export type AutomationCapacityKind = "requests" | "events" | "snapshots" | "definitions" | "dispatches";
+export type AutomationReceipt = AutomationUpdatedReceipt | AutomationAcceptanceReceipt | AutomationRequestReceipt;
 export type AppResult = AppSuccess | AppFailure;
 export type AppAgentStatus = "running" | "text" | "needs_input" | "completed" | "cancelled" | "failed";
 /**
@@ -180,6 +209,132 @@ export type WebCommand =
   | WebSurfaceCommand
   | WebSurfacesCommand;
 
+export interface AutomationRequest {
+  method: "automation";
+  id: string;
+  command: AutomationCommand;
+}
+export interface AutomationQuery {
+  action: "query";
+}
+export interface AutomationCreateLocal {
+  action: "create_local";
+  id: string;
+  trigger: AutomationTrigger;
+  input: AutomationInputContract;
+  agent_id: string;
+  prompt: string;
+}
+export interface AutomationManualTrigger {
+  kind: "manual";
+}
+export interface AutomationEventTrigger {
+  kind: "event";
+  binding_id: string;
+  event_kind: string;
+}
+export interface AutomationTimeTrigger {
+  kind: "time";
+  subject: string;
+  exact: AutomationExactRef | null;
+  anchor: AutomationCounter;
+  interval_seconds: AutomationCounter;
+  max_lateness_seconds: AutomationCounter;
+}
+export interface AutomationExactRef {
+  revision: string;
+  digest: string;
+}
+export interface AutomationPutDefinition {
+  action: "put_definition";
+  definition: AutomationDefinition;
+}
+export interface AutomationDefinition {
+  id: string;
+  revision: AutomationCounter;
+  owner: string;
+  trigger: AutomationTrigger;
+  input: AutomationInputContract;
+  input_binding_id: string;
+  method: AutomationAgentMethod;
+  target: AutomationTarget;
+}
+export interface AutomationAgentMethod {
+  kind: "agent";
+  agent_id: string;
+  workspace: string;
+  prompt: string;
+}
+export interface AutomationLocalTarget {
+  kind: "local_host";
+  owner: string;
+}
+export interface AutomationUnsupportedTarget {
+  kind: "shared" | "worker";
+}
+export interface AutomationPutBinding {
+  action: "put_binding";
+  binding: AutomationSourceBinding;
+}
+export interface AutomationSourceBinding {
+  id: string;
+  owner: string;
+  authority: string;
+  event_kinds: string[];
+}
+export interface AutomationPublishInput {
+  action: "publish_input";
+  binding_id: string;
+  subject: string;
+  revision: string;
+  content: string;
+  latest: boolean;
+}
+export interface AutomationAccept {
+  action: "accept";
+  event: AutomationEventAssertion;
+}
+export interface AutomationEventAssertion {
+  binding_id: string;
+  producer_id: string;
+  event_kind: string;
+  subject: string;
+  exact: AutomationExactRef | null;
+}
+export interface AutomationManualInput {
+  action: "manual_input";
+  definition_id: string;
+  intent_id: string;
+  subject: string;
+  content: string;
+}
+export interface AutomationCancel {
+  action: "cancel";
+  request_id: string;
+}
+export interface AutomationSetControl {
+  action: "control";
+  definition_id: string;
+  paused: boolean;
+  revoked: boolean;
+}
+export interface AutomationRevokeBinding {
+  action: "revoke_binding";
+  binding_id: string;
+}
+export interface AutomationContinueOld {
+  action: "continue_old";
+  request_id: string;
+}
+export interface AutomationReconcile {
+  action: "reconcile";
+  request_id: string;
+  expected_execution_id: string;
+  disposition: AutomationReconciliationDisposition;
+  evidence: string;
+  execution_stopped: true;
+  effects_checked: true;
+}
 export interface OpenTerminal {
   method: "terminal";
   action: "open";
@@ -1607,6 +1762,225 @@ export interface RemoteStateEvent {
  */
 export interface RemoteOpenEvent {
   kind: "remote_open";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface AutomationOpenEvent {
+  kind: "automation_open";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface AutomationResultEvent {
+  kind: "automation_result";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: AutomationResult;
+}
+export interface AutomationResult {
+  state: AutomationState;
+  capacity: AutomationCapacityStatus;
+  capabilities: AutomationCapabilities;
+  receipt?: AutomationReceipt;
+  attention: AutomationAttention;
+  fault: string | null;
+  evidence: AutomationEvidence;
+}
+export interface AutomationState {
+  owner: string;
+  limits: AutomationLimits;
+  bindings: AutomationSourceBinding[];
+  definitions: AutomationDefinition[];
+  controls: AutomationControls;
+  revoked_bindings: string[];
+  snapshots: AutomationCandidateRef[];
+  latest: AutomationCandidateRef[];
+  events: AutomationAcceptedEvent[];
+  decisions: AutomationDecision[];
+  requests: AutomationRunRequest[];
+  dispatch_count: AutomationCounter;
+}
+export interface AutomationLimits {
+  max_events: number;
+  max_requests: number;
+  max_snapshots: number;
+  max_definitions: number;
+  max_fanout: number;
+  max_event_bytes: number;
+  max_active: number;
+  max_dispatches: AutomationCounter;
+}
+export interface AutomationControls {
+  [k: string]: AutomationControl | undefined;
+}
+export interface AutomationControl {
+  paused: boolean;
+  revoked: boolean;
+}
+export interface AutomationCandidateRef {
+  binding_id: string;
+  subject: string;
+  revision: string;
+  digest: string;
+  content_ref: string;
+}
+export interface AutomationAcceptedEvent {
+  id: string;
+  input: AutomationEventInput;
+  position: AutomationCounter;
+  accepted_at: AutomationCounter;
+}
+export interface AutomationEventInput {
+  binding_id: string;
+  producer_id: string;
+  event_kind: string;
+  subject: string;
+  exact: AutomationExactRef | null;
+  digest: string;
+}
+export interface AutomationDecision {
+  acceptance_id: string;
+  definition_id: string;
+  revision: AutomationCounter;
+  request_id: string;
+}
+export interface AutomationRunRequest {
+  id: string;
+  definition: AutomationDefinition;
+  intent: AutomationIntent;
+  subject: string;
+  exact: AutomationExactRef | null;
+  created_at: AutomationCounter;
+  through_position: AutomationCounter;
+  snapshot: AutomationCandidateRef | null;
+  execution_id: string | null;
+  reprocess_of: string | null;
+  operator_reconciliation: AutomationOperatorReconciliation | null;
+  status: AutomationRequestStatus;
+  continued_revision: boolean;
+  cancel_requested: boolean;
+}
+export interface AutomationEventIntent {
+  kind: "event";
+}
+export interface AutomationManualIntent {
+  kind: "manual";
+  id: string;
+}
+export interface AutomationTimeIntent {
+  kind: "time";
+  slot: AutomationCounter;
+}
+export interface AutomationOperatorReconciliation {
+  execution_id: string;
+  disposition: AutomationReconciliationDisposition;
+  evidence: string;
+  recorded_at: AutomationCounter;
+  previous_status: AutomationRequestStatus;
+  authority: "local_operator";
+}
+export interface AutomationSimpleRequestStatus {
+  kind:
+    | "pending"
+    | "input_unavailable"
+    | "definition_changed"
+    | "reserved"
+    | "running"
+    | "cancel_requested"
+    | "reconcile"
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | "expired"
+    | "reconciled"
+    | "not_started";
+}
+export interface AutomationCoveredRequestStatus {
+  kind: "covered";
+  request_id: string;
+}
+export interface AutomationCapacityStatus {
+  requests: AutomationCapacityCount;
+  events: AutomationCapacityCount;
+  snapshots: AutomationCapacityCount;
+  definitions: AutomationCapacityCount;
+  dispatches: AutomationCapacityCount;
+  exhausted: AutomationCapacityKind[];
+}
+export interface AutomationCapacityCount {
+  used: AutomationCounter;
+  limit: AutomationCounter;
+}
+export interface AutomationCapabilities {
+  owner: string;
+  workspace: string;
+  agents: AutomationAgentSummary[];
+  supportedTargets: "local_host"[];
+  supportedMethods: "agent"[];
+  sourceBindingId: string;
+  sourceKind: "local_published_registry";
+  maxInputBytes: number;
+  available: boolean;
+  unsupported: string[];
+}
+export interface AutomationAgentSummary {
+  id: string;
+  name: string;
+  available: boolean;
+}
+export interface AutomationUpdatedReceipt {
+  kind: "updated";
+}
+export interface AutomationAcceptanceReceipt {
+  kind: "acceptance";
+  id: string;
+  duplicate: boolean;
+  matched: number;
+}
+export interface AutomationRequestReceipt {
+  kind: "request";
+  id: string;
+  duplicate: boolean;
+}
+export interface AutomationAttention {
+  [k: string]: string | undefined;
+}
+export interface AutomationEvidence {
+  admissions: AutomationAdmissionEntry[];
+  observations: AutomationObservationEntry[];
+}
+export interface AutomationAdmissionEntry {
+  execution_id: string;
+  record: AutomationAdmission;
+}
+export interface AutomationAdmission {
+  admittedAt: AutomationCounter;
+  authority: AutomationAuthority;
+  candidate: AutomationCandidateRef;
+}
+export interface AutomationAuthority {
+  agentId: string;
+  workspace: string;
+  configurationDigest: string;
+  model: string | null;
+  permissionPolicy: string;
+  appUse: boolean;
+}
+export interface AutomationObservationEntry {
+  execution_id: string;
+  record: AutomationObservation | AutomationAdmissionFailure;
+}
+export interface AutomationObservation {
+  kind: string;
+  observedAt: AutomationCounter;
+}
+export interface AutomationAdmissionFailure {
+  admissionFailure: string;
+}
+export interface AutomationErrorEvent {
+  kind: "automation_error";
   version: 1;
   request_id: string | null;
   text: string;

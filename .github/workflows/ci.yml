@@ -345,7 +345,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && fromJSON('["workbench","toolcalls","data","data-product","control-lab","control-lab-app-use","control-lab-live","virtual-cell-comparison","virtual-cell-dataset-download","app-use","app-use-workbench","mcp-lifecycle","mcp-persistence","mcp-transport"]') || fromJSON('["workbench","data","app-use-workbench"]') }}
+        suite: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && fromJSON('["workbench","automation","toolcalls","data","data-product","control-lab","control-lab-app-use","control-lab-live","virtual-cell-comparison","virtual-cell-dataset-download","app-use","app-use-workbench","mcp-lifecycle","mcp-persistence","mcp-transport"]') || fromJSON('["workbench","data","app-use-workbench"]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

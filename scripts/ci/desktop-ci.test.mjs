@@ -11,7 +11,7 @@ import { pack, unpack, runtimePaths } from './desktop-artifact.mjs';
 
 test('daily keeps all acceptance; ordinary tier keeps the explicit critical smokes', () => {
   assert.deepEqual(Object.values(suites).map(([name]) => name).sort(), [
-    'workbench', 'toolcalls', 'data', 'data-product', 'control-lab', 'control-lab-app-use', 'control-lab-live',
+    'workbench', 'automation', 'toolcalls', 'data', 'data-product', 'control-lab', 'control-lab-app-use', 'control-lab-live',
     'virtual-cell-comparison', 'virtual-cell-dataset-download', 'app-use', 'app-use-workbench',
     'mcp-settings', 'mcp-settings', 'mcp-settings',
   ].sort());
@@ -49,7 +49,8 @@ test('daily keeps all acceptance; ordinary tier keeps the explicit critical smok
     'tests/fixtures/app-chat-launch.test.mjs', 'npm --prefix apps/virtual-cell run typecheck',
     'npm --prefix apps/virtual-cell run test:ui', 'npm --prefix apps/control-lab run typecheck',
     'npm --prefix apps/control-lab run test:ui', 'npm --prefix apps/data run typecheck',
-    'npm --prefix apps/data run test:ui']) assert.ok(commands.includes(command), command);
+    'npm --prefix apps/data run test:ui', 'node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs',
+    'tests/fixtures/owned-electron-close.test.mjs', 'node tests/runtime/automation.mjs']) assert.ok(commands.includes(command), command);
   const native = YAML.parse(readFileSync('.github/workflows/computer-use.yml', 'utf8'));
   assert.match(native.jobs.native.strategy.matrix.os, /schedule.*workflow_dispatch/);
   assert.equal(native.on.schedule[0].cron, '0 20 * * *');

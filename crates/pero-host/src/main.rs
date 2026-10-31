@@ -4,6 +4,8 @@ use pero_contracts::{
 use std::io::{self, BufRead, Write};
 mod terminal;
 mod agents;
+mod automation;
+mod automation_store;
 mod apps;
 mod local_repo;
 mod contributions;
@@ -52,9 +54,31 @@ fn main() -> io::Result<()> {
     computer.data = serde_json::json!({"enabled":settings_path.as_deref().is_some_and(pero_runtime::settings::load_computer_enabled)});
     emit(computer)?;
     emit(icons.snapshot(None))?;
-    for line in io::stdin().lock().lines() {
-        let line = line?;
+    let mut automation = automation::Automation::open(settings_path.as_deref(), &mut agents);
+    let (input_tx, input_rx) = std::sync::mpsc::sync_channel(64);
+    std::thread::spawn(move || {
+        for line in io::stdin().lock().lines() {
+            if input_tx.send(line).is_err() { break; }
+        }
+    });
+    loop {
+        if let Ok(owner) = &mut automation {
+            if let Some(event) = owner.tick(&mut agents) { emit(event)?; }
+        }
+        let line = match input_rx.recv_timeout(std::time::Duration::from_millis(250)) {
+            Ok(line) => line?,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+        };
         let value: serde_json::Value = serde_json::from_str(&line).unwrap_or_default();
+        if value.get("method").and_then(|v| v.as_str()) == Some("automation") {
+            let event = match &mut automation {
+                Ok(owner) => owner.dispatch(value, &mut agents),
+                Err(error) => HostEvent::new("automation_error", value.get("id").and_then(|v|v.as_str()).map(str::to_owned), error.clone()),
+            };
+            emit(event)?;
+            continue;
+        }
         if value.get("method").and_then(|v| v.as_str()) == Some("terminal") {
             terminals.dispatch(value);
             continue;
@@ -253,5 +277,6 @@ fn main() -> io::Result<()> {
         };
         emit(event)?;
     }
+    if let Ok(owner) = &mut automation { owner.shutdown(&mut agents); }
     Ok(())
 }

@@ -125,6 +125,7 @@ jobs:
           npm --prefix apps/control-lab run test:ui
           npm --prefix apps/data run typecheck
           npm --prefix apps/data run test:ui
+          node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs
 
       - name: Test
         run: npm test
@@ -143,8 +144,9 @@ jobs:
         run: |
           node -e "require('esbuild').buildSync({entryPoints:['desktop/src/main/app-use.test.ts','desktop/src/main/app-context.test.ts'],outdir:process.env.RUNNER_TEMP+'/app-use-tests',bundle:true,platform:'node',format:'esm',external:['electron']})"
           node --test "$RUNNER_TEMP"/app-use-tests/*.js
-          node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs
+          node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs
           node --test tests/runtime/control-lab/*.test.mjs
+          node tests/runtime/automation.mjs
           node tests/contracts/mcp-settings.mjs
           node tests/contracts/mcp-ownership.mjs
 

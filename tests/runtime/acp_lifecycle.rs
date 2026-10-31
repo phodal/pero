@@ -781,9 +781,21 @@ fn local_turns_and_worker_execution_share_the_workspace_write_lease() {
         .tx
         .send(SessionCommand::Prompt("blocked".into()))
         .unwrap();
-    assert!(until(&rx, "session_error")
-        .text
-        .contains("Workspace is busy"));
+    loop {
+        let event = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_ne!(
+            event.kind, "turn_started",
+            "busy lease must reject before ACP submission"
+        );
+        if event.kind == "session_error" {
+            assert_eq!(
+                serde_json::from_value::<PromptRejection>(event.data["promptRejection"].clone())
+                    .unwrap(),
+                PromptRejection::WorkspaceLease
+            );
+            break;
+        }
+    }
     drop(worker_lease);
     handle
         .tx

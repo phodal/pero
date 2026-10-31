@@ -80,16 +80,19 @@ assertions. Warm-cache latency needs a new exact-head Actions measurement.
   unknown save reload and disconnection. The default command still runs all.
 - `Linux CI gate` requires every Linux contract job and all three critical smokes. Only the
   two explicitly full-platform-only job groups may be skipped in normal mode.
-  `Full-platform CI gate` requires all fourteen acceptance shards and all jobs,
+  `Full-platform CI gate` requires all fifteen acceptance shards and all jobs,
   including Windows positive ACL and macOS/Windows builds. Failure/cancellation of any required job rejects the gate;
   the Linux result is not represented as proof of cross-platform acceptance.
 
 Daily acceptance parity and the explicit ordinary subset are pinned by `scripts/ci/desktop-ci.test.mjs`: Workbench,
-Toolcalls, Data, Data Product, three Control Lab suites, two Virtual Cell suites,
+Automation, Toolcalls, Data, Data Product, three Control Lab suites, two Virtual Cell suites,
 two App Use suites and all three MCP scenarios. MCP settings/ownership protocol
 contracts and all fixture/control-lab unit tests remain in Linux build contracts.
-When Automation is integrated later, its stdio and GUI acceptance must be added
-explicitly; this change is based on master `81ebd851`, which has no Automation.
+After integrating master `aa24514a`, Automation model/contract checks and real
+Host stdio lifecycle tests run in the ordinary tier. Its complete crash/restart
+and operator-reconciliation GUI runs as the fifteenth daily/manual shard. The
+owned-Electron cleanup and ACP fixture regressions remain ordinary Linux checks.
+These fixtures make no real provider calls.
 
 ## Failure evidence and measurement
 

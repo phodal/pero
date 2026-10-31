@@ -831,6 +831,7 @@
   "harness.invalid_model": "请输入不含空白字符的模型 ID。",
   "harness.invalid_key": "API Key 含有无效字符。",
   "harness.confirm_remove": "确认移除",
+  "automation.title": "自动化",
   "terminal.title": "终端",
   "terminal.starting": "正在启动 shell…",
   "terminal.exited": "Shell 已退出",
