@@ -25,6 +25,20 @@ defaults:
     shell: bash
 
 jobs:
+  data:
+    name: Data local catalog and download contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Test opaque imports, bounded downloads and restart persistence
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python -m unittest discover -s apps/data/test -p 'test_*.py' -v
+
   control-lab:
     name: Control Lab actual python-control and ngspice
     runs-on: ubuntu-latest
@@ -385,6 +399,8 @@ jobs:
           npm --prefix apps/virtual-cell run test:ui
           npm --prefix apps/control-lab run typecheck
           npm --prefix apps/control-lab run test:ui
+          npm --prefix apps/data run typecheck
+          npm --prefix apps/data run test:ui
 
       - name: Test
         run: npm test
@@ -435,6 +451,7 @@ jobs:
           failed=0
           run_acceptance() { "$@" || failed=1; }
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/workbench.mjs
+          run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/data.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/toolcalls.mjs
           run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/control-lab.mjs
           run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/control-lab-app-use.mjs
