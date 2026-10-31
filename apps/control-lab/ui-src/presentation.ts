@@ -299,7 +299,9 @@ export function checkConcepts(experiment: Experiment, candidateId: string, phase
       : verdict === "INCONCLUSIVE"
         ? entries.filter((entry) => entry.check.verdict === "INCONCLUSIVE")
         : entries;
-    const representative = pool.reduce((best, entry) =>
+    // Missing scenarios can make the aggregate inconclusive even when every
+    // available check passed. Keep a real saved observation, never a fake pass.
+    const representative = (pool.length ? pool : entries).reduce((best, entry) =>
       (entry.check.actual ?? Number.NEGATIVE_INFINITY) > (best.check.actual ?? Number.NEGATIVE_INFINITY) ? entry : best);
     const scenario = scenarios.find((item) => item.id === representative.scenarioId);
     return {
