@@ -58,6 +58,13 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
   await viewer.getByRole('button', { name: 'Discuss selection', exact: true }).click();
   await expect(frame.locator('.pa-question-context')).toContainText(fixture.quote);
+  const selectionContext = frame.locator('.pa-question-context');
+  await nav.getByRole('spinbutton', { name: 'Page', exact: true }).fill('2');
+  await selectionContext.getByRole('button', { name: 'Page 1 ↗', exact: true }).click();
+  await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('1');
+  await expect(first.locator('[data-citation-region="true"]').first()).toBeVisible();
+  await expect(first.locator('img,canvas').first()).toHaveAttribute('data-reading-identity', 'retained');
+  await page.screenshot({ path: resolve(out, 'pdf-selection-return.png') });
   await frame.getByRole('button', { name: 'Close Agent', exact: true }).click();
   await viewer.getByRole('textbox', { name: 'Note (optional)' }).fill('Saved source evidence');
   await viewer.getByRole('button', { name: 'Highlight', exact: true }).click();
@@ -105,6 +112,14 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await expect(frame.locator('.pa-reading-main')).toHaveAttribute('inert', '');
   await expect(frame.getByRole('textbox', { name: 'Research question', exact: true })).toBeFocused();
   await page.screenshot({ path: resolve(out, 'pdf-dark-narrow.png') });
+  await frame.locator('.pa-question-context').getByRole('button', { name: 'Page 1 ↗', exact: true }).click();
+  await expect(frame.getByRole('complementary', { name: 'Ask', exact: true })).toHaveCount(0);
+  await expect(frame.locator('.pa-reading-main')).not.toHaveAttribute('inert', '');
+  await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('1');
+  await expect(first.locator('[data-citation-region="true"]').first()).toBeVisible();
+  await page.screenshot({ path: resolve(out, 'pdf-selection-return-narrow.png') });
+  await nav.getByRole('button', { name: 'Ask', exact: true }).click();
+  await expect(frame.locator('.pa-question-context')).toContainText(fixture.quote);
   await frame.getByRole('button', { name: 'Close Agent', exact: true }).press('Escape');
   await expect(nav.getByRole('button', { name: 'Ask', exact: true })).toBeFocused();
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900));

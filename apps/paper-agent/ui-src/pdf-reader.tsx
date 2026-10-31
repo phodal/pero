@@ -97,7 +97,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       if (appliedFocus.current === focus) return;
       appliedFocus.current = focus;
       const rect = focus.rects?.[0], page = document.pages[focus.page - 1];
-      scrollCapability.forDocument(documentId).scrollToPage({ pageNumber: focus.page, behavior: 'instant', ...(rect ? { pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 25 } : {}) });
+      scrollCapability.forDocument(documentId).scrollToPage({ pageNumber: focus.page, behavior: 'instant', ...(rect ? { pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 } : {}) });
       setTarget(focus.annotationId ?? '');
     };
     if (layoutReady.current) apply();
@@ -122,9 +122,10 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       const scope = selection?.forDocument(documentId), parts = scope?.getFormattedSelection() ?? [];
       if (parts.length !== 1) throw new Error(t('pdfOnePage'));
       const quote = (await scope!.getSelectedText().toPromise()).join('\n');
-      if (action === 'discuss') { onDiscuss?.(quote, { documentId: document.id, fileDigest: document.fileDigest, page: parts[0].pageIndex + 1 }); return; }
       const part = parts[0], page = document.pages[part.pageIndex];
-      await save({ kind: 'highlight', page: part.pageIndex + 1, quote, rects: part.segmentRects.map(rect => ({ x: Math.max(0, rect.origin.x / page.width), y: Math.max(0, rect.origin.y / page.height), width: rect.size.width / page.width, height: rect.size.height / page.height })) });
+      const rects = part.segmentRects.map(rect => ({ x: Math.max(0, rect.origin.x / page.width), y: Math.max(0, rect.origin.y / page.height), width: rect.size.width / page.width, height: rect.size.height / page.height }));
+      if (action === 'discuss') { onDiscuss?.(quote, { documentId: document.id, fileDigest: document.fileDigest, page: part.pageIndex + 1, rects }); return; }
+      await save({ kind: 'highlight', page: part.pageIndex + 1, quote, rects });
     } catch (e) { fail(e); }
   }
   function go(annotation: PdfAnnotation) { scroll?.scrollToPage({ pageNumber: annotation.page, behavior: 'instant' }); setTarget(annotation.id); }

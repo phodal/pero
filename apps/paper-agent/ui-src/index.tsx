@@ -50,7 +50,8 @@ export default function PaperAgent() {
   }, [agent.agents, agentId]);
   const task = useResearch(api, agent, info.active, refresh, onError, t);
   const locked = task.working || task.busy || task.pending;
-  const updateDraft = (value: Partial<QuestionDraft>) => setDraft(prior => ({ ...prior, ...value }));
+  const updateDraft = (value: Partial<QuestionDraft>) => setDraft(prior => ({ ...prior,
+    ...(value.selected && prior.contextSource && !value.selected.includes(prior.contextSource.paperId) ? { context: '', contextSource: undefined } : {}), ...value }));
   useEffect(() => {
     const study = task.study;
     if (study) setDraft(prior => ({ ...prior, selected: study.paperIds, fullText: true, verifyCode: false }));
@@ -118,6 +119,11 @@ export default function PaperAgent() {
     catch (error) { onError(error); }
     finally { if (mounted.current) setReadingBusy(false); }
   }
+  async function revealPdf(paper: Paper, focus: PdfFocus) {
+    if (reading?.id !== paper.id) await read(paper, true, true);
+    setPdfFocus(focus);
+    if (narrow) closeAgent();
+  }
   async function cite(value: Citation, intent: Intent) {
     citationTrigger.current = window.document.activeElement as HTMLElement;
     setCitation({ ...value, intent }); setEvidence(null); const version = ++evidenceVersion.current;
@@ -129,8 +135,8 @@ export default function PaperAgent() {
         setEvidence(result);
         if (result.pdf && value.passageId) {
           const paper = intent.papers.find(p => p.id === value.paperId);
-          if (paper && reading?.id !== paper.id) await read(paper, true);
-          setPdfFocus({ documentId: result.pdf.documentId, page: result.pdf.pages[0], rects: result.pdf.rects }); setCitation(null);
+          if (paper) await revealPdf(paper, { documentId: result.pdf.documentId, page: result.pdf.pages[0], rects: result.pdf.rects });
+          setCitation(null);
         }
       }
     } catch (error) { if (mounted.current && version === evidenceVersion.current) onError(error); }
@@ -139,21 +145,22 @@ export default function PaperAgent() {
   function closeEvidence() { evidenceVersion.current++; setCitation(null); requestAnimationFrame(() => citationTrigger.current?.isConnected && citationTrigger.current.focus({ preventScroll: true })); }
   function selectedText(text: string, pdf?: PdfSource) {
     if (!text || !reading) return;
-    updateDraft({ context: text, selected: [reading.id], fullText: !!pdf || !!reading.pdfUrl || reading.source === 'local-pdf', verifyCode: false }); openAgent();
+    updateDraft({ context: text, contextSource: pdf ? { ...pdf, paperId: reading.id } : undefined, selected: [reading.id], fullText: !!pdf || !!reading.pdfUrl || reading.source === 'local-pdf', verifyCode: false }); openAgent();
   }
   async function send(execute = true) {
     if (task.busy || task.working) return;
     setError('');
-    const question = draft.question.trim() + (draft.context ? `\n\n> ${draft.context}` : '');
+    const contextPaper = draft.contextSource && library.papers.find(paper => paper.id === draft.contextSource?.paperId);
+    const question = draft.question.trim() + (draft.context ? `\n\n${draft.contextSource ? `${contextPaper?.title ?? ''} — ${t('pdfPage')} ${draft.contextSource.page}\n` : ''}> ${draft.context}` : '');
     try {
       const previous = draft.parentIntentId ?? (task.report && task.intent?.papers.some(paper => draft.selected.includes(paper.id)) ? task.intent.id : [...library.intents].filter(intent => intent.paperIds?.some(id => draft.selected.includes(id)) && library.reports.some(report => report.intentId === intent.id)).sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0]?.id);
       const frozen = await task.begin({ question, paperIds: draft.selected, fullText: draft.fullText, verifyCode: draft.verifyCode, verificationPlan: draft.verificationPlan, parentIntentId: previous }, agentId, execute);
-      if (frozen && execute) updateDraft({ question: '', context: '', parentIntentId: undefined });
+      if (frozen && execute) updateDraft({ question: '', context: '', contextSource: undefined, parentIntentId: undefined });
     } catch (error) { onError(error); }
   }
   function annotation(annotation: PdfAnnotation) {
     const paper = library.papers.find(p => p.id === annotation.paperId);
-    if (paper) void read(paper, true).then(() => setPdfFocus({ documentId: annotation.documentId, page: annotation.page, annotationId: annotation.id }));
+    if (paper) void revealPdf(paper, { documentId: annotation.documentId, page: annotation.page, annotationId: annotation.id }).catch(onError);
   }
   useAppDataChanged(() => refresh().catch(onError));
   useAppObject({id:'paper-agent',kind:'research-library',label:'Paper Agent',state:{
@@ -184,7 +191,7 @@ export default function PaperAgent() {
         <header className="pa-reading-bar pero-reader-header"><Button variant="ghost" aria-label={t('backToLibrary')} onClick={back}>‹</Button><h1>{reading?.title ?? t('loading')}</h1><div className="pa-pdf-toolbar-slot" ref={setPdfToolbar}/>{!showResearch && <div ref={askButton}><Button variant="primary" disabled={!reading || readingBusy} onMouseDown={event => event.preventDefault()} onClick={openAgent} aria-keyshortcuts="Control+j Meta+j">{t('ask')}</Button></div>}</header>
         <main className="pa-reading-canvas" aria-busy={readingBusy}>{reading ? <Reader key={reading.id} chrome={{ toolbar: pdfToolbar, preserveView }} api={api} paper={reading} busy={readingBusy} pdfFocus={pdfFocus} onFull={() => void full()} onDiscuss={selectedText} onMatrixAdded={async () => { await refresh(); setMatrixOpen(true); openAgent(); }} t={t}/> : <p role="status">{t('loading')}</p>}</main>
       </div>
-      {screen === 'reading' && showResearch && <Conversation api={api} agent={agent} agentId={agentId} onAgent={setAgentId} task={task} library={library} paper={reading} draft={draft} onDraft={updateDraft} onSend={execute => void send(execute)} onClose={closeAgent} onCite={(value, intent) => void cite(value, intent)} citation={citation} evidence={evidence} evidenceBusy={evidenceBusy} onCloseEvidence={closeEvidence} onReadEvidence={page => { const paper = citation?.intent.papers.find(p => p.id === citation.paperId), pdf = evidence?.pdf; if (paper) void read(paper, true).then(() => { if (pdf) setPdfFocus({ documentId: pdf.documentId, page: page ?? pdf.pages[0], rects: pdf.rects }); }); }} onOpenChat={() => { void chat.open().catch(onError); }} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} t={t}/>}
+      {screen === 'reading' && showResearch && <Conversation api={api} agent={agent} agentId={agentId} onAgent={setAgentId} task={task} library={library} paper={reading} draft={draft} onDraft={updateDraft} onReadContext={() => { const source = draft.contextSource; if (!source) return; const paper = library.papers.find(p => p.id === source.paperId); if (paper) void revealPdf(paper, { documentId: source.documentId, page: source.page, rects: source.rects }).catch(onError); }} onSend={execute => void send(execute)} onClose={closeAgent} onCite={(value, intent) => void cite(value, intent)} citation={citation} evidence={evidence} evidenceBusy={evidenceBusy} onCloseEvidence={closeEvidence} onReadEvidence={page => { const paper = citation?.intent.papers.find(p => p.id === citation.paperId), pdf = evidence?.pdf; if (paper && pdf) void revealPdf(paper, { documentId: pdf.documentId, page: page ?? pdf.pages[0], rects: pdf.rects }).catch(onError); else if (paper) void read(paper, true); }} onOpenChat={() => { void chat.open().catch(onError); }} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} t={t}/>}
     </section>
   </div>;
 }
