@@ -14,7 +14,7 @@ const capture=resolve(temp,'acp.jsonl'),registry=resolve(temp,'agents.json');
 await writeFile(registry,JSON.stringify([{id:'fixture',name:'Synthetic compatibility fixture',command:process.execPath,args:[resolve(root,'tests/fixtures/scientific-agent.mjs'),`--capture=${capture}`]}]));
 const processes=[];let host;
 async function launch(){
- const child=spawn(process.env.PERO_HOST_EXECUTABLE??resolve(root,'target/debug/pero-host'),['--stdio'],{cwd:temp,env:{...process.env,PERO_APPS_ROOT:resolve(temp,'apps'),PERO_BUILTIN_APPS_ROOT:'',PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_AGENTS_FILE:registry},stdio:['pipe','pipe','inherit']});processes.push(child);
+ const child=spawn(process.env.PERO_HOST_EXECUTABLE??resolve(root,'target/debug/pero-host'),['--stdio'],{cwd:temp,env:{...process.env,PERO_APPS_ROOT:resolve(temp,'apps'),PERO_BUILTIN_APPS_ROOT:'',PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_AGENTS_FILE:registry},stdio:['pipe','pipe','inherit']});processes.push(child);
  const pending=new Map(),events=[];const ended=new Promise(done=>child.once('exit',done));
  createInterface({input:child.stdout}).on('line',line=>{const event=JSON.parse(line);events.push(event);if(event.kind==='apps_result')pending.get(event.request_id)?.(event.data);});
  return {events,async request(action,fields={}) {const id=randomUUID();return new Promise((done,reject)=>{const timer=setTimeout(()=>{pending.delete(id);reject(new Error('Host timeout: '+action));},20000);pending.set(id,value=>{pending.delete(id);clearTimeout(timer);done(value);});child.stdin.write(JSON.stringify({method:'apps',action,id,...fields})+'\n');});},async close(){child.stdin.end();await ended;}};
