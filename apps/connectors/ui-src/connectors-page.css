@@ -45,7 +45,7 @@
 .point-connectors-card-head{display:flex;align-items:center;gap:8px}
 .point-connectors-symbol{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--pero-radius-md, 8px);background:var(--pero-hover);flex:none}
 /* Preserve official brand colors on a neutral plate, including dark marks. */
-.point-connectors-symbol:has(>.point-connectors-logo){background:var(--pero-surface, #fff);box-shadow:inset 0 0 0 1px var(--pero-border-subtle)}
+.point-connectors-symbol:has(>.point-connectors-logo){background:#fff;box-shadow:inset 0 0 0 1px var(--pero-border-subtle)}
 .point-connectors-card-title{font-size:var(--pero-font-size-md-plus, 13.5px);font-weight:var(--pero-font-weight-semibold, 600)}
 .point-connectors-card-meta{font-size:var(--pero-font-size-xs-plus, 11.5px);color:var(--pero-text-secondary)}
 .point-connectors-summary{font-size:var(--pero-font-size-sm-plus, 12.5px);color:var(--pero-text-secondary);margin:0}

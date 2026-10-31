@@ -79,6 +79,11 @@ try {
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 788));
   expect(await frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await page.screenshot({ path: resolve(out, 'narrow-dark-zh.png') });
+  await frame.getByRole('button', { name: /已安装连接/ }).click();
+  await expect(frame.locator('.point-connectors-tile').first()).toBeVisible();
+  expect(await frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await page.screenshot({ path: resolve(out, 'catalog-narrow-dark-zh.png') });
+  await frame.getByRole('button', { name: /已安装连接/ }).click();
   await frame.getByRole('button', { name: '详情 fixture', exact: true }).click();
   await dialog.getByRole('button', { name: '说明', exact: true }).focus();
   await expect(dialog.getByRole('tooltip').first()).toBeVisible();
