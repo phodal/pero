@@ -155,8 +155,15 @@ pub fn run() -> anyhow::Result<()> {
         &std::env::var_os("PATH").unwrap_or_default(),
     ));
     let settings_path = data.join("settings.json");
-    let harness =
-        crate::native_harness::NativeHarness::open(&data, &settings_path, ephemeral_secrets);
+    let env_file = std::env::var_os("PERO_ENV_FILE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join(".env"));
+    let harness = crate::native_harness::NativeHarness::open(
+        &data,
+        &settings_path,
+        &env_file,
+        ephemeral_secrets,
+    );
     let (provider_endpoint, provider_model, provider_key) = harness.process_env();
     #[derive(serde::Deserialize)]
     struct NativeProduct {

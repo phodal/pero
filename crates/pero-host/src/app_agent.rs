@@ -1,14 +1,14 @@
 //! App adapter into the existing Host session owner, journal and approval path.
 use super::Manager;
 use pero_contracts::{
-    HostCommand, HostEvent,
     context::{ContextContent, ContextKind, ContextReference},
+    HostCommand, HostEvent,
 };
 use pero_runtime::{
     acp,
     apps::{
-        AppName,
         agent::{AgentRequest, AppEvent, AppEventKind, AppSessionBinding, AppTranscript},
+        AppName,
     },
 };
 
@@ -42,9 +42,9 @@ impl Manager {
                 configuration.validate(&agent.mcp_server_names())?;
                 Ok(configuration)
             })
-            .map_err(
-                |_| "MCP settings are unavailable or invalid; review local connector settings",
-            )?;
+            .map_err(|_| {
+                "MCP settings are unavailable or invalid; review local connector settings"
+            })?;
         let mut agent = agent.with_managed_mcp(&configuration);
         if let Some(endpoint) = &self.connectors {
             endpoint.bind(&mut agent, &thread_id)?;
@@ -54,6 +54,9 @@ impl Manager {
                 pero_runtime::settings::save_chat_agent(path, agent_id)
                     .map_err(|error| error.to_string())?;
             }
+        }
+        if agent.provider_credential_missing(|name| std::env::var(name).unwrap_or_default()) {
+            return Err(acp::CREDENTIAL_REQUIRED.into());
         }
         let mut event = HostEvent::new("session_created", None, String::new());
         event.thread_id = Some(thread_id.clone());

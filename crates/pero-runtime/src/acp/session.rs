@@ -1,18 +1,22 @@
-use super::AgentConfig;
 use super::configuration::Configuration;
 use super::prompt::prompt_blocks;
-use pero_contracts::context::ContextReference;
-use agent_client_protocol::schema::{ProtocolVersion, v1::*};
+use super::AgentConfig;
+use agent_client_protocol::schema::{v1::*, ProtocolVersion};
 use agent_client_protocol::{
     AcpAgent, AcpAgentConfig, Agent, Client, ConnectionTo, UntypedMessage,
 };
-use pero_contracts::{HostEvent, composer_capabilities::AgentCapabilities, usage::{SessionUsage, UsageCost}};
-use serde_json::{Value, json};
+use pero_contracts::context::ContextReference;
+use pero_contracts::{
+    composer_capabilities::AgentCapabilities,
+    usage::{SessionUsage, UsageCost},
+    HostEvent,
+};
+use serde_json::{json, Value};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     future::Future,
     path::PathBuf,
-    sync::{Arc, Mutex, mpsc::Sender},
+    sync::{mpsc::Sender, Arc, Mutex},
     time::Duration,
 };
 use tokio::sync::{mpsc, oneshot};
@@ -23,10 +27,16 @@ const MAX_DEFERRED_COMMANDS: usize = 16;
 
 pub enum SessionCommand {
     Prompt(String),
-    PromptWithContext { text: String, context: Vec<ContextReference> },
+    PromptWithContext {
+        text: String,
+        context: Vec<ContextReference>,
+    },
     Cancel,
     Model(String),
-    Configure { id: String, value: String },
+    Configure {
+        id: String,
+        value: String,
+    },
     Authenticate(String),
     Close,
 }
@@ -57,16 +67,34 @@ pub fn start(
 }
 
 /// A scoped Desktop conversation may use the Host-selected App Use endpoint.
-pub fn start_app(config: AgentConfig, cwd: PathBuf, thread: String, tx: Sender<HostEvent>, endpoint: super::AppUseEndpoint) -> SessionHandle {
+pub fn start_app(
+    config: AgentConfig,
+    cwd: PathBuf,
+    thread: String,
+    tx: Sender<HostEvent>,
+    endpoint: super::AppUseEndpoint,
+) -> SessionHandle {
     start_with_workspace_access(config, cwd, thread, tx, true, Some(endpoint))
 }
 
 /// The independent Worker supervisor already owns this checkout's write lease.
-pub fn start_supervised(config: AgentConfig, cwd: PathBuf, thread: String, tx: Sender<HostEvent>) -> SessionHandle {
+pub fn start_supervised(
+    config: AgentConfig,
+    cwd: PathBuf,
+    thread: String,
+    tx: Sender<HostEvent>,
+) -> SessionHandle {
     start_with_workspace_access(config, cwd, thread, tx, false, None)
 }
 
-fn start_with_workspace_access(config: AgentConfig, cwd: PathBuf, thread: String, tx: Sender<HostEvent>, acquire_workspace: bool, app_use: Option<super::AppUseEndpoint>) -> SessionHandle {
+fn start_with_workspace_access(
+    config: AgentConfig,
+    cwd: PathBuf,
+    thread: String,
+    tx: Sender<HostEvent>,
+    acquire_workspace: bool,
+    app_use: Option<super::AppUseEndpoint>,
+) -> SessionHandle {
     let (commands, rx) = mpsc::unbounded_channel();
     let permissions: Permissions = Arc::default();
     let pending = permissions.clone();
@@ -87,7 +115,14 @@ fn start_with_workspace_access(config: AgentConfig, cwd: PathBuf, thread: String
         ));
         pending.lock().unwrap().clear();
         if let Err(error) = result {
-            event(&tx, &thread, "session_error", error, Value::Null);
+            if error.contains("explicit credential, provider and model catalog required") {
+                let mut notice =
+                    HostEvent::message("session_error", None, super::registry::CREDENTIAL_REQUIRED);
+                notice.thread_id = Some(thread.clone());
+                let _ = tx.send(notice);
+            } else {
+                event(&tx, &thread, "session_error", error, Value::Null);
+            }
         }
         event(&tx, &thread, "session_closed", "会话已关闭", Value::Null);
     });
@@ -114,7 +149,10 @@ fn defer(
         );
         return;
     }
-    if matches!(command, SessionCommand::Prompt(_) | SessionCommand::PromptWithContext { .. }) {
+    if matches!(
+        command,
+        SessionCommand::Prompt(_) | SessionCommand::PromptWithContext { .. }
+    ) {
         event(
             tx,
             thread,
@@ -168,9 +206,17 @@ async fn run(
         Value::Null,
     );
     // Resolve the explicit workspace argument after the user chooses a checkout.
-    let args: Vec<_> = config.args.iter().map(|arg| {
-        if arg == "{workspace}" { cwd.to_string_lossy().into_owned() } else { arg.clone() }
-    }).collect();
+    let args: Vec<_> = config
+        .args
+        .iter()
+        .map(|arg| {
+            if arg == "{workspace}" {
+                cwd.to_string_lossy().into_owned()
+            } else {
+                arg.clone()
+            }
+        })
+        .collect();
     let agent = AcpAgent::new(
         AcpAgentConfig::new(&config.command)
             .args(&args)
@@ -619,4 +665,3 @@ fn next_permission_id() -> String {
 #[cfg(test)]
 #[path = "../../../../tests/runtime/acp_lifecycle.rs"]
 mod lifecycle_tests;
-

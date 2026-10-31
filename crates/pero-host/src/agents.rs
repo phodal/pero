@@ -1,6 +1,6 @@
 use pero_contracts::{
-    HostCommand, HostEvent,
     context::{ContextKind, ContextReference},
+    HostCommand, HostEvent,
 };
 use pero_runtime::acp::{self, AgentConfig, SessionCommand, SessionHandle};
 use pero_runtime::apps::agent::AppSessionBinding;
@@ -14,8 +14,8 @@ use std::{
     io::Write,
     path::PathBuf,
     sync::{
-        Arc, Mutex,
         mpsc::{self, Sender},
+        Arc, Mutex,
     },
 };
 
@@ -187,7 +187,13 @@ impl Manager {
         }
         ids.into_iter()
             .filter_map(|id| self.insights_value(&id).ok())
-            .filter(|value| value.get("turn_count").and_then(|count| count.as_u64()).unwrap_or(0) > 0)
+            .filter(|value| {
+                value
+                    .get("turn_count")
+                    .and_then(|count| count.as_u64())
+                    .unwrap_or(0)
+                    > 0
+            })
             .collect()
     }
 
@@ -370,7 +376,11 @@ impl Manager {
                 scope,
             } => {
                 if let Err(error) = self.create_session(thread_id.clone(), &agent_id, None, scope) {
-                    let mut event = HostEvent::new("session_error", None, error);
+                    let mut event = if error == acp::CREDENTIAL_REQUIRED {
+                        HostEvent::message("session_error", None, acp::CREDENTIAL_REQUIRED)
+                    } else {
+                        HostEvent::new("session_error", None, error)
+                    };
                     event.thread_id = Some(thread_id);
                     let _ = self.tx.send(event);
                 }
@@ -538,14 +548,12 @@ mod workspace_tests {
                 "git@github.com:Phodal/Pero.git",
             ],
         ] {
-            assert!(
-                std::process::Command::new("git")
-                    .current_dir(&workspace)
-                    .args(args)
-                    .status()
-                    .unwrap()
-                    .success()
-            );
+            assert!(std::process::Command::new("git")
+                .current_dir(&workspace)
+                .args(args)
+                .status()
+                .unwrap()
+                .success());
         }
         let identity = workspace_identity(&workspace).repository.unwrap();
         assert_eq!(
