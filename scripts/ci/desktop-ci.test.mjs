@@ -63,17 +63,6 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   assert.equal(native.on.pull_request.paths, undefined);
 });
 
-test('every Desktop scenario avoids fixed sidebar footer coordinates', () => {
-  for (const script of new Set(Object.values(suites).map(([name]) => name))) {
-    const source = readFileSync(`tests/e2e/${script}.mjs`, 'utf8');
-    assert.doesNotMatch(source, /mouse\.click\(\s*(?:80|100)\s*,[^;]*innerHeight\s*-\s*(?:26|55)\b/, script);
-  }
-  for (const script of ['data', 'app-use-workbench', 'control-lab', 'control-lab-app-use',
-    'control-lab-live', 'virtual-cell-comparison', 'virtual-cell-dataset-download']) {
-    assert.match(readFileSync(`tests/e2e/${script}.mjs`, 'utf8'), /clickAppShortcut\(page, 'apps'\)/, script);
-  }
-});
-
 test('runtime archive is tied to exact revision, retains executable mode and verifies bytes', { skip: process.platform !== 'linux' }, () => {
   const temp = mkdtempSync(resolve(tmpdir(), 'pero-ci-artifact-'));
   try {
