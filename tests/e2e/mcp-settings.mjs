@@ -1,4 +1,5 @@
 // Real Electron/GPUI controls → Desktop IPC → Host → ACP fixture. No MCP client.
+import { spawnSync } from 'node:child_process';
 import { expect } from '@playwright/test';
 import { electron, focusPage } from './electron.mjs';
 import { openSettings } from './sidebar-controls.mjs';
@@ -6,8 +7,40 @@ import { mcpSettingsFixture } from '../fixtures/mcp-settings.mjs';
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '../..');
+const scenarios = ['lifecycle', 'persistence', 'transport'];
+const scenarioChecks = {
+  lifecycle: ['actual GPUI add disabled', 'explicit server-wide enable confirmation', 'real ACP injection',
+    'edit revokes grant for new sessions', 'confirmed removal', 'configured state does not imply connected or discovered tools',
+    'no operator credential disclosure', 'cleanup completes before success receipt'],
+  persistence: ['write failure and retry', 'dark/narrow/Chinese',
+    'restart persistence and visible MCP category navigation without search', 'stale-write conflict and refresh recovery',
+    'import is disabled', 'confirmed removal', 'no operator credential disclosure', 'cleanup completes before success receipt'],
+  transport: ['correlated IPC rejection settles busy and preserves draft', 'unrelated error does not settle pending save',
+    'unknown save requires real Host reload before retry without replay', 'read rejection reload recovery',
+    'disconnect preserves draft and clears busy without replay', 'no operator credential disclosure', 'cleanup completes before success receipt'],
+};
+const args = process.argv.slice(2);
+const output = resolve(root, 'test-results/mcp-settings');
+if (!args.length) {
+  // Default invocation retains the full original coverage, with isolated owners.
+  await mkdir(output, { recursive: true });
+  await rm(resolve(output, 'ui-result.json'), { force: true });
+  let failed = false;
+  for (const name of scenarios) {
+    const child = spawnSync(process.execPath, [import.meta.filename, '--scenario', name], { cwd: root, env: process.env, stdio: 'inherit' });
+    if (child.error || child.status !== 0) failed = true;
+  }
+  if (failed) process.exit(1);
+  await writeFile(resolve(output, 'ui-result.json'), JSON.stringify({ passed: true, scenarios,
+    checks: [...new Set(Object.values(scenarioChecks).flat())] }, null, 2));
+  process.exit(0);
+}
+if (args.length !== 2 || args[0] !== '--scenario' || !scenarios.includes(args[1]))
+  throw new Error('Usage: node tests/e2e/mcp-settings.mjs [--scenario lifecycle|persistence|transport]');
+const scenario = args[1];
+const startedAt = Date.now();
 const fixture = await mcpSettingsFixture(root);
-const out = resolve(root, 'test-results/mcp-settings');
+const out = resolve(output, scenario);
 await mkdir(out, { recursive: true });
 // A previous pass must not survive a new failed run.
 await rm(resolve(out, 'ui-result.json'), { force: true });
@@ -142,16 +175,105 @@ const faultCount = () => bounded(app.evaluate(() => globalThis.mcpTransportFault
 async function rejectTransport() {
   await bounded(app.evaluate(() => globalThis.mcpTransportFault.reject(new Error('Synthetic MCP IPC rejection'))), 'reject IPC');
 }
+// Validate the newly injected Host builtin before excluding it from user-managed
+// settings assertions. Assert booleans so failures never print its bearer token.
+function userManagedServers(servers, thread) {
+  const connectors = servers.filter(server => server.name === 'pero-connectors');
+  expect(connectors.length).toBe(1);
+  const connector = connectors[0];
+  expect(Object.keys(connector).sort().join(',') === 'headers,name,type,url').toBe(true);
+  expect(connector.type === 'http').toBe(true);
+  expect(typeof connector.url === 'string' && /^http:\/\/127\.0\.0\.1:([1-9][0-9]{0,4})\/mcp$/.test(connector.url)
+    && Number(new URL(connector.url).port) <= 65535).toBe(true);
+  expect(Array.isArray(connector.headers) && connector.headers.length === 2).toBe(true);
+  expect(connector.headers.every(header => Object.keys(header).sort().join(',') === 'name,value')).toBe(true);
+  expect(connector.headers.filter(header => header.name === 'Authorization' && typeof header.value === 'string' && /^Bearer [0-9a-f]{64}$/.test(header.value)).length === 1).toBe(true);
+  expect(connector.headers.filter(header => header.name === 'X-Pero-Thread' && header.value === thread).length === 1).toBe(true);
+  return servers.filter(server => !['operator-only', 'pero-app-use', 'pero-connectors'].includes(server.name));
+}
 async function session(id) {
   progress(`create session ${id}`);
   await evaluate(thread_id => window.pero.sessionCommand({ action: 'new_session', thread_id, agent_id: 'fixture' }), id);
   await expect.poll(() => evaluate(id => window.mcpAcceptanceEvents.some(event => event.kind === 'session_ready' && event.thread_id === id), id), { timeout: 15000 }).toBe(true);
-  return (await fixture.sessions()).at(-1).mcpServers.filter(server => !['operator-only', 'pero-app-use'].includes(server.name));
+  return userManagedServers((await fixture.sessions()).at(-1).mcpServers, id);
 }
-try {
-  await bounded((async () => {
-  await launch(); await open();
-  expect((await mcp()).config.servers).toEqual([]); await capture('empty');
+async function assertPublicState() {
+  const publicText = JSON.stringify(await state()) + JSON.stringify(await evaluate(() => window.mcpAcceptanceEvents));
+  expect(publicText.includes(fixture.secret)).toBe(false);
+  expect(publicText.includes('operator-only')).toBe(false);
+}
+async function lifecycle() {
+  await click('mcp-add'); await click('mcp-http'); await input(0, 'Local docs'); await input(1, fixture.url);
+  await click('mcp-save'); await settled();
+  expect((await mcp()).config.servers[0].enabled).toBe(false);
+  expect(await session('ui-disabled')).toEqual([]); await capture('configured-disabled');
+  await click('mcp-toggle-0');
+  await expect.poll(async () => (await mcp()).confirm).toEqual([0, true]);
+  expect((await mcp()).config.servers[0].enabled).toBe(false); await capture('server-wide-grant');
+  await click('mcp-confirm'); await settled();
+  expect((await mcp()).config.servers[0].enabled).toBe(true);
+  expect((await session('ui-enabled')).map(server => server.name)).toEqual(['Local docs']);
+  await capture('enabled-not-observed');
+  await click('mcp-edit-0'); await input(0, 'Renamed docs'); await click('mcp-save'); await settled();
+  expect((await mcp()).config.servers[0]).toMatchObject({ name: 'Renamed docs', enabled: false });
+  expect((await fixture.sessions()).length).toBe(2);
+  expect(await session('ui-edited-disabled')).toEqual([]);
+  await click('mcp-remove-0'); await expect.poll(async () => (await mcp()).confirm).toEqual([0, false]);
+  expect((await mcp()).config.servers).toHaveLength(1);
+  await click('mcp-confirm'); await settled(); expect((await mcp()).config.servers).toEqual([]);
+  expect(await session('ui-removed')).toEqual([]); await capture('removed');
+}
+async function persistence() {
+  // Setup only: lifecycle covers the user-facing add/edit/grant actions. Use
+  // the real Host's revision-checked write, not a fabricated renderer snapshot.
+  await evaluate(({ revision, url }) => window.pero.sessionCommand({ method: 'settings.mcp.set',
+    request_id: 'persistence-seed', agent_id: 'fixture', revision,
+    servers: [{ name: 'Renamed docs', enabled: false, transport: { type: 'http', url } }] }),
+    { revision: (await mcp()).config.revision, url: fixture.url });
+  await expect.poll(() => evaluate(() => window.mcpAcceptanceEvents.some(event => event.kind === 'mcp_settings' && event.request_id === 'persistence-seed'))).toBe(true);
+  await click('mcp-refresh'); await settled();
+  expect((await mcp()).config.servers[0]).toMatchObject({ name: 'Renamed docs', enabled: false });
+  // A persistence error must not falsely report a successful grant or lose the list.
+  const saved = await readFile(fixture.settings, 'utf8');
+  await rm(fixture.settings); await mkdir(fixture.settings);
+  await click('mcp-toggle-0'); await click('mcp-confirm');
+  await expect.poll(async () => (await mcp()).error).toBe('mcp.error.read_write');
+  expect((await mcp()).config.servers[0].enabled).toBe(false); await capture('save-error');
+  await rm(fixture.settings, { recursive: true }); await writeFile(fixture.settings, saved, { mode: 0o600 });
+  await click('mcp-confirm'); await settled();
+  expect((await mcp()).config.servers[0].enabled).toBe(true);
+  await evaluate(() => { const preferences = JSON.parse(window.peroDiagnostics.snapshot()).preferences;
+    return window.pero.sessionCommand({ method: 'settings.workbench', preferences: { ...preferences, appearance: 'dark' } }); });
+  await expect.poll(async () => (await state()).preferences.appearance).toBe('dark'); await capture('dark');
+  await bounded(app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 760)), 'resize Electron');
+  await capture('narrow');
+  await evaluate(() => window.pero.setLocale('zh-CN')); await expect.poll(async () => (await state()).locale).toBe('zh-CN');
+  await capture('zh-CN-narrow');
+  await assertPublicState();
+  progress('restart Electron'); await close();
+  await launch(); await open(true);
+  expect((await mcp()).config.servers[0]).toMatchObject({ name: 'Renamed docs', enabled: true });
+  // A second writer removes the selected row while this editor holds a stale revision.
+  await click('mcp-edit-0');
+  await evaluate(revision => window.pero.sessionCommand({ method: 'settings.mcp.set',
+    request_id: 'external-mcp-edit', agent_id: 'fixture', revision, servers: [] }), (await mcp()).config.revision);
+  await expect.poll(() => evaluate(() => window.mcpAcceptanceEvents.some(event => event.kind === 'mcp_settings' && event.request_id === 'external-mcp-edit'))).toBe(true);
+  await click('mcp-save'); await expect.poll(async () => (await mcp()).error).toBe('mcp.error.conflict');
+  await click('mcp-cancel-edit'); await click('mcp-refresh'); await settled();
+  expect((await mcp()).editing).toBe(false); expect((await mcp()).config.servers).toEqual([]);
+  // Import is another draft, never an implicit grant even when enabled is supplied.
+  await click('mcp-import'); await input(3, JSON.stringify([{ name: 'Imported docs', enabled: true,
+    transport: { type: 'http', url: fixture.url } }]));
+  await click('mcp-import-save'); await settled();
+  expect((await mcp()).config.servers[0]).toMatchObject({ name: 'Imported docs', enabled: false });
+  await click('mcp-remove-0'); await expect.poll(async () => (await mcp()).confirm).toEqual([0, false]);
+  expect((await mcp()).config.servers).toHaveLength(1);
+  await click('mcp-confirm'); await settled(); expect((await mcp()).config.servers).toEqual([]);
+  expect(await session('ui-removed')).toEqual([]);
+  expect(fixture.requests()).toBe(0); expect(errors).toEqual([]);
+  await capture('removed');
+}
+async function transport() {
   await click('mcp-add'); await expect.poll(async () => (await mcp()).editing).toBe(true);
   await click('mcp-http'); await input(0, 'Local docs'); await input(1, fixture.url);
   await interruptTransport();
@@ -175,62 +297,6 @@ try {
   await restoreTransport();
   await click('mcp-cancel-edit'); await click('mcp-refresh'); await settled();
   expect((await mcp()).needs_reload).toBe(false); expect((await mcp()).config.servers).toEqual([]);
-  await click('mcp-add'); await click('mcp-http'); await input(0, 'Local docs'); await input(1, fixture.url);
-  await click('mcp-save'); await settled();
-  expect((await mcp()).config.servers[0].enabled).toBe(false);
-  expect(await session('ui-disabled')).toEqual([]); await capture('configured-disabled');
-  await click('mcp-toggle-0');
-  await expect.poll(async () => (await mcp()).confirm).toEqual([0, true]);
-  expect((await mcp()).config.servers[0].enabled).toBe(false); await capture('server-wide-grant');
-  await click('mcp-confirm'); await settled();
-  expect((await mcp()).config.servers[0].enabled).toBe(true);
-  expect((await session('ui-enabled')).map(server => server.name)).toEqual(['Local docs']);
-  await capture('enabled-not-observed');
-  await click('mcp-edit-0'); await input(0, 'Renamed docs'); await click('mcp-save'); await settled();
-  expect((await mcp()).config.servers[0]).toMatchObject({ name: 'Renamed docs', enabled: false });
-  expect((await fixture.sessions()).length).toBe(2);
-  expect(await session('ui-edited-disabled')).toEqual([]);
-  // A persistence error must not falsely report a successful grant or lose the list.
-  const saved = await readFile(fixture.settings, 'utf8');
-  await rm(fixture.settings); await mkdir(fixture.settings);
-  await click('mcp-toggle-0'); await click('mcp-confirm');
-  await expect.poll(async () => (await mcp()).error).toBe('mcp.error.read_write');
-  expect((await mcp()).config.servers[0].enabled).toBe(false); await capture('save-error');
-  await rm(fixture.settings, { recursive: true }); await writeFile(fixture.settings, saved, { mode: 0o600 });
-  await click('mcp-confirm'); await settled();
-  expect((await mcp()).config.servers[0].enabled).toBe(true);
-  await evaluate(() => { const preferences = JSON.parse(window.peroDiagnostics.snapshot()).preferences;
-    return window.pero.sessionCommand({ method: 'settings.workbench', preferences: { ...preferences, appearance: 'dark' } }); });
-  await expect.poll(async () => (await state()).preferences.appearance).toBe('dark'); await capture('dark');
-  await bounded(app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 760)), 'resize Electron');
-  await capture('narrow');
-  await evaluate(() => window.pero.setLocale('zh-CN')); await expect.poll(async () => (await state()).locale).toBe('zh-CN');
-  await capture('zh-CN-narrow');
-  const publicText = JSON.stringify(await state()) + JSON.stringify(await evaluate(() => window.mcpAcceptanceEvents));
-  expect(publicText.includes(fixture.secret)).toBe(false);
-  expect(publicText.includes('operator-only')).toBe(false);
-  progress('restart Electron'); await close();
-  await launch(); await open(true);
-  expect((await mcp()).config.servers[0]).toMatchObject({ name: 'Renamed docs', enabled: true });
-  // A second writer removes the selected row while this editor holds a stale revision.
-  await click('mcp-edit-0');
-  await evaluate(revision => window.pero.sessionCommand({ method: 'settings.mcp.set',
-    request_id: 'external-mcp-edit', agent_id: 'fixture', revision, servers: [] }), (await mcp()).config.revision);
-  await expect.poll(() => evaluate(() => window.mcpAcceptanceEvents.some(event => event.kind === 'mcp_settings' && event.request_id === 'external-mcp-edit'))).toBe(true);
-  await click('mcp-save'); await expect.poll(async () => (await mcp()).error).toBe('mcp.error.conflict');
-  await click('mcp-cancel-edit'); await click('mcp-refresh'); await settled();
-  expect((await mcp()).editing).toBe(false); expect((await mcp()).config.servers).toEqual([]);
-  // Import is another draft, never an implicit grant even when enabled is supplied.
-  await click('mcp-import'); await input(3, JSON.stringify([{ name: 'Imported docs', enabled: true,
-    transport: { type: 'http', url: fixture.url } }]));
-  await click('mcp-import-save'); await settled();
-  expect((await mcp()).config.servers[0]).toMatchObject({ name: 'Imported docs', enabled: false });
-  await click('mcp-remove-0'); await expect.poll(async () => (await mcp()).confirm).toEqual([0, false]);
-  expect((await mcp()).config.servers).toHaveLength(1);
-  await click('mcp-confirm'); await settled(); expect((await mcp()).config.servers).toEqual([]);
-  expect(await session('ui-removed')).toEqual([]);
-  expect(fixture.requests()).toBe(0); expect(errors).toEqual([]);
-  await capture('removed');
   await interruptTransport(); await click('mcp-refresh');
   await expect.poll(async () => (await mcp()).pending).toBe(true);
   await rejectTransport();
@@ -252,21 +318,21 @@ try {
   await close(); await launch(); await open(true);
   expect((await mcp()).config.servers).toEqual([]); expect(errors).toEqual([]);
 
-  })(), 'complete acceptance suite', 600000);
+}
+try {
+  await bounded((async () => {
+    await launch(); await open();
+    expect((await mcp()).config.servers).toEqual([]); await capture('empty');
+    await ({ lifecycle, persistence, transport })[scenario]();
+    await assertPublicState();
+    expect(fixture.requests()).toBe(0); expect(errors).toEqual([]);
+  })(), `${scenario} acceptance scenario`, 600000);
   progress('final cleanup');
   await close();
   await bounded(fixture.close(), 'fixture cleanup'); fixtureClosed = true;
   // Opt-in fault proves a cleanup error cannot leave a successful receipt.
   if (process.env.PERO_MCP_TEST_FAIL_CLEANUP === '1') throw new Error('Synthetic MCP cleanup failure');
-  await writeFile(resolve(out, 'ui-result.json'), JSON.stringify({ passed: true, headless: process.env.PERO_MCP_TEST_HEADLESS === '1', checks: [
-    'actual GPUI add disabled', 'explicit server-wide enable confirmation', 'real ACP injection',
-    'edit revokes grant for new sessions', 'write failure and retry', 'dark/narrow/Chinese',
-    'restart persistence and visible MCP category navigation without search', 'stale-write conflict and refresh recovery', 'import is disabled', 'confirmed removal', 'no operator credential disclosure',
-    'configured state does not imply connected or discovered tools',
-    'correlated IPC rejection settles busy and preserves draft', 'unrelated error does not settle pending save',
-    'unknown save requires real Host reload before retry without replay', 'read rejection reload recovery',
-    'disconnect preserves draft and clears busy without replay', 'cleanup completes before success receipt',
-  ], errors }, null, 2));
+  await writeFile(resolve(out, 'ui-result.json'), JSON.stringify({ passed: true, scenario, durationMs: Date.now() - startedAt, headless: process.env.PERO_MCP_TEST_HEADLESS === '1', checks: scenarioChecks[scenario], errors }, null, 2));
   console.log('MCP settings Electron/GPUI acceptance passed. No MCP connectivity or model calls.');
 } catch (error) {
   console.error('MCP UI acceptance failed:', String(error).replaceAll(fixture.secret, '[redacted]'));
