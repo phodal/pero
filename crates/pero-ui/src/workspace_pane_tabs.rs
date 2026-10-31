@@ -1,5 +1,8 @@
 //! Pane tab presentation. Ordering, preview and pin transitions belong to PaneTabSet.
-use crate::{app::Workbench, workspace::WorkspaceRoute};
+use crate::{
+    app::Workbench,
+    workspace::{WorkspaceItem, WorkspaceRoute},
+};
 use gpui_kit::{
     component::{
         button::*,
@@ -204,6 +207,9 @@ impl Workbench {
         let p = appearance.palette.clone();
         let height = W::TAB.max(appearance.typography.row_height() + 4.);
         let pane = leaf.id;
+        let connector = matches!(leaf.route(), Some(WorkspaceRoute::Content(
+            WorkspaceItem::App { name, .. }
+        )) if name == "connectors");
         let count = leaf.tabs.pinned_count();
         let focused = self
             .navigation
@@ -332,7 +338,7 @@ impl Workbench {
                             })),
                     ),
             )
-            .child(
+            .children((!connector).then(||
                 Button::new(("pane-tab-list", pane.0 as usize))
                     .ghost()
                     .small()
@@ -354,8 +360,8 @@ impl Workbench {
                         }
                         menu
                     }),
-            )
-            .child(self.pane_actions(pane, cx))
+            ))
+            .when(!connector, |bar| bar.child(self.pane_actions(pane, cx)))
             .when_some(self.pane_tab_switcher(leaf, height, cx), |bar, switcher| {
                 bar.child(switcher)
             })

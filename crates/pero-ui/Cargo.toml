@@ -31,7 +31,7 @@ console_error_panic_hook = "0.1"
 anyhow = "1"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-gpui-kit = { workspace = true, features = ["syntect"], optional = true }
+gpui-kit = { workspace = true, features = ["syntect", "gpui-fast"], optional = true }
 anyhow = { version = "1", optional = true }
 async-channel = { version = "2", optional = true }
 chrono = { version = "0.4", optional = true }
@@ -39,7 +39,7 @@ sha2 = { version = "0.10", optional = true }
 getrandom = { version = "0.2", optional = true }
 percent-encoding = { version = "2", optional = true }
 mime_guess = { version = "2", optional = true }
-gpui-webview = {version="=0.8.1",optional=true}
+gpui-webview = {version="=0.8.1",features=["gpui-fast"],optional=true}
 wry = {package="lb-wry",version="=0.53.3",optional=true}
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"], optional = true }
 url = { version = "2.5", optional = true }

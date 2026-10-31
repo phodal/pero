@@ -11,6 +11,13 @@ pub(crate) enum ChatPlacement {
     Slot,
 }
 
+/// Composited native children can stay visible underneath Workbench menus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SurfaceStacking {
+    AboveWorkbench,
+    Composited,
+}
+
 /// Collapsed sidebar. Wide enough for one icon, narrower than the macOS traffic lights.
 pub(crate) const SIDEBAR_RAIL: f32 = 48.;
 
@@ -111,14 +118,16 @@ impl WorkspaceLayout {
         }
     }
 
-    /// A native or iframe child paints above GPUI, so it steps aside for an overlay
-    /// that can land on it. A menu owned by the chat dock stays in that dock.
+    /// Uncomposited children step aside for popups that can overlap them.
+    /// Dock menus stay in the dock; composited children stay below popup menus.
     pub(crate) fn embedded_surface_covered(
         window_overlay: bool,
         deferred_popover: bool,
         chat_dock_menu: bool,
+        stacking: SurfaceStacking,
     ) -> bool {
-        window_overlay || (deferred_popover && !chat_dock_menu)
+        window_overlay
+            || (stacking == SurfaceStacking::AboveWorkbench && deferred_popover && !chat_dock_menu)
     }
 
     /// Fold the sidebar down to an icon rail. Saved dock width and the narrow breakpoint stay.
@@ -412,11 +421,22 @@ mod tests {
     }
 
     #[test]
-    fn a_chat_dock_menu_leaves_the_embedded_surface_visible() {
-        assert!(!WorkspaceLayout::embedded_surface_covered(false, true, true));
-        assert!(WorkspaceLayout::embedded_surface_covered(false, true, false));
-        assert!(WorkspaceLayout::embedded_surface_covered(true, false, true));
-        assert!(!WorkspaceLayout::embedded_surface_covered(false, false, false));
+    fn embedded_surface_menu_coverage() {
+        use SurfaceStacking::{AboveWorkbench, Composited};
+        for (overlay, menu, chat_menu, stacking, covered) in [
+            (false, true, true, AboveWorkbench, false),
+            (false, true, false, AboveWorkbench, true),
+            (true, false, true, AboveWorkbench, true),
+            (false, false, false, AboveWorkbench, false),
+            (false, true, false, Composited, false),
+            (false, true, true, Composited, false),
+            (true, true, false, Composited, true),
+        ] {
+            assert_eq!(
+                WorkspaceLayout::embedded_surface_covered(overlay, menu, chat_menu, stacking),
+                covered,
+            );
+        }
     }
 
     #[test]

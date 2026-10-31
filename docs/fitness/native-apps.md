@@ -6,8 +6,9 @@ date: 2026-10-31
 # Native App panels
 
 This is development-build acceptance on macOS arm64 with Kit 0.8.1 and
-nightly-2026-10-28, based on the current working tree. PR #55 remains separate:
-its optional Fast composition is not required for these App panels. PNG files
+nightly-2026-10-28, based on the current working tree. The native preview now
+selects Kit's existing Fast 0.1.12 backend and WebView composition together;
+the earlier App transport verification did not require that composition. PNG files
 below are captured evidence; the running panels are actual Wry/WebKit views.
 
 ## Implementation
@@ -80,6 +81,15 @@ Captures live under `test-results/native-apps/`: `virtual-cell-light.png`,
 `virtual-cell-chat.png`, `virtual-cell-dark.png`, `insights-dark.png` and
 `paper-agent-dark.png`. `insights-sidebar-fixed.png` records the corrected
 shortcut. The sidebar Insights rejection was found during this pass and tracked in [the incident](../issues/2026-10-31-native-app-embedding.md).
+
+## Connector menu regression, 2026-10-31
+
+The native preview now composes WebViews below GPUI popups rather than hiding
+the whole App for a deferred menu. Both Connectors workspace menus were visibly
+verified above the loaded directory before removing those redundant buttons.
+Native build, 47 UI tests, App and Web engine suites,
+Wasm compilation and repository checks passed. See the
+[incident](../issues/2026-10-31-native-connector-menu-blank.md).
 
 ## Remaining boundaries
 

@@ -436,6 +436,14 @@ impl Render for Workbench {
             window_overlay,
             gpui_kit::component::GlobalState::is_in_deferred_context(cx),
             chat_dock_menu,
+            if cfg!(all(
+                not(target_family = "wasm"),
+                any(target_os = "macos", target_os = "linux")
+            )) {
+                crate::layout::SurfaceStacking::Composited
+            } else {
+                crate::layout::SurfaceStacking::AboveWorkbench
+            },
         );
         let mut layout = WorkspaceLayout::resolve(
             width,
