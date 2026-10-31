@@ -800,5 +800,6 @@
   "harness.invalid_endpoint": "请输入 HTTPS API 地址，本机回环地址可使用 HTTP。",
   "harness.invalid_model": "请输入不含空白字符的模型 ID。",
   "harness.invalid_key": "API Key 含有无效字符。",
-  "harness.confirm_remove": "确认移除"
+  "harness.confirm_remove": "确认移除",
+  "automation.title": "自动化"
 }

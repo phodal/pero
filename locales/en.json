@@ -800,5 +800,6 @@
   "harness.invalid_endpoint": "Use an HTTPS API URL, or HTTP on loopback.",
   "harness.invalid_model": "Enter a model ID without whitespace.",
   "harness.invalid_key": "The API key contains invalid characters.",
-  "harness.confirm_remove": "Confirm removal"
+  "harness.confirm_remove": "Confirm removal",
+  "automation.title": "Automation"
 }

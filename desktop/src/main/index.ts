@@ -127,7 +127,7 @@ function updateMenus() {
       { role: 'cut', label: t('menu.cut') }, { role: 'copy', label: t('menu.copy') },
       { role: 'paste', label: t('menu.paste') }, { role: 'selectAll', label: t('menu.select_all') },
     ] },
-    { label: t('menu.workbench'), submenu: [{id:'open-url',label:t('web.open_url'),click:()=>send({version:1,kind:'web_choose',request_id:null,text:''})}, { id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
+    { label: t('menu.workbench'), submenu: [{id:'open-url',label:t('web.open_url'),click:()=>send({version:1,kind:'web_choose',request_id:null,text:''})}, { id: 'automation', label: t('automation.title'), accelerator: 'CmdOrCtrl+Shift+A', click: () => send({version:1,kind:'automation_open',request_id:null,text:''}) }, { id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
     { label: t('menu.language'), submenu: [
       { id: 'locale-zh-CN', label: '简体中文', type: 'radio', checked: locale === 'zh-CN', click: () => changeLocale('zh-CN') },
       { id: 'locale-en', label: 'English', type: 'radio', checked: locale === 'en', click: () => changeLocale('en') },
@@ -349,7 +349,7 @@ app.whenReady().then(async () => {
         host.stdin.write(JSON.stringify(command)+'\n',error=>{if(error){clearTimeout(timer);preferenceWrites.delete(id);rejectWrite(error);}});
       });return;
     }
-    if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'settings.mcp.get', 'settings.mcp.set', 'documents','icons'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
+    if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'settings.mcp.get', 'settings.mcp.set', 'documents','icons','automation'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
     appUse?.command(command as {action?:string;thread_id?:string});
     host.stdin.write(JSON.stringify(command) + '\n');
   });
