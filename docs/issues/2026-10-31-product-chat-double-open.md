@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: open
+status: resolved
 date: 2026-10-31
 ---
 
@@ -22,5 +22,9 @@ combined two incompatible setup sequences.
 The integrated test retains the first real click, expanded panel, pre-Host
 draft identity and all downstream effects. It asserts that chat remains open
 instead of clicking the hidden control again. No production behavior, test
-timeout or tool-effect assertion changes. Fresh headed CI is required; local
-source checks do not establish native Desktop acceptance.
+timeout or tool-effect assertion changes.
+
+[CI 41151222995](https://github.com/phodal/pero/actions/runs/41151222995)
+passed all 18 jobs for head `2a43437d36329b83fd53c782a857fffe91b5d35f`,
+including the headed Linux Desktop App Use suite. The tested merge tree matched
+the published head tree. This is fixture acceptance, not real-model acceptance.

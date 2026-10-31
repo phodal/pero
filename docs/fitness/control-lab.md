@@ -43,11 +43,57 @@ release-package acceptance was claimed. The implementation branch starts from
   scripted ACP and Desktop MCP with a simulated App backend; only the
   approved experiment was accepted. It does not open Electron or run a solver.
 - Workbench and Product main-process bundles and TypeScript checks passed.
-  A native Desktop test for this change has not run locally: the suite
-  requires a headed, isolated desktop and the available Mac is the user's
-  active desktop. The real-provider gate remains pending until that and the
-  independent evidence checks are complete. The previous PR head's green CI
-  does not validate this working tree.
+  [CI 41151222995](https://github.com/phodal/pero/actions/runs/41151222995)
+  passed all 18 jobs for head `2a43437d36329b83fd53c782a857fffe91b5d35f`.
+  Its Linux Desktop runs passed the Goal-bound scripted ACP fixture and the
+  isolated fake-provider budget-exhaustion fixture; neither is a real model.
+  A subsequent native macOS scripted ACP fixture also passed for this head.
+
+## Real-provider development evidence (2026-10-31)
+
+Two synthetic tasks ran through the real macOS Desktop, Host MCP and
+`pero-agent-acp` against the configured official DeepSeek endpoint. Each ACP
+process reserved at most three HTTP attempts, with `max-tokens=8192` and
+`max-retries=0`. The shared ledger reserved **6/6** and the transport audit
+recorded **6/6** attempts; no further requests are authorized in this budget.
+The audit is written before transport and can conservatively overcount if a
+process stops between recording and sending. Both runs exhausted their
+three-attempt allocation; neither completed the Agent workflow.
+
+- **P golden:** the Agent listed Skills, read the pinned `control-design`
+  digest, attempted generic App Use, received `APP_GOAL_DENIED`, and then
+  discovered the declared data tools. It made no experiment read or solver
+  call before `BUDGET_EXHAUSTED`. This observed failure informed the revised
+  test prompt and is seen development evidence, not a blind evaluation.
+- **Active filter:** with that revised prompt, the Agent listed Skills, read
+  the pinned `active-filter-design` digest, discovered the data tools and
+  successfully read the approved experiment. It made no search or solver call
+  before `BUDGET_EXHAUSTED`. This is also seen development evidence, not a
+  blind evaluation.
+
+Both experiments remained idle with zero candidates, trials, observations and
+reports. The export validator checked the original Spec hashes but returned
+`reportReproduced: false` for both because no report existed. Thus neither
+case has a scientific PASS, FAIL or INCONCLUSIVE report; the Agent acceptance
+is incomplete and does not establish a full backend report re-evaluation.
+The retained local receipts and raw session/export artifacts are under
+`test-results/control-lab-live/p-golden-wuKQCe/` and
+`test-results/control-lab-live/active-filter-MzDYZl/` (ignored test artifacts).
+All owned processes exited and both temporary profiles were removed.
+
+The actual advertised tool set included `skill`, `chart_render`, MCP resource
+listing/reading, and the Host `app_describe`, `app_use`, `app_write`,
+`content_read` and `computer_use` tools. Computer Use was disabled in the
+isolated profile and denied for the research session; neither model called
+it. Native workspace/shell, coding and subagent tools were not enabled.
+
+Provider-reported usage per attempt is shown as input / cache-read / output /
+total tokens; these are reported values, not a dollar-cost estimate:
+
+| Scene | Attempt 1 | Attempt 2 | Attempt 3 |
+| --- | --- | --- | --- |
+| P golden | 7,552 / 384 / 69 / 8,005 | 476 / 7,808 / 200 / 8,484 | 410 / 8,448 / 31 / 8,889 |
+| Active filter | 1,931 / 6,144 / 55 / 8,130 | 541 / 8,064 / 90 / 8,695 | 491 / 8,576 / 111 / 9,178 |
 
 ## Earlier entry-point baseline (2026-10-30)
 
@@ -75,16 +121,11 @@ artifact and is not present in this checkout.
 
 ## Remaining gates
 
-- Run the updated headed Desktop and App Use fixture in an isolated desktop,
-  including the new Goal and Agent-route bypass negatives. The current Mac is
-  the user's active desktop, so the suite was stopped before opening a window.
-- Complete the opt-in real-provider acceptance with one shared attempt ledger,
-  real ACP/MCP and Skill evidence, independent re-evaluation of exported
-  evidence, and verified process cleanup. A scripted ACP fixture is not a
-  real model. The authorized DeepSeek budget is **0 of 6 provider HTTP
-  attempts used**, with at most 8192 output tokens per request.
-- Validate exact-head CI and, separately, signed-product installation. Solver
-  and fixture checks do not establish either acceptance level.
+- A complete real-provider Agent run still requires search, a locked candidate,
+  full final scenarios and independent reproduction of the saved report. The
+  six-attempt budget above is exhausted; do not automatically retry or raise it.
+- Signed-product installation remains a separate acceptance level. Solver and
+  fixture checks do not establish it.
 
 See [design](../design-docs/control-lab.md) and
 [App instructions](../../apps/control-lab/README.md).
