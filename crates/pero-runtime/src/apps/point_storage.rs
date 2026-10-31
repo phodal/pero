@@ -3,9 +3,13 @@ use super::super::{AppName, AppStore};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-struct Manifest { permissions: Permissions }
+struct Manifest { permissions: Permissions, #[serde(default)] contributes: Contributions }
+#[derive(Default, Deserialize)]
+struct Contributions { #[serde(default, rename="panelTabs")] panels: Vec<PointPanel> }
 #[derive(Deserialize)]
-struct Permissions { #[serde(default)] storage: bool, #[serde(default)] api: Vec<String> }
+struct PointPanel { id: String }
+#[derive(Deserialize)]
+struct Permissions { #[serde(default)] storage: bool, #[serde(default)] api: Vec<String>, #[serde(default)] host: Vec<String> }
 
 impl AppStore {
     pub fn point_config(&mut self, name: &AppName, value: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
@@ -46,5 +50,21 @@ impl AppStore {
         let manifest: Manifest = serde_json::from_slice(&std::fs::read(metadata).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         if !manifest.permissions.api.iter().any(|route| pathname == route || pathname.starts_with(&format!("{route}/"))) { return Err("Point Project permission denied".into()); }
         Ok(self.root.parent().ok_or("App root needs a parent")?.join("point-projects"))
+    }
+}
+
+impl AppStore {
+    pub fn point_catalog_permission(&self,name:&AppName,path:&str)->Result<(),String> {
+        if !matches!(path,"/api/workspaces"|"/api/harnesses"){return Err("Unsupported Point catalog".into());}
+        let app=self.installed.get(name).ok_or("App is not installed")?;
+        if !app.enabled{return Err("App is disabled".into());}
+        let manifest:Manifest=serde_json::from_slice(&std::fs::read(self.root.join(name.as_str()).join("point-source/app.json")).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
+        if !manifest.permissions.api.iter().any(|route|route==path){return Err("Point catalog permission denied".into());}Ok(())
+    }
+    pub fn point_agent_panel(&self,name:&AppName)->Result<String,String> {
+        self.require_agent(name)?;
+        let manifest:Manifest=serde_json::from_slice(&std::fs::read(self.root.join(name.as_str()).join("point-source/app.json")).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
+        if !manifest.permissions.host.iter().any(|grant|grant=="agent"){return Err("Point Agent permission denied".into());}
+        manifest.contributes.panels.first().map(|panel|panel.id.clone()).ok_or_else(||"Point App panel is missing".into())
     }
 }

@@ -398,3 +398,26 @@ fn point_projects_require_enabled_declared_scope() {
     fs::write(workspace.0.join("installed/virtual-cell/point-source/app.json"), r#"{"permissions":{"api":[]}}"#).unwrap();
     assert!(store.point_project_root(&name, "/api/projects").is_err());
 }
+
+#[test]
+fn point_agent_and_catalog_require_the_original_enabled_grants() {
+    let workspace = Workspace::new();
+    let source = workspace.package(None);
+    let mut native:serde_json::Value=serde_json::from_slice(&fs::read(source.join("app.json")).unwrap()).unwrap();
+    native["permissions"]=serde_json::json!({"host":["agent"]});
+    fs::write(source.join("app.json"),serde_json::to_vec(&native).unwrap()).unwrap();
+    fs::create_dir(source.join("point-source")).unwrap();
+    let metadata=r#"{"permissions":{"host":["agent"],"api":["/api/workspaces","/api/harnesses"]},"contributes":{"panelTabs":[{"id":"viewer"}]}}"#;
+    fs::write(source.join("point-source/app.json"),metadata).unwrap();
+    let mut store=AppStore::open(workspace.0.join("installed"),Default::default()).unwrap();
+    let name=store.install(&source).unwrap()[0].name.clone();
+    assert!(store.point_agent_panel(&name).is_err());
+    store.set_enabled(&name,true).unwrap();
+    assert_eq!(store.point_agent_panel(&name).unwrap(),"viewer");
+    assert!(store.point_catalog_permission(&name,"/api/workspaces").is_ok());
+    assert!(store.point_catalog_permission(&name,"/api/harnesses").is_ok());
+    assert!(store.point_catalog_permission(&name,"/api/runtime/settings").is_err());
+    fs::write(workspace.0.join("installed/virtual-cell/point-source/app.json"),r#"{"permissions":{"host":[],"api":[]},"contributes":{"panelTabs":[{"id":"viewer"}]}}"#).unwrap();
+    assert!(store.point_agent_panel(&name).is_err());
+    assert!(store.point_catalog_permission(&name,"/api/harnesses").is_err());
+}

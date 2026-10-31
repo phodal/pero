@@ -1,5 +1,6 @@
 //! Local App packages and the single owner of their installed state and backends.
 pub mod agent;
+pub mod point_agent;
 mod builtins;
 use builtins::BuiltinDiscovery;
 mod definition;
