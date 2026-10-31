@@ -33,3 +33,10 @@ or INCONCLUSIVE and distinguish process errors from it.
 The Sallen–Key model uses an ideal VCVS amplifier. Its results do not establish
 actual op-amp bandwidth, saturation, supply behavior, noise, tolerances or
 hardware performance.
+
+Agent-step responses are explicitly marked `view: agent-summary`. Trial identities,
+checks, metrics and artifact hashes remain available; `observationSummary` is not
+a complete raw Observation. Waveform samples stay in the App ledger. The response
+identifies the current authenticated record and export paths for full evidence;
+these paths are live views, not immutable result versions. Do not infer curves
+from a summary or treat missing samples as verified.

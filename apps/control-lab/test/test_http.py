@@ -1,5 +1,7 @@
 from http.server import ThreadingHTTPServer
 import json
+import hashlib
+from copy import deepcopy
 import pathlib
 import sys
 import tempfile
@@ -10,7 +12,7 @@ from urllib.request import Request,urlopen
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'backend'))
 from control_lab.http import handler
 from control_lab.store import ExperimentStore
-from control_lab.experiments import ExperimentSpec
+from control_lab.experiments import ExperimentSpec, canonical
 from test_verification import observed
 
 
@@ -68,6 +70,47 @@ class HttpTest(unittest.TestCase):
                 with self.assertRaises(HTTPError) as denied:
                     request('/api/agent-step',{'action':'read',**goal})
                 self.assertEqual(denied.exception.code,400)
+            finally:
+                server.shutdown();worker.join();server.server_close();store.close()
+
+    def test_agent_summary_keeps_large_raw_evidence_and_saved_verdicts(self):
+        # Transport fixture, not scientific acceptance: saved waveform bytes exceed
+        # the Host write-response cap but remain intact in GET and export.
+        with tempfile.TemporaryDirectory() as root:
+            store=ExperimentStore(root)
+            record=store.create({'templateId':'pi-golden','candidateBudget':1})
+            observation=observed(ExperimentSpec.restore(record)).to_dict()
+            check={'name':'Saved check','verdict':'INCONCLUSIVE','actual':None,'limit':1,'message':'Missing evidence'}
+            record['trials']=[dict(id=f'trial-{index}',candidateId='baseline',scenarioId=record['scenarios'][0]['id'],
+                phase='search',status='completed',observation=deepcopy(observation),
+                report={'verdict':'INCONCLUSIVE','checks':[check]}) for index in range(20)]
+            record['report']={'verdict':'FAIL','checks':[{**check,'verdict':'FAIL'}]}
+            store.save(record)
+            server=ThreadingHTTPServer(('127.0.0.1',0),handler(store,'test-token'))
+            worker=threading.Thread(target=server.serve_forever);worker.start()
+            def request(path,data=None):
+                body=None if data is None else json.dumps(data).encode()
+                headers={'X-Pero-App-Token':'test-token','Content-Type':'application/json'}
+                with urlopen(Request(f'http://127.0.0.1:{server.server_port}'+path,body,headers),timeout=3) as response:
+                    return response.read()
+            try:
+                path='/api/experiments/'+record['id']
+                raw=request(path); exported=request(path+'/export')
+                self.assertGreater(len(raw),1_000_000)
+                summary_bytes=request('/api/agent-step',{'action':'read','experimentId':record['id'],'specHash':record['specHash']})
+                self.assertLess(len(summary_bytes),1_000_000)
+                summary=json.loads(summary_bytes)
+                self.assertEqual(summary['view'],'agent-summary')
+                self.assertEqual(summary['evidence'],{'recordPath':path,'exportPath':path+'/export','scope':'current-experiment'})
+                self.assertEqual(summary['report'],record['report'])
+                for original, projected in zip(record['trials'],summary['trials']):
+                    self.assertEqual(projected['report'],original['report'])
+                    self.assertNotIn('observation',projected)
+                    self.assertEqual(projected['observationSummary'],{key:value for key,value in original['observation'].items() if key!='series'})
+                self.assertEqual(hashlib.sha256(request(path)).hexdigest(),hashlib.sha256(raw).hexdigest())
+                self.assertEqual(request(path+'/export'),exported)
+                self.assertEqual(canonical(store.read(record['id'])),raw)
+                self.assertEqual(json.loads(exported)['experiment'],record)
             finally:
                 server.shutdown();worker.join();server.server_close();store.close()
 

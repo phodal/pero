@@ -8,6 +8,21 @@ from .experiments import Goal, Invalid, TEMPLATES, canonical
 from . import engines
 
 
+def agent_summary(record):
+    """Transport view, not a complete Experiment or an immutable result snapshot."""
+    trials = []
+    for trial in record['trials']:
+        observation = trial.get('observation')
+        trials.append({**{key: value for key, value in trial.items() if key != 'observation'},
+                       'observationSummary': None if observation is None else {
+                           key: value for key, value in observation.items() if key != 'series'}})
+    return {**record, 'trials': trials, 'view': 'agent-summary',
+            'omitted': ['trials[].observation.series'],
+            'evidence': {'recordPath': f"/api/experiments/{record['id']}",
+                         'exportPath': f"/api/experiments/{record['id']}/export",
+                         'scope': 'current-experiment'}}
+
+
 def handler(store, secret):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -70,7 +85,7 @@ def handler(store, secret):
                         with store.lock:
                             goal.require_record(store.get_record(goal.experiment_id))
                             result = self.action(action,goal.experiment_id,data)
-                        return self.reply(200,result)
+                        return self.reply(200,agent_summary(result))
                     match = re.fullmatch(r'/api/experiments/([a-f0-9]{32})/(search|verify|cancel|lock|reevaluate|propose)',self.path)
                     if match:
                         allowed = {'search':{'budget'},'lock':{'candidateId'},'propose':{'parameters'}}.get(match[2],set())
