@@ -18,7 +18,7 @@ test('Point packaging preserves identity and refuses contracts Pero cannot carry
     ['events', { ...base, permissions: { events: ['session.changed'] } }],
     ['extra permission', { ...base, permissions: { arbitrary: true } }],
     ['cross-app API', { ...base, backend, permissions: { api: ['/apps/other/api'] } }],
-    ['Host API', { ...base, backend, permissions: { api: ['/api/projects'] } }],
+    ['Host API', { ...base, backend, permissions: { api: ['/api/workspaces'] } }],
     ['API traversal', { ...base, backend, permissions: { api: ['/apps/sample/api/../other'] } }],
     ['missing backend', { ...base, permissions: { api: ['/apps/sample/api'] } }],
     ['invalid agent tool', { ...base, contributes: { panelTabs: [panel], agentTools: [{name: 'bad'}] } }],

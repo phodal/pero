@@ -219,6 +219,20 @@ impl NativeApps {
             let access: Access = self.request("resolve", json!({"name":name}))?;
             let point = point::PointApp::read(&access.root)?;
             if let Some(point) = &point {
+                if path == "/api/projects" || path.starts_with("/api/projects/") {
+                    anyhow::ensure!(method == "GET" || method == "POST", "Method refused");
+                    anyhow::ensure!(body.len() <= 65536, "Project request exceeds 64 KiB");
+                    let mut headers = serde_json::Map::new();
+                    for key in ["idempotency-key", "if-match"] {
+                        if let Some(value) = request.headers().get(key) { headers.insert(key.into(), Value::String(value.to_str()?.into())); }
+                    }
+                    let mut operation = json!({"method":method.as_str(),"path":format!("{path}{}",uri.query().map(|q|format!("?{q}")).unwrap_or_default()),"headers":headers});
+                    if !body.is_empty() { operation["body"] = serde_json::from_slice(body)?; }
+                    let value: Value = self.request("pointprojects", json!({"name":name,"request":operation}))?;
+                    let mut response = Response::builder().status(value["status"].as_u64().ok_or_else(||anyhow::anyhow!("Invalid Project status"))? as u16);
+                    if let Some(headers) = value["headers"].as_object() { for (key,value) in headers { response = response.header(key, value.as_str().ok_or_else(||anyhow::anyhow!("Invalid Project header"))?); } }
+                    return Ok(response.body(serde_json::to_vec(&value["body"])?)?);
+                }
                 if path == format!("/api/apps/{name}/config") {
                     anyhow::ensure!(point.permissions.storage && point.permissions.api.iter().any(|route| route == path), "App storage permission denied");
                     anyhow::ensure!(method == "GET" || method == "PUT", "Method refused");

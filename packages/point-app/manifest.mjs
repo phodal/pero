@@ -25,10 +25,10 @@ export function pointAppManifest(app) {
     throw new Error('Point Host capabilities and events are not available in this adapter');
   const prefix = `/apps/${app.name}/api`;
   for (const path of permissions.api ?? []) {
-    if (typeof path !== 'string' || !(path === prefix || path.startsWith(prefix + '/') || path === `/api/apps/${app.name}/config` && permissions.storage) || !safeEntry(path.slice(1)))
+    if (typeof path !== 'string' || !(path === '/api/projects' || path.startsWith('/api/projects/') || path === prefix || path.startsWith(prefix + '/') || path === `/api/apps/${app.name}/config` && permissions.storage) || !safeEntry(path.slice(1)))
       throw new Error(`Unsupported Point API permission: ${path}`);
   }
-  if ((permissions.api?.length ?? 0) && !app.backend) throw new Error('Point API permission requires a backend');
+  if ((permissions.api ?? []).some(path => path.startsWith(prefix)) && !app.backend) throw new Error('Point API permission requires a backend');
   if (app.backend) {
     const backend = app.backend;
     if (!['python', 'node'].includes(backend.type) || !safeEntry(backend.entryPoint) || !(backend.type === 'python' ? backend.entryPoint.endsWith('.py') : /\.(mjs|cjs|js)$/.test(backend.entryPoint)) || backend.port !== 'auto' || backend.healthCheck !== '/health')

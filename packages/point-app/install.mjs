@@ -13,6 +13,10 @@ export async function preparePointApp({ source, destination, runtime }) {
   for (const panel of app.contributes.panelTabs) {
     const file = await lstat(resolve(source, 'ui', panel.entry));
     if (!file.isFile()) throw new Error('Point panel entry must be a regular file');
+    const code = await readFile(resolve(source, 'ui', panel.entry), 'utf8');
+    const shared = new Set(['react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', '@point/app-sdk', '@point/app-sdk/ui', '@point/app-sdk/chart']);
+    for (const match of code.matchAll(/globalThis\.__point_modules\?\.\["([^"]+)"\]/g))
+      if (!shared.has(match[1])) throw new Error(`Unsupported Point shared module: ${match[1]}`);
   }
   await mkdir(destination);
   const files = [];
