@@ -29,7 +29,9 @@ const finish = reason => {
 };
 readline.createInterface({input:process.stdin}).on('line',line=>{
  const message=JSON.parse(line),{id,method,params}=message;
- if (method==='initialize') send({id,result:{protocolVersion:1,agentCapabilities:{...(composerFixture?{promptCapabilities:{image:true,embeddedContext:true}}:{}),...(sessionCapture?{mcpCapabilities:{http:true}}:{})},agentInfo:{name:'test-fixture',version:'1'}}});
+ // HTTP configuration acceptance is independent of optional transcript capture.
+ // This presentation fixture never connects to or invokes an MCP server.
+ if (method==='initialize') send({id,result:{protocolVersion:1,agentCapabilities:{...(composerFixture?{promptCapabilities:{image:true,embeddedContext:true}}:{}),mcpCapabilities:{http:true}},agentInfo:{name:'test-fixture',version:'1'}}});
  else if(method==='session/new'){
   if(sessionCapture)appendFileSync(sessionCapture,JSON.stringify(params)+'\n',{mode:0o600});
   workspace=params.cwd;send({id,result:{sessionId:'fixture-session',configOptions:configs()}});

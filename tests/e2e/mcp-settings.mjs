@@ -142,11 +142,27 @@ const faultCount = () => bounded(app.evaluate(() => globalThis.mcpTransportFault
 async function rejectTransport() {
   await bounded(app.evaluate(() => globalThis.mcpTransportFault.reject(new Error('Synthetic MCP IPC rejection'))), 'reject IPC');
 }
+// Validate the newly injected Host builtin before excluding it from user-managed
+// settings assertions. Assert booleans so failures never print its bearer token.
+function userManagedServers(servers, thread) {
+  const connectors = servers.filter(server => server.name === 'pero-connectors');
+  expect(connectors.length).toBe(1);
+  const connector = connectors[0];
+  expect(Object.keys(connector).sort().join(',') === 'headers,name,type,url').toBe(true);
+  expect(connector.type === 'http').toBe(true);
+  expect(typeof connector.url === 'string' && /^http:\/\/127\.0\.0\.1:([1-9][0-9]{0,4})\/mcp$/.test(connector.url)
+    && Number(new URL(connector.url).port) <= 65535).toBe(true);
+  expect(Array.isArray(connector.headers) && connector.headers.length === 2).toBe(true);
+  expect(connector.headers.every(header => Object.keys(header).sort().join(',') === 'name,value')).toBe(true);
+  expect(connector.headers.filter(header => header.name === 'Authorization' && typeof header.value === 'string' && /^Bearer [0-9a-f]{64}$/.test(header.value)).length === 1).toBe(true);
+  expect(connector.headers.filter(header => header.name === 'X-Pero-Thread' && header.value === thread).length === 1).toBe(true);
+  return servers.filter(server => !['operator-only', 'pero-app-use', 'pero-connectors'].includes(server.name));
+}
 async function session(id) {
   progress(`create session ${id}`);
   await evaluate(thread_id => window.pero.sessionCommand({ action: 'new_session', thread_id, agent_id: 'fixture' }), id);
   await expect.poll(() => evaluate(id => window.mcpAcceptanceEvents.some(event => event.kind === 'session_ready' && event.thread_id === id), id), { timeout: 15000 }).toBe(true);
-  return (await fixture.sessions()).at(-1).mcpServers.filter(server => !['operator-only', 'pero-app-use'].includes(server.name));
+  return userManagedServers((await fixture.sessions()).at(-1).mcpServers, id);
 }
 try {
   await bounded((async () => {
@@ -260,6 +276,7 @@ try {
   if (process.env.PERO_MCP_TEST_FAIL_CLEANUP === '1') throw new Error('Synthetic MCP cleanup failure');
   await writeFile(resolve(out, 'ui-result.json'), JSON.stringify({ passed: true, headless: process.env.PERO_MCP_TEST_HEADLESS === '1', checks: [
     'actual GPUI add disabled', 'explicit server-wide enable confirmation', 'real ACP injection',
+    'Host connector builtin has scoped loopback HTTP identity and auth shape; user-managed assertions remain exact',
     'edit revokes grant for new sessions', 'write failure and retry', 'dark/narrow/Chinese',
     'restart persistence and visible MCP category navigation without search', 'stale-write conflict and refresh recovery', 'import is disabled', 'confirmed removal', 'no operator credential disclosure',
     'configured state does not imply connected or discovered tools',
