@@ -93,5 +93,7 @@ watch(sources, { recursive: true }, (_event, filename) => {
 console.log('Building the debug Host and native preview. Secrets stay in this process; the login keychain is not opened.');
 writeIcns(resolve(root, 'resources/app-icon.svg'), icon);
 await ensureGpuiLock();
+await run(process.execPath, ['scripts/build/connectors.mjs']);
+await run(process.execPath, ['scripts/build/apps.mjs', '--app', 'connectors']);
 await run('cargo', cargoArgs(['build', '--locked', '-p', 'pero-host', '-p', 'pero-worker']));
 await cycle();

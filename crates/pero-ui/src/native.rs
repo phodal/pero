@@ -173,8 +173,17 @@ pub fn run() -> anyhow::Result<()> {
     }
     let product: NativeProduct =
         serde_json::from_slice(&std::fs::read(root.join("products/pero.json"))?)?;
-    let mut host = Command::new(executable)
+    let (connector_owner, connector_environment) =
+        match crate::native_connectors::NativeConnectors::start(&root, &data, &executable) {
+            Ok((owner, environment)) => (Some(owner), environment),
+            Err(error) => {
+                eprintln!("Native Connectors: {error:#}");
+                (None, Default::default())
+            }
+        };
+    let mut host = Command::new(&executable)
         .arg("--stdio")
+        .envs(connector_environment)
         .current_dir(&root)
         .env("PERO_AGENT_ROOT", &root)
         .env("PATH", std::env::join_paths(paths)?)
@@ -211,7 +220,14 @@ pub fn run() -> anyhow::Result<()> {
     // own writer so they never wait for a remote response.
     let (host_commands, host_incoming) = mpsc::channel::<String>();
     HOST_COMMANDS.with(|slot| *slot.borrow_mut() = Some(host_commands.clone()));
-    let app_client = crate::native_apps::NativeApps::new(host_commands.clone(), events.clone());
+    let app_client = crate::native_apps::NativeApps::new(
+        host_commands.clone(),
+        events.clone(),
+        connector_owner.as_ref().map(std::sync::Arc::downgrade),
+    );
+    if let Some(owner) = &connector_owner {
+        owner.bind(app_client.clone());
+    }
     APPS.with(|slot| *slot.borrow_mut() = Some(app_client.clone()));
     let writer_events = events.clone();
     std::thread::spawn(move || {
@@ -231,11 +247,15 @@ pub fn run() -> anyhow::Result<()> {
     });
     let reader_events = events.clone();
     let worker_states = commands.clone();
+    let session_connectors = connector_owner.clone();
     std::thread::spawn(move || {
         for line in BufReader::new(stdout).lines() {
             let Ok(line) = line else { break };
             match serde_json::from_str::<HostEvent>(&line) {
                 Ok(event) if event.version == pero_contracts::PROTOCOL_VERSION => {
+                    if let Some(owner) = &session_connectors {
+                        owner.accept(&event);
+                    }
                     if app_client.accept(&event) {
                         continue;
                     }
@@ -277,6 +297,9 @@ pub fn run() -> anyhow::Result<()> {
             None,
             "error.host_stopped",
         ));
+        if let Some(owner) = &session_connectors {
+            owner.close();
+        }
     });
     let reply = commands.clone();
     std::thread::spawn(move || {
@@ -560,6 +583,9 @@ pub fn run() -> anyhow::Result<()> {
         .detach();
         if !app_probe { cx.activate(true); }
     });
+    if let Some(owner) = &connector_owner {
+        owner.close();
+    }
     Ok(())
 }
 

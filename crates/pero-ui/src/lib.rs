@@ -81,6 +81,8 @@ mod native_device;
 mod native_harness;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
 mod native_secrets;
+#[cfg(all(feature = "native", not(target_family = "wasm")))]
+mod native_connectors;
 
 #[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
 mod workspace;
