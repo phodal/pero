@@ -190,7 +190,7 @@
 .pero-chat {
   color: var(--pero-text);
   font-size: var(--pero-font-body);
-  line-height: 1.5;
+  line-height: var(--pero-prose-body-line);
   overflow-wrap: anywhere;
 }
 .pero-chat :where(h1, h2, h3, h4, h5, h6) {
@@ -222,15 +222,20 @@
 }
 .pero-chat :where(pre) {
   overflow: auto;
-  padding: var(--pero-space-3);
-  border-radius: var(--pero-radius-button);
-  background: var(--pero-surface-muted);
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--pero-text) 12%, transparent);
+  border-radius: var(--pero-radius-panel);
+  background: var(--pero-surface);
+  font-size: calc(var(--pero-prose-code-size) * 1em);
+  line-height: 1.5;
 }
-.pero-chat :where(code) { font-family: "JetBrains Mono", ui-monospace, monospace; }
+.pero-chat :where(code) { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 .pero-chat :where(:not(pre) > code) {
-  padding: 0.15em 0.35em;
-  border-radius: var(--pero-radius-cell);
-  background: var(--pero-accent-soft);
+  padding: 1.5px 2px;
+  border-radius: var(--pero-radius-kbd);
+  background: color-mix(in srgb, var(--pero-text) 8%, transparent);
+  font-size: calc(var(--pero-prose-inline-code) * 1em);
+  line-height: inherit;
 }
 .pero-chat :where(table) {
   width: 100%;
@@ -238,12 +243,13 @@
   font-size: calc(var(--pero-prose-table-scale) * 1em);
 }
 .pero-chat :where(th, td) {
-  border: 1px solid var(--pero-border);
-  padding: var(--pero-space-1) var(--pero-space-2);
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--pero-text) 12%, transparent);
+  padding: 6px 10px;
   text-align: start;
   vertical-align: top;
 }
-.pero-chat :where(th) { font-weight: 600; background: var(--pero-surface-muted); }
+.pero-chat :where(th) { font-weight: 600; }
 .pero-chat :where(a) { color: var(--pero-action); }
 
 @media (forced-colors: active) {

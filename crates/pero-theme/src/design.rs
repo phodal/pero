@@ -2,9 +2,11 @@
 //! come from `design_tokens`; accent overrides still flow through the resolved palette.
 use crate::design_tokens::{
     ACTION_BUTTON_HEIGHT, ACTION_BUTTON_PADDING, GHOST_ICON_BUTTON, ICON_GAP, LEAD_BOX,
-    LIBRARY_HEADER, LIST_DARK, LIST_LIGHT, MENU_ROW, PROSE_H1_LINE, PROSE_H1_SCALE, PROSE_H2_LINE,
-    PROSE_H2_SCALE, PROSE_H3_LINE, PROSE_H3_SCALE, PROSE_H4_LINE, PROSE_H4_SCALE, PROSE_H5_LINE,
-    PROSE_H5_SCALE, PROSE_H6_LINE, PROSE_H6_SCALE, RADIUS_BADGE, RADIUS_BUTTON, RADIUS_SELECTION,
+    LIBRARY_HEADER, LIST_DARK, LIST_LIGHT, MENU_ROW, PROSE_H1_GAP, PROSE_H1_LINE, PROSE_H1_SCALE,
+    PROSE_H2_GAP, PROSE_H2_LINE, PROSE_H2_SCALE, PROSE_H3_GAP, PROSE_H3_LINE, PROSE_H3_SCALE,
+    PROSE_H4_GAP, PROSE_H4_LINE, PROSE_H4_SCALE, PROSE_H5_GAP, PROSE_H5_LINE, PROSE_H5_SCALE,
+    PROSE_H6_GAP, PROSE_H6_LINE, PROSE_H6_SCALE, PROSE_PARAGRAPH_GAP, RADIUS_BADGE, RADIUS_BUTTON,
+    RADIUS_SELECTION,
     READER_MAX_WIDTH, ROW_NAV, ROW_SUB, SEARCH_FIELD_HEIGHT, SPACE_12, SPACE_16, SPACE_24, SPACE_4,
     SPACE_8, SUB_INDENT, TYPE_BODY, TYPE_CAPTION, TYPE_HEADING, TYPE_LABEL, TYPE_TITLE, WEIGHT_BODY,
     WEIGHT_HEADING, WEIGHT_LIST_TITLE, WEIGHT_TITLE,
@@ -676,16 +678,19 @@ pub fn search_field(input: Input, chrome: Chrome) -> Input {
 }
 
 /// Heading scale for ACP markdown. One rem is the chat body size.
+/// The top padding is what remains after the previous paragraph gap, matching a collapsed margin.
 pub fn chat_heading(level: u8) -> StyleRefinement {
-    let (scale, line) = match level {
-        1 => (PROSE_H1_SCALE, PROSE_H1_LINE),
-        2 => (PROSE_H2_SCALE, PROSE_H2_LINE),
-        3 => (PROSE_H3_SCALE, PROSE_H3_LINE),
-        4 => (PROSE_H4_SCALE, PROSE_H4_LINE),
-        5 => (PROSE_H5_SCALE, PROSE_H5_LINE),
-        _ => (PROSE_H6_SCALE, PROSE_H6_LINE),
+    let (scale, line, gap) = match level {
+        1 => (PROSE_H1_SCALE, PROSE_H1_LINE, PROSE_H1_GAP),
+        2 => (PROSE_H2_SCALE, PROSE_H2_LINE, PROSE_H2_GAP),
+        3 => (PROSE_H3_SCALE, PROSE_H3_LINE, PROSE_H3_GAP),
+        4 => (PROSE_H4_SCALE, PROSE_H4_LINE, PROSE_H4_GAP),
+        5 => (PROSE_H5_SCALE, PROSE_H5_LINE, PROSE_H5_GAP),
+        _ => (PROSE_H6_SCALE, PROSE_H6_LINE, PROSE_H6_GAP),
     };
     StyleRefinement::default()
         .text_size(rems(scale))
         .line_height(relative(line))
+        .pt(rems((scale * gap - PROSE_PARAGRAPH_GAP).max(0.)))
+        .pb(rems(PROSE_PARAGRAPH_GAP))
 }
