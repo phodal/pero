@@ -1,5 +1,3 @@
-#[path = "point_storage.rs"]
-mod point_storage;
 use serde::{Deserialize, Serialize};
 use std::path::{Component, Path};
 
