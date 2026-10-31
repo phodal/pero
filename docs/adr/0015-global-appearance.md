@@ -38,7 +38,7 @@ resolver reads no clock, environment, filesystem or window.
 
 ### Typography
 
-The default UI body is 14 logical pixels, Chat body is 16, and code inherits
+The default UI body and Chat body are 14 logical pixels, and code inherits
 the UI size. Chat can explicitly inherit UI size. User font sizes are 12–24.
 Caption, Body, Heading and Title use the 12/14/18/24 design scale relative to
 their scope, with captions never below 12. UI controls follow the UI scope;
