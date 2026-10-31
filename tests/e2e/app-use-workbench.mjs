@@ -1,6 +1,6 @@
 // Workbench and standalone Products share the same MCP authority and App RPC.
 import { expect } from '@playwright/test';
-import { clickNewChat } from './sidebar-controls.mjs';
+import { clickAppOpen, clickNewChat } from './sidebar-controls.mjs';
 import { electron } from './electron.mjs';
 import { requestAppChat } from '../fixtures/app-chat-launch.mjs';
 import { waitForFullAppUse } from '../fixtures/app-use-progress.mjs';
@@ -28,10 +28,7 @@ try{
  await page.mouse.click(80,await page.evaluate(()=>innerHeight-55));
  await expect.poll(async()=>(await state()).navigation).toBe(7);
  await expect.poll(async()=>(await state()).appsLoading).toBe(false);
- const catalog=await state();
- const row=catalog.apps.findIndex(a=>a.name==='virtual-cell');
- // The 88px library header precedes the unchanged 58px App rows.
- await page.mouse.click(1305,130+(catalog.contentTabs.length?30:0)+58*row);
+ await clickAppOpen(page, 'virtual-cell');
  await expect.poll(async()=>(await state()).activeContent).toEqual({kind:'app',value:{name:'virtual-cell',panel:'main'}});
  const frame=page.frameLocator('iframe[title="virtual-cell"]');
  await expect(frame.getByLabel('Find gene',{exact:true})).toBeVisible({timeout:20000});

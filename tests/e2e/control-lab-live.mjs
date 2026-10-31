@@ -38,6 +38,7 @@ let app, page, frame, frozen, final, transcript, failure, provider, cleanup = {}
 const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } };
 const { expect } = await import('@playwright/test');
+const { clickAppOpen } = await import('./sidebar-controls.mjs');
 const { electron } = await import('./electron.mjs');
 try {
   if (fixture) {
@@ -63,9 +64,7 @@ try {
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
-  const catalog = await state(), row = catalog.apps.findIndex(item => item.name === 'control-lab');
-  expect(row).toBeGreaterThanOrEqual(0);
-  await page.mouse.click(await page.evaluate(() => innerWidth - 183), 130 + (catalog.contentTabs.length ? 30 : 0) + 58 * row);
+  await clickAppOpen(page, 'control-lab');
   await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'app', value: { name: 'control-lab', panel: 'main' } });
   frame = page.frameLocator('iframe[title="control-lab"]');
   await expect(frame.getByLabel('Template', { exact: true })).toBeVisible({ timeout: 20000 });

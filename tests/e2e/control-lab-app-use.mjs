@@ -22,7 +22,7 @@ if (priorFiles.length) {
 }
 await rm(resolve(out, 'result.json'), { force: true });
 const execute = promisify(execFile), errors = [], consoleErrors = [], cleanup = [], uiActions = [];
-let expect, electron, app, page, frame, temp, failure, result, frozen, final;
+let expect, electron, clickAppOpen, app, page, frame, temp, failure, result, frozen, final;
 const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } };
 async function closeDesktop() {
@@ -68,6 +68,7 @@ async function recordFailure(error) {
   await writeFile(resolve(out, 'failure.json'), JSON.stringify(receipt, null, 2));
 }
 try {
+  ({ clickAppOpen } = await import('./sidebar-controls.mjs'));
   ({ expect } = await import('@playwright/test')); ({ electron } = await import('./electron.mjs'));
   if (!['linux', 'darwin'].includes(process.platform)) throw new Error('The process-cleanup gate is Unix-only, not a skipped PASS');
   await execute(process.env.PERO_APP_PYTHON || 'python3', ['-E', '-s', '-c', 'import control; print(control.__version__)'], { timeout: 30000 });
@@ -98,9 +99,7 @@ try {
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
-  const catalog = await state(), row = catalog.apps.findIndex(item => item.name === 'control-lab');
-  expect(row).toBeGreaterThanOrEqual(0);
-  await page.mouse.click(await page.evaluate(() => innerWidth - 183), 130 + (catalog.contentTabs.length ? 30 : 0) + 58 * row);
+  await clickAppOpen(page, 'control-lab');
   await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'app', value: { name: 'control-lab', panel: 'main' } });
   frame = page.frameLocator('iframe[title="control-lab"]');
   await expect(frame.getByLabel('Template', { exact: true })).toBeVisible({ timeout: 20000 });

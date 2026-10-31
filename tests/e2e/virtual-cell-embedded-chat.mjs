@@ -4,7 +4,7 @@ import { electron } from './electron.mjs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { setAppearance } from './sidebar-controls.mjs';
+import { clickAppOpen, setAppearance } from './sidebar-controls.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const out = resolve(root, 'test-results/virtual-cell-embedded-chat');
@@ -34,8 +34,7 @@ try {
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await paint();
-  const initial = await state();
-  await page.mouse.click(1305, 76 + (initial.contentTabs.length ? 30 : 0) + 58 * initial.apps.findIndex(item => item.name === 'virtual-cell'));
+  await clickAppOpen(page, 'virtual-cell');
   await expect.poll(async () => (await state()).activeApp?.name).toBe('virtual-cell');
   const frame = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(frame.getByRole('tab', { name: 'Reactions & simulation', exact: true })).toBeVisible({ timeout: 20000 });

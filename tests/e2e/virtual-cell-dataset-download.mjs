@@ -24,7 +24,7 @@ const sha256 = createHash('sha256').update(body).digest('hex');
 const prefixBytes = 2 * 1024 * 1024;
 const checks = [], errors = [], expectedTransportErrors = [], fixtureEvents = [], apiRequests = [], sourceRequests = [], states = [], cleanup = [];
 const sockets = new Set();
-let expect, electron, setAppearance, app, page, frame, panel, temp, profile, source, failure, droppedResponseExpected = false;
+let expect, electron, clickAppOpen, setAppearance, app, page, frame, panel, temp, profile, source, failure, droppedResponseExpected = false;
 const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const apiPosts = () => apiRequests.filter(request => request.method === 'POST');
 const status = () => panel.locator(':scope > .pero-ui-toolbar > [role="status"]');
@@ -71,10 +71,7 @@ async function openPanel() {
   await expect.poll(async () => (await state()).navigation).toBe(7);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
   await painted();
-  const catalog = await state(), row = catalog.apps.findIndex(item => item.name === 'virtual-cell');
-  expect(row).toBeGreaterThanOrEqual(0);
-  // Verified GPUI library geometry, including its 88px header.
-  await page.mouse.click(await page.evaluate(() => innerWidth - 183), 130 + (catalog.contentTabs.length ? 30 : 0) + 58 * row);
+  await clickAppOpen(page, 'virtual-cell');
   await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'app', value: { name: 'virtual-cell', panel: 'main' } });
   frame = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(frame.getByLabel('Data view', { exact: true })).toBeVisible({ timeout: 20000 });
@@ -153,7 +150,7 @@ async function saveFailure(error) {
 try {
   ({ expect } = await import('@playwright/test'));
   ({ electron } = await import('./electron.mjs'));
-  ({ setAppearance } = await import('./sidebar-controls.mjs'));
+  ({ clickAppOpen, setAppearance } = await import('./sidebar-controls.mjs'));
   if (!['linux', 'darwin'].includes(process.platform)) throw new Error('This Desktop development suite requires Linux or macOS; not a skipped success.');
   temp = await mkdtemp(resolve(tmpdir(), 'pero-dataset-download-e2e-'));
   profile = resolve(temp, 'desktop');

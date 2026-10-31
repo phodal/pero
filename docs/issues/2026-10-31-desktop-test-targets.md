@@ -14,12 +14,22 @@ Both messages are valid evidence; acceptance now checks each in its own scope.
 
 Upstream placed Insights before New chat. Three older workbench suites still
 clicked the former first-row coordinate and opened Insights instead of an
-ordinary conversation. They now share the documented second-row pointer
-gesture, and the retained-history test accounts for the added control row.
+ordinary conversation. A later master update (`690f959`) moved search into
+the window chrome, shifting those controls again. CI 41161402554 therefore
+failed before entering the Apps despite the preceding coordinate correction.
+
+Acceptance now observes GPUI's actual prepaint bounds for New chat, session
+rows by stable session ID, and enabled App Open buttons by App identity.
+The existing diagnostics expose these presentation-only bounds; each render
+clears stale targets. Shared helpers wait for finite nonempty bounds and then
+click their center. No hard-coded row or toolbar offsets remain for these
+actions. The probes do not claim to detect occlusion; callers still navigate
+to the visible catalog or sidebar and assert the resulting state.
 Navigation, conversation scope, asynchronous response and replay assertions
 are unchanged. These are real pointer gestures, not internal action injection.
 
-Syntax and frontend checks pass. The next exact-head hosted Desktop run must
+JavaScript syntax and frontend checks pass. Rust compilation and the next
+exact-head hosted Desktop run must
 confirm the updated targets. No user-desktop interaction is needed or allowed
 for this verification. The Control Lab screenshots from the preceding failed
 run were inspected separately; they do not establish a passing full suite.
