@@ -1,8 +1,9 @@
 """Immutable experiment concepts and deterministic bounded candidate generation."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 import json
 import math
+import re
 
 
 MAX_EVIDENCE_SAMPLES = 40000
@@ -191,6 +192,25 @@ class ExperimentSpec:
     @property
     def hash(self):
         return digest(self.to_dict())
+
+
+@dataclass(frozen=True)
+class Goal:
+    """One Host-approved experiment, referring to the existing frozen Spec."""
+    experiment_id: str
+    spec_hash: str
+    max_experiments: int = field(default=1, init=False)
+
+    def __post_init__(self):
+        if not isinstance(self.experiment_id, str) or not re.fullmatch(r'[a-f0-9]{32}', self.experiment_id):
+            raise Invalid('An experiment ID is required')
+        if not isinstance(self.spec_hash, str) or not re.fullmatch(r'[a-f0-9]{64}', self.spec_hash):
+            raise Invalid('A frozen specification hash is required')
+
+    def require_record(self, record):
+        if (record['id'] != self.experiment_id or record['specHash'] != self.spec_hash
+                or ExperimentSpec.restore(record).hash != self.spec_hash):
+            raise Invalid('The approved goal does not match the frozen specification')
 
 
 @dataclass(frozen=True)

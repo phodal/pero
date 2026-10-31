@@ -4,7 +4,7 @@ from http.server import BaseHTTPRequestHandler
 import json
 import re
 
-from .experiments import Invalid, TEMPLATES, canonical
+from .experiments import Goal, Invalid, TEMPLATES, canonical
 from . import engines
 
 
@@ -63,12 +63,13 @@ def handler(store, secret):
                                   'cancel': set(), 'lock': {'candidateId'}, 'verify': set(), 'reevaluate': set()}
                         action = data.get('action')
                         if not isinstance(action, str) or action not in fields: raise Invalid('Unknown Agent action')
-                        identity = data.get('experimentId')
-                        if not isinstance(identity, str) or not re.fullmatch(r'[a-f0-9]{32}', identity):
-                            raise Invalid('An experiment ID is required')
-                        if set(data)-({'action','experimentId'} | fields[action]):
+                        goal = Goal(data.get('experimentId'), data.get('specHash'))
+                        if set(data)-({'action','experimentId','specHash'} | fields[action]):
                             raise Invalid('Unknown Agent request field')
-                        return self.reply(200,self.action(action,identity,data))
+                        with store.lock:
+                            goal.require_record(store.get_record(goal.experiment_id))
+                            result = self.action(action,goal.experiment_id,data)
+                        return self.reply(200,result)
                     match = re.fullmatch(r'/api/experiments/([a-f0-9]{32})/(search|verify|cancel|lock|reevaluate|propose)',self.path)
                     if match:
                         allowed = {'search':{'budget'},'lock':{'candidateId'},'propose':{'parameters'}}.get(match[2],set())
