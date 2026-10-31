@@ -21,7 +21,7 @@ import { backgroundTest, testWindowOptions } from './test-display';
 import { prepareWorkbenchHome } from './home.ts';
 import { HostConnectors } from '../../../packages/connectors/src/host.mjs';
 import { ConnectorSecretStore } from './connector-secrets.ts';
-import { ConnectorMcp } from './connector-mcp.ts';
+import { ConnectorMcp } from '../../../packages/connectors/src/mcp.ts';
 
 // Register before ready so macOS cannot deliver the callback before the listener.
 // pero://connect/ completes sign-in; pero://tasks/<id> opens a Cloud task from the task square.

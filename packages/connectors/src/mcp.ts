@@ -3,7 +3,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
-import type { HostConnectors } from '../../../packages/connectors/src/host.mjs';
+import type { HostConnectors } from './host.mjs';
 
 /** Host conversations receive individual tokens; management is never an MCP tool. */
 export class ConnectorMcp {
