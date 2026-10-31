@@ -160,6 +160,7 @@ impl Automation {
                 Some("max_tokens" | "max_turn_requests" | "refusal") => Outcome::Failed,
                 _ => Outcome::Unknown,
             }),
+            AutomationReceiptKind::NotStarted { .. } => Some(Outcome::Failed),
             AutomationReceiptKind::SessionError | AutomationReceiptKind::AuthenticationRequired | AutomationReceiptKind::SessionClosed => Some(Outcome::Unknown),
             _ => None,
         };

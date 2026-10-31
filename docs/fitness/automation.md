@@ -65,7 +65,9 @@ Restart retains pending requests. Any reserved/possibly-started execution become
 intent survives this transition. This slice has no authoritative ACP resume/lookup
 or UI “retry unknown effect” shortcut; reconcile requires investigation rather
 than automatic replay. Admission failures remain visible and do not starve
-unrelated eligible requests.
+unrelated eligible requests. A typed workspace-lease rejection emitted by the ACP
+owner before prompt submission is a known failed attempt, not an uncertain effect;
+it remains failed across restart. Generic session errors still require reconciliation.
 
 ## Fixed policy and bounds
 

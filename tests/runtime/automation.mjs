@@ -183,6 +183,34 @@ try {
   assert.notEqual(secondClockRequest.execution_id, firstClockRequest.execution_id);
   results.push('distinct time slots execute unchanged input while stdin is idle, linked without replay');
 
+  assert.equal((await host.query()).state.limits.max_active, 1);
+  start = host.events.length;
+  host.send({ action: 'new_session', thread_id: 'busy-interactive', agent_id: 'automation-fixture' });
+  await host.wait(event => event.kind === 'session_ready' && event.thread_id === 'busy-interactive', start);
+  host.send({ action: 'prompt', thread_id: 'busy-interactive', text: '[hold] interactive workspace owner' });
+  await host.wait(event => event.kind === 'session_update' && event.thread_id === 'busy-interactive' && event.data?.content?.text === 'fixture_prompt_received', start);
+  const beforeRejectedPrompt = (await logs()).length;
+  await host.call(create('busy-workspace', 'Must not enter ACP'));
+  const busyRequest = await host.call(manual('busy-workspace', 'busy-one', 'never submitted'));
+  const rejected = await host.stateAfter(value => value.state.requests.find(request => request.id === busyRequest.receipt.id)?.status.kind === 'failed');
+  const rejectedExecution = rejected.state.requests.find(request => request.id === busyRequest.receipt.id).execution_id;
+  await host.wait(event => event.kind === 'session_error' && event.thread_id === rejectedExecution && event.data?.promptRejection === 'workspace_lease', start);
+  assert.equal((await logs()).length, beforeRejectedPrompt, 'pre-submit workspace rejection cannot deliver an ACP prompt');
+  assert.equal(rejected.fault, null);
+  await host.call({ action: 'put_definition', definition: { id: 'independent-workspace', revision: 1, owner, trigger: { kind: 'manual' }, input: 'process_exact', input_binding_id: 'local', method: { kind: 'agent', agent_id: 'automation-fixture', workspace: workspaceB, prompt: 'Independent workspace proceeds' }, target: { kind: 'local_host', owner } } });
+  start = host.events.length;
+  const independent = await host.call(manual('independent-workspace', 'independent-one', 'free workspace input'));
+  await completed(host, start, 'independent-workspace');
+  assert.equal((await logs()).at(-1).workspace, workspaceB);
+  assert(!host.events.some(event => event.kind === 'turn_finished' && event.thread_id === 'busy-interactive'));
+  await stop(host);
+  host = await launch();
+  const rejectedRestored = await host.query();
+  assert.equal(rejectedRestored.state.requests.find(request => request.id === busyRequest.receipt.id)?.status.kind, 'failed');
+  assert.equal(rejectedRestored.state.requests.find(request => request.id === independent.receipt.id)?.status.kind, 'completed');
+  assert.equal((await logs()).length, beforeRejectedPrompt + 1);
+  results.push('interactive workspace collision is durably failed before ACP submission; independent workspace progresses at max_active=1');
+
   await host.call(create('workspace', 'Check frozen workspace'));
   start = host.events.length;
   host.send({ action: 'workspace', path: workspaceB });

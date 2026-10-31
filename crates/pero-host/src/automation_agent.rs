@@ -35,6 +35,7 @@ pub enum AutomationStartError {
 pub enum AutomationReceiptKind {
     Ready { session_id: Option<String> },
     TurnStarted,
+    NotStarted { reason: acp::PromptRejection },
     TurnFinished { stop_reason: Option<String> },
     PermissionDenied,
     AuthenticationRequired,
@@ -59,7 +60,11 @@ fn receipt(event: &HostEvent) -> Option<AutomationReceipt> {
         },
         "permission" => AutomationReceiptKind::PermissionDenied,
         "session_auth_required" | "session_auth_error" => AutomationReceiptKind::AuthenticationRequired,
-        "session_error" => AutomationReceiptKind::SessionError,
+        "session_error" => match event.data.get("promptRejection")
+            .and_then(|value| serde_json::from_value::<acp::PromptRejection>(value.clone()).ok()) {
+                Some(reason) => AutomationReceiptKind::NotStarted { reason },
+                None => AutomationReceiptKind::SessionError,
+            },
         "session_closed" => AutomationReceiptKind::SessionClosed,
         _ => return None,
     };
@@ -201,6 +206,14 @@ mod tests {
         assert_eq!(receipt(&event).unwrap().kind, AutomationReceiptKind::TurnFinished { stop_reason: None });
         event.data = serde_json::json!({"stopReason":"end_turn"});
         assert_eq!(receipt(&event).unwrap().kind, AutomationReceiptKind::TurnFinished { stop_reason: Some("end_turn".into()) });
+        event.kind = "session_error".into();
+        event.text = "Workspace is busy; prompt not started".into();
+        event.data = serde_json::Value::Null;
+        assert_eq!(receipt(&event).unwrap().kind, AutomationReceiptKind::SessionError);
+        event.data = serde_json::json!({"promptRejection":"unknown_reason"});
+        assert_eq!(receipt(&event).unwrap().kind, AutomationReceiptKind::SessionError);
+        event.data = serde_json::json!({"promptRejection":acp::PromptRejection::WorkspaceLease});
+        assert_eq!(receipt(&event).unwrap().kind, AutomationReceiptKind::NotStarted { reason: acp::PromptRejection::WorkspaceLease });
         event.kind = "session_update".into();
         assert!(receipt(&event).is_none());
         event.kind = "permission".into();
@@ -255,7 +268,7 @@ mod tests {
     #[test]
     fn unattended_acp_reuses_permission_and_cancellation_owner() {
         use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-        for (prompt, expected_stop) in [("permission", "end_turn"), ("wait", "cancelled")] {
+        for (prompt, expected_stop) in [("permission", Some("end_turn")), ("wait", Some("cancelled")), ("blocked", None)] {
         let mut manager = fixture_manager();
         let (journal_tx, journal_rx) = mpsc::channel();
         manager.tx = journal_tx;
@@ -267,25 +280,37 @@ mod tests {
         manager.agents[0].model = None;
         let workspace = std::env::temp_dir().join(format!("pero-automation-adapter-{}-{}", std::process::id(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
         std::fs::create_dir(&workspace).unwrap();
+        let busy_lease = (prompt == "blocked").then(|| pero_runtime::workspace_lease::WorkspaceLease::acquire(&workspace).unwrap());
         let admission = manager.automation_admit("fixture", &workspace).unwrap();
         let observations = manager.take_automation_events().unwrap();
         manager.automation_start("reserved-fixture".into(), admission, prompt.into()).unwrap();
         let deadline = Instant::now() + Duration::from_secs(10);
         let mut denied = false;
         let mut finished = false;
+        let mut rejected = false;
+        let mut started = false;
         loop {
             let observation = observations.recv_timeout(deadline.saturating_duration_since(Instant::now())).unwrap();
             match observation.kind {
-                AutomationReceiptKind::TurnStarted if prompt == "wait" => manager.automation_cancel("reserved-fixture").unwrap(),
+                AutomationReceiptKind::TurnStarted => {
+                    started = true;
+                    if prompt == "wait" { manager.automation_cancel("reserved-fixture").unwrap(); }
+                },
+                AutomationReceiptKind::NotStarted { reason } => {
+                    assert_eq!(reason, acp::PromptRejection::WorkspaceLease);
+                    rejected = true;
+                },
                 AutomationReceiptKind::PermissionDenied => denied = true,
-                AutomationReceiptKind::TurnFinished { stop_reason } => { assert_eq!(stop_reason.as_deref(), Some(expected_stop)); finished = true; },
+                AutomationReceiptKind::TurnFinished { stop_reason } => { assert_eq!(stop_reason.as_deref(), expected_stop); finished = true; },
                 AutomationReceiptKind::SessionError => panic!("fixture ACP failed"),
                 AutomationReceiptKind::SessionClosed => break,
                 _ => {},
             }
         }
         assert_eq!(denied, prompt == "permission");
-        assert!(finished);
+        assert_eq!(finished, expected_stop.is_some());
+        assert_eq!(started, expected_stop.is_some());
+        assert_eq!(rejected, prompt == "blocked");
         // Wait for the forwarded close signal, not arbitrary elapsed time.
         let mut outcome = false;
         loop {
@@ -295,6 +320,7 @@ mod tests {
         }
         assert_eq!(outcome, prompt == "permission", "fixture permission outcome must be cancelled");
         drop(manager);
+        drop(busy_lease);
         std::fs::remove_dir_all(workspace).unwrap();
         }
     }
