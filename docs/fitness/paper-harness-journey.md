@@ -122,3 +122,75 @@ requests. Run Electron suites sequentially. PDF import itself is local; no OCR o
 new model runtime is installed by the App. Query rewrite and evidence selection
 can miss material. Exact quotation matching establishes a source location, not
 whether a scientific claim is true or a benchmark generalizes.
+
+## Shared Chat citations and built-in Pero (2026-11-01)
+
+This lane uses the shared Host Chat rather than the historical App-owned planner
+and answer sessions above. Paper owns frozen sources, the study ledger and exact
+quotation validation. Host owns the single Agent session and tool policy.
+
+Saved reports return bounded App reading links. Shared Chat renders these source
+buttons independently of the model's final prose; Markdown links use the same
+App location dispatcher. Paper resolves a link through its persisted report and
+frozen input, then uses the existing evidence API to select the PDF page and
+highlight the exact original text. Native delivery waits for the SDK to be ready,
+including after the App view is recreated. ACP adapters retaining a complete MCP
+reply in rawOutput also retain source actions.
+
+The reliability changes preserve source validation:
+
+- Oversized PDF line selections return original-text windows with nextStart;
+  no characters are normalized or skipped. Citation line numbers restart within
+  each returned passage and are explicitly numbered in citationLines.
+- Evidence accepts an observed passage plus original line range, or an exact
+  contiguous quotation. Changed CRLF, invented text, unobserved passages and
+  explicit source/identity mismatches remain errors.
+- follow-up-research derives source scope and inherited passages from the
+  selected parent input. It does not start a second Agent or reuse a finalized
+  study as the next question.
+- Finalization derives schema, intentId and empty experiments when omitted;
+  studyId remains authoritative. Explicit mismatches are rejected. Paper-reported
+  benchmark results belong in reading sections, not executed experiments.
+- Schema-specific App tools expose required fields directly. The shared App Use
+  skill prioritizes declared tools, identifies optional/domain IDs and guides
+  error correction. Research prompts separate read and citation addresses and
+  keep prior questions/context-file references without duplicating old answers.
+
+Final real-provider evidence uses the user's local 13-page Federation over
+Harness PDF, SHA-256
+`443b023edf79b53eb67b7548d16e3e3181c59c4be2db36c668d1e4f805f0db3a`.
+The isolated Electron profile reported the configured API model alias
+`deepseek-chat` at `https://api.deepseek.com`; no credential is returned in the
+verification record.
+
+| Lane | Observed outcome |
+| --- | --- |
+| Real Pero, Electron first question | 10 tool calls, no failures; report saved and Chat source clicked/highlighted. |
+| Real Pero, Electron follow-up | 9 calls, two recoverable parameter/selection errors; saved parent relationship, report and citation navigation passed. |
+| Real Pero, native GPUI/Wry | 8 calls, no failures; report saved, actual pointer events on a Chat source reopened the App and highlighted the PDF. |
+| Electron fixture | Four journey groups passed, including cancellation, restart continuation, source navigation and dark/narrow matrix editing. |
+| Local checks | 36 Python tests, 170 Rust library tests, 12 App Use/context tests, skill validation, TypeScript/generated checks and development builds passed. |
+
+These are individual observed journeys, not an overall failure-rate or latency
+benchmark. Earlier real attempts exposed missing follow-up binding, ambiguous
+line addresses and redundant report identity fields; those failures informed the
+changes above. This lane establishes local developer-build workflow acceptance,
+not scientific correctness or packaged-release acceptance.
+
+Artifacts are ignored under `target/paper-citation-results/`: `final-real-pero/`
+(two reports, source-click evidence and screenshots), `real-native-pero/`
+(native receipt and tool transcript), `final-fixture/`, and
+`tested-artifacts.json`. Credentials and the user's existing App data were not
+modified; source import and Agent writes used disposable profiles.
+
+Run Electron journeys sequentially. Both commands below opt into actual model
+requests through the existing provider configuration:
+
+```sh
+PERO_APP_PYTHON=/path/to/prepared/python PERO_HARNESS_PDF=/path/to/paper.pdf PERO_PAPER_JOURNEY_AGENT=pero PERO_PAPER_JOURNEY_OUTPUT=target/paper-citation-results/real node tests/e2e/paper-harness.mjs
+PERO_NATIVE_PAPER_BINARY=target/pero-paper-citation-acceptance PERO_NATIVE_PAPER_AGENT=pero PERO_NATIVE_PAPER_PDF=/path/to/paper.pdf PERO_NATIVE_PAPER_OUTPUT=target/paper-citation-results/native node tests/e2e/native-paper-chat.mjs
+```
+
+The native binary must be built with `native-probe`; the Connectors helper, Host,
+Paper bundle and pinned Python dependencies must also be current. Without the
+real-Agent opt-in, the corresponding suites use explicit synthetic fixtures.
