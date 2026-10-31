@@ -3,6 +3,7 @@
 import "@typespec/json-schema";
 import "./apps.tsp";
 import "./contributions.tsp";
+import "./automation.tsp";
 
 using JsonSchema;
 
@@ -265,6 +266,7 @@ union HostCommand {
 
 @oneOf
 union HostInput {
+  Pero.Automation.AutomationRequest,
   McpSettingsRequest,
   IconThemeRequest,
   McpSourceRequest,
@@ -352,6 +354,9 @@ model RemoteSnapshotPayload is Record<unknown>;
 model RemoteStateEvent { kind: "remote_state"; ...EventBase; data: RemoteSnapshotPayload }
 /** Open remote tasks from the native Workbench menu or keyboard. */
 model RemoteOpenEvent { kind: "remote_open"; ...EventBase }
+model AutomationOpenEvent { kind:"automation_open"; ...EventBase }
+model AutomationResultEvent { kind:"automation_result"; ...EventBase; data:Pero.Automation.AutomationResult }
+model AutomationErrorEvent { kind:"automation_error"; ...EventBase }
 /** Private acknowledgements intercepted by Desktop main. */
 model AppsResultEvent { kind: "apps_result"; ...EventBase; data: Pero.Apps.AppResult }
 model AppsCatalogEvent { kind: "apps_catalog"; ...EventBase; data: Pero.Apps.AppRecord[] }
@@ -484,6 +489,9 @@ union HostEvent {
   ContextErrorEvent,
   RemoteStateEvent,
   RemoteOpenEvent,
+  AutomationOpenEvent,
+  AutomationResultEvent,
+  AutomationErrorEvent,
   AppsResultEvent,
   AppsCatalogEvent,
   AppsErrorEvent,
