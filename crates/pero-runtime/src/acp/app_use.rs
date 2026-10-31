@@ -11,11 +11,17 @@ impl AppUseEndpoint {
         let url = std::env::var("PERO_APP_USE_URL").ok()?;
         let token = std::env::var("PERO_APP_USE_TOKEN").ok()?;
         let parsed = reqwest::Url::parse(&url).ok()?;
-        if parsed.scheme() != "http" || parsed.host_str() != Some("127.0.0.1")
-            || parsed.port().is_none() || parsed.path() != "/mcp"
-            || !parsed.username().is_empty() || parsed.password().is_some()
-            || parsed.query().is_some() || parsed.fragment().is_some()
-            || token.len() != 64 || !token.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        if parsed.scheme() != "http"
+            || parsed.host_str() != Some("127.0.0.1")
+            || parsed.port().is_none()
+            || parsed.path() != "/mcp"
+            || !parsed.username().is_empty()
+            || parsed.password().is_some()
+            || parsed.query().is_some()
+            || parsed.fragment().is_some()
+            || token.len() != 64
+            || !token.bytes().all(|byte| byte.is_ascii_hexdigit())
+        {
             return None;
         }
         Some(Self { url, token })
@@ -23,14 +29,19 @@ impl AppUseEndpoint {
 
     #[cfg(test)]
     pub(super) fn fixture(url: String) -> Self {
-        Self { url, token: "a".repeat(64) }
+        Self {
+            url,
+            token: "a".repeat(64),
+        }
     }
 
     pub(super) fn server(&self, thread: &str) -> McpServer {
-        McpServer::Http(McpServerHttp::new("pero-app-use", self.url.clone()).headers(vec![
-            HttpHeader::new("Authorization", format!("Bearer {}", self.token)),
-            HttpHeader::new("X-Pero-Thread", thread),
-        ]))
+        McpServer::Http(
+            McpServerHttp::new("pero-app-use", self.url.clone()).headers(vec![
+                HttpHeader::new("Authorization", format!("Bearer {}", self.token)),
+                HttpHeader::new("X-Pero-Thread", thread),
+            ]),
+        )
     }
 }
 

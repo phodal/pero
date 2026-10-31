@@ -717,11 +717,9 @@ mod tests {
         );
         let bare = temp.join("bare.app");
         super::stage_native_bundle(&exe, &bare, None).unwrap();
-        assert!(
-            !std::fs::read_to_string(bare.join("Contents/Info.plist"))
-                .unwrap()
-                .contains("CFBundleIconFile")
-        );
+        assert!(!std::fs::read_to_string(bare.join("Contents/Info.plist"))
+            .unwrap()
+            .contains("CFBundleIconFile"));
         std::fs::remove_dir_all(&temp).unwrap();
     }
 }

@@ -56,6 +56,8 @@ pub struct ChatPanel {
     pub agents: Vec<AgentChoice>,
     pub agent_index: usize,
     pub model_menu: bool,
+    /// A menu opened from the chat dock. It does not cover the center surface.
+    pub dock_menu: bool,
     pub workspace: String,
     pub chat_scroll: ScrollHandle,
     pub attachments: Vec<ContextReference>,
@@ -126,6 +128,7 @@ impl ChatPanel {
             agents: vec![],
             agent_index: 0,
             model_menu: false,
+            dock_menu: false,
             workspace: String::new(),
             chat_scroll: ScrollHandle::new(),
             attachments: vec![],

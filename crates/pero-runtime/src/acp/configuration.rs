@@ -1,10 +1,10 @@
 //! ACP conversion boundary for non-model session configuration.
-use agent_client_protocol::{UntypedMessage, schema::v1::*};
+use agent_client_protocol::{schema::v1::*, UntypedMessage};
 use pero_contracts::session_settings::{
     SessionSetting, SessionSettings, SettingChoice, SettingSelection,
 };
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 #[derive(Clone, Default)]
 pub(super) struct Configuration {
@@ -52,8 +52,16 @@ fn choices(values: Vec<Choice>, prefix: &str, output: &mut Vec<SettingChoice>) {
 
 impl Configuration {
     pub fn mode_changed(&mut self, value: &str) -> agent_client_protocol::Result<()> {
-        if let Some(id) = self.settings.options.iter().find(|option| option.category == "mode").map(|option| option.id.clone()) {
-            self.settings.acknowledge(&id,value).map_err(|error|agent_client_protocol::Error::new(-32602,error))?;
+        if let Some(id) = self
+            .settings
+            .options
+            .iter()
+            .find(|option| option.category == "mode")
+            .map(|option| option.id.clone())
+        {
+            self.settings
+                .acknowledge(&id, value)
+                .map_err(|error| agent_client_protocol::Error::new(-32602, error))?;
         }
         Ok(())
     }
@@ -194,10 +202,15 @@ mod tests {
             }]})).unwrap();
             assert_eq!(configuration.settings.options.len(), usize::from(included));
             if included {
-                let (_, request) = configuration.request(&SessionId::new("thread"),id,"ask").unwrap();
+                let (_, request) = configuration
+                    .request(&SessionId::new("thread"), id, "ask")
+                    .unwrap();
                 assert_eq!(request.method, "session/set_config_option");
                 assert_eq!(request.params["configId"], id);
-                assert_eq!(configuration.settings.options[0].choices[0].description, "Request approval");
+                assert_eq!(
+                    configuration.settings.options[0].choices[0].description,
+                    "Request approval"
+                );
             }
         }
     }

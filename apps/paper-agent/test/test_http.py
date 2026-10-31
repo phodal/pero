@@ -99,6 +99,31 @@ class ResearchHTTP(unittest.TestCase):
                 self.assertEqual(call("GET", "/api/library")[1]["papers"], [])
                 paper = call("POST", "/api/papers/import", reading())[1]
                 self.assertEqual(paper["source"], "import")
+                selected = '原始选段 β\r\n' + 'Selected source text. ' * 2000
+                status, context = call('POST', '/api/contexts', dict(content=selected, paperId=paper['id']))
+                self.assertEqual(status, 201)
+                from pathlib import Path
+                self.assertEqual(Path(context['path']).read_bytes(), selected.encode('utf-8'))
+                # App-managed paths are readable without a workspace file tool or a PDF study.
+                status, observed = call('POST', '/api/contexts/read', dict(contextId=context['id']))
+                self.assertEqual(status, 200)
+                self.assertEqual(observed['observation']['content'], selected[:4800])
+                self.assertEqual(observed['observation']['nextStart'], 4800)
+                self.assertEqual(observed['observation']['contextFile']['path'], context['path'])
+                status, line = call('POST', '/api/contexts/read', dict(contextId=context['id'], startLine=1, endLine=1))
+                self.assertEqual(status, 200)
+                self.assertEqual(line['observation']['content'], '原始选段 β\r\n')
+                self.assertEqual(call('POST', '/api/contexts/read', dict(contextId=context['id']), token='wrong')[0], 401)
+                for invalid in (dict(contextId='../outside'), dict(path=context['path']),
+                                dict(contextId=context['id'], start=-1),
+                                dict(contextId=context['id'], startLine=0, endLine=1)):
+                    self.assertEqual(call('POST', '/api/contexts/read', invalid)[0], 400)
+                status, with_context = call('POST', '/api/intents', dict(question='Q' * 2000,
+                    paperIds=[paper['id']], requestId='file-context-request', contextId=context['id']))
+                self.assertEqual(status, 201)
+                self.assertIn(context['path'], with_context['prompt'])
+                self.assertNotIn(selected, with_context['prompt'])
+                self.assertEqual(call('POST', '/api/contexts', dict(content=selected, paperId=paper['id']), token='wrong')[0], 401)
                 status, lines = call('GET', f"/api/papers/{paper['id']}/lines?startLine=1&endLine=1")
                 self.assertEqual(status, 200)
                 self.assertEqual(lines['content'], reading()['content'].splitlines(keepends=True)[0])

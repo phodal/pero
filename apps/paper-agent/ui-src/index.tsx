@@ -48,16 +48,16 @@ export default function PaperAgent() {
   useEffect(() => {
     if (!agentId || !agent.agents.some(item => item.available && item.id === agentId)) setAgentId(agent.agents.find(item => item.available)?.id ?? '');
   }, [agent.agents, agentId]);
-  const task = useResearch(api, agent, info.active, refresh, onError, t);
+  const task = useResearch(api, agent, refresh, onError, t);
   const locked = task.working || task.busy || task.pending;
   const updateDraft = (value: Partial<QuestionDraft>) => setDraft(prior => ({ ...prior,
     ...(value.selected && prior.contextSource && !value.selected.includes(prior.contextSource.paperId) ? { context: '', contextSource: undefined } : {}), ...value }));
   useEffect(() => {
     const study = task.study;
-    if (study) setDraft(prior => ({ ...prior, selected: study.paperIds, fullText: true, verifyCode: false }));
+    if (study && (!reading || study.paperIds.includes(reading.id))) setDraft(prior => ({ ...prior, selected: study.paperIds, fullText: true, verifyCode: false }));
   }, [task.study?.id]);
   useEffect(() => {
-    if (!task.intent) return;
+    if (!task.intent || (reading && !task.intent.papers.some(paper => paper.id === reading.id))) return;
     const intent = task.intent;
     setDraft(prior => ({ ...prior, selected: intent.papers.map(p => p.id), fullText: !!intent.fullText, verifyCode: intent.verifyCode, verificationPlan: intent.verificationPlan }));
   }, [task.intent?.id]);
@@ -150,11 +150,14 @@ export default function PaperAgent() {
   async function send(execute = true) {
     if (task.busy || task.working) return;
     setError('');
-    const contextPaper = draft.contextSource && library.papers.find(paper => paper.id === draft.contextSource?.paperId);
-    const question = draft.question.trim() + (draft.context ? `\n\n${draft.contextSource ? `${contextPaper?.title ?? ''} — ${t('pdfPage')} ${draft.contextSource.page}\n` : ''}> ${draft.context}` : '');
+    const question = draft.question.trim();
     try {
+      const context = draft.context ? await api.post<{ id: string }>('/api/contexts', {
+        content: draft.context, paperId: draft.contextSource?.paperId ?? draft.selected[0],
+        ...(draft.contextSource ? { documentId: draft.contextSource.documentId, page: draft.contextSource.page } : {}),
+      }) : null;
       const previous = draft.parentIntentId ?? (task.report && task.intent?.papers.some(paper => draft.selected.includes(paper.id)) ? task.intent.id : [...library.intents].filter(intent => intent.paperIds?.some(id => draft.selected.includes(id)) && library.reports.some(report => report.intentId === intent.id)).sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0]?.id);
-      const frozen = await task.begin({ question, paperIds: draft.selected, fullText: draft.fullText, verifyCode: draft.verifyCode, verificationPlan: draft.verificationPlan, parentIntentId: previous }, agentId, execute);
+      const frozen = await task.begin({ question, ...(context ? { contextId: context.id } : {}), paperIds: draft.selected, fullText: draft.fullText, verifyCode: draft.verifyCode, verificationPlan: draft.verificationPlan, parentIntentId: previous }, agentId, execute);
       if (frozen && execute) updateDraft({ question: '', context: '', contextSource: undefined, parentIntentId: undefined });
     } catch (error) { onError(error); }
   }

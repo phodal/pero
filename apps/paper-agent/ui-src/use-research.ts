@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import type { Agent, Api, Intent, Report, ResearchStudy } from './types';
 import type { Translator } from './i18n';
 
-export type ResearchRequest = { question: string; paperIds: string[]; verifyCode: boolean; verificationPlan: string; fullText?: boolean; parentIntentId?: string };
+export type ResearchRequest = { question: string; paperIds: string[]; verifyCode: boolean; verificationPlan: string; fullText?: boolean; parentIntentId?: string; contextId?: string };
 type ResearchStage = { stage: 'research' | 'answer'; requestId: string; prompt: string; question: string; studyId?: string; intent?: Intent };
 
-export function useResearch(api: Api, agent: Agent, active: boolean, refresh: () => Promise<void>, onError: (error: unknown) => void, t: Translator) {
+export function useResearch(api: Api, agent: Agent, refresh: () => Promise<void>, onError: (error: unknown) => void, t: Translator) {
   const [plannedQuestion, setPlannedQuestion] = useState(''), [phase, setPhase] = useState<ResearchStage['stage']>('answer');
   const stoppingSession = useRef('');
   const stage = useRef<ResearchStage | null>(null), selectedAgent = useRef(''), savedReport = useRef('');
@@ -77,7 +77,7 @@ export function useResearch(api: Api, agent: Agent, active: boolean, refresh: ()
     finally { gate.current = false; if (current(id)) setBusy(false); }
   }
   useEffect(() => {
-    if (!active || !sessionId || !working) return;
+    if (!sessionId || !working) return;
     let stopped = false, timer: ReturnType<typeof setTimeout> | undefined;
     const id = generation.current, identity = ++pollIdentity.current;
     async function poll() {
@@ -116,7 +116,7 @@ export function useResearch(api: Api, agent: Agent, active: boolean, refresh: ()
     }
     void poll();
     return () => { stopped = true; clearTimeout(timer); };
-  }, [active, agent, sessionId, pollRevision]);
+  }, [agent, sessionId, pollRevision]);
 
   async function cancel() {
     if (!sessionId || busy) return;

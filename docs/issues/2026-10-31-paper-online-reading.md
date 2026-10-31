@@ -87,3 +87,22 @@ Real runs, timings, original failures and remaining limits are recorded in
 short follow-up delivered and unlocked in about 12.6 seconds; deep max-reasoning
 questions still take minutes. No production or signed/native package claim is
 made.
+
+## File-backed selection and conversation follow-up
+
+The former composer appended selected text to the question, so a valid whole
+page could exceed the backend's 2,000-character question limit. Selections now
+save exact UTF-8 files; the frozen input carries a path, digest and source-bound
+reference. The Agent reads bounded characters or original lines on demand.
+A real run exposed that its workspace file tool rejected App-managed absolute
+paths. The declared `read-context` tool now reads those files for both PDF studies
+and ordinary questions; file reads do not become validated report evidence.
+
+Also repaired hidden-App polling, cross-paper source replacement, unsolicited
+scroll-to-bottom, keyboard submission bypassing disabled Send, and selecting an
+older saved answer as an explicit follow-up parent. The custom Paper conversation
+has not yet been replaced by the proposed three-view Chat switch.
+
+Verification and preserved real-run receipts are in the dated context-file
+section of `docs/fitness/paper-research-agent.md`. These are development Electron
+checks, not a newly installed native/signed-package acceptance.

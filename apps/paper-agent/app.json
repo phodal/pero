@@ -74,7 +74,7 @@
       },
       {
         "name": "research-step",
-        "description": "Record a reading action in a frozen ResearchStudy: search, read PDF pages, note evidence or finalize a cited report. Recall retrieves previously observed evidence without consuming the step budget. It does not execute experiments or grant scientific acceptance.",
+        "description": "Record a reading action in a frozen ResearchStudy: search, read PDF pages, note evidence or finalize a cited report. Recall retrieves previously observed evidence without consuming the step budget. It does not execute experiments or grant scientific acceptance. The context action reads the frozen selected-context file by line range without adding source evidence.",
         "path": "/api/studies/step",
         "schema": {
           "type": "object",
@@ -91,7 +91,8 @@
                 "read",
                 "recall",
                 "note",
-                "finalize"
+                "finalize",
+                "context"
               ]
             },
             "paperId": {
@@ -163,11 +164,47 @@
             "endLine": {
               "type": "integer",
               "minimum": 1
+            },
+            "contextId": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
             }
           },
           "required": [
             "studyId",
             "action"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "name": "read-context",
+        "description": "Read a saved UTF-8 selected-context file by its opaque contextId, in bounded character or line ranges. Does not execute code or add validated paper evidence.",
+        "path": "/api/contexts/read",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "contextId": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            "start": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "startLine": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "endLine": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "contextId"
           ],
           "additionalProperties": false
         }

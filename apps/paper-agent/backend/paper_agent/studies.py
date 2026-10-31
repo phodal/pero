@@ -10,6 +10,7 @@ from .model import (Invalid, PaperSnapshot, ResearchInput, ResearchRequest,
 from .reports import EvidenceReference, ResearchReport
 from .retrieval import terms
 from .source_text import SourceText
+from .context_file import ContextFile, ContextRead
 
 STEP_LIMIT = 24
 READ_LENGTH = 4800
@@ -19,6 +20,7 @@ class StudyAction(str, Enum):
     READ = 'read'
     SEARCH = 'search'
     RECALL = 'recall'
+    CONTEXT = 'context'
     NOTE = 'note'
     FINALIZE = 'finalize'
 
@@ -167,11 +169,13 @@ class StudyCommand:
     passage: PdfPassage | None = None
     start_line: int | None = None
     end_line: int | None = None
+    context_file: ContextFile | None = None
+    context_read: ContextRead | None = None
 
     @classmethod
     def parse(cls, value, study):
         value = mapping(value, 'research step')
-        allowed = {'studyId', 'action', 'paperId', 'passageId', 'query', 'page', 'start', 'startLine', 'endLine', 'text', 'gaps', 'evidence', 'report'}
+        allowed = {'studyId', 'action', 'contextId', 'paperId', 'passageId', 'query', 'page', 'start', 'startLine', 'endLine', 'text', 'gaps', 'evidence', 'report'}
         if set(value) - allowed:
             raise Invalid('Unknown research step fields')
         try:
@@ -179,6 +183,12 @@ class StudyCommand:
         except ValueError as error:
             raise Invalid('Choose search, read, recall, note or finalize') from error
         study.check_action(action)
+        if action == 'context':
+            files = tuple(f for f in (study.context_file, *(turn.context_file for turn in reversed(study.conversation))) if f is not None)
+            file = next((f for f in files if f.id == value['contextId']), None) if value.get('contextId') else next(iter(files), None)
+            if file is None:
+                raise Invalid('This context file is outside the frozen study and its conversation')
+            return cls(action, context_file=file, context_read=ContextRead.parse(value))
         if action == 'recall':
             identity = text(value.get('passageId'), 64, 'observed passage reference')
             passage = next((p for p in study.passages if p.id == identity), None)
@@ -260,14 +270,15 @@ class ResearchStudy:
     steps: tuple[ResearchStep, ...] = ()
     continuations: tuple[StudyContinuation, ...] = ()
     carryover: StudyCarryover | None = None
+    context_file: ContextFile | None = None
 
     @classmethod
-    def create(cls, request, papers, documents, conversation, now, parent=None):
+    def create(cls, request, papers, documents, conversation, now, parent=None, context_file=None):
         if not request.full_text or request.verify_code or any(d is None for d in documents):
             raise Invalid('Research studies require saved PDFs and reading-only mode')
         if tuple(p.id for p in papers) != request.paper_ids or tuple(d.paper_id for d in documents) != request.paper_ids:
             raise Invalid('Frozen PDF versions do not match the selected papers')
-        study = cls(request, papers, tuple(StudySource.create(p, d) for p, d in zip(papers, documents)), conversation, now)
+        study = cls(request, papers, tuple(StudySource.create(p, d) for p, d in zip(papers, documents)), conversation, now, context_file=context_file)
         if parent is not None:
             if parent.id != request.parent_intent_id:
                 raise Invalid('Prior evidence does not belong to this follow-up')
@@ -302,7 +313,7 @@ class ResearchStudy:
     def check_action(self, action: StudyAction):
         if self.report_id:
             raise Invalid('This study already has a final report; start a new question', 409)
-        if action == 'recall':
+        if action in ('recall', 'context'):
             return
         if len(self.steps) >= STEP_LIMIT or (len(self.steps) == STEP_LIMIT - 1 and action != 'finalize'):
             raise Invalid('Research step budget exhausted; finalize with the available evidence', 409)
@@ -330,7 +341,7 @@ class ResearchStudy:
             tuple(p.id for p in self.papers if p.id not in matched),
             tuple(dict.fromkeys(t for q in queries for t in terms(q)))[:64], False, queries, gaps)
         return ResearchInput.prepare(self.request, self.papers, self.created_at, passages=self.passages,
-            frozen_prompt=self.prompt(), retrieval=retrieval, conversation=self.conversation)
+            frozen_prompt=self.prompt(), retrieval=retrieval, conversation=self.conversation, context_file=self.context_file)
 
     def compact(self):
         return dict(id=self.id, budget=self.budget,
@@ -347,14 +358,16 @@ class ResearchStudy:
         return dict(id=self.id, request=self.request.to_dict(), papers=[p.to_record() for p in self.papers],
                     sources=[s.to_dict() for s in self.sources], conversation=[t.to_dict() for t in self.conversation],
                     createdAt=self.created_at, frozenPrompt=self.frozen_prompt,
-                    **(dict(carryover=self.carryover.to_dict()) if self.carryover else {}))
+                    **(dict(carryover=self.carryover.to_dict()) if self.carryover else {}),
+                    **(dict(contextFile=self.context_file.to_dict()) if self.context_file else {}))
 
     @classmethod
     def from_record(cls, value):
         result = cls(ResearchRequest.parse(value['request']), tuple(PaperSnapshot.from_record(p) for p in value['papers']),
                      tuple(StudySource.from_record(s) for s in value['sources']),
                      tuple(ConversationTurn.from_record(t) for t in value['conversation']), value['createdAt'], value['frozenPrompt'],
-                     carryover=StudyCarryover.from_record(value['carryover']) if value.get('carryover') else None)
+                     carryover=StudyCarryover.from_record(value['carryover']) if value.get('carryover') else None,
+                     context_file=ContextFile.from_record(value['contextFile']) if value.get('contextFile') else None)
         if result.id != value['id']:
             raise Invalid('Stored study integrity check failed')
         return result
@@ -371,11 +384,12 @@ class ResearchStudy:
     def build_prompt(self):
         context = dict(studyId=self.id, intentId=self.id, question=self.request.question,
                        sourceCatalog=[s.to_dict() for s in self.sources], budget=self.budget,
+                       contextFile=self.context_file.to_dict() if self.context_file else None,
                        priorConversation=[t.to_dict() for t in self.conversation],
                        observedPassages=[dict(id=p.id, paperId=p.paper_id, page=p.page, start=p.start, preview=p.content[:160],
                                               length=len(p.content)) for p in self.passages],
                        findings=self.compact()['findings'], gaps=self.compact()['gaps'])
-        return ('ResearchStudy: investigate the frozen PDFs for the question below in this ONE Host-owned Agent session. '
+        return ((self.context_file.prompt() if self.context_file else '') + 'ResearchStudy: investigate the frozen PDFs for the question below in this ONE Host-owned Agent session. '
                 'Follow-ups retain original passages only for unchanged frozen PDF versions. Use recall on relevant observedPassages before rereading the same pages; previous answer prose is not evidence. Read only sections needed for this question and finalize once the claims and important limitations are supported. Do not spend the step budget surveying unrelated sections. '
                 'Use the app_describe and app_write MCP tools for App "paper-agent". Discover the declared '
                 '"research-step" write tool with app_describe, then call app_write with app="paper-agent", '

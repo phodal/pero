@@ -41,6 +41,7 @@ impl ChatPanel {
         let agent_available = self.agents.iter().any(|choice| choice.id == agent && choice.available);
         let agent_choices = self.agents.clone();
         let agent_workbench = cx.entity().downgrade();
+        let agent_menu = agent_workbench.clone();
         let context_workbench = cx.entity().downgrade();
         let context_open_workbench = context_workbench.clone();
         let paste_workbench = cx.entity().downgrade();
@@ -108,6 +109,7 @@ impl ChatPanel {
                 .on_open_change(move |open, _, cx| {
                     let _ = open_workbench.update(cx, |this, _| {
                         this.model_menu = *open;
+                        this.dock_menu = *open;
                     });
                 })
         });
@@ -166,11 +168,12 @@ impl ChatPanel {
                 )
             })
             .on_open_change(move |open, _, cx| {
-                if *open {
-                    let _ = context_open_workbench.update(cx, |this, cx| {
-                        if this.compact { cx.emit(crate::ChatAction::CompactNeedsSpace); }
-                    });
-                }
+                let _ = context_open_workbench.update(cx, |this, cx| {
+                    this.dock_menu = *open;
+                    if *open && this.compact {
+                        cx.emit(crate::ChatAction::CompactNeedsSpace);
+                    }
+                });
             });
         let (compact_context, normal_context) = if self.compact {
             (Some(context_button), None)
@@ -333,6 +336,9 @@ impl ChatPanel {
                                         )
                                     },
                                 )
+                            })
+                            .on_open_change(move |open, _, cx| {
+                                let _ = agent_menu.update(cx, |this, _| this.dock_menu = *open);
                             }),
                     ))
                     .children(model_picker)

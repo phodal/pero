@@ -155,20 +155,16 @@ try {
   const retained = (await state()).chats.find(chat => chat.id === original.id);
   expect(retained.state).toBe('idle');
   expect(retained.messages).toEqual(original.messages);
-  // Filtering makes the retained session the sole recent row, independent of
-  // the new App-scoped draft's position. These are the existing sidebar coordinates.
-  await page.mouse.click(100, 76);
-  await page.keyboard.press(`${modifier}+a`);
+  // Search anywhere opens the retained session without filtering the sidebar list.
+  await page.keyboard.press(`${modifier}+Shift+K`);
+  await paint();
   await page.keyboard.type(original.title);
   await expect.poll(async () => (await state()).sidebarSearch).toBe(original.title);
   await paint();
-  await page.mouse.click(100, 130);
+  await page.keyboard.press('Enter');
   await expect.poll(async () => (await state()).activeContent).toEqual(conversationItem);
   await expect.poll(async () => (await state()).composer).toBe(draft);
   await expect.poll(async () => (await state()).contentTabs).toEqual([appItem, conversationItem]);
-  await page.mouse.click(100, 76);
-  await page.keyboard.press(`${modifier}+a`);
-  await page.keyboard.press('Backspace');
   await expect.poll(async () => (await state()).sidebarSearch).toBe('');
   await page.mouse.click(310, 24);
   await expect.poll(async () => (await state()).activeContent).toEqual(appItem);

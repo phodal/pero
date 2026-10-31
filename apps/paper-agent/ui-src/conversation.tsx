@@ -49,7 +49,7 @@ function SavedTurn({ entry, reports, api, onCite, onResume, disabled, t }: { ent
     {loading && <p role="status">{t('loading')}</p>}
     {error && <Feedback kind="error">{error}<Button onClick={() => void load()}>{t('retry')}</Button></Feedback>}
     {loaded?.reports.map(report => <Answer key={report.id} report={report} intent={loaded.intent} api={api} onCite={onCite} t={t}/>)}
-    {!reports.length && <Button disabled={disabled} onClick={onResume}>{t('resumeQuestion')}</Button>}
+    <Button disabled={disabled} onClick={onResume}>{t(reports.length ? 'continueFromHere' : 'resumeQuestion')}</Button>
   </details>;
 }
 
@@ -61,14 +61,18 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
   matrixOpen: boolean; onMatrixOpen(value: boolean): void; onAnnotation(annotation: PdfAnnotation): void; t: Translator;
 }) {
   const [settings, setSettings] = useState(false);
-  const panel = useRef<HTMLElement>(null), bottom = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLElement>(null), bottom = useRef<HTMLDivElement>(null), followBottom = useRef(true), lastQuestion = useRef('');
   const locked = task.working || task.busy || task.pending;
+  const validDraft = !!draft.question.trim() && !!draft.selected.length && (!draft.verifyCode || !!draft.verificationPlan.trim());
+  const canSend = !task.busy && !task.working && agent.available && !!agentId && (task.pending || validDraft);
+  const belongsToPaper = !paper || (task.study ? task.study.paperIds.includes(paper.id) : task.intent ? task.intent.papers.some(p => p.id === paper.id) : true);
   const current = task.intent && (!paper || task.intent.papers.some(p => p.id === paper.id)) ? task.intent : null;
   const history = library.intents.filter(intent => (!paper || intent.paperIds?.includes(paper.id)) && intent.id !== current?.id).sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''));
   useEffect(() => { panel.current?.querySelector<HTMLTextAreaElement>('#paper-question')?.focus(); }, []);
   useEffect(() => {
     const scroll = bottom.current?.parentElement;
-    if (scroll) scroll.scrollTop = scroll.scrollHeight;
+    if (task.plannedQuestion !== lastQuestion.current) { followBottom.current = true; lastQuestion.current = task.plannedQuestion; }
+    if (scroll && followBottom.current) scroll.scrollTop = scroll.scrollHeight;
   }, [task.report?.id, task.intent?.id, task.study?.id, task.study?.steps.length, task.plannedQuestion, task.status, locked]);
   function close() { onClose(); }
   return <aside className="pa-conversation" aria-label={t('ask')} ref={panel} onKeyDown={event => {
@@ -81,10 +85,11 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
     }
   }}>
     <header className="pa-conversation-header"><h2>{t('ask')}</h2><Button variant="ghost" aria-label={t('researchOptions')} aria-expanded={settings} onClick={() => setSettings(value => !value)}><Icon name="settings"/></Button><Button variant="ghost" aria-label={t('closeAgent')} onClick={close}>×</Button></header>
-    <div className="pa-conversation-scroll">
+    <div className="pa-conversation-scroll" onScroll={event => { const node = event.currentTarget; followBottom.current = node.scrollHeight - node.clientHeight - node.scrollTop < 80; }}>
       {library.studies?.filter(study => !study.reportId && study.id !== task.study?.id && (!paper || study.paperIds.includes(paper.id))).map(study => <section className="pa-turn-history" data-saved-study-id={study.id} key={study.id}><p>{study.question}</p><Button disabled={locked} onClick={() => void task.openStudy(study.id)}>{t('savedStudy')}</Button></section>)}
-      {history.map(intent => <SavedTurn key={intent.id} entry={intent} reports={library.reports.filter(report => report.intentId === intent.id)} api={api} onCite={onCite} disabled={locked} onResume={() => { void task.openIntent(intent.id).then(() => onDraft({ question: intent.question, parentIntentId: intent.id })); }} t={t}/>)}
-      {(current || task.plannedQuestion) && <section className="pa-turn" data-turn-id={current?.id}><p className="pa-user-message">{current?.question ?? task.plannedQuestion}</p>
+      {!belongsToPaper && locked && <Feedback>{t('otherPaperTask')} {task.study?.question ?? task.plannedQuestion}</Feedback>}
+      {history.map(intent => <SavedTurn key={intent.id} entry={intent} reports={library.reports.filter(report => report.intentId === intent.id)} api={api} onCite={onCite} disabled={locked} onResume={() => { const report = library.reports.filter(report => report.intentId === intent.id).sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0]; void (report ? task.openReport(report.id) : task.openIntent(intent.id)).then(() => onDraft({ question: '', context: '', contextSource: undefined, parentIntentId: intent.id })); }} t={t}/>)}
+      {belongsToPaper && (current || task.plannedQuestion) && <section className="pa-turn" data-turn-id={current?.id}><p className="pa-user-message">{current?.question ?? task.plannedQuestion}</p>
         {task.report && current && <Answer report={task.report} intent={current} api={api} onCite={onCite} t={t}/>}
         {task.working && <p role="status" className="pa-run-status">{t(task.status === 'needs_input' ? 'needsInput' : task.phase === 'research' ? 'researching' : 'running')}{task.status === 'needs_input' && <Button onClick={onOpenChat}>{t('openChat')}</Button>}</p>}
         {task.study && <StudyRecord study={task.study} complete={!!task.report} t={t}/>}
@@ -101,7 +106,7 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
         {draft.verifyCode && <Field label={t('boundary')}>{props => <Textarea {...props} rows={3} value={draft.verificationPlan} maxLength={4000} disabled={locked} onChange={event => onDraft({ verificationPlan: event.target.value })}/>}</Field>}
         <Select label={t('agent')} value={agentId} onChange={onAgent} disabled={locked} options={agent.agents.map(agent => ({ value: agent.id, label: agent.name }))}/>
         <details><summary>{t('chooseSources')}</summary><PaperList selecting papers={library.papers} selected={draft.selected} readingId={paper?.id ?? ''} locked={locked} onRead={p => onDraft({ selected: [p.id] })} onSelect={(id, checked) => onDraft({ selected: checked ? [...draft.selected, id] : draft.selected.filter(value => value !== id) })} t={t}/></details>
-        {!task.working && !task.pending && <Button disabled={!draft.question.trim() || !draft.selected.length || locked} onClick={() => onSend(false)}>{t('prepare')}</Button>}
+        {!task.working && !task.pending && <Button disabled={!validDraft || locked} onClick={() => onSend(false)}>{t('prepare')}</Button>}
         {current && <><Button onClick={() => downloadFile('research-prompt.txt', current.prompt, 'text/plain;charset=utf-8')}>{t('prompt')}</Button>
           {current.retrieval && <details><summary>{t('retrievalDetails')}</summary><p>{t('observedPassages')}: {current.passages?.length} / {t('searchMatches')}: {current.retrieval.totalMatches}</p><p>{t(current.retrieval.method === 'pero.paper-study.agent-tools.v1' ? 'studyScope' : 'localScope')}</p>{!!current.retrieval.unmatchedPaperIds.length && <Feedback>{t('unmatchedSources')} {current.retrieval.unmatchedPaperIds.map(id => current.papers.find(p => p.id === id)?.title).join(', ')}</Feedback>}</details>}
           <details className="pa-output" open={task.repair}><summary>{t('importReport')}</summary><Field label={t('rawOutput')}>{props => <Textarea {...props} rows={6} value={task.raw} disabled={task.working || task.busy} maxLength={500000} onChange={event => task.setRaw(event.target.value)}/>}</Field><Button disabled={locked || !task.raw.trim()} onClick={() => void task.saveRaw()}>{t('saveReport')}</Button></details>
@@ -112,8 +117,8 @@ export function Conversation({ api, agent, agentId, onAgent, task, library, pape
     <div className="pa-composer" role="group" aria-label={t('question')}>
       {!!draft.context && <div className="pa-question-context"><blockquote>{draft.context}</blockquote>{draft.contextSource && <Button variant="ghost" onClick={onReadContext}>{t('pdfPage')} {draft.contextSource.page} ↗</Button>}<Button variant="ghost" aria-label={t('removeContext')} onClick={() => onDraft({ context: '', contextSource: undefined })}>×</Button></div>}
       {!agent.available && <Feedback>{t('noAgentChoice')}<Button onClick={() => void agent.refresh()}>{t('refresh')}</Button></Feedback>}
-      <label className="pa-sr-only" htmlFor="paper-question">{t('question')}</label><Textarea id="paper-question" rows={2} value={draft.question} maxLength={2000} disabled={locked} placeholder={t('askPlaceholder')} onChange={event => onDraft({ question: event.target.value })} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (draft.question.trim() && !locked && agent.available) onSend(); } }}/>
-      {task.working ? <Button aria-label={t('cancel')} disabled={task.busy || task.status === 'cancelling'} onClick={() => void task.cancel()}>{t('cancel')}</Button> : <Button onClick={() => onSend()} variant="primary" aria-label={t(task.pending ? 'retryStart' : 'sendQuestion')} disabled={task.busy || !agent.available || !agentId || (!task.pending && (!draft.question.trim() || !draft.selected.length || (draft.verifyCode && !draft.verificationPlan.trim())))}>{task.busy ? t('preparing') : task.pending ? t('retryStart') : '↑'}</Button>}
+      <label className="pa-sr-only" htmlFor="paper-question">{t('question')}</label><Textarea id="paper-question" rows={2} value={draft.question} maxLength={2000} disabled={locked} placeholder={t('askPlaceholder')} onChange={event => onDraft({ question: event.target.value })} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (canSend) onSend(); } }}/>
+      {task.working ? <Button aria-label={t('cancel')} disabled={task.busy || task.status === 'cancelling'} onClick={() => void task.cancel()}>{t('cancel')}</Button> : <Button onClick={() => onSend()} variant="primary" aria-label={t(task.pending ? 'retryStart' : 'sendQuestion')} disabled={!canSend}>{task.busy ? t('preparing') : task.pending ? t('retryStart') : '↑'}</Button>}
     </div>
   </aside>;
 }

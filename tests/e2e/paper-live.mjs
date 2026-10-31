@@ -1,8 +1,8 @@
 // Opt-in: real public sources, real PDF and authenticated Codex through the Host.
 import { electron } from './electron.mjs';
-import { clickAppOpen } from './sidebar-controls.mjs';
+import { clickAppOpen, clickNewChat } from './sidebar-controls.mjs';
 import { expect } from '@playwright/test';
-import { mkdtemp, mkdir, writeFile, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 if (process.env.PERO_PAPER_LIVE !== '1') throw new Error('Set PERO_PAPER_LIVE=1 to use public literature services and your authenticated Codex account.');
@@ -23,6 +23,7 @@ const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop')
 delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT;
 let app, page, frame;
 const checks = [], errors = [], answers = [], starts = [];
+let submissions = 0;
 const api = (path) => frame.locator('body').evaluate(async (_element, path) => {
   const response = await fetch(path), value = await response.json();
   if (!response.ok) throw new Error(value.detail ?? JSON.stringify(value));
@@ -33,6 +34,7 @@ async function open() {
   page = await app.firstWindow();
   page.on('pageerror', e => errors.push(e.message));
   page.on('request', request => {
+    if (request.method() === 'POST' && /\/api\/(studies|intents|contexts)$/.test(request.url())) submissions++;
     if (request.url().endsWith('/host/agent') && request.postDataJSON()?.operation === 'start') starts.push(request.postDataJSON().requestId);
   });
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
@@ -57,11 +59,31 @@ async function ask(question) {
   const before = await api('/api/library'), startedAt = Date.now(), beforeStarts = starts.length;
   await frame.getByRole('textbox', { name: 'Research question', exact: true }).fill(question);
   await frame.getByRole('button', { name: 'Send question', exact: true }).click();
+  if (process.env.PERO_PAPER_LIVE_BACKGROUND || process.env.PERO_PAPER_LIVE_SWITCH_SOURCE) await expect.poll(() => starts.length).toBe(beforeStarts + 1);
+  if (process.env.PERO_PAPER_LIVE_SCROLL) {
+    await expect.poll(() => starts.length).toBe(beforeStarts + 1);
+    const transcript = frame.locator('.pa-conversation-scroll');
+    await transcript.hover(); await page.mouse.wheel(0, -10000);
+    await expect.poll(() => transcript.evaluate(element => element.scrollTop)).toBe(0);
+  }
+  if (process.env.PERO_PAPER_LIVE_SWITCH_SOURCE) {
+    await frame.getByRole('button', { name: 'Close Agent', exact: true }).click();
+    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Back to library', exact: true }).click();
+    await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText('Harness Learning Enables Generalizable Test-Time Adaptation', { exact: true }) }).click();
+    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask', exact: true }).click();
+    await frame.getByRole('button', { name: 'Research settings', exact: true }).click();
+    await frame.getByText('Choose papers', { exact: true }).click();
+    await expect(frame.getByRole('checkbox', { name: 'Use for research: Harness Learning Enables Generalizable Test-Time Adaptation', exact: true })).toBeChecked();
+  }
+  if (process.env.PERO_PAPER_LIVE_BACKGROUND) {
+    await clickNewChat(page);
+    await expect(page.locator('iframe[title="paper-agent"]')).toBeHidden();
+  }
   let failure = '';
   await expect.poll(async () => {
     const library = await api('/api/library');
     if (library.reports.length > before.reports.length) return true;
-    const alerts = await frame.getByRole('alert').allTextContents();
+    const alerts = await frame.locator('[role=alert]').allTextContents();
     if (alerts.length) { failure = alerts.join(' | '); return true; }
     return false;
   }, { timeout: 600000, intervals: [1000, 2000, 3000] }).toBe(true);
@@ -74,10 +96,40 @@ async function ask(question) {
   expect(study.steps.at(-1).action).toBe('finalize');
   expect(study.passages.length).toBeGreaterThan(0);
   expect(report.sections.some(s => s.evidence?.length)).toBe(true);
+  if (process.env.PERO_PAPER_LIVE_SCROLL) {
+    await expect.poll(() => frame.locator('.pa-conversation-scroll').evaluate(element => element.scrollTop)).toBe(0);
+    checks.push('reading earlier messages is not forced to the bottom by a real report/status update');
+  }
   const result = { question, elapsedMs: Date.now() - startedAt, report, intent, study };
   answers.push(result);
   await writeFile(resolve(out, `answer-${answers.length}.json`), JSON.stringify(result, null, 2));
   console.log(`Real answer ${answers.length} saved in ${result.elapsedMs} ms; ${study.steps.length} research steps`);
+  if (process.env.PERO_PAPER_LIVE_BACKGROUND) {
+    let hostStatus = '';
+    await expect.poll(async () => {
+      hostStatus = await frame.locator('body').evaluate(async (_element, sessionId) => {
+        const response = await fetch('/host/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'events', sessionId, after: 0 }) });
+        return (await response.json()).status;
+      }, study.sessionId);
+      return ['completed', 'cancelled'].includes(hostStatus);
+    }, { timeout: 30000 }).toBe(true);
+    result.backgroundHostStatus = hostStatus;
+    checks.push('while Paper is hidden, its report is delivered and its Host turn reaches a terminal state');
+    await writeFile(resolve(out, `answer-${answers.length}.json`), JSON.stringify(result, null, 2));
+    await page.mouse.click(80, await page.evaluate(() => innerHeight - 60));
+    await clickAppOpen(page, 'paper-agent');
+    await expect(page.locator('iframe[title="paper-agent"]')).toBeVisible();
+  }
+  if (process.env.PERO_PAPER_LIVE_SWITCH_SOURCE) {
+    await expect(frame.getByRole('checkbox', { name: 'Use for research: Harness Learning Enables Generalizable Test-Time Adaptation', exact: true })).toBeChecked();
+    await expect(frame.locator('.pa-reading-bar h1')).toHaveText('Harness Learning Enables Generalizable Test-Time Adaptation');
+    await expect(frame.locator('.pa-turn')).toHaveCount(0);
+    checks.push('finishing research on paper A does not change the selected source or show its active turn while viewing paper B');
+    await frame.getByRole('button', { name: 'Close Agent', exact: true }).click();
+    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Back to library', exact: true }).click();
+    await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText('Harness^2: Recursive Agent Harnessing for an Open World', { exact: true }) }).click();
+    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask', exact: true }).click();
+  }
   await expect(frame.getByRole('textbox', { name: 'Research question', exact: true })).toBeEnabled({ timeout: 30000 });
   result.readyMs = Date.now() - startedAt;
   await writeFile(resolve(out, `answer-${answers.length}.json`), JSON.stringify(result, null, 2));
@@ -87,8 +139,16 @@ try {
   await open();
   if (resumeProfile) {
     const library = await api('/api/library');
+    if (process.env.PERO_PAPER_LIVE_SWITCH_SOURCE && !library.papers.some(p => p.sourceId === '2609.35738')) {
+      await frame.getByRole('button', { name: 'Add papers', exact: true }).first().click();
+      await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).fill('2609.35738');
+      await frame.getByRole('button', { name: 'Read ID / URL', exact: true }).click();
+      await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveAttribute('max', '36', { timeout: 90000 });
+      await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Back to library', exact: true }).click();
+    }
     const paper = library.papers.find(p => p.sourceId === '2610.14224');
-    const previous = [...library.reports].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    const sortedReports = [...library.reports].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const previous = process.env.PERO_PAPER_LIVE_BRANCH ? sortedReports.at(-1) : sortedReports[0];
     await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
     const nav = frame.locator('.pa-reading-bar');
     await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveAttribute('max', '37', { timeout: 30000 });
@@ -100,9 +160,66 @@ try {
     await expect(turn.locator('.pa-citations button').first()).toContainText(/Page [0-9]+/);
     await page.screenshot({ path: resolve(out, '01-restored-real-answer.png') });
     checks.push('restart opens the previously saved real answer with page-specific source buttons');
+    if (process.env.PERO_PAPER_LIVE_SEND_GUARD) {
+      await frame.getByRole('button', { name: 'Research settings', exact: true }).click();
+      await frame.getByText('Choose papers', { exact: true }).click();
+      const checkbox = frame.getByRole('checkbox', { name: `Use for research: ${paper.title}`, exact: true });
+      await checkbox.uncheck();
+      await frame.getByRole('textbox', { name: 'Research question', exact: true }).fill('An empty source choice must not submit.');
+      await expect(frame.getByRole('button', { name: 'Send question', exact: true })).toBeDisabled();
+      const beforeSubmissions = submissions;
+      await frame.getByRole('textbox', { name: 'Research question', exact: true }).press('Enter');
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      expect(submissions).toBe(beforeSubmissions);
+      await expect(frame.locator('[role=alert]')).toHaveCount(0);
+      await checkbox.check();
+      await frame.getByRole('textbox', { name: 'Research question', exact: true }).fill('');
+      await frame.getByRole('button', { name: 'Research settings', exact: true }).click();
+      checks.push('Enter does not submit when the visible Send control is disabled for empty sources');
+    }
+    if (process.env.PERO_PAPER_LIVE_BRANCH) {
+      await turn.getByRole('button', { name: 'Continue from here', exact: true }).click();
+      await expect(frame.locator('.pa-turn')).toHaveAttribute('data-turn-id', previous.intentId);
+      checks.push('an older completed answer can be explicitly selected as the follow-up parent');
+    }
+    if (process.env.PERO_PAPER_LIVE_CONTEXT) {
+      await frame.getByRole('button', { name: 'Close Agent', exact: true }).click();
+      await expect(nav.getByRole('button', { name: 'Ask', exact: true })).toBeFocused();
+      await nav.getByRole('spinbutton', { name: 'Page', exact: true }).fill('1');
+      const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
+      await viewer.focus(); await viewer.press('Shift+F10');
+      await viewer.getByRole('menuitem', { name: 'Page text', exact: true }).click();
+      await viewer.getByRole('button', { name: 'Discuss page', exact: true }).click();
+      expect((await frame.locator('.pa-question-context blockquote').innerText()).length).toBeGreaterThan(2000);
+    }
     if (!process.env.PERO_PAPER_LIVE_RESTORE_ONLY) {
     const followup = await ask(process.env.PERO_PAPER_LIVE_QUESTION || '上一轮提到 Composer 可以 KEEP_BASE。请只解释何时保留基线，引用已有方法或提示词原文。');
     expect(followup.intent.parentIntentId).toBe(previous.intentId);
+    if (process.env.PERO_PAPER_LIVE_CONTEXT) {
+      const context = followup.intent.contextFile;
+      expect(context.path).toMatch(/context-files.+\.txt$/);
+      const file = await readFile(context.path, 'utf8');
+      const pdf = await api(`/api/pdf?paperId=${paper.id}`);
+      expect(file).toBe(pdf.document.pages[0].text);
+      expect(followup.study.prompt).toContain(context.path);
+      expect(followup.intent.question.length).toBeLessThanOrEqual(2000);
+      expect(followup.intent.question).not.toContain(file);
+      checks.push('a real whole-page selection over 2,000 characters is saved unchanged as UTF-8; the real Agent receives its file path');
+      let readCall;
+      await expect.poll(async () => {
+        const events = (await readFile(resolve(profile, 'history.jsonl'), 'utf8')).split('\n').filter(Boolean)
+          .map(line => JSON.parse(line)).filter(event => event.thread_id === followup.study.sessionId).map(event => event.data);
+        readCall = events.find(event => {
+          const input = event?.rawInput?.arguments ?? event?.rawInput;
+          return input?.tool === 'read-context' && input.document?.contextId === context.id;
+        });
+        return !!readCall && events.some(event => event?.toolCallId === readCall.toolCallId && event.status === 'completed');
+      }, { timeout: 15000 }).toBe(true);
+      await writeFile(resolve(out, 'context-read.json'), JSON.stringify({ context, characters: file.length,
+        utf8Bytes: Buffer.byteLength(file), toolCallId: readCall.toolCallId,
+        request: (readCall.rawInput.arguments ?? readCall.rawInput).document, status: 'completed' }, null, 2));
+      checks.push('the real Agent successfully reads the App-managed file through the declared read-context tool');
+    }
     const parent = await api(`/api/intents/${previous.intentId}`);
     expect(followup.study.passages.some(p => parent.passages.some(old => old.id === p.id))).toBe(true);
     }

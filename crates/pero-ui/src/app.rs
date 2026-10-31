@@ -111,7 +111,8 @@ pub(crate) struct Workbench {
     pub error: Option<String>,
     pub events: Vec<HostEvent>,
     pub chat: Entity<ChatPanel>,
-    pub search: Entity<InputState>,
+    pub spotlight: Option<Entity<crate::spotlight::SpotlightList>>,
+    pub spotlight_query: String,
     pub workspace: String,
     pub workspace_repositories: Vec<pero_contracts::workbench::WorkspaceRepository>,
     pub task_scroll: ScrollHandle,
@@ -164,6 +165,8 @@ impl Workbench {
             KeyBinding::new("ctrl-l",crate::web_documents::OpenWeb,None),
             KeyBinding::new("cmd-p",crate::workspace_recent::OpenRecentContent,None),
             KeyBinding::new("ctrl-p",crate::workspace_recent::OpenRecentContent,None),
+            KeyBinding::new("cmd-shift-k",crate::spotlight::OpenSpotlight,None),
+            KeyBinding::new("ctrl-shift-k",crate::spotlight::OpenSpotlight,None),
             KeyBinding::new("ctrl-tab", crate::workspace_pane_tabs::NextPaneTabMru, None),
             KeyBinding::new("ctrl-shift-tab", crate::workspace_pane_tabs::PreviousPaneTabMru, None),
         ]);
@@ -200,10 +203,6 @@ impl Workbench {
             cx.notify();
         })];
         let chat = cx.new(|cx| {let mut panel=ChatPanel::new(locale.clone(),window,cx);panel.can_open_documents=true;panel});
-        let search = cx.new(|cx| {
-            InputState::new(window, cx)
-                .placeholder(pero_contracts::i18n::text(&locale, "sessions.search"))
-        });
         let mut subscriptions = subscriptions;
         subscriptions.push(cx.observe_in(&chat, window, |this, _, window, cx| {
             this.reconcile_content(window, cx);
@@ -269,7 +268,6 @@ impl Workbench {
             }
             cx.notify();
         }));
-        subscriptions.push(cx.subscribe(&search, |_, _, _: &InputEvent, cx| cx.notify()));
         let web_address=cx.new(|cx|InputState::new(window,cx).placeholder("https://"));
         subscriptions.push(cx.subscribe_in(&web_address,window,|this,input,event:&InputEvent,window,cx| {
             if matches!(event,InputEvent::PressEnter {..}) {
@@ -360,7 +358,8 @@ impl Workbench {
             error: None,
             events: Vec::new(),
             chat,
-            search,
+            spotlight: None,
+            spotlight_query: String::new(),
             workspace: String::new(),
             workspace_repositories: vec![],
             task_scroll: ScrollHandle::new(),
@@ -807,7 +806,7 @@ pub fn snapshot() -> String {
         value["settings"] = ui.settings_panel.as_ref().map(|panel| panel.read(cx).snapshot(cx)).unwrap_or_default();
         value["settingsSearch"] = value["settings"]["query"].clone();
         value["projectBinding"] = serde_json::json!(ui.project_binding.read(cx).value().as_ref());
-        value["sidebarSearch"] = serde_json::json!(ui.search.read(cx).value().as_ref());
+        value["sidebarSearch"] = serde_json::json!(ui.spotlight_query);
         if let Some(fields) = ui.chat.read(cx).snapshot(cx).as_object() {
             value.as_object_mut().expect("workbench snapshot").extend(
                 fields

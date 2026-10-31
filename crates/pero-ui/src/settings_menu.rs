@@ -75,14 +75,22 @@ impl Workbench {
             identity.clone()
         };
         let chrome = pero_theme::Chrome::from_app(cx);
+        let icon = || Icon::default().path("icons/settings.svg");
         let button = if icon_only {
             pero_theme::ghost_icon_button("sidebar-settings", chrome, cx)
                 .tooltip(label.clone())
+                .icon(icon())
         } else {
-            pero_theme::menu_button("sidebar-settings", label.clone(), false, chrome, cx)
+            pero_theme::sidebar_menu_button(
+                "sidebar-settings",
+                label.clone(),
+                icon(),
+                false,
+                chrome,
+                cx,
+            )
         };
         button
-            .icon(Icon::default().path("icons/settings.svg"))
             .accessibility_label(t("settings.title"))
             .dropdown_caret(false)
             .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, window, cx| {
