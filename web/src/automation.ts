@@ -15,11 +15,11 @@ export function installAutomation(send:(command:object)=>Promise<void>) {
     <p role="alert" class="automation-error" hidden></p>
     <form data-create hidden>
       <h2>New Automation</h2>
-      <div class="automation-fields"><label>Name<input name="name" required maxlength="128"></label><label>Agent<select name="agent" required></select></label>
-      <label>Trigger<select name="trigger"><option value="manual">Manual</option><option value="event">Local event</option><option value="time">Schedule</option></select></label>
-      <label>Input<select name="input"><option value="process_exact">Exact version</option><option value="recheck_latest">Latest published input</option></select></label></div>
+      <div class="automation-fields"><label>Name<input name="name" required maxlength="128"></label><label><span id="automation-agent-label">Agent</span><select aria-labelledby="automation-agent-label" name="agent" required></select></label>
+      <label><span id="automation-trigger-label">Trigger</span><select aria-labelledby="automation-trigger-label" name="trigger"><option value="manual">Manual</option><option value="event">Local event</option><option value="time">Schedule</option></select></label>
+      <label><span id="automation-input-label">Input</span><select aria-labelledby="automation-input-label" name="input"><option value="process_exact">Exact version</option><option value="recheck_latest">Latest published input</option></select></label></div>
       <label>Method prompt<textarea name="prompt" rows="3" required maxlength="16000"></textarea></label>
-      <div data-event hidden><label>Event kind<select name="event_kind"></select></label></div>
+      <div data-event hidden><label><span id="automation-event_kind-label">Event kind</span><select aria-labelledby="automation-event_kind-label" name="event_kind"></select></label></div>
       <div data-time hidden class="automation-fields"><label>First run<input name="anchor" type="datetime-local"></label><label>Repeat (seconds)<input name="interval" type="number" min="60" max="31536000" value="3600"></label><label>Catch up within (seconds)<input name="lateness" type="number" min="0" max="31536000" value="3600"></label></div>
       <div data-seed hidden><label>Subject<input name="subject" maxlength="128" value="default"></label><label>Initial input<textarea name="content" rows="3"></textarea></label></div>
       <p class="automation-muted" data-workspace></p><div class="automation-actions"><button type="button" data-create-cancel>Cancel</button><button type="button" data-save>Create</button></div>

@@ -41,7 +41,12 @@ try{
  await panel.getByRole('button',{name:'New',exact:true}).click();
  const create=panel.locator('form[data-create]');
  await create.getByLabel('Name',{exact:true}).fill('Fixture inspection');
+ await expect(create.getByRole('combobox',{name:'Agent',exact:true})).toHaveAccessibleName('Agent');
  await create.getByLabel('Agent',{exact:true}).selectOption('automation-fixture');
+ await create.getByLabel('Trigger',{exact:true}).selectOption('event');
+ await expect(create.getByLabel('Event kind',{exact:true})).toBeVisible();
+ await create.getByLabel('Trigger',{exact:true}).selectOption('manual');
+ await create.getByLabel('Input',{exact:true}).selectOption('process_exact');
  await create.getByLabel('Method prompt',{exact:true}).fill('Inspect this fixed local input.');
  await create.getByRole('button',{name:'Create',exact:true}).click();
  await expect(create).toBeHidden();
