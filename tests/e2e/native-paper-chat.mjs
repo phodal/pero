@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import assert from 'node:assert/strict';
 const root = resolve(import.meta.dirname, '../..');
-const out = resolve(root, 'test-results/native-paper-chat');
+const out = resolve(root, process.env.PERO_NATIVE_PAPER_OUTPUT || 'test-results/native-paper-chat');
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-native-paper-chat-'));
 await mkdir(out, { recursive: true });
 const binary = resolve(temp, 'pero-native'), host = resolve(temp, 'pero-host');
@@ -24,7 +24,7 @@ const receipt = resolve(out, 'result.json');
 await Promise.all(['result.json', 'turns.jsonl', 'turns.jsonl.mcp.jsonl', 'turns.jsonl.errors.jsonl'].map(file => rm(resolve(out, file), { force: true })));
 const child = spawn(binary, ['--verify-apps', receipt, 'paper-chat'], { cwd: root, env: { ...process.env,
   PERO_NATIVE_BUNDLED: '1', PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_NATIVE_DATA_DIR: data, PERO_NATIVE_HOST: host,
-  PERO_AGENTS_FILE: agents, PERO_BUILTIN_APPS: 'paper-agent', PERO_REQUIRED_APPS: '', PERO_LOCALE: 'en',
+  PERO_NATIVE_PAPER_PDF:resolve(root,'target/paper-harness-fixture.pdf'), PERO_AGENTS_FILE: agents, PERO_BUILTIN_APPS: 'paper-agent', PERO_REQUIRED_APPS: '', PERO_LOCALE: 'en',
 }, stdio: ['ignore', 'pipe', 'pipe'] });
 let log = '';
 child.stdout.on('data', value => log += value);

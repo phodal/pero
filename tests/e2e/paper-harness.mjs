@@ -83,6 +83,7 @@ const stop = async () => {
 };
 async function ask(question, parent) {
   const before = (await api('/api/library')).reports.map(report => report.id), startedAt = Date.now();
+  const previousTools=(await active())?.tools?.length??0;
   if (parent) {
     const turn = await showPaperReport(frame, page, parent.intent.id);
     await turn.getByRole('button', { name: 'Continue from here', exact: true }).click();
@@ -91,13 +92,33 @@ async function ask(question, parent) {
   const thread = (await active()).id;
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await api('/api/library')).reports.length, { timeout: realAgent ? 600000 : 30000 }).toBe(before.length + 1);
-  await expect.poll(async () => (await active()).state, { timeout: 30000 }).toBe('idle');
+  await expect.poll(async () => (await active()).state, { timeout: realAgent ? 120000 : 30000 }).toBe('idle');
   const summary = (await api('/api/library')).reports.find(report => !before.includes(report.id));
   const report = await api(`/api/reports/${summary.id}`), intent = await api(`/api/intents/${report.intentId}`), study = await api(`/api/studies/${report.intentId}`);
   expect(study.reportId).toBe(report.id); expect(study.steps.at(-1).action).toBe('finalize');
+  await expect.poll(async()=>(await chatState(page)).appLinkBounds?.filter(link=>link.url.includes(`/report/${report.id}/`)).length??0).toBeGreaterThan(0);
+  const viewport=page.viewportSize() || await page.evaluate(()=>({width:innerWidth,height:innerHeight}));
+  let link;
+  for(let attempt=0;attempt<35;attempt++) {
+    link=(await chatState(page)).appLinkBounds.find(link=>link.url.includes(`/report/${report.id}/`));
+    if(link?.bounds && link.bounds.y>viewport.height-540 && link.bounds.y+link.bounds.height<viewport.height-125)break;
+    await page.mouse.move(viewport.width-200,viewport.height-300);
+    await page.mouse.wheel(0,-220);
+    await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));
+  }
+  expect(link?.bounds).toBeTruthy();
+  const evidenceReply=page.waitForResponse(response=>response.url().includes('/api/evidence')&&response.request().method()==='POST');
+  await page.mouse.click(link.bounds.x+link.bounds.width/2,link.bounds.y+link.bounds.height/2);
+  const evidence=await (await evidenceReply).json();
+  expect(evidence.quote).toBe(report.sections[0].evidence[0].quote);
+  expect(evidence.pdf.fileDigest).toBe(intent.passages.find(p=>p.id===report.sections[0].evidence[0].passageId).fileDigest);
+  await expect(frame.locator('[data-citation-region="true"]').first()).toBeVisible();
+  await page.screenshot({path:resolve(out,`chat-citation-${before.length+1}.png`)});
+  await writeFile(resolve(out,`chat-citation-${before.length+1}.json`),JSON.stringify({link,evidence},null,2));
   await showPaperReport(frame, page, intent.id);
   expect(agentStarts).toEqual([]); // The App never creates or polls a second Host session.
-  return { report, intent, study, thread, elapsedMs: Date.now() - startedAt };
+  const chat=await active();
+  return { report, intent, study, thread, model:chat.model, toolCalls:chat.tools.slice(previousTools).map(tool=>({id:tool.id,title:tool.title,status:tool.status,error:tool.status==='failed'?tool.content:undefined})), finalMessages:chat.messages.filter(message=>message.role==='assistant').map(message=>message.text), elapsedMs: Date.now() - startedAt };
 }
 try {
   app = await launch(); await openApp();
