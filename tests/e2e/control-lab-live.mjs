@@ -86,7 +86,8 @@ try {
   const edge = await page.locator('#pero-app-surface').evaluate(element => element.getBoundingClientRect().right);
   await page.mouse.click(edge + 120, await page.evaluate(() => innerHeight - 70));
   const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Input.insertText', { text: `\nList skills, then read the ${scene === 'p-golden' ? 'control-design' : 'active-filter-design'} skill by its catalog digest. Use the approved experiment only. Read it, run the bounded search, inspect the result, lock one candidate and run full verification. Report the actual verifier verdict and any failed or missing evidence. End with a JSON object containing experimentId, specHash, verdict, and explanation.` });
+  // Revised after an observed P-golden development run; that run is not blind evidence.
+  await cdp.send('Input.insertText', { text: `\nList skills, then read the ${scene === 'p-golden' ? 'control-design' : 'active-filter-design'} skill by its catalog digest. Call app_describe to inspect Control Lab's declared data tools; use app_write with experiment-step or propose-candidate for the approved experiment. Do not use generic app_use to operate Control Lab. Read the frozen experiment, run the bounded search, inspect the result, lock one candidate and run full verification. Check the saved report and observations; keep the frozen model, criteria and budget unchanged. Report the actual verifier verdict and any failed or missing evidence, or say if the work is incomplete. End with a JSON object containing experimentId, specHash, verdict, and explanation.` });
   await page.keyboard.press('Enter');
   await expect.poll(async () => { const chat = await active(); return chat.state !== 'idle' || chat.messages.some(item => item.role === 'assistant'); }, { timeout: 30000 }).toBe(true);
   await expect.poll(async () => (await active()).state, { timeout: 240000, intervals: [250, 500, 1000] }).toBe('idle');
