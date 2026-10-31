@@ -83,7 +83,9 @@ export function installAutomation(send:(command:object)=>Promise<void>) {
       const rows=find<HTMLTableSectionElement>('[data-requests] tbody');rows.replaceChildren();
       for(const request of result.state.requests.filter(value=>value.definition.id===definition.id).reverse()){
         const row=rows.insertRow();cell(row,requestIdentity(request));cell(row,[request.status.kind,result.attention[request.id],request.status.kind==='reconcile'?'Cancellation requests do not confirm the execution has stopped.':null].filter(Boolean).join(' · '));
-        cell(row,[request.snapshot?.revision,request.snapshot?.digest,request.execution_id].filter(Boolean).join(' · ')||request.subject);
+        const references=[request.snapshot?.revision,request.snapshot?.digest,request.execution_id].filter((value):value is string=>!!value);
+        const evidence=cell(row,references.map(value=>value.length>24?`${value.slice(0,12)}…${value.slice(-6)}`:value).join(' · ')||request.subject);
+        evidence.title=references.join('\n')||request.subject;
         const actions=cell(row,'');
         const cancelLabel=cancellationLabel(request.status.kind);
         if(cancelLabel)actions.append(button(cancelLabel,()=>void run(async()=>{result=await command({action:'cancel',request_id:request.id});})));
