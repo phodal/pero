@@ -1,13 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { analysisRequest, workRecapPrompt } from '../ui-src/work-recap-model.mjs';
+import { analysisRequest, briefFromReply, briefResultPrompt, projectBrief, workRecapPrompt } from '../ui-src/work-recap-model.mjs';
+
+test('the page shows Pulse’s result, not the work recap', () => {
+  const page = readFileSync(new URL('../ui-src/index.tsx', import.meta.url), 'utf8');
+  const result = readFileSync(new URL('../ui-src/pulse-home-result.tsx', import.meta.url), 'utf8');
+  assert.match(page, /PulseHomeResult/);
+  assert.equal(page.includes('PulseWorkRecap'), false);
+  assert.match(result, /需要你/);
+  assert.match(result, /Point 判断/);
+  assert.match(result, /生成于/);
+  assert.match(result, /暂无新的个人工作更新/);
+});
+
+test('a needs_you card is the result row, and the edition underneath stays empty', () => {
+  const brief = briefFromReply('说明\n{"cards":[{"kind":"needs_you","title":"等待审阅","conclusion":"v1 已登记，还没有裁决。","body":"依据","entity":{"type":"project","label":"CardDemo Frontend"}}],"tomorrow":""}');
+  assert.equal(brief.cards.length, 1);
+  assert.equal(brief.cards[0].id, 'c1');
+  const view = projectBrief(brief);
+  assert.equal(view.needCards.length, 1);
+  assert.equal(view.needCards[0].title, '等待审阅');
+  assert.equal(view.cards.length, 0);
+});
 
 test('the next-step prompt keeps Point’s analysis contract', () => {
-  const screen = readFileSync(new URL('../ui-src/pulse-work-recap.tsx', import.meta.url), 'utf8');
-  assert.match(screen, /当时的目标/);
-  assert.match(screen, /记录与来源/);
-  assert.match(screen, /结合记忆规划下一步/);
   const prompt = workRecapPrompt({
     sessions: [{ sessionId: 'chat-1793283309757-2', turns: [{ turnId: '1', request: '杭州', response: '我来搜一下杭州今天的天气。', responseKind: 'intermediate', status: 'unfinished' }] }],
   }, { items: [] });
@@ -17,6 +34,11 @@ test('the next-step prompt keeps Point’s analysis contract', () => {
   assert.match(prompt, /杭州/);
   assert.match(prompt, /我来搜一下杭州今天的天气。/);
   assert.equal(prompt.includes('Unmatched older response'), false);
+  const brief = briefResultPrompt({ sessions: [] }, 'zh');
+  assert.match(brief, /看完就结束的工作简报/);
+  assert.match(brief, /pulse_publish/);
+  assert.match(brief, /最多挑 8 件/);
+  assert.equal(brief.includes('给出最多三项具体的下一步建议'), false);
 });
 
 test('opening the recap starts analysis without a click', () => {
