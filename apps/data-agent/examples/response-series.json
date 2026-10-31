@@ -1,0 +1,14 @@
+[
+  {"time_s": 0, "setpoint": 1, "response": 0},
+  {"time_s": 0.2, "setpoint": 1, "response": 0.18},
+  {"time_s": 0.4, "setpoint": 1, "response": 0.41},
+  {"time_s": 0.6, "setpoint": 1, "response": 0.67},
+  {"time_s": 0.8, "setpoint": 1, "response": 0.89},
+  {"time_s": 1, "setpoint": 1, "response": 1.05},
+  {"time_s": 1.2, "setpoint": 1, "response": 1.12},
+  {"time_s": 1.4, "setpoint": 1, "response": null},
+  {"time_s": 1.6, "setpoint": 1, "response": 1.04},
+  {"time_s": 1.8, "setpoint": 1, "response": 0.99},
+  {"time_s": 2, "setpoint": 1, "response": 1.01},
+  {"time_s": 2.2, "setpoint": 1, "response": 1}
+]

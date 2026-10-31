@@ -1,5 +1,10 @@
 export const messages = {
   title:{en:'Data Agent',zh:'Data Agent'},import:{en:'Import JSON',zh:'导入 JSON'},example:{en:'Open example',zh:'打开示例'},
+  examples:{en:'Examples',zh:'示例'},open:{en:'Open',zh:'打开'},name:{en:'Name',zh:'名称'},recordCount:{en:'Records',zh:'记录'},
+  exampleObservations:{en:'Revenue and orders by region, with one missing revenue.',zh:'按地区列出收入和订单，其中一条收入缺失。'},
+  exampleSeries:{en:'Step response over time, with one missing sample.',zh:'阶跃响应时间序列，其中一个采样缺失。'},
+  examplePrices:{en:'Daily open, high, low, and close.',zh:'每日开盘、最高、最低和收盘。'},
+  exampleFlows:{en:'Orders moving from regions to channels.',zh:'从地区到渠道的订单流向。'},
   empty:{en:'Import JSON records or JSON Lines to inspect their schema, compare values and ask the Agent.',zh:'导入 JSON 记录或 JSON Lines，核对字段、比较数值并交给 Agent 分析。'},
   noFile:{en:'JSON / JSONL · up to 16 MiB',zh:'JSON / JSONL · 最大 16 MiB'},dataset:{en:'Dataset',zh:'数据集'},fields:{en:'Fields',zh:'字段'},
   rows:{en:'records',zh:'条记录'},matching:{en:'matching',zh:'匹配'},selected:{en:'selected',zh:'已选'},source:{en:'Source',zh:'源码'},export:{en:'Export records',zh:'导出记录'},

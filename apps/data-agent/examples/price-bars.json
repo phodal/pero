@@ -1,0 +1,7 @@
+[
+  {"day": "Mon", "open": 101.2, "high": 104.8, "low": 100.4, "close": 103.6},
+  {"day": "Tue", "open": 103.6, "high": 105.1, "low": 102.2, "close": 102.8},
+  {"day": "Wed", "open": 102.8, "high": 103.4, "low": 99.7, "close": 100.5},
+  {"day": "Thu", "open": 100.5, "high": 106.2, "low": 100.1, "close": 105.4},
+  {"day": "Fri", "open": 105.4, "high": 107, "low": 104.2, "close": 106.1}
+]
