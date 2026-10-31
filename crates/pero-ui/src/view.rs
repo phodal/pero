@@ -39,7 +39,7 @@ impl Workbench {
             .flex_shrink_0()
     }
 
-    fn sidebar(&self, width: f32, window: &mut Window, cx: &mut Context<Self>) -> Stateful<Div> {
+    fn sidebar(&self, width: f32, cx: &mut Context<Self>) -> Stateful<Div> {
         let on_action = Rc::new(cx.listener(
             |this: &mut Self, action: &SidebarAction, window, cx| {
                 match action {
@@ -61,7 +61,6 @@ impl Workbench {
                     SidebarAction::CancelDelete => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
                     }
-                    SidebarAction::ToggleSidebar => this.toggle_sidebar(cx),
                     SidebarAction::NewChat => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
                         this.new_chat(cx);
@@ -115,8 +114,6 @@ impl Workbench {
             },
         ));
         let panel = self.chat.read(cx);
-        let query = self.search.read(cx).value().to_lowercase();
-        let matches = |title: &str| query.is_empty() || title.to_lowercase().contains(&query);
         let selected_task = match self.navigation.current() {
             Some(WorkspaceItem::Task(id)) => Some(id.as_str()),
             _ => None,
@@ -125,7 +122,7 @@ impl Workbench {
             |i: usize, chat: &pero_chat_ui::conversation::Conversation| sidebar::RecentRow {
                 bounds: Some(self.view_bounds.sessions.probe(chat.id.clone()).into_any_element()),
                 label: chat.title.display().to_owned(),
-                icon: "terminal",
+                icon: "plus",
                 active: self.navigation.page() == WorkbenchPage::Conversation
                     && panel.active_chat == Some(i),
                 busy: chat.busy(),
@@ -146,9 +143,7 @@ impl Workbench {
                     .iter()
                     .enumerate()
                     .rev()
-                    .filter(|(_, chat)| {
-                        project.contains_workspace(&chat.workspace) && matches(&chat.title)
-                    })
+                    .filter(|(_, chat)| project.contains_workspace(&chat.workspace))
                     .map(|(i, chat)| session_row(i, chat))
                     .collect::<Vec<_>>();
                 rows.extend(
@@ -157,7 +152,6 @@ impl Workbench {
                         .iter()
                         .filter(|task| {
                             project.contains_task(crate::remote::string(task, "project_id"))
-                                && matches(crate::remote::string(task, "title"))
                                 && (matches!(
                                     phase(task),
                                     crate::cloud::Phase::Running
@@ -191,9 +185,6 @@ impl Workbench {
                             delete: None,
                         }),
                 );
-                if !query.is_empty() && rows.is_empty() && !matches(&project.name) {
-                    return None;
-                }
                 Some(sidebar::ProjectGroup {
                     active: self.navigation.page() == WorkbenchPage::Tasks
                         && self.selected_project.as_ref() == Some(&project.key),
@@ -217,13 +208,12 @@ impl Workbench {
             .iter()
             .enumerate()
             .rev()
-            .filter(|(_, chat)| chat.workspace.is_empty() && matches(&chat.title))
+            .filter(|(_, chat)| chat.workspace.is_empty())
             .map(|(i, chat)| session_row(i, chat))
             .collect();
         let settings = self
             .settings_menu(self.sidebar_collapsed, cx)
             .into_any_element();
-        let dragging = window.use_keyed_state("sidebar-chrome", cx, |_, _| false);
         let ui = self.ui(cx);
         sidebar::sidebar(
             ui,
@@ -239,12 +229,9 @@ impl Workbench {
                 collapsed: self.sidebar_collapsed,
                 groups,
                 ungrouped,
-                search: &self.search,
             },
             settings,
             on_action,
-            &dragging,
-            window,
             cx,
         )
     }
@@ -267,35 +254,30 @@ impl Workbench {
             .unwrap_or_default()
     }
 
-    fn content_chrome(
+    fn window_titlebar(
         &self,
         has_tabs: bool,
+        dragging: &Entity<bool>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
-        let dragging = window.use_keyed_state("content-chrome", cx, |_, _| false);
-        if self.sidebar_collapsed {
-            let tabs = has_tabs.then(|| self.content_tabs(false, cx).into_any_element());
-            let title = if has_tabs {
-                SharedString::default()
-            } else {
-                self.chrome_title(cx).into()
-            };
-            let on_expand = cx.listener(|this, _, _, cx| this.toggle_sidebar(cx));
-            return chrome::collapsed_titlebar(
-                self.ui(cx),
-                title,
-                tabs,
-                on_expand,
-                &dragging,
-                window,
-                cx,
-            )
-            .into_any_element();
-        }
-        let tabs = has_tabs.then(|| self.content_tabs(true, cx).into_any_element());
-        chrome::expanded_content_chrome(tabs, &dragging, p.bg, p.border, window).into_any_element()
+    ) -> impl IntoElement {
+        let tabs = has_tabs.then(|| self.content_tabs(false, cx).into_any_element());
+        let title = if has_tabs {
+            SharedString::default()
+        } else {
+            self.chrome_title(cx).into()
+        };
+        chrome::window_titlebar(
+            self.ui(cx),
+            self.sidebar_collapsed,
+            title,
+            tabs,
+            cx.listener(|this, _, _, cx| this.toggle_sidebar(cx)),
+            cx.listener(|this, _, window, cx| this.toggle_spotlight(window, cx)),
+            dragging,
+            window,
+            cx,
+        )
     }
 
     fn sidebar_resize(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -386,14 +368,11 @@ impl Workbench {
 
 impl Render for Workbench {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let dragging = window.use_keyed_state("window-chrome", cx, |_, _| false);
         self.view_bounds.clear();
         self.leave_settings_route(window, cx);
         if self.input_locale != self.locale {
             self.input_locale = self.locale.clone();
-            let placeholder = self.t("sessions.search");
-            self.search.update(cx, |input, cx| {
-                input.set_placeholder(placeholder, window, cx)
-            });
             let placeholder = self.t("project.search_tasks");
             self.remote.search.update(cx, |input, cx| {
                 input.set_placeholder(placeholder, window, cx)
@@ -434,31 +413,42 @@ impl Render for Workbench {
         let pane_tree = self.navigation.pane_layout_visible()
             && !(self.navigation.page() == WorkbenchPage::Conversation
                 && self.tab != ConversationTab::Chat);
+        let pane_layout = self.navigation.pane_layout().filter(|_| pane_tree);
+        let window_overlay = self.spotlight.is_some()
+            || self.settings_menu_open
+            || self.resizing_chat
+            || self.resizing_sidebar
+            || self.settings_panel.is_some()
+            || self.pane_tabs.switching()
+            || window.has_active_dialog(cx);
+        let chat_dock_menu = self.chat.read(cx).dock_menu
+            && WorkspaceLayout::chat_placement(
+                self.navigation.route(),
+                self.tab,
+                &self.preferences.layout,
+            ) == ChatPlacement::Dock
+            && pane_layout
+                .as_ref()
+                .is_none_or(|layout| layout.conversation().is_none())
+            && !self.floating_chat
+            && self.active_app_chat_slot().is_none();
+        let covered = WorkspaceLayout::embedded_surface_covered(
+            window_overlay,
+            gpui_kit::component::GlobalState::is_in_deferred_context(cx),
+            chat_dock_menu,
+        );
         let mut layout = WorkspaceLayout::resolve(
             width,
             self.navigation.route(),
             self.tab,
             &self.preferences.layout,
-            self.settings_menu_open
-                || self.resizing_chat
-                || self.resizing_sidebar
-                || self.settings_panel.is_some()
-                || self.pane_tabs.switching()
-                || window.has_active_dialog(cx)
-                || gpui_kit::component::GlobalState::is_in_deferred_context(cx),
-            self.navigation.pane_layout().filter(|_| pane_tree),
+            covered,
+            pane_layout,
         );
         let single_pane = self
             .navigation
             .pane_layout()
             .is_none_or(|layout| layout.leaves().len() <= 1);
-        let covered = self.settings_menu_open
-            || self.resizing_chat
-            || self.resizing_sidebar
-            || self.settings_panel.is_some()
-            || self.pane_tabs.switching()
-            || window.has_active_dialog(cx)
-            || gpui_kit::component::GlobalState::is_in_deferred_context(cx);
         let slot = self.active_app_chat_slot().cloned().filter(|_| !covered);
         let floating = cfg!(target_family = "wasm")
             && slot.is_none()
@@ -476,13 +466,7 @@ impl Render for Workbench {
             layout.chat = ChatPlacement::Float;
             layout.chat_width = 0.;
             layout.content_visible = true;
-            layout.embedded_surface_visible = !(self.settings_menu_open
-                || self.resizing_chat
-                || self.resizing_sidebar
-                || self.settings_panel.is_some()
-                || self.pane_tabs.switching()
-                || window.has_active_dialog(cx)
-                || gpui_kit::component::GlobalState::is_in_deferred_context(cx));
+            layout.embedded_surface_visible = !covered;
         }
         if !floating && slot.is_none() {
             Self::publish_app_chat_overlay(None);
@@ -609,6 +593,12 @@ impl Render for Workbench {
             .capture_action(cx.listener(
                 |this, _: &crate::workspace_recent::OpenRecentContent, window, cx| {
                     this.open_recent_content(window, cx);
+                    cx.stop_propagation();
+                },
+            ))
+            .capture_action(cx.listener(
+                |this, _: &crate::spotlight::OpenSpotlight, window, cx| {
+                    this.toggle_spotlight(window, cx);
                     cx.stop_propagation();
                 },
             ))
@@ -766,31 +756,39 @@ impl Render for Workbench {
             )
             .when_some(slot, |el, slot| el.child(self.embedded_app_chat(&slot, cx)))
             .size_full()
+            .relative()
             .flex()
+            .flex_col()
             .bg(p.bg)
             .text_color(p.text)
             .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
             .font_weight(FontWeight::NORMAL)
             .line_height(relative(1.3))
-            .child(
-                div()
-                    .relative()
-                    .h_full()
-                    .flex_shrink_0()
-                    .child(self.sidebar(sidebar_width, window, cx))
-                    .when(!self.sidebar_collapsed, |el| {
-                        el.child(self.sidebar_resize(window, cx))
-                    }),
-            )
+            .child(self.window_titlebar(has_tabs, &dragging, window, cx))
             .child(
                 div()
                     .flex_1()
-                    .min_w_0()
-                    .h_full()
+                    .min_h_0()
+                    .w_full()
                     .flex()
-                    .flex_col()
-                    .child(self.content_chrome(has_tabs, window, cx))
-                    .when(
+                    .child(
+                        div()
+                            .relative()
+                            .h_full()
+                            .flex_shrink_0()
+                            .child(self.sidebar(sidebar_width, cx))
+                            .when(!self.sidebar_collapsed, |el| {
+                                el.child(self.sidebar_resize(window, cx))
+                            }),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .h_full()
+                            .flex()
+                            .flex_col()
+                            .when(
                         self.web_entry_open || self.navigation.page() == WorkbenchPage::Web,
                         |el| el.child(self.web_toolbar(cx)),
                     )
@@ -901,6 +899,10 @@ impl Render for Workbench {
                                 el.child(self.floating_app_chat(width, window, cx))
                             }),
                     ),
+                    )
             )
+            .when(self.spotlight.is_some(), |el| {
+                el.child(self.spotlight_overlay(cx))
+            })
     }
 }

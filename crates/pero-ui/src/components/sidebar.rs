@@ -2,7 +2,6 @@ use super::{ActionHandler, Ui, click};
 use crate::workspace::WorkbenchPage;
 use gpui_kit::{
     component::{
-        input::{Input, InputState},
         menu::{DropdownMenu, PopupMenuItem},
         tooltip::Tooltip,
         *,
@@ -10,8 +9,6 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use pero_chat_ui::theme::WorkbenchStyle as W;
-
 pub(crate) struct RecentRow {
     pub bounds: Option<AnyElement>,
     pub label: String,
@@ -47,14 +44,22 @@ pub(crate) struct SidebarProps<'a> {
     pub collapsed: bool,
     pub groups: Vec<ProjectGroup>,
     pub ungrouped: Vec<RecentRow>,
-    pub search: &'a Entity<InputState>,
 }
+
+impl SidebarProps<'_> {
+    fn apps_open(&self) -> bool {
+        self.navigation == WorkbenchPage::Apps
+            && !self.insights_open
+            && !self.data_open
+            && !self.connectors_open
+    }
+}
+
 #[derive(Clone)]
 pub(crate) enum SidebarAction {
     NewChat,
     Navigate(WorkbenchPage),
     OpenApp { name: String, panel: String },
-    ToggleSidebar,
     OpenProject(String),
     ToggleProject(String),
     RevealSessions(String),
@@ -81,12 +86,8 @@ fn recent_row(
     };
     let lead = if row.attention {
         Some("alert-circle")
-    } else if row.busy {
-        Some("clock")
-    } else if row.icon != "terminal" {
-        Some(row.icon)
     } else {
-        None
+        Some(row.icon)
     };
     let trailing = row
         .delete
@@ -100,7 +101,7 @@ fn recent_row(
     .relative().children(row.bounds)
     .cursor_pointer()
     .overflow_hidden()
-    .pl(chrome.geo(pero_theme::SPACE_8 + pero_theme::SUB_INDENT))
+    .pl(chrome.geo(pero_theme::SPACE_8))
     .pr(chrome.geo(pero_theme::SPACE_8))
     .gap(chrome.geo(pero_theme::ICON_GAP))
     .aria_label(accessible)
@@ -324,6 +325,28 @@ pub(crate) fn keep_click(el: Div) -> Div {
     el.on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
 }
 
+fn footer_button(
+    id: &'static str,
+    label: impl Into<SharedString>,
+    icon: &'static str,
+    selected: bool,
+    chrome: pero_theme::Chrome,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    _cx: &App,
+) -> Div {
+    keep_click(div().w_full()).child(pero_theme::sidebar_row(
+        id,
+        label,
+        None,
+        None,
+        selected,
+        pero_theme::RowLevel::Nav,
+        Some(Icon::default().path(icon).into_any_element()),
+        chrome,
+        on_click,
+    ))
+}
+
 fn rail_icon(
     id: &'static str,
     icon: Icon,
@@ -349,7 +372,6 @@ fn icon_rail(
     props: &SidebarProps<'_>,
     settings: AnyElement,
     on_action: ActionHandler<SidebarAction>,
-    _window: &Window,
     cx: &App,
 ) -> Stateful<Div> {
     let p = ui.palette;
@@ -370,8 +392,8 @@ fn icon_rail(
         .bg(p.surface_muted)
         .border_r_1()
         .border_color(p.border)
+        .pt(px(8.))
         .pb(px(8.))
-        .child(div().h(px(WINDOW_CHROME)).w_full().flex_shrink_0())
         .child(rail_icon(
             "sidebar-insights",
             Icon::default().path("icons/layout-list.svg"),
@@ -404,7 +426,7 @@ fn icon_rail(
         ))
         .child(rail_icon(
             "sidebar-new-chat",
-            Icon::new(IconName::Plus),
+            Icon::default().path("icons/plus.svg"),
             ui.t("chat.new"),
             false,
             chrome,
@@ -434,7 +456,7 @@ fn icon_rail(
             "sidebar-apps",
             Icon::default().path("icons/file-code.svg"),
             ui.t("nav.apps"),
-            props.navigation == WorkbenchPage::Apps && !props.insights_open && !props.data_open && !props.connectors_open,
+            props.apps_open(),
             chrome,
             click(&on_action, SidebarAction::Navigate(WorkbenchPage::Apps)),
             cx,
@@ -448,20 +470,19 @@ pub(crate) fn sidebar(
     props: SidebarProps<'_>,
     settings: AnyElement,
     on_action: ActionHandler<SidebarAction>,
-    dragging: &Entity<bool>,
-    window: &Window,
     cx: &App,
 ) -> Stateful<Div> {
     let p = ui.palette;
     let chrome = ui.chrome();
     if props.collapsed {
-        return icon_rail(ui, width, &props, settings, on_action, window, cx);
+        return icon_rail(ui, width, &props, settings, on_action, cx);
     }
     let mut index = 0;
     let projects_active = matches!(
         props.navigation,
         WorkbenchPage::Projects | WorkbenchPage::Tasks
     );
+    let apps_open = props.apps_open();
     div()
         .id("sidebar")
         .w(px(width))
@@ -474,38 +495,6 @@ pub(crate) fn sidebar(
         .text_color(p.text)
         .border_r_1()
         .border_color(p.border)
-        .child(
-            window_drag(
-                div()
-                    .id("sidebar-chrome")
-                    .h(px(WINDOW_CHROME))
-                    .w_full()
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .gap(px(pero_theme::ICON_GAP))
-                    .pl(px(traffic_inset(window)))
-                    .pr(px(8.)),
-                dragging,
-                window,
-            )
-            .child(
-                keep_click(div()).child(
-                    pero_theme::ghost_icon_button("sidebar-collapse", chrome, cx)
-                        .icon(Icon::default().path("icons/panel-left-close.svg"))
-                        .tooltip(ui.t("sidebar.hide"))
-                        .accessibility_label(ui.t("sidebar.hide"))
-                        .on_click(click(&on_action, SidebarAction::ToggleSidebar)),
-                ),
-            )
-            .child(
-                keep_click(div().min_w_0().flex_1()).child(
-                    pero_theme::search_field(Input::new(props.search), chrome)
-                        .prefix(ui.icon("search").size(px(W::ICON)))
-                        .w_full(),
-                ),
-            ),
-        )
         .child(
             div()
                 .flex_1()
@@ -559,7 +548,7 @@ pub(crate) fn sidebar(
                     None,
                     false,
                     pero_theme::RowLevel::Nav,
-                    Some(Icon::new(IconName::Plus).into_any_element()),
+                    Some(Icon::default().path("icons/plus.svg").into_any_element()),
                     chrome,
                     click(&on_action, SidebarAction::NewChat),
                 ).relative().child(props.new_chat_bounds.probe("new-chat".into())))
@@ -665,21 +654,35 @@ pub(crate) fn sidebar(
                             )
                         }),
                 )
-                .child(div().relative()
-                    .child(pero_theme::menu_button("sidebar-connectors", ui.t("nav.connectors"), props.connectors_open, chrome, cx)
-                        .icon(Icon::default().path("icons/plug.svg"))
-                        .on_click(click(&on_action, SidebarAction::OpenApp { name: "connectors".into(), panel: "main".into() })))
-                    .child(props.shortcut_bounds.probe("connectors".into())))
-                .child(pero_theme::sidebar_row(
+                .child(
+                    div()
+                        .relative()
+                        .w_full()
+                        .child(footer_button(
+                            "sidebar-connectors",
+                            ui.t("nav.connectors"),
+                            "icons/plug.svg",
+                            props.connectors_open,
+                            chrome,
+                            click(
+                                &on_action,
+                                SidebarAction::OpenApp {
+                                    name: "connectors".into(),
+                                    panel: "main".into(),
+                                },
+                            ),
+                            cx,
+                        ))
+                        .child(props.shortcut_bounds.probe("connectors".into())),
+                )
+                .child(footer_button(
                     "sidebar-apps",
                     ui.t("nav.apps"),
-                    None,
-                    None,
-                    props.navigation == WorkbenchPage::Apps && !props.insights_open && !props.data_open && !props.connectors_open,
-                    pero_theme::RowLevel::Nav,
-                    Some(Icon::default().path("icons/file-code.svg").into_any_element()),
+                    "icons/file-code.svg",
+                    apps_open,
                     chrome,
                     click(&on_action, SidebarAction::Navigate(WorkbenchPage::Apps)),
+                    cx,
                 ))
                 .when(!props.local_connected, |el| {
                     el.child(

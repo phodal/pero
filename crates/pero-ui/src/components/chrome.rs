@@ -1,51 +1,39 @@
-//! The two content headers. An open sidebar keeps the split header. A collapsed
-//! rail shares one title bar with the content: the sidebar surface, one bottom
-//! edge, the expand control, and the current session or app.
+//! One window title bar. The sidebar and the content sit under it, so the
+//! window has a single top edge instead of a bar on each column.
 use super::sidebar::{self, keep_click, window_drag};
 use super::Ui;
 use gpui_kit::component::Icon;
 use gpui_kit::{prelude::*, *};
 
-pub(crate) fn expanded_content_chrome(
-    tabs: Option<AnyElement>,
-    dragging: &Entity<bool>,
-    background: Hsla,
-    border: Hsla,
-    window: &Window,
-) -> Stateful<Div> {
-    let ruled = tabs.is_none();
-    window_drag(
-        div()
-            .id("content-chrome")
-            .h(px(sidebar::WINDOW_CHROME))
-            .w_full()
-            .flex_shrink_0()
-            .flex()
-            .items_center()
-            .bg(background)
-            .when(ruled, |el| el.border_b_1().border_color(border)),
-        dragging,
-        window,
-    )
-    .when_some(tabs, |el, tabs| el.child(tabs))
-}
-
-pub(crate) fn collapsed_titlebar(
+pub(crate) fn window_titlebar(
     ui: Ui<'_>,
+    collapsed: bool,
     title: SharedString,
     tabs: Option<AnyElement>,
-    on_expand: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    on_toggle: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    on_search: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     dragging: &Entity<bool>,
     window: &Window,
     cx: &App,
 ) -> Stateful<Div> {
     let p = ui.palette;
     let chrome = ui.chrome();
-    let spill = (sidebar::traffic_inset(window) - crate::layout::SIDEBAR_RAIL).max(0.);
-    let show_title = tabs.is_none() && !title.is_empty();
+    let has_tabs = tabs.is_some();
+    let show_title = !has_tabs && !title.is_empty();
+    let (toggle_icon, toggle_label) = if collapsed {
+        ("icons/panel-left-open.svg", ui.t("sidebar.show"))
+    } else {
+        ("icons/panel-left-close.svg", ui.t("sidebar.hide"))
+    };
+    let shortcut = if cfg!(target_os = "macos") {
+        "⌘⇧K"
+    } else {
+        "Ctrl+Shift+K"
+    };
+    let search_label = format!("{}  {shortcut}", ui.t("spotlight.open"));
     window_drag(
         div()
-            .id("content-chrome")
+            .id("window-chrome")
             .h(px(sidebar::WINDOW_CHROME))
             .w_full()
             .flex_shrink_0()
@@ -55,18 +43,19 @@ pub(crate) fn collapsed_titlebar(
             .bg(p.surface_muted)
             .border_b_1()
             .border_color(p.border)
-            .pr(px(12.)),
+            .pl(px(sidebar::traffic_inset(window)))
+            .pr(px(8.)),
         dragging,
         window,
     )
-    .child(div().w(px(spill)).h_full().flex_shrink_0())
     .child(keep_click(div()).child(
-        pero_theme::ghost_icon_button("sidebar-expand", chrome, cx)
-            .icon(Icon::default().path("icons/panel-left-open.svg"))
-            .tooltip(ui.t("sidebar.show"))
-            .accessibility_label(ui.t("sidebar.show"))
-            .on_click(on_expand),
+        pero_theme::ghost_icon_button("sidebar-toggle", chrome, cx)
+            .icon(Icon::default().path(toggle_icon))
+            .tooltip(toggle_label.to_string())
+            .accessibility_label(toggle_label.to_string())
+            .on_click(on_toggle),
     ))
+    .when_some(tabs, |el, tabs| el.child(tabs))
     .when(show_title, |el| {
         el.child(
             div()
@@ -79,5 +68,12 @@ pub(crate) fn collapsed_titlebar(
                 .child(title),
         )
     })
-    .when_some(tabs, |el, tabs| el.child(tabs))
+    .when(!has_tabs && !show_title, |el| el.child(div().flex_1()))
+    .child(keep_click(div()).child(
+        pero_theme::ghost_icon_button("spotlight-open", chrome, cx)
+            .icon(Icon::default().path("icons/search.svg"))
+            .tooltip(search_label.clone())
+            .accessibility_label(search_label)
+            .on_click(on_search),
+    ))
 }

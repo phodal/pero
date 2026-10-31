@@ -2,7 +2,7 @@
 //! come from `design_tokens`; accent overrides still flow through the resolved palette.
 use crate::design_tokens::{
     ACTION_BUTTON_HEIGHT, ACTION_BUTTON_PADDING, GHOST_ICON_BUTTON, ICON_GAP, LEAD_BOX,
-    LIBRARY_HEADER, LIST_DARK, LIST_LIGHT, MENU_ROW, PROSE_H1_GAP, PROSE_H1_LINE, PROSE_H1_SCALE,
+    LIBRARY_HEADER, LIST_DARK, LIST_LIGHT, PROSE_H1_GAP, PROSE_H1_LINE, PROSE_H1_SCALE,
     PROSE_H2_GAP, PROSE_H2_LINE, PROSE_H2_SCALE, PROSE_H3_GAP, PROSE_H3_LINE, PROSE_H3_SCALE,
     PROSE_H4_GAP, PROSE_H4_LINE, PROSE_H4_SCALE, PROSE_H5_GAP, PROSE_H5_LINE, PROSE_H5_SCALE,
     PROSE_H6_GAP, PROSE_H6_LINE, PROSE_H6_SCALE, PROSE_PARAGRAPH_GAP, RADIUS_BADGE, RADIUS_BUTTON,
@@ -630,27 +630,48 @@ pub fn ghost_icon_button(id: impl Into<ElementId>, chrome: Chrome, cx: &App) -> 
         .p_0()
 }
 
-/// Menu row. Open and current items use the same fill as a selected sidebar row.
-pub fn menu_button(
+/// Sidebar action that must stay a button, with the same left icon column as `sidebar_row`.
+pub fn sidebar_menu_button(
     id: impl Into<ElementId>,
     label: impl Into<SharedString>,
+    icon: impl IntoElement,
     selected: bool,
     chrome: Chrome,
     cx: &App,
 ) -> Button {
+    let label = label.into();
     Button::new(id)
         .custom(ghost_colors(chrome, cx, chrome.palette.accent_soft))
         .selected(selected)
         .small()
         .w_full()
-        .h(chrome.geo(MENU_ROW))
+        .h(chrome.geo(ROW_NAV))
         .px(chrome.geo(SPACE_8))
         .rounded(chrome.geo(RADIUS_SELECTION))
         .justify_start()
         .border_1()
         .border_color(clear(chrome))
         .text_size(chrome.text(TYPE_BODY))
-        .label(label)
+        .child(
+            div()
+                .w_full()
+                .flex()
+                .items_center()
+                .gap(chrome.geo(ICON_GAP))
+                .text_size(chrome.text(TYPE_BODY))
+                .font_weight(weight(WEIGHT_BODY))
+                .child(
+                    div()
+                        .w(chrome.geo(LEAD_BOX))
+                        .h(chrome.geo(LEAD_BOX))
+                        .flex_shrink_0()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(icon),
+                )
+                .child(div().min_w_0().flex_1().text_ellipsis().child(label)),
+        )
 }
 
 pub fn hairline(chrome: Chrome) -> Div {

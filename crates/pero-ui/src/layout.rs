@@ -111,6 +111,16 @@ impl WorkspaceLayout {
         }
     }
 
+    /// A native or iframe child paints above GPUI, so it steps aside for an overlay
+    /// that can land on it. A menu owned by the chat dock stays in that dock.
+    pub(crate) fn embedded_surface_covered(
+        window_overlay: bool,
+        deferred_popover: bool,
+        chat_dock_menu: bool,
+    ) -> bool {
+        window_overlay || (deferred_popover && !chat_dock_menu)
+    }
+
     /// Fold the sidebar down to an icon rail. Saved dock width and the narrow breakpoint stay.
     pub(crate) fn hide_sidebar(
         mut self,
@@ -399,6 +409,14 @@ mod tests {
             );
             assert_eq!(preferences.chat_width(), preferred_width, "{name}");
         }
+    }
+
+    #[test]
+    fn a_chat_dock_menu_leaves_the_embedded_surface_visible() {
+        assert!(!WorkspaceLayout::embedded_surface_covered(false, true, true));
+        assert!(WorkspaceLayout::embedded_surface_covered(false, true, false));
+        assert!(WorkspaceLayout::embedded_surface_covered(true, false, true));
+        assert!(!WorkspaceLayout::embedded_surface_covered(false, false, false));
     }
 
     #[test]
