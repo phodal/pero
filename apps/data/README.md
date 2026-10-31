@@ -64,3 +64,10 @@ check persistence. It never clicks preset Download. Synthetic download unit test
 are separate evidence, not live Zenodo/Hugging Face acceptance. The receipt and
 screenshots are uploaded under `test-results/data/`; a configured test is not a
 claim it has passed before the hosted run completes.
+
+The separate `tests/e2e/data-product.mjs` hosted smoke stages the actual Data App,
+Host and standalone shell. It opens Data directly, imports a tiny CSV and checks
+restart persistence in its own profile. Only its disposable product manifest uses
+`python: system`; `products/data/product.json` remains `python: bundled`. Receipts
+and screenshots under `test-results/data-product/` establish development-shell
+behavior, not bundled Python, signed installer or live-source acceptance.
