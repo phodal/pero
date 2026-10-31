@@ -5858,6 +5858,7 @@ dependencies = [
  "console_error_panic_hook",
  "getrandom 0.2.17",
  "gpui-kit",
+ "hmac",
  "gpui-webview",
  "js-sys",
  "lb-wry",
