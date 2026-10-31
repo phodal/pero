@@ -1,6 +1,6 @@
 import { HarnessPreferences } from './harness-settings';
 import {ConversationContentRead} from '../../../packages/content-source/index.ts';
-import { app, BrowserWindow, ipcMain, Menu, protocol, net, dialog, shell, globalShortcut } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, protocol, net, dialog, shell, globalShortcut, safeStorage } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
@@ -19,6 +19,9 @@ import { DesktopComputer } from './computer';
 import { computerPermissions } from './computer-electron';
 import { backgroundTest, testWindowOptions } from './test-display';
 import { prepareWorkbenchHome } from './home.ts';
+import { HostConnectors } from '../../../packages/connectors/src/host.mjs';
+import { ConnectorSecretStore } from './connector-secrets.ts';
+import { ConnectorMcp } from './connector-mcp.ts';
 
 // Register before ready so macOS cannot deliver the callback before the listener.
 // pero://connect/ completes sign-in; pero://tasks/<id> opens a Cloud task from the task square.
@@ -50,6 +53,7 @@ let appUse: DesktopAppUse | undefined;
 let webPages:WebPages|undefined;
 let mcpHost:McpHost|undefined;
 let mcpReady:Promise<void>|undefined;
+let connectorMcp: ConnectorMcp | undefined;
 const mcpRequests=new Map<string,string|undefined>();
 let computer: DesktopComputer | undefined;
 let locale: Locale = 'en';
@@ -169,8 +173,34 @@ app.whenReady().then(async () => {
   globalShortcut.register('CommandOrControl+Shift+Escape',()=>{void computer?.command({action:'computer_stop'}).catch(error=>console.error(error));});
   appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer);
   const appUseEnvironment = await appUse.start();
+  let connectorEnvironment: Record<string, string> = {};
+  if (process.platform === 'darwin' || process.platform === 'linux') {
+    const connectorRoot = resolve(dirname(runtimeSettingsPath), 'connectors');
+    const connectorOwner = new HostConnectors({
+      root: connectorRoot,
+      executable: resolve(root, `${app.isPackaged ? 'bin' : 'target/debug'}/pero-connector-worker`),
+      store: new ConnectorSecretStore(resolve(connectorRoot, 'credentials'), {
+        available: async () => await safeStorage.isAsyncEncryptionAvailable() && !(process.platform === 'linux' && ['basic_text', 'unknown'].includes(safeStorage.getSelectedStorageBackend())),
+        encrypt: value => safeStorage.encryptStringAsync(value),
+        decrypt: async bytes => (await safeStorage.decryptStringAsync(bytes)).result,
+      }),
+      authorize: () => apps.requireConnectorsGrant(),
+      openURL: async value => {
+        const url = new URL(value);
+        if (url.protocol !== 'https:' && !(url.protocol === 'http:' && url.hostname === '127.0.0.1')) throw new Error('MCP_AUTH_URL');
+        await shell.openExternal(url.href);
+      },
+      nodeExecutable: process.execPath, helpers: resolve(root, 'packages/connectors/helpers'),
+    });
+    await connectorOwner.start();
+    apps.connectors = request => connectorOwner.request(request);
+    connectorMcp = new ConnectorMcp(connectorOwner);
+    connectorEnvironment = await connectorMcp.start();
+  } else {
+    apps.connectors = async () => ({ ok: false, code: 'MCP_PLATFORM_UNSUPPORTED' });
+  }
   host = spawn(resolve(root, `${app.isPackaged ? 'bin' : 'target/debug'}/pero-host${process.platform === 'win32' ? '.exe' : ''}`), ['--stdio'], { cwd: app.isPackaged ? app.getPath('home') : root, stdio: 'pipe', env: {
-    ...hostEnvironment, ...harness.environment(), ...appUseEnvironment, PATH: [resolve(root,'bin'),resolve(root,'node_modules/.bin'),process.env.PATH,resolve(app.getPath('home'),'.opencode/bin'),'/opt/homebrew/bin',resolve(app.getPath('home'),'.local/bin')].filter(Boolean).join(delimiter), PERO_LOCALE: locale,
+    ...hostEnvironment, ...harness.environment(), ...appUseEnvironment, ...connectorEnvironment, PATH: [resolve(root,'bin'),resolve(root,'node_modules/.bin'),process.env.PATH,resolve(app.getPath('home'),'.opencode/bin'),'/opt/homebrew/bin',resolve(app.getPath('home'),'.local/bin')].filter(Boolean).join(delimiter), PERO_LOCALE: locale,
     PERO_AGENT_ROOT: root,
     ...(app.isPackaged ? { PERO_ADAPTER_NODE: process.execPath } : {}),
     ...(process.env.PERO_AGENTS_FILE ? { PERO_AGENTS_FILE: process.env.PERO_AGENTS_FILE } : {}),
@@ -195,6 +225,7 @@ app.whenReady().then(async () => {
   createInterface({ input: host.stdout }).on('line', (line) => {
     try {
       const message = JSON.parse(line);
+      connectorMcp?.accept(message);
       if(message.kind==='mcp_permitted'||message.kind==='mcp_error'){
         const request=mcpRequests.get(message.request_id);
         if(!mcpRequests.has(message.request_id))return;
@@ -245,8 +276,8 @@ app.whenReady().then(async () => {
     catch { console.error('Invalid Host event'); }
   });
   host.stderr.on('data', (data) => console.error(String(data)));
-  host.on('error', () => { ready = false; appUse?.reset(); void computer?.stop(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_start')); });
-  host.on('exit', () => { ready = false; appUse?.reset(); void computer?.stop(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_stopped')); });
+  host.on('error', () => { ready = false; appUse?.reset(); void connectorMcp?.close(); void computer?.stop(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_start')); });
+  host.on('exit', () => { ready = false; appUse?.reset(); void connectorMcp?.close(); void computer?.stop(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_stopped')); });
   void remote.initialize();
   const trusted = (sender: Electron.IpcMainInvokeEvent) => {
     if (sender.sender !== window.webContents || sender.senderFrame?.url !== 'pero://workbench/') throw new Error('Untrusted sender');
@@ -436,7 +467,7 @@ app.on('before-quit', quit => {
       await closeWorkspaceForQuit?.();
       if(!window.isDestroyed()){shuttingDown=false;return;}
     }
-  const computerClosed=Promise.all([appUse?.close(),mcpHost?.close()]); globalShortcut.unregisterAll(); localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();mcpRequests.clear();
+  const computerClosed=Promise.all([appUse?.close(),mcpHost?.close(),connectorMcp?.close()]); globalShortcut.unregisterAll(); localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();mcpRequests.clear();
   if (!host?.pid || host.exitCode !== null || host.signalCode !== null) {
     void computerClosed.catch(error=>console.error(error)).finally(()=>{shutdownComplete = true; app.quit();}); return;
   }

@@ -8,7 +8,8 @@
     "insights",
     "virtual-cell",
     "paper-agent",
-    "control-lab"
+    "control-lab",
+    "connectors"
   ],
   "required": [
     "insights"

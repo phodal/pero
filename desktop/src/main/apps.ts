@@ -14,6 +14,11 @@ type Pending = { resolve(value: unknown): void; reject(error: Error): void; time
 /** Desktop projection of Host-owned Apps. Tokens and installed paths stay here. */
 export class DesktopApps {
   private pending = new Map<string, Pending>();
+  connectors?: (request: Record<string, unknown>) => Promise<unknown>;
+
+  async requireConnectorsGrant(name = 'connectors'): Promise<void> {
+    await this.request('connectors', { name });
+  }
 
   constructor(
     private write: (request: object) => void,
@@ -121,6 +126,14 @@ export class DesktopApps {
         if(request.method!=='GET'||!this.input||!/^\/host\/inputs\/[a-f0-9]{64}$/.test(url.pathname))return new Response('App input unavailable',{status:404});
         const file=await this.input(url.hostname,url.pathname.split('/').at(-1)!);
         return new Response(new Uint8Array(file.data),{headers:{'Content-Type':file.mediaType,'Content-Disposition':`inline; filename*=UTF-8''${encodeURIComponent(file.name).replace(/['()*]/g,char=>'%'+char.charCodeAt(0).toString(16).toUpperCase())}`,'Cache-Control':'no-store'}});
+      }
+      if (url.pathname === '/host/connectors') {
+        if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
+        await this.requireConnectorsGrant(url.hostname);
+        if (!this.connectors) return Response.json({ ok: false, code: 'MCP_SERVICE_NOT_INSTALLED' }, { status: 503 });
+        const body = await request.text();
+        if (Buffer.byteLength(body) > 131072) return new Response('Request too large', { status: 413 });
+        return Response.json(await this.connectors(JSON.parse(body)), { headers: { 'Cache-Control': 'no-store' } });
       }
       if (url.pathname === '/host/insights') {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
