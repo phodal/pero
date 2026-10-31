@@ -7,7 +7,7 @@ import requestSchema from '../../../protocol/generated/computer-request.schema.j
 import type { ComputerRequest, ComputerControl } from '../../../protocol/generated/computer-request';
 import type { ComputerAction, ComputerActionReceipt } from '../../../protocol/generated/computer-action';
 import type { ComputerResponse, ComputerUseState } from '../../../protocol/generated/computer-response';
-import { ComputerClient, ComputerFailure } from './computer-client';
+import { ComputerClient, ComputerFailure } from './computer-client.ts';
 
 const ajv = new Ajv2020({ strict: true });
 ajv.addSchema(requestSchema);
@@ -20,10 +20,13 @@ type Journal = { action: ComputerAction; receipt?: ComputerActionReceipt };
 /** Desktop owner of the native connection, evidence and uncertain-action receipts. */
 export class DesktopComputer {
   private client: ComputerClient;
+  private root: string;
+  private emit: (event: object) => void;
+  private controls: { args?: string[]; save?(enabled: boolean): Promise<void>; permissions?(): Promise<void> };
   private controller = new AbortController();
   private pending = new Map<string, { action: ComputerAction; promise: Promise<ComputerActionReceipt> }>();
   private state: ComputerUseState = { enabled: false, running: false, status: { available: false, accessibility: 'not_detected', screen_recording: 'not_detected', message: '' } };
-  constructor(binary: string, private root: string, private emit: (event: object) => void, private controls: { args?: string[]; save?(enabled: boolean): Promise<void>; permissions?(): Promise<void> } = {}) { this.client = new ComputerClient(binary, controls.args); }
+  constructor(binary: string, root: string, emit: (event: object) => void, controls: { args?: string[]; save?(enabled: boolean): Promise<void>; permissions?(): Promise<void> } = {}) { this.root = root; this.emit = emit; this.controls = controls; this.client = new ComputerClient(binary, controls.args); }
   private publish() { this.emit({ version: 1, kind: 'computer_state', request_id: null, text: '', data: this.state }); }
   async restore(enabled: boolean) {
     this.state.enabled = enabled;

@@ -85,7 +85,12 @@ try {
   const created = page.waitForResponse(response => new URL(response.url()).pathname === '/api/experiments' && response.request().method() === 'POST');
   await frame.getByRole('button', { name: 'Freeze specification', exact: true }).click();
   const response = await created; expect(response.status()).toBe(201); frozen = await response.json();
-  await frame.getByRole('button', { name: 'Discuss in chat', exact: true }).click();
+  const proxyStatuses = await frame.locator('body').evaluate(async () => Promise.all(
+    ['/api/agent-step', '/api/agent-step?x=1', '/api/extra/../agent-step', '/api/%61gent-step'].map(async path =>
+      (await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status)));
+  expect(proxyStatuses.slice(0, 3)).toEqual([403, 403, 403]);
+  expect(proxyStatuses[3]).not.toBe(200);
+  await frame.getByRole('button', { name: 'Approve goal and discuss', exact: true }).click();
   await expect.poll(async () => (await state()).composer).toContain(`Review Control Lab experiment ${frozen.id}`);
   await expect.poll(async () => (await state()).floatingChat).toBe(true);
   await expect.poll(async () => (await state()).attachments?.length).toBe(1);
@@ -103,7 +108,7 @@ try {
   result = JSON.parse(text.slice(text.indexOf('CONTROL_LAB_RESULT:') + 'CONTROL_LAB_RESULT:'.length));
   expect(result.error).toBeUndefined(); expect(result.fixture).toBe(true); expect(result.realModel).toBe(false);
   expect(result.experimentId).toBe(frozen.id); expect(result.specHash).toBe(frozen.specHash);
-  expect(result.steps.filter(item => item.rejected)).toHaveLength(4);
+  expect(result.steps.filter(item => item.rejected)).toHaveLength(6);
   expect((await active()).permission).toBeNull();
   // Independently read persisted domain evidence, not just the fixture's claim.
   final = await frame.locator('body').evaluate(async (_body, id) => (await fetch(`/api/experiments/${id}`)).json(), frozen.id);

@@ -10,15 +10,19 @@ ajv.addSchema(schema);
 const validReply = ajv.getSchema<ComputerWorkerResponse>(`${schema.$id}#/$defs/ComputerWorkerResponse`)!;
 
 export class ComputerFailure extends Error {
-  constructor(readonly detail: ComputerError, readonly dispatched = false) { super(detail.message); }
+  readonly detail: ComputerError;
+  readonly dispatched: boolean;
+  constructor(detail: ComputerError, dispatched = false) { super(detail.message); this.detail = detail; this.dispatched = dispatched; }
 }
 /** Owns exactly one native process and serializes its private NDJSON stream. */
 export class ComputerClient {
+  private binary: string;
+  private args: string[];
   private child?: ChildProcessWithoutNullStreams;
   private closing?: Promise<void>;
   private queue: Promise<unknown> = Promise.resolve();
   private pending?: { id: string; dispatched: boolean; resolve(value: ComputerResponse): void; reject(error: Error): void; dispose(): void };
-  constructor(private binary: string, private args: string[] = []) {}
+  constructor(binary: string, args: string[] = []) { this.binary = binary; this.args = args; }
 
   request(thread: string, request: ComputerRequest, signal: AbortSignal): Promise<ComputerResponse> {
     const result = this.queue.then(async () => {
