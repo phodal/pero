@@ -188,6 +188,7 @@ export type ThreadEvent =
   | SessionDeletedEvent;
 export type AutomationIntent = AutomationEventIntent | AutomationManualIntent | AutomationTimeIntent;
 export type AutomationRequestStatus = AutomationSimpleRequestStatus | AutomationCoveredRequestStatus;
+export type AutomationCapacityKind = "requests" | "events" | "snapshots" | "definitions" | "dispatches";
 export type AutomationReceipt = AutomationUpdatedReceipt | AutomationAcceptanceReceipt | AutomationRequestReceipt;
 export type AppResult = AppSuccess | AppFailure;
 export type AppAgentStatus = "running" | "text" | "needs_input" | "completed" | "cancelled" | "failed";
@@ -1720,6 +1721,7 @@ export interface AutomationResultEvent {
 }
 export interface AutomationResult {
   state: AutomationState;
+  capacity: AutomationCapacityStatus;
   capabilities: AutomationCapabilities;
   receipt?: AutomationReceipt;
   attention: AutomationAttention;
@@ -1832,11 +1834,24 @@ export interface AutomationSimpleRequestStatus {
     | "failed"
     | "cancelled"
     | "expired"
-    | "reconciled";
+    | "reconciled"
+    | "not_started";
 }
 export interface AutomationCoveredRequestStatus {
   kind: "covered";
   request_id: string;
+}
+export interface AutomationCapacityStatus {
+  requests: AutomationCapacityCount;
+  events: AutomationCapacityCount;
+  snapshots: AutomationCapacityCount;
+  definitions: AutomationCapacityCount;
+  dispatches: AutomationCapacityCount;
+  exhausted: AutomationCapacityKind[];
+}
+export interface AutomationCapacityCount {
+  used: AutomationCounter;
+  limit: AutomationCounter;
 }
 export interface AutomationCapabilities {
   owner: string;

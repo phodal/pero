@@ -34,7 +34,7 @@ model AutomationEventIntent { kind:"event"; ...AutomationClosed; }
 model AutomationManualIntent { kind:"manual"; id:string; ...AutomationClosed; }
 model AutomationTimeIntent { kind:"time"; slot:AutomationCounter; ...AutomationClosed; }
 @oneOf union AutomationIntent { AutomationEventIntent,AutomationManualIntent,AutomationTimeIntent }
-model AutomationSimpleRequestStatus { kind:"pending"|"input_unavailable"|"definition_changed"|"reserved"|"running"|"cancel_requested"|"reconcile"|"completed"|"failed"|"cancelled"|"expired"|"reconciled"; ...AutomationClosed; }
+model AutomationSimpleRequestStatus { kind:"pending"|"input_unavailable"|"definition_changed"|"reserved"|"running"|"cancel_requested"|"reconcile"|"completed"|"failed"|"cancelled"|"expired"|"reconciled"|"not_started"; ...AutomationClosed; }
 model AutomationCoveredRequestStatus { kind:"covered"; request_id:string; ...AutomationClosed; }
 @oneOf union AutomationRequestStatus { AutomationSimpleRequestStatus,AutomationCoveredRequestStatus }
 union AutomationReconciliationDisposition { "not_started","completed","failed","cancelled" }
@@ -89,4 +89,10 @@ model AutomationAdmissionFailure { admissionFailure:string; ...AutomationClosed;
 model AutomationAdmissionEntry { execution_id:string; record:AutomationAdmission; ...AutomationClosed; }
 model AutomationObservationEntry { execution_id:string; record:AutomationObservation|AutomationAdmissionFailure; ...AutomationClosed; }
 model AutomationEvidence { admissions:AutomationAdmissionEntry[]; observations:AutomationObservationEntry[]; ...AutomationClosed; }
-model AutomationResult { state:AutomationState; capabilities:AutomationCapabilities; receipt?:AutomationReceipt; attention:AutomationAttention; fault:string|null; evidence:AutomationEvidence; ...AutomationClosed; }
+union AutomationCapacityKind { "requests","events","snapshots","definitions","dispatches" }
+model AutomationCapacityCount { used:AutomationCounter; limit:AutomationCounter; ...AutomationClosed; }
+model AutomationCapacityStatus {
+  requests:AutomationCapacityCount; events:AutomationCapacityCount; snapshots:AutomationCapacityCount;
+  definitions:AutomationCapacityCount; dispatches:AutomationCapacityCount; exhausted:AutomationCapacityKind[]; ...AutomationClosed;
+}
+model AutomationResult { state:AutomationState; capacity:AutomationCapacityStatus; capabilities:AutomationCapabilities; receipt?:AutomationReceipt; attention:AutomationAttention; fault:string|null; evidence:AutomationEvidence; ...AutomationClosed; }

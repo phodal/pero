@@ -1331,6 +1331,84 @@
       ],
       "additionalProperties": false
     },
+    "AutomationCapacityCount": {
+      "title": "AutomationCapacityCount",
+      "type": "object",
+      "properties": {
+        "used": {
+          "$ref": "#/$defs/AutomationCounter"
+        },
+        "limit": {
+          "$ref": "#/$defs/AutomationCounter"
+        }
+      },
+      "required": [
+        "used",
+        "limit"
+      ],
+      "additionalProperties": false
+    },
+    "AutomationCapacityKind": {
+      "title": "AutomationCapacityKind",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "requests"
+        },
+        {
+          "type": "string",
+          "const": "events"
+        },
+        {
+          "type": "string",
+          "const": "snapshots"
+        },
+        {
+          "type": "string",
+          "const": "definitions"
+        },
+        {
+          "type": "string",
+          "const": "dispatches"
+        }
+      ]
+    },
+    "AutomationCapacityStatus": {
+      "title": "AutomationCapacityStatus",
+      "type": "object",
+      "properties": {
+        "requests": {
+          "$ref": "#/$defs/AutomationCapacityCount"
+        },
+        "events": {
+          "$ref": "#/$defs/AutomationCapacityCount"
+        },
+        "snapshots": {
+          "$ref": "#/$defs/AutomationCapacityCount"
+        },
+        "definitions": {
+          "$ref": "#/$defs/AutomationCapacityCount"
+        },
+        "dispatches": {
+          "$ref": "#/$defs/AutomationCapacityCount"
+        },
+        "exhausted": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationCapacityKind"
+          }
+        }
+      },
+      "required": [
+        "requests",
+        "events",
+        "snapshots",
+        "definitions",
+        "dispatches",
+        "exhausted"
+      ],
+      "additionalProperties": false
+    },
     "AutomationClosed": {
       "title": "AutomationClosed",
       "type": "object",
@@ -2225,6 +2303,9 @@
         "state": {
           "$ref": "#/$defs/AutomationState"
         },
+        "capacity": {
+          "$ref": "#/$defs/AutomationCapacityStatus"
+        },
         "capabilities": {
           "$ref": "#/$defs/AutomationCapabilities"
         },
@@ -2250,6 +2331,7 @@
       },
       "required": [
         "state",
+        "capacity",
         "capabilities",
         "attention",
         "fault",
@@ -2492,6 +2574,10 @@
             {
               "type": "string",
               "const": "reconciled"
+            },
+            {
+              "type": "string",
+              "const": "not_started"
             }
           ]
         }

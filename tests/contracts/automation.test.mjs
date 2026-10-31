@@ -28,3 +28,14 @@ test('operator reconciliation binds an execution and requires explicit attestati
   assert.equal(valid(envelope(command)),true);
   for(const edit of [{execution_stopped:false},{effects_checked:false},{expected_execution_id:undefined},{evidence:''},{disposition:'verified'},{outcome:'completed'}]) assert.equal(valid(envelope({...command,...edit})),false);
 });
+
+test('capacity projection carries all fixed counters and typed exhausted categories',()=>{
+  const validate=ajv.getSchema(`${schema.$id}#/$defs/AutomationCapacityStatus`);
+  const count={used:1,limit:1};
+  const capacity={requests:count,events:count,snapshots:count,definitions:count,dispatches:count,exhausted:['requests','dispatches']};
+  assert.equal(validate(capacity),true);
+  assert.equal(validate({...capacity,requests:{used:-1,limit:1}}),false);
+  assert.equal(validate({...capacity,exhausted:['reset']}),false);
+  const {dispatches,...incomplete}=capacity;
+  assert.equal(validate(incomplete),false);
+});
