@@ -389,6 +389,12 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: App Use and goal authorization tests
+        if: runner.os == 'Linux'
+        run: |
+          npm run test:app-use:unit
+          node --test tests/runtime/control-lab/host-goal.test.ts
+
       - name: Host contract tests
         run: npm run test:contracts
 
@@ -421,6 +427,9 @@ jobs:
           node -e "require('esbuild').buildSync({entryPoints:['desktop/src/main/app-use.test.ts','desktop/src/main/app-context.test.ts'],outdir:process.env.RUNNER_TEMP+'/app-use-tests',bundle:true,platform:'node',format:'esm',external:['electron']})"
           node --test "$RUNNER_TEMP"/app-use-tests/*.js
           node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs
+          node --test tests/runtime/control-lab/*.test.mjs
+          (cd harness/go && go build -o "$RUNNER_TEMP/control-lab-live-agent" ./cmd/pero-agent-acp)
+          control_lab_agent_sha=$(sha256sum "$RUNNER_TEMP/control-lab-live-agent" | cut -d' ' -f1)
           # Independent suites keep separate profiles/displays. Collect every receipt,
           # but retain a failing step if any acceptance command fails.
           failed=0
@@ -429,6 +438,7 @@ jobs:
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/toolcalls.mjs
           run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/control-lab.mjs
           run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/control-lab-app-use.mjs
+          run_acceptance env PERO_APP_PYTHON="$RUNNER_TEMP/control-lab-python/bin/python" PERO_CONTROL_LAB_REAL_MODEL=1 PERO_CONTROL_LAB_LOCAL_FIXTURE=1 PERO_CONTROL_LAB_LIVE_SCENE=p-golden PERO_CONTROL_LAB_LIVE_AGENT="$RUNNER_TEMP/control-lab-live-agent" PERO_CONTROL_LAB_LIVE_AGENT_SHA256="$control_lab_agent_sha" PERO_CONTROL_LAB_LIVE_RESERVATION=6 DEEPSEEK_API_KEY=local-control-lab-fixture xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/control-lab-live.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/virtual-cell-comparison.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/virtual-cell-dataset-download.mjs
           run_acceptance xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/app-use.mjs
