@@ -21,7 +21,15 @@ Run `41204251625` took **16m07s** end to end, not under ten minutes.
 The Linux producer took 11m51s with cold Cargo and bindgen caches. Its build step
 was 8m53s, including 4m59s in App/reader preparation (bindgen 1m27s and GPUI Wasm
 cold compilation 2m22s), plus about one minute for the separate connector worker.
-npm and Go caches hit. All 14 acceptance jobs started together after the producer;
+npm and Go caches hit. The next same-PR run should check Cargo exact key
+`v0-rust-desktop-Linux-x64-b68de317-e300d015` and tool key
+`wasm-bindgen-Linux-X64-0.2.127-v1`: the producer uploaded about 943 MB of Cargo
+cache and saved the bindgen cache. The old PR's Cargo key ended in `517c8f6c`;
+its restore prefix was unchanged. Dependency/path versions and PR scope changed,
+so logs do not isolate one cause for the miss. GitHub's [cache access rules](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)
+prevent one PR from reusing another PR's merge-ref cache. Default-branch push/daily
+runs can maintain the compatible shared cache after deployment. No cache security
+boundary is bypassed. All 14 acceptance jobs started together after the producer;
 11 passed, three Control Lab scenarios failed and require actual fixes. MCP
 persistence/transport were the longest shards, about four minutes including setup.
 

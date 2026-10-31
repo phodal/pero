@@ -57,6 +57,28 @@ async function settled(id) {
   }, { timeout: 120000, intervals: [100, 250, 500] }).not.toBe('running');
   return result;
 }
+// Current compact UI exposes the full frozen denominator separately from the
+// per-check report. Neither a summary badge nor only successful trials suffices.
+async function assertFinalReport(experiment) {
+  const scenarios = experiment.scenarios.filter(item => item.role === 'verification');
+  const verification = frame.locator('section').filter({ has: frame.getByRole('heading', { name: 'Verification', exact: true }) });
+  await expect(frame.getByText('Final cases', { exact: true }).locator('xpath=following-sibling::dd[1]')).toHaveText(String(scenarios.length));
+  await expect(verification).toContainText(new RegExp(`\\b${scenarios.length}(?: frozen)? scenarios\\b`));
+  const details = verification.locator('details').filter({ has: frame.getByText('Final report checks', { exact: true }) });
+  if (!(await details.evaluate(element => element.open))) await details.locator('summary').click();
+  const table = details.getByRole('table');
+  await expect(table).toBeVisible();
+  const rows = table.locator(':scope > tbody > tr');
+  await expect(rows).toHaveCount(experiment.report.checks.length);
+  expect(experiment.report.candidateId).toBe(experiment.lockedCandidateId);
+  for (const scenario of scenarios) expect(experiment.report.checks.some(check => check.name === scenario.label || check.name.startsWith(`${scenario.label} / `))).toBe(true);
+  for (const [index, check] of experiment.report.checks.entries()) {
+    await expect(rows.nth(index).locator('td').nth(0)).toHaveText(check.name);
+    await expect(rows.nth(index).locator('td').nth(1)).toHaveText(check.verdict);
+    await expect(rows.nth(index).locator('td').nth(4)).toHaveText(check.message);
+  }
+  return verification;
+}
 async function closeDesktop() {
   if (!app) return;
   const current = app, pid = current.process().pid, owned = new Set([pid]), failures = [];
@@ -223,18 +245,22 @@ try {
     const finalTrials = verified.trials.filter(item => item.phase === 'verification');
     expect(finalTrials.map(item => item.scenarioId).sort()).toEqual(finalScenarios.map(item => item.id).sort());
     expect(finalTrials.every(item => item.candidateId === verified.lockedCandidateId)).toBe(true);
-    const verification = frame.locator('section').filter({ has: frame.getByRole('heading', { name: 'Independent verification', exact: true }) });
-    await expect(verification.locator('table').first().locator(':scope > tbody > tr')).toHaveCount(finalScenarios.length);
-    await expect(verification).toContainText(`/ ${finalScenarios.length} final scenarios passed`);
+    const verification = await assertFinalReport(verified);
     const lockedCandidate = verified.candidates.find(item => item.id === verified.lockedCandidateId);
-    await expect(verification).toContainText(`Locked candidate: ${lockedCandidate.label}`);
+    const lockedRow = frame.getByRole('button', { name: `Select ${lockedCandidate.label}`, exact: true });
+    await expect(lockedRow).toContainText(`${lockedCandidate.label} (locked)`);
+    const finalCheckText = await verification.locator('table tbody').innerText();
     const otherCandidate = verified.candidates.find(item => item.id !== verified.lockedCandidateId);
     if (otherCandidate) {
-      await frame.getByRole('radio', { name: otherCandidate.label, exact: true }).check();
-      await expect(verification).toContainText(`Locked candidate: ${lockedCandidate.label}`);
-      await expect(verification.getByRole('status')).toHaveText('Different from selected response');
-      await frame.getByRole('radio', { name: `${lockedCandidate.label} (locked)`, exact: true }).check();
-      await expect(verification.getByRole('status')).toHaveCount(0);
+      const otherRow = frame.getByRole('button', { name: `Select ${otherCandidate.label}`, exact: true });
+      await otherRow.click();
+      await expect(otherRow).toHaveAttribute('aria-pressed', 'true');
+      await expect(lockedRow).toContainText(`${lockedCandidate.label} (locked)`);
+      await expect(verification.locator('table tbody')).toHaveText(finalCheckText);
+      expect((await read(experimentPath(frozen.id))).report).toEqual(verified.report);
+      await lockedRow.click();
+      await expect(lockedRow).toHaveAttribute('aria-pressed', 'true');
+      await expect(verification.locator('table tbody')).toHaveText(finalCheckText);
     }
     const reevaluated = await action('Re-evaluate evidence', `${experimentPath(frozen.id)}/reevaluate`);
     expect(reevaluated.trials).toEqual(verified.trials);
@@ -270,7 +296,7 @@ try {
     await responseHeading.evaluate(element => element.scrollIntoView({ block: 'start' }));
     await expect(responseHeading).toBeInViewport();
     await page.screenshot({ path: resolve(out, `${template.id}-response.png`) });
-    const verdictHeading = frame.getByRole('heading', { name: 'Independent verification', exact: true });
+    const verdictHeading = frame.getByRole('heading', { name: 'Verification', exact: true });
     await verdictHeading.evaluate(element => element.scrollIntoView({ block: 'start' }));
     await expect(verdictHeading).toBeInViewport();
     await page.screenshot({ path: resolve(out, `${template.id}-verified.png`) });
@@ -345,9 +371,8 @@ try {
   expect(failedVerification.report.verdict).toBe('INCONCLUSIVE');
   const full = failedVerification.scenarios.filter(item => item.role === 'verification');
   expect(failedVerification.trials.filter(item => item.phase === 'verification').map(item => item.scenarioId).sort()).toEqual(full.map(item => item.id).sort());
-  const missingSection = frame.locator('section').filter({ has: frame.getByRole('heading', { name: 'Independent verification', exact: true }) });
-  await expect(missingSection).toContainText(`0 / ${full.length} final scenarios passed`);
-  await expect(missingSection.locator('table').first().locator(':scope > tbody > tr')).toHaveCount(full.length);
+  await assertFinalReport(failedVerification);
+  expect(failedVerification.trials.filter(item => item.phase === 'verification').every(item => item.report?.verdict !== 'PASS')).toBe(true);
   await page.screenshot({ path: resolve(out, 'engine-unavailable.png') });
   expect((await exportEvidence(missing.id)).experiment).toEqual(failedVerification);
   expect(await read(experimentPath(first.id))).toEqual(first);

@@ -125,8 +125,17 @@ try {
   const active = async () => { const value = await state(); return value.chats[value.activeChat]; };
   expect((await active()).agent).toBe('codex');
   expect((await active()).scope).toEqual({ app: 'control-lab', panel: 'main' });
+  // The real environment-ready notice overlays the composer; dismiss it using
+  // its visible action before the user gesture, rather than clicking through it.
+  const preparation = page.getByRole('region', { name: 'App environment', exact: true });
+  if (await preparation.isVisible()) {
+    await expect(preparation.getByRole('status')).toHaveText('Environment ready');
+    await preparation.getByRole('button', { name: 'Hide', exact: true }).click();
+    await expect(preparation).toBeHidden();
+  }
   const edge = await page.locator('#pero-app-surface').evaluate(element => element.getBoundingClientRect().right);
   await page.mouse.click(edge + 120, await page.evaluate(() => innerHeight - 70)); await page.keyboard.press('Enter');
+  await expect.poll(async () => (await active()).messages.filter(item => item.role === 'user').length).toBe(1);
   await expect.poll(async () => (await active()).messages.filter(item => item.role === 'assistant').at(-1)?.text || '', { timeout: 120000, intervals: [100, 250, 500] }).toContain('CONTROL_LAB_RESULT:');
   await expect.poll(async () => (await active()).state).toBe('idle');
   const text = (await active()).messages.filter(item => item.role === 'assistant').at(-1).text;
@@ -145,7 +154,7 @@ try {
   expect(final.trials.every(item => item.status === 'completed' && item.observation.engine === 'python-control')).toBe(true);
   expect(final.trials.filter(item => item.phase === 'verification').map(item => item.scenarioId).sort())
     .toEqual(frozen.scenarios.filter(item => item.role === 'verification').map(item => item.id).sort());
-  await expect(frame.getByRole('radio', { name: 'Agent/user proposal (locked)', exact: true })).toBeVisible();
+  await expect(frame.getByRole('button', { name: 'Select Agent/user proposal', exact: true })).toContainText('Agent/user proposal (locked)');
   await page.screenshot({ path: resolve(out, 'fixture-proposed-and-verified.png') });
   expect(errors).toEqual([]);
 } catch (error) { failure = error; await recordFailure(error); }

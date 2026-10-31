@@ -82,13 +82,33 @@ try {
   const active = async () => { const value = await state(); return value.chats[value.activeChat]; };
   expect((await active()).agent).toBe('codex');
   expect((await active()).scope).toEqual({ app: 'control-lab', panel: 'main' });
+  // Environment preparation is real UI and can cover the composer. Dismiss
+  // its visible notice before the user gesture, never click through the overlay.
+  const preparation = page.getByRole('region', { name: 'App environment', exact: true });
+  if (await preparation.isVisible()) {
+    await expect(preparation.getByRole('status')).toHaveText('Environment ready');
+    await preparation.getByRole('button', { name: 'Hide', exact: true }).click();
+    await expect(preparation).toBeHidden();
+  }
   const edge = await page.locator('#pero-app-surface').evaluate(element => element.getBoundingClientRect().right);
   await page.mouse.click(edge + 120, await page.evaluate(() => innerHeight - 70));
+  await expect.poll(async () => (await state()).composerFocused).toBe(true);
   const cdp = await page.context().newCDPSession(page);
   // Revised after an observed P-golden development run; that run is not blind evidence.
   await cdp.send('Input.insertText', { text: `\nList skills, then read the ${scene === 'p-golden' ? 'control-design' : 'active-filter-design'} skill by its catalog digest. Call app_describe to inspect Control Lab's declared data tools; use app_write with experiment-step or propose-candidate for the approved experiment. Do not use generic app_use to operate Control Lab. Read the frozen experiment, evaluate baseline and inspect its saved evidence. If further candidates are needed, use search-next or propose a candidate within the frozen budget. Lock one candidate and run full verification. Check the saved report and observations; keep the frozen model, criteria and budget unchanged. Report the actual verifier verdict and any failed or missing evidence, or say if the work is incomplete. End with a JSON object containing experimentId, specHash, verdict, and explanation.` });
+  await cdp.detach();
+  await expect.poll(async () => (await state()).composer).toContain('End with a JSON object containing experimentId, specHash, verdict, and explanation.');
   await page.keyboard.press('Enter');
-  await expect.poll(async () => { const chat = await active(); return chat.state !== 'idle' || chat.messages.some(item => item.role === 'assistant'); }, { timeout: 30000 }).toBe(true);
+  // Connecting -> idle only proves ACP startup, not prompt submission.
+  await expect.poll(async () => (await active()).messages.filter(item => item.role === 'user').length, { timeout: 60000 }).toBe(1);
+  await expect.poll(async () => {
+    for (const name of (await readdir(sessions)).filter(name => name.endsWith('.jsonl'))) {
+      const text = await readFile(resolve(sessions, name), 'utf8');
+      const events = text.split('\n').slice(0, -1).map(line => JSON.parse(line).event);
+      if (events.some(event => event?.type === 'turn/end')) return true;
+    }
+    return false;
+  }, { timeout: 240000, intervals: [250, 500, 1000], message: 'The submitted ACP turn must finish in the persisted journal' }).toBe(true);
   await expect.poll(async () => (await active()).state, { timeout: 240000, intervals: [250, 500, 1000] }).toBe('idle');
   transcript = (await active()).messages.filter(item => item.role === 'assistant').map(item => item.text).join('\n');
   final = await frame.locator('body').evaluate(async (_body, id) => (await fetch(`/api/experiments/${id}`)).json(), frozen.id);
@@ -128,7 +148,13 @@ try {
     expect(answer.verdict).toBe(final.report.verdict);
     if (scene === 'p-golden') expect(answer.explanation).toMatch(/tracking|target|steady|reference/i);
   }
-} catch (error) { failure = String(error.stack || error); }
+} catch (error) {
+  failure = String(error.stack || error);
+  if (page && !page.isClosed()) {
+    await writeFile(resolve(run, 'ui-state.json'), JSON.stringify(await state(), null, 2)).catch(() => {});
+    await page.screenshot({ path: resolve(run, 'failure.png') }).catch(() => {});
+  }
+}
 finally {
   if (app) {
     const owned = new Set([app.process().pid]);
