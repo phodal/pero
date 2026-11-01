@@ -86,3 +86,26 @@ The Desktop test uses a scripted ACP fixture, **not a real provider**, and real
 Host/PLR execution. GUI tests belong to the existing full/daily CI tier; ordinary
 PR CI retains fast Linux domain/adapter/evidence tests. See
 [actual verification and gaps](../../docs/fitness/lab.md).
+
+## Original-paper comparison and reproducible software subset
+
+Read the [source-based comparison](../../docs/design-docs/lab-google-reproduction.md)
+for the original VERID paper, the separate aptamer work and the epitope work
+linked by Google Research. The color-mixing walkthrough above is **not** a
+reproduction of those experimental results.
+
+Two independent, deterministic software reproductions are provided:
+
+```sh
+python apps/lab/benchmarks/paper_score.py --output test-results/lab-paper/paper-score.json
+python apps/lab/benchmarks/stateful_gate.py --output test-results/lab-paper/stateful-gate.json
+```
+
+The first implements VERID v1 §6.3 equations (1)–(5), for four dyes and four target
+wells, with independent analytic goldens. Its four artificial vectors are not the
+paper's assay readouts. The second contrasts schema/envelope validation with the
+actual Lab state fold on our fixed nine resource cases plus one malformed-input
+control. Its perfect detection on eight hand-constructed invalid cases is not a
+general safety rate or Google's benchmark. Both reports include source version,
+PDF SHA-256, input-set digest, units and limitations. Neither executes hardware,
+requires a model, or substitutes for the paper's unavailable experimental traces.

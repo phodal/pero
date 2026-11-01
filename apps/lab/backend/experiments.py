@@ -223,7 +223,12 @@ class ExperimentStore:
 
     def export(self, identity):
         record=self.read(identity)
-        return {'schema_version':1,'method':'color-mixing-illustrative-v1','experiment':record,'comparison':self.compare(identity),
+        return {'schema_version':1,'method':'color-mixing-illustrative-v1',
+                'research_context':{'paper':'arXiv:2610.32755v1',
+                    'source':'https://www.gstatic.com/science-ai/verid_semantic_lab.pdf',
+                    'comparison_document':'docs/design-docs/lab-google-reproduction.md',
+                    'scope':'Illustrative software workflow; not reproduction of VERID wet-lab results. Separate benchmarks reproduce published scoring equations and constructed stateful resource checks.'},
+                'experiment':record,'comparison':self.compare(identity),
                 'assets':{o['sha256']:base64.b64encode((self.root/o['asset_ref']).read_bytes()).decode() for t in record['trials'] for o in t['observations']}}
 
     def close(self):

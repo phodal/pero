@@ -53,3 +53,30 @@ same-revision authorized full CI run before claiming those acceptance items.
   tests do not substitute for that lifecycle evidence.
 - No hardware, calibration, collision, optical/fluid physics, biology,
   packaging/signing or cross-platform GUI acceptance claimed.
+
+## Original-paper software reproduction (2026-11-01)
+
+The original VERID PDF was read, not just the Google blog. Its source version,
+PDF byte digest, comparison against the other two linked original papers,
+method-to-code matrix and missing experimental prerequisites are documented in
+[the primary-source comparison](../design-docs/lab-google-reproduction.md).
+
+Two additional local suites passed: 7 independent analytic/high-precision tests
+for §6.3 equations (1)–(5), and 2 deterministic stateful/schema-only benchmark
+contracts. The final Python aggregate is now **34 passing tests**. Both report
+scripts actually ran and were independently rerun by the paper reviewer.
+
+- The four artificial scoring vectors yield 2902.7682013901763 mnats, versus the
+  independently reduced-expression golden 2902.7682013901442. This is equation
+  reproduction, not the paper's 307→58 physical result.
+- The constructed resource suite has nine schema-valid cases: one valid and
+  eight invalid. Schema-only accepts the eight invalid cases; the stateful fold
+  rejects them at the expected step/code. A separate malformed control is
+  rejected by both and excluded from the resource counts. This is not an
+  estimate of general safety or an official Google benchmark.
+- Normal Color Mixing still uses its own single-dye fraction/volume evaluator.
+  The four-dye paper metric is separate; no synthetic observation is relabelled
+  as a paper measurement or used to claim physical/biological reproduction.
+
+JSON reports under `test-results/lab-paper/` retain exact input-set/source hashes,
+parameters, units and limitations. CI emits them as a small Linux-job artifact.

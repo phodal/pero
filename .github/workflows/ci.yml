@@ -60,6 +60,17 @@ jobs:
           LAB_REQUIRE_PLR: '1'
           PYTHONDONTWRITEBYTECODE: '1'
         run: python -m unittest discover -s apps/lab/test -p 'test_*.py' -v
+      - name: Reproduce published scoring math and constructed state-gate comparison
+        run: |
+          python apps/lab/benchmarks/paper_score.py --output test-results/lab-paper/paper-score.json
+          python apps/lab/benchmarks/stateful_gate.py --output test-results/lab-paper/stateful-gate.json
+      - name: Upload bounded software reproduction reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: lab-paper-software-${{ github.sha }}
+          path: test-results/lab-paper/
+          if-no-files-found: error
+          retention-days: 7
 
   control-lab:
     name: Control Lab actual python-control and ngspice
