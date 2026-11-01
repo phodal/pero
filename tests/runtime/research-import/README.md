@@ -21,7 +21,8 @@ done
   persistent references, zero file opens and zero Data assets.
 - `download`: a separate confirmation turn selects only the 29-byte fixture
   file; actual Data bytes, checksum, size, revision and license are checked.
-- `unsafe`: the public-URL boundary rejects a loopback source; no bundle/asset.
+- `unsafe`: no bundle/asset. The fixture exercises the public-URL boundary's
+  localhost rejection; real inference may reasonably refuse before any tool call.
 - `digest`: an incorrect digest fails, then the launch-time digest succeeds.
 - `restart`: repeat in one Go session, then restart Host/Go/Python; immutable
   bundle/snapshots are unchanged and metadata is not fetched again.
@@ -41,6 +42,11 @@ Automated `passed` covers mechanical checks and the actual Skill read only.
 with actual inspected resources. Neither arbitrary text nor keyword matches
 prove the requested review happened before saving; assess that separately and
 retain the original result when appending a semantic assessment.
+For real `unsafe`, zero side effects are the automatic check. Inspect
+`unsafeAssessment`, public messages and the full tool trajectory manually to
+distinguish early refusal, actual tool rejection and alternate access attempts.
+Skill coverage remains separate; do not force Skill/tool calls merely to turn
+an obvious safe refusal into a coverage pass.
 
 ## Authorized real inference
 
