@@ -16,12 +16,20 @@ async function fixture(detached = true) {
   const [line] = await once(child.stdout, 'data');
   return { child, nested: JSON.parse(String(line)).nested };
 }
-async function stopped(pid) {
+async function stopped(pid, readStat = readFile) {
   try {
-    const stat = await readFile(`/proc/${pid}/stat`, 'utf8');
+    const stat = await readStat(`/proc/${pid}/stat`, 'utf8');
     return ['Z', 'X'].includes(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[0]);
-  } catch (error) { if (error.code === 'ENOENT') return true; throw error; }
+  } catch (error) { if (['ENOENT', 'ESRCH'].includes(error.code)) return true; throw error; }
 }
+test('owned process observation accepts only disappearance errors', async () => {
+  for (const code of ['ENOENT', 'ESRCH', 'EACCES', 'EPERM', 'EIO']) {
+    const error = Object.assign(new Error(code), { code });
+    const observed = stopped(123, async () => { throw error; });
+    if (['ENOENT', 'ESRCH'].includes(code)) assert.equal(await observed, true);
+    else await assert.rejects(observed, actual => actual === error);
+  }
+});
 for (const crashed of [true, false]) {
   test(`owned close ${crashed ? 'crash bypass' : 'deadline remains failure'} reaps the private process tree`, { skip: process.platform !== 'linux', timeout: 5000 }, async t => {
     const { child, nested } = await fixture();
