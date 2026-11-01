@@ -53,3 +53,18 @@ class EvaluationTests(unittest.TestCase):
                           state, 'completed')
         self.assertEqual(result.verdict, 'INCONCLUSIVE')
         self.assertIsNone(result.absolute_error)
+
+    def test_limitations_follow_observation_origin_without_changing_verdict(self):
+        state = validate_protocol(initial_state(), protocol())[-1]
+        for origin, expected, excluded in (
+            ('synthetic', 'Synthetic observations', 'Imported measurements are'),
+            ('imported', 'Imported measurements are', 'Synthetic observations'),
+        ):
+            with self.subTest(origin=origin):
+                observation = Observation(origin, 'explicit fixture source', (Measurement('B1', .5),))
+                result = evaluate(EvaluationCriteria(), observation, state, 'completed')
+                self.assertEqual(result.verdict, 'PASS')
+                self.assertEqual(result.absolute_error, 0)
+                text = ' '.join(result.limitations)
+                self.assertIn(expected, text)
+                self.assertNotIn(excluded, text)

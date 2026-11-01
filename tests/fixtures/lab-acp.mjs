@@ -18,6 +18,7 @@ async function selected(result, pointer, signal) {
   const value = JSON.parse(result.content.find(item => item.type === 'text').text);
   if (value.type !== 'content_reference') return pointer.split('/').slice(1).reduce((current, key) => current[key], value);
   assert.equal(value.read.tool, 'content_read');
+  if (pointer === '/result/agent_trial_index') assert.ok(value.preview.includes('agent_trial_index'), 'Compact trial index must be visible before the large state');
   let request = { id: value.artifact.id, pointer, maxBytes: 16384 }, offset;
   const chunks = [];
   for (let count = 0; count < 16; count++) {
@@ -75,6 +76,10 @@ async function exercise(prompt, signal) {
     const proposed = await step({ action: 'propose', protocol: protocol(red), ...(parentTrialId ? { parentTrialId } : {}),
       reason: parentTrialId ? 'Observed synthetic +0.1 fraction discrepancy; reduce red input from 50 to 40 µL.' : 'Baseline equal volumes' });
     const trialId = proposed.trials.at(-1).id;
+    const references = await step({ action: 'read' }, '/result/agent_trial_index');
+    assert.equal(references.at(-1).id, trialId);
+    assert.equal(references.at(-1).parent_trial_id, parentTrialId ?? null);
+    assert.ok(JSON.stringify(references).length < 1024, 'Trial index must remain a small selection');
     await step({ action: 'validate', trialId }, '/result/trials');
     await step({ action: 'simulate', trialId }, '/result/trials');
     const deadline = Date.now()+30000;

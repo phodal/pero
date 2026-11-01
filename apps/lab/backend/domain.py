@@ -237,11 +237,11 @@ class Experiment:
 
 def parse_experiment(raw, experiment_id: str) -> Experiment:
     raw = object_fields(raw, ('objective', 'target_fraction', 'tolerance', 'max_trials', 'max_steps'))
-    objective = raw.get('objective', 'Mix 100 µL at red fraction 0.5 in B1')
-    if not isinstance(objective, str) or not 1 <= len(objective.strip()) <= 500:
-        raise Invalid('objective', 'Objective must contain 1–500 characters')
     criteria = EvaluationCriteria(target_fraction=number(raw.get('target_fraction', .5), 'target_fraction', 0, 1),
                                   tolerance=number(raw.get('tolerance', .05), 'tolerance', 0, 1))
+    objective = raw.get('objective', f'Mix 100 µL in B1 with an observed red fraction of {criteria.target_fraction:g}')
+    if not isinstance(objective, str) or not 1 <= len(objective.strip()) <= 500:
+        raise Invalid('objective', 'Objective must contain 1–500 characters')
     return Experiment(experiment_id, objective.strip(), criteria, initial_state(),
                       integer(raw.get('max_trials', 4), 'max_trials', 1, 8),
                       integer(raw.get('max_steps', 64), 'max_steps', 1, 64))

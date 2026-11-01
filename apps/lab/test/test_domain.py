@@ -97,6 +97,17 @@ class DomainTests(unittest.TestCase):
             with self.subTest(raw=raw), self.assertRaises(Invalid):
                 parse_experiment(raw, 'exp1')
 
+    def test_default_objective_matches_observed_target_and_preserves_explicit_objective(self):
+        for target in (.3, .5, .7):
+            with self.subTest(target=target):
+                experiment = parse_experiment({'target_fraction': target}, 'exp1')
+                self.assertEqual(experiment.criteria.target_fraction, target)
+                self.assertEqual(experiment.objective,
+                                 f'Mix 100 µL in B1 with an observed red fraction of {target:g}')
+        explicit = parse_experiment({'objective': 'My frozen custom goal', 'target_fraction': .7}, 'exp1')
+        self.assertEqual(explicit.objective, 'My frozen custom goal')
+        self.assertEqual(parse_experiment_snapshot(explicit.to_dict()), explicit)
+
     def test_trial_transition_no_replay(self):
         self.assertEqual(transition_trial('proposed', 'validated'), 'validated')
         self.assertEqual(transition_trial('validated', 'running'), 'running')
