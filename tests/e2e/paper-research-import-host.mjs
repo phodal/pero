@@ -199,11 +199,55 @@ def fetch(url, **options):
         if (current?.error) throw Error(current.error);
         return Boolean(current?.permission);
       }, { timeout: 20000 }).toBe(true);
-      await expect.poll(async () => (await state()).permissionBounds.find(item => item.chat === threadId && item.index === index)?.bounds?.width ?? 0).toBeGreaterThan(0);
-      const bounds = (await state()).permissionBounds.find(item => item.chat === threadId && item.index === index).bounds;
-      const canvas = await renderCanvas().boundingBox();
-      await page.mouse.click(canvas.x + bounds.x + bounds.width / 2, canvas.y + bounds.y + bounds.height / 2);
-      await expect.poll(async () => (await chat()).state, { timeout: 20000 }).toBe('idle');
+      const permission = (await chat()).permission, permissionId = permission.permission_id;
+      const optionId = permission.options[index].optionId;
+      expect(optionId).toBe(index === 0 ? 'allow-once' : 'reject-once');
+      const evidence = { permissionId, optionId, index, providerRequestsBefore: provider.requests(), samples: [] };
+      const probe = () => page.evaluate(({ threadId, index }) => {
+        const state = JSON.parse(window.peroDiagnostics.snapshot());
+        const permission = state.chats.find(chat => chat.id === threadId)?.permission;
+        const bounds = state.permissionBounds.find(item => item.chat === threadId && item.index === index)?.bounds;
+        const canvas = document.querySelector('canvas:not([role="textbox"])');
+        const rect = canvas?.getBoundingClientRect();
+        const point = bounds && { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+        const hit = point && document.elementFromPoint(point.x, point.y);
+        const describe = element => element && { tag: element.tagName, id: element.id, role: element.getAttribute('role'),
+          title: element.getAttribute('title'), bounds: element.getBoundingClientRect().toJSON(),
+          pointerEvents: getComputedStyle(element).pointerEvents, zIndex: getComputedStyle(element).zIndex, clipPath: getComputedStyle(element).clipPath };
+        return { permissionId: permission?.permission_id, optionId: permission?.options[index]?.optionId,
+          bounds, canvas: rect?.toJSON(), point, hit: { ...describe(hit), isCanvas: hit === canvas },
+          hitParents: [describe(hit?.parentElement), describe(hit?.parentElement?.parentElement)],
+          viewport: { width: innerWidth, height: innerHeight, devicePixelRatio }, expanded: state.floatingChatExpanded };
+      }, { threadId, index });
+      // Approval expands the float and chat tail-follow applies on later frames.
+      // Wait for painted geometry, not just the first nonzero prepaint probe.
+      let previous;
+      try {
+        await expect.poll(async () => {
+          await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
+          const sample = await probe(); evidence.samples.push(sample);
+          const stable = JSON.stringify(sample) === JSON.stringify(previous); previous = sample;
+          return stable && sample.permissionId === permissionId && sample.optionId === optionId && sample.expanded &&
+            sample.bounds?.width > 0 && sample.hit.isCanvas && sample.canvas?.x === 0 && sample.canvas?.y === 0;
+        }).toBe(true);
+        evidence.before = previous;
+        await page.evaluate(() => {
+          window.clonePointerEvents = [];
+          window.clonePointerListener = event => window.clonePointerEvents.push({ type: event.type, x: event.clientX, y: event.clientY, target: event.target?.tagName });
+          for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) document.addEventListener(type, window.clonePointerListener, true);
+        });
+        // Root Workbench diagnostics are viewport coordinates, as in workbench.mjs.
+        await page.mouse.click(previous.point.x, previous.point.y);
+        await expect.poll(async () => (await chat()).permission).toBeNull();
+        await expect.poll(async () => (await chat()).state, { timeout: 20000 }).toBe('idle');
+      } finally {
+        evidence.after = { permission: (await chat())?.permission, state: (await chat())?.state, providerRequests: provider.requests(), geometry: await probe() };
+        evidence.pointerEvents = await page.evaluate(() => {
+          for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) document.removeEventListener(type, window.clonePointerListener, true);
+          return window.clonePointerEvents || [];
+        });
+        await writeFile(resolve(out, `host-clone-permission-${index}.json`), JSON.stringify(evidence, null, 2));
+      }
     };
     await propose(); await choose(1);
     expect(existsSync(destination)).toBe(false); expect(existsSync(cloneFixture.marker)).toBe(false);
