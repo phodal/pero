@@ -131,7 +131,7 @@ or a fabricated Paper asset. Bundle/resource IDs are source references, not proo
 that their metadata is semantically correct. No same-machine adversarial isolation
 or public-network clone success is claimed.
 
-Local follow-up evidence (Linux; based on `f448328`, final source review pending):
+Local follow-up evidence (Linux; source changes independently reviewed):
 
 - Paper backend: 127 tests run, OK, one existing Windows-only skip. Focused
   research-import tests: 13 run, OK, one Windows-only skip. Data research-download:
@@ -152,3 +152,13 @@ Local follow-up evidence (Linux; based on `f448328`, final source review pending
   or release-package acceptance is claimed here. The shared tool-result UI path is
   existing production code; it still requires the hosted clone-specific UX check
   before the full #68 acceptance can be marked complete.
+
+The existing `paper-research-import` Desktop suite now includes a clone-specific
+Linux journey: real permission UI Reject/Allow, actual Go tool/Git observation,
+expanded tool result and history after restart. Its provider is scripted and its
+strict test-only shell wrapper maps only the fixed fixture fetch to an owned
+local repository; production URL policy is unchanged. The wrapper's real Git
+smoke and scripted provider loopback checks passed locally. Desktop execution is
+**pending exact-head CI**: required local Desktop dependencies were unavailable,
+so the GUI journey was not run locally. This prepared test is not
+evidence that the Desktop journey or public HTTPS acquisition has passed.
