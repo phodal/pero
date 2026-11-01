@@ -86,6 +86,34 @@ class HostApprovalTests(unittest.TestCase):
                         pcgym.write_json(path, local)
                     spawn.assert_not_called()
 
+    def test_core_intents_never_dispatch_after_persistence_failure(self):
+        for failed_collection in ('pcgym-approval-requests', 'pcgym-approval-decisions'):
+            with self.subTest(collection=failed_collection):
+                app, ids = self.prepared()
+                write = self.store._write
+                def fail(collection, key, value):
+                    if collection == failed_collection:
+                        raise OSError('Synthetic approval persistence failure')
+                    return write(collection, key, value)
+                if failed_collection == 'pcgym-approval-requests':
+                    with patch.object(self.store, '_write', side_effect=fail), patch('paper_agent.pcgym_app.subprocess.Popen') as spawn:
+                        with self.assertRaises(OSError):
+                            app.host_command(dict(operation='prepare', **ids))
+                        spawn.assert_not_called()
+                    self.assertFalse(app.pending_approvals)
+                else:
+                    ticket = app.host_command(dict(operation='prepare', **ids))
+                    decision = dict(operation='decide', **ids, ticket=ticket['ticket'],
+                                    bindingDigest=ticket['bindingDigest'], decision='allow')
+                    with patch.object(self.store, '_write', side_effect=fail), patch('paper_agent.pcgym_app.subprocess.Popen') as spawn:
+                        with self.assertRaises(OSError): app.host_command(decision)
+                        spawn.assert_not_called()
+                    self.assertFalse(app.pending_approvals)
+                    with patch('paper_agent.pcgym_app.subprocess.Popen') as spawn:
+                        with self.assertRaises(RequestInvalid): app.host_command(decision)
+                        self.assertEqual(app.host_command(dict(operation='prepare', **ids))['state'], 'cancelled')
+                        spawn.assert_not_called()
+
     def test_same_request_cannot_change_item_and_unknown_blocks_new_request(self):
         app, ids = self.prepared()
         prepared = app.host_command(dict(operation='prepare', **ids))

@@ -5,7 +5,6 @@ The shipped server has no trusted checkout and therefore cannot start compute.
 """
 from dataclasses import asdict
 import json
-import hmac
 import secrets
 import platform
 import re
@@ -19,6 +18,8 @@ from .model import Invalid as RequestInvalid, PdfPassage
 from .pcgym_domain import (Claim, COMMIT, Invalid, PaperAnchor, ReproductionSpec,
                            canonical, digest, fields, identifier, EPISODE_METRIC, PAPER)
 from .verification import ComparisonEvidence, VerificationItem, ReproductionApproval
+from .reproduction_approval import (ApprovalCommand, ApprovalState, ApprovalDecision,
+    ApprovalDenied, ApprovalUnavailable, PendingApproval, ExecutionFacts, dispatch_failure)
 from .pcgym_sources import (PINS, SourceFile, audit_sources, package_inventory,
                             pipeline_digest, read_checkout)
 
@@ -316,110 +317,89 @@ class PcgymApp:
                 result['attemptId'] = request['attempt_id']
         return result
 
+    def approval_summary(self, approval, item, spec):
+        summary = (f'Run fixed PC-Gym {spec.profile} locally?\n'
+            f'Item: {item.id}\nSpecification: {spec.id}\nRequest: {approval.request_id}\n'
+            f'Reported {item.policy}: {item.reported}; paper {item.paper_version}\n'
+            f'PDF page {spec.anchor.page}; annotation {item.annotation_id}\n'
+            f'PDF SHA-256: {spec.anchor.file_digest}\n'
+            f'CPU; {spec.steps} training steps; {spec.episodes} episodes × {spec.samples} samples; '
+            f'policies: {", ".join(spec.policies)}; worker wall-time limit: {spec.timeout_seconds}s\n'
+            f'Seed: {spec.seed}; code commit: {spec.commit}\n'
+            f'Python: {spec.python_version}; packages: {dict(spec.packages)}\n'
+            f'Pipeline: {spec.pipeline_digest}\n'
+            'Command: configured Python -m paper_agent.pcgym run (this frozen spec only)\n'
+            + '\n'.join(spec.deviations()) + '\n' +
+            'This runs pinned code with the configured local interpreter. No installation or download is performed.\n'
+            'Original metric and experiment identity remain unresolved. Paper verdict remains INCONCLUSIVE.')
+        return summary
+
     def host_command(self, data):
-        """Private Host-only transport; normal App-token routes cannot call this."""
-        operation = data.get('operation')
-        required = ('operation', 'itemId', 'specId', 'requestId')
-        fields(data, required + (('ticket', 'bindingDigest', 'decision') if operation == 'decide' else ()))
-        if operation not in ('prepare', 'decide', 'cancel'):
-            raise Invalid('operation', 'Unknown private reproduction operation')
+        """Private Host transport: load facts, apply core intents, map I/O errors."""
         with self.lock:
-            if self.closed or not self.allow_execution:
-                raise RequestInvalid('Local computation is disabled by the trusted composition root', 403)
-            identifier(data['itemId'], 'itemId')
-            identifier(data['specId'], 'specId')
-            request_id = data['requestId']
-            if not isinstance(request_id, str) or not 1 <= len(request_id) <= 128:
-                raise Invalid('request_id', 'Use a stable request ID of 1–128 characters')
-            key = digest(dict(request_id=request_id))
+            try:
+                command = ApprovalCommand.parse(data, available=not self.closed and self.allow_execution)
+            except ApprovalUnavailable as error:
+                raise RequestInvalid(str(error), 403) from error
+            key = command.key
             requests = self.store._list('pcgym-approval-requests')
-            # Stopping an existing run must not require inputs to remain executable.
-            # Denial likewise consumes the displayed request, not a changed PDF.
             decisions = self.store._list('pcgym-approval-decisions')
-            stopping = operation == 'cancel' or (operation == 'decide' and data['decision'] == 'deny')
-            if (stopping or key in decisions) and key in requests:
-                approval = ReproductionApproval(**self.store._read('pcgym-approval-requests', key))
-                if approval.item_id != data['itemId'] or approval.spec_id != data['specId']:
-                    raise Invalid('approval_changed', 'The request belongs to another item or specification')
-                spec = None  # Stopping/reading an existing decision needs no executable Spec.
-            else:
+            state = ApprovalState(
+                saved=ReproductionApproval(**self.store._read('pcgym-approval-requests', key)) if key in requests else None,
+                decision=ApprovalDecision(**self.store._read('pcgym-approval-decisions', key)) if key in decisions else None,
+                pending=self.pending_approvals.get(key))
+            approval = state.binding_for(command)
+            item = spec = None
+            if approval is None:
                 approval, item, spec = self.approval_binding(data)
-            if key in requests and self.store._read('pcgym-approval-requests', key) != approval.to_dict():
-                raise Invalid('approval_changed', 'This request belongs to a different frozen approval; create a new request')
-            if key in decisions:
-                decision = self.store._read('pcgym-approval-decisions', key)
-                cancelled = False
-                if operation == 'cancel' and self.process_requests.get(approval.spec_id) == approval.request_id:
-                    process = self.processes.get(approval.spec_id)
-                    if process is not None and process.poll() is None:
-                        process.terminate()
-                        cancelled = True
-                try:
-                    return self.approval_outcome(approval, decision['state'], decision.get('reason', ''))
-                except (Invalid, RequestInvalid, OSError):
-                    if operation != 'cancel':
-                        raise
-                    return dict(state=decision['state'], status='unknown', itemId=approval.item_id,
-                        specId=approval.spec_id, requestId=approval.request_id, paperVerdict='INCONCLUSIVE',
-                        reason='Cancellation requested; stored evidence unavailable' if cancelled else
-                               'Execution evidence unavailable; no matching live owner was found')
-            pending = self.pending_approvals.get(key)
-            if operation == 'prepare':
-                if key in requests and pending is None:
-                    self.store._write('pcgym-approval-decisions', key,
-                                      dict(state='cancelled', reason='Approval owner restarted before dispatch'))
-                    return self.approval_outcome(approval, 'cancelled', 'Approval owner restarted before dispatch')
-                if pending is None:
-                    status = self.status(spec.id)
-                    if (status['execution_lock_present'] or any(a['status'] not in ('completed', 'failed', 'cancelled')
-                                                               for a in status['attempts'])
-                            or any(r['status'] not in ('completed', 'failed', 'cancelled') for r in status['requests'])):
-                        return self.approval_outcome(approval, 'blocked', 'Reconcile the existing execution before requesting another run')
-                    self.store._write('pcgym-approval-requests', key, approval.to_dict())
-                    pending = (secrets.token_hex(32), approval)
-                    self.pending_approvals[key] = pending
-                summary = (f'Run fixed PC-Gym {spec.profile} locally?\n'
-                    f'Item: {item.id}\nSpecification: {spec.id}\nRequest: {approval.request_id}\n'
-                    f'Reported {item.policy}: {item.reported}; paper {item.paper_version}\n'
-                    f'PDF page {spec.anchor.page}; annotation {item.annotation_id}\n'
-                    f'PDF SHA-256: {spec.anchor.file_digest}\n'
-                    f'CPU; {spec.steps} training steps; {spec.episodes} episodes × {spec.samples} samples; '
-                    f'policies: {", ".join(spec.policies)}; worker wall-time limit: {spec.timeout_seconds}s\n'
-                    f'Seed: {spec.seed}; code commit: {spec.commit}\n'
-                    f'Python: {spec.python_version}; packages: {dict(spec.packages)}\n'
-                    f'Pipeline: {spec.pipeline_digest}\n'
-                    'Command: configured Python -m paper_agent.pcgym run (this frozen spec only)\n'
-                    + '\n'.join(spec.deviations()) + '\n' +
-                    'This runs pinned code with the configured local interpreter. No installation or download is performed.\n'
-                    'Original metric and experiment identity remain unresolved. Paper verdict remains INCONCLUSIVE.')
-                return dict(state='requires-approval', ticket=pending[0], bindingDigest=approval.digest, summary=summary)
-            if operation == 'cancel':
+            busy = False
+            if state.needs_execution_status(command):
+                status = self.status(command.spec_id)
+                busy = ExecutionFacts(status['execution_lock_present'],
+                    tuple(a['status'] for a in status['attempts']),
+                    tuple(r['status'] for r in status['requests'])).busy
+            process = self.processes.get(command.spec_id)
+            try:
+                plan = state.transition(command, approval, busy=busy,
+                    owner_request_id=self.process_requests.get(command.spec_id),
+                    owner_live=process is not None and process.poll() is None)
+            except ApprovalDenied as error:
+                raise RequestInvalid(str(error), 403) from error
+            # Capabilities are consumed before durable decision persistence, and
+            # no worker dispatch can occur if either step fails.
+            if plan.pending_action == 'consume':
                 self.pending_approvals.pop(key, None)
+            if plan.save_approval:
                 self.store._write('pcgym-approval-requests', key, approval.to_dict())
-                self.store._write('pcgym-approval-decisions', key, dict(state='cancelled', reason='Cancelled before dispatch'))
-                return self.approval_outcome(approval, 'cancelled', 'Cancelled before dispatch')
-            if (pending is None or not isinstance(data['ticket'], str)
-                    or not hmac.compare_digest(pending[0], data['ticket'])
-                    or data['bindingDigest'] != approval.digest or pending[1] != approval):
-                raise RequestInvalid('The one-time Host approval is missing, expired or changed', 403)
-            if data['decision'] not in ('allow', 'deny'):
-                raise Invalid('decision', 'Choose allow or deny')
-            # Consume before dispatch. Lost response/restart must never replay a launch.
-            self.pending_approvals.pop(key)
-            state = 'allowed' if data['decision'] == 'allow' else 'denied'
-            self.store._write('pcgym-approval-decisions', key, dict(state=state))
-            if state == 'allowed':
+            if plan.save_decision is not None:
+                self.store._write('pcgym-approval-decisions', key, plan.save_decision.to_dict())
+            if plan.pending_action == 'new':
+                self.pending_approvals[key] = PendingApproval(secrets.token_hex(32), approval)
+            if plan.outcome == 'requires-approval':
+                pending = self.pending_approvals[key]
+                return dict(state=plan.outcome, ticket=pending.ticket, bindingDigest=approval.digest,
+                            summary=self.approval_summary(approval, item, spec))
+            if plan.dispatch:
                 try:
-                    self.start(dict(action='start', specId=spec.id, requestId=approval.request_id,
+                    self.start(dict(action='start', specId=approval.spec_id, requestId=approval.request_id,
                                     confirmation='execute-frozen-local-simulation'))
                 except (Invalid, RequestInvalid, OSError):
-                    if key not in self.store._list('pcgym-requests'):
-                        self.store._write('pcgym-approval-dispatch', key,
-                            dict(state='blocked', status='not_started', reason='Execution was refused before launch; inspect current status before a new request'))
-                    else:
-                        raise  # A launch request exists: preserve unknown, never replay.
-
-            return self.approval_outcome(approval, state)
+                    failure = dispatch_failure(key in self.store._list('pcgym-requests'))
+                    if failure.persist:
+                        self.store._write('pcgym-approval-dispatch', key, failure.to_dict())
+                    if failure.propagate:
+                        raise
+            if plan.cancel_matching:
+                process.terminate()
+            try:
+                return self.approval_outcome(approval, plan.outcome, plan.reason)
+            except (Invalid, RequestInvalid, OSError):
+                if command.operation != 'cancel':
+                    raise
+                return dict(state=plan.outcome, status='unknown', itemId=approval.item_id,
+                    specId=approval.spec_id, requestId=approval.request_id, paperVerdict='INCONCLUSIVE',
+                    reason='Cancellation requested; stored evidence unavailable' if plan.cancel_matching else
+                           'Execution evidence unavailable; no matching live owner was found')
 
     def command(self, data):
         action = data.get('action')
@@ -512,12 +492,12 @@ class PcgymApp:
     def close(self):
         with self.lock:
             self.closed = True
-            pending = tuple(self.pending_approvals)
+            plans = tuple(ApprovalState(pending=pending).close()
+                          for pending in self.pending_approvals.values())
             self.pending_approvals.clear()
         try:
-            for key in pending:
-                self.store._write('pcgym-approval-decisions', key,
-                                  dict(state='cancelled', reason='Approval owner closed before dispatch'))
+            for plan in plans:
+                self.store._write('pcgym-approval-decisions', plan.approval.key, plan.save_decision.to_dict())
         finally:
             # Evidence I/O failure must not skip the existing process cleanup.
             for process in self.processes.values():
