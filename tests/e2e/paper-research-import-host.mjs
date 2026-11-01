@@ -172,22 +172,42 @@ def fetch(url, **options):
     expect(code.revision).toBe(cloneFixture.revision);
     cloneOptions.cloneRequest = { url: code.url, revision: code.revision, destination: 'reviewed-code', license: code.license || 'unknown', sizeBytes: code.size, bundleId: bundle.id, resourceId: code.id };
     const destination = resolve(profile, 'reviewed-code'), threadId = acknowledgment.value.threadId;
-    const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
+    // Use the real floating Chat UI, not a low-level prompt command: a prepared
+    // draft has no ACP session yet. Enter runs send_chat/submit_prompt, preserving
+    // frozen attachments and starting the session before its queued prompt.
+    const chatFrame = () => page.frames().find(item => item.url().startsWith('pero://chat/'));
+    await expect.poll(() => Boolean(chatFrame())).toBe(true);
+    await chatFrame().waitForFunction(() => window.peroChatDiagnostics && JSON.parse(window.peroChatDiagnostics.snapshot()).connected);
+    const renderCanvas = () => chatFrame().locator('canvas:not([role="textbox"])');
+    const state = () => chatFrame().evaluate(() => JSON.parse(window.peroChatDiagnostics.snapshot()));
     const chat = async () => (await state()).chats.find(item => item.id === threadId);
-    // Controlled operator proposal; the actual approval is clicked in the real UI.
-    const propose = () => page.evaluate(({ threadId, request }) => window.pero.sessionCommand({ action: 'prompt', thread_id: threadId,
-      text: 'Owned transport fixture: review this exact clone request. ' + JSON.stringify(request), contexts: [] }), { threadId, request: cloneOptions.cloneRequest });
+    const propose = async () => {
+      await expect.poll(async () => (await state()).composer).toContain('Prepare a repository clone from the attached saved Paper reference.');
+      const current = await state();
+      expect(current.chats[current.activeChat]).toMatchObject({ id: threadId, agent: 'clone-fixture' });
+      expect(current.attachments).toHaveLength(1);
+      const canvas = await renderCanvas().boundingBox();
+      await page.mouse.click(canvas.x + 150, canvas.y + canvas.height - 70);
+      await expect.poll(async () => (await state()).composerFocused).toBe(true);
+      await page.keyboard.press('Enter');
+      await expect.poll(async () => (await state()).composer).toBe('');
+    };
     const choose = async index => {
-      await expect.poll(async () => Boolean((await chat())?.permission), { timeout: 20000 }).toBe(true);
+      await expect.poll(async () => {
+        const current = await chat();
+        if (current?.error) throw Error(current.error);
+        return Boolean(current?.permission);
+      }, { timeout: 20000 }).toBe(true);
       await expect.poll(async () => (await state()).permissionBounds.find(item => item.chat === threadId && item.index === index)?.bounds?.width ?? 0).toBeGreaterThan(0);
       const bounds = (await state()).permissionBounds.find(item => item.chat === threadId && item.index === index).bounds;
-      const canvas = await page.locator('canvas').first().boundingBox();
+      const canvas = await renderCanvas().boundingBox();
       await page.mouse.click(canvas.x + bounds.x + bounds.width / 2, canvas.y + bounds.y + bounds.height / 2);
       await expect.poll(async () => (await chat()).state, { timeout: 20000 }).toBe('idle');
     };
     await propose(); await choose(1);
     expect(existsSync(destination)).toBe(false); expect(existsSync(cloneFixture.marker)).toBe(false);
     await page.screenshot({ path: resolve(out, 'host-clone-denied-no-effects.png') });
+    await frame.getByRole('button', { name: 'Clone with Agent', exact: true }).click();
     await propose(); await choose(0);
     const tool = (await chat()).tools.at(-1);
     expect(tool.status).toBe('completed');
@@ -203,7 +223,7 @@ def fetch(url, **options):
       if (!(await state()).expandedTools.includes(key)) {
         await expect.poll(async () => (await state()).toolBounds.find(item => item.chat === threadId && item.tool === tool.id)?.bounds?.width ?? 0).toBeGreaterThan(0);
         const bounds = (await state()).toolBounds.find(item => item.chat === threadId && item.tool === tool.id).bounds;
-        const canvas = await page.locator('canvas').first().boundingBox();
+        const canvas = await renderCanvas().boundingBox();
         await page.mouse.click(canvas.x + bounds.x + 20, canvas.y + bounds.y + bounds.height / 2);
       }
       await expect.poll(async () => (await state()).expandedTools).toContain(key);
@@ -214,6 +234,8 @@ def fetch(url, **options):
     await app.close(); app = await launch(); await ready(); frame = await openPaper();
     await frame.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: 'Synthetic forecasting release', exact: true }).click();
     await frame.getByRole('button', { name: 'Clone with Agent', exact: true }).click();
+    await expect.poll(() => Boolean(chatFrame())).toBe(true);
+    await chatFrame().waitForFunction(() => window.peroChatDiagnostics && JSON.parse(window.peroChatDiagnostics.snapshot()).connected);
     await expect.poll(async () => { const current = await state(); return current.chats[current.activeChat]?.id; }).toBe(threadId);
     await expect.poll(async () => (await chat())?.tools.find(item => item.id === tool.id)?.status).toBe('completed');
     const restored = (await chat()).tools.find(item => item.id === tool.id);
