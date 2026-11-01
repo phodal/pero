@@ -3,10 +3,14 @@
 This worked case uses the fixed PC-Gym CLI. Its unresolved scientific verdict and
 execution flags apply to this adapter only. Read it when auditing that case.
 
-This implementation is a **fixed-case CLI workflow**, not a new Paper App tool.
+This implementation combines a **fixed-case CLI execution workflow** with a
+persisted Paper `reproduction-step` audit route. The App audit binds the saved v4
+Paper, PDF passage and optional annotation; `freeze` additionally requires a
+trusted fixed checkout. The shipped server has no such configuration and cannot
+start computation; the explicitly authorized CLI remains the execution path.
 Do not invent `app__paper-agent__run-experiment` or write experimental outcomes
 into a reading-only `research-step` report (its `experiments` remains empty).
-If the Host does not expose an authorized shell and the selected Python package,
+If the Host does not expose an authorized shell and the selected Python environment,
 report the execution boundary as blocked. Do not bypass an App-scoped restriction.
 
 ## 1. Read and establish identity
@@ -26,8 +30,10 @@ object-array data. The training curves from another case are not Table 6 data.
 ## 2. Inspect and freeze a plan, without computation
 
 Use the chosen environment's Python (not an assumed system interpreter). The
-installed Paper backend provides `python -m paper_agent.pcgym`. From a Pero source
-checkout the operator can set `PYTHONPATH=apps/paper-agent/backend` for that command.
+bundle copies the backend; it does not install a Python package. Set
+`PYTHONPATH=<installed-paper-agent>/backend` to invoke `python -m paper_agent.pcgym`
+from that bundle. From a Pero source checkout, set
+`PYTHONPATH=apps/paper-agent/backend` instead.
 
 Run `prepare --checkout <approved-absolute-checkout> --output <new-workspace-directory>
 --profile table6 --seed <explicit-seed> --timeout-seconds <approved-wall-time>`.
@@ -84,8 +90,11 @@ identity and bytes; a digest is not remote attestation or scientific truth.
 
 Use `export --bundle <directory> --attempt <id> --output <new-zip-path>` for a
 self-contained numeric check package. It contains a stdlib checker runnable with
-`python verify.py` without an Agent or solver. It omits third-party papers/source,
-local paths, credentials and large checkpoints.
+`python verify.py` without an Agent or solver. It omits full third-party PDF/source
+files, local execution paths, credentials and large checkpoints. An App-bound
+bundle includes `paper-binding.json`, containing the saved page-20 passage text
+and annotation binding; it is not a text-free export. The checker verifies that
+binding against the frozen Spec digest.
 
 Deliver the artifact paths, execution state, exact experiment scope, numerical
 comparisons and limitations. In this implementation the paper-level verdict is
@@ -99,6 +108,7 @@ scientific replication are separate evidence levels.
 The parent `paper-code-audit` skill is discoverable in the headless Go Harness
 when its skills root is explicitly configured. The catalog reads only SKILL.md;
 this reference requires a separate authorized file reader and is not fetched by
-the skill tool. The built-in Desktop picker, typed Paper
-result persistence, automatic source-anchor attachment and Desktop UI acceptance
-are **not delivered by this CLI slice**. Never announce them as completed.
+the skill tool. The App route persists audit and reproduction evidence with
+explicit saved-PDF binding, but the built-in Desktop picker, automatic attachment
+from a UI selection, study-result navigation and Desktop UI acceptance are
+**not delivered**. Never announce them as completed.

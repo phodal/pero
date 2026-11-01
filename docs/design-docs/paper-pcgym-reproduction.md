@@ -3,8 +3,9 @@
 日期：2026-11-01。Refs #77 / #79。Pero 核查基线：
 `85453242733bef06b34f210bc22aa00b34291280`。
 
-**本次交付是固定案例的 CLI、可加载 Skill、领域契约和独立检查器，不是已完成的
-Desktop / Paper App 全链路集成。没有运行完整 PC-Gym 训练。**
+**本次交付是固定案例的 CLI、可加载 Skill、领域契约、独立检查器，以及持久化的
+Paper `reproduction-step` 审计/证据接线；不是已完成的 Desktop / Paper App 全链路集成。
+发布的 server 不能启动计算，执行仍使用明确授权的 CLI。没有运行完整 PC-Gym 训练。**
 此文明确已实现内容与整个场景仍需完成的连接；分支通过 Draft PR 评审。
 
 ## 1. 核实的案例与问题
@@ -85,11 +86,14 @@ Checker 保留整数分子、完整分母和双口径结果；缺样本直接拒
 
 `ReproductionSpec` 固定代码提交、来源 manifest digest、驱动/checker 字节指纹、Python
 版本、依赖版本、seed、profile、训练步数、轨迹/样本数、wall-time 和方法偏离。
-可选 `PaperAnchor` 为真实 passage/document/file digest 留出连接点；当前 CLI 尚未从
-App 自动填充它，不能凭标题或固定页号生成锚点。
+App 审计从已保存的 v4 Paper/PDF 及可选标注构造真实 `PaperAnchor`；freeze 还需可信
+装配提供固定 checkout，并将 passage/document/file digest、Paper 内容版本和标注绑定
+写入 Spec 的 `paper_binding_digest`。单独 CLI prepare 不自动填充 App 锚点；不能凭标题
+或固定页号生成锚点。
 
 `Observation` 按 policy → episode → sample 保存 Kelvin 温度，保留初始状态；必须包含
-base/shaped/oracle 和全部预登记样本。错误单位、重复 policy、少 episode/样本、布尔值、
+全部冻结策略和预登记样本，默认 base/shaped/oracle；显式 `--no-oracle` 仅冻结 base/shaped。
+错误单位、重复 policy、少 episode/样本、布尔值、
 NaN/Inf、错误 spec/attempt 都拒绝。没有“只保留成功部分”评分。
 
 `Verification` 分开记录：执行回执一致性、数值重算、论文结论、接受决定。即使所有数值
@@ -104,6 +108,7 @@ NaN/Inf、错误 spec/attempt 都拒绝。没有“只保留成功部分”评�
 | `pcgym_sources.py` | 固定 checkout 与四个 source blob 校验、静态 AST 证据位置、依赖清单 |
 | `pcgym_runtime.py` | 真实 PC-Gym / SB3 / CasADi 适配；不执行训练/可视化脚本，不读取未知 pickle |
 | `pcgym.py` | prepare/run/status/verify/export；前台执行、超时/取消/失败记录、独立检查子进程 |
+| `pcgym_app.py` | 现有 ResearchStore 与固定 reproduction-step 路由接线；保存 PDF/标注绑定，复用同一核心 |
 | `paper-code-audit/SKILL.md` + `references/pcgym-table6.md` | 通用审计入口；按需读取 PC-Gym 固定案例的执行说明 |
 | `test_pcgym_reproduction.py` | 自有 fixture 领域与持久化/CLI/离线交接测试；不冒充真实科研计算 |
 
@@ -126,6 +131,9 @@ python -m paper_agent.pcgym prepare \
   --output /absolute/new/pcgym-study \
   --profile table6 --seed 0 --timeout-seconds 3600
 ```
+
+安装包复制 backend 文件，不将其安装为 Python package。从安装包运行同一命令前，设置
+`PYTHONPATH=<installed-paper-agent>/backend`；不要假设模块已加入所选 Python 的搜索路径。
 
 CLI 需要 Python 3.10+，本轮使用 Python 3.12.11 验证。
 
@@ -166,8 +174,9 @@ name+digest 接口读取 Skill。该接口只读取 `SKILL.md`；案例 referenc
 
 包内包含原始数值、协议、检查器和校验清单；`python verify.py` 可无 Agent/求解器重算。
 `verify` 遇到回执摘要不匹配返回非零退出码并记录 FAIL；`export` 拒绝打包该结果。
-省略第三方完整论文/源码、checkpoint 二进制、私有绝对路径和执行日志；checkpoint 摘要
-留在环境回执。要重新训练仍需原 checkout 和科学依赖，不能把离线重算称为无依赖重训。
+省略第三方完整 PDF/源码文件、checkpoint 二进制、私有绝对路径和执行日志；checkpoint 摘要
+留在环境回执。App 绑定的导出包含 `paper-binding.json`，其中保留第 20 页 passage 文本和
+标注绑定；不是不含第三方文字的包。离线检查器核对该绑定与冻结 Spec 的摘要。要重新训练仍需原 checkout 和科学依赖，不能把离线重算称为无依赖重训。
 
 ## 7. 全场景后续接线与验收（尚未完成）
 
