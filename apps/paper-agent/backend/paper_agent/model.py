@@ -75,6 +75,8 @@ class PaperSnapshot:
     pdf_url: str | None = None
     metadata_url: str | None = None
     limitation: str | None = None
+    resource_kind: str | None = None
+    source_revision: str | None = None
 
     @classmethod
     def from_reading(cls, value, fetched_at):
@@ -106,11 +108,19 @@ class PaperSnapshot:
                     contentKind=kind, content=content, contentDigest=actual_digest, authors=list(authors))
         optional = {key: https(value[key]) for key in ("pdfUrl", "metadataUrl") if value.get(key)}
         base.update(optional)
+        resource_kind = value.get("resourceKind")
+        if resource_kind is not None:
+            if resource_kind not in ("web_article", "paper"):
+                raise Invalid("Invalid research resource kind")
+            base["resourceKind"] = resource_kind
+        source_revision = text(value["sourceRevision"], 100, "source revision") if value.get("sourceRevision") else None
+        if source_revision:
+            base["sourceRevision"] = source_revision
         identity = digest(base)
         limitation = text(value["limitation"], 2000, "source limitation") if value.get("limitation") else None
         return cls(identity, source, source_id, title, base["url"], kind, content, actual_digest,
                    text(value.get("fetchedAt", fetched_at), 40, "retrieval time"), authors,
-                   optional.get("pdfUrl"), optional.get("metadataUrl"), limitation)
+                   optional.get("pdfUrl"), optional.get("metadataUrl"), limitation, resource_kind, source_revision)
 
     @classmethod
     def from_record(cls, value):
@@ -132,6 +142,10 @@ class PaperSnapshot:
         value = dict(id=self.id, source=self.source, sourceId=self.source_id, title=self.title,
                      url=self.url, contentKind=self.content_kind, contentDigest=self.content_digest,
                      fetchedAt=self.fetched_at, authors=list(self.authors))
+        if self.resource_kind:
+            value["resourceKind"] = self.resource_kind
+        if self.source_revision:
+            value["sourceRevision"] = self.source_revision
         if include_content:
             value["content"] = self.content
         for key, item in (("pdfUrl", self.pdf_url), ("metadataUrl", self.metadata_url), ("limitation", self.limitation)):

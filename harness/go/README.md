@@ -56,6 +56,12 @@ Agent process lifetime and includes failed attempts; the output cap applies to
 each request. SDK retries are disabled independently. Omitted retry configuration
 retains the Harness policy, so set zero explicitly when paid retries are unwanted.
 
+`--http-attempt-audit /absolute/private/existing-file` durably records each HTTP
+attempt before dispatch, including failed attempts. It also works with the default
+`--max-requests 0`: auditing does not require adding a request cap. A missing or
+unwritable audit file stops dispatch. Zero `--max-tokens` omits a local output cap;
+the provider's supported default and ceiling still apply.
+
 For compatible DeepSeek Chat Completions, `--disable-thinking` explicitly sends
 `thinking: {"type":"disabled"}`; it is omitted by default. Do not rely on
 `--reasoning-effort none` as a substitute for this Chat Completions toggle.

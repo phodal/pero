@@ -14,8 +14,8 @@ from paper_agent.store import ResearchStore
 
 
 def main():
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler(
-        ResearchStore(os.environ["PERO_APP_DATA"], open_embedder()), os.environ["PERO_APP_TOKEN"]))
+    store = ResearchStore(os.environ["PERO_APP_DATA"], open_embedder())
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler(store, os.environ["PERO_APP_TOKEN"]))
     server.daemon_threads = True
     print(json.dumps({"port": server.server_port}), flush=True)
 
@@ -27,6 +27,7 @@ def main():
     try:
         server.serve_forever()
     finally:
+        store.imports.close()
         server.server_close()
 
 

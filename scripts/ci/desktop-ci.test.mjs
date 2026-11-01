@@ -13,7 +13,7 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   assert.deepEqual(Object.values(suites).map(([name]) => name).sort(), [
     'workbench', 'automation', 'toolcalls', 'data', 'data-product', 'control-lab', 'control-lab-app-use', 'control-lab-live',
     'virtual-cell-comparison', 'virtual-cell-dataset-download', 'app-use', 'app-use-workbench',
-    'mcp-settings', 'mcp-settings', 'mcp-settings', 'scientific-viewer', 'apps/automations/test/ui-smoke.mjs',
+    'mcp-settings', 'mcp-settings', 'mcp-settings', 'scientific-viewer', 'apps/automations/test/ui-smoke.mjs', 'paper-research-import-all',
   ].sort());
   const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
   const acceptance = workflow.jobs['desktop-acceptance'];
@@ -21,6 +21,10 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   assert.match(acceptance.if, /schedule.*workflow_dispatch/);
   assert.equal(acceptance.strategy['fail-fast'], false);
   assert.equal(acceptance.needs, 'desktop-linux');
+  const metadata = acceptance.steps.find(step => step.name === 'Observe public TimesFM and HF metadata separately');
+  assert.equal(metadata.if, "${{ !cancelled() && matrix.suite == 'paper-research-import' }}");
+  assert.equal(metadata['timeout-minutes'], 3);
+  assert.match(metadata.run, /research_metadata\.py --allow-public-metadata --output test-results\/research-import\/live-metadata\.json/);
   assert.match(workflow.jobs.complete.if, /always\(\)/);
   assert.deepEqual(workflow.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
   assert.match(acceptance.if, /contains\(github.event.pull_request.labels.\*.name, 'ci:full'\)/);
@@ -64,7 +68,7 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
     'python -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt',
     "python -m unittest discover -s apps/scientific-viewer/test -p 'test_*.py'"]) assert.ok(core.includes(command), command);
   assert.ok(commands.includes("python -m unittest discover -s apps/scientific-viewer/test -p 'test_*.py'"));
-  assert.equal(Object.keys(suites).length, 17);
+  assert.equal(Object.keys(suites).length, 18);
   const native = YAML.parse(readFileSync('.github/workflows/computer-use.yml', 'utf8'));
   assert.match(native.jobs.native.strategy.matrix.os, /schedule.*workflow_dispatch/);
   assert.equal(native.on.schedule[0].cron, '0 20 * * *');

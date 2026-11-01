@@ -202,7 +202,7 @@ func (c *Catalog) Read(ctx context.Context, name, digest string) (Definition, er
 		return Definition{}, errors.New("skills: unknown or model-disabled skill")
 	}
 	if digest != e.summary.Digest {
-		return Definition{}, errors.New("skills: digest must match the launch-time catalog")
+		return Definition{}, errors.New("skills: digest must match the launch-time catalog; call skill with {} to list this catalog, then copy the listed digest rather than guessing it")
 	}
 	text, err := e.files.Read(ctx, e.path)
 	if err != nil {

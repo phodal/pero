@@ -47,7 +47,7 @@ await mkdir(out, { recursive: true });
 // A previous pass must not survive a new failed run.
 await rm(resolve(out, 'ui-result.json'), { force: true });
 let fixtureClosed = false;
-let app, page, lastSnapshot, runtimeLog = '', transportFaultInstalled = false;
+let app, page, lastSnapshot, settingsGesture, runtimeLog = '', transportFaultInstalled = false;
 const errors = [];
 const progress = label => console.log(`MCP UI: ${label}`);
 async function bounded(promise, label, timeout = 15000) {
@@ -91,7 +91,7 @@ async function settled() {
 }
 async function open(direct = false) {
   progress(direct ? 'open MCP category without search' : 'open settings');
-  await bounded(openSettings(page), 'settings menu');
+  await bounded(openSettings(page, value => { settingsGesture = value; lastSnapshot = value.snapshot; }), 'settings menu');
   // All settings is the last footer action; categories live in its navigation tree.
   await page.keyboard.press('ArrowUp');
   await page.keyboard.press('Enter');
@@ -345,7 +345,7 @@ try {
     catch (diagnosticError) { console.error(String(diagnosticError)); }
   }
   console.error('MCP renderer exits:', JSON.stringify(rendererExits));
-  await writeFile(resolve(out, 'ui-failure.json'), JSON.stringify({ error: String(error), lastSnapshot, errors, rendererExits, runtimeLog }, null, 2).replaceAll(fixture.secret, '[redacted]'));
+  await writeFile(resolve(out, 'ui-failure.json'), JSON.stringify({ error: String(error), lastSnapshot, settingsGesture, errors, rendererExits, runtimeLog }, null, 2).replaceAll(fixture.secret, '[redacted]'));
   if (page) {
     try { await bounded(page.screenshot({ path: resolve(out, 'ui-failure.png'), timeout: 10000 }), 'failure screenshot'); }
     catch (captureError) { console.error(String(captureError)); }

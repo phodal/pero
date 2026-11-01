@@ -116,6 +116,7 @@ impl ContextSources<'_> {
                 }
             }
             ContextKind::Skill => {
+                if "research-resource-import paper url model dataset".contains(&query.to_lowercase()) {items.push(ContextCandidate{kind,label:"research-resource-import".into(),source:"pero-skill:research-resource-import".into(),detail:"Collect research references with optional confirmed Data downloads".into()});}
                 if "app-use".contains(&query.to_lowercase()) {items.push(ContextCandidate{kind,label:"app-use".into(),source:"pero-skill:app-use".into(),detail:"App objects, operations, evidence and declared data writes".into()});}
                 if "data analytics chart dataset".contains(&query.to_lowercase()) {items.push(ContextCandidate{kind,label:"data".into(),source:"pero-skill:data".into(),detail:"Analyze datasets and make source-aware charts with Data Agent".into()});}
                 for root in self.skill_roots() {
@@ -214,6 +215,9 @@ impl ContextSources<'_> {
         }
         if kind==ContextKind::Skill && source=="pero-skill:data" {
             return Ok(ContextReference{id:"pero-skill:data".into(),kind,label:"data".into(),source:source.into(),content:ContextContent::Text{text:include_str!("data-skill.md").into()}});
+        }
+        if kind == ContextKind::Skill && source == "pero-skill:research-resource-import" {
+            return Ok(ContextReference{id:source.into(),kind,label:"research-resource-import".into(),source:source.into(),content:ContextContent::Text{text:include_str!("../../../apps/paper-agent/skills/research-resource-import/SKILL.md").into()}});
         }
         let label;
         let content = match kind {
@@ -701,6 +705,10 @@ mod tests {
             .resolve(skill.kind, &skill.source, None, None)
             .unwrap();
         assert_eq!(resolved_skill.label, "example");
+        let resource_skill = sources.search(ContextKind::Skill, "research-resource-import").unwrap();
+        let resource_skill = resource_skill.iter().find(|item| item.source == "pero-skill:research-resource-import").unwrap();
+        let loaded = sources.resolve(resource_skill.kind, &resource_skill.source, None, None).unwrap();
+        assert!(matches!(loaded.content, ContextContent::Text { text } if text == include_str!("../../../apps/paper-agent/skills/research-resource-import/SKILL.md")));
         let bundled = sources.search(ContextKind::Skill, "app-use").unwrap();
         let bundled = bundled.iter().find(|item|item.source=="pero-skill:app-use").unwrap();
         let bundled = sources.resolve(bundled.kind,&bundled.source,None,None).unwrap();

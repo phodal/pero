@@ -62,6 +62,13 @@ enum Request {
         id: String,
         name: AppName,
     },
+    #[serde(rename = "research-assets")]
+    ResearchAssets {
+        method: Method,
+        id: String,
+        name: AppName,
+        request: crate::research_assets::ResearchAssetsRequest,
+    },
 }
 
 #[derive(Clone)]
@@ -220,6 +227,13 @@ impl Apps {
                     store.require_grant(&name, "connectors")?;
                     Ok(serde_json::json!({"permitted":true}))
                 }
+                Request::ResearchAssets { method, id, name, request } => {
+                    let _ = (method, id);
+                    let handoff = crate::research_assets::ResearchAssetHandoff::resolve(store, &name, &mut progress)?;
+                    // Backend authority is frozen above; do not hold the catalog lock during I/O.
+                    drop(guard);
+                    return handoff.execute(request);
+                }
                 Request::Resolve { method, id, name } => {
                     let _ = (method, id);
                     serde_json::to_value(store.resolve_with_progress(&name, &mut progress)?)
@@ -253,6 +267,9 @@ mod tests {
     fn app_request_surface_accepts_pero_install_and_rejects_removed_adapters() {
         let install = serde_json::json!({"method":"apps","id":"install","action":"install","path":"local-app"});
         assert!(matches!(serde_json::from_value::<Request>(install), Ok(Request::Install { .. })));
+        let research = serde_json::json!({"method":"apps","id":"assets","action":"research-assets","name":"paper-agent",
+            "request":{"operation":"status","bundleId":"a".repeat(64)}});
+        assert!(matches!(serde_json::from_value::<Request>(research), Ok(Request::ResearchAssets { .. })));
         for action in ["pointconfig", "pointprojects"] {
             let request = serde_json::json!({"method":"apps","id":"removed","action":action,"name":"sample"});
             assert!(serde_json::from_value::<Request>(request).is_err());

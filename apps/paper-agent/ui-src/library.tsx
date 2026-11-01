@@ -2,10 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button, Checkbox, EmptyState, Feedback, Field, FilePicker, Input, ListRow, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, Toolbar } from '@pero/app-sdk/ui';
 import type { Api, Paper, SearchItem } from './types';
 import type { Translator } from './i18n';
+import { ResearchImport } from './research-import';
+import type { ResearchBundle } from './research-types';
 
 const sourceNames: Record<string, string> = { huggingface: 'Hugging Face', alphaxiv: 'alphaXiv', openalex: 'OpenAlex', biorxiv: 'bioRxiv', pubmed: 'PubMed' };
 
-export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImportPdf, importingPdf }: { api: Api; active: boolean; onImportPdf(file: File): Promise<void>; importingPdf: boolean; t: Translator; onAdded(paper: Paper, focus: boolean): Promise<void>; onClose(): void; onError(error: unknown): void }) {
+export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImportPdf, importingPdf, onBundleSaved }: { onBundleSaved(bundle: ResearchBundle, startDownloadIds: string[]): Promise<void>; api: Api; active: boolean; onImportPdf(file: File): Promise<void>; importingPdf: boolean; t: Translator; onAdded(paper: Paper, focus: boolean): Promise<void>; onClose(): void; onError(error: unknown): void }) {
   const [tab, setTab] = useState('search'), [query, setQuery] = useState(''), [source, setSource] = useState('all'), [priority, setPriority] = useState('recency');
   const [results, setResults] = useState<SearchItem[] | null>(null), [warnings, setWarnings] = useState<string[]>([]);
   const [resultPriority, setResultPriority] = useState('default');
@@ -54,7 +56,7 @@ export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImpor
   }
   return <section className="pa-import" ref={panel} aria-label={t('add')}>
     <Tabs value={tab} onValueChange={setTab}>
-      <TabsList aria-label={t('add')}><TabsTrigger value="search">{t('search')}</TabsTrigger><TabsTrigger value="pdf">PDF</TabsTrigger><TabsTrigger value="import">{t('import')}</TabsTrigger></TabsList>
+      <TabsList aria-label={t('add')}><TabsTrigger value="search">{t('search')}</TabsTrigger><TabsTrigger value="pdf">PDF</TabsTrigger><TabsTrigger value="import">{t('import')}</TabsTrigger><TabsTrigger value="research">Research URL</TabsTrigger></TabsList>
       <TabsContent value="search" forceMount>
         <div className="pa-search-form" role="search" onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing && event.target instanceof HTMLInputElement) { event.preventDefault(); void search(); } }}>
           <Field label={t('findLabel')}>{props => <Input {...props} value={query} onChange={event => setQuery(event.target.value)} placeholder={t('searchPlaceholder')} maxLength={500}/>}</Field>
@@ -82,6 +84,7 @@ export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImpor
           <Toolbar><Button onClick={() => void importText()} variant="primary" busy={adding === 'text'} disabled={!!adding || !title.trim() || !url.trim() || !content.trim()}>{adding === 'text' ? t('loading') : t('importAction')}</Button></Toolbar>
         </div>
       </TabsContent>
+      <TabsContent value="research" forceMount><ResearchImport api={api} active={active && tab === 'research'} onSaved={onBundleSaved}/></TabsContent>
     </Tabs>
   </section>;
 }
@@ -116,7 +119,7 @@ export function PaperList({ papers, selecting, selected, readingId, locked, onSe
   return <>
     <ul className="pa-library-list">{papers.map(paper => <li key={paper.id}>
       {selecting && <Checkbox checked={selected.includes(paper.id)} disabled={locked || selected.length >= 5 && !selected.includes(paper.id)} aria-label={`${t('usePaper')}: ${paper.title}`} onCheckedChange={checked => onSelect(paper.id, checked)}/>}
-      <ListRow title={paper.title} meta={t(paper.contentKind === 'abstract' ? 'abstract' : paper.contentKind === 'report' ? 'sourceReport' : 'fullText')} current={readingId === paper.id} onOpen={() => onRead(paper)}
+      <ListRow title={paper.title} meta={paper.resourceKind === 'web_article' ? 'Article excerpt' : t(paper.contentKind === 'abstract' ? 'abstract' : paper.contentKind === 'report' ? 'sourceReport' : 'fullText')} current={readingId === paper.id} onOpen={() => onRead(paper)}
         trailing={onDiscover && <Button variant="ghost" onClick={() => onDiscover(paper)}>{t('discover')}</Button>}/>
     </li>)}</ul>
   </>;

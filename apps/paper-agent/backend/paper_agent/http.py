@@ -90,6 +90,11 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if self.command == 'GET': return self.reply(200, store.report_matrix(matrix_match[1]))
                     if self.command == 'POST': return self.reply(201, store.edit_matrix(matrix_match[1], data, now()))
                 if self.command == "GET":
+                    if path == '/api/research/drafts':
+                        return self.reply(200, dict(drafts=store.imports.drafts()))
+                    bundle_match = re.fullmatch(r'/api/research/bundles/([a-f0-9]{64})', path)
+                    if bundle_match:
+                        return self.reply(200, store.imports.bundle(bundle_match[1]).to_dict())
                     lines_match = re.fullmatch(r'/api/papers/([a-f0-9]{64})/lines', path)
                     if lines_match:
                         paper = store.paper(lines_match[1])
@@ -152,6 +157,12 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, record.to_dict())
                 if self.command == "POST":
+                    if path == '/api/research/inspect':
+                        return self.reply(200, store.imports.inspect(data, now()).to_dict())
+                    if path == '/api/research/commit':
+                        return self.reply(201, store.imports.commit(data, now()).to_dict())
+                    if path == '/api/research/handoff':
+                        return self.reply(200, store.imports.handoff(data))
                     if path in ('/api/research/prepare', '/api/research/followup'):
                         request = (ResearchRequest.follow_up(data, store.intent(data.get('parentIntentId')))
                                    if path.endswith('/followup') else ResearchRequest.parse(data))

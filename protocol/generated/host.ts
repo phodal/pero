@@ -102,12 +102,18 @@ export type AppRequest =
   | ResolveApp
   | AgentApp
   | ConnectorsApp
-  | AutomationApp;
+  | AutomationApp
+  | ResearchAssetsApp;
 export type RequestId = string;
 export type AppName = string;
 export type PointAgentRequest =
   PointStart | PointLookup | PointStatus | PointEvents | PointCancel | PointRetry | PointOpen;
 export type AgentRequest = AgentInfoRequest | AgentStartRequest | AgentEventsRequest | AgentCancelRequest;
+export type ResearchAssetsRequest = ResearchAssetStart | ResearchAssetLookup;
+/**
+ * Paper may request only saved research identities; Host owns the fixed Data target.
+ */
+export type ResearchId = string;
 export type ContributionRequest = ContributionPrepare | ContributionReview | ContributionPublish;
 export type HostEvent =
   | TerminalEvent
@@ -1076,6 +1082,23 @@ export interface AutomationApiRequest {
   method: "GET" | "POST" | "PUT" | "DELETE";
   path: string;
   body?: unknown;
+}
+export interface ResearchAssetsApp {
+  action: "research-assets";
+  name: AppName;
+  request: ResearchAssetsRequest;
+  method: "apps";
+  id: RequestId;
+}
+export interface ResearchAssetStart {
+  operation: "start";
+  bundleId: ResearchId;
+  assetId: ResearchId;
+}
+export interface ResearchAssetLookup {
+  operation: "status" | "cancel";
+  bundleId: ResearchId;
+  assetId?: ResearchId;
 }
 export interface ContributionPrepare {
   method: "contribution";
@@ -2168,7 +2191,9 @@ export interface AppSuccess {
     | AppAgentStarted
     | AppAgentTranscript
     | AppAgentCancelled
-    | AppGrant;
+    | AppGrant
+    | ResearchAssetReply
+    | ResearchBundleReply;
 }
 export interface PointRun {
   id: string;
@@ -2276,6 +2301,19 @@ export interface AppAgentCancelled {
 }
 export interface AppGrant {
   permitted: true;
+}
+/**
+ * Data owns the domain source/job/catalog documents. The handoff has no private paths or tokens.
+ */
+export interface ResearchAssetReply {
+  source: AppDocumentSchema | null;
+  download: AppDocumentSchema | null;
+  asset: AppDocumentSchema | null;
+  receipt: AppDocumentSchema;
+}
+export interface ResearchBundleReply {
+  bundleId: ResearchId;
+  assets: ResearchAssetReply[];
 }
 export interface AppFailure {
   ok: false;

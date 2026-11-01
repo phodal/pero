@@ -8,6 +8,7 @@ import threading
 
 from catalog import Catalog, IMPORT_LIMIT, ImportFile
 from downloads import Downloads
+from sources import ResearchAsset, ResearchSelection
 
 
 def handler(downloads, secret):
@@ -31,11 +32,15 @@ def handler(downloads, secret):
                 self.connection.settimeout(20)
                 if self.command == 'GET' and self.path == '/api/state':
                     return self.reply(200, downloads.state())
-                if self.command != 'POST' or self.path not in ('/api/import', '/api/download', '/api/cancel'):
+                if self.command != 'POST' or self.path not in (
+                    '/api/import', '/api/download', '/api/cancel',
+                    '/api/research-download', '/api/research-status', '/api/research-cancel',
+                ):
                     return self.reply(404, {'error': 'Route not found'})
                 if self.headers.get('Transfer-Encoding') or not self.headers.get('Content-Type', '').startswith('application/json'):
                     raise ValueError('A JSON request with Content-Length is required')
-                limit = ((IMPORT_LIMIT + 2) // 3) * 4 + 4096 if self.path == '/api/import' else 4096
+                limit = ((IMPORT_LIMIT + 2) // 3) * 4 + 4096 if self.path == '/api/import' else (
+                    8192 if self.path == '/api/research-download' else 4096)
                 length = int(self.headers.get('Content-Length', 0))
                 if not 0 < length <= limit:
                     raise ValueError('Request exceeds the import limit (10 MiB file)')
@@ -45,6 +50,11 @@ def handler(downloads, secret):
                 data = json.loads(raw)
                 if not isinstance(data, dict):
                     raise ValueError('Expected a JSON object')
+                if self.path == '/api/research-download':
+                    return self.reply(200, downloads.start_research(ResearchAsset.parse(data)))
+                if self.path in ('/api/research-status', '/api/research-cancel'):
+                    return self.reply(200, downloads.research_state(ResearchSelection.parse(data),
+                                                                   cancel=self.path == '/api/research-cancel'))
                 if self.path == '/api/import':
                     downloads.catalog.import_file(ImportFile.parse(data))
                 elif self.path == '/api/download':

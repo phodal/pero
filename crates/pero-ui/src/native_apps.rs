@@ -201,6 +201,18 @@ impl NativeApps {
         let path = uri.path();
         let method = request.method();
         let body = request.body();
+        if path == "/host/research-assets" {
+            if method != "POST" {
+                return Ok(Response::builder().status(405).body(b"Method refused".to_vec())?);
+            }
+            if body.len() > 4096 {
+                return Ok(Response::builder().status(413).body(b"Request too large".to_vec())?);
+            }
+            let operation: Value = serde_json::from_slice(body)?;
+            let value = self.request::<Value>("research-assets", json!({"name":name,"request":operation}))?;
+            return Ok(Response::builder().header("Content-Type", "application/json")
+                .header("Cache-Control", "no-store").body(serde_json::to_vec(&value)?)?);
+        }
         if path == "/host/automation" {
             anyhow::ensure!(method == "POST" && body.len() <= 256_000, "Invalid Automation request");
             let operation: Value = serde_json::from_slice(body)?;
@@ -325,5 +337,48 @@ impl NativeApps {
             .header("X-Content-Type-Options", "nosniff")
             .header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'")
             .body(data)?)
+    }
+}
+
+#[cfg(test)]
+mod research_assets_tests {
+    use super::*;
+
+    #[test]
+    fn research_asset_route_forwards_only_the_origin_and_operation_to_host() {
+        let (host, requests) = mpsc::channel();
+        let (events, _) = async_channel::unbounded();
+        let apps = NativeApps::new(host, events, None);
+        for operation in ["start", "status", "cancel"] {
+            let body = json!({"operation":operation,"bundleId":"a".repeat(64),"assetId":"b".repeat(64)});
+            let expected = body.clone();
+            let serving = apps.clone();
+            let response = std::thread::spawn(move || serving.serve("paper-agent", Request::builder()
+                .uri("pero-app://paper-agent/host/research-assets").method("POST")
+                .header("Origin", "pero-app://paper-agent")
+                .body(serde_json::to_vec(&body).unwrap()).unwrap()));
+            let command: Value = serde_json::from_str(&requests.recv_timeout(Duration::from_secs(2)).unwrap()).unwrap();
+            assert_eq!(command["method"], "apps");
+            assert_eq!(command["action"], "research-assets");
+            assert_eq!(command["name"], "paper-agent");
+            assert_eq!(command["request"], expected);
+            let mut reply = HostEvent::new("apps_result", command["id"].as_str().map(str::to_owned), String::new());
+            reply.data = json!({"ok":true,"value":{"state":"queued"}});
+            assert!(apps.accept(&reply));
+            let response = response.join().unwrap();
+            assert_eq!(response.status(), 200);
+            assert_eq!(response.headers()["Cache-Control"], "no-store");
+            assert_eq!(serde_json::from_slice::<Value>(response.body()).unwrap(), json!({"state":"queued"}));
+        }
+        for (method, origin, body, status) in [
+            ("GET", "pero-app://paper-agent", vec![], 405),
+            ("POST", "pero-app://paper-agent", vec![b' '; 4097], 413),
+            ("POST", "pero-app://other-app", vec![], 503),
+        ] {
+            let response = apps.serve("paper-agent", Request::builder().uri("pero-app://paper-agent/host/research-assets")
+                .method(method).header("Origin", origin).body(body).unwrap());
+            assert_eq!(response.status(), status);
+            assert!(requests.try_recv().is_err());
+        }
     }
 }

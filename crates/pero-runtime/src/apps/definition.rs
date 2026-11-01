@@ -167,9 +167,9 @@ impl AppDefinition {
         }
         let mut seen = std::collections::BTreeSet::new();
         for grant in &value.permissions.host {
-            if !matches!(grant.as_str(), "agent" | "insights" | "connectors" | "automation") || !seen.insert(grant.as_str()) {
+            if !matches!(grant.as_str(), "agent" | "insights" | "connectors" | "automation" | "research-assets") || !seen.insert(grant.as_str()) {
                 return Err(
-                    "This Host supports only the App agent, insights, connectors and automation permissions".into(),
+                    "This Host supports only the App agent, insights, connectors, automation and research-assets permissions".into(),
                 );
             }
         }
@@ -242,6 +242,7 @@ mod tests {
             ("permissions", serde_json::json!({"host":["agent"]}), true),
             ("permissions", serde_json::json!({"host":["insights"]}), true),
             ("permissions", serde_json::json!({"host":["connectors"]}), true),
+            ("permissions", serde_json::json!({"host":["research-assets"]}), true),
             ("permissions", serde_json::json!({"host":["agent","insights"]}), true),
             ("permissions", serde_json::json!({"host":["agent","agent"]}), false),
             (

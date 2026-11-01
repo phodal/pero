@@ -7,6 +7,7 @@ mod agents;
 mod automation;
 mod automation_store;
 mod apps;
+mod research_assets;
 mod local_repo;
 mod contributions;
 mod documents;

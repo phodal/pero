@@ -86,3 +86,19 @@ library again. Only its disposable product manifest uses `python: system`;
 `products/data/product.json` remains `python: bundled`. Receipts and screenshots
 under `test-results/data-product/` establish development-shell behavior, not
 bundled Python, signed installer or live-source acceptance.
+
+### Research files from Paper
+
+Paper can hand off an explicitly selected, confirmed file through the Host's
+fixed `research-assets` operation. Data admits only public Hugging Face model or
+dataset files at a 40-character commit, with an exact size, LFS SHA-256 and known
+license. The source, revision, approved bundle/file IDs, job and resulting catalog
+asset form the receipt; private locations and temporary signed CDN URLs are not
+returned to Paper. The existing trusted redirect-host allowlist is unchanged.
+
+The same single worker and `.part`/atomic publication rules apply. Status and
+cancel are scoped to the approved bundle/file. Repeating an active or completed
+request reuses its job or verified asset; failed, interrupted, cancelled or
+missing-file cases require an explicit retry. Downloaded bytes are never loaded
+as a model or executed. Publication reuses the already-verified streamed SHA-256,
+so status/cancel are not blocked by a second full-file hash under the catalog lock.
