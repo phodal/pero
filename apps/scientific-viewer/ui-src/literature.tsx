@@ -1,7 +1,7 @@
 import React,{useEffect,useRef,useState} from 'react';
 import type {PDFDocumentProxy,RenderTask} from 'pdfjs-dist';
 import {useAppAgent,useAppChat,useAppObject} from '@pero/app-sdk';
-import {cropRect,emptyEvidence,evidenceZip,loadEvidence,quoteMatches,reviewPrompt,saveEvidence,sha256,type Evidence,type EvidenceFile,type Review} from './evidence';
+import {cropRect,emptyEvidence,evidenceContext,evidenceZip,loadEvidence,quoteMatches,reviewPrompt,saveEvidence,sha256,type Evidence,type EvidenceFile,type Review} from './evidence';
 
 export function Literature({file}:{file:EvidenceFile}){
  const [document,setDocument]=useState<PDFDocumentProxy|null>(null),[page,setPage]=useState(1),[text,setText]=useState(''),[query,setQuery]=useState(''),[matchIndex,setMatchIndex]=useState(0);
@@ -12,7 +12,7 @@ export function Literature({file}:{file:EvidenceFile}){
  const agent=useAppAgent(),chat=useAppChat();current.current=evidence;source.current=file.sha256;
  const matches=query.trim()?quoteMatches(text,query):[],matched=matches[matchIndex]??null,review=evidence.review;
  const live=Boolean(review&&['starting','running','needs_input'].includes(review.status));
- useAppObject({id:`pdf-${file.sha256}`,kind:'scientific-evidence',label:file.name,state:{sourceSha256:file.sha256,name:file.name,page,pageCount:document?.numPages??0,quotes:evidence.quotes,figures:evidence.crops.map(({png:_png,...crop})=>crop),review:review?{requestId:review.requestId,sessionId:review.sessionId,status:review.status,text:review.text}:null,trust:'unreviewed'}});
+ useAppObject({id:`pdf-${file.sha256}`,kind:'scientific-evidence',label:file.name,state:evidenceContext(file,evidence,page,document?.numPages??0)});
  function persist(change:(value:Evidence)=>Evidence){const expected=file.sha256;const write=writes.current.then(async()=>{if(source.current!==expected)throw new Error('Selected source changed.');const next=change(current.current);await saveEvidence(next);if(source.current===next.sourceSha256){current.current=next;setEvidence(next);}});writes.current=write.catch(()=>{});return write;}
  useEffect(()=>{let cancelled=false;setLoaded(false);setEvidence(emptyEvidence(file.sha256));setError('');void loadEvidence(file.sha256).then(value=>{if(!cancelled){setEvidence(value);setLoaded(true);}}).catch(reason=>{if(!cancelled)setError(String(reason.message));});return()=>{cancelled=true;};},[file.sha256]);
  useEffect(()=>{

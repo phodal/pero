@@ -5,6 +5,14 @@ export type Crop = Readonly<{id:string;page:number;rect:readonly[number,number,n
 export type Review = Readonly<{requestId:string;agentId:string;prompt:string;sessionId?:string;cursor:number;status:'starting'|'running'|'needs_input'|'completed'|'failed'|'cancelled'|'unknown';text:string;error?:string}>;
 export type Evidence = Readonly<{version:1;sourceSha256:string;quotes:readonly Quote[];crops:readonly Crop[];review?:Review}>;
 export const emptyEvidence = (sourceSha256:string):Evidence => ({version:1,sourceSha256,quotes:[],crops:[]});
+/** Read-only App context excludes binary data and uses explicit JSON absence. */
+export function evidenceContext(file:EvidenceFile,evidence:Evidence,page:number,pageCount:number) {
+ const review=evidence.review;
+ return {sourceSha256:file.sha256,name:file.name,page,pageCount,quotes:evidence.quotes,
+  figures:evidence.crops.map(({png:_png,...crop})=>crop),
+  review:review?{requestId:review.requestId,sessionId:review.sessionId??null,status:review.status,text:review.text}:null,
+  trust:'unreviewed'};
+}
 export async function sha256(bytes:Uint8Array):Promise<string> {
  return [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes.slice().buffer))].map(v=>v.toString(16).padStart(2,'0')).join('');
 }
