@@ -3,6 +3,7 @@ import { Button, Feedback } from '@pero/app-sdk/ui';
 import type { Api } from './types';
 import { ResourceDetails } from './research-import';
 import { ResearchDownloads } from './research-downloads';
+import { ResearchClone } from './research-clone';
 import type { ResearchBundle } from './research-types';
 
 export function ResearchBundleList({ bundles, onOpen }: { bundles: ResearchBundle[]; onOpen(id: string): void }) {
@@ -20,7 +21,7 @@ export function ResearchBundleView({ api, id, startDownloadIds, onRead }: { api:
   return <div className="pa-library-content pa-research-bundle">
     {error ? <Feedback kind="error">{error}<Button onClick={() => setAttempt(value => value + 1)}>Retry</Button></Feedback> : !bundle && <p role="status">Loading bundle…</p>}
     {bundle && <><h2>{bundle.title}</h2><p className="pa-muted">Saved references</p><a href={bundle.seedUrl} target="_blank" rel="noreferrer">Original research URL</a>
-      <ul className="pa-resource-list">{bundle.resources.map(resource => <li key={resource.id}><h3>{resource.title}</h3><ResourceDetails resource={resource} onRead={onRead}/></li>)}</ul>
+      <ul className="pa-resource-list">{bundle.resources.map(resource => <li key={resource.id}><h3>{resource.title}</h3><ResourceDetails resource={resource} onRead={onRead}/>{resource.kind === 'code' && resource.identity.startsWith('github:') && <ResearchClone bundle={bundle} resource={resource}/>}</li>)}</ul>
       <ResearchDownloads key={bundle.id} bundle={bundle} startDownloadIds={startDownloadIds}/>
     </>}
   </div>;

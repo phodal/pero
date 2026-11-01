@@ -28,12 +28,23 @@ requests as questions. Ask selection questions in the existing conversation.
    use `cancel` for the same bundle/asset when asked. Failure keeps references
    intact. Do not retry a failed download automatically; ask or follow an explicit
    retry request. If a call's outcome is unknown, inspect status before retrying.
+5. A saved GitHub reference can stay reference-only or use **Clone with Agent**.
+   That button only opens a Host composer draft with frozen source provenance; it
+   does not submit, grant permission, or clone. In conversation, first confirm the
+   exact public HTTPS repository, destination, revision, license and size (including
+   unknowns). Then use the existing authorized execution tools and their normal
+   permission/cancellation flow, not a new App execution endpoint. Clone without
+   checkout, submodules or LFS materialization. Never execute repository code,
+   install dependencies or launch experiments. Only after real execution succeeds,
+   report the repository URL, resolved HEAD commit, local destination and Host tool
+   receipt in that session. A prepared request is not a completed clone or Data
+   asset; blocked/failed/cancelled requests leave the saved reference intact.
 
 Report saved references separately from verified downloaded bytes. A successful
-import does not establish scientific validity or reproducibility. Repositories
-are references only here: never clone, execute their code, install dependencies
-or launch experiments as part of this flow. If Host/Data is unavailable, keep the
-bundle and explain that no local asset was downloaded.
+import does not establish scientific validity or reproducibility. Do not infer
+clone success from a composer acknowledgment or invent a local receipt. If
+Host/Data is unavailable, keep the bundle and explain that no local asset was
+downloaded.
 
 The Host skill picker embeds this file. Headless Go Harness users can separately
 opt in with `--skills-root <installed-paper-agent>/skills`; its catalog remains

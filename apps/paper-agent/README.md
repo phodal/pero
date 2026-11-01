@@ -312,8 +312,15 @@ confirm their total size and displayed licenses once; Data then verifies each
 file's exact size and SHA-256 before publishing it. Progress, cancellation and a
 local-asset receipt stay available in the bundle. Failures keep references saved;
 retry is explicit. Unknown licenses, gated sources, unsupported file paths and
-unpinned files remain references. Code cloning/execution, dependency installation
-and experiments are not part of import. A license label is not a license grant.
+unpinned files remain references. A license label is not a license grant.
+
+For a saved GitHub reference, **Clone with Agent** opens an unsent Host composer
+request with frozen source provenance. It does not clone or grant execution rights.
+Review the destination, revision, license and unknown size in the existing
+conversation before authorizing its normal execution tools. A successful clone's
+actual commit, local path and tool receipt belong to that Host session; Paper does
+not mark the request completed or invent a Data asset. Repository checkout/code
+execution, dependency installation and experiments are not part of this handoff.
 
 The Host's **research-resource-import** skill uses the same declared inspect,
 commit and asset tools in an existing Agent conversation. Import also works

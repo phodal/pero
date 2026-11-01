@@ -39,6 +39,13 @@ crawler platform, graph database or download manager.
 - The skill is embedded in the Host context picker and tested for actual loading.
   The Go catalog remains explicit-root/read-only; opting into Paper's `skills`
   directory is documented. Skill text never grants permissions.
+- **Clone with Agent** freezes a saved GitHub reference into the existing Host
+  composer. It is an unsent request, not clone authorization, execution, or a local
+  asset receipt. Any later clone must use existing authorized execution tools after
+  confirmation of destination, revision, license and size, without checkout,
+  submodules, LFS materialization or running repository code. Only an actual Host
+  execution can provide a resolved commit/path/tool receipt. Paper does not write
+  a completed-clone state. This implementation's tests stop at the composer.
 
 ## Verification (2026-11-01)
 
