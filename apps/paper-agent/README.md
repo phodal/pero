@@ -292,3 +292,32 @@ and retains its own frozen prompt.
 
 The existing PDF renderer, annotations, research execution and exact citation
 resolver are reused. See [reading-first design](../../docs/design-docs/paper-reading-first.md).
+
+## Import a research URL
+
+Open **Add papers → Research URL**, paste a public HTTPS article, paper, repository
+or Hugging Face page, and choose **Inspect link**. Review the discovered references
+in one list. Articles, cited papers, code, model weights, datasets, benchmarks and
+services remain distinct; missing metadata is marked unresolved. A cited paper
+may describe an earlier release, not the article's new model.
+
+**Save references only** is the default. It saves a research bundle and immutable
+reading excerpts where available, without cloning or downloading assets. Reopen
+bundles from the library or resume an uncommitted inspection after restarting.
+Repeated URLs and known aliases reuse identities. **Inspect again** explicitly
+refreshes metadata; it does not erase saved references or rewrite snapshots.
+
+Only offered, pinned Hugging Face files can be downloaded. Select the files and
+confirm their total size and displayed licenses once; Data then verifies each
+file's exact size and SHA-256 before publishing it. Progress, cancellation and a
+local-asset receipt stay available in the bundle. Failures keep references saved;
+retry is explicit. Unknown licenses, gated sources, unsupported file paths and
+unpinned files remain references. Code cloning/execution, dependency installation
+and experiments are not part of import. A license label is not a license grant.
+
+The Host's **research-resource-import** skill uses the same declared inspect,
+commit and asset tools in an existing Agent conversation. Import also works
+without an Agent. The Host must enable Paper's `research-assets` grant and Data;
+Paper cannot access Data's private directory or backend token.
+
+Developer boundaries and verification: [Research URL import](../../docs/fitness/research-resource-import.md).
