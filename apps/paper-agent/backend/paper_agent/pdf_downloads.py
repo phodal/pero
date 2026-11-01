@@ -67,13 +67,13 @@ class PdfDownloads:
             return self.view(job)
 
     def available(self, job):
-        return bool(job.receipt and (self.store.root / 'pdf-files' / (job.receipt.fileDigest + '.pdf')).is_file())
+        return bool(job.receipt and self.store.pdf_available(job.receipt.fileDigest, job.receipt.size))
 
     def view(self, job):
         local_available = self.available(job)
         if job.status == 'completed' and not local_available:
             job = replace(job, status='unavailable', stage='unavailable',
-                          error='The original PDF file is missing. Restore verifies the original SHA-256; changed source bytes cannot replace this version.')
+                          error='The original PDF file is missing or failed integrity checks. Restore verifies the original SHA-256; changed source bytes cannot replace this version.')
         read_pages = set()
         if job.receipt:
             for identity in self.store._list('studies'):

@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from test_pdf import NOW, pdf_fixture
-from paper_agent.model import Invalid, PaperSnapshot, ResearchRequest
+from paper_agent.model import Invalid, PaperSnapshot, ResearchRequest, digest
 from paper_agent.pdf_files import PdfFiles
 from paper_agent.pdf import PdfDocument, PdfPage
 from paper_agent.retrieval import SearchQuery, SourceVersion, chunks
@@ -120,7 +120,7 @@ class LocalLibrarySearch(unittest.TestCase):
             self.assertEqual(reopened.search(original.query), original)
             (store.root / 'search-v1.sqlite3').unlink()
             self.assertEqual(reopened.search(original.query), original)
-            new_doc = PdfDocument.create(paper.id, 'c' * 64, paper.url,
+            new_doc = PdfDocument.create(paper.id, digest(b'synthetic'), paper.url,
                 (PdfPage(1, 400, 600, 'A newer PDF describes attention.'),), '2026-10-30T08:00:00Z')
             store.save_pdf(new_doc, b'synthetic')
             found = reopened.search(SearchQuery('newer', (paper.id,), pdf_only=True))
@@ -137,16 +137,17 @@ class LocalLibrarySearch(unittest.TestCase):
                 url='https://example.invalid/' + label), NOW) for label in ('one', 'two')]
             for paper in papers:
                 store.save_paper(paper)
-                doc = PdfDocument.create(paper.id, paper.id, paper.url,
+                data = ('synthetic ' + paper.id).encode()
+                doc = PdfDocument.create(paper.id, digest(data), paper.url,
                     (PdfPage(1, 400, 600, 'Attention evidence.' if paper == papers[0] else 'Unrelated background.'),), NOW)
-                store.save_pdf(doc, b'synthetic')
+                store.save_pdf(doc, data)
             request = ResearchRequest.parse(dict(question='Attention', paperIds=[p.id for p in papers], requestId='coverage', fullText=True))
             frozen = store.prepare(request, NOW)
             self.assertEqual(frozen.retrieval.unmatched_paper_ids, (papers[1].id,))
             old_doc = frozen.passages[0].document_id
-            newer = PdfDocument.create(papers[0].id, 'd' * 64, papers[0].url,
+            newer = PdfDocument.create(papers[0].id, digest(b'replacement synthetic'), papers[0].url,
                 (PdfPage(1, 400, 600, 'Replacement evidence.'),), '2026-10-30T08:00:00Z')
-            store.save_pdf(newer, b'synthetic')
+            store.save_pdf(newer, b'replacement synthetic')
             self.assertFalse(store.search(SearchQuery('Attention', (papers[0].id,), pdf_only=True)).hits)
             self.assertEqual(store.prepare(request, NOW), frozen)
             self.assertEqual(store.pdf(old_doc).id, old_doc)
