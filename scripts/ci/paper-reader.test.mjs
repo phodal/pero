@@ -216,3 +216,42 @@ test('research inspection creates fresh page-bound locators after Desktop restar
     ['restarted', 'authored-second'], ['restarted', 'inspect'], ['restarted', 'visible']]);
   await assert.rejects(() => inspectResearchReview(first, 'stale'), /page first is closed/);
 });
+
+import { scrollPdfAndRead } from '../../tests/e2e/paper-pdf-flow.mjs';
+
+test('PDF wheel checkpoint waits for actual movement and persistence despite positive initial offset', async () => {
+  let top = 20, storedY = 30, wheelCalls = 0, done = false, notifyWheel;
+  const issued = new Promise(resolve => { notifyWheel = resolve; });
+  const element = { get scrollTop() { return top; }, scrollHeight: 1000, clientHeight: 500, clientTop: 0,
+    getBoundingClientRect() { return { top: 0 }; },
+    querySelector(selector) { assert.equal(selector, '[data-page-number="1"]'); return { getBoundingClientRect() { return { top: -60 }; } }; } };
+  const viewport = { async hover() {}, async evaluate(fn, input) { return fn(element, input); } };
+  let notifyNative; const nativeSeen = new Promise(resolve => { notifyNative = resolve; });
+  const read = async () => { if (top === 80 && storedY === 30) notifyNative(); return { page: 1, zoom: 2, position: { y: storedY } }; };
+  const page = { mouse: { async wheel(x, y) { assert.equal(x, 0); assert.equal(y, 60); wheelCalls++; notifyWheel(); } } };
+  const pending = scrollPdfAndRead(page, viewport, read, 60).then(value => { done = true; return value; });
+  await issued; await new Promise(resolve => setImmediate(resolve));
+  assert.equal(done, false, 'preexisting positive y must not complete a queued wheel');
+  top = 80; // Native movement alone is not the persisted checkpoint either.
+  await nativeSeen; assert.equal(done, false);
+  storedY = 60;
+  assert.equal((await pending).position.y, 60);
+  assert.equal(wheelCalls, 1);
+});
+
+
+test('PDF wheel waits for pending zoom DOM alignment and clamps the native boundary', async () => {
+  let pageTop = -40, top = 480, storedY = 30, calls = 0, notifySample;
+  const sampled = new Promise(resolve => { notifySample = resolve; });
+  const element = { get scrollTop() { return top; }, scrollHeight: 1000, clientHeight: 500, clientTop: 0,
+    getBoundingClientRect() { return { top: 0 }; }, querySelector() { return { getBoundingClientRect() { notifySample(); return { top: pageTop }; } }; } };
+  const viewport = { async hover() {}, async evaluate(fn, input) { return fn(element, input); } };
+  const read = async () => ({ page: 1, zoom: 2, position: { y: storedY } });
+  const page = { mouse: { async wheel() { calls++; top = 500; storedY = 40; } } };
+  const pending = scrollPdfAndRead(page, viewport, read, 60);
+  await sampled; await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls, 0, 'zoom metrics alone must not establish the DOM baseline');
+  pageTop = -60; // The deferred zoom scroll now matches persisted y30.
+  assert.equal((await pending).position.y, 40); // Only20px fit before the bottom.
+  assert.equal(calls, 1);
+});

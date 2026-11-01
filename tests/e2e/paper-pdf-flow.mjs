@@ -8,6 +8,32 @@ export async function savePaperClipboard({ clipboard, ClipboardItem }) {
   globalThis.paperClipboard = await Promise.all((await clipboard.read()).filter(item => item.types.length)
     .map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)]))))));
 }
+// mouse.wheel resolves before Chromium delivers scrolling. A positive saved y
+// can already come from zoom anchoring, so it is not a wheel completion signal.
+export async function scrollPdfAndRead(page, viewport, readView, deltaY) {
+  await viewport.hover();
+  let before, target;
+  await expect.poll(async () => {
+    before = await readView();
+    target = await viewport.evaluate((element, { state, deltaY }) => {
+      const page = element.querySelector(`[data-page-number="${state.page}"]`);
+      if (!page) throw Error('Current PDF page has no rendered geometry');
+      const top = Math.max(0, Math.min(element.scrollHeight - element.clientHeight, element.scrollTop + deltaY));
+      const currentPageY = (element.getBoundingClientRect().top + element.clientTop - page.getBoundingClientRect().top) / state.zoom;
+      return { top, currentPageY, pageY: currentPageY + (top - element.scrollTop) / state.zoom };
+    }, { state: before, deltaY });
+    // Zoom dispatch can precede its RAF DOM scroll. Wait for that alignment
+    // before using the native position as the wheel baseline.
+    return Math.abs(before.position.y - target.currentPageY);
+  }).toBeLessThan(0.05);
+  await page.mouse.wheel(0, deltaY);
+  await expect.poll(() => viewport.evaluate(element => element.scrollTop)).toBeCloseTo(target.top, 1);
+  await expect.poll(async () => (await readView()).position.y).toBeCloseTo(target.pageY, 1);
+  const saved = await readView();
+  expect(saved.page).toBe(before.page);
+  expect(saved.zoom).toBe(before.zoom);
+  return saved;
+}
 export async function setPaperAppearance(page, appearance) {
   await page.evaluate(value => {
     const state = JSON.parse(window.peroDiagnostics.snapshot());
@@ -70,9 +96,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await nav.getByRole('button', { name: 'Zoom in', exact: true }).click();
   const retainedZoom = await nav.getByRole('button', { name: 'Fit page', exact: true }).innerText();
   const viewport = viewer.locator('.pa-pdf-viewport');
-  await viewport.hover(); await page.mouse.wheel(0, 60);
-  await expect.poll(async () => (await storedView()).position.y).toBeGreaterThan(0);
-  const beforeText = await storedView();
+  const beforeText = await scrollPdfAndRead(page, viewport, storedView, 60);
   await first.locator('img,canvas').first().evaluate(element => element.dataset.readingIdentity = 'retained');
   await frame.locator('.pa-pdf-reading > .pero-ui-toolbar').getByRole('button', { name: 'Text', exact: true }).click();
   await expect(viewer).toHaveCount(0);
