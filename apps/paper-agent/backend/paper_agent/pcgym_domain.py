@@ -160,7 +160,7 @@ class ReproductionSpec:
             raise Invalid('environment', 'Package versions must be explicit strings')
         if anchor is not None and not isinstance(anchor, PaperAnchor):
             raise Invalid('anchor', 'Use a validated observed PaperAnchor')
-        return cls(seed, 25000 if profile == 'table6' else 64,
+        return cls(seed, 25000 if profile == 'table6' else 128,
                    50 if profile == 'table6' else 2, 60, timeout,
                    tuple(sorted(packages.items())), source_manifest_digest, python_version, pipeline_digest,
                    anchor=anchor, profile=profile)

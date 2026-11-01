@@ -3,6 +3,10 @@
 Date: 2026-11-01. Scope: the generic skill and reference split in PR #82,
 following the initial PC-Gym increment at `720a3506`.
 
+A subsequent authorized [real PC-Gym smoke](paper-pcgym-smoke.md) exercised reference
+reading, actual scientific execution, optimizer updates and offline recomputation.
+The three forward cases below retain their original source/synthetic-check scope.
+
 ## Change and evaluation method
 
 The former PC-Gym skill conflated a reusable audit with one fixed adapter.

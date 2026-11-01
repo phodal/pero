@@ -47,7 +47,9 @@ Review the actual saved findings, including:
 Table 6's reported 0.0727 / 0.0003 / 0.0000 are reference values, never fresh results.
 The driver's full profile trains both DDPG variants for 25,000 steps and evaluates
 50 episodes × 60 samples for each policy, including the MPC oracle. `smoke` uses
-64 training steps and two episodes and must remain labelled a smoke test.
+128 requested training steps and two episodes and must remain labelled a smoke
+test. Check the recorded actual timesteps and gradient_updates: an execution
+shorter than the engine's warmup may generate rollouts without learning.
 
 ## 3. Get exact execution approval
 

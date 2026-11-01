@@ -73,6 +73,7 @@ def run_case(spec, checkout, attempt_id, output):
         return values
 
     checkpoint_hashes = {}
+    training = {}
     trajectories = {}
     events = output / 'events.jsonl'
 
@@ -91,6 +92,11 @@ def run_case(spec, checkout, attempt_id, output):
             model = DDPG('MlpPolicy', env, verbose=0, learning_rate=0.001,
                          seed=spec.seed, device='cpu')
             model.learn(total_timesteps=spec.steps)
+            training[name] = {'requested_timesteps': spec.steps,
+                              'actual_timesteps': model.num_timesteps,
+                              'learning_starts': model.learning_starts,
+                              'gradient_updates': model._n_updates}
+            event('training-complete', policy=name, **training[name])
             model.save(str(output / (name + '-checkpoint')))
             checkpoint = output / (name + '-checkpoint.zip')
             checkpoint_hashes[checkpoint.name] = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
@@ -150,6 +156,7 @@ def run_case(spec, checkout, attempt_id, output):
     preflight(spec, checkout)
     event('execution-complete', policies=list(POLICIES), episodes=spec.episodes)
     return observation, {'source_manifest': source_manifest, 'checkpoints': checkpoint_hashes,
+                         'training': training,
                          'python': sys.version, 'packages': package_inventory(),
                          'evaluation_seeds': [spec.seed + 10000 + i for i in range(spec.episodes)],
                          'deviations': list(spec.deviations())}

@@ -148,7 +148,8 @@ simulator setting、MPC horizon 20，并使用未更改的 `custom_reward.py`。
 其他 CSTR 段落/图示的 25 分钟，不擅自合并配置。新 seed、深拷贝、独立评估环境等偏离
 全部写入 Spec。完整 profile 的实际成本尚未测量；一小时是可修改的执行预算，不是耗时估计。
 
-`smoke` 为 64 training steps / 2 repetitions，仅检查真实依赖与连接是否能工作，不能作为
+`smoke` 为 128 requested training steps / 2 repetitions；同时记录实际步数、warmup
+和梯度更新次数，避免仅采样而未更新。仅检查真实依赖与连接是否能工作，不能作为
 Table 6 结果。任何引擎缺失直接失败，无手写曲线 fallback。
 
 已有 Go Harness 可显式配置 `--skills-root /approved/installed-paper-agent/skills`，按其

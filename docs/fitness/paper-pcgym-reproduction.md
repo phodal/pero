@@ -6,6 +6,11 @@ based on the supplied `pero-pcgym-research` implementation bundle.
 The generalized skill and additional behavioral checks are recorded separately in
 [Paper-Code Audit skill verification](paper-code-audit-skill.md).
 
+Update: a real optimizer/rollout/MPC smoke and solver-free offline check have now
+completed. Exact attempts, a warmup gap found and corrected, numerical results and
+remaining scientific limits are in [real smoke verification](paper-pcgym-smoke.md).
+The preparation-only and unexecuted statements below describe the initial increment.
+
 ## Executed
 
 ```sh
