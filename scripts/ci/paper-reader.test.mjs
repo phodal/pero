@@ -89,21 +89,33 @@ test('Paper Chat close requires a stable painted Host hit target, not draft geom
   }
 });
 
-test('Paper Chat closes with one real pointer click and requires old bounds to clear', async () => {
+test('Paper Chat retries initially missing or moving bounds before one real pointer click', async () => {
   const bounds = { x: 1400, y: 730, width: 20, height: 24 }, clicks = [];
-  let open = true, disposed = false;
+  let open = true, samples = 0;
   const page = {
-    evaluate: async () => ({ appChatOpen: open, floatingChat: true, chatCloseButtonBounds: open ? bounds : null }),
-    getByRole: () => ({ isVisible: async () => false }),
-    waitForFunction: async (predicate, argument, options) => {
-      assert.equal(predicate, paintedPaperChatCloseTarget);
-      assert.equal(options.timeout, 5000);
-      return { jsonValue: async () => bounds, dispose: async () => { disposed = true; } };
+    evaluate: async predicate => {
+      if (predicate === paintedPaperChatCloseTarget) { samples++; return samples < 3 ? false : bounds; }
+      return { appChatOpen: open, floatingChat: true, chatCloseButtonBounds: open ? bounds : null };
     },
-    mouse: { click: async (x, y) => { assert.equal(disposed, true); clicks.push([x, y]); open = false; } },
+    getByRole: () => ({ isVisible: async () => false }),
+    mouse: { click: async (x, y) => { assert.equal(samples, 3); clicks.push([x, y]); open = false; } },
   };
   await closePaperChat(page);
   assert.deepEqual(clicks, [[1410, 742]]);
   await closePaperChat(page);
   assert.equal(clicks.length, 1);
+});
+
+test('Paper Chat never clicks when painted bounds remain unavailable', async () => {
+  let samples = 0;
+  const page = {
+    evaluate: async predicate => {
+      if (predicate === paintedPaperChatCloseTarget) { samples++; return false; }
+      return { appChatOpen: true, floatingChat: true, chatCloseButtonBounds: null };
+    },
+    getByRole: () => ({ isVisible: async () => false }),
+    mouse: { click: async () => assert.fail('No pointer coordinates exist until the paint gate succeeds') },
+  };
+  await assert.rejects(closePaperChat(page), /Paper Chat close has a stable painted Host hit target/);
+  assert.ok(samples > 1, 'an initially false asynchronous sample must be retried');
 });

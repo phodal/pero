@@ -122,3 +122,19 @@ lists. Preparation now retains the worker's JSON-native record after full existi
 schema/hash validation; same-byte refresh reuses the document, receipt timestamp,
 observation IDs and report without weakening immutable comparison or authorization.
 Corrected full reading/Read-PDF restart acceptance remains pending new exact-head CI.
+
+Run 41328180537 (head 782c720f) completes the authored HTML Desktop journey:
+`paper-structured-reading/fixture/result.json` records explicit grants, typed and
+raw report reopening, successful identical refresh, dark/narrow layout, Read/PDF
+page and zoom preservation, real Desktop/backend restart, and evidence-only CLI
+export with no errors. Artifact 13092602636 includes both reading screenshots.
+This is offline authored-corpus acceptance, not live paper scientific acceptance.
+
+The subsequent PDF-only journey exposes a separate saved-view initialization bug:
+a numeric default zoom leaves EmbedPDF 2.15.1's initial viewport gate closed.
+Paper now boots with FitPage and applies the saved numeric scale through the
+existing restoration callback after layout; explicit citations still override
+historical page/selection. The installed dependency lifecycle is covered in App
+builder tests, and Desktop now requires a rendered PDF and positive viewport
+geometry at the saved zoom after reopening before proceeding to exact search.
+The entire corrected reading aggregate still needs new exact-head GUI acceptance.

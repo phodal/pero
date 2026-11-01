@@ -75,7 +75,7 @@ function PdfViewer({ document, annotations, api, focus, t, onSaved, onDiscuss, o
     createPluginRegistration(DocumentManagerPluginPackage, { initialDocuments: [{ documentId: document.id, url: new URL(`/api/pdf/${document.id}/file`, location.href).href, mode: 'full-fetch' as const }] }),
     createPluginRegistration(ViewportPluginPackage), createPluginRegistration(ScrollPluginPackage),
     createPluginRegistration(RenderPluginPackage), createPluginRegistration(InteractionManagerPluginPackage),
-    createPluginRegistration(SelectionPluginPackage), createPluginRegistration(ZoomPluginPackage, { defaultZoomLevel: initial?.zoom ?? ZoomMode.FitPage }),
+    createPluginRegistration(SelectionPluginPackage), createPluginRegistration(ZoomPluginPackage, { defaultZoomLevel: ZoomMode.FitPage }),
     createPluginRegistration(CapturePluginPackage, { scale: 2, withAnnotations: false }),
   ], [document.id, document.fileDigest]);
   if (error) return <Feedback kind="error">{error.message}</Feedback>;
@@ -125,6 +125,9 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
     const restore = () => {
       if (restored.current || !scroll.getMetrics().pageVisibilityMetrics.length) return;
       restored.current = true;
+      // Numeric plugin defaults never release EmbedPDF's initial viewport gate.
+      // Boot with FitPage, then restore the saved scale through its public API.
+      if (initial) zoom.requestZoom(initial.zoom);
       if (!initial || focusNow.current) { stateReady.current = true; persist(); return; }
       scroll.scrollToPage({ pageNumber: initial.page, pageCoordinates: initial.position, alignX: 0, alignY: 0, behavior: 'instant' });
       const focusAtRestore = focusNow.current;

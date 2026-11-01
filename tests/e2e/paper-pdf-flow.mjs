@@ -147,6 +147,20 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900));
   await setPaperAppearance(page, 'light');
 
+  // Reopening a previously viewed document must initialize the real viewport
+  // before a search/citation can navigate it. A numeric plugin default leaves
+  // EmbedPDF's initial gate closed despite a seemingly ready toolbar.
+  await nav.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  const savedZoom = await nav.getByRole('button', { name: 'Fit page', exact: true }).innerText();
+  await backToLibrary(frame);
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
+  await expect(nav.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(savedZoom);
+  await expect(viewer.locator('img,canvas').first()).toBeVisible();
+  await expect.poll(() => viewer.locator('.pa-pdf-viewport').evaluate(element => {
+    const box = element.getBoundingClientRect();
+    return box.width > 0 && box.height > 0 && element.scrollHeight > 0;
+  })).toBe(true);
+  await page.screenshot({ path: resolve(out, 'pdf-restored-numeric-zoom.png') });
   await backToLibrary(frame);
   const unavailable = await post('/api/papers/import', { title: 'Synthetic unavailable PDF', sourceId: 'unavailable-pdf', url: 'https://example.invalid/source', pdfUrl: 'https://example.invalid/paper.pdf', authors: [], contentKind: 'abstract', content: 'Synthetic source remains readable.' });
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();

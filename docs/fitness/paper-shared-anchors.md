@@ -121,6 +121,23 @@ launcher/Chromium IPC environment; an older build is not acceptance evidence for
 these changes. No paid provider, external upload, new dependency installation or
 Mac operation was performed.
 
+## Exact-head GUI evidence and polling correction
+
+Published `cb54a57b87fc75282621c1802835c26435a35d37` completed full
+[CI 41327799875](https://github.com/phodal/pero/actions/runs/41327799875)
+successfully. Paper Desktop job `124913057478` passed in 314489 ms, within the
+unchanged 360-second budget. Artifact `13092148701` contains the PDF-only result
+with no errors, exact page-2 search highlight, both deferred-navigation screenshots,
+answer citation and reopened conversation. These are fixture PDF/Host results,
+not paid-model or downloaded-paper acceptance.
+
+Review then identified a latent retry bug despite that passing run: installed
+Playwright 1.64.1 checks `waitForFunction` predicate truthiness before awaiting its
+Promise. The close fixture now uses `expect.poll` to await each two-frame paint
+probe, retaining the 5000 ms bound and one real click. Offline regression covers
+false/false/stable samples and permanently missing bounds failing without a click.
+This polling correction still requires its own exact-head Desktop CI.
+
 ## Not delivered here
 
 No #76 parser/HTML reader, Read/PDF state persistence, HTML/PDF alignment, source
