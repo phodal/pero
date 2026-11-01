@@ -1,3 +1,4 @@
+import { paperBackendFixture } from './paper-backend-fixture.mjs';
 import { chatState, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
 import { clickAppShortcut } from './sidebar-controls.mjs';
 import { exerciseLocalSearch } from './paper-search-flow.mjs';
@@ -98,7 +99,7 @@ try {
   const installedBackend = resolve(profile, 'desktop/apps/paper-agent/backend');
   await writeFile(resolve(installedBackend, 'discovery_fixture.py'), await readFile(resolve(root, 'tests/fixtures/paper-discovery.py')));
   const serverPath = resolve(installedBackend, 'server.py');
-  await writeFile(serverPath, (await readFile(serverPath, 'utf8')).replace('from paper_agent.http import handler', 'from paper_agent.http import handler\nfrom paper_agent.literature import LiteratureClient\nfrom paper_agent.thumbnails import PaperThumbnails\nfrom discovery_fixture import fetch, thumbnail_fetch').replace('os.environ["PERO_APP_TOKEN"]))', 'os.environ["PERO_APP_TOKEN"], LiteratureClient(fetch), pdf_files=PdfFiles(lambda *_args, **_kwargs: BytesIO(Path(' + JSON.stringify(pdfPath) + ').read_bytes())), thumbnails=PaperThumbnails(thumbnail_fetch)))').replace('from paper_agent.http import handler\n', 'from paper_agent.http import handler\nfrom paper_agent.pdf_files import PdfFiles\nfrom io import BytesIO\nfrom pathlib import Path\n'));
+  await writeFile(serverPath, paperBackendFixture(await readFile(serverPath, 'utf8'), pdfPath));
   let frame = await openPaper(page);
   if (process.env.PERO_PAPER_PDF_ONLY !== '1') {
     await expect(frame.getByText('Add a paper to start reading', { exact: true })).toBeVisible();

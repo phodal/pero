@@ -131,3 +131,25 @@ I/O, exercise public Apps IPC rejection and unmatched-result suppression, and
 validate the real Rust request enum. These contract tests do not claim that a
 real Electron dialog or complete Desktop journey has run. Native confirmation,
 full GUI evidence, and scientific paper reproduction remain separately pending.
+
+## Draft CI follow-up
+
+Linux full build/typecheck/Rust contracts and the synthetic reproduction
+component journey passed. A later shared-reader fixture failed because its
+old disposable-server injection stopped matching after a function-signature
+change. The fix keeps the original page-count assertion, verifies a unique
+call-prefix/import injection, preserves private capability wiring and fails
+closed on missing or duplicate seams. A contract test parses and compiles the
+actual transformed production server without executing it. The failed reader
+journey is not represented as a successful synthetic test.
+
+The UI also now projects the latest same-request receipt ahead of its cached
+launch acknowledgement, so a terminal attempt is not still shown as starting.
+
+A Linux-only fixture invokes the production Electron confirmation function in
+the existing isolated Xvfb lane. It waits for native modal readiness (owner
+disabled), then tests AbortSignal cancellation and owner closure without
+monkeypatching the dialog or running a worker. It has no timing fallback.
+Native execution remains pending CI at this commit; this test cannot establish
+an actual Run-once click, a configured Host/Python journey, human identity or
+scientific reproduction.

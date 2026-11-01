@@ -102,6 +102,8 @@ try {
   assert.equal(cancel.requestId, runs[1].requestId); assert.equal(runs[1].specId, first.specId); assert.equal(runs[1].itemId, first.itemId);
   await page.getByRole('button', { name: 'Approve and run once' }).click();
   await expect(page.getByText('Environment preflight failed (computation not started)', { exact: false })).toBeVisible();
+  await expect(page.getByText('Execution state: failed', { exact: true })).toBeVisible();
+  await expect(page.getByText('Execution state: starting', { exact: true })).toHaveCount(0);
   await page.evaluate(() => document.body.classList.add('dark'));
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
   assert.deepEqual(errors, []);

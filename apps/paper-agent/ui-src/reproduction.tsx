@@ -39,6 +39,7 @@ export function Reproduction({ api, annotation, t }: { api: Api; annotation: Pdf
   const policy = reproductionPolicy(annotation.quote);
   const desktop = location.protocol === 'pero-app:';
   const unresolved = selected?.requests.find(request => !terminal(request.status));
+  const launchReceipt = evidence?.items.flatMap(row => row.requests).find(request => request.request_id === launch?.requestId);
   const running = evidence?.items.some(row => row.attempts.some(attempt => active(attempt.status)) || row.requests.some(request => active(request.status)));
   const chosen = selected?.attempts.find(attempt => attempt.attempt_id === attemptId);
   const logSelection = useRef('');
@@ -64,7 +65,7 @@ export function Reproduction({ api, annotation, t }: { api: Api; annotation: Pdf
   }, [running, evidence, error]);
   useEffect(() => {
     if (!launch) return;
-    const request = evidence?.items.flatMap(row => row.requests).find(value => value.request_id === launch.requestId);
+    const request = launchReceipt;
     if (request) {
       setUncertain(!terminal(request.status) && !active(request.status));
       if (request.attempt_id) setAttemptId(request.attempt_id);
@@ -159,7 +160,7 @@ export function Reproduction({ api, annotation, t }: { api: Api; annotation: Pdf
       <div className="pa-actions"><Button onClick={() => void run()} disabled={busy || !desktop || !evidence?.executionAvailable || selected.spec.profile !== 'smoke' || !!unresolved || uncertain}>{t('reproductionRun')}</Button>
         <Button variant="ghost" onClick={() => void cancel()} disabled={!desktop || (!unresolved && !uncertain && !busy)}>{t('reproductionCancel')}</Button>
         <Button variant="ghost" onClick={() => { setError(''); void refresh(); }}>{t('reproductionRefresh')}</Button></div>
-      {(launch || unresolved) && <p role="status">{t('reproductionExecution')}: {unresolved?.status ?? launch?.status ?? launch?.state ?? t('reproductionAwaiting')}</p>}
+      {(launch || unresolved) && <p role="status">{t('reproductionExecution')}: {unresolved?.status ?? launchReceipt?.status ?? launch?.status ?? launch?.state ?? t('reproductionAwaiting')}</p>}
       {uncertain && <p role="status">{t('reproductionUnknown')}</p>}
       {!!selected.attempts.length && <label>{t('reproductionAttempt')}<select value={attemptId} onChange={event => setAttemptId(event.target.value)}><option value="">—</option>{selected.attempts.map(attempt => <option key={attempt.attempt_id} value={attempt.attempt_id}>{attempt.status} · {attempt.attempt_id.slice(0, 10)}</option>)}</select></label>}
       {chosen && <><p>{t('reproductionExecution')}: {chosen.status === 'failed' && chosen.phase === 'preflight' ? t('reproductionEnvironmentFailed') : chosen.status}{chosen.phase ? ` · ${chosen.phase}` : ''}</p>{chosen.error && <Feedback kind="error">{chosen.error}</Feedback>}{chosen.origin?.includes('fixture') && <p>{t('reproductionFixture')}</p>}<Button variant="ghost" onClick={() => void readLogs()}>{t('reproductionLogs')}</Button></>}
