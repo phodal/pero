@@ -64,9 +64,13 @@ class HttpTests(unittest.TestCase):
         status, record = self.request('POST', '/api/agent-step', request)
         self.assertEqual(status, 200)
         trial_id = record['trials'][0]['id']
+        self.assertEqual(record['agent_trial_index'], [{'id': trial_id, 'status': 'proposed', 'parent_trial_id': None}])
+        self.assertLess(len(json.dumps(record['agent_trial_index'])), 150)
+        self.assertNotIn('agent_trial_index', self.store.read(identity))
         status, record = self.request('POST', '/api/agent-step', {'action': 'validate', 'experimentId': identity, 'trialId': trial_id,'specHash':experiment['spec_hash']})
         self.assertEqual(status, 200)
         self.assertEqual(record['trials'][0]['status'], 'validated')
+        self.assertEqual(record['agent_trial_index'], [{'id': trial_id, 'status': 'validated', 'parent_trial_id': None}])
         for action in ('execute_hardware', 'accept', 'set_policy', 'run_script'):
             self.assertEqual(self.request('POST', '/api/agent-step', {'action': action, 'experimentId': identity})[0], 400)
         status, record = self.request('POST', '/api/agent-step', {'action': 'read', 'experimentId': identity, 'target_fraction': 1})

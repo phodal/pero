@@ -5,7 +5,6 @@ from domain import EvaluationCriteria, Invalid, LabState, WELL_IDS, number, obje
 LIMITATIONS = (
     'Simulation only; no physical or biological validity.',
     'Dye fractions use an illustrative volume-weighted model, not PyLabRobot physics.',
-    'Imported measurements are user supplied and not independently calibrated.',
 )
 
 
@@ -95,4 +94,11 @@ def evaluate(criteria: EvaluationCriteria, observation: Observation | None,
                         (f'{observation.origin}: {observation.source}' if observation else 'No observation attached')))
     verdicts = {check.verdict for check in checks}
     verdict = 'FAIL' if 'FAIL' in verdicts else ('INCONCLUSIVE' if 'INCONCLUSIVE' in verdicts else 'PASS')
-    return Verification(verdict, tuple(checks), error)
+    limitations = LIMITATIONS
+    if observation is not None:
+        limitations += (
+            'Synthetic observations are constructed fixtures, not imported or device measurements.'
+            if observation.origin == 'synthetic' else
+            'Imported measurements are user supplied and not independently calibrated.',
+        )
+    return Verification(verdict, tuple(checks), error, limitations)

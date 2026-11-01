@@ -8,7 +8,8 @@ from experiments import canonical, digest
 
 def agent_summary(record):
     if 'trials' not in record or 'initial_state' not in record: return record
-    return {**record, 'trials': [{**trial, 'events': [
+    return {**record, 'agent_trial_index': [{key: trial[key] for key in ('id', 'status', 'parent_trial_id')}
+                                     for trial in record['trials']], 'trials': [{**trial, 'events': [
         {**{key:value for key,value in event.items() if key not in ('before','after','backend')},
          'before_hash':digest(event['before']), 'after_hash':digest(event['after']) if event['after'] else None,
          'backend': {key:event['backend'][key] for key in ('backend','version','mode')} if event['backend'] else None}

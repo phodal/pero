@@ -1,5 +1,5 @@
 // Actual Rust Host + production App routing + installed Lab backend.
-// The only substituted Agent is the deterministic ACP transport fixture.
+// Defaults to scripted ACP; opt-in acceptance can supply the real Go ACP launcher.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -12,12 +12,15 @@ import { descendants, finishDescendants } from '../research-import/cleanup.mjs';
 
 export const root = resolve(import.meta.dirname, '../../..');
 
-export async function openHost({ directory, executable, python }) {
+export async function openHost({ directory, executable, python, credential, agent = {
+  id: 'lab-fixture', name: 'Lab scripted ACP fixture', command: process.execPath,
+  args: [resolve(root, 'tests/fixtures/lab-acp.mjs')],
+} }) {
   await mkdir(directory, { recursive: true, mode: 0o700 });
-  await writeFile(resolve(directory, 'agents.json'), JSON.stringify([{ id: 'lab-fixture', name: 'Lab scripted ACP fixture', command: process.execPath,
-    args: [resolve(root, 'tests/fixtures/lab-acp.mjs')] }]), { mode: 0o600 });
+  await writeFile(resolve(directory, 'agents.json'), JSON.stringify([agent]), { mode: 0o600 });
   await writeFile(resolve(directory, 'settings.json'), JSON.stringify({ computer_use: { enabled: false }, app_python: { apps: { lab: python } } }), { mode: 0o600 });
   let child, selected, stderr = '';
+  const scrub = text => credential ? String(text).split(credential).join('[REDACTED]') : String(text);
   const pending = new Map(), waiters = new Set(), events = [], writes = [];
   const command = value => { desktop.command(value); child.stdin.write(JSON.stringify(value) + '\n'); };
   function request(action, fields = {}) {
@@ -39,17 +42,18 @@ export async function openHost({ directory, executable, python }) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
     !name.startsWith('PERO_') && !/(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)/i.test(name)));
   child = spawn(executable, ['--stdio'], { cwd: directory, stdio: ['pipe', 'pipe', 'pipe'], env: { ...env, ...mcp,
+    ...(credential ? { LAB_ACCEPTANCE_KEY: credential } : {}),
     PERO_AGENTS_FILE: resolve(directory, 'agents.json'),
     PERO_APPS_ROOT: resolve(directory, 'installed'), PERO_BUILTIN_APPS_ROOT: '',
     PERO_SETTINGS_PATH: resolve(directory, 'settings.json'), PERO_HISTORY_PATH: resolve(directory, 'history.jsonl'), UV_OFFLINE: '1' } });
-  child.stderr.on('data', data => { stderr += String(data); });
+  child.stderr.on('data', data => { stderr += scrub(data); });
   const exited = new Promise(done => child.once('exit', (code, signal) => done({ code, signal })));
   createInterface({ input: child.stdout }).on('line', line => {
     const event = JSON.parse(line);
     if (event.kind === 'apps_result') { pending.get(event.request_id)?.(event.data); return; }
     desktop.accept(event);
     // MCP descriptors and private backend credentials are never part of this stream.
-    const clean = event;
+    const clean = JSON.parse(scrub(JSON.stringify(event)));
     events.push(clean);
     for (const waiter of [...waiters]) if (waiter.match(clean)) {
       waiters.delete(waiter); clearTimeout(waiter.timer); waiter.accept(clean);
@@ -101,7 +105,7 @@ export async function openHost({ directory, executable, python }) {
     async start(thread = randomUUID()) {
       selected = thread;
       const since = events.length;
-      command({ action: 'new_session', thread_id: thread, agent_id: 'lab-fixture', scope: { app: 'lab', panel: 'main' } });
+      command({ action: 'new_session', thread_id: thread, agent_id: agent.id, scope: { app: 'lab', panel: 'main' } });
       const ready = await wait(event => event.thread_id === thread && ['session_ready', 'session_error'].includes(event.kind), 20000, since);
       assert.equal(ready.kind, 'session_ready', ready.text);
       return thread;
