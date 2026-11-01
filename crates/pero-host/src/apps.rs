@@ -62,6 +62,12 @@ enum Request {
         id: String,
         name: AppName,
     },
+    Reproduction {
+        method: Method,
+        id: String,
+        name: AppName,
+        request: crate::paper_reproduction::ReproductionRequest,
+    },
     #[serde(rename = "research-assets")]
     ResearchAssets {
         method: Method,
@@ -227,6 +233,12 @@ impl Apps {
                     store.require_grant(&name, "connectors")?;
                     Ok(serde_json::json!({"permitted":true}))
                 }
+                Request::Reproduction { method, id, name, request } => {
+                    let _ = (method, id);
+                    let handoff = crate::paper_reproduction::PaperReproduction::resolve(store, &name)?;
+                    drop(guard);
+                    return handoff.execute(request);
+                }
                 Request::ResearchAssets { method, id, name, request } => {
                     let _ = (method, id);
                     let handoff = crate::research_assets::ResearchAssetHandoff::resolve(store, &name, &mut progress)?;
@@ -262,6 +274,18 @@ impl Apps {
 #[cfg(test)]
 mod tests {
     use super::Request;
+
+    #[test]
+    fn renderer_mixed_method_action_cannot_select_private_reproduction() {
+        for request in [
+            serde_json::json!({"method":"apps","id":"forged","action":"list_agents"}),
+            serde_json::json!({"method":"settings.workbench","id":"forged","action":"reproduction",
+                "name":"paper-agent","request":{"operation":"prepare","itemId":"a".repeat(64),
+                "specId":"b".repeat(64),"requestId":"forged"}}),
+        ] {
+            assert!(serde_json::from_value::<Request>(request).is_err());
+        }
+    }
 
     #[test]
     fn app_request_surface_accepts_pero_install_and_rejects_removed_adapters() {

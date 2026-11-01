@@ -1,3 +1,4 @@
+import { paperDocumentBackendFixture } from './paper-backend-fixture.mjs';
 // Offline authored corpus through actual Desktop/Host/approved Paper APIs/PDFium.
 // No mocked API responses, remote provider or scientific acceptance claim.
 // One refresh holds the unchanged real App fetch response to exercise busy UI.
@@ -61,10 +62,7 @@ try {
   }
   await writeFile(resolve(installed, 'scientific-document.html'), original);
   const entry = resolve(installed, 'server.py'), text = await readFile(entry, 'utf8');
-  const marker = '    store = ResearchStore(os.environ["PERO_APP_DATA"], open_embedder())';
-  const composition = 'handler(store, os.environ["PERO_APP_TOKEN"])';
-  expect(text).toContain(marker); expect(text).toContain(composition);
-  await writeFile(entry, text.replace(marker, `${marker}\n    from structured_fixture import install\n    documents = install(store)`).replace(composition, 'handler(store, os.environ["PERO_APP_TOKEN"], documents=documents)'));
+  await writeFile(entry, paperDocumentBackendFixture(text));
   await openPaper(); await openResearchImport(page, frame);
   const review = await inspectResearchReview(frame, seed);
   const draft = (await api('/api/research/drafts')).drafts.find(d => d.seedUrl === seed);

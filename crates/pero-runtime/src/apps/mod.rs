@@ -473,6 +473,14 @@ impl AppStore {
         preparation::prepare(name, &selected, &dependencies, progress)
     }
 
+    /// Access an existing enabled backend without preparation, installation or restart.
+    /// Direct fixed computations must not turn a request into environment acquisition.
+    pub fn running_backend(&mut self, name: &AppName) -> Result<BackendAccess, String> {
+        let app = self.installed.get(name).ok_or("App is not installed")?;
+        if !app.enabled { return Err("App is disabled".into()); }
+        self.processes.get_mut(name).ok_or("Open the configured App before requesting computation")?.access()
+    }
+
     pub fn resolve(&mut self, name: &AppName) -> Result<AppAccess, String> {
         self.resolve_with_progress(name, &mut |_| {})
     }

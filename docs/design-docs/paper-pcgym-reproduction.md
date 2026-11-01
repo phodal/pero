@@ -221,3 +221,51 @@ name+digest 接口读取 Skill。该接口只读取 `SKILL.md`；案例 referenc
 安装包精确包含通用 Skill 和三个公开参考文件，不复制任意 skills 目录。
 文件随包交付不代表 Desktop picker 自动发现、Host 自动读取 references，或真实
 Provider 已完成验收。无训练、模型下载或完整 Table 6 重现实验属于本次收敛验证。
+
+## #77 domain increment: frozen numeric items (not Desktop completion)
+
+The fixed-case backend now supports `create-item` (`specId`, `policy`,
+`comparison`), `item` (`itemId`) and `compare-item` (`itemId`, `attemptId`) on
+its existing command dispatcher. These are not yet advertised in the packaged
+App manifest or connected to a PDF UI. Creating an item requires a frozen
+annotation containing the selected policy's exact four-decimal reported value;
+a page-only audit or a `Table 6` label is insufficient. The item retains the
+existing annotation ID and paper-binding digest, rather than inventing another
+anchor type. Integration with #66's shared region anchor remains pending.
+
+`VerificationItem` freezes the specification, annotation, policy, reported
+value, original episode metric and comparison policy. `absolute` and `relative`
+accept a nonnegative finite `tolerance`; `bounds` accepts finite inclusive
+`lower`/`upper` limits on the actual value. Relative error for a zero report is
+undefined, including zero versus zero. Editing a tolerance produces a different
+item identity; rerunning does not change the item or specification.
+
+Comparisons first gate specification/paper identity, full metric definition,
+complete registered coverage, execution completion and receipt integrity.
+A failed gate suppresses tolerance assessment. PC-Gym's original metric and
+experiment identity remain unresolved even after these gates pass, so the
+comparison and paper verdict stay `inconclusive` / `INCONCLUSIVE`. An optional
+`within_tolerance` or `outside_tolerance` diagnostic is not scientific pass or
+result mismatch. Synthetic fixture evidence never receives that diagnostic as
+verified execution. This increment does not supply a scientific PASS override.
+
+A launch request is associated with one unambiguous attempt before another
+launch is allowed. Repeating the same request only reads its status. A new
+request may rerun the same specification after a confirmed completed, failed or
+cancelled attempt and confirmed process exit. Unknown, unbound or nonterminal
+attempts block replay. Old requests retain their original attempt association.
+Approved CLI runs now record an attempt before environment preflight; missing
+or changed dependencies/interpreters leave a failed receipt with
+`phase=preflight`, `worker_started=false`, and a bounded diagnostic log. The
+worker flag changes only after process creation succeeds. The `logs` command
+accepts only specification/attempt identities and returns at most 64 KiB from
+the saved log, with an explicit truncation flag. Runtime log monitoring retains
+its existing polling threshold; it is not an OS-enforced file-size cap.
+
+Execution remains disabled in the shipped composition. No Host approval was
+added by this domain increment; the existing HTTP confirmation string is not
+Host authority. Trusted checkout/interpreter configuration, per-run Host
+approval, actual PDF selection/UI feedback, cancellation integration and actual
+new scientific execution are still required. Deterministic fixture/loopback
+tests validate these contracts only. No new training, download, paid model or
+claim of completing all six #77 acceptance items accompanies this change.

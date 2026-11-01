@@ -346,6 +346,16 @@ Paper cannot access Data's private directory or backend token.
 
 Developer boundaries and verification: [Research URL import](../../docs/fitness/research-resource-import.md).
 
+### Direct fixed-case numerical runs (#77)
+
+The Electron PDF annotation UI can prepare a fixed PC-Gym smoke item from an
+already-configured pinned checkout, request a native per-run confirmation, and
+show saved attempts beside the original annotation. It does not require an Agent
+prompt or paid model. This is opt-in trusted deployment, not enabled by the Skill
+or an HTTP `approved` field. The existing Python owner executes the fixed CLI.
+See [authority, test evidence and outstanding acceptance](../../docs/fitness/paper-direct-reproduction.md).
+The paper verdict remains `INCONCLUSIVE`; no new scientific run accompanies this change.
+
 ## Structured Read
 
 For an explicitly selected arXiv vN, review **Allow official HTML for Read**

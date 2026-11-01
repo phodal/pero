@@ -192,6 +192,40 @@ test('Ask readiness fails boundedly and cleans observers when only another reque
   assert.ok(resultQueries > 1); assert.equal(disposed, 2);
 });
 
+
+import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { paperBackendFixture, paperDocumentBackendFixture } from '../../tests/e2e/paper-backend-fixture.mjs';
+
+test('disposable backend replaces all network seams in the actual server and preserves compute capability wiring', () => {
+  const server = readFileSync(new URL('../../apps/paper-agent/backend/server.py', import.meta.url), 'utf8');
+  const transformed = paperBackendFixture(server, '/tmp/fixture "quoted" source.pdf');
+  assert.ok(transformed.includes('from discovery_fixture import fetch, thumbnail_fetch'));
+  // Parse/compile only: never import or execute the backend, fixture or worker.
+  const keywords = JSON.parse(execFileSync(process.env.PERO_APP_PYTHON || 'python3', ['-c', `
+import ast, json, sys
+source = sys.stdin.read()
+compile(source, '<disposable-paper-fixture>', 'exec')
+calls = [node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'handler']
+assert len(calls) == 1
+print(json.dumps({keyword.arg: ast.unparse(keyword.value) for keyword in calls[0].keywords}))
+`], { input: transformed, encoding: 'utf8' }));
+  assert.equal(keywords.literature, 'LiteratureClient(fetch)');
+  assert.match(keywords.pdf_files, /^PdfFiles\(lambda .*BytesIO\(FixturePath\(/);
+  assert.ok(keywords.pdf_files.includes('.read_bytes()'));
+  assert.equal(keywords.thumbnails, 'PaperThumbnails(thumbnail_fetch)');
+  assert.equal(keywords.compute_secret, 'compute_secret');
+});
+
+test('backend fixture refuses missing, duplicate and previously injected seams', () => {
+  const server = readFileSync(new URL('../../apps/paper-agent/backend/server.py', import.meta.url), 'utf8');
+  for (const seam of ['from paper_agent.http import handler', 'handler(store, os.environ["PERO_APP_TOKEN"]']) {
+    assert.throws(() => paperBackendFixture(server.replace(seam, ''), '/tmp/source.pdf'), /exactly one/);
+    assert.throws(() => paperBackendFixture(server + '\n' + seam, '/tmp/source.pdf'), /exactly one/);
+  }
+  assert.throws(() => paperBackendFixture(paperBackendFixture(server, '/tmp/source.pdf'), '/tmp/source.pdf'), /already injected/);
+});
+
 import { inspectResearchReview } from '../../tests/e2e/paper-research-ui-controls.mjs';
 
 test('research inspection creates fresh page-bound locators after Desktop restart', async () => {
@@ -215,6 +249,18 @@ test('research inspection creates fresh page-bound locators after Desktop restar
   assert.deepEqual(events, [['first', 'authored-first'], ['first', 'inspect'], ['first', 'visible'],
     ['restarted', 'authored-second'], ['restarted', 'inspect'], ['restarted', 'visible']]);
   await assert.rejects(() => inspectResearchReview(first, 'stale'), /page first is closed/);
+});
+
+
+test('structured fixture composes document and private compute dependencies without fallback', () => {
+  const server = readFileSync(new URL('../../apps/paper-agent/backend/server.py', import.meta.url), 'utf8');
+  const transformed = paperDocumentBackendFixture(server);
+  assert.ok(transformed.includes('documents=documents, compute_secret=compute_secret'));
+  execFileSync(process.env.PERO_APP_PYTHON || 'python3', ['-c', 'import sys; compile(sys.stdin.read(), "<structured-fixture>", "exec")'], { input: transformed });
+  const call = 'handler(store, os.environ["PERO_APP_TOKEN"]';
+  const marker = '    store = ResearchStore(os.environ["PERO_APP_DATA"], open_embedder())';
+  for (const source of [server.replace(call, ''), server + call, server.replace(marker, ''), server + marker, transformed])
+    assert.throws(() => paperDocumentBackendFixture(source), /unique uninjected/);
 });
 
 import { scrollPdfAndRead } from '../../tests/e2e/paper-pdf-flow.mjs';

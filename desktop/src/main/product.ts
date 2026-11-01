@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, sep, delimiter } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DesktopApps } from './apps';
+import { confirmReproduction } from './reproduction-approval.ts';
 import { DesktopAppUse } from './app-use-mcp';
 import { DesktopComputer } from './computer';
 import { computerPermissions } from './computer-electron';
@@ -34,7 +35,8 @@ const apps = new DesktopApps(request => {
   if (!ready || !host.stdin?.writable) throw new Error('The local runtime is unavailable. Restart the application.');
   host.stdin.write(JSON.stringify(request) + '\n');
 }, event => { if (!window.isDestroyed()) window.webContents.send('product:event', event); }, async () => undefined,async(name,token)=>{if(!appUse)throw new Error('App input unavailable');return appUse.input(name,token);},
-sessionId => appUse?.authority.command({ action: 'cancel', thread_id: sessionId }));
+sessionId => appUse?.authority.command({ action: 'cancel', thread_id: sessionId }),
+(summary, signal) => confirmReproduction(window, summary, signal));
 let locale: 'en' | 'zh-CN' = 'en';
 function context() { return { product, locale, dark: nativeTheme.shouldUseDarkColors, connected: ready }; }
 function menus() {

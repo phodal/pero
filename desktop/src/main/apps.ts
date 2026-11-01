@@ -12,9 +12,40 @@ import type { AppAccess, AppRecord } from '../../../protocol/generated/host';
 type Event = { version: number; kind: string; request_id: string | null; text: string; data?: unknown };
 type Pending = { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> };
 
+type ReproductionIds = Readonly<{ itemId: string; specId: string; requestId: string }>;
+type ReproductionInput = ReproductionIds & { operation: 'request' | 'cancel' };
+type ReproductionPrompt = { ticket: string; bindingDigest: string; summary: string };
+type ReproductionPending = {
+  ids: ReproductionIds;
+  controller: AbortController;
+  prompt?: ReproductionPrompt;
+  decision?: Promise<unknown>;
+  result: Promise<unknown>;
+};
+
+function reproductionInput(value: unknown): ReproductionInput {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid reproduction request');
+  const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).length !== 4 || !Object.keys(raw).every(key => ['operation', 'itemId', 'specId', 'requestId'].includes(key)) ||
+      !['request', 'cancel'].includes(raw.operation as string) ||
+      !['itemId', 'specId'].every(key => typeof raw[key] === 'string' && /^[a-f0-9]{64}$/.test(raw[key] as string)) ||
+      typeof raw.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(raw.requestId))
+    throw new Error('Expected frozen item, specification and request identities');
+  return raw as ReproductionInput;
+}
+
+// This route is a public status view, never a channel for Host capabilities.
+function reproductionStatus(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid reproduction status');
+  const raw = value as Record<string, unknown>;
+  return Object.fromEntries(['state', 'status', 'itemId', 'specId', 'requestId', 'attemptId', 'paperVerdict', 'reason']
+    .filter(key => typeof raw[key] === 'string').map(key => [key, raw[key]]));
+}
+
 /** Desktop projection of Host-owned Apps. Tokens and installed paths stay here. */
 export class DesktopApps {
   private pending = new Map<string, Pending>();
+  private reproductions = new Map<string, ReproductionPending>();
   connectors?: (request: Record<string, unknown>) => Promise<unknown>;
 
   async requireConnectorsGrant(name = 'connectors'): Promise<void> {
@@ -27,6 +58,7 @@ export class DesktopApps {
     private choose: () => Promise<string | undefined>,
     private input?: (app:string,token:string)=>Promise<{data:Buffer;name:string;mediaType:string}>,
     private onAgentCancel?: (sessionId: string) => void,
+    private confirmReproduction?: (summary: string, signal: AbortSignal) => Promise<boolean>,
   ) {}
 
   accept(event: Event): boolean {
@@ -43,6 +75,8 @@ export class DesktopApps {
   }
 
   close() {
+    for (const operation of this.reproductions.values()) operation.controller.abort();
+    this.reproductions.clear();
     for (const request of this.pending.values()) {
       clearTimeout(request.timer);
       request.reject(new Error('The local runtime stopped. Reopen Pero to retry.'));
@@ -61,6 +95,59 @@ export class DesktopApps {
       try { this.write({ method: 'apps', id, action, ...fields }); }
       catch (error) { clearTimeout(timer); this.pending.delete(id); reject(error); }
     });
+  }
+
+  private async reproduction(input: ReproductionInput): Promise<unknown> {
+    const { operation, ...ids } = input;
+    const active = this.reproductions.get(ids.requestId);
+    if (active && (active.ids.itemId !== ids.itemId || active.ids.specId !== ids.specId))
+      throw new Error('Request identity belongs to another frozen item');
+    if (operation === 'cancel') {
+      active?.controller.abort();
+      if (active?.prompt && !active.decision) return this.decideReproduction(active, false);
+      return this.request('reproduction', { name: 'paper-agent', request: { operation: 'cancel', ...ids } });
+    }
+    if (active) return active.result;
+    if (!this.confirmReproduction) throw new Error('Native reproduction approval is unavailable');
+    const pending: ReproductionPending = { ids, controller: new AbortController(), result: Promise.resolve() };
+    this.reproductions.set(ids.requestId, pending);
+    pending.result = Promise.resolve().then(async () => {
+      const prepared = await this.request<Record<string, unknown>>('reproduction', {
+        name: 'paper-agent', request: { operation: 'prepare', ...ids },
+      });
+      if (prepared.state !== 'requires-approval') return prepared;
+      if (typeof prepared.ticket !== 'string' || !/^[a-f0-9]{64}$/.test(prepared.ticket) ||
+          typeof prepared.bindingDigest !== 'string' || !/^[a-f0-9]{64}$/.test(prepared.bindingDigest) ||
+          typeof prepared.summary !== 'string' || !prepared.summary || prepared.summary.length > 12000)
+        throw new Error('Invalid Host reproduction approval');
+      pending.prompt = { ticket: prepared.ticket, bindingDigest: prepared.bindingDigest, summary: prepared.summary };
+      const signal = pending.controller.signal;
+      if (signal.aborted) return this.decideReproduction(pending, false);
+      let stop: () => void = () => {};
+      const cancelled = new Promise<boolean>(resolve => {
+        stop = () => resolve(false);
+        signal.addEventListener('abort', stop, { once: true });
+      });
+      let allowed = false;
+      try { allowed = await Promise.race([this.confirmReproduction!(pending.prompt.summary, signal), cancelled]); }
+      catch { allowed = false; }
+      finally { signal.removeEventListener('abort', stop); }
+      return this.decideReproduction(pending, allowed && !signal.aborted);
+    }).finally(() => {
+      if (this.reproductions.get(ids.requestId) === pending) this.reproductions.delete(ids.requestId);
+    });
+    return pending.result;
+  }
+
+  private decideReproduction(pending: ReproductionPending, allowed: boolean): Promise<unknown> {
+    if (!pending.decision) {
+      const { ticket, bindingDigest } = pending.prompt!;
+      pending.decision = this.request('reproduction', { name: 'paper-agent', request: {
+        operation: 'decide', ...pending.ids, ticket, bindingDigest,
+        decision: allowed && !pending.controller.signal.aborted ? 'allow' : 'deny',
+      } });
+    }
+    return pending.decision;
   }
 
   async command(value: unknown): Promise<void> {
@@ -115,6 +202,23 @@ export class DesktopApps {
         if(request.method!=='GET'||!this.input||!/^\/host\/inputs\/[a-f0-9]{64}$/.test(url.pathname))return new Response('App input unavailable',{status:404});
         const file=await this.input(url.hostname,url.pathname.split('/').at(-1)!);
         return new Response(new Uint8Array(file.data),{headers:{'Content-Type':file.mediaType,'Content-Disposition':`inline; filename*=UTF-8''${encodeURIComponent(file.name).replace(/['()*]/g,char=>'%'+char.charCodeAt(0).toString(16).toUpperCase())}`,'Cache-Control':'no-store'}});
+      }
+      if (url.hostname === 'paper-agent' && ['/api/reproduction/start', '/api/reproduction/host'].includes(decodeURIComponent(url.pathname)))
+        return new Response('Reproduction execution is reserved for the Host', { status: 403 });
+      if (url.pathname === '/host/reproduction') {
+        if (url.hostname !== 'paper-agent') return new Response('Paper origin required', { status: 403 });
+        if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
+        const body = await request.text();
+        if (Buffer.byteLength(body) > 4096) return new Response('Request too large', { status: 413 });
+        let input: ReproductionInput;
+        try { input = reproductionInput(JSON.parse(body)); }
+        catch { return new Response('Invalid frozen reproduction request', { status: 400 }); }
+        try {
+          return Response.json(reproductionStatus(await this.reproduction(input)), { headers: { 'Cache-Control': 'no-store' } });
+        } catch {
+          // Private Host approval material and exceptions never cross into the App.
+          return new Response('Reproduction request unavailable. Inspect its status before retrying.', { status: 503 });
+        }
       }
       if (url.pathname === '/host/automation') {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });

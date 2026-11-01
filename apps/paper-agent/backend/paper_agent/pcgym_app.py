@@ -5,6 +5,7 @@ The shipped server has no trusted checkout and therefore cannot start compute.
 """
 from dataclasses import asdict
 import json
+import secrets
 import platform
 import re
 import subprocess
@@ -15,7 +16,10 @@ from pathlib import Path
 from . import pcgym
 from .model import Invalid as RequestInvalid, PdfPassage
 from .pcgym_domain import (Claim, COMMIT, Invalid, PaperAnchor, ReproductionSpec,
-                           canonical, digest, fields, identifier)
+                           canonical, digest, fields, identifier, EPISODE_METRIC, PAPER)
+from .verification import ComparisonEvidence, VerificationItem, ReproductionApproval
+from .reproduction_approval import (ApprovalCommand, ApprovalState, ApprovalDecision,
+    ApprovalDenied, ApprovalUnavailable, PendingApproval, ExecutionFacts, dispatch_failure)
 from .pcgym_sources import (PINS, SourceFile, audit_sources, package_inventory,
                             pipeline_digest, read_checkout)
 
@@ -26,6 +30,9 @@ class PcgymApp:
         self.checkout, self.allow_execution = checkout, allow_execution
         self.lock = threading.RLock()
         self.processes = {}
+        self.process_requests = {}
+        self.pending_approvals = {}
+        self.closed = False
 
     def save(self, kind, value):
         # Immutable store compares decoded JSON: normalize tuple-bearing core values once.
@@ -67,15 +74,18 @@ class PcgymApp:
         for marker in ('table6', 'basereward0.0727', 'shapedreward0.0003', 'oracle0.0000', 'episodes', 'trajectory'):
             if marker not in compact:
                 raise Invalid('claim_source', 'Cannot locate Table 6 / Equation 37 on saved PDF page 20')
+        selection_anchor = None
         if annotation_id is not None:
             annotation = self.store.annotation(annotation_id)
             if annotation.document_id != document.id or annotation.page != 20:
                 raise Invalid('annotation', 'Annotation must belong to this PDF version and page 20')
+            if annotation.anchor is not None:
+                selection_anchor = annotation.anchor.check(document, annotation.quote).to_dict()
         passage = PdfPassage.create(paper.id, document.id, document.file_digest, 20, 0, page.text)
         anchor = PaperAnchor.parse(dict(paper_id=paper.id, document_id=document.id,
             file_digest=document.file_digest.removeprefix('sha256:'), passage_id=passage.id, page=20))
         return dict(anchor=asdict(anchor), passage=passage.to_dict(), annotation_id=annotation_id,
-                    paper_content_digest=paper.content_digest)
+                    paper_content_digest=paper.content_digest, selection_anchor=selection_anchor)
 
     def audit(self, data):
         fields(data, ('action', 'paperId', 'sourceIds'), ('annotationId',))
@@ -145,14 +155,28 @@ class PcgymApp:
             if attempt['status'] == 'running' and (spec_id not in self.processes or self.processes[spec_id].poll() is not None):
                 attempt['status'] = 'unknown'
         requests = []
+        # Bind a request once, before permitting another attempt. Old records without
+        # an unambiguous receipt remain unknown, never guessed by directory order.
+        assignments = {key: self.store._read('pcgym-request-attempts', key)['attempt_id']
+                       for key in self.store._list('pcgym-request-attempts')}
         for key in self.store._list('pcgym-requests'):
             request = self.store._read('pcgym-requests', key)
             if request['spec_id'] != spec_id:
                 continue
-            new = [a for a in value['attempts'] if a['attempt_id'] not in request['prior_attempt_ids']]
+            attempt_id = assignments.get(key)
+            if attempt_id is None:
+                new = [a for a in value['attempts']
+                       if a['attempt_id'] not in request['prior_attempt_ids']
+                       and a['attempt_id'] not in assignments.values()]
+                if len(new) == 1:
+                    attempt_id = new[0]['attempt_id']
+                    self.store._write('pcgym-request-attempts', key, dict(attempt_id=attempt_id))
+                    assignments[key] = attempt_id
+            attempt = next((a for a in value['attempts'] if a['attempt_id'] == attempt_id), None)
             process = self.processes.get(spec_id)
-            requests.append(dict(request_id=request['request_id'],
-                status=new[0]['status'] if new else ('starting' if process is not None and process.poll() is None else 'unknown')))
+            requests.append(dict(request_id=request['request_id'], attempt_id=attempt_id,
+                status=attempt['status'] if attempt else
+                    ('starting' if process is not None and process.poll() is None else 'unknown')))
         value['requests'] = requests
         return value
 
@@ -179,12 +203,12 @@ class PcgymApp:
                 if prior['spec_id'] != spec.id:
                     raise RequestInvalid('Request ID belongs to another specification', 409)
                 return self.status(spec.id)
-            if any(self.store._read('pcgym-requests', previous)['spec_id'] == spec.id
-                   for previous in self.store._list('pcgym-requests')):
-                raise RequestInvalid('This frozen spec already has a launch request; inspect its original request instead of replaying', 409)
-            unresolved = any(request['status'] in ('running', 'starting', 'unknown')
+            unresolved = any(request['status'] not in ('completed', 'failed', 'cancelled')
                 for previous in self.store._list('pcgym-requests')
                 for request in self.status(self.store._read('pcgym-requests', previous)['spec_id'])['requests'])
+            current = self.status(spec.id)
+            unresolved = unresolved or any(a['status'] not in ('completed', 'failed', 'cancelled')
+                                           for a in current['attempts'])
             if unresolved or any(process.poll() is None for process in self.processes.values()) or (root / 'running.lock').exists():
                 raise RequestInvalid('A live or interrupted operation requires reconciliation before retry', 409)
             self.store._write('pcgym-requests', key, dict(spec_id=spec.id, request_id=request_id,
@@ -195,10 +219,236 @@ class PcgymApp:
                 '--confirm-execution', '--accept-audit-findings'],
                 cwd=str(Path(__file__).resolve().parents[1]), stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.process_requests[spec.id] = request_id
         return dict(spec_id=spec.id, status='starting', paper_verdict='INCONCLUSIVE')
+
+    def create_item(self, data):
+        fields(data, ('action', 'specId', 'policy', 'comparison'))
+        root = self.bundle(data['specId'])
+        spec = pcgym.load_spec(root)
+        binding = self.frozen_binding(root, spec)
+        annotation_id = binding['annotation_id']
+        if annotation_id is None:
+            raise Invalid('annotation_required', 'Select a reported numeric result before creating an item')
+        annotation = self.store.annotation(annotation_id)
+        if not binding.get('selection_anchor') or binding['selection_anchor'].get('verification') != 'pdf-region':
+            raise Invalid('region_required', 'Select a version-bound PDF region before freezing a numeric item')
+        item = VerificationItem.create(spec, annotation_id, data['policy'], data['comparison'])
+        # The fixed case knows its three reported values; arbitrary text is not a claim.
+        numbers = re.findall(r'(?<![\w.+-])(?:\d+\.\d+)(?![\w.])', annotation.quote)
+        if f'{item.reported:.4f}' not in numbers:
+            raise Invalid('reported_selection', 'The frozen annotation must contain this policy report value')
+        key = self.save('items', item.payload())
+        return dict(id=key, **item.payload())
+
+    def item(self, item_id):
+        raw = self.read('items', item_id)
+        spec = pcgym.load_spec(self.bundle(raw['spec_id']))
+        item = VerificationItem.create(spec, raw['annotation_id'], raw['policy'], raw['comparison'])
+        if json.loads(canonical(item.payload())) != raw:
+            raise Invalid('item_changed', 'Frozen verification item differs from its fixed case')
+        return item, spec
+
+    def compare_item(self, data):
+        fields(data, ('action', 'itemId', 'attemptId'))
+        item, spec = self.item(data['itemId'])
+        root = self.bundle(spec.id)
+        self.frozen_binding(root, spec)
+        attempt = next((a for a in self.status(spec.id)['attempts']
+                        if a['attempt_id'] == data['attemptId']), None)
+        if attempt is None:
+            raise Invalid('attempt', 'Choose an existing attempt belonging to this item')
+        actual, coverage, integrity = None, False, False
+        if attempt['status'] == 'completed':
+            report = pcgym.check_attempt(root, data['attemptId'])
+            metric = next(m for m in report['metrics'] if m['policy'] == item.policy)
+            actual = metric['episode_fraction']
+            coverage = (metric['total_episodes'] == spec.episodes
+                        and metric['total_samples'] == spec.episodes * spec.samples
+                        and report['policy_coverage'] == list(spec.policies))
+            integrity = (report['numeric_recomputation'] == 'PASS'
+                         and report['execution_evidence'] == 'CONSISTENT')
+        comparison = item.compare(ComparisonEvidence(spec.id, PAPER, EPISODE_METRIC,
+            coverage, attempt['status'], actual, integrity))
+        # Only terminal comparisons are immutable evidence, not transient UI state.
+        result = dict(**comparison, attempt_id=data['attemptId'])
+        if attempt['status'] in ('completed', 'failed', 'cancelled'):
+            result['id'] = self.save('comparisons', result)
+        return result
+
+    def prepare_item(self, data):
+        fields(data, ('action', 'annotationId', 'policy', 'comparison', 'profile', 'seed', 'includeOracle', 'maxSeconds'))
+        if self.checkout is None:
+            raise RequestInvalid('No trusted local PC-Gym checkout is configured', 403)
+        annotation = self.store.annotation(data['annotationId'])
+        _checkout, sources, _manifest = read_checkout(self.checkout)
+        source_ids = [self.save('sources', asdict(source)) for source in sources]
+        audit = self.audit(dict(action='audit', paperId=annotation.paper_id,
+                                annotationId=annotation.id, sourceIds=source_ids))
+        frozen = self.freeze(dict(action='freeze', auditId=audit['id'], profile=data['profile'],
+                                  seed=data['seed'], includeOracle=data['includeOracle'], maxSeconds=data['maxSeconds']))
+        return self.create_item(dict(action='create-item', specId=frozen['id'],
+                                     policy=data['policy'], comparison=data['comparison']))
+
+    def approval_binding(self, data):
+        item, spec = self.item(data['itemId'])
+        if spec.id != data['specId']:
+            raise Invalid('wrong_spec', 'The selected item belongs to another frozen specification')
+        root = self.bundle(spec.id)
+        binding = self.frozen_binding(root, spec)
+        if self.binding(binding['anchor']['paper_id'], binding['annotation_id']) != binding:
+            raise Invalid('pdf_changed', 'The selected Paper/PDF changed since freeze')
+        local = pcgym.read_json(root / 'local.json')
+        if (self.checkout is None or str(Path(self.checkout).absolute()) != local.get('checkout')
+                or local.get('interpreter') != sys.executable):
+            raise Invalid('execution_configuration_changed', 'The trusted checkout or interpreter differs from the frozen specification')
+        return ReproductionApproval.create(item, spec, data['requestId'], binding, local), item, spec
+
+    def approval_outcome(self, approval, state, reason=''):
+        result = dict(state=state, itemId=approval.item_id, specId=approval.spec_id,
+                      requestId=approval.request_id, paperVerdict='INCONCLUSIVE', reason=reason)
+        if state == 'allowed':
+            if approval.key in self.store._list('pcgym-approval-dispatch'):
+                return {**result, **self.store._read('pcgym-approval-dispatch', approval.key)}
+            status = self.status(approval.spec_id)
+            request = next((r for r in status['requests'] if r['request_id'] == approval.request_id), None)
+            result.update(status=request['status'] if request else 'unknown')
+            if request and request.get('attempt_id'):
+                result['attemptId'] = request['attempt_id']
+        return result
+
+    def approval_summary(self, approval, item, spec):
+        summary = (f'Run fixed PC-Gym {spec.profile} locally?\n'
+            f'Item: {item.id}\nSpecification: {spec.id}\nRequest: {approval.request_id}\n'
+            f'Reported {item.policy}: {item.reported}; paper {item.paper_version}\n'
+            f'PDF page {spec.anchor.page}; annotation {item.annotation_id}\n'
+            f'PDF SHA-256: {spec.anchor.file_digest}\n'
+            f'CPU; {spec.steps} training steps; {spec.episodes} episodes × {spec.samples} samples; '
+            f'policies: {", ".join(spec.policies)}; worker wall-time limit: {spec.timeout_seconds}s\n'
+            f'Seed: {spec.seed}; code commit: {spec.commit}\n'
+            f'Python: {spec.python_version}; packages: {dict(spec.packages)}\n'
+            f'Pipeline: {spec.pipeline_digest}\n'
+            'Command: configured Python -m paper_agent.pcgym run (this frozen spec only)\n'
+            + '\n'.join(spec.deviations()) + '\n' +
+            'This runs pinned code with the configured local interpreter. No installation or download is performed.\n'
+            'Original metric and experiment identity remain unresolved. Paper verdict remains INCONCLUSIVE.')
+        return summary
+
+    def host_command(self, data):
+        """Private Host transport: load facts, apply core intents, map I/O errors."""
+        with self.lock:
+            try:
+                command = ApprovalCommand.parse(data, available=not self.closed and self.allow_execution)
+            except ApprovalUnavailable as error:
+                raise RequestInvalid(str(error), 403) from error
+            key = command.key
+            requests = self.store._list('pcgym-approval-requests')
+            decisions = self.store._list('pcgym-approval-decisions')
+            state = ApprovalState(
+                saved=ReproductionApproval(**self.store._read('pcgym-approval-requests', key)) if key in requests else None,
+                decision=ApprovalDecision(**self.store._read('pcgym-approval-decisions', key)) if key in decisions else None,
+                pending=self.pending_approvals.get(key))
+            approval = state.binding_for(command)
+            item = spec = None
+            if approval is None:
+                approval, item, spec = self.approval_binding(data)
+            busy = False
+            if state.needs_execution_status(command):
+                status = self.status(command.spec_id)
+                busy = ExecutionFacts(status['execution_lock_present'],
+                    tuple(a['status'] for a in status['attempts']),
+                    tuple(r['status'] for r in status['requests'])).busy
+            process = self.processes.get(command.spec_id)
+            try:
+                plan = state.transition(command, approval, busy=busy,
+                    owner_request_id=self.process_requests.get(command.spec_id),
+                    owner_live=process is not None and process.poll() is None)
+            except ApprovalDenied as error:
+                raise RequestInvalid(str(error), 403) from error
+            # Capabilities are consumed before durable decision persistence, and
+            # no worker dispatch can occur if either step fails.
+            if plan.pending_action == 'consume':
+                self.pending_approvals.pop(key, None)
+            if plan.save_approval:
+                self.store._write('pcgym-approval-requests', key, approval.to_dict())
+            if plan.save_decision is not None:
+                self.store._write('pcgym-approval-decisions', key, plan.save_decision.to_dict())
+            if plan.pending_action == 'new':
+                self.pending_approvals[key] = PendingApproval(secrets.token_hex(32), approval)
+            if plan.outcome == 'requires-approval':
+                pending = self.pending_approvals[key]
+                return dict(state=plan.outcome, ticket=pending.ticket, bindingDigest=approval.digest,
+                            summary=self.approval_summary(approval, item, spec))
+            if plan.dispatch:
+                try:
+                    self.start(dict(action='start', specId=approval.spec_id, requestId=approval.request_id,
+                                    confirmation='execute-frozen-local-simulation'))
+                except (Invalid, RequestInvalid, OSError):
+                    failure = dispatch_failure(key in self.store._list('pcgym-requests'))
+                    if failure.persist:
+                        self.store._write('pcgym-approval-dispatch', key, failure.to_dict())
+                    if failure.propagate:
+                        raise
+            if plan.cancel_matching:
+                process.terminate()
+            try:
+                return self.approval_outcome(approval, plan.outcome, plan.reason)
+            except (Invalid, RequestInvalid, OSError):
+                if command.operation != 'cancel':
+                    raise
+                return dict(state=plan.outcome, status='unknown', itemId=approval.item_id,
+                    specId=approval.spec_id, requestId=approval.request_id, paperVerdict='INCONCLUSIVE',
+                    reason='Cancellation requested; stored evidence unavailable' if plan.cancel_matching else
+                           'Execution evidence unavailable; no matching live owner was found')
 
     def command(self, data):
         action = data.get('action')
+        if action == 'prepare-item': return self.prepare_item(data)
+        if action == 'annotation-evidence':
+            fields(data, ('action', 'annotationId'))
+            self.store.annotation(data['annotationId'])
+            items = []
+            for key in self.store._list('pcgym-items'):
+                item, spec = self.item(key)
+                if item.annotation_id == data['annotationId']:
+                    status = self.status(spec.id)
+                    requests = {r['request_id']: r for r in status['requests']}
+                    for approval_key in self.store._list('pcgym-approval-requests'):
+                        approval = ReproductionApproval(**self.store._read('pcgym-approval-requests', approval_key))
+                        if approval.spec_id != spec.id:
+                            continue
+                        if approval.request_id in requests:
+                            requests[approval.request_id]['item_id'] = approval.item_id
+                            continue
+                        if approval.item_id != item.id:
+                            continue
+                        if approval_key in self.store._list('pcgym-approval-decisions'):
+                            decision = self.store._read('pcgym-approval-decisions', approval_key)
+                            outcome = self.approval_outcome(approval, decision['state'])
+                            state = outcome.get('status', outcome['state'])
+                        else:
+                            state = 'awaiting_approval' if approval_key in self.pending_approvals else 'unknown'
+                        requests[approval.request_id] = dict(request_id=approval.request_id, item_id=approval.item_id, status=state)
+                    items.append(dict(item=item.to_dict(), spec=spec.to_dict(), **{**status, 'requests': list(requests.values())}))
+            return dict(items=items, executionAvailable=self.allow_execution and self.checkout is not None)
+        if action == 'create-item': return self.create_item(data)
+        if action == 'compare-item': return self.compare_item(data)
+        if action == 'item':
+            fields(data, ('action', 'itemId'))
+            return self.item(data['itemId'])[0].to_dict()
+        if action == 'logs':
+            fields(data, ('action', 'specId', 'attemptId'))
+            root = self.bundle(data['specId'])
+            pcgym.load_spec(root)
+            target = pcgym.attempt_directory(root, data['attemptId'])
+            path = target / 'execution.log'
+            if path.is_symlink() or not path.is_file():
+                raise Invalid('log_unavailable', 'No saved execution log is available for this attempt')
+            with path.open('rb') as stream:
+                content = stream.read(65537)
+            return dict(spec_id=data['specId'], attempt_id=data['attemptId'],
+                        text=content[:65536].decode('utf-8', errors='replace'),
+                        truncated=len(content) > 65536)
         if action == 'case':
             fields(data, ('action',))
             return dict(claim=Claim().to_dict(), sources=list(PINS), execution_available=self.allow_execution,
@@ -240,11 +490,21 @@ class PcgymApp:
         raise Invalid('action', 'Unknown PC-Gym operation')
 
     def close(self):
-        for process in self.processes.values():
-            if process.poll() is None:
-                process.terminate()
-        for process in self.processes.values():
-            try:
-                process.wait(timeout=12)
-            except subprocess.TimeoutExpired:
-                pass  # Unknown remains unknown; never erase lock or replay an operation.
+        with self.lock:
+            self.closed = True
+            plans = tuple(ApprovalState(pending=pending).close()
+                          for pending in self.pending_approvals.values())
+            self.pending_approvals.clear()
+        try:
+            for plan in plans:
+                self.store._write('pcgym-approval-decisions', plan.approval.key, plan.save_decision.to_dict())
+        finally:
+            # Evidence I/O failure must not skip the existing process cleanup.
+            for process in self.processes.values():
+                if process.poll() is None:
+                    process.terminate()
+            for process in self.processes.values():
+                try:
+                    process.wait(timeout=12)
+                except subprocess.TimeoutExpired:
+                    pass  # Unknown remains unknown; never erase lock or replay an operation.
