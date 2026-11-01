@@ -1,5 +1,8 @@
 """Reports bind delivered scopes, never caller assertions or inferred science."""
 import io
+import multiprocessing
+import os
+from unittest.mock import patch
 from pathlib import Path
 import tempfile
 import unittest
@@ -13,6 +16,27 @@ from paper_agent.store import ResearchStore
 from paper_agent.source_downloads import SourceDownloads
 from paper_agent.pdf_downloads import PdfDownloads
 from paper_agent.research_commands import execute
+
+
+def interrupt_source_publication(root, selection, data):
+    """Owned disposable process: exit after the original blob, before its index/receipt."""
+    staging = Path(root) / 'crash-staging'
+    staging.mkdir()
+    tempfile.tempdir = str(staging)  # Reclaimed by the parent after this process exits.
+    store = ResearchStore(root)
+    store.source_downloads = SourceDownloads(store, SourceTransport(data))
+    target = store.root / 'source-files' / (digest(data) + '.bin')
+    original_replace = os.replace
+
+    def publish_then_exit(source, destination):
+        original_replace(source, destination)
+        if Path(destination) == target:
+            os._exit(23)
+
+    with patch('paper_agent.source_downloads.os.replace', side_effect=publish_then_exit):
+        store.source_downloads.request(dict(operation='start', **selection))
+        finish(store.source_downloads, selection)
+    store.source_downloads.close()
 
 
 class SourceReports(unittest.TestCase):
@@ -224,6 +248,113 @@ class SourceReports(unittest.TestCase):
         path.write_bytes(b'x' * path.stat().st_size)
         self.assertFalse(self.report('read', reportId=report['id'])['currentAvailability'][0]['available'])
         self.assertEqual(self.read('compare', pdfResourceId=self.pdf.id)['status'], 'unresolved')
+
+
+    def test_source_publication_failure_and_interruption_require_explicit_retry(self):
+        read = self.read('read', memberId=self.tex['id'], startLine=1, endLine=3)
+        old_report = self.report('create', title='Before publication', observationIds=[read['observationId']])
+        old_receipt = self.store.source_downloads.request(dict(operation='status', **self.selection))['receipt']
+        data = archive_bytes([('main.tex', TEX.replace('Synthetic source figure.', 'Version two result.').encode())])
+        selection, _ = bundle(self.store, source_url='https://arxiv.org/src/2610.24806v2')
+        downloads = SourceDownloads(self.store, SourceTransport(data))
+        self.store.source_downloads = downloads
+        original = self.store.root / 'source-files' / (digest(data) + '.bin')
+        index = self.store.root / 'source-archives' / (digest(data) + '.json')
+        real_replace = os.replace
+
+        def fail_member_publish(source, destination):
+            if Path(destination).parent.name == 'source-members':
+                raise OSError('authored publication failure')
+            return real_replace(source, destination)
+
+        # A handled publication error must remove the newly published original,
+        # without deleting a different version's evidence or reporting success.
+        with patch('paper_agent.source_downloads.os.replace', side_effect=fail_member_publish):
+            downloads.request(dict(operation='start', **selection))
+            failed = finish(downloads, selection)
+        self.assertEqual(failed['status'], 'failed')
+        self.assertIsNone(failed['receipt'])
+        self.assertFalse(original.exists())
+        self.assertFalse(index.exists())
+        self.assertEqual(self.report('read', reportId=old_report['id']), old_report)
+        downloads.close()
+
+        # A real process exit bypasses Python exception cleanup, leaving only
+        # the first published blob and a running job. No timing-based kill.
+        process = multiprocessing.get_context('spawn').Process(
+            target=interrupt_source_publication, args=(self.directory.name, selection, data))
+        process.start()
+        try:
+            process.join(timeout=20)
+            self.assertFalse(process.is_alive(), 'publication boundary was not reached')
+            self.assertEqual(process.exitcode, 23)
+        finally:
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
+            process.close()
+        self.assertEqual(original.read_bytes(), data)
+        self.assertFalse(index.exists())
+
+        entered = multiprocessing.get_context('spawn').Event()
+        transport = SourceTransport(data, entered=entered)
+        with patch('paper_agent.source_downloads.PublicMetadata', return_value=transport):
+            self.store = ResearchStore(self.directory.name)
+        interrupted = self.store.source_downloads.request(dict(operation='status', **selection))
+        self.assertEqual(interrupted['status'], 'interrupted')
+        self.assertIsNone(interrupted['receipt'])
+        self.assertFalse(interrupted['localAvailable'])
+        self.assertEqual(self.store.source_downloads.running, {})
+        self.assertFalse(entered.is_set(), 'restart/status must not fetch or retry')
+        self.assertEqual(self.report('read', reportId=old_report['id']), old_report)
+        self.assertEqual(self.store.source_downloads.request(dict(operation='status', **self.selection))['receipt'], old_receipt)
+        with self.assertRaises(Invalid):
+            execute(self.store, 'source-read', dict(operation='list', **selection))
+        self.store.source_downloads.request(dict(operation='start', **selection))
+        completed = finish(self.store.source_downloads, selection)
+        self.assertTrue(entered.is_set())
+        self.assertEqual(completed['status'], 'source_available')
+        self.assertEqual(completed['receipt']['archiveDigest'], digest(data))
+        self.assertEqual(self.report('read', reportId=old_report['id']), old_report)
+        self.assertEqual(self.read('read', memberId=self.tex['id'], startLine=1, endLine=3), read)
+
+    def test_source_versions_coexist_without_rebinding_old_observations(self):
+        old_read = self.read('read', memberId=self.tex['id'], startLine=1, endLine=3)
+        old_observations = self.report('observations')
+        old_report = self.report('create', title='Version one', observationIds=[old_read['observationId']])
+        old_receipt = self.store.source_downloads.request(dict(operation='status', **self.selection))['receipt']
+        new_text = TEX.replace('documentclass{article}', 'documentclass{report}')
+        self.assertNotEqual(new_text, TEX)
+        data = archive_bytes([('main.tex', new_text.encode())])
+        selection, _ = bundle(self.store, source_url='https://arxiv.org/src/2610.24806v2')
+        self.store.source_downloads = SourceDownloads(self.store, SourceTransport(data))
+        self.store.source_downloads.request(dict(operation='start', **selection))
+        new_receipt = finish(self.store.source_downloads, selection)['receipt']
+        self.assertEqual((old_receipt['revision'], new_receipt['revision']), ('v1', 'v2'))
+        self.assertEqual(old_receipt['workIdentity'], new_receipt['workIdentity'])
+        self.assertNotEqual(old_receipt['archiveDigest'], new_receipt['archiveDigest'])
+        new_catalog = execute(self.store, 'source-read', dict(operation='list', **selection))
+        new_member = next(m for m in new_catalog['members'] if m['path'] == 'main.tex')
+        self.assertNotEqual(new_member['id'], self.tex['id'])
+        self.assertNotEqual(new_member['sha256'], self.tex['sha256'])
+        new_read = execute(self.store, 'source-read', dict(operation='read', **selection, memberId=new_member['id'], startLine=1, endLine=3))
+        self.assertNotEqual(new_read['observationId'], old_read['observationId'])
+        for restarted in (False, True):
+            with self.subTest(restarted=restarted):
+                if restarted:
+                    self.store.source_downloads.close()
+                    self.store = ResearchStore(self.directory.name)
+                    self.store.source_downloads = SourceDownloads(self.store, SourceTransport(b'', denied=True))
+                self.assertEqual(self.read('list'), self.catalog)
+                self.assertEqual(self.read('read', memberId=self.tex['id'], startLine=1, endLine=3), old_read)
+                self.assertEqual(self.report('observations'), old_observations)
+                self.assertEqual(self.report('read', reportId=old_report['id']), old_report)
+                self.assertEqual(self.store.source_downloads.request(dict(operation='start', **self.selection))['receipt'], old_receipt)
+                self.assertEqual(self.store.source_downloads.request(dict(operation='start', **selection))['receipt'], new_receipt)
+                self.assertEqual(execute(self.store, 'source-read', dict(operation='read', **selection, memberId=new_member['id'], startLine=1, endLine=3)), new_read)
+                self.assertEqual(execute(self.store, 'export', dict(bundleId=self.selection['bundleId']))['sourceReports'], [old_report])
+                for receipt, expected in ((old_receipt, self.original), (new_receipt, data)):
+                    self.assertEqual((self.store.root / 'source-files' / (receipt['archiveDigest'] + '.bin')).read_bytes(), expected)
 
 
 if __name__ == '__main__':
