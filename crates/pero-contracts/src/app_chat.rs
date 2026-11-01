@@ -29,11 +29,21 @@ pub struct AppLocation {
 impl AppLocation {
     pub fn parse(href: &str) -> Option<Self> {
         let mut parts = href.strip_prefix("pero-app-location://")?.splitn(3, '/');
-        let scope = AppChatScope { app: parts.next()?.into(), panel: parts.next()?.into() };
+        let scope = AppChatScope {
+            app: parts.next()?.into(),
+            panel: parts.next()?.into(),
+        };
         let location = parts.next()?;
-        (scope.valid() && !location.is_empty() && location.len() <= 512
-            && location.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'/' | b'-' | b'_')))
-            .then(|| Self { scope, location: location.into() })
+        (scope.valid()
+            && !location.is_empty()
+            && location.len() <= 512
+            && location
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'/' | b'-' | b'_')))
+        .then(|| Self {
+            scope,
+            location: location.into(),
+        })
     }
 }
 #[cfg(test)]
@@ -42,12 +52,17 @@ mod location_tests {
     #[test]
     fn app_locations_are_scoped_opaque_addresses() {
         for (url, valid) in [
-            ("pero-app-location://paper-agent/main/report/abc/citation/0", true),
+            (
+                "pero-app-location://paper-agent/main/report/abc/citation/0",
+                true,
+            ),
             ("https://example.org", false),
             ("pero-app-location://paper-agent/main/", false),
             ("pero-app-location://paper-agent/main/../secret", false),
             ("pero-app-location://paper-agent/main/%2fsecret", false),
             ("pero-app-location://Paper/main/report", false),
-        ] { assert_eq!(AppLocation::parse(url).is_some(), valid, "{url}"); }
+        ] {
+            assert_eq!(AppLocation::parse(url).is_some(), valid, "{url}");
+        }
     }
 }

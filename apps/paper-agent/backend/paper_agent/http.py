@@ -152,8 +152,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, record.to_dict())
                 if self.command == "POST":
-                    if path == '/api/research/prepare':
-                        request = ResearchRequest.parse(data)
+                    if path in ('/api/research/prepare', '/api/research/followup'):
+                        request = (ResearchRequest.follow_up(data, store.intent(data.get('parentIntentId')))
+                                   if path.endswith('/followup') else ResearchRequest.parse(data))
                         if request.full_text:
                             for identity in request.paper_ids:
                                 paper = store.paper(identity)

@@ -81,8 +81,10 @@ impl NativeAppPage {
                     .update(cx, |this, cx| {
                         match message["type"].as_str() {
                             Some("loaded" | "pero:app:ready") => {
-                                this.ready = true;
-                                if let Some(location)=this.location.take() {this.navigate(location,cx);}
+                                this.ready |= message["type"] == "pero:app:ready";
+                                if this.ready {
+                                    if let Some(location)=this.location.take() {this.navigate(location,cx);}
+                                }
                                 this.send(
                                     json!({"type":"pero:app:context","context":this.context}),
                                     cx,

@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: open
+status: resolved
 ---
 
 # Paper research tools fail repeatedly and Chat summaries omit saved citations
@@ -31,7 +31,7 @@ This is a real-provider journey; prior fixture success did not establish its
 reliability. There is no evidence here of a provider transport failure, missing
 saved citations, or grounds to relax exact quotation validation.
 
-## Repair direction (not implemented by this investigation)
+## Repair direction (implemented; verification below)
 
 - Advertise the native MCP capabilities that are actually available; retain the
   existing selected/running-session authorization and declared data tools.
@@ -46,3 +46,30 @@ saved citations, or grounds to relax exact quotation validation.
 Use this as the canonical active tracker for the observed research journey.
 The earlier shared-Chat integration record tracks its delivered fixture scope;
 this record tracks the real-provider reliability and citation presentation gaps.
+
+
+## Resolution (2026-11-01)
+
+Native advertises only supported App tools. Schema-specific declarations expose
+required parameters; PDF reads page original text rather than rejecting large
+valid line intervals. Numbered passage lines allow exact quotation selection
+without rewriting CRLF. A dedicated follow-up input derives frozen source scope
+from the selected parent; report boilerplate derives from the authoritative
+study. Explicit mismatches and invalid evidence remain rejected.
+
+Saved-report source links are rendered in shared Chat independently of model
+prose, and resolve through persisted exact evidence into the PDF. Native source
+clicks also work after recreating the App view. Shared App Use skill and research
+prompts now distinguish data tools, UI tools, identity roles and reading modes.
+
+Real built-in Pero/deepseek-chat acceptance passed on the original 13-page PDF:
+Electron first question (10 calls, zero failures), follow-up (9 calls, two
+recoverable parameter errors), and native GPUI/Wry (8 calls, zero failures).
+Reports, parent linkage and real source clicks/highlights passed. These samples
+do not establish a general Harness failure rate. Exact quotation rejection was
+retained in negative tests; no scientific verification claim was added.
+
+See [the maintained verification record](../fitness/paper-harness-journey.md#shared-chat-citations-and-built-in-pero-2026-11-01)
+for limits, reproducible commands and local artifact locations. This tracker is
+resolved for the observed failures; the broader provider/model quality problem
+must be measured separately rather than inferred from one screenshot.

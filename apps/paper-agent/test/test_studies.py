@@ -1,6 +1,7 @@
 """Research ledger rules: source scope, recoverable reading and explicit completion."""
 from dataclasses import replace
 import copy
+import json
 import tempfile
 import unittest
 
@@ -23,10 +24,11 @@ def new_study(paper, document):
 
 
 def final_report(study, passage):
-    return dict(schema='pero.paper-agent-report.v1', intentId=study.id, title='Evidence-based finding',
+    template = json.loads(study.prompt().split('\nResearch context:\n', 1)[1])['reportTemplate']
+    return dict(template, title='Evidence-based finding',
         sections=[dict(heading='Method', content='The source describes a formal method.', paperIds=[passage.paper_id],
             evidence=[dict(paperId=passage.paper_id, passageId=passage.id, quote=passage.content[:40])])],
-        experiments=[], limitations='Reading only; exact location is not scientific verification.')
+        limitations='Reading only; exact location is not scientific verification.')
 
 
 class ResearchStudies(unittest.TestCase):
@@ -132,7 +134,15 @@ class ResearchStudies(unittest.TestCase):
         command = StudyCommand.parse(dict(action='read', paperId=paper.id, page=1), first)
         first = first.append(ResearchStep.read(first, command, document, NOW))
         parent = first.freeze_input()
-        followup = replace(request([paper], fullText=True), request_id='followup', parent_intent_id=parent.id)
+        from paper_agent.model import ResearchRequest
+        selected = dict(question='Explain its conditions', requestId='followup', parentIntentId=parent.id)
+        followup = ResearchRequest.follow_up(selected, parent)
+        self.assertEqual(followup.paper_ids, (paper.id,))
+        self.assertTrue(followup.full_text)
+        self.assertFalse(followup.verify_code)
+        for fields in (dict(paperIds=['0' * 64]), dict(parentIntentId='0' * 64), dict(verifyCode=True)):
+            with self.subTest(fields=fields), self.assertRaises(Invalid):
+                ResearchRequest.follow_up(dict(selected, **fields), parent)
         for version, expected in ((document, 1),
                 (PdfDocument.create(paper.id, '9' * 64, paper.url, document.pages, NOW), 0)):
             with self.subTest(document=version.id):
@@ -162,7 +172,8 @@ class ResearchStudies(unittest.TestCase):
         valid = final_report(study, study.passages[0])
         forged = copy.deepcopy(valid)
         forged['sections'][0]['evidence'][0]['passageId'] = '0' * 64
-        for value in (forged, {**valid, 'intentId': '0' * 64}):
+        for value in (forged, {**valid, 'intentId': '0' * 64}, {**valid, 'schema':'invalid-report'},
+                      {**valid, 'sections': [{**valid['sections'][0], 'evidence':[{**valid['sections'][0]['evidence'][0], 'quote':'Invented evidence'}]}]}):
             with self.subTest(value=value), self.assertRaises(Invalid):
                 StudyCommand.parse(dict(studyId=study.id, action='finalize', report=value), study)
         finalized = StudyCommand.parse(dict(studyId=study.id, action='finalize', report=valid), study)

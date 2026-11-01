@@ -221,6 +221,15 @@ class ResearchRequest:
             raise Invalid('Invalid context file reference')
         return cls(question, tuple(selected), request_id, verify, plan, full_text, parent, context_id)
 
+    @classmethod
+    def follow_up(cls, value, parent):
+        value = mapping(value, 'follow-up request')
+        if set(value) - {'question', 'requestId', 'parentIntentId', 'contextId'} or value.get('parentIntentId') != parent.id:
+            raise Invalid('A follow-up uses the selected parent input; source overrides are not allowed')
+        return cls.parse(dict(question=value.get('question'), requestId=value.get('requestId'),
+                              paperIds=[paper.id for paper in parent.papers], fullText=bool(parent.passages),
+                              parentIntentId=parent.id, **(dict(contextId=value['contextId']) if 'contextId' in value else {})))
+
     def to_dict(self):
         return dict(question=self.question, paperIds=list(self.paper_ids), requestId=self.request_id,
                     verifyCode=self.verify_code, verificationPlan=self.verification_plan, fullText=self.full_text,

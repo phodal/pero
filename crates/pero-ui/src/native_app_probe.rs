@@ -162,7 +162,10 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
     let mut stage=0;
     let mut last=Value::Null;
     let mut logged=99;
-    for _ in 0..400 {
+    let mut library=Value::Null;
+    let real_model=std::env::var("PERO_NATIVE_PAPER_AGENT").ok().as_deref()==Some("pero");
+    let question=if real_model {"这篇论文的核心方法与评估局限是什么？请阅读原文，保存带精确引用的研究报告。"} else {"What does this synthetic source establish?"};
+    for _ in 0..(if real_model {1800}else{400}) {
         if logged!=stage { eprintln!("Native Paper acceptance stage {stage}"); logged=stage; }
         match stage {
             0=>{
@@ -180,7 +183,7 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
                       window.paperProbe={pending:true};
                       (async()=>{
                         const get=async(path,body)=>{const r=await fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw Error(await r.text());return r.json();};
-                        const reply=await fetch('/api/pdf/import?filename=Native-fixture.pdf',{method:'POST',headers:{'Content-Type':'application/pdf'},body:new Uint8Array(window.paperProbePdf)});
+                        const reply=await fetch('/api/pdf/import?filename=Research-paper.pdf',{method:'POST',headers:{'Content-Type':'application/pdf'},body:new Uint8Array(window.paperProbePdf)});
                         if(!reply.ok)throw Error(await reply.text());const paper=await reply.json();
                         document.querySelector('.pa-library-screen button[aria-label="Refresh"]').click();
                         window.paperProbe={paperId:paper.id};
@@ -195,6 +198,8 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
                 if clicked==true {stage=3;}
             }
             3=>{
+                let active=window.update(cx,|_,window,cx|{if window.is_window_active(){true}else{window.activate_window();cx.activate(true);false}})?;
+                if !active {cx.background_executor().timer(Duration::from_millis(150)).await;continue;}
                 let clicked=query(root,"paper-agent",r#"(()=>{const button=[...document.querySelectorAll('.pa-reading-bar button')].find(b=>b.textContent==='Ask');if(!button||button.disabled)return false;button.click();return true;})()"#,cx).await?;
                 if clicked==true {stage=4;}
             }
@@ -207,13 +212,13 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
                     anyhow::ensure!(last["scope"]["app"]=="paper-agent","Wrong Chat scope: {last}");
                     anyhow::ensure!(last["chats"][0]["messages"].as_array().is_some_and(|m|m.is_empty()),"App must not send a question implicitly");
                     let _=window.update(cx,|_,_window,cx|root.update(cx,|root,cx|root.chat.update(cx,|chat,cx|{
-                        chat.compose("What does this synthetic source establish?".into(),cx);
+                        chat.compose(question.into(),cx);
                     })))?;
                     stage=5;
                 }
             }
             5=>{
-                let ready=cx.update(|cx|root.read(cx).chat.read(cx).snapshot(cx)["composer"].as_str().is_some_and(|value|value.contains("What does this synthetic source establish?")));
+                let ready=cx.update(|cx|root.read(cx).chat.read(cx).snapshot(cx)["composer"].as_str().is_some_and(|value|value.contains(question)));
                 if ready {
                     let _=window.update(cx,|_,window,cx|root.update(cx,|root,cx|root.chat.update(cx,|chat,cx|chat.send_chat(window,cx))))?;
                     stage=6;
@@ -226,6 +231,8 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
                 if value["library"]["reports"].as_array().is_some_and(|r|!r.is_empty()) {
                     let active=last["activeChat"].as_u64().unwrap_or(0) as usize;
                     if last["chats"][active]["state"]=="idle" {
+                        library=value["library"].clone();
+                        cx.update(|cx|root.update(cx,|root,cx|{root.native_app_pages.remove(&("paper-agent".into(),"main".into()));cx.notify();}));
                         stage=7;
                     }
                 }
@@ -235,18 +242,27 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
                 if let Some(bounds)=last["appLinkBounds"][0]["bounds"].as_object() {
                     let x=bounds["x"].as_f64().unwrap() as f32+bounds["width"].as_f64().unwrap() as f32/2.;
                     let y=bounds["y"].as_f64().unwrap() as f32+bounds["height"].as_f64().unwrap() as f32/2.;
+                    let viewport=cx.update(|cx|root.read(cx).chat.read(cx).chat_scroll.bounds());
+                    if px(y)<viewport.top()+px(4.) || px(y)>viewport.bottom()-px(4.) {
+                        cx.update(|cx|root.update(cx,|root,cx|root.chat.update(cx,|chat,cx|{
+                            let offset=chat.chat_scroll.offset();
+                            let delta=if px(y)<viewport.top(){px(200.)}else{px(-200.)};
+                            chat.chat_scroll.set_offset(point(offset.x,(offset.y+delta).clamp(-chat.chat_scroll.max_offset().y,px(0.))));
+                            cx.notify();
+                        })));
+                    } else {
                     window.update(cx,|_,window,cx|{
                         window.dispatch_event(PlatformInput::MouseDown(MouseDownEvent{button:MouseButton::Left,position:point(px(x),px(y)),click_count:1,..Default::default()}),cx);
                         window.dispatch_event(PlatformInput::MouseUp(MouseUpEvent{button:MouseButton::Left,position:point(px(x),px(y)),click_count:1,..Default::default()}),cx);
                     })?;
                     stage=8;
+                    }
                 }
             }
             8=>{
-                let highlighted=query(root,"paper-agent","!!document.querySelector('[data-citation-region=\"true\"]')",cx).await?;
+                let highlighted=query(root,"paper-agent","!!document.querySelector('[data-citation-region=\"true\"]')",cx).await.unwrap_or(Value::Null);
                 if highlighted==true {
-                    let value=query(root,"paper-agent","window.paperProbeLibrary",cx).await?;
-                    return Ok(json!({"passed":true,"realModel":false,"checks":["native Paper Ask freezes App context without auto-send","shared Host saves an exact PDF evidence report","native Chat source button receives real pointer events and highlights PDF"],"library":value,"chat":last}));
+                    return Ok(json!({"passed":true,"realModel":real_model,"checks":["native Paper Ask freezes App context without auto-send","shared Host saves an exact PDF evidence report","native Chat source button receives real pointer events, reopens the App and highlights PDF"],"library":library,"chat":last}));
                 }
             }
             _=>unreachable!(),
