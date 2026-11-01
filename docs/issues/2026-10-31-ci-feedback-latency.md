@@ -73,3 +73,14 @@ core crates. Self-contained Automations/Scientific Viewer unit/type and actual
 Host stdio contracts run in ordinary CI. Full acceptance retains the original
 fifteen shards plus real Scientific Viewer and a separately labeled mock
 Automation iframe; the mock does not establish scheduling or Agent correctness.
+
+A later full run exposed a real startup handshake race, not a lazy chat session:
+Desktop's initial two-second connection query returned `error.host_wait`, then
+Host became ready while WASM/GPUI initialized without an event subscription.
+The renderer later applied the obsolete disconnected snapshot, despite receiving
+Agents and workspace history. Bootstrap now subscribes after the renderer is
+ready, then queries current Host state; a live lifecycle event supersedes a
+pending query snapshot. Deterministic regressions cover both event/query orders.
+The Workbench smoke still requires connected, session-ready, streaming, cancel
+and permission behavior; its existing owned-Electron cleanup now bounds early
+failure teardown instead of consuming the entire six-minute scenario deadline.

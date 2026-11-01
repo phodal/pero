@@ -1,3 +1,4 @@
+import { connectHost } from './host-connection';
 import { installAutomation } from './automation';
 import {installContentAnalysis} from './content-analysis';
 import { loadContentResult, cancelContentResult } from './content-results';
@@ -35,7 +36,6 @@ const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
 const updateDocument = () => { document.documentElement.lang = locale; document.title = t('window.title'); loading.textContent = t('loading'); };
 updateDocument();
 try {
-  const connection = window.pero ? await window.pero.connect() : null;
   if (window.pero) locale = normalizeLocale(await window.pero.getLocale());
   updateDocument();
   const dark = matchMedia('(prefers-color-scheme: dark)').matches;
@@ -177,8 +177,7 @@ try {
     await new Promise(requestAnimationFrame);
   }
   if (window.pero) {
-    window.pero.onEvent(onEvent);
-    if (connection) onEvent(connection);
+    await connectHost(window.pero, onEvent);
     await window.pero.sessionCommand({method:'settings.workbench.get'});
     await window.pero.sessionCommand({method:'icons',action:'get',request_id:'icon-themes-startup'});
     await window.pero.sessionCommand({action:'list_agents'});

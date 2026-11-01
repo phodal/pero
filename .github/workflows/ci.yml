@@ -405,6 +405,7 @@ jobs:
         run: |
           npm run test:app-use:unit
           node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs
+          node --test web/src/host-connection.test.ts
           node --test desktop/src/main/{app-context,app-use,connector-secrets,content-artifacts,control-lab-goal,harness-environment,home,mcp-sources}.test.ts web/src/{automation-model,content-results}.test.ts
           node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs
           node --test tests/runtime/control-lab/*.test.mjs tests/runtime/control-lab/host-goal.test.ts
