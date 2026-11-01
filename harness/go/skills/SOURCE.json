@@ -30,9 +30,9 @@
   },
   "scope": "New opt-in headless read-only composition; this is not a wholesale or behavior-equivalent DSH skills migration.",
   "adaptations": [
-    "No implicit home/project/environment roots, bundles, resource loading, slash gestures or script execution.",
+    "No implicit home/project/environment roots, bundles, resource loading or script execution.",
     "Fixed descriptor-owned manifest and digest reads use existing fstools.OpenScopedTextFiles; catalog is not a second runtime registry or permission engine.",
-    "Existing Harness.RegisterTool owns tool registration/generation; one exact-key skill tool lists or reads.",
+    "Existing Harness runtime, ToolRegistry and PreStep own registration/generation and admission; one exact-key skill tool lists or reads. Explicit gestures reuse the same frozen catalog read.",
     "Only direct child SKILL.md files. Duplicate names and invalid files fail closed. Bounded UTF-8 text; model-disabled skills remain unavailable."
   ],
   "license": "No new blanket license assigned. Source files have no embedded third-party notice. Existing dependency-specific notices and ownership decisions remain unchanged.",
@@ -41,7 +41,7 @@
     "commit": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
     "path": "packages/skill/tool-skill/src/index.ts",
     "blob": "f08fb8206433bb40ec415c65e9a50382386a3bd0",
-    "role": "Read-only comparison, not copied implementation; durable catalog/reminder semantics remain a gap.",
+    "role": "Behavioral reference, not copied implementation: whitespace-bounded direct-user gestures and per-step deduplication adapted through existing PreStep. Durable catalog/reminder semantics remain a gap.",
     "record": "docs/fitness/harness-behavior-parity.md"
   }
 }

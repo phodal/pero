@@ -33,9 +33,21 @@ the existing catalog limits and fixed-snapshot rules still apply.
 It has no path/root/write/execute arguments. Instructions
 are untrusted task guidance, **not permission grants**; any separately installed
 tool retains its own authority/approval policy. No tool is invoked automatically.
-`disable-model-invocation: true` keeps a skill unavailable to this tool. Other
+`disable-model-invocation: true` keeps a skill unavailable to both this tool and
+explicit user invocation (unlike DSH's user-only skills). Other
 frontmatter fields are inert; no templates, objects, imports or YAML tags are
-executed. This slice has no human slash-command invocation surface.
+executed.
+
+Direct user input can contain `/example` as a whole whitespace-bounded token
+anywhere in a text block. The current claimed step batch loads each known enabled
+skill once through the same digest-checked read, before its first model request;
+no model tool roundtrip is needed. Loaded instructions carry a distinct
+`skill-invocation` source, name and launch-time digest. Unknown names, paths such
+as `/example/file`, fractions, and plugin/tool/external-sourced messages remain
+ordinary text. Masking or shadowing the mounted skill tool also disables this
+injection. Existing history is never scanned for gestures on later steps or
+JSONL restoration. Repeating a gesture in a new user request is a new explicit
+load; loaded bodies are not automatically restored after compaction.
 
 Limits per catalog: 8 explicit roots, 512 direct directory entries total,
 64 skills (including model-disabled ones), 64 KiB per SKILL.md, 64-byte names,

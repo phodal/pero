@@ -5,8 +5,8 @@
 This is a **bounded source audit and deterministic Pero contract suite**, not
 proof of complete DSH compatibility or a two-runtime A/B evaluation.
 [Issue #73](https://github.com/phodal/pero/issues/73) remains open for its broader
-acceptance. No production behavior, approval policy or provider retry policy is
-changed by this increment. No new Point source was read or copied.
+acceptance. The explicit Skill increment below changes direct-user loading only;
+approval policy and provider retry policy are unchanged. No new Point source was read or copied.
 
 - Pero audit baseline: [`9dc378f96ce605d62126864e57225c5b577cd88c`](https://github.com/phodal/pero/commit/9dc378f96ce605d62126864e57225c5b577cd88c).
 - Official DSH baseline: [`f3803c96974ad4a94195fb97e5c637e9c2a3afe3`](https://github.com/deepseek-ai/deepseek-harness/tree/f3803c96974ad4a94195fb97e5c637e9c2a3afe3),
@@ -30,7 +30,8 @@ entry points, not an assertion that every line in a linked package is verified.
 | --- | --- | --- |
 | Skill relevance discovery — **intentional difference + gap** | [skills/tool.go](../../harness/go/skills/tool.go): name/description summaries in the tool description, not user-role durable catalog messages. Names/digests are listed by `skill({})` before reading. | [catalog_test.go](../../harness/go/skills/catalog_test.go), `TestToolUsesExistingRegistry`: advertised summary, no body/path/digest/disabled entry, rejected name-only call with recovery guidance. Official `apply` publishes visibility-matched `skill-catalog` messages before a step. |
 | Skill content identity — **intentional difference** | [catalog.go](../../harness/go/skills/catalog.go): approved explicit roots, launch-time digest and descriptor-bound reread. Changed content fails; list does not accept a new digest. | `TestCatalogReadAndChange`, `TestToolUsesExistingRegistry`, `TestRootReplacementAfterOpen`. Official name-only loading dynamically resolves the current scoped provider. No implicit roots or precedence are added. |
-| Directory updates/source precedence/slash invocation — **gap / deliberately excluded authority** | Only direct child SKILL.md files; duplicate names fail. No dynamic discovery, resource execution, implicit home/project roots or slash invocation. | `TestNoImplicitRootsAndDepth`, `TestDiscoveryFailures`, `TestFrontmatterAndScriptsAreInertData`. Official `snapshot`, `catalogHistory`, and explicit user invocation hooks are not ported. Any future discovery change needs an explicit authority design. |
+| Explicit slash invocation — **aligned subset, frozen authority** | [invocation.go](../../harness/go/skills/invocation.go) selects known whitespace-bounded `/name` tokens from the current claimed direct-user text blocks, once per name per step. Existing PreStep admission appends attributed `skill-invocation` instructions before the first provider request, using the existing frozen digest read and exact visible tool registration. | `TestExplicitSkillProviderRequest`, `TestExplicitSkillCancellationResume`: direct/repeated/unknown/path/fraction and non-user sources, disabled/unmounted/masked/shadowed skills, changed content refusal, cancellation and JSONL restoration without reloading old gestures. DSH user-invocable model-disabled skills remain deliberately unsupported here. |
+| Directory updates/source precedence — **gap / deliberately excluded authority** | Only direct child SKILL.md files; duplicate names fail. No dynamic discovery, resource execution or implicit home/project roots. | `TestNoImplicitRootsAndDepth`, `TestDiscoveryFailures`, `TestFrontmatterAndScriptsAreInertData`. Official `snapshot` and `catalogHistory` are not ported. Any future discovery change needs an explicit authority design. |
 | Skill context after compaction — **intentional difference + gap** | [loop.go](../../harness/go/harness/loop.go) resolves schemas for each step; [compaction_range.go](../../harness/go/harness/compaction_range.go) replaces selected history, not the registered tool catalog. A previously loaded body is ordinary tool-result context, not pinned instructions. | [compaction_test.go](../../harness/go/skills/compaction_test.go), `TestSkillAdvertisementAcrossCompaction`: actual tool read reaches the provider; real summary/replacement removes its body; the next request still has the summary-only schema, no automatic body reload or durable available-skills message. Official catalog is republished when its durable event is no longer visible. |
 | Context overflow recovery — **aligned subset; wider parity unverified** | [compaction_basic.go](../../harness/go/harness/compaction_basic.go): recovery only after durable surface progress, bounded overflow retry. Explicit provider overflow classified separately from a generic oversized HTTP request. | [compaction_test.go](../../harness/go/cmd/pero-agent-acp/compaction_test.go), `TestCompactionLaunchEngineLongContextOverflowCancelResume`; [adapter_test.go](../../harness/go/providers/openai/adapter_test.go), `TestContextOverflowClassificationPreservesRecovery`. Prior official review linked above; no fresh upstream runtime execution. |
 | Truncated responses — **aligned subset** | [loop.go](../../harness/go/harness/loop.go) and [stream.go](../../harness/go/providers/openai/stream.go) discard tool calls at the max-token stop; safe text is retained. | `TestMaxTokensDropsToolCallsAndKeepsSafeContent`; [compaction_wire_test.go](../../harness/go/cmd/pero-agent-acp/compaction_wire_test.go), `TestCompactionCLIActualLoopAndWire`. This is not tool exactly-once execution across process crashes. |
@@ -52,8 +53,8 @@ resume semantics. It must be designed and tested as a separate runtime change.
 Current descriptions are carried by provider tool schemas, not by a history
 message. The new test observes that boundary through the actual Harness adapter,
 not by inspecting implementation text. Summarization may omit loaded instructions;
-a subsequent task must explicitly list/read the authorized Skill again when
-needed. The test's summary intentionally omits them: it demonstrates a possible
+a subsequent task must explicitly list/read the authorized Skill again, or the
+user can issue a new `/name` gesture, when needed. The test's summary intentionally omits them: it demonstrates a possible
 loss, not a claim that every real summary loses them. No provider selection,
 request budget, retry, summary prompt or historical-tool replay is changed here.
 
@@ -94,3 +95,25 @@ this bounded contract suite passes; remaining gaps and unverified rows stay open
 - The initial Go build hit full `/tmp`; rerunning with a workspace-local
   `GOTMPDIR`/`TMPDIR` and the existing toolchain/module cache passed. This was an
   environment capacity failure, not a test or product failure.
+
+### Explicit user Skill loading — bounded follow-on
+
+The pinned official source was inspected again for this increment. Its actual
+`invokedSkillNames` matcher accepts whitespace-bounded tokens anywhere in direct
+user text (the earlier first-line comment is stale). Pero matches that subset
+without adopting DSH's dynamic registry, durable catalog publication,
+user-invocable skills hidden from model invocation, or resource execution. A loaded body is ordinary
+admitted user-role context with a distinct source and launch-time digest, not a
+permission grant or a pinned context that automatically reloads after compaction.
+Only the claimed batch is scanned: persisted historical gestures are not loads.
+
+The existing model-driven `{}` list followed by `{name,digest}` read remains
+unchanged. Changing a selected file still requires a new approved launch-time
+catalog; the explicit gesture does not refresh it or guess a replacement digest.
+
+Local follow-on evidence (Linux, Go 1.27.3): the five-package race command above
+passed, as did the complete `GOWORK=off go test -race -count=1 ./...` Harness
+module suite and five-package `go vet`. `go test -race -count=10 ./skills` passed
+with the new provider cases.
+These are deterministic scripted-provider L0 checks, not live-model, Desktop,
+upstream-runtime or scientific acceptance.
