@@ -1,0 +1,86 @@
+name: Lab App acceptance
+
+on:
+  pull_request:
+    paths:
+      - 'apps/lab/**'
+      - 'packages/app-sdk/**'
+      - 'products/pero.json'
+      - 'scripts/build/apps.mjs'
+      - '.github/workflows/lab.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lab-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned no-hardware engine
+        run: python -m pip install --only-binary=:all: -r apps/lab/requirements.txt
+      - name: Domain, API and real Chatterbox tracker tests
+        env:
+          LAB_REQUIRE_PYLABROBOT: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          mkdir -p test-results/lab-engine
+          set -o pipefail
+          python -m unittest discover -s apps/lab/test -p 'test_*.py' -v 2>&1 | tee test-results/lab-engine/tests.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lab-engine-evidence
+          path: test-results/lab-engine
+          if-no-files-found: warn
+
+  app-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/lab/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare build and acceptance dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm rebuild esbuild
+          npm ci --prefix apps/lab
+          python -m pip install --only-binary=:all: -r apps/lab/requirements.txt playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Typecheck and presentation tests
+        run: |
+          npm --prefix apps/lab run typecheck
+          npm --prefix apps/lab run test:ui
+      - name: Build the production Lab App entry
+        run: |
+          mkdir -p "$RUNNER_TEMP/lab-reader"
+          node scripts/build/apps.mjs --app lab --reader-dist "$RUNNER_TEMP/lab-reader"
+      - name: Actual browser, production bundle, real PyLabRobot
+        run: python apps/lab/test/browser_smoke.py --bundle --artifacts test-results/lab
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lab-browser-evidence
+          path: test-results/lab
+          if-no-files-found: warn
