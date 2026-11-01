@@ -19,7 +19,11 @@ export async function scrollPdfAndRead(page, viewport, readView, deltaY) {
       const page = element.querySelector(`[data-page-number="${state.page}"]`);
       if (!page) throw Error('Current PDF page has no rendered geometry');
       const top = Math.max(0, Math.min(element.scrollHeight - element.clientHeight, element.scrollTop + deltaY));
-      const currentPageY = (element.getBoundingClientRect().top + element.clientTop - page.getBoundingClientRect().top) / state.zoom;
+      // EmbedPDF's viewport DOM has padding (viewportGap), but its page
+      // visibility coordinates use the unpadded content origin. Read the style,
+      // rather than assuming a plugin default or widening the position tolerance.
+      const paddingTop = parseFloat(element.ownerDocument.defaultView.getComputedStyle(element).paddingTop) || 0;
+      const currentPageY = (element.getBoundingClientRect().top + element.clientTop + paddingTop - page.getBoundingClientRect().top) / state.zoom;
       return { top, currentPageY, pageY: currentPageY + (top - element.scrollTop) / state.zoom };
     }, { state: before, deltaY });
     // Zoom dispatch can precede its RAF DOM scroll. Wait for that alignment

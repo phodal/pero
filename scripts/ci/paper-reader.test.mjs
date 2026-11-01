@@ -265,12 +265,13 @@ test('structured fixture composes document and private compute dependencies with
 
 import { scrollPdfAndRead } from '../../tests/e2e/paper-pdf-flow.mjs';
 
-test('PDF wheel checkpoint waits for actual movement and persistence despite positive initial offset', async () => {
+test('PDF wheel checkpoint respects viewport padding while waiting for movement and persistence', async () => {
   let top = 20, storedY = 30, wheelCalls = 0, done = false, notifyWheel;
   const issued = new Promise(resolve => { notifyWheel = resolve; });
   const element = { get scrollTop() { return top; }, scrollHeight: 1000, clientHeight: 500, clientTop: 0,
+    ownerDocument: { defaultView: { getComputedStyle() { return { paddingTop: '10px' }; } } },
     getBoundingClientRect() { return { top: 0 }; },
-    querySelector(selector) { assert.equal(selector, '[data-page-number="1"]'); return { getBoundingClientRect() { return { top: -60 }; } }; } };
+    querySelector(selector) { assert.equal(selector, '[data-page-number="1"]'); return { getBoundingClientRect() { return { top: -50 }; } }; } };
   const viewport = { async hover() {}, async evaluate(fn, input) { return fn(element, input); } };
   let notifyNative; const nativeSeen = new Promise(resolve => { notifyNative = resolve; });
   const read = async () => { if (top === 80 && storedY === 30) notifyNative(); return { page: 1, zoom: 2, position: { y: storedY } }; };
@@ -290,6 +291,7 @@ test('PDF wheel waits for pending zoom DOM alignment and clamps the native bound
   let pageTop = -40, top = 480, storedY = 30, calls = 0, notifySample;
   const sampled = new Promise(resolve => { notifySample = resolve; });
   const element = { get scrollTop() { return top; }, scrollHeight: 1000, clientHeight: 500, clientTop: 0,
+    ownerDocument: { defaultView: { getComputedStyle() { return { paddingTop: '0px' }; } } },
     getBoundingClientRect() { return { top: 0 }; }, querySelector() { return { getBoundingClientRect() { notifySample(); return { top: pageTop }; } }; } };
   const viewport = { async hover() {}, async evaluate(fn, input) { return fn(element, input); } };
   const read = async () => ({ page: 1, zoom: 2, position: { y: storedY } });
