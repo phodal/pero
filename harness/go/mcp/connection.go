@@ -25,6 +25,7 @@ type ConnectionOptions struct {
 	TransportFactory   func() (mcp.Transport, error)
 	ListTools          func(context.Context, *mcp.ClientSession) ([]*mcp.Tool, error)
 	Resources          *ResourceDirectory
+	Observe            func(ConnectionObservation)
 }
 
 type mcpGeneration struct {
@@ -88,6 +89,7 @@ type mcpConnectionSupervisor struct {
 	transportFactory func() (mcp.Transport, error)
 	listTools        func(context.Context, *mcp.ClientSession) ([]*mcp.Tool, error)
 	resources        *ResourceDirectory
+	observe          func(ConnectionObservation)
 
 	nextGeneration   uint64
 	activeGeneration atomic.Uint64
@@ -110,7 +112,7 @@ func MountConnection(ctx context.Context, run *point.Run, options ConnectionOpti
 	supervisor := &mcpConnectionSupervisor{
 		ownerRun: run, replaceTools: replaceTools, serverName: options.ServerName,
 		policy: options.Reconnect, toolCallTimeout: options.ToolCallTimeout,
-		transportFactory: options.TransportFactory, listTools: listTools, resources: options.Resources,
+		transportFactory: options.TransportFactory, listTools: listTools, resources: options.Resources, observe: options.Observe,
 		changes: make(chan uint64, 8), down: make(chan mcpDownEvent, 8), stop: make(chan struct{}),
 	}
 	retrySafe, initialErr := supervisor.connect(ctx)
@@ -129,12 +131,18 @@ func MountConnection(ctx context.Context, run *point.Run, options ConnectionOpti
 }
 
 func (s *mcpConnectionSupervisor) connect(ctx context.Context) (retrySafe bool, err error) {
+	s.nextGeneration++
+	s.publish(ConnectionConnecting, nil)
+	defer func() {
+		if err != nil {
+			s.publish(ConnectionError, nil)
+		}
+	}()
 	transport, err := s.transportFactory()
 	if err != nil {
 		return !errors.Is(err, ErrAuthentication), SafeError(fmt.Errorf("create transport: %w", err))
 	}
 	trackedTransport := &trackedMCPTransport{inner: transport}
-	s.nextGeneration++
 	generation := &mcpGeneration{id: s.nextGeneration, waitDone: make(chan struct{}), transport: transport}
 	client := mcp.NewClient(&mcp.Implementation{Name: "point-harness", Version: "0.1.0"}, &mcp.ClientOptions{
 		ToolListChangedHandler: func(context.Context, *mcp.ToolListChangedRequest) {
@@ -206,6 +214,11 @@ func (s *mcpConnectionSupervisor) syncGeneration(ctx context.Context, generation
 	for _, dispose := range previous {
 		_ = dispose(context.Background())
 	}
+	names := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		names = append(names, tool.Name)
+	}
+	s.publish(ConnectionConnected, names)
 	return nil
 }
 
@@ -283,12 +296,14 @@ func (s *mcpConnectionSupervisor) run(ctx context.Context, initialErr error, ret
 				continue
 			}
 			if err := s.syncGeneration(ctx, s.current); err != nil && ctx.Err() == nil {
+				s.publish(ConnectionError, nil)
 				s.ownerRun.Logger().Error("MCP tool-list resync failed", "mcp.server", s.serverName, "error", SafeError(err))
 			}
 		case event := <-s.down:
 			if s.current != event.generation {
 				continue
 			}
+			s.publish(ConnectionDisconnected, nil)
 			s.publishResourceSession(nil)
 			s.activeGeneration.Store(0)
 			s.current = nil
@@ -338,7 +353,13 @@ func (s *mcpConnectionSupervisor) shutdown() error {
 	if generation != nil {
 		closeErr = closeMCPGeneration(generation)
 	}
-	return errors.Join(closeErr, s.clearTools(context.Background()))
+	err := errors.Join(closeErr, s.clearTools(context.Background()))
+	if err == nil {
+		s.publish(ConnectionClosed, nil)
+	} else {
+		s.publish(ConnectionError, nil)
+	}
+	return err
 }
 
 func closeMCPGeneration(generation *mcpGeneration) error {

@@ -11,7 +11,8 @@ const scenarios = ['lifecycle', 'persistence', 'transport'];
 const scenarioChecks = {
   lifecycle: ['actual GPUI add disabled', 'explicit server-wide enable confirmation', 'real ACP injection',
     'Host connector builtin has scoped loopback HTTP identity and auth shape; user-managed assertions remain exact',
-    'edit revokes grant for new sessions', 'confirmed removal', 'configured state does not imply connected or discovered tools',
+    'edit revokes grant for new sessions', 'confirmed removal', 'configured state does not imply connected or discovered tools', 'external Agent is explicitly unobservable with frozen per-session revision', 'fixture runtime projection renders connected tools, refresh and cleanup', 'pending settings snapshot cannot overwrite newer live catalog',
+    'pending session startup closure replaces connecting without a refresh',
     'no operator credential disclosure', 'cleanup completes before success receipt'],
   persistence: ['write failure and retry', 'dark/narrow/Chinese',
     'Host connector builtin has scoped loopback HTTP identity and auth shape; user-managed assertions remain exact',
@@ -215,15 +216,64 @@ async function lifecycle() {
   await click('mcp-confirm'); await settled();
   expect((await mcp()).config.servers[0].enabled).toBe(true);
   expect((await session('ui-enabled')).map(server => server.name)).toEqual(['Local docs']);
+  await click('mcp-refresh'); await settled();
+  expect((await mcp()).sessions.find(session => session.thread_id === 'ui-enabled')).toMatchObject({
+    observable: false, revision: (await mcp()).config.revision,
+  });
   await capture('enabled-not-observed');
   await click('mcp-edit-0'); await input(0, 'Renamed docs'); await click('mcp-save'); await settled();
   expect((await mcp()).config.servers[0]).toMatchObject({ name: 'Renamed docs', enabled: false });
   expect((await fixture.sessions()).length).toBe(2);
+  expect((await mcp()).sessions.find(session => session.thread_id === 'ui-enabled').revision).toBe((await mcp()).config.revision - 1);
+  await capture('previous-session-configuration');
   expect(await session('ui-edited-disabled')).toEqual([]);
   await click('mcp-remove-0'); await expect.poll(async () => (await mcp()).confirm).toEqual([0, false]);
   expect((await mcp()).config.servers).toHaveLength(1);
   await click('mcp-confirm'); await settled(); expect((await mcp()).config.servers).toEqual([]);
   expect(await session('ui-removed')).toEqual([]); await capture('removed');
+  // Exercise the existing trusted Host-event seam for presentation only. The Go
+  // transport fixtures separately prove these observations come from real MCP.
+  const projection = { incarnation: 1, agent_id: 'fixture', thread_id: 'ui-runtime-projection', session_id: 'fixture-session',
+    revision: 1, observable: true, closed: false, servers: [{ server: 'Fixture docs', generation: 2, status: 'connected', tools: ['lookup', 'search'] }] };
+  const report = async data => {
+    await bounded(app.evaluate(({ BrowserWindow }, data) => BrowserWindow.getAllWindows()[0].webContents.send('pero:event', {
+      version: 1, kind: 'mcp_runtime', request_id: null, text: '', thread_id: data.thread_id, data,
+    }), data), 'fixture runtime projection');
+    await expect.poll(async () => (await mcp()).sessions.find(session => session.thread_id === data.thread_id)).toEqual(data);
+  };
+  await report(projection); await capture('runtime-connected-tools');
+  const older = structuredClone(projection);
+  await interruptTransport(); await click('mcp-refresh');
+  await expect.poll(async () => (await mcp()).pending).toBe(true);
+  projection.servers[0].tools = ['lookup_new'];
+  await report(projection);
+  const pending = await mcp();
+  await bounded(app.evaluate(({ BrowserWindow }, event) => BrowserWindow.getAllWindows()[0].webContents.send('pero:event', event), {
+    version: 1, kind: 'mcp_settings', request_id: pending.request_id, text: '',
+    data: { agent_id: 'fixture', ...pending.config, sessions: [older] },
+  }), 'older captured settings reply');
+  await settled();
+  expect((await mcp()).sessions.find(session => session.thread_id === projection.thread_id)).toEqual(projection);
+  await rejectTransport(); await restoreTransport();
+  await capture('runtime-refreshed-tools');
+  projection.servers[0].status = 'disconnected'; projection.servers[0].tools = [];
+  await report(projection); await capture('runtime-disconnected');
+  projection.servers[0].status = 'closed';
+  await report(projection);
+  const retired = structuredClone(projection);
+  projection.incarnation = 2; projection.session_id = 'replacement-session';
+  projection.servers[0].generation = 1; projection.servers[0].status = 'connected';
+  projection.servers[0].tools = ['replacement_tool'];
+  await report(projection);
+  await bounded(app.evaluate(({ BrowserWindow }, data) => BrowserWindow.getAllWindows()[0].webContents.send('pero:event', {
+    version: 1, kind: 'mcp_runtime', request_id: null, text: '', thread_id: data.thread_id, data,
+  }), retired), 'delayed retired-session closure');
+  expect((await mcp()).sessions.find(session => session.thread_id === projection.thread_id)).toEqual(projection);
+  projection.incarnation = 3; projection.session_id = null;
+  projection.servers = []; projection.closed = false;
+  await report(projection);
+  projection.closed = true;
+  await report(projection); await capture('runtime-startup-closed');
 }
 async function persistence() {
   // Setup only: lifecycle covers the user-facing add/edit/grant actions. Use

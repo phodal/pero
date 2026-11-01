@@ -2,6 +2,7 @@ mod app_use;
 mod configuration;
 mod connectors;
 mod mcp;
+mod mcp_runtime;
 mod prompt;
 mod registry;
 mod session;

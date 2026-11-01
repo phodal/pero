@@ -57,6 +57,7 @@ fn launch_with_access(
 ) -> (SessionHandle, mpsc::Receiver<HostEvent>, Workspace) {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let config = AgentConfig {
+        managed_mcp: None,
         id: "fixture".into(),
         name: "Lifecycle fixture".into(),
         command: "node".into(),
@@ -68,6 +69,12 @@ fn launch_with_access(
         model: model.map(str::to_owned),
         mcp_servers: vec![],
     };
+    let config = if scenario.starts_with("runtime_") {
+        let managed = serde_json::from_value(serde_json::json!({"revision":7,"servers":[
+            {"name":"docs","enabled":true,"transport":{"type":"http","url":"http://127.0.0.1/mcp"}}
+        ]})).unwrap();
+        config.with_managed_mcp(&managed)
+    } else { config };
     let (tx, rx) = mpsc::channel();
     let workspace = Workspace::new();
     let handle = if let Some(endpoint) = app_use {
@@ -807,4 +814,48 @@ fn local_turns_and_worker_execution_share_the_workspace_write_lease() {
     until(&rx, "turn_finished");
     assert!(crate::workspace_lease::WorkspaceLease::acquire(&workspace.0).is_ok());
     close(&handle, &rx);
+}
+
+#[test]
+fn mcp_runtime_observations_negotiate_and_bind_before_exposing_catalogs() {
+    for scenario in ["runtime_catalog", "runtime_unobservable"] {
+        let (handle, rx, _workspace) = launch(scenario, None);
+        until(&rx, "session_ready");
+        {
+            let snapshot = handle.mcp_runtime.lock().unwrap();
+            assert_eq!(snapshot.observable, scenario == "runtime_catalog");
+            assert_eq!(snapshot.revision, 7);
+            assert_eq!(snapshot.session_id.as_deref(), Some("fixture-session"));
+            assert_eq!(snapshot.servers[0].tools, if snapshot.observable { vec!["current"] } else { vec![] });
+            assert_eq!(snapshot.servers[0].generation, if snapshot.observable { 2 } else { 0 });
+        }
+        handle.tx.send(SessionCommand::Close).unwrap();
+        until(&rx, "session_closed");
+        let snapshot = handle.mcp_runtime.lock().unwrap();
+        assert_eq!(snapshot.servers[0].status, pero_contracts::mcp_runtime::McpRuntimeStatus::Closed);
+        assert!(snapshot.servers[0].tools.is_empty());
+    }
+}
+
+#[test]
+fn mcp_pending_start_reports_terminal_snapshot_without_an_acp_session_id() {
+    for scenario in ["runtime_start_fail", "runtime_start_timeout", "runtime_start_cancel"] {
+        let (handle, rx, _workspace) = launch(scenario, None);
+        until(&rx, "session_update"); // Real fixture acknowledged session/new, without returning an ID.
+        if scenario != "runtime_start_fail" {
+            let pending = handle.mcp_runtime.lock().unwrap().clone();
+            assert!(pending.observable);
+            assert!(!pending.closed);
+            assert!(pending.session_id.is_none());
+        }
+        if scenario == "runtime_start_cancel" { handle.tx.send(SessionCommand::Cancel).unwrap(); }
+        until(&rx, "session_closed");
+        let terminal = until(&rx, "mcp_runtime");
+        let snapshot: pero_contracts::mcp_runtime::McpRuntimeSession = serde_json::from_value(terminal.data).unwrap();
+        assert!(snapshot.closed, "{scenario}");
+        assert!(snapshot.observable, "negotiation must remain distinct from session closure");
+        assert!(snapshot.session_id.is_none());
+        assert!(snapshot.servers.iter().all(|server| server.status == pero_contracts::mcp_runtime::McpRuntimeStatus::Closed && server.tools.is_empty()));
+        assert!(handle.mcp_runtime.lock().unwrap().closed);
+    }
 }

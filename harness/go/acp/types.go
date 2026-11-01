@@ -35,6 +35,7 @@ type InitializeParams struct {
 }
 
 type NewSessionParams struct {
+	Meta                  MCPRuntimeMeta    `json:"_meta,omitempty"`
 	CWD                   string            `json:"cwd"`
 	MCPServers            []json.RawMessage `json:"mcpServers"`
 	AdditionalDirectories []string          `json:"additionalDirectories,omitempty"`
@@ -69,6 +70,7 @@ type CommandExecuteParams struct {
 }
 
 type ResumeSessionParams struct {
+	Meta       MCPRuntimeMeta    `json:"_meta,omitempty"`
 	SessionID  string            `json:"sessionId"`
 	CWD        string            `json:"cwd"`
 	MCPServers []json.RawMessage `json:"mcpServers"`

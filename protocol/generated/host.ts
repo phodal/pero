@@ -119,6 +119,7 @@ export type HostEvent =
   | TerminalEvent
   | McpSettingsEvent
   | McpSettingsErrorEvent
+  | McpRuntimeEvent
   | DocumentSaveChooseEvent
   | DocumentSavePathEvent
   | DocumentSaveCancelledEvent
@@ -1162,7 +1163,24 @@ export interface McpSettingsEvent {
     agent_id: string;
     revision: number;
     servers: McpServerConfig[];
+    sessions: McpRuntimeSession[];
   };
+}
+export interface McpRuntimeSession {
+  incarnation: number;
+  agent_id: string;
+  thread_id: string;
+  session_id: string | null;
+  revision: number;
+  observable: boolean;
+  closed: boolean;
+  servers: McpRuntimeServer[];
+}
+export interface McpRuntimeServer {
+  server: string;
+  generation: number;
+  status: "connecting" | "connected" | "disconnected" | "error" | "closed";
+  tools: string[];
 }
 export interface McpSettingsErrorEvent {
   kind: "mcp_settings_error";
@@ -1173,6 +1191,14 @@ export interface McpSettingsErrorEvent {
     agent_id: string;
     reason: "conflict" | "invalid" | "unavailable" | "read_write";
   };
+}
+export interface McpRuntimeEvent {
+  kind: "mcp_runtime";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: McpRuntimeSession;
 }
 export interface DocumentSaveChooseEvent {
   kind: "document_save_choose";

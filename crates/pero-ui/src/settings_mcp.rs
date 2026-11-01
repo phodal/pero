@@ -17,6 +17,7 @@ use pero_chat_ui::conversation::AgentChoice;
 use pero_contracts::{
     HostEvent,
     mcp::{McpConfiguration, McpServerConfig, McpSettingsProjection, McpTransport},
+    mcp_runtime::{McpRuntimeSession, McpRuntimeStatus, McpSessionPresentation},
 };
 use pero_theme::SettingMessage;
 use serde_json::json;
@@ -25,6 +26,8 @@ pub(crate) struct McpEditor {
     pub agents: Vec<AgentChoice>,
     agent: Option<String>,
     config: Option<McpConfiguration>,
+    sessions: Vec<McpRuntimeSession>,
+    live_during_request: std::collections::HashSet<String>,
     request: Option<String>,
     serial: u64,
     saving: bool,
@@ -46,6 +49,8 @@ impl McpEditor {
             agents: vec![],
             agent: None,
             config: None,
+            sessions: vec![],
+            live_during_request: Default::default(),
             request: None,
             serial: 0,
             saving: false,
@@ -77,7 +82,7 @@ impl McpEditor {
     }
     #[cfg(target_family = "wasm")]
     pub fn snapshot(&self, cx: &App) -> serde_json::Value {
-        json!({"controls":self.controls.borrow().iter().map(|(key,b)| (key.clone(),json!({"x":f32::from(b.origin.x),"y":f32::from(b.origin.y),"width":f32::from(b.size.width),"height":f32::from(b.size.height)}))).collect::<std::collections::BTreeMap<_,_>>(),"agent":self.agent,"config":self.config,"pending":self.request.is_some(),"request_id":self.request,"saving":self.saving,"needs_reload":self.needs_reload,
+        json!({"controls":self.controls.borrow().iter().map(|(key,b)| (key.clone(),json!({"x":f32::from(b.origin.x),"y":f32::from(b.origin.y),"width":f32::from(b.size.width),"height":f32::from(b.size.height)}))).collect::<std::collections::BTreeMap<_,_>>(),"agent":self.agent,"config":self.config,"sessions":self.sessions,"pending":self.request.is_some(),"request_id":self.request,"saving":self.saving,"needs_reload":self.needs_reload,
             "error":self.error,"saved":self.saved,"editing":self.editing,"selected":self.selected,"http":self.http,"confirm":self.confirm,
             "importing":self.importing,"inputs":self.inputs.iter().map(|input| {let input=input.read(cx);let b=input.input_bounds();json!({"value":input.value().as_ref(),"x":f32::from(b.origin.x),"y":f32::from(b.origin.y),"width":f32::from(b.size.width),"height":f32::from(b.size.height)})}).chain(std::iter::once({let input=self.import.read(cx);let b=input.input_bounds();json!({"value":input.value().as_ref(),"x":f32::from(b.origin.x),"y":f32::from(b.origin.y),"width":f32::from(b.size.width),"height":f32::from(b.size.height)})})).collect::<Vec<_>>()})
     }
@@ -96,10 +101,30 @@ impl Workbench {
                 });
             }
         }
+        if event.kind == "mcp_runtime" {
+            if let (Some(panel), Ok(session)) = (&self.settings_panel,
+                serde_json::from_value::<McpRuntimeSession>(event.data.clone())) {
+                panel.update(cx, |panel, cx| {
+                    if panel.mcp.agent.as_deref() != Some(session.agent_id.as_str()) { return; }
+                    if panel.mcp.request.is_some() {
+                        panel.mcp.live_during_request.insert(session.thread_id.clone());
+                    }
+                    if let Some(current) = panel.mcp.sessions.iter_mut().find(|s| s.thread_id == session.thread_id) {
+                        if !session.can_replace(current) { return; }
+                        *current = session;
+                    } else {
+                        panel.mcp.sessions.push(session);
+                    }
+                    cx.notify();
+                });
+            }
+            return true;
+        }
         if matches!(event.kind.as_str(), "error" | "disconnected") {
             if let Some(panel) = &self.settings_panel {
                 panel.update(cx, |panel, cx| {
                     let state = &mut panel.mcp;
+                    if event.kind == "disconnected" { state.sessions.clear(); }
                     let interrupted = if event.kind == "disconnected" {
                         state.agent.is_some()
                     } else {
@@ -145,6 +170,17 @@ impl Workbench {
                 } else {
                     match serde_json::from_value::<McpSettingsProjection>(event.data.clone()) {
                         Ok(config) => {
+                            // A settings reply may have been captured before an already
+                            // delivered live observation. Retain only those newer views.
+                            let mut sessions = config.sessions;
+                            for session in state.sessions.drain(..).filter(|s| state.live_during_request.contains(&s.thread_id)) {
+                                if sessions.iter().any(|current| current.thread_id == session.thread_id && !session.can_replace(current)) { continue; }
+                                sessions.retain(|s| s.thread_id != session.thread_id);
+                                sessions.push(session);
+                            }
+                            sessions.sort_by(|a, b| a.thread_id.cmp(&b.thread_id));
+                            state.sessions = sessions;
+                            state.live_during_request.clear();
                             state.config = Some(McpConfiguration {
                                 revision: config.revision,
                                 servers: config.servers,
@@ -185,6 +221,7 @@ impl SettingsPanel {
         self.mcp.serial += 1;
         let id = format!("mcp-settings-{}", self.mcp.serial);
         self.mcp.request = Some(id.clone());
+        self.mcp.live_during_request.clear();
         self.mcp.error = None;
         self.mcp.saved = false;
         cx.emit(SettingsAction::Mcp(
@@ -202,6 +239,7 @@ impl SettingsPanel {
         self.mcp.serial += 1;
         let id = format!("mcp-settings-{}", self.mcp.serial);
         self.mcp.request = Some(id.clone());
+        self.mcp.live_during_request.clear();
         self.mcp.saving = true;
         self.mcp.error = None;
         self.mcp.saved = false;
@@ -369,7 +407,60 @@ impl SettingsPanel {
                 body = body.child(self.mcp_editor(cx));
             }
         }
-        body.into_any_element()
+        body.child(self.mcp_runtime_sessions(cx)).into_any_element()
+    }
+    fn mcp_runtime_sessions(&self, cx: &mut Context<Self>) -> AnyElement {
+        let chrome = pero_theme::Chrome::from_app(cx);
+        let mut section = div().id("mcp-runtime-sessions").flex().flex_col().min_w_0()
+            .child(pero_theme::settings_message(self.t("mcp.runtime.title"), SettingMessage::Status, chrome));
+        if self.mcp.sessions.is_empty() {
+            section = section.child(pero_theme::settings_message(
+                self.t("mcp.runtime.empty"), SettingMessage::Help, chrome));
+        }
+        for (index, session) in self.mcp.sessions.iter().enumerate() {
+            let revision = format!("{} {} — {} {}", self.t("mcp.runtime.session"), session.thread_id,
+                self.t("mcp.runtime.revision"), session.revision);
+            section = section.child(pero_theme::settings_message(revision, SettingMessage::Status, chrome)
+                .id(("mcp-runtime-session", index)));
+            if self.mcp.config.as_ref().is_some_and(|c| c.revision != session.revision) {
+                section = section.child(pero_theme::settings_message(
+                    self.t("mcp.runtime.previous_config"), SettingMessage::Help, chrome));
+            }
+            let presentation = session.presentation();
+            match presentation {
+                McpSessionPresentation::Closed | McpSessionPresentation::Unobservable => {
+                    let key = if presentation == McpSessionPresentation::Closed { "mcp.runtime.closed" } else { "mcp.runtime.unobservable" };
+                    section = section.child(pero_theme::settings_message(self.t(key), SettingMessage::Help, chrome));
+                    continue;
+                }
+                McpSessionPresentation::Starting => {
+                    section = section.child(pero_theme::settings_message(
+                        self.t("mcp.runtime.connecting"), SettingMessage::Status, chrome));
+                }
+                McpSessionPresentation::Ready if session.servers.is_empty() => {
+                    section = section.child(pero_theme::settings_message(
+                        self.t("mcp.runtime.no_servers"), SettingMessage::Help, chrome));
+                }
+                McpSessionPresentation::Ready => {}
+            }
+            for server in &session.servers {
+                let key = match server.status {
+                    McpRuntimeStatus::Connecting => "mcp.runtime.connecting",
+                    McpRuntimeStatus::Connected => "mcp.runtime.connected",
+                    McpRuntimeStatus::Disconnected => "mcp.runtime.disconnected",
+                    McpRuntimeStatus::Error => "mcp.runtime.error",
+                    McpRuntimeStatus::Closed => "mcp.runtime.closed",
+                };
+                section = section.child(pero_theme::settings_message(
+                    format!("{} — {}", server.server, self.t(key)), SettingMessage::Status, chrome));
+                if server.status == McpRuntimeStatus::Connected {
+                    let tools = if server.tools.is_empty() { self.t("mcp.runtime.no_tools").to_string() }
+                        else { format!("{}: {}", self.t("mcp.runtime.tools"), server.tools.join(", ")) };
+                    section = section.child(pero_theme::settings_message(tools, SettingMessage::Help, chrome));
+                }
+            }
+        }
+        section.into_any_element()
     }
     fn mcp_agent_controls(&self, cx: &mut Context<Self>) -> AnyElement {
         let busy = self.mcp.request.is_some();
@@ -408,6 +499,7 @@ impl SettingsPanel {
                                             let _ = target.update(cx, |this, cx| {
                                                 this.mcp.agent = Some(id.clone());
                                                 this.mcp.config = None;
+                                                this.mcp.sessions.clear();
                                                 this.mcp.confirm = None;
                                                 this.mcp_load(cx);
                                             });
@@ -452,7 +544,7 @@ impl SettingsPanel {
         );
         pero_theme::settings_row(
             label,
-            Some(self.t("mcp.not_observed").into()),
+            None,
             None,
             div().flex().flex_wrap().gap(px(8.)).child(
                 self.mcp.measured(

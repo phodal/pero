@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "config.go",
         "connection.go",
+        "observation.go",
         "output.go",
         "resources.go",
         "tools.go",
@@ -23,9 +24,13 @@ go_library(
 go_test(
     name = "mcp_test",
     srcs = [
+        "observation_test.go",
         "resources_test.go",
         "visibility_test.go",
     ],
     embed = [":mcp"],
-    deps = ["@com_github_modelcontextprotocol_go_sdk//mcp"],
+    deps = [
+        "//runtime",
+        "@com_github_modelcontextprotocol_go_sdk//mcp",
+    ],
 )

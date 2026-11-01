@@ -7,6 +7,9 @@ use std::{
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
+    /// Frozen local managed configuration; not accepted from Agent registry JSON.
+    #[serde(skip)]
+    pub managed_mcp: Option<pero_contracts::mcp::McpConfiguration>,
     pub id: String,
     pub name: String,
     pub command: String,
@@ -95,6 +98,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
     };
     let mut agents = vec![
         AgentConfig {
+            managed_mcp: None,
             id: "pero".into(),
             name: "Pero (DeepSeek)".into(),
             command: builtin.to_string_lossy().into_owned(),
@@ -118,6 +122,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
         AgentConfig {
+            managed_mcp: None,
             id: "codex".into(),
             name: "Codex".into(),
             command: agent_root
@@ -130,6 +135,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
         AgentConfig {
+            managed_mcp: None,
             id: "claude".into(),
             name: "Claude".into(),
             command: agent_root
@@ -142,6 +148,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
         AgentConfig {
+            managed_mcp: None,
             id: "copilot".into(),
             name: "GitHub Copilot".into(),
             command: "copilot".into(),
@@ -151,6 +158,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
         AgentConfig {
+            managed_mcp: None,
             id: "grok".into(),
             name: "Grok".into(),
             command: grok,
@@ -160,6 +168,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
         AgentConfig {
+            managed_mcp: None,
             id: "qoder".into(),
             name: "Qoder".into(),
             command: local_cli(".local/bin/qodercli", "qodercli"),
@@ -169,6 +178,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
         AgentConfig {
+            managed_mcp: None,
             id: "opencode".into(),
             name: "OpenCode".into(),
             command: local_cli(".opencode/bin/opencode", "opencode"),
@@ -352,6 +362,7 @@ mod tests {
 
     fn agent(args: &[&str], env: &[(&str, &str)]) -> AgentConfig {
         AgentConfig {
+            managed_mcp: None,
             id: "pero".into(),
             name: "Pero".into(),
             command: "pero-agent-acp".into(),

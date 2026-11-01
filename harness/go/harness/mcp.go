@@ -19,6 +19,8 @@ import (
 	point "github.com/phodal/pero/harness/go/runtime"
 )
 
+type MCPConnectionObservation = harnessmcp.ConnectionObservation
+
 type MCPTransport = harnessmcp.MCPTransport
 
 const (
@@ -30,18 +32,19 @@ const (
 // Harness and ACP session creation. TestTransport is intentionally excluded
 // from wire formats and lets conformance tests use the SDK's in-memory link.
 type MCPServerConfig struct {
-	Name                    string              `json:"name"`
-	Transport               MCPTransport        `json:"transport"`
-	Command                 string              `json:"command,omitempty"`
-	Args                    []string            `json:"args,omitempty"`
-	Env                     map[string]string   `json:"env,omitempty"`
-	CWD                     string              `json:"cwd,omitempty"`
-	URL                     string              `json:"url,omitempty"`
-	Headers                 map[string]string   `json:"headers,omitempty"`
-	ToolCallTimeoutMS       int                 `json:"toolCallTimeoutMs,omitempty"`
-	FailOnStartupError      bool                `json:"failOnStartupError,omitempty"`
-	Reconnect               *MCPReconnectConfig `json:"reconnect,omitempty"`
-	TestTransport           mcp.Transport       `json:"-"`
+	Name                    string                         `json:"name"`
+	Transport               MCPTransport                   `json:"transport"`
+	Command                 string                         `json:"command,omitempty"`
+	Args                    []string                       `json:"args,omitempty"`
+	Env                     map[string]string              `json:"env,omitempty"`
+	CWD                     string                         `json:"cwd,omitempty"`
+	URL                     string                         `json:"url,omitempty"`
+	Headers                 map[string]string              `json:"headers,omitempty"`
+	ToolCallTimeoutMS       int                            `json:"toolCallTimeoutMs,omitempty"`
+	FailOnStartupError      bool                           `json:"failOnStartupError,omitempty"`
+	Reconnect               *MCPReconnectConfig            `json:"reconnect,omitempty"`
+	Observe                 func(MCPConnectionObservation) `json:"-"`
+	TestTransport           mcp.Transport                  `json:"-"`
 	testTransportFactory    func() (mcp.Transport, error)
 	testListTools           func(context.Context, *mcp.ClientSession) ([]*mcp.Tool, error)
 	resolvedReconnect       resolvedMCPReconnectPolicy
@@ -104,7 +107,7 @@ func mountMCPServer(ctx context.Context, run *point.Run, registry *ToolRegistry,
 	return harnessmcp.MountConnection(ctx, run, harnessmcp.ConnectionOptions{
 		ServerName: config.Name, Reconnect: policy, ToolCallTimeout: config.resolvedToolCallTimeout,
 		FailOnStartupError: config.FailOnStartupError, TransportFactory: transportFactory, ListTools: config.testListTools,
-		Resources: directory,
+		Resources: directory, Observe: config.Observe,
 	}, func(owner *point.Run, generation string, definitions []harnessmcp.Tool) (point.Dispose, error) {
 		tools := make([]Tool, len(definitions))
 		for i, definition := range definitions {
