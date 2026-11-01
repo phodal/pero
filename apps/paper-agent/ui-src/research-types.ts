@@ -27,3 +27,24 @@ export function assetSize(size: number | null) {
   const unit = size >= 1024 ** 3 ? 3 : size >= 1024 ** 2 ? 2 : 1;
   return `${(size / 1024 ** unit).toLocaleString(undefined, { maximumFractionDigits: 1 })} ${['B', 'KiB', 'MiB', 'GiB'][unit]}`;
 }
+
+export type SourceEvidenceLocation = {
+  memberId?: string; memberPath?: string; startLine?: number; endLine?: number; start?: number; end?: number; archiveDigest?: string; memberDigest?: string;
+};
+export type SourceEvidenceMatch = { source: SourceEvidenceLocation; pdf: { page: number; fileDigest: string; documentId: string } };
+export type SourceObservation = {
+  id: string; kind: 'source_text' | 'source_image' | 'source_pdf_comparison'; resourceId: string;
+  anchor: SourceEvidenceLocation & {
+    pdfResourceId?: string; previewSha256?: string; status?: 'matched' | 'unresolved'; reason?: string;
+    matches?: SourceEvidenceMatch[];
+  };
+  limitations: string[];
+};
+export type SourceEvidenceReport = {
+  id: string; title: string; createdAt: string; observationIds: string[];
+  interpretations: { text: string; status: 'unresolved' }[];
+};
+export type OpenSourceEvidenceReport = SourceEvidenceReport & {
+  observations: SourceObservation[];
+  currentAvailability: { observationId: string; available: boolean; reason?: 'comparison_scope_unrecorded' }[];
+};

@@ -10,7 +10,13 @@ from .source_text import SourceText
 
 
 def source_read(store, value):
-    if set(value) - {'bundleId', 'resourceId', 'operation', 'memberId', 'startLine', 'endLine', 'start', 'pdfResourceId'} or value.get('operation') not in ('list', 'read', 'compare', 'image'):
+    from .source_reports import record_observation
+    result = read_source(store, value)
+    return record_observation(store, value, result)
+
+
+def read_source(store, value):
+    if set(value) - {'bundleId', 'resourceId', 'operation', 'memberId', 'startLine', 'endLine', 'start', 'end', 'pdfResourceId'} or value.get('operation') not in ('list', 'read', 'compare', 'image'):
         raise Invalid('Choose list, read, image or compare for an approved source archive')
     resource, job = store.source_downloads.job(value.get('bundleId'), value.get('resourceId'))
     if not job.receipt or not store.source_downloads.available(job):
@@ -40,12 +46,17 @@ def source_read(store, value):
         start = value['start']
         if 'startLine' in value or 'endLine' in value or type(start) is not int or not 0 <= start < max(1, len(text.content)):
             raise Invalid('Choose either original lines or a valid character offset')
-        end = min(len(text.content), start + 4800)
+        end = value.get('end', min(len(text.content), start + 4800))
+        if (type(end) is not int or not start <= end <= min(len(text.content), start + 4800)
+                or ('end' in value and end == start)):
+            raise Invalid('Choose a nonempty character window within the original 4,800-character limit')
         line_starts = (0, *tuple(accumulate(len(line) for line in text.lines))[:-1])
         first = bisect_right(line_starts, start)
         last = bisect_right(line_starts, max(start, end - 1))
         content = text.content[start:end]
     else:
+        if 'end' in value:
+            raise Invalid('An end offset requires a start offset, not line ranges')
         first = value.get('startLine', 1)
         last = value.get('endLine', min(first + 39, len(text.lines))) if type(first) is int else 0
         start, content = text.range(first, last, limit=4800)
@@ -104,6 +115,7 @@ def compare_source(store, value, source_resource, job, archive):
     if not pdf_job.receipt or not store.pdf_downloads.available(pdf_job):
         return unresolved('The selected PDF bytes are unavailable.')
     document = store.pdf(pdf_job.receipt.documentId)
+    consulted_pdf = dict(documentId=document.id, fileDigest=document.file_digest)
     matches, inspected = [], 0
     normalized_pages = {page.number: ' '.join(page.text.split()) for page in document.pages}
     for member in archive.members:
@@ -119,7 +131,7 @@ def compare_source(store, value, source_resource, job, archive):
             for page in document.pages:
                 inspected += len(page.text)
                 if inspected > 32_000_000:
-                    return dict(status='matched' if matches else 'unresolved', reason='Literal comparison reached its 32-million-character budget; remaining captions are unresolved.', matches=matches)
+                    return dict(status='matched' if matches else 'unresolved', reason='Literal comparison reached its 32-million-character budget; remaining captions are unresolved.', matches=matches, consultedPdf=consulted_pdf)
                 normalized = normalized_pages[page.number]
                 cursor = normalized.find(needle)
                 while cursor >= 0:
@@ -141,5 +153,5 @@ def compare_source(store, value, source_resource, job, archive):
                                  page=page.number, start=original_start, end=original_end, quote=page.text[original_start:original_end])))
                     cursor = normalized.find(needle, cursor + 1)
                     if len(matches) >= 64:
-                        return dict(status='matched', reason='First 64 literal caption matches; not a compiled source map or semantic validation.', matches=matches)
-    return dict(status='matched' if matches else 'unresolved', reason='Literal caption matches only; not a compiled source map or semantic validation.' if matches else 'No literal caption matched. Macro expansion, numbering and approximate page guesses were not used.', matches=matches)
+                        return dict(status='matched', reason='First 64 literal caption matches; not a compiled source map or semantic validation.', matches=matches, consultedPdf=consulted_pdf)
+    return dict(status='matched' if matches else 'unresolved', reason='Literal caption matches only; not a compiled source map or semantic validation.' if matches else 'No literal caption matched. Macro expansion, numbering and approximate page guesses were not used.', matches=matches, consultedPdf=consulted_pdf)

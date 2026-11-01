@@ -20,6 +20,9 @@ def execute(store, action, request):
     if action == 'source-read':
         from .source_reading import source_read
         return source_read(store, request)
+    if action == 'source-report':
+        from .source_reports import source_report
+        return source_report(store, request, now)
     if action == 'export':
         if set(request) != {'bundleId'}:
             raise Invalid('Export accepts only bundleId')
@@ -42,6 +45,8 @@ def execute(store, action, request):
                     id=m['id'], path=m['path'], sha256=m['sha256'], size=m['size'], kind=m['kind'],
                     structures=[{k: v for k, v in anchor.items() if k in ('kind', 'start', 'end', 'startLine', 'endLine')}
                                 for anchor in m.get('structures', [])]) for m in index['members']]))
+        reports = execute(store, 'source-report', dict(operation='list', bundleId=bundle.id))['reports']
         return dict(schema='pero.research-evidence.v1', bundle=bundle.to_dict(), acquisitions=receipts, sourceIndexes=source_indexes,
-                    limitation='Evidence manifest only. No archive members, paper full text or execution results exported.')
+                    sourceReports=reports,
+                    limitation='Evidence manifest only. No archive members, paper full text or execution results exported. Report interpretations remain unresolved.')
     raise Invalid('Unknown research command')
