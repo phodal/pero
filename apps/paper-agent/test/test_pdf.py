@@ -22,8 +22,8 @@ def pdf_fixture(repeated=False, phrase="Exact original evidence."):
                b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 600] /Rotate 90 /Resources << /Font << /F1 5 0 R >> >> /Contents 7 0 R >>',
                b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>']
     for label in ('First', 'Second'):
-        repeat = f' 0 -30 Td ({phrase}) Tj' if repeated else ''
-        stream = f'BT /F1 16 Tf 40 520 Td ({label} page. {phrase}) Tj{repeat} ET\n0.2 0.5 0.6 rg 40 100 200 250 re f'.encode()
+        repeat = ''.join(f' 0 -{7 if repeated > 1 else 30} Td ({phrase}) Tj' for _ in range(int(repeated)))
+        stream = f'BT /F1 {5 if repeated > 1 else 16} Tf 40 520 Td ({label} page. {phrase}) Tj{repeat} ET\n0.2 0.5 0.6 rg 40 100 200 250 re f'.encode()
         objects.append(b'<< /Length ' + str(len(stream)).encode() + b' >>\nstream\n' + stream + b'\nendstream')
     data = bytearray(b'%PDF-1.4\n')
     offsets = [0]
@@ -45,7 +45,9 @@ class PdfTest(unittest.TestCase):
         base = dict(page=1, kind='highlight', quote='Exact original evidence.', rects=[dict(x=.1, y=.1, width=.6, height=.1)])
         for patch, valid in (({}, True), (dict(page=0), False), (dict(page=True), False),
                              (dict(quote='Invented evidence'), False), (dict(rects=[]), False),
-                             (dict(kind='figure', quote=''), True), (dict(kind='unknown'), False)):
+                             (dict(kind='figure', quote=''), True), (dict(kind='unknown'), False),
+                             (dict(fileDigest='0' * 64), False), (dict(rects=None), False),
+                             (dict(kind='figure', rects=base['rects'] * 2), False)):
             with self.subTest(patch=patch):
                 if valid:
                     PdfAnnotation.create({**base, **patch}, doc, NOW)
@@ -101,22 +103,32 @@ class PdfTest(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(Invalid):
                 files.locate_anchor(data, doc, {'fileDigest': doc.file_digest, 'page': 1, 'start': 0, 'end': 5, **change})
         with self.assertRaises(Invalid):
-            files.locate_quote(data, doc, 1, 1, quote)
-        with self.assertRaises(Invalid):
             files.locate_anchor(data + b'changed', doc, dict(fileDigest=doc.file_digest, page=1, start=0, end=5))
 
-    def test_overlapping_substrings_keep_the_requested_occurrence(self):
+    def test_batch_windows_share_one_original_and_pdfium_session(self):
+        from unittest.mock import patch
+        import pypdfium2 as pdfium
         from paper_agent.model import digest
-        data, files = pdf_fixture(phrase='banana banana'), PdfFiles()
+        data, files = pdf_fixture(repeated=3, phrase='banana banana'), PdfFiles()
         doc = PdfDocument.create('a' * 64, digest(data), '', files.pages(data), NOW)
-        text = doc.pages[0].text
-        starts = [i for i in range(len(text)) if text.startswith('ana', i)]
-        anchors = [files.locate_anchor(data, doc, dict(fileDigest=doc.file_digest, page=1,
-                   start=i, end=i + 3)) for i in starts]
-        self.assertEqual(len(anchors), 4)
-        self.assertEqual(len({a['id'] for a in anchors}), 4)
-        positions = [a['rects'][0]['x'] for a in anchors]
-        self.assertEqual(positions, sorted(positions))
+        for page in doc.pages:
+            starts = [i for i in range(len(page.text)) if page.text.startswith('ana', i)]
+            windows = [(i, i + 3) for i in starts]
+            with patch('paper_agent.pdf_files.digest', wraps=digest) as hashed, \
+                 patch.object(pdfium, 'PdfDocument', wraps=pdfium.PdfDocument) as opened:
+                anchors = files.locate_anchors(data, doc, doc.file_digest, page.number, windows)
+                self.assertEqual(hashed.call_count, 1)
+                self.assertEqual(opened.call_count, 1)
+            self.assertEqual(len(anchors), 16)
+            self.assertEqual(len({a['id'] for a in anchors}), 16)
+            self.assertEqual([a['start'] for a in anchors], starts)
+            for start, anchor in zip(starts, anchors):
+                self.assertEqual(anchor, files.locate_anchor(data, doc, dict(fileDigest=doc.file_digest,
+                    page=page.number, start=start, end=start + 3)))
+            for original, checksum, scope in ((data, '0' * 64, windows), (data + b'changed', doc.file_digest, windows),
+                                              (data, doc.file_digest, [(True, 3)]), (data, doc.file_digest, [(0, len(page.text) + 1)])):
+                with self.subTest(checksum=checksum, scope=scope), self.assertRaises(Invalid):
+                    files.locate_anchors(original, doc, checksum, page.number, scope)
 
     def test_pdfium_files_and_persistent_annotations(self):
         from PIL import Image

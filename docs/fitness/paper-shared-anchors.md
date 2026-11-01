@@ -45,6 +45,14 @@ npm run typecheck
 - Authenticated loopback HTTP verifies exact locate, bad digest rejection,
   selected context persistence, page-only fallback and ambiguous citations.
 - Paper TypeScript check and JavaScript syntax checks passed.
+- The integrated source-report/shared-anchor revision passes 137 backend tests
+  (136 passed, one Windows-only skip). Annotation validation now belongs only to
+  `PdfAnchor`; annotation-specific kind/figure-count rules reuse its typed value.
+  Same-page evidence candidates share one original-byte verification and one
+  PDFium document/page/textpage session. Real repeated/overlapping text on both
+  rotations verifies distinct locations and single/batch agreement; instrumentation
+  confirms one original hash and document open for a 16-window batch. HTTP checks
+  retain the 65-total/64-returned candidate cap and reject changed or missing bytes.
 - `paper-search-flow.mjs` now requires a visible actual search-hit region;
   `paper-pdf-flow.mjs` captures the real selection-context response and requires
   its anchor identity to equal the later saved highlight's identity.

@@ -57,9 +57,10 @@ class RetrievalTest(unittest.TestCase):
                         with self.assertRaises(Invalid):
                             EvidenceReference.parse_many([{**ref, **patch}], (paper.id,), intent.papers, intent.passages)
             location = evidence.locate(intent.papers, intent.passages)
-            rects = files.locate_quote(data, doc, 2, location['pdf']['sourceStart'], quote)
+            rects = files.locate_anchor(data, doc, dict(fileDigest=doc.file_digest, page=2,
+                start=location['pdf']['sourceStart'], end=location['pdf']['sourceStart'] + len(quote)))['rects']
             self.assertTrue(rects)
-            self.assertTrue(all(0 <= r.x < 1 and 0 <= r.y < 1 for r in rects))
+            self.assertTrue(all(0 <= r['x'] < 1 and 0 <= r['y'] < 1 for r in rects))
             report = dict(schema='pero.paper-agent-report.v1', intentId=intent.id, title='Answer',
                           sections=[dict(heading='Answer', content='Evidence [1](evidence:1).', paperIds=[paper.id], evidence=[ref])], experiments=[], limitations='Unverified')
             saved = store.save_report(intent.id, json.dumps(report), NOW)

@@ -215,6 +215,20 @@ class ResearchHTTP(unittest.TestCase):
                 self.assertNotIn('rects', ambiguous)
                 self.assertEqual(len(ambiguous['candidates']), 2)
                 self.assertNotEqual(ambiguous['candidates'][0]['id'], ambiguous['candidates'][1]['id'])
+                many_bytes = pdf_fixture(repeated=64, phrase='ana')
+                many = call('POST', '/api/pdf/import?filename=many.pdf', many_bytes)[1]
+                many_input = call('POST', '/api/intents', dict(question='ana', paperIds=[many['id']], requestId='many-input', fullText=True))[1]
+                many_passage = many_input['passages'][0]
+                many_request = dict(intentId=many_input['id'], paperId=many['id'], passageId=many_passage['id'], quote='ana')
+                bounded = call('POST', '/api/evidence', many_request)[1]['pdf']
+                self.assertEqual(bounded['candidateCount'], 65)
+                self.assertEqual(len(bounded['candidates']), 64)
+                self.assertEqual(len({a['id'] for a in bounded['candidates']}), 64)
+                original_path = store.root / 'pdf-files' / (bounded['fileDigest'] + '.pdf')
+                original_path.write_bytes(many_bytes + b'changed')
+                self.assertEqual(call('POST', '/api/evidence', many_request)[0], 409)
+                original_path.unlink()
+                self.assertEqual(call('POST', '/api/evidence', many_request)[0], 500)
                 uploaded_bytes = pdf_fixture().replace(b'Second', b'Local!')
                 status, local = call('POST', '/api/pdf/import?filename=local.pdf', uploaded_bytes)
                 self.assertEqual(status, 201)

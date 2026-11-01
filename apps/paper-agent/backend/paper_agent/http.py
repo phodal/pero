@@ -263,9 +263,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                             document = store.pdf(locator['documentId'])
                             original = store.pdf_bytes(document)
                             starts = locator.pop('sourceCandidates')
-                            candidates = [pdf_files.locate_anchor(original, document, dict(fileDigest=locator['fileDigest'],
-                                page=locator['pages'][0], start=start, end=start + len(evidence.quote)))
-                                for start in starts[:64]]
+                            candidates = pdf_files.locate_anchors(original, document, locator['fileDigest'],
+                                locator['pages'][0], [(start, start + len(evidence.quote)) for start in starts[:64]])
                             if len(starts) == 1:
                                 locator.update(anchor=candidates[0], rects=candidates[0]['rects'], verification='pdf-text-match')
                             else:

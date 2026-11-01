@@ -135,27 +135,24 @@ class PdfAnnotation:
     @classmethod
     def create(cls, value, document, now):
         value = mapping(value, 'PDF annotation')
-        page = document.page(value.get('page'))
         kind = value.get('kind')
         if kind not in ('highlight', 'figure'):
             raise Invalid('Choose highlight or figure')
-        rects = tuple(PdfRect.parse(rect) for rect in sequence(value.get('rects'), 100, 'PDF regions'))
-        if not rects or (kind == 'figure' and len(rects) != 1):
-            raise Invalid('Select a PDF region first')
         quote = value.get('quote', '')
         if not isinstance(quote, str) or len(quote) > 4000:
             raise Invalid('PDF quotation exceeds 4,000 characters')
         if kind == 'highlight':
             text(quote, 4000, 'PDF quotation')
-            if not page.contains_quote(quote):
-                raise Invalid('Selected text does not match this PDF page')
         note = value.get('note', '')
         if not isinstance(note, str) or len(note) > 4000:
             raise Invalid('PDF note exceeds 4,000 characters')
-        content = dict(documentId=document.id, paperId=document.paper_id, page=page.number, kind=kind,
-                       rects=[rect.to_dict() for rect in rects], quote=quote, note=note)
-        anchor = PdfAnchor.parse(dict(documentId=document.id, fileDigest=value.get('fileDigest', document.file_digest), page=page.number, rects=value['rects'])).check(document, quote if kind == 'highlight' else '')
-        return cls(digest(content), document.id, document.paper_id, page.number, kind, rects, quote, note, now, anchor)
+        anchor = PdfAnchor.parse(dict(documentId=document.id, fileDigest=value.get('fileDigest', document.file_digest),
+                                      page=value.get('page'), rects=value.get('rects'))).check(document, quote if kind == 'highlight' else '')
+        if kind == 'figure' and len(anchor.rects) != 1:
+            raise Invalid('Select a PDF region first')
+        content = dict(documentId=document.id, paperId=document.paper_id, page=anchor.page, kind=kind,
+                       rects=[rect.to_dict() for rect in anchor.rects], quote=quote, note=note)
+        return cls(digest(content), document.id, document.paper_id, anchor.page, kind, anchor.rects, quote, note, now, anchor)
 
     @classmethod
     def from_record(cls, value):

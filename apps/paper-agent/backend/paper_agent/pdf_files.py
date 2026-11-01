@@ -100,48 +100,49 @@ class PdfFiles:
                 return output.getvalue()
 
     def locate_anchor(self, data, document, value):
-        if value.get('fileDigest') != document.file_digest or digest(data) != document.file_digest:
-            raise Invalid('Anchor PDF version does not match the saved original', 409)
-        page = document.page(value.get('page'))
-        start, end = value.get('start'), value.get('end')
-        if type(start) is not int or type(end) is not int or not 0 <= start < end <= len(page.text) or end - start > 4800:
-            raise Invalid('Choose an exact PDF text window of at most 4,800 characters')
-        quote = page.text[start:end]
-        rects = self.locate_quote(data, document, page.number, start, quote)
-        anchor = PdfAnchor(document.id, document.file_digest, page.number, rects)
-        return {**anchor.to_dict(), 'start': start, 'end': end, 'verification': 'pdf-text-match'}
+        return self.locate_anchors(data, document, value.get('fileDigest'), value.get('page'),
+                                   [(value.get('start'), value.get('end'))])[0]
 
-    def locate_quote(self, data, document, page_number, start, quote):
-        pdfium = self._engine()
+    def locate_anchors(self, data, document, file_digest, page_number, windows):
+        """Resolve one page's exact windows against one verified PDFium session."""
+        if file_digest != document.file_digest or digest(data) != document.file_digest:
+            raise Invalid('Anchor PDF version does not match the saved original', 409)
         page_info = document.page(page_number)
-        if type(start) is not int or start < 0 or not quote or page_info.text[start:start + len(quote)] != quote:
-            raise Invalid('Quotation offset does not match the original PDF text')
+        for start, end in windows:
+            if type(start) is not int or type(end) is not int or not 0 <= start < end <= len(page_info.text) or end - start > 4800:
+                raise Invalid('Choose an exact PDF text window of at most 4,800 characters')
+        pdfium = self._engine()
+        anchors = []
         with PDFIUM_LOCK, closing(pdfium.PdfDocument(data)) as pdf, closing(pdf[page_number - 1]) as page:
             page.set_rotation(0)
-            with closing(page.get_textpage()) as textpage, closing(textpage.search(quote, match_case=True, consecutive=True)) as search:
-                match = None
-                while True:
-                    match = search.get_next()
-                    if match is None:
-                        raise Invalid('The quotation cannot be located in this PDF', 422)
-                    # PDFium char indices differ from extracted-text offsets when
-                    # characters are inserted/excluded. Prove this exact window.
-                    prefix = textpage.get_text_range(0, match[0]) if match[0] else ''
-                    if len(prefix) == start and textpage.get_text_range(*match) == quote:
-                        break
-                    if len(prefix) > start:
-                        raise Invalid('The quotation has no exact PDF text region', 422)
-                rects = []
-                for i in range(textpage.count_rects(*match)):
-                    left, bottom, right, top = textpage.get_rect(i)
-                    x, y = max(0, left / page_info.width), max(0, 1 - top / page_info.height)
-                    width = min(1, right / page_info.width) - x
-                    height = min(1, 1 - bottom / page_info.height) - y
-                    if width > 0 and height > 0:
-                        rects.append(PdfRect(x, y, width, height))
-                if not rects:
-                    raise Invalid('The quotation has no selectable PDF text region', 422)
-                return tuple(rects)
+            with closing(page.get_textpage()) as textpage:
+                for start, end in windows:
+                    quote = page_info.text[start:end]
+                    with closing(textpage.search(quote, match_case=True, consecutive=True)) as search:
+                        while True:
+                            match = search.get_next()
+                            if match is None:
+                                raise Invalid('The quotation cannot be located in this PDF', 422)
+                            # PDFium char indices differ from extracted-text offsets when
+                            # characters are inserted/excluded. Prove this exact window.
+                            prefix = textpage.get_text_range(0, match[0]) if match[0] else ''
+                            if len(prefix) == start and textpage.get_text_range(*match) == quote:
+                                break
+                            if len(prefix) > start:
+                                raise Invalid('The quotation has no exact PDF text region', 422)
+                    rects = []
+                    for i in range(textpage.count_rects(*match)):
+                        left, bottom, right, top = textpage.get_rect(i)
+                        x, y = max(0, left / page_info.width), max(0, 1 - top / page_info.height)
+                        width = min(1, right / page_info.width) - x
+                        height = min(1, 1 - bottom / page_info.height) - y
+                        if width > 0 and height > 0:
+                            rects.append(PdfRect(x, y, width, height))
+                    if not rects:
+                        raise Invalid('The quotation has no selectable PDF text region', 422)
+                    anchor = PdfAnchor(document.id, document.file_digest, page_number, tuple(rects))
+                    anchors.append({**anchor.to_dict(), 'start': start, 'end': end, 'verification': 'pdf-text-match'})
+        return anchors
 
     @staticmethod
     def _engine():
