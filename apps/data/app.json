@@ -4,6 +4,37 @@
   "version": "0.1.0",
   "displayName": "Data",
   "description": "Manage local scientific datasets and model files.",
-  "contributes": {"panels": [{"id": "main", "title": "Data", "entry": "dist/index.html"}]},
+  "contributes": {
+    "panels": [{"id": "main", "title": "Data", "entry": "dist/index.html"}],
+    "writes": [{
+      "name": "research-assets",
+      "description": "Prepare or download pinned Hugging Face research assets in Data. prepare requires resources and re-resolves file metadata without downloading. Present file size and license, then ask for explicit file selection before download with sourceId and confirm=true. status and cancel accept only action. Use returned source IDs, never invent URLs or paths. Only one file downloads at a time. Calls follow Host/Agent permissions; a Paper handoff is not a permission grant. No code execution or model loading. Query status after uncertain outcomes instead of starting a duplicate download.",
+      "path": "/api/research-assets",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "action": {"type": "string", "enum": ["prepare", "download", "status", "cancel"]},
+          "resources": {
+            "type": "array", "minItems": 1, "maxItems": 8,
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {"type": "string", "enum": ["model", "dataset"]},
+                "repoId": {"type": "string", "minLength": 3, "maxLength": 193},
+                "revision": {"type": "string", "minLength": 40, "maxLength": 64},
+                "sourceUrl": {"type": "string", "maxLength": 1000}
+              },
+              "required": ["kind", "repoId", "revision"],
+              "additionalProperties": false
+            }
+          },
+          "sourceId": {"type": "string", "minLength": 64, "maxLength": 64},
+          "confirm": {"type": "boolean"}
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      }
+    }]
+  },
   "backend": {"type": "python", "entry": "backend/server.py"}
 }
