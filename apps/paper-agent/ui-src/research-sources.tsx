@@ -93,10 +93,10 @@ export function ResearchSources({ api, bundle, startSourceIds, onRead, onAutoQue
             {value.previewRebuiltAt && <><dt>Preview rebuilt locally</dt><dd>{value.previewRebuiltAt}</dd></>}
             {value.restoredAt && <><dt>Restored</dt><dd>{value.restoredAt}</dd><dt>Restore URL</dt><dd>{value.restoreFinalUrl}</dd></>}
           </dl></details>
-          <Button disabled={!available} onClick={() => setOpen(open === resource.id ? null : resource.id)}>{open === resource.id ? 'Close source files' : 'Browse source files'}</Button>
+          <Button disabled={busy || loading} onClick={() => setOpen(open === resource.id ? null : resource.id)}>{open === resource.id ? 'Close source files' : available ? 'Browse source files' : 'Open saved source evidence'}</Button>
         </>}
         {value?.status === 'running' ? <Button disabled={busy || loading} onClick={() => void operate('cancel', resource.id)}>Cancel source download</Button> : value && (!terminal.includes(value.status) || !available) && <Button disabled={busy || loading || !!running || !!error} onClick={() => void operate('start', resource.id)}>{value.status === 'unavailable' ? 'Restore source archive' : receipt ? 'Retry source restore' : value.status === 'not_started' ? 'Get source archive' : 'Retry source download'}</Button>}
-        {open === resource.id && receipt && available && <SourceBrowser api={api} bundle={bundle} resourceId={resource.id} receipt={receipt} onRead={onRead}/>}
+        {open === resource.id && receipt && <SourceBrowser api={api} bundle={bundle} resourceId={resource.id} receipt={receipt} available={available} onRead={onRead}/>}
       </li>;
     })}</ul>
   </section>;
