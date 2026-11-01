@@ -39,7 +39,15 @@ await build({
   minify: true, target: 'chrome140', jsx: 'automatic',
   nodePaths: [resolve(appRoot, 'node_modules')],
   alias: { '@pero/app-sdk/ui': resolve(sdk, 'ui.tsx'), '@pero/app-sdk/chart': resolve(sdk, 'chart.ts'), '@pero/app-sdk': resolve(sdk, 'index.tsx') },
-  plugins: [{ name: 'app-scoped-css', setup(builder) {
+  plugins: [{ name: 'app-react-runtime', setup(builder) {
+    // SDK source lives outside the App tree; nodePaths is only a fallback.
+    // Resolve from the App while preserving package exports/browser conditions
+    // for all subpaths (directory aliases would bypass those conditions).
+    builder.onResolve({ filter: /^(react|react-dom)(\/|$)/ }, args => {
+      if (args.resolveDir === appRoot) return;
+      return builder.resolve(args.path, { kind: args.kind, resolveDir: appRoot });
+    });
+  } }, { name: 'app-scoped-css', setup(builder) {
     builder.onLoad({ filter: /virtual-cell[\\/]ui-src[\\/]styles\.css$/ }, async args => ({ contents: await readFile(args.path, 'utf8'), loader: 'text' }));
   } }],
 });
