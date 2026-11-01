@@ -199,6 +199,15 @@ impl NativeApps {
             );
         }
         let path = uri.path();
+        // The App webview is not an approved Agent session. Only Host write
+        // dispatch may attach the frozen goal and call this private endpoint.
+        if matches!(name, "control-lab" | "lab")
+            && percent_encoding::percent_decode_str(path).decode_utf8()? == "/api/agent-step"
+        {
+            return Ok(Response::builder().status(403)
+                .header("Cache-Control", "no-store")
+                .body(b"Agent route is reserved for the Host".to_vec())?);
+        }
         let method = request.method();
         let body = request.body();
         if path == "/host/research-assets" {
@@ -343,6 +352,28 @@ impl NativeApps {
 #[cfg(test)]
 mod research_assets_tests {
     use super::*;
+
+    #[test]
+    fn research_agent_route_is_denied_before_resolve_or_dispatch() {
+        let (host, requests) = mpsc::channel();
+        let (events, _) = async_channel::unbounded();
+        let apps = NativeApps::new(host, events, None);
+        for app in ["control-lab", "lab"] {
+            for path in ["/api/agent-step", "/api/agent-step?ignored=1",
+                "/api/extra/../agent-step", "/api/%61gent-step", "/api%2Fagent-step",
+                "/api/extra/%2e%2e/agent-step"] {
+                for method in ["GET", "POST"] {
+                    let response = apps.serve(app, Request::builder()
+                        .uri(format!("pero-app://{app}{path}"))
+                        .method(method).header("Origin", format!("pero-app://{app}"))
+                        .body(b"{}".to_vec()).unwrap());
+                    assert_eq!(response.status(), 403, "{app} {method} {path}");
+                    assert_eq!(response.body(), b"Agent route is reserved for the Host");
+                    assert!(requests.try_recv().is_err());
+                }
+            }
+        }
+    }
 
     #[test]
     fn research_asset_route_forwards_only_the_origin_and_operation_to_host() {

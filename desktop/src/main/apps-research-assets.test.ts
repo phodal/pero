@@ -52,7 +52,7 @@ test('bounded research agent routes cannot be called by their App iframe', async
     () => { throw new Error('No public Host event expected'); }, async () => undefined);
   try {
     for (const app of ['control-lab', 'lab']) {
-      for (const path of ['/api/agent-step', '/api/agent-step?ignored=1', '/api/extra/../agent-step']) {
+      for (const path of ['/api/agent-step', '/api/agent-step?ignored=1', '/api/extra/../agent-step', '/api/%61gent-step', '/api%2Fagent-step', '/api/extra/%2e%2e/agent-step']) {
         for (const method of ['GET', 'POST']) {
           const response = await apps.serve(new Request(`pero-app://${app}${path}`, {
             method, headers: { Origin: `pero-app://${app}` }, ...(method === 'POST' ? { body: '{}' } : {}),
