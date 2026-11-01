@@ -82,6 +82,8 @@ def record_observation(store, value, result):
     """Called only after the existing approved read operation succeeds."""
     operation = value['operation']
     if operation == 'read':
+        if not result['content']:
+            return dict(result, observationWarning='Empty source window contains no readable text; no reportable observation was recorded.')
         observation = SourceObservation(value['bundleId'], value['resourceId'], 'source_text',
                                         (SourceLocation.observed(result, result['content']),))
     elif operation == 'image':

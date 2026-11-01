@@ -24,7 +24,7 @@ class SourceReports(unittest.TestCase):
         self.addCleanup(lambda: self.store.pdf_downloads.close())
         image = io.BytesIO()
         Image.new('RGB', (12, 8), 'green').save(image, format='PNG')
-        self.original = archive_bytes([('main.tex', TEX.replace('Synthetic source figure.', 'First page. Exact original evidence.').encode()), ('figure.png', image.getvalue())])
+        self.original = archive_bytes([('main.tex', TEX.replace('Synthetic source figure.', 'First page. Exact original evidence.').encode()), ('figure.png', image.getvalue()), ('empty.tex', b'')])
         self.selection, self.pdf = bundle(self.store)
         self.store.source_downloads = SourceDownloads(self.store, SourceTransport(self.original))
         self.store.source_downloads.request(dict(operation='start', **self.selection))
@@ -89,6 +89,17 @@ class SourceReports(unittest.TestCase):
                        dict(start=0, end=True), dict(startLine=1, endLine=3, end=4)):
             with self.subTest(invalid=window), self.assertRaises(Invalid):
                 self.read('read', memberId=self.tex['id'], **window)
+
+    def test_empty_window_is_never_reportable(self):
+        with self.assertRaises(Invalid):
+            self.read('read', memberId=self.tex['id'], start=2, end=2)
+        empty = next(member for member in self.catalog['members'] if member['path'] == 'empty.tex')
+        result = self.read('read', memberId=empty['id'], start=0)
+        self.assertEqual(result['content'], '')
+        self.assertEqual((result['start'], result['end']), (0, 0))
+        self.assertNotIn('observationId', result)
+        self.assertIn('no reportable observation', result['observationWarning'])
+        self.assertEqual(self.report('observations')['observations'], [])
 
     def test_report_filename_cannot_alias_another_legitimate_report(self):
         read = self.read('read', memberId=self.tex['id'], startLine=1, endLine=2)

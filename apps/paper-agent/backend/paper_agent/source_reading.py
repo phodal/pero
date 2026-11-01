@@ -47,8 +47,9 @@ def read_source(store, value):
         if 'startLine' in value or 'endLine' in value or type(start) is not int or not 0 <= start < max(1, len(text.content)):
             raise Invalid('Choose either original lines or a valid character offset')
         end = value.get('end', min(len(text.content), start + 4800))
-        if type(end) is not int or not start <= end <= min(len(text.content), start + 4800):
-            raise Invalid('Choose an end offset within the original 4,800-character window')
+        if (type(end) is not int or not start <= end <= min(len(text.content), start + 4800)
+                or ('end' in value and end == start)):
+            raise Invalid('Choose a nonempty character window within the original 4,800-character limit')
         line_starts = (0, *tuple(accumulate(len(line) for line in text.lines))[:-1])
         first = bisect_right(line_starts, start)
         last = bisect_right(line_starts, max(start, end - 1))

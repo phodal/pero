@@ -32,10 +32,10 @@ reader, model backend, scheduler, compiler or research execution framework is ad
 
 ## Verification
 
-- Backend suite: 132 tests run, OK (131 passed; one Windows-only lifecycle test skipped on Linux).
+- Backend suite: 133 tests run, OK (132 passed; one Windows-only lifecycle test skipped on Linux).
   New report tests cover observed-only references, cross-bundle rejection,
   immutable/idempotent exact-window reopening (including partial-line character windows), image interpretation boundaries, exact PDF
-  comparison scopes, original loss/tampering/restoration, and journal-capacity failure.
+  comparison scopes, original loss/tampering/restoration, journal-capacity failure, and rejection of reportable empty windows.
 - `tests/e2e/paper-source-http.py`: authenticated same-core report creation/reopening;
   fabricated observation IDs rejected. Synthetic transport only.
 - `tests/e2e/paper-source-cli.py`: actual JSON CLI report creation, evidence-only
