@@ -104,3 +104,8 @@ fixed owner completes terminate/wait/kill, reaps that worker, saves `cancelled`,
 and removes the lock. This verifies the direct-worker POSIX path, not a scientific
 run, arbitrary descendant cleanup, or Windows TerminateProcess behavior. See the
 [resolved cancellation finding](../issues/2026-11-01-pcgym-repeated-cancel.md).
+
+Review follow-up: the POSIX cancellation regression now covers repeated and mixed
+SIGTERM/SIGINT pairs, including restoration of both caller handlers. Receipt
+integrity verdicts also have one domain owner: direct core, persisted CLI and the
+portable checker return the same FAIL/reason for receipt hash or identity mismatch.

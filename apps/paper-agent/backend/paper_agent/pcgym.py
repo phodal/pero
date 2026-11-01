@@ -148,7 +148,7 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
                'started_at': utc(), 'origin': 'local-foreground-cli', 'execution_identity_attested': False}
     write_json(target / 'execution.json', receipt)
     process = None
-    old_handler = signal.getsignal(signal.SIGTERM)
+    old_handlers = {name: signal.getsignal(name) for name in (signal.SIGTERM, signal.SIGINT)}
     cancelling = False
 
     def stop(_signum, _frame):
@@ -157,7 +157,8 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
             cancelling = True
             raise KeyboardInterrupt
 
-    signal.signal(signal.SIGTERM, stop)
+    for name in old_handlers:
+        signal.signal(name, stop)
     try:
         # The parent remains inside the Host-owned process tree; no detached session.
         env = {k: os.environ[k] for k in ('PATH', 'SYSTEMROOT', 'WINDIR') if k in os.environ}
@@ -194,7 +195,7 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
     except (Invalid, OSError) as error:
         receipt.update(status='failed', error=str(error), error_code=getattr(error, 'code', 'io'))
     finally:
-        # Repeated App cancel/close must not interrupt terminate/wait/kill or
+        # Repeated App cancel/close or CLI interrupt must not interrupt terminate/wait/kill or
         # receipt persistence. Restore the caller's handler only after cleanup.
         cancelling = True
         try:
@@ -213,7 +214,8 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
             if receipt['status'] != 'unknown':
                 lock.unlink()
         finally:
-            signal.signal(signal.SIGTERM, old_handler)
+            for name, previous in old_handlers.items():
+                signal.signal(name, previous)
     if receipt['status'] == 'completed':
         # Run the checker in a separate stdlib-only process, not inside the solver.
         subprocess.run([sys.executable, '-m', 'paper_agent.pcgym', 'verify', '--bundle', str(root),

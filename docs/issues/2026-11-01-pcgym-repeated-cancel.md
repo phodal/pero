@@ -21,3 +21,10 @@ passes: the stubborn worker is killed and reaped, the receipt is cancelled, and
 the lock is removed. No scientific engine is used. Windows TerminateProcess does
 not share POSIX signal semantics and remains unverified; the shipped App still
 has local compute disabled.
+
+A follow-up review found that repeated SIGINT (CLI interrupt) still used Python's
+unguarded KeyboardInterrupt handler. The same synchronized fixture reproduced
+SIGINT→SIGINT and SIGTERM→SIGINT interrupting cleanup, leaving the worker present
+and the receipt/lock unresolved. Both signals now use the same idempotent handler;
+both previous handlers are restored after cleanup and persistence. The real
+process regression covers all four SIGTERM/SIGINT pairs and handler restoration.
