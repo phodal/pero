@@ -39,3 +39,14 @@ test('empty or excessive molecule records fail before loading an engine', () => 
   assert.throws(() => moleculeRecords('large.smi', bytes('O\n'.repeat(201))), /200 records/);
   assert.deepEqual(moleculeRecords('small.smi', bytes('O\nCCO\n')), ['O', 'CCO']);
 });
+
+test('SDF separator consumes its own newline without stripping blank molecule titles', () => {
+  for (const eol of ['\n', '\r\n']) {
+    const named = ['Water', 'program', '', 'counts', 'M  END', '> <note>', 'embedded$$$$value', ''].join(eol);
+    const untitled = ['', 'program', '', 'counts', 'M  END', ''].join(eol);
+    const records = moleculeRecords('two.sdf', new TextEncoder().encode(`${named}$$$$${eol}${untitled}$$$$${eol}`));
+    assert.deepEqual(records, [named, untitled]);
+    assert.deepEqual(moleculeRecords('two.sdf', new TextEncoder().encode(`${untitled}$$$$${eol}${named}$$$$`)), [untitled, named]);
+    assert.deepEqual(moleculeRecords('one.mol', new TextEncoder().encode(untitled)), [untitled]);
+  }
+});

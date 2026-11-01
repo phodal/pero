@@ -35,6 +35,32 @@ class MoleculesTest(unittest.TestCase):
             self.assertAlmostEqual(row['descriptors']['MolWt'], 18.015, places=3)
             self.assertIn('<svg', row['svg'])
 
+    def test_sdf_frontend_records_preserve_blank_titles_for_real_rdkit(self):
+        from rdkit import Chem
+        parser = (Path(__file__).resolve().parents[1] / 'ui-src' / 'files.ts').as_uri()
+        script = f"""import {{ moleculeRecords }} from {json.dumps(parser)};
+import {{ readFileSync }} from 'node:fs';
+process.stdout.write(JSON.stringify(moleculeRecords('molecules.sdf', readFileSync(0))));"""
+        blank = Chem.MolToMolBlock(Chem.MolFromSmiles('O'))
+        ethanol = Chem.MolFromSmiles('CCO')
+        ethanol.SetProp('_Name', 'Ethanol$$$$title')
+        named = Chem.MolToMolBlock(ethanol)
+        for newline in ('\n', '\r\n'):
+            # Both named and genuinely blank titles occur after delimiters.
+            blocks = [blank, named, blank]
+            source = ''.join(block + '$$$$\n' for block in blocks).replace('\n', newline)
+            with self.subTest(newline=repr(newline)):
+                parsed = subprocess.run(['node', '--input-type=module', '-e', script],
+                                        input=source.encode(), capture_output=True, timeout=10, check=True)
+                records = json.loads(parsed.stdout)
+                self.assertEqual(records, [block.replace('\n', newline) for block in blocks])
+                rows = preview(MoleculeRequest.parse({'format': 'sdf', 'records': records}))['rows']
+                self.assertEqual(len(rows), 3)
+                for row, weight in zip(rows, (18.015, 46.069, 18.015)):
+                    self.assertNotIn('error', row)
+                    self.assertAlmostEqual(row['descriptors']['MolWt'], weight, places=3)
+                    self.assertIn('<svg', row['svg'])
+
     def test_request_and_molecule_budgets(self):
         for value in [None, {}, {'format': 'python', 'records': ['pass']}, {'format': 'smiles', 'records': []},
                       {'format': 'smiles', 'records': ['O'] * 201}, {'format': 'smiles', 'records': [' ']},

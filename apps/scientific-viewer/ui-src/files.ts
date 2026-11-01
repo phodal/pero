@@ -58,7 +58,9 @@ export function blockStructureDrops(manager: { addHandler(name: string, handler:
 }
 export function moleculeRecords(name: string, bytes: Uint8Array): string[] {
   const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  const records = /\.(sdf|mol)$/i.test(name) ? text.split('$$$$').filter(value => value.trim()) : text.split(/\r?\n/).filter(value => value.trim());
+  // Consume only the delimiter line's EOL: a following blank title is part of the MOL header.
+  const records = (/\.sdf$/i.test(name) ? text.split(/^\$\$\$\$(?:\r?\n|$)/m)
+    : /\.mol$/i.test(name) ? [text] : text.split(/\r?\n/)).filter(value => value.trim());
   if (!records.length) throw new Error('No molecule records');
   if (records.length > 200) throw new Error('Molecule preview is limited to 200 records');
   return records;

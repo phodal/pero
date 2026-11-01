@@ -60,8 +60,8 @@ def preview(request: MoleculeRequest):
                 params.allowCXSMILES = False
                 mol = Chem.MolFromSmiles(text, params)
             else:
-                block = text.split('$$$$')[0] if request.format == 'sdf' else text
-                mol = Chem.MolFromMolBlock(block, sanitize=True, removeHs=True, strictParsing=True)
+                # Each record already has its MOL header; $$$$ may legally occur in its title.
+                mol = Chem.MolFromMolBlock(text, sanitize=True, removeHs=True, strictParsing=True)
             if mol is None or not mol.GetNumAtoms():
                 raise ValueError('Invalid molecule')
             if mol.GetNumAtoms() > 512 or mol.GetNumBonds() > 1024:
