@@ -43,11 +43,10 @@ reader, model backend, scheduler, compiler or research execution framework is ad
 - Desktop App Use/asset bridge: 14 tests passed, including actual text-plus-image
   MCP responses, optional observation ID/warning validation, legacy compatibility,
   and no base64 image leakage into text metadata.
-- Paper UI TypeScript check passed. Desktop source-study fixture assertions are
-  extended for report save/reopen and interpretation boundaries; this local browser
-  execution was blocked by the environment's IPC/process launcher. Those new UI
-  assertions remain pending an actual Desktop acceptance run; compilation alone
-  does not establish UI acceptance.
+- Paper UI TypeScript check passed. Local browser execution was initially blocked
+  by the environment's IPC/process launcher; that failed attempt remains distinct
+  from the later successful hosted Desktop acceptance. The hosted fixture exercised
+  report save/reopen, exact-window navigation, restart and missing-original recovery.
 - Independent actual CLI verification against a private copy of authentic Epitope
   source bytes passed two source windows, image delivery, unresolved PDF comparison,
   report creation, duplicate creation, process restart, export and exact-byte repair.
@@ -65,17 +64,26 @@ not forced to match an older PDF-only observation. The helper refuses to run
 without the existing live opt-in; ordinary fixture CI remains network-free.
 No workflow policy or timeout is expanded. Live artifacts contain only receipts,
 hashes, locations and outcomes; source/image payloads and screenshots are omitted.
-This new three-material path has syntax/opt-in-gate checks only until run by CI.
+[Exact-head CI for the reviewed #85 implementation](https://github.com/phodal/pero/actions/runs/41311263825)
+passed all 42 checks, including Desktop acceptance and this real-network path.
+The [acceptance artifact](https://github.com/phodal/pero/actions/runs/41311263825/artifacts/13086447309)
+records Aptamer v1 as an 8,086,830-byte TeX/PNG archive, Epitope v1 as a
+5,603,079-byte TeX/PNG archive, and VERID v1 as PDF-only (2,361,418 bytes,
+zero TeX members). All expected classifications matched. Original text/image
+scopes for the two archives, report reopen/export and local preview repair passed;
+VERID correctly retains no source-text/image reading claim. No model ran.
+This run identifies the reviewed pre-integration head; subsequent merged-base CI
+is tracked separately rather than inheriting that result.
 
 ## Remaining acceptance
 
-Issue #75 is not closed by this feature. Historical Aptamer source and Google VERID
-PDF product-live evidence remain separate from authentic-material replay. Fresh
-three-material live verification is blocked in this execution environment; it is
-not upgraded to success from cached originals. Earlier real-provider failures and
-semantic limitations remain unchanged. This report verifies evidence provenance
-and tool scopes, not scientific correctness, complete reading, visual understanding,
-original experiment reproduction, or correctness of arbitrary model claims.
+Issue #75 remains subject to its itemized acceptance review. Earlier local DNS and
+process-launcher failures are retained as failed/inconclusive attempts; the later
+hosted live success is separate evidence, not a relabeling of cached-original replay.
+Earlier real-provider failures and semantic limitations remain unchanged. These
+checks verify provenance, bounded tool scopes and product recovery—not scientific
+correctness, complete reading, visual understanding, original experiment reproduction,
+or correctness of arbitrary model claims.
 
 ## Review corrections
 
@@ -90,5 +98,5 @@ cannot retroactively establish an unknown scope.
 The source image bridge uses explicit fields/constructor assignments, not TypeScript
 parameter properties. Direct Node 24 strip-only App Use tests passed (9 tests), and
 the repository App Use unit command passed (18 plus 10 tests). Node 22 was not
-available locally; hosted Node 22 CI remains the exact-version confirmation. The
-prior transformed bridge test alone did not establish strip-only compatibility.
+available locally; the linked hosted Node 22 CI subsequently passed the exact-version
+check. The prior transformed bridge test alone did not establish strip-only compatibility.
