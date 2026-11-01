@@ -160,3 +160,14 @@ mode. Dispatch now selects the mode outside Electron evaluation, with an offline
 invocation-contract regression. The distinct native assertions are unchanged;
 that failed attempt did not verify both modes or reach the later shared-reader
 journey. Both remain pending a successful rerun.
+
+A subsequent real native attempt ended with the Electron process closing before
+both lifecycle modes were established. Forced owner destruction remains
+unresolved; it is not treated as a successful denial or a diagnosed upstream
+bug. The normal-close safety path now revokes approval on `close`, while the
+owner is still alive, and retains `closed` as a fallback. Both listeners are
+removed after settlement. Tests cover late allow after close, including when
+another close handler keeps the owner alive. The native fixture uses documented
+user-equivalent `owner.close()` and records mode/stage and process exit; normal
+native closure still requires successful CI evidence. No pinned C++ source or
+forced-destroy fix is claimed.

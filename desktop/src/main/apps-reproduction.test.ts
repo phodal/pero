@@ -176,9 +176,12 @@ test('native main-process dialog defaults to deny and aborts on window close', a
     const result = confirmReproduction(window as never, prepared.summary, new AbortController().signal);
     assert.equal(options?.detail, prepared.summary); assert.equal(options?.defaultId, 0); assert.equal(options?.cancelId, 0);
     assert.deepEqual(options?.buttons, ['Cancel', 'Run once']);
-    destroyed = true; window.emit('closed');
+    window.emit('close', { preventDefault() {} });
+    assert.equal(destroyed, false); // Revoke even if another close handler keeps the owner alive.
     assert.equal((options?.signal as AbortSignal).aborted, true);
     answer.resolve({ response: 1 }); assert.equal(await result, false);
+    destroyed = true; window.emit('closed');
+    assert.equal(window.listenerCount('close'), 0);
     assert.equal(window.listenerCount('closed'), 0);
   } finally { delete global.__reproductionDialog; }
 });
@@ -226,4 +229,21 @@ test('public Apps IPC refuses private actions and swallows unmatched private rep
     data: { ok: true, value: prepared } }), true);
   assert.equal(events.length, 4);
   apps.close();
+});
+
+
+test('unexpected owner destruction retains the closed-event cancellation fallback contract', async () => {
+  const global = globalThis as typeof globalThis & { __reproductionDialog?: (window: unknown, options: Record<string, unknown>) => Promise<{ response: number }> };
+  const window = new EventEmitter() as EventEmitter & { isDestroyed(): boolean };
+  let destroyed = false; window.isDestroyed = () => destroyed;
+  const answer = deferred<{ response: number }>();
+  let signal: AbortSignal | undefined;
+  global.__reproductionDialog = async (_window, options) => { signal = options.signal as AbortSignal; return answer.promise; };
+  try {
+    const result = confirmReproduction(window as never, prepared.summary, new AbortController().signal);
+    destroyed = true; window.emit('closed');
+    assert.equal(signal?.aborted, true);
+    answer.resolve({ response: 1 }); assert.equal(await result, false);
+    assert.equal(window.listenerCount('close'), 0); assert.equal(window.listenerCount('closed'), 0);
+  } finally { delete global.__reproductionDialog; }
 });

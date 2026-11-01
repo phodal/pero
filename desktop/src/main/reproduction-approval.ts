@@ -5,6 +5,8 @@ export async function confirmReproduction(window: BrowserWindow, summary: string
   if (signal.aborted || window.isDestroyed()) return false;
   const closed = new AbortController();
   const stop = () => closed.abort();
+  // Revoke while the native owner is still alive, before normal teardown.
+  window.once('close', stop);
   window.once('closed', stop);
   const cancellation = AbortSignal.any([signal, closed.signal]);
   try {
@@ -14,5 +16,5 @@ export async function confirmReproduction(window: BrowserWindow, summary: string
       noLink: true, signal: cancellation,
     });
     return answer.response === 1 && !cancellation.aborted && !window.isDestroyed();
-  } finally { window.removeListener('closed', stop); }
+  } finally { window.removeListener('close', stop); window.removeListener('closed', stop); }
 }
