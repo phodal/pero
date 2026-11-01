@@ -1,6 +1,7 @@
 # Lab verification
 
-Status: implementation in progress for #69; **not complete Desktop acceptance**.
+Status: the bounded Linux Desktop vertical slice passed on 2026-11-01.
+Draft PR #74 remains unmerged; scientific and identity boundaries below still apply.
 
 ## Actually exercised locally (2026-11-01)
 
@@ -12,9 +13,9 @@ Status: implementation in progress for #69; **not complete Desktop acceptance**.
   outcomes. No fake PLR execution fallback. The real eight-step two-trial example
   yields synthetic FAIL then PASS under unchanged rules; a worse revision is
   explicitly reported as no improvement.
-- Frontend TypeScript check and 4 pure UI/actual-manifest schema tests passed.
+- Frontend TypeScript check and 6 pure UI/reference/actual-manifest schema tests passed.
 - Existing Host AppUse unit suites plus Lab bounded-research/goal cases passed
-  (27 Host cases and 10 SDK cases); four App write-route tests also passed using
+  (17 Host cases and 10 SDK cases); four App write-route tests also passed using
   the repository's `--experimental-transform-types` runner. Seven product/bundle
   tests passed. These are permission/packaging contracts, not rendered UI evidence.
 - Independent read-only review re-ran the 25 real-PLR backend cases, four UI/schema
@@ -25,21 +26,46 @@ Status: implementation in progress for #69; **not complete Desktop acceptance**.
 Commands and source are in `apps/lab/README.md`. Tests are not physical or
 biological acceptance, and deterministic ACP playback is not model acceptance.
 
-## Pending real Desktop evidence
+## Actual hosted Desktop evidence (2026-11-01)
 
-`tests/e2e/lab.mjs` is an actual Electron → Host → shared Chat → scripted ACP →
-App API → real PLR test. It covers two linked trials, visible observations and
-verification, direct UI review, CSV import, export, actual process restart,
-light/dark/narrow screenshots and clean process exit. It is wired into the
-existing full/daily CI tier, not ordinary PR GUI work. The independent sandbox
-iframe smoke is `apps/lab/test/browser-smoke.mjs`.
+PR head `87a2697d8693a969a0b96cdb4314984d8f771b78` (local `91d5386`)
+was built at CI merge `e35b30a1c9832661590e29a91fa1859a7c44b016`.
+Full run [41280752769](https://github.com/phodal/pero/actions/runs/41280752769),
+Lab job `124773299418`, passed in **143.844 seconds**. The full run completed
+**42/42 successful jobs**, including **19/19 Desktop suites** and three OS build/contract jobs. The same-revision
+Linux runtime was built once and verified before the independent GUI job.
 
-Neither GUI test has run locally: this environment has a known browser socket
-permission restriction. No `--no-sandbox`, permission workaround or user Mac was
-used. The standard App build also reached the shared reader prerequisite and
-failed because `cargo` is absent from PATH; frontend typecheck/esbuild alone is
-not a complete Desktop build. GUI receipts/screenshots must come from the
-same-revision authorized full CI run before claiming those acceptance items.
+The actual Electron → Host → shared Chat → scripted ACP → real pinned PLR
+journey passed: install/open; freeze; two linked eight-step trials; synthetic
+FAIL then PASS under unchanged criteria; independent verification/comparison;
+blocked scripted review followed by UI decision; real file export; user-supplied
+CSV import with original-byte SHA-256; and actual Desktop/Host/Python restart
+with unchanged saved evidence and no replay. Both owned process trees exited.
+There were no page errors; the sole console 403 was the intentional forbidden
+UI Agent-endpoint probe.
+
+Artifact [13073073988](https://github.com/phodal/pero/actions/runs/41280752769/artifacts/13073073988)
+contains the receipt, exported report and inspected light/dark, Results,
+imported-observation, reopened-run and narrow screenshots. ZIP SHA-256:
+`9676e4f1e2f98a40cf9e9870b81132ce426f5b7e12e7ea3a00c91e5c0d0e13a6`.
+The exported JSON has 797253 bytes, SHA-256
+`523d95c704e28ca1e68696fb2bab05206c25509e978d6d429e54cfe5439b1638`.
+Independent inspection of the downloaded artifact rechecked this digest,
+full experiment equality and every embedded observation's original-byte digest.
+
+The narrow screenshot is a **visible interactive 725×702 App viewport** in
+1000×773 window content, with Chat closed and target-well click verified.
+It is not mobile acceptance. Earlier hidden-iframe and impossible 900px window
+assertions were corrected; their failing runs remain failures, not reused proof.
+Other hosted findings fixed without weakening checks were the missing UI proxy
+guard, transient App reference revision, Electron-native download capture and
+readability of evidence-table labels.
+
+Ordinary Linux CI [41280858411](https://github.com/phodal/pero/actions/runs/41280858411)
+passed in **6m19s**. Full GUI stays in the existing full/daily tier.
+No local GUI was run: the known browser socket restriction was not bypassed,
+no `--no-sandbox` was added, and no user Mac was used. The separate isolated
+iframe smoke is not claimed executed merely because the real Desktop passed.
 
 ## Explicit gaps / boundaries
 
@@ -48,9 +74,9 @@ same-revision authorized full CI run before claiming those acceptance items.
   Existing Lab-bound research restrictions prevent general DOM/computer tools;
   a global desktop operator is not proof of human identity. Strict human-only
   authenticated acceptance is not implemented or claimed.
-- Host-managed first-time dependency installation and install/enable/open through
-  Desktop still require actual full CI confirmation; the local venv dispatch
-  tests do not substitute for that lifecycle evidence.
+- The Native shell guard has independent source review only. Its feature-gated
+  Rust tests were not compiled/run; existing CI does not install the additional
+  native WebKit/GPUI stack. Electron GUI success is not Native runtime proof.
 - No hardware, calibration, collision, optical/fluid physics, biology,
   packaging/signing or cross-platform GUI acceptance claimed.
 
