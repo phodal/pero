@@ -448,6 +448,28 @@ impl Render for Workbench {
                     cx.stop_propagation();
                 }),
             )
+            .on_action(cx.listener(|this, _: &gpui_kit::component::input::Copy, window, cx| {
+                let selected = gpui_kit::base::TextSelection::selected_text(window, cx);
+                if selected.trim().is_empty() && this.forward_web_editing("copy", cx) {
+                    return;
+                }
+                cx.propagate();
+            }))
+            .on_action(cx.listener(|this, _: &gpui_kit::component::input::Cut, _, cx| {
+                if !this.forward_web_editing("cut", cx) {
+                    cx.propagate();
+                }
+            }))
+            .on_action(cx.listener(|this, _: &gpui_kit::component::input::Paste, _, cx| {
+                if !this.forward_web_editing("paste", cx) {
+                    cx.propagate();
+                }
+            }))
+            .on_action(cx.listener(|this, _: &gpui_kit::component::input::SelectAll, _, cx| {
+                if !this.forward_web_editing("selectAll", cx) {
+                    cx.propagate();
+                }
+            }))
             .capture_action(cx.listener(
                 |this, _: &crate::workspace_view::NextContent, window, cx| {
                     this.cycle_content(false, window, cx)

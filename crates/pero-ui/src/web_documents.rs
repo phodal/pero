@@ -408,6 +408,26 @@ impl Workbench {
         let thread = chat.active_chat.and_then(|index| chat.chats.get(index)).map(|chat|chat.id.clone());
         self.command(json!({"method":"mcp","action":"open","request_id":"mcp-sources","thread_id":thread}),cx);
     }
+    pub(crate) fn forward_web_editing(&self, command: &str, cx: &App) -> bool {
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let Some(WorkspaceItem::Web(id)) = self.navigation.current() else {
+                return false;
+            };
+            if !self.layout.embedded_surface_visible {
+                return false;
+            }
+            return self
+                .native_web_pages
+                .get(id)
+                .is_some_and(|page| page.view.read(cx).perform_edit(command, cx));
+        }
+        #[cfg(target_family = "wasm")]
+        {
+            let _ = (command, cx);
+            false
+        }
+    }
     pub(crate) fn web_content(&self, cx: &mut Context<Self>) -> AnyElement {
         #[cfg(target_family = "wasm")]
         {

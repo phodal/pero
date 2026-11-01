@@ -246,6 +246,23 @@ impl NativeWebPage {
             .as_ref()
             .is_some_and(|view| view.read(cx).visible())
     }
+    pub fn perform_edit(&self, command: &str, cx: &App) -> bool {
+        #[cfg(target_os = "macos")]
+        {
+            let Some(view) = &self.view else {
+                return false;
+            };
+            if !self.active {
+                return false;
+            }
+            return edit_macos(view.read(cx).raw(), command);
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = (command, cx);
+            false
+        }
+    }
     pub fn set_active(&mut self, active: bool) {
         self.active = active;
     }
@@ -257,6 +274,32 @@ impl NativeWebPage {
             }
         }
     }
+}
+#[cfg(target_os = "macos")]
+fn edit_macos(view: &wry::WebView, command: &str) -> bool {
+    use objc2::msg_send;
+    use objc2::runtime::AnyObject;
+    use wry::WebViewExtMacOS as _;
+    let webview = view.webview();
+    let sender: *mut AnyObject = std::ptr::null_mut();
+    unsafe {
+        match command {
+            "copy" => {
+                let _: () = msg_send![&*webview, copy: sender];
+            }
+            "cut" => {
+                let _: () = msg_send![&*webview, cut: sender];
+            }
+            "paste" => {
+                let _: () = msg_send![&*webview, paste: sender];
+            }
+            "selectAll" => {
+                let _: () = msg_send![&*webview, selectAll: sender];
+            }
+            _ => return false,
+        }
+    }
+    true
 }
 impl Render for NativeWebPage {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {

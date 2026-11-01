@@ -45,6 +45,9 @@ pub fn initialize(cx: &mut App) {
             KeyBinding::new("alt-delete", DeleteToNextWordEnd, Some("Input")),
             KeyBinding::new("cmd-backspace", DeleteToBeginningOfLine, Some("Input")),
             KeyBinding::new("cmd-delete", DeleteToEndOfLine, Some("Input")),
+            KeyBinding::new("cmd-c", Copy, Some("TextView")),
+            KeyBinding::new("cmd-a", SelectAll, Some("TextView")),
+            KeyBinding::new("cmd-c", Copy, Some("Root")),
         ]);
     }
 }

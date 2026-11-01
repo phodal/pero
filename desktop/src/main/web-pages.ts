@@ -90,9 +90,20 @@ export class WebPages {
     contents.on('did-fail-load',(_event,code,message,_url,main)=>{if(main&&code!==-3)this.fail(page,message);});
     contents.on('render-process-gone',(_event,details)=>this.fail(page,details.reason));
     contents.on('before-input-event',(event,input)=>{
-      if(input.type==='keyDown'&&(input.meta||input.control)&&!input.alt&&!input.shift&&input.key.toLowerCase()==='l') {
+      if(input.type!=='keyDown'||input.alt||input.shift)return;
+      const key=input.key.toLowerCase();
+      if((input.meta||input.control)&&key==='l') {
         event.preventDefault();if(this.window.isFocused())this.window.webContents.focus();this.send({version:1,kind:'web_choose',request_id:null,text:''});
+        return;
       }
+      const primary=process.platform==='darwin'?input.meta:input.control;
+      if(!primary)return;
+      if(key==='c')contents.copy();
+      else if(key==='x')contents.cut();
+      else if(key==='v')contents.paste();
+      else if(key==='a')contents.selectAll();
+      else return;
+      event.preventDefault();
     });
     const navigation=(event:ElectronEvent,url:string)=>{
       try {WebAddress.parse(url);}catch {event.preventDefault();this.notice(page,'This navigation is unavailable. Use an HTTP or HTTPS address.');}
