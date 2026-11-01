@@ -244,14 +244,18 @@ class SourceDownloads:
                             resource.workIdentity, resource.revision, 'sha256:' + archive.sha256, len(archive.members), sum(m.kind == 'tex' for m in archive.members))
                         job = replace(job, status=archive.status, stage='available', error='', receipt=job.receipt or receipt,
                                       restoredAt=result[2] if job.receipt else None, restoreFinalUrl=result[1] if job.receipt else None)
-                    self._save(job)
         except Exception as error:
             with self.store.lock:
                 detail = error.detail if isinstance(error, Invalid) else f'Source acquisition failed ({type(error).__name__}). Retry explicitly.'
-                self._save(replace(job, status='cancelled' if cancelled.is_set() else 'failed', error=detail))
+                job = replace(job, status='cancelled' if cancelled.is_set() else 'failed', error=detail)
         finally:
             with self.store.lock:
-                self.running.pop(job.id, None)
+                # Terminal visibility and admission settle together, after staging cleanup.
+                # A failed write leaves the persisted running record for restart recovery.
+                try:
+                    self._save(job)
+                finally:
+                    self.running.pop(job.id, None)
 
     def _publish(self, archive, directory, preview_only=False):
         files = [] if preview_only else [('source-files', archive.sha256 + '.bin', directory / 'original.bin', archive.sha256)]

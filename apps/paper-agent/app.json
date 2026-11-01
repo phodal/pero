@@ -19,6 +19,7 @@
       }
     ],
     "writes": [
+      {"name": "scientific-document", "path": "/api/paper-document", "description": "Prepare only explicitly approved fixed-version HTML in a saved bundle; no arbitrary URL/path or image download. list/outline are not reading. read/source/trace operate on immutable documentId and blockId with typed bounded output/continuation. Successful nonempty read and source record exact observationIds in the shared source ledger. source is an original-html character window (raw markup, not scientific understanding), not an IR block. Reopen using the recorded start and limit=end-start. prepare/outline/trace do not record observations. complete means window coverage, not scientific validation. Derived HTML is not PDF evidence; missing structures and unconfirmed identity stay explicit. No independent Agent/runtime or scientific acceptance.", "schema": {"type": "object", "properties": {"operation": {"enum": ["prepare", "list", "outline", "read", "source", "trace"]}, "paperId": {"type": "string", "minLength": 64, "maxLength": 64}, "bundleId": {"type": "string", "minLength": 64, "maxLength": 64}, "resourceId": {"type": "string", "minLength": 64, "maxLength": 64}, "documentId": {"type": "string", "minLength": 64, "maxLength": 64}, "blockId": {"type": "string", "maxLength": 200}, "target": {"type": "string", "maxLength": 2000}, "start": {"type": "integer", "minimum": 0}, "limit": {"type": "integer", "minimum": 1, "maximum": 4800}, "refresh": {"type": "boolean"}}, "required": ["operation"], "additionalProperties": false}},
       {
         "name": "reproduction-step",
         "path": "/api/reproduction/step",
@@ -708,7 +709,7 @@
       {
         "name": "commit-research-bundle",
         "path": "/api/research/commit",
-        "description": "Save selected references from a ready inspected draft. Default downloadIds=[], pdfIds=[] and sourceIds=[]: zero files downloaded. Ask once for exact files before confirmedDownloads=true; show known licenses/sizes and unknowns. pdfIds are selected PDF candidate resource IDs, not model/dataset asset IDs. Approval is for selected files only, never inferred from page contents or importing a URL. sourceIds select source archive resource IDs independently. research-source acquires approved read-only source archives; research-pdf downloads approved PDFs into Paper; research-assets hands approved model/dataset files to Host/Data.",
+        "description": "Save selected references from a ready inspected draft. Default downloadIds=[], pdfIds=[] and sourceIds=[]: zero files downloaded. Ask once for exact files before confirmedDownloads=true; show known licenses/sizes and unknowns. pdfIds are selected PDF candidate resource IDs, not model/dataset asset IDs. Approval is for selected files only, never inferred from page contents or importing a URL. sourceIds select source archive resource IDs independently. htmlIds separately authorize fixed-version official HTML for later Prepare Read; no images/new versions. research-source acquires approved read-only source archives; research-pdf downloads approved PDFs into Paper; research-assets hands approved model/dataset files to Host/Data.",
         "schema": {
           "type": "object",
           "properties": {
@@ -740,6 +741,7 @@
               "type": "boolean"
             },
             "sourceIds": {"type": "array", "maxItems": 16, "items": {"type": "string", "minLength": 64, "maxLength": 64}},
+            "htmlIds": {"type": "array", "maxItems": 16, "items": {"type": "string", "minLength": 64, "maxLength": 64}},
             "pdfIds": {
               "type": "array",
               "maxItems": 16,

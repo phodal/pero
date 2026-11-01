@@ -18,6 +18,17 @@ export async function openResearchImport(page, frame) {
   await frame.getByRole('tab', { name: 'Research URL', exact: true }).click();
 }
 
+// Build all locators from the current Desktop page, including after a restart.
+// Return the current review only after the real inspection has rendered it.
+export async function inspectResearchReview(frame, url) {
+  const input = frame.getByRole('textbox', { name: 'Research URL', exact: true });
+  await input.fill(url);
+  await input.press('Enter');
+  const review = frame.getByRole('region', { name: 'Review resources' });
+  await review.waitFor({ state: 'visible', timeout: 65000 });
+  return review;
+}
+
 // Structural diagnostics only: never serialize source text, image bytes, URLs,
 // workspace paths, chat content or the full Host diagnostic snapshot.
 export async function researchUiState(page, frame) {

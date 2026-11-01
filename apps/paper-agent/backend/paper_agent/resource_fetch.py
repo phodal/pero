@@ -67,7 +67,13 @@ class PublicMetadata:
         final, mime, data = self._fetch(url, timeout=timeout, limit=MAX_ARCHIVE, pdf=False, source=True)
         return SourceResponse(final, data, mime)
 
-    def _fetch(self, url, *, timeout, limit, pdf, source=False):
+    def fetch_html(self, url, *, timeout=30, limit=8 * 1024 * 1024):
+        # The caller supplies an OfficialHtml-derived, independently approved URL.
+        # Keep raw bytes for source identity; do not replace invalid UTF-8.
+        final, mime, data = self._fetch(url, timeout=timeout, limit=limit, pdf=False, html=True)
+        return SourceResponse(final, data, mime)
+
+    def _fetch(self, url, *, timeout, limit, pdf, source=False, html=False):
         deadline = self.clock() + timeout
         for _ in range(4):
             url = PublicURL.parse(url).value
@@ -86,6 +92,8 @@ class PublicMetadata:
                         'Accept-Encoding': 'identity'})
                     response = connection.getresponse()
                     if response.status in (301, 302, 303, 307, 308):
+                        if html:
+                            raise Invalid('Official HTML redirects are unsupported; keep using the PDF', 409)
                         location = response.getheader('Location')
                         if not location:
                             raise Invalid('Redirect did not supply a destination')
@@ -96,6 +104,8 @@ class PublicMetadata:
                         note = f'; Retry-After: {retry[:80]}' if retry else ''
                         raise Invalid(f'Source unavailable (HTTP {response.status}){note}', response.status if response.status in (401, 403, 429) else 502)
                     content_type = response.getheader('Content-Type', '').split(';', 1)[0].lower()
+                    if html and content_type != 'text/html':
+                        raise Invalid('The source did not return text/html', 415)
                     if pdf and content_type != 'application/pdf':
                         raise Invalid('The source did not return application/pdf', 415)
                     if source and content_type not in ('application/pdf', 'application/gzip', 'application/x-gzip', 'application/x-tar', 'application/octet-stream', 'application/x-tex', 'text/x-tex', 'text/plain'):

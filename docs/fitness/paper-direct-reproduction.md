@@ -11,8 +11,9 @@ This increment implements a narrow numerical-job path without an Agent prompt,
 ACP session or model call. It does not close #77 or establish a reproduced paper
 claim. It stacks on published shared-anchor #88 commit
 `644b3514b11319153b6a10e79a962b27d1695b4d` and preserves master #89's scoped
-reproduction/audit skills. Structured-reading #90 is not a dependency of this
-branch; its separate manifest-limit change remains owned there.
+reproduction/audit skills. This integration stacks on structured-reading #90,
+including its reader-state preservation and AppDefinition route-cap change.
+The reproduction path adds no public compute route.
 
 ## Actual owners and authority
 
@@ -93,7 +94,8 @@ attempts are identified as existing outputs, never a fresh rerun.
   Host/runtime sources: four handoff tests, two private-config/redaction tests,
   four existing resource-handoff tests. A real built-in Paper manifest parse
   checks registration and confirms that private start is not advertised. The
-  branch still has 16 write routes; it does not duplicate #90's route-cap change.
+  combined branch has 17 write routes and reuses #90's 32-route cap, including
+  the actual manifest and 32-accepted/33-rejected registration contracts.
 - Paper TypeScript checking passed. Full-workspace Rust validation is not claimed:
   offline resolution lacks the cached `gpui-kit` dependency.
 

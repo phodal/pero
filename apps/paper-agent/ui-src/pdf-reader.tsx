@@ -16,11 +16,12 @@ import wasmUrl from '@embedpdf/pdfium/pdfium.wasm';
 import type { Api, Paper, PdfAnnotation, PdfDocument, PdfFocus, PdfReading, PdfSource } from './types';
 import type { Translator } from './i18n';
 import { Reproduction, reproductionPolicy } from './reproduction';
+import { loadReaderState, saveReaderState, type PdfReaderState } from './reader-state';
 
 export type ReaderChrome = { toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void };
 
-export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome }: {
-  paper: Paper; api: Api; focus?: PdfFocus | null; lockText?: boolean; t: Translator; children: React.ReactNode; chrome: ReaderChrome;
+export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome, readLabel }: {
+  paper: Paper; api: Api; focus?: PdfFocus | null; lockText?: boolean; t: Translator; children: React.ReactNode; chrome: ReaderChrome; readLabel?: string;
   onDiscuss?(text: string, source?: PdfSource): void;
   onMatrixAdded(): Promise<void>;
 }) {
@@ -34,12 +35,13 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     setBusy(!!paper.pdfUrl);
     api.get<PdfReading>(focus ? `/api/pdf/${focus.documentId}` : `/api/pdf?paperId=${paper.id}`).then(async value => {
       if (!value.document && paper.pdfUrl && alive) value = await api.post<PdfReading>('/api/pdf', { paperId: paper.id });
-      if (alive) { setReading(value); if (value.document) setMode('pdf'); }
+      if (alive) { setReading(value); if (value.document) setMode(focus ? 'pdf' : loadReaderState(value.document)?.mode ?? 'pdf'); }
     }).catch(e => { if (alive) setError(String(e.message ?? e)); }).finally(() => { if (alive) setBusy(false); });
     return () => { alive = false; };
   }, [api, paper.id, focus?.documentId, lockText]);
   useEffect(() => { if (lockText) setMode('text'); else if (focus) setMode('pdf'); }, [focus, lockText]);
   const view = lockText ? 'text' : mode;
+  const textLabel = readLabel ?? t('pdfText');
   async function open() {
     if (reading.document) { setMode('pdf'); return; }
     setBusy(true); setError('');
@@ -51,33 +53,39 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   // reveal. Programmatic focus/scroll updates do not invalidate their own request.
   return <div className="pa-pdf-reading" onPointerDownCapture={chrome.onNavigate} onClickCapture={chrome.onNavigate}
     onKeyDownCapture={chrome.onNavigate} onWheelCapture={chrome.onNavigate} onChangeCapture={chrome.onNavigate}>
-    {view === 'text' && !lockText && !busy && (paper.pdfUrl || reading.document) && <Toolbar><Button disabled={busy} onClick={() => void open()}>{busy ? t('pdfDownloading') : 'PDF'}</Button><Button variant="ghost" aria-pressed={view === 'text'} onClick={() => { setMode('text'); setError(''); }}>{t('pdfText')}</Button></Toolbar>}
+    {!lockText && !busy && (paper.pdfUrl || reading.document) && <Toolbar><Button variant="ghost" aria-pressed={view === 'text'} onClick={() => { setMode('text'); setError(''); }}>{textLabel}</Button><Button variant="ghost" aria-pressed={view === 'pdf'} disabled={busy} onClick={() => void open()}>PDF</Button></Toolbar>}
     {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => void open()} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
     {busy && <p className="pa-loading" role="status">{t('pdfDownloading')}</p>}
-    {view === 'pdf' && reading.document ? <PdfViewer chrome={chrome} onText={() => setMode('text')} key={reading.document.id} document={reading.document} annotations={reading.annotations} api={api} focus={focus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/> : children}
+    <div className="pa-reader-views" style={{ display: 'grid', flex: 1, minHeight: 0 }}>
+      {reading.document && <div className="pa-pdf-view-slot" aria-hidden={view !== 'pdf'} inert={view !== 'pdf'} style={{ gridArea: '1 / 1', display: 'flex', minHeight: 0, visibility: view === 'pdf' ? 'visible' : 'hidden' }}>
+        <PdfViewer chrome={{ ...chrome, toolbar: view === 'pdf' ? chrome.toolbar : null }} active={view === 'pdf'} readLabel={textLabel} onText={() => setMode('text')} key={`${reading.document.id}:${reading.document.fileDigest}`} document={reading.document} annotations={reading.annotations} api={api} focus={focus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/>
+      </div>}
+      <div className="pa-text-view-slot" aria-hidden={view !== 'text'} inert={view !== 'text'} style={{ gridArea: '1 / 1', display: view === 'text' ? 'flex' : 'none', minHeight: 0 }}>{children}</div>
+    </div>
   </div>;
 }
 
-function PdfViewer({ document, annotations, api, focus, t, onSaved, onDiscuss, onMatrixAdded, chrome, onText }: {
-  document: PdfDocument; annotations: PdfAnnotation[]; api: Api; focus?: PdfFocus | null; t: Translator; chrome: ReaderChrome; onText(): void;
+function PdfViewer({ document, annotations, api, focus, t, onSaved, onDiscuss, onMatrixAdded, chrome, onText, active, readLabel }: {
+  document: PdfDocument; annotations: PdfAnnotation[]; api: Api; focus?: PdfFocus | null; t: Translator; chrome: ReaderChrome; onText(): void; active: boolean; readLabel: string;
   onSaved(annotation: PdfAnnotation): void; onDiscuss?(text: string, source?: PdfSource): void;
   onMatrixAdded(): Promise<void>;
 }) {
   const { engine, isLoading, error } = usePdfiumEngine({ wasmUrl: new URL(wasmUrl, location.href).href, fontFallback: null });
+  const initial = useMemo(() => loadReaderState(document), [document.id, document.fileDigest]);
   const plugins = useMemo(() => [
     createPluginRegistration(DocumentManagerPluginPackage, { initialDocuments: [{ documentId: document.id, url: new URL(`/api/pdf/${document.id}/file`, location.href).href, mode: 'full-fetch' as const }] }),
     createPluginRegistration(ViewportPluginPackage), createPluginRegistration(ScrollPluginPackage),
     createPluginRegistration(RenderPluginPackage), createPluginRegistration(InteractionManagerPluginPackage),
     createPluginRegistration(SelectionPluginPackage), createPluginRegistration(ZoomPluginPackage, { defaultZoomLevel: ZoomMode.FitPage }),
     createPluginRegistration(CapturePluginPackage, { scale: 2, withAnnotations: false }),
-  ], [document.id]);
+  ], [document.id, document.fileDigest]);
   if (error) return <Feedback kind="error">{error.message}</Feedback>;
   if (isLoading || !engine) return <p role="status">{t('loading')}</p>;
-  return <EmbedPDF engine={engine} plugins={plugins}>{({ activeDocumentId }) => activeDocumentId && <DocumentContent documentId={activeDocumentId}>{({ isLoaded, isError }) => isError ? <Feedback kind="error">{t('pdfLoadError')}</Feedback> : isLoaded ? <PdfPages chrome={chrome} onText={onText} document={document} documentId={activeDocumentId} annotations={annotations} api={api} focus={focus} t={t} onSaved={onSaved} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}/> : <p role="status">{t('loading')}</p>}</DocumentContent>}</EmbedPDF>;
+  return <EmbedPDF engine={engine} plugins={plugins}>{({ activeDocumentId }) => activeDocumentId && <DocumentContent documentId={activeDocumentId}>{({ isLoaded, isError }) => isError ? <Feedback kind="error">{t('pdfLoadError')}</Feedback> : isLoaded ? <PdfPages chrome={chrome} onText={onText} active={active} readLabel={readLabel} initial={initial} document={document} documentId={activeDocumentId} annotations={annotations} api={api} focus={focus} t={t} onSaved={onSaved} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}/> : <p role="status">{t('loading')}</p>}</DocumentContent>}</EmbedPDF>;
 }
 
-function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, onDiscuss, onMatrixAdded, chrome, onText }: {
-  document: PdfDocument; documentId: string; annotations: PdfAnnotation[]; api: Api; focus?: PdfFocus | null; t: Translator; chrome: ReaderChrome; onText(): void;
+function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, onDiscuss, onMatrixAdded, chrome, onText, active, readLabel, initial }: {
+  initial: PdfReaderState | null; document: PdfDocument; documentId: string; annotations: PdfAnnotation[]; api: Api; focus?: PdfFocus | null; t: Translator; chrome: ReaderChrome; onText(): void; active: boolean; readLabel: string;
   onSaved(annotation: PdfAnnotation): void; onDiscuss?(text: string, source?: PdfSource): void;
   onMatrixAdded(): Promise<void>;
 }) {
@@ -97,6 +105,52 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   const [verificationAnnotation, setVerificationAnnotation] = useState('');
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
   useEffect(() => scrollCapability?.onLayoutReady(event => { if (event.documentId === documentId) layoutReady.current = true; }), [scrollCapability, documentId]);
+  const activeNow = useRef(active), focusNow = useRef(focus), restored = useRef(false), stateReady = useRef(false);
+  activeNow.current = active; focusNow.current = focus;
+  const persistView = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (!scroll || !zoom || !selection || !scrollCapability) return;
+    const selected = selection.forDocument(documentId);
+    let alive = true;
+    const persist = () => {
+      if (!alive || !stateReady.current) return;
+      const metrics = scroll.getMetrics(), scale = zoom.getState().currentZoomLevel;
+      const page = metrics.pageVisibilityMetrics.find(item => item.pageNumber === metrics.currentPage);
+      if (!page || !scale) return;
+      const value: PdfReaderState = { schema: 1, documentId: document.id, fileDigest: document.fileDigest,
+        page: metrics.currentPage, zoom: scale, mode: activeNow.current ? 'pdf' : 'text',
+        position: { x: page.original.pageX - page.viewportX / scale, y: page.original.pageY - page.viewportY / scale },
+        selection: selected.getState().selection };
+      if (!saveReaderState(document, value)) setError('Reading position could not be saved.');
+    };
+    persistView.current = persist;
+    const restore = () => {
+      if (restored.current || !scroll.getMetrics().pageVisibilityMetrics.length) return;
+      restored.current = true;
+      // Numeric plugin defaults never release EmbedPDF's initial viewport gate.
+      // Boot with FitPage, then restore the saved scale through its public API.
+      if (initial) zoom.requestZoom(initial.zoom);
+      if (!initial || focusNow.current) { stateReady.current = true; persist(); return; }
+      scroll.scrollToPage({ pageNumber: initial.page, pageCoordinates: initial.position, alignX: 0, alignY: 0, behavior: 'instant' });
+      const focusAtRestore = focusNow.current;
+      void selected.setSelection(initial.selection).toPromise().then(() => {
+        if (!alive) return;
+        // An explicit citation received while geometry was loading wins over a
+        // saved selection; it never inherits a different historical selection.
+        if (focusNow.current !== focusAtRestore) selected.clear();
+        stateReady.current = true; persist();
+      }, () => {
+        if (!alive) return;
+        stateReady.current = true; setError('Saved selection could not be restored. The PDF remains readable.');
+      });
+    };
+    const unsubscribe = [scroll.onScroll(persist), zoom.onStateChange(persist), selected.onSelectionChange(persist),
+      scrollCapability.onLayoutReady(event => { if (event.documentId === documentId) restore(); })];
+    restore();
+    return () => { persist(); alive = false; unsubscribe.forEach(stop => stop()); persistView.current = () => {}; };
+  }, [scroll, zoom, selection, scrollCapability, documentId, document.id, document.fileDigest]);
+  useEffect(() => { persistView.current(); }, [active]);
+
   useEffect(() => selection?.forDocument(documentId).onSelectionChange(value => setHasSelection(!!value)), [selection, documentId]);
   useEffect(() => {
     if (!scrollCapability || !focus || focus.documentId !== document.id) return;
@@ -164,7 +218,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       <Button role="menuitem" onClick={() => { setNotes(value => !value); setMenu(null); }}>{t('pdfNotes')} {annotations.length}</Button>
       <Button role="menuitem" onClick={() => { setPageText(value => !value); setMenu(null); }}>{t('pdfPageText')}</Button>
       <a role="menuitem" href={`/api/pdf/${document.id}/file`} download="paper.pdf">{t('originalPdf')}</a>
-      <Button role="menuitem" onClick={onText}>{t('pdfText')}</Button>
+      <Button role="menuitem" onClick={() => { setMenu(null); onText(); }}>{readLabel}</Button>
     </div>}
     {hasSelection && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') selection?.forDocument(documentId).clear(); }}><Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/><Button disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button>{onDiscuss && <Button disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button variant="ghost" onClick={() => selection?.forDocument(documentId).clear()}>{t('close')}</Button></div>}
     {error && <Feedback kind="error">{error}<Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback>}

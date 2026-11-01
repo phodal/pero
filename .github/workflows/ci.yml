@@ -513,7 +513,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [workbench, automation, toolcalls, data, data-product, control-lab, control-lab-app-use, control-lab-live, lab, virtual-cell-comparison, virtual-cell-dataset-download, app-use, app-use-workbench, mcp-lifecycle, mcp-persistence, mcp-transport, scientific-viewer, automations-ui, paper-research-import]
+        suite: [workbench, automation, toolcalls, data, data-product, control-lab, control-lab-app-use, control-lab-live, lab, virtual-cell-comparison, virtual-cell-dataset-download, app-use, app-use-workbench, mcp-lifecycle, mcp-persistence, mcp-transport, scientific-viewer, automations-ui, paper-research-import, paper-reading]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -560,14 +560,14 @@ jobs:
           python -m venv "$RUNNER_TEMP/scientific-viewer-python"
           "$RUNNER_TEMP/scientific-viewer-python/bin/python" -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt
           "$RUNNER_TEMP/scientific-viewer-python/bin/python" -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
-      - name: Paper research import Python environment
-        if: matrix.suite == 'paper-research-import'
+      - name: Paper research Python environment
+        if: matrix.suite == 'paper-research-import' || matrix.suite == 'paper-reading'
         run: |
           npm ci --prefix apps/paper-agent --ignore-scripts
           python -m venv "$RUNNER_TEMP/paper-research-python"
           "$RUNNER_TEMP/paper-research-python/bin/python" -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
       - name: Browser for explicitly mocked App UI seams
-        if: matrix.suite == 'automations-ui' || matrix.suite == 'paper-research-import'
+        if: matrix.suite == 'automations-ui' || matrix.suite == 'paper-research-import' || matrix.suite == 'paper-reading'
         run: npx playwright install --with-deps chromium
       - name: Run independent acceptance with bounded cleanup
         env:

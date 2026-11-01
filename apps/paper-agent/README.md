@@ -355,3 +355,12 @@ prompt or paid model. This is opt-in trusted deployment, not enabled by the Skil
 or an HTTP `approved` field. The existing Python owner executes the fixed CLI.
 See [authority, test evidence and outstanding acceptance](../../docs/fitness/paper-direct-reproduction.md).
 The paper verdict remains `INCONCLUSIVE`; no new scientific run accompanies this change.
+
+## Structured Read
+
+For an explicitly selected arXiv vN, review **Allow official HTML for Read**
+separately from PDF permission, then choose **Prepare Read** in the saved paper.
+Tables, equations and figure metadata retain source structure; **Reveal original**
+shows the actual inert HTML bytes. Read/PDF keeps the existing PDF viewer state.
+Images are not downloaded, and parsed content is not automatically study evidence.
+See [scope and verification](../../docs/fitness/paper-structured-reading.md).

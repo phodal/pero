@@ -195,7 +195,7 @@ test('Ask readiness fails boundedly and cleans observers when only another reque
 
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { paperBackendFixture } from '../../tests/e2e/paper-backend-fixture.mjs';
+import { paperBackendFixture, paperDocumentBackendFixture } from '../../tests/e2e/paper-backend-fixture.mjs';
 
 test('disposable backend replaces all network seams in the actual server and preserves compute capability wiring', () => {
   const server = readFileSync(new URL('../../apps/paper-agent/backend/server.py', import.meta.url), 'utf8');
@@ -224,4 +224,80 @@ test('backend fixture refuses missing, duplicate and previously injected seams',
     assert.throws(() => paperBackendFixture(server + '\n' + seam, '/tmp/source.pdf'), /exactly one/);
   }
   assert.throws(() => paperBackendFixture(paperBackendFixture(server, '/tmp/source.pdf'), '/tmp/source.pdf'), /already injected/);
+});
+
+import { inspectResearchReview } from '../../tests/e2e/paper-research-ui-controls.mjs';
+
+test('research inspection creates fresh page-bound locators after Desktop restart', async () => {
+  const events = [];
+  function pageFrame(id) {
+    let closed = false;
+    const active = () => assert.equal(closed, false, `page ${id} is closed`);
+    const review = { async waitFor(options) { active(); assert.deepEqual(options, { state: 'visible', timeout: 65000 }); events.push([id, 'visible']); } };
+    return { close() { closed = true; }, review, getByRole(role, options) {
+      active();
+      if (role === 'region') { assert.equal(options.name, 'Review resources'); return review; }
+      assert.equal(role, 'textbox'); assert.equal(options.name, 'Research URL');
+      return { async fill(url) { active(); events.push([id, url]); }, async press(key) { active(); assert.equal(key, 'Enter'); events.push([id, 'inspect']); } };
+    } };
+  }
+  const first = pageFrame('first');
+  assert.equal(await inspectResearchReview(first, 'authored-first'), first.review);
+  first.close();
+  const restarted = pageFrame('restarted');
+  assert.equal(await inspectResearchReview(restarted, 'authored-second'), restarted.review);
+  assert.deepEqual(events, [['first', 'authored-first'], ['first', 'inspect'], ['first', 'visible'],
+    ['restarted', 'authored-second'], ['restarted', 'inspect'], ['restarted', 'visible']]);
+  await assert.rejects(() => inspectResearchReview(first, 'stale'), /page first is closed/);
+});
+
+
+test('structured fixture composes document and private compute dependencies without fallback', () => {
+  const server = readFileSync(new URL('../../apps/paper-agent/backend/server.py', import.meta.url), 'utf8');
+  const transformed = paperDocumentBackendFixture(server);
+  assert.ok(transformed.includes('documents=documents, compute_secret=compute_secret'));
+  execFileSync(process.env.PERO_APP_PYTHON || 'python3', ['-c', 'import sys; compile(sys.stdin.read(), "<structured-fixture>", "exec")'], { input: transformed });
+  const call = 'handler(store, os.environ["PERO_APP_TOKEN"]';
+  const marker = '    store = ResearchStore(os.environ["PERO_APP_DATA"], open_embedder())';
+  for (const source of [server.replace(call, ''), server + call, server.replace(marker, ''), server + marker, transformed])
+    assert.throws(() => paperDocumentBackendFixture(source), /unique uninjected/);
+});
+
+import { scrollPdfAndRead } from '../../tests/e2e/paper-pdf-flow.mjs';
+
+test('PDF wheel checkpoint waits for actual movement and persistence despite positive initial offset', async () => {
+  let top = 20, storedY = 30, wheelCalls = 0, done = false, notifyWheel;
+  const issued = new Promise(resolve => { notifyWheel = resolve; });
+  const element = { get scrollTop() { return top; }, scrollHeight: 1000, clientHeight: 500, clientTop: 0,
+    getBoundingClientRect() { return { top: 0 }; },
+    querySelector(selector) { assert.equal(selector, '[data-page-number="1"]'); return { getBoundingClientRect() { return { top: -60 }; } }; } };
+  const viewport = { async hover() {}, async evaluate(fn, input) { return fn(element, input); } };
+  let notifyNative; const nativeSeen = new Promise(resolve => { notifyNative = resolve; });
+  const read = async () => { if (top === 80 && storedY === 30) notifyNative(); return { page: 1, zoom: 2, position: { y: storedY } }; };
+  const page = { mouse: { async wheel(x, y) { assert.equal(x, 0); assert.equal(y, 60); wheelCalls++; notifyWheel(); } } };
+  const pending = scrollPdfAndRead(page, viewport, read, 60).then(value => { done = true; return value; });
+  await issued; await new Promise(resolve => setImmediate(resolve));
+  assert.equal(done, false, 'preexisting positive y must not complete a queued wheel');
+  top = 80; // Native movement alone is not the persisted checkpoint either.
+  await nativeSeen; assert.equal(done, false);
+  storedY = 60;
+  assert.equal((await pending).position.y, 60);
+  assert.equal(wheelCalls, 1);
+});
+
+
+test('PDF wheel waits for pending zoom DOM alignment and clamps the native boundary', async () => {
+  let pageTop = -40, top = 480, storedY = 30, calls = 0, notifySample;
+  const sampled = new Promise(resolve => { notifySample = resolve; });
+  const element = { get scrollTop() { return top; }, scrollHeight: 1000, clientHeight: 500, clientTop: 0,
+    getBoundingClientRect() { return { top: 0 }; }, querySelector() { return { getBoundingClientRect() { notifySample(); return { top: pageTop }; } }; } };
+  const viewport = { async hover() {}, async evaluate(fn, input) { return fn(element, input); } };
+  const read = async () => ({ page: 1, zoom: 2, position: { y: storedY } });
+  const page = { mouse: { async wheel() { calls++; top = 500; storedY = 40; } } };
+  const pending = scrollPdfAndRead(page, viewport, read, 60);
+  await sampled; await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls, 0, 'zoom metrics alone must not establish the DOM baseline');
+  pageTop = -60; // The deferred zoom scroll now matches persisted y30.
+  assert.equal((await pending).position.y, 40); // Only20px fit before the bottom.
+  assert.equal(calls, 1);
 });

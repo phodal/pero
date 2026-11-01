@@ -14,8 +14,8 @@ import time
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
-from paper_agent.model import Invalid
-from paper_agent.research_resources import ImportDraft, ImportSelection, ResearchAsset, ResearchBundle, ResearchResource, ResourceIdentity
+from paper_agent.model import Invalid, canonical
+from paper_agent.research_resources import ImportDraft, ImportSelection, ResearchAsset, ResearchBundle, ResearchResource, ResourceIdentity, OfficialHtml
 from paper_agent.resource_fetch import PublicMetadata, WebDocument
 from paper_agent.resource_inspection import ResourceInspector
 from paper_agent.inspection_worker import inspect_bounded, inspect_child
@@ -123,6 +123,31 @@ class ResourceIdentityTest(unittest.TestCase):
                 self.fail('Pinned reference-only link must not fetch latest metadata')
             self.assertEqual(ResourceInspector().resolve(resource, forbidden)[0], resource)
 
+    def test_official_html_requires_selected_fixed_work_and_independent_confirmation(self):
+        paper = ResearchResource.linked('https://arxiv.org/abs/2310.10688v2', SEED)
+        pdf = ResearchResource.linked('https://arxiv.org/pdf/2310.10688v2', SEED)
+        source = ResearchResource.linked('https://arxiv.org/src/2310.10688v2', SEED)
+        draft = ImportDraft.create(SEED, NOW).finish((paper, pdf, source), ())
+        body = dict(draftId=draft.id, resourceIds=[paper.id, pdf.id, source.id])
+        self.assertEqual(OfficialHtml.from_resource(paper).url, 'https://arxiv.org/html/2310.10688v2')
+        self.assertEqual(OfficialHtml.from_resource(pdf), OfficialHtml.from_resource(paper))
+        self.assertEqual(ImportSelection.parse(body, draft).htmlIds, ())
+        for patch in (dict(htmlIds=[paper.id]), dict(htmlIds=[source.id], confirmedDownloads=True),
+                      dict(htmlIds=[paper.id], resourceIds=[pdf.id], confirmedDownloads=True),
+                      dict(htmlIds=[paper.id, paper.id], confirmedDownloads=True)):
+            with self.subTest(patch=patch), self.assertRaises(Invalid):
+                ImportSelection.parse({**body, **patch}, draft)
+        granted = ImportSelection.parse(dict(body, htmlIds=[paper.id], confirmedDownloads=True), draft)
+        self.assertEqual(granted.htmlIds, (paper.id,))
+        conflicting = replace(draft, resources=(*draft.resources, ResearchResource.linked('https://arxiv.org/abs/2310.10688v3', SEED)))
+        with self.assertRaisesRegex(Invalid, 'one explicit version'):
+            ImportSelection.parse(dict(body, htmlIds=[paper.id], confirmedDownloads=True), conflicting)
+        for patch in (dict(workIdentity=None), dict(workIdentity='arxiv:2310.10688v2'),
+                      dict(workIdentity='arxiv:../../private'), dict(revision=None), dict(revision='v0'),
+                      dict(revision='main'), dict(revision='v3'), dict(kind='code')):
+            with self.subTest(patch=patch), self.assertRaises(Invalid):
+                OfficialHtml.from_resource(replace(paper, **patch))
+
     def test_alias_merge_and_selection_authority(self):
         first = replace(ResearchResource.linked('https://openalex.org/W123', SEED), aliases=('doi:10.1234/example',))
         doi = ResearchResource.linked('https://doi.org/10.1234/example', SEED)
@@ -190,6 +215,41 @@ class MetadataSafetyTest(unittest.TestCase):
         with self.assertRaisesRegex(Invalid, 'binary'): fetch(SEED)
         replies.extend(response(status=302, Location=SEED) for _ in range(4))
         with self.assertRaisesRegex(Invalid, 'redirects'): fetch(SEED)
+
+    def test_html_keeps_raw_bytes_and_rejects_redirects_before_following(self):
+        opened, replies = [], []
+        class Connection:
+            def __init__(self, host, address, timeout):
+                opened.append((host, address)); self.sock = None
+            def request(self, *_args, **_kwargs): pass
+            def getresponse(self): return replies.pop(0)
+            def close(self): pass
+        def response(body=b'<html>\xff</html>', status=200, **headers):
+            value = io.BytesIO(body); value.status = status
+            fields = {'Content-Type': 'text/html', **headers}
+            value.getheader = lambda key, default=None: fields.get(key, default)
+            return value
+        def resolver(host, *_args, **_kwargs):
+            return [(None, None, None, None, ('127.0.0.1' if host == 'private.example' else '93.184.216.34', 443))]
+        transport = PublicMetadata(resolver, Connection)
+        url = 'https://arxiv.org/html/2310.10688v2'
+        replies.append(response())
+        result = transport.fetch_html(url)
+        self.assertEqual((result.url, result.mime, result.data), (url, 'text/html', b'<html>\xff</html>'))
+        for reply, message in (
+                (response(status=302, Location='https://private.example/secret'), 'redirects'),
+                (response(status=302, Location='https://arxiv.org/html/2310.10688v3'), 'redirects'),
+                (response(status=206), 'HTTP 206'),
+                (response(**{'Content-Type': 'text/plain'}), 'text/html'),
+                (response(**{'Content-Encoding': 'gzip'}), 'Compressed'),
+                (response(**{'Content-Length': '19'}), 'Incomplete'),
+                (response(b'x' * 21), 'byte limit')):
+            replies.append(reply); before = len(opened)
+            with self.subTest(message=message), self.assertRaisesRegex(Invalid, message):
+                transport.fetch_html(url, limit=20)
+            self.assertEqual(len(opened), before + 1)
+        with self.assertRaisesRegex(Invalid, 'Private'):
+            transport.fetch_html('https://private.example/')
 
     def test_inspection_classifies_explicit_metadata_and_keeps_partial_results(self):
         urls = []
@@ -304,6 +364,48 @@ class MetadataSafetyTest(unittest.TestCase):
 
 
 class ImportPersistenceTest(unittest.TestCase):
+    def test_html_grants_persist_independently_without_changing_legacy_bundle_bytes(self):
+        with tempfile.TemporaryDirectory() as root:
+            store = ResearchStore(root)
+            paper = ResearchResource.linked('https://arxiv.org/abs/2310.10688v1', SEED)
+            source = ResearchResource.linked('https://arxiv.org/src/2310.10688v1', SEED)
+            draft = ImportDraft.create(SEED, NOW).finish((paper, source), ())
+            store.imports._replace('import-drafts', draft.id, draft.to_dict())
+            body = dict(draftId=draft.id, resourceIds=[paper.id, source.id])
+            legacy = store.imports.commit(body, NOW)
+            before = canonical(legacy.to_dict())
+            self.assertNotIn('htmlDownloadIds', legacy.to_dict())
+            self.assertEqual(canonical(ResearchBundle.from_record(json.loads(before)).to_dict()), before)
+            self.assertEqual(store.imports.commit(body, 'later'), legacy)
+            with self.assertRaisesRegex(Invalid, 'independently confirmed'):
+                store.imports.approved_html(legacy.id, paper.id)
+            source_only = store.imports.commit(dict(body, sourceIds=[source.id], confirmedDownloads=True), NOW)
+            self.assertEqual(store.imports.approved_source(source_only.id, source.id), source)
+            with self.assertRaisesRegex(Invalid, 'independently confirmed'):
+                store.imports.approved_html(source_only.id, paper.id)
+            granted = store.imports.commit(dict(body, htmlIds=[paper.id], confirmedDownloads=True), NOW)
+            self.assertEqual(granted.htmlDownloadIds, (paper.id,))
+            reopened = ResearchStore(root)
+            self.assertEqual(reopened.imports.approved_html(granted.id, paper.id), paper)
+            self.assertEqual(reopened.imports.approved_source(granted.id, source.id), source)
+            self.assertEqual(reopened.imports.commit(dict(body, htmlIds=[paper.id], confirmedDownloads=True), 'later'), granted)
+            newer = ResearchResource.linked('https://arxiv.org/abs/2310.10688v2', SEED)
+            self.assertEqual(newer.id, paper.id)
+            updated_draft = replace(draft, resources=(newer, source))
+            reopened.imports._replace('import-drafts', draft.id, updated_draft.to_dict())
+            updated = reopened.imports.commit(body, 'later')
+            self.assertEqual(updated.htmlDownloadIds, ())
+            self.assertNotIn('htmlDownloadIds', updated.to_dict())
+            with self.assertRaisesRegex(Invalid, 'independently confirmed'):
+                reopened.imports.approved_html(updated.id, newer.id)
+            approved_new = reopened.imports.commit(dict(body, htmlIds=[newer.id], confirmedDownloads=True), 'later')
+            self.assertEqual(OfficialHtml.from_resource(reopened.imports.approved_html(approved_new.id, newer.id)).url,
+                             'https://arxiv.org/html/2310.10688v2')
+            # The old immutable bundle record still replays its own v1 authority.
+            frozen = ResearchBundle.from_record(granted.to_dict())
+            self.assertEqual(frozen, granted)
+            self.assertEqual(OfficialHtml.from_resource(frozen.approved_html(paper.id)).revision, 'v1')
+
     def test_reimport_restart_snapshots_and_download_handoff(self):
         with tempfile.TemporaryDirectory() as root:
             store = ResearchStore(root)
