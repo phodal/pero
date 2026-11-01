@@ -200,3 +200,10 @@ a digest binds bytes and does not establish their correctness.
 `go test -race ./charts` exercises the actual Python core. The Desktop test
 `node tests/e2e/harness-chart.mjs` uses a loopback model fixture and the real Go
 harness, ACP, persistence and GPUI surface, without opening Data Agent.
+
+## Behavioral comparison with official DSH
+
+The [pinned capability matrix](../../docs/fitness/harness-behavior-parity.md)
+distinguishes tested subsets, deliberate restrictions, missing Skill reminder
+semantics and unverified runtime parity. Source/AST extraction is not proof of
+complete behavior equivalence.
