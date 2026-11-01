@@ -109,7 +109,7 @@ export class DesktopApps {
       const origin = `pero-app://${url.host}`;
       const caller = request.headers.get('Origin');
       if (caller && caller !== origin) return new Response('App origin refused', { status: 403 });
-      if (url.hostname === 'control-lab' && url.pathname === '/api/agent-step')
+      if ((url.hostname === 'control-lab' || url.hostname === 'lab') && url.pathname === '/api/agent-step')
         return new Response('Agent route is reserved for the Host', { status: 403 });
       if(url.pathname.startsWith('/host/inputs/')){
         if(request.method!=='GET'||!this.input||!/^\/host\/inputs\/[a-f0-9]{64}$/.test(url.pathname))return new Response('App input unavailable',{status:404});
