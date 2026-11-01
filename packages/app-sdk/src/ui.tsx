@@ -10,6 +10,7 @@ export { Input, Textarea, FilePicker, type FilePickerProps } from './components/
 export { Feedback } from './components/feedback';
 export { Field, type FieldProps, type FieldControlProps } from './components/field';
 export { AppBar, AppFrame, Toolbar, PageHeader } from './components/layout';
+export { Split, SplitPane, type SplitPaneProps } from './components/split';
 export { ActionButton, Badge, ChatMarkdown, Composer, EmptyState, Kbd, LibraryHeader, ListRow, OutlineBadge, ReaderFrame, SearchField, SettingsGroup, SettingsRow, SidebarRow } from '../../pero-design/src/components';
 
 export type { IconName } from './icons.generated';

@@ -7,7 +7,9 @@ on Data Agent.
 ## Use
 
 The page is a dataset browser: a search field, a table, and a preview of the
-selected file.
+selected file. Drag the divider between them to resize either side. Double-click
+the divider to restore the preview to 380px. The choice is kept in this browser.
+Below 860px the panes stack and the divider is hidden.
 
 - Sample files are synthetic servo measurements, so the preview has records and a chart.
 - **Add data** parses CSV, TSV, JSON, or JSONL in the browser, up to **5 MiB** and
