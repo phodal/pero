@@ -310,12 +310,13 @@ def verification(spec, observation, execution_status, receipt_matches):
         'spec_id': spec.id, 'attempt_id': observation.attempt_id,
         'checker_version': 'pcgym-dual-grain-v1',
         'execution_evidence': 'CONSISTENT' if execution_checked else 'UNVERIFIED',
-        'numeric_recomputation': 'PASS',
+        'numeric_recomputation': 'PASS' if receipt_matches else 'FAIL',
         'paper_verdict': 'INCONCLUSIVE',
         'acceptance': 'unreviewed',
         'policy_coverage': list(spec.policies),
         'metrics': [asdict(m) for m in metrics],
-        'reason': 'Equation 37 and the inspected implementation use different grains. Original experiment identity is unresolved.',
+        'reason': ('Equation 37 and the inspected implementation use different grains. Original experiment identity is unresolved.'
+                   if receipt_matches else 'Observation bytes or attempt identity do not match the recorded execution receipt.'),
         'limitations': list(spec.deviations()) + [
             'Digests bind bytes; they do not attest an execution owner or prevent same-account tampering.',
             'A separate recomputation is not independent physical validation or an estimate of deployment safety.',

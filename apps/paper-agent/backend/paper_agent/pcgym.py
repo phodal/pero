@@ -109,9 +109,6 @@ def check_attempt(root, attempt_id):
     report = verification(spec, observed, receipt.get('status'), matches)
     report['observation_sha256'] = actual_hash
     report['checker_sha256'] = hashlib.sha256(Path(__file__).with_name('pcgym_domain.py').read_bytes()).hexdigest()
-    if not matches:
-        report['numeric_recomputation'] = 'FAIL'
-        report['reason'] = 'Observation bytes or attempt identity do not match the recorded execution receipt.'
     write_json(target / 'verification.json', report)
     return report
 
@@ -283,9 +280,9 @@ obs = Observation.parse(json.loads(raw), spec)
 receipt = json.loads((root/'execution.json').read_text())
 matched = (receipt.get('observations_sha256') == hashlib.sha256(raw).hexdigest()
            and receipt.get('spec_id') == spec.id and receipt.get('attempt_id') == obs.attempt_id)
-if not matched:
-    raise ValueError('Execution receipt does not match observations')
-print(json.dumps(verification(spec, obs, receipt.get('status'), matched), indent=2))
+report = verification(spec, obs, receipt.get('status'), matched)
+print(json.dumps(report, indent=2))
+raise SystemExit(0 if report['numeric_recomputation'] == 'PASS' else 2)
 '''
 
 

@@ -98,7 +98,7 @@ class MetricContractTests(unittest.TestCase):
             with self.subTest(include_oracle=include_oracle):
                 spec = specification(include_oracle=include_oracle)
                 raw = observation(spec)
-                report = verification(spec, Observation.parse(raw, spec), 'completed', False)
+                report = verification(spec, Observation.parse(raw, spec), 'completed', True)
                 self.assertEqual(report['numeric_recomputation'], 'PASS')
                 self.assertEqual(report['paper_verdict'], 'INCONCLUSIVE')
                 self.assertEqual(report['policy_coverage'], list(spec.policies))
@@ -140,6 +140,9 @@ class MetricContractTests(unittest.TestCase):
                 self.assertEqual(report['acceptance'], 'unreviewed')
                 expected = 'CONSISTENT' if (origin, status, matches) == ('pcgym-execution', 'completed', True) else 'UNVERIFIED'
                 self.assertEqual(report['execution_evidence'], expected)
+                self.assertEqual(report['numeric_recomputation'], 'PASS' if matches else 'FAIL')
+                if not matches:
+                    self.assertIn('do not match the recorded execution receipt', report['reason'])
 
     def test_more_violations_in_same_episode_only_changes_sample_grain(self):
         self.raw['policies'][0]['temperatures'][0][0] = 328.
@@ -328,6 +331,33 @@ class EvidencePackageTests(unittest.TestCase):
         altered = subprocess.run([sys.executable, '-O', str(extracted / 'verify.py')],
                                  capture_output=True, text=True, timeout=15)
         self.assertNotEqual(altered.returncode, 0)
+
+    def test_core_cli_and_offline_checker_share_receipt_failure(self):
+        destination = self.root / 'receipt.zip'
+        export(self.root, 'b' * 64, destination)
+        extracted = self.root / 'receipt-export'
+        with zipfile.ZipFile(destination) as archive:
+            archive.extractall(extracted)
+        for field in ('observations_sha256', 'spec_id', 'attempt_id'):
+            with self.subTest(field=field):
+                receipt = {**self.receipt, field: 'f' * 64}
+                write_json(self.target / 'execution.json', receipt)
+                shell = check_attempt(self.root, 'b' * 64)
+                core = verification(self.spec, Observation.parse(self.raw, self.spec), 'completed', False)
+                write_json(extracted / 'execution.json', receipt)
+                manifest = read_json(extracted / 'manifest.json')
+                for item in manifest['files']:
+                    if item['name'] == 'execution.json':
+                        item['sha256'] = hashlib.sha256((extracted / item['name']).read_bytes()).hexdigest()
+                write_json(extracted / 'manifest.json', manifest)
+                checked = subprocess.run([sys.executable, str(extracted / 'verify.py')],
+                    capture_output=True, text=True, timeout=15)
+                self.assertEqual(checked.returncode, 2, checked.stderr)
+                offline = json.loads(checked.stdout)
+                for report in (shell, offline):
+                    for key, expected in core.items():
+                        self.assertEqual(report[key], expected)
+                self.assertEqual(core['numeric_recomputation'], 'FAIL')
 
     def test_bound_export_checks_binding_even_with_rehashed_manifest(self):
         binding = {'paper_id': 'e' * 64, 'annotation_id': 'f' * 64}
