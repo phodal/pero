@@ -1,4 +1,4 @@
-import { chatState, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
+import { chatState, askPaperChat, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
 import { exercisePdfSearch } from './paper-search-flow.mjs';
 import { expect } from '@playwright/test';
 import { resolve } from 'node:path';
@@ -206,7 +206,7 @@ export async function reopenPdf({ frame, saved, page }) {
   await expect(frame.locator('.pa-reading-bar').getByRole('button', { name: 'Fit page', exact: true })).toHaveText(`${Math.round(saved.readerState.zoom * 100)}%`);
   const restored = await frame.locator('body').evaluate((_element, key) => JSON.parse(localStorage.getItem(key)), `pero.paper.pdf-view:${saved.readerState.documentId}:${saved.fileDigest}`);
   expect(restored.selection).toEqual(saved.readerState.selection);
-  await frame.getByRole('button', { name: 'Ask', exact: true }).click();
+  await askPaperChat(frame, page, frame.getByRole('button', { name: 'Ask', exact: true }));
   await closePaperChat(page);
   await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Research record', exact: true }).click();
   await frame.locator('.pa-output-matrix>summary').click();

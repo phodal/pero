@@ -119,3 +119,75 @@ test('Paper Chat never clicks when painted bounds remain unavailable', async () 
   await assert.rejects(closePaperChat(page), /Paper Chat close has a stable painted Host hit target/);
   assert.ok(samples > 1, 'an initially false asynchronous sample must be retried');
 });
+
+import { askPaperChat, observePaperChatLaunch } from '../../tests/e2e/paper-chat-controls.mjs';
+
+test('Ask observer accepts only its source/origin and retains replies by actual request ID', () => {
+  for (const origin of ['https://paper.test', 'pero-app://paper-agent']) for (const parent of [true, false]) {
+    let receive, removed;
+    const trusted = {}, stranger = {}, frame = { src: `${origin}/reader`, contentWindow: trusted };
+    const context = { URL, document: { querySelectorAll: () => [frame] }, window: { parent: trusted,
+      addEventListener: (_type, listener) => { receive = listener; }, removeEventListener: (_type, listener) => { removed = listener; } } };
+    runInNewContext(`(${observePaperChatLaunch})({parent:${parent},origin:${JSON.stringify(origin)}})`, context);
+    const type = parent ? 'pero:app:chat' : 'pero:app:chat-result';
+    for (const [source, eventOrigin] of [[stranger, origin], [trusted, 'https://wrong.test']]) {
+      receive({ source, origin: eventOrigin, data: { type, id: 'wrong' } });
+    }
+    const gate = context.window.paperChatLaunch;
+    assert.equal(gate.getRequest(), null); assert.deepEqual(Object.keys(gate.results), []);
+    receive({ source: trusted, origin, data: { type, id: 'actual', ok: true } });
+    if (parent) assert.equal(gate.getRequest(), 'actual');
+    else { assert.equal(gate.results.actual.ok, true); assert.equal(gate.results.wrong, undefined); }
+    gate.dispose(); assert.equal(removed, receive);
+  }
+});
+
+test('Ask readiness waits beyond open and ignores another request acknowledgement until its references paint', async () => {
+  let open = false, painted = false, queries = 0, resultQueries = 0, parentDisposed = false, childDisposed = false;
+  const page = {
+    evaluate: async (fn, options) => {
+      if (fn === observePaperChatLaunch) { assert.equal(options.origin, 'https://paper.test'); return; }
+      const source = String(fn);
+      if (source.includes('location.protocol')) return 'https://host.test';
+      if (source.includes('getRequest')) return 'actual';
+      if (source.includes('dispose')) { parentDisposed = true; return; }
+      assert.ok(open); queries++;
+      painted = queries >= 3;
+      return { appChatOpen: true, contextPreviewBounds: painted ? [{ id: 'frozen-reference', bounds: { x: 1 } }] : [] };
+    },
+  };
+  const frame = { locator: () => ({ evaluate: async (fn, arg) => {
+    if (fn === observePaperChatLaunch) { assert.equal(arg.origin, 'https://host.test'); return; }
+    const source = String(fn);
+    if (source.includes('location.protocol')) return 'https://paper.test';
+    if (source.includes('dispose')) { childDisposed = true; return; }
+    assert.equal(arg, 'actual'); resultQueries++;
+    const results = { unrelated: { ok: true, value: { references: ['wrong'] } } };
+    if (resultQueries >= 2) results.actual = { id: 'actual', ok: true, value: { references: ['frozen-reference'] } };
+    return results[arg];
+  } }) };
+  await askPaperChat(frame, page, { click: async () => { open = true; } });
+  assert.equal(painted, true); assert.ok(resultQueries >= 2); assert.equal(parentDisposed && childDisposed, true);
+});
+
+test('Ask readiness fails boundedly and cleans observers when only another request replies', async () => {
+  let disposed = 0, resultQueries = 0;
+  const page = { evaluate: async fn => {
+    if (fn === observePaperChatLaunch) return;
+    const source = String(fn);
+    if (source.includes('location.protocol')) return 'https://host.test';
+    if (source.includes('getRequest')) return 'actual';
+    if (source.includes('dispose')) { disposed++; return; }
+    assert.fail('Host paint must not be accepted without the matching acknowledgement');
+  } };
+  const frame = { locator: () => ({ evaluate: async (fn, id) => {
+    if (fn === observePaperChatLaunch) return;
+    const source = String(fn);
+    if (source.includes('location.protocol')) return 'https://paper.test';
+    if (source.includes('dispose')) { disposed++; return; }
+    resultQueries++;
+    return { other: { ok: true, value: { references: ['wrong'] } } }[id];
+  } }) };
+  await assert.rejects(askPaperChat(frame, page, { click: async () => {} }), /matching real Host handoff acknowledgement/);
+  assert.ok(resultQueries > 1); assert.equal(disposed, 2);
+});

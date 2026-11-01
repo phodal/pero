@@ -18,6 +18,54 @@ export async function fillPaperChat(page, text) {
   await expect.poll(async () => (await chatState(page)).composer).toContain(text);
 
 }
+// Observe the real SDK handoff without replacing postMessage or Host commands.
+export function observePaperChatLaunch(options, frameOptions) {
+  const { parent, origin } = frameOptions ?? options;
+  const state = { request: null, results: {} };
+  const receive = event => {
+    if (event.origin !== origin) return;
+    if (parent) {
+      if (![...document.querySelectorAll('iframe')].some(frame => {
+        if (frame.contentWindow !== event.source) return false;
+        const url = new URL(frame.src);
+        return `${url.protocol}//${url.host}` === origin;
+      })) return;
+      if (event.data?.type === 'pero:app:chat' && typeof event.data.id === 'string') state.request = event.data.id;
+    } else if (event.source === window.parent && event.data?.type === 'pero:app:chat-result' && typeof event.data.id === 'string') {
+      state.results[event.data.id] = event.data;
+    }
+  };
+  window.addEventListener('message', receive);
+  window.paperChatLaunch = { ...state, results: state.results, getRequest: () => state.request,
+    dispose: () => window.removeEventListener('message', receive) };
+}
+
+export async function askPaperChat(frame, page, button) {
+  const parentOrigin = await page.evaluate(() => `${location.protocol}//${location.host}`);
+  const appOrigin = await frame.locator('body').evaluate(() => `${location.protocol}//${location.host}`);
+  await page.evaluate(observePaperChatLaunch, { parent: true, origin: appOrigin });
+  await frame.locator('body').evaluate(observePaperChatLaunch, { parent: false, origin: parentOrigin });
+  try {
+    await button.click();
+    let result;
+    await expect.poll(async () => {
+      const id = await page.evaluate(() => window.paperChatLaunch.getRequest());
+      result = await frame.locator('body').evaluate((_element, id) => window.paperChatLaunch.results[id], id);
+      if (result && !result.ok) throw Error(result.error || 'Paper Ask handoff failed');
+      return !!result;
+    }, { timeout: 5000, message: 'Paper Ask receives its matching real Host handoff acknowledgement' }).toBe(true);
+    expect(result.value.references.length).toBeGreaterThan(0);
+    console.info('Paper Ask handoff', JSON.stringify({ requestId: result.id, referenceIds: result.value.references }));
+    await expect.poll(async () => {
+      const state = await chatState(page);
+      return state.appChatOpen && result.value.references.every(id => state.contextPreviewBounds.some(item => item.id === id && item.bounds));
+    }, { timeout: 5000, message: 'Paper Ask frozen references are painted in the Host draft' }).toBe(true);
+  } finally {
+    await page.evaluate(() => { window.paperChatLaunch.dispose(); delete window.paperChatLaunch; });
+    await frame.locator('body').evaluate(() => { window.paperChatLaunch.dispose(); delete window.paperChatLaunch; });
+  }
+}
+
 // Read the actual painted control twice; draft attachments can change Chat height
 // after appChatOpen becomes true. Never reconstruct its layout from draft text.
 export async function paintedPaperChatCloseTarget() {
@@ -48,8 +96,14 @@ export async function closePaperChat(page) {
     bounds = await page.evaluate(paintedPaperChatCloseTarget);
     return !!bounds;
   }, { timeout: 5000, message: 'Paper Chat close has a stable painted Host hit target' }).toBe(true);
+  console.info('Paper Chat close target', JSON.stringify({ bounds, x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, hostCanvasHit: true }));
   await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-  await expect.poll(async () => (await chatState(page)).appChatOpen).toBe(false);
+  try {
+    await expect.poll(async () => (await chatState(page)).appChatOpen).toBe(false);
+  } finally {
+    const after = await chatState(page);
+    console.info('Paper Chat close result', JSON.stringify({ appChatOpen: after.appChatOpen, bounds: after.chatCloseButtonBounds }));
+  }
   await expect.poll(async () => (await chatState(page)).chatCloseButtonBounds).toBeNull();
 }
 export async function showPaperReport(frame, page, intentId) {
