@@ -14,7 +14,7 @@ const root = resolve(import.meta.dirname, '../..'), out = resolve(root, 'test-re
 await mkdir(out, { recursive: true });
 const execute = promisify(execFile), errors = [], consoleErrors = [], checks = [], cleanup = [];
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-lab-desktop-'));
-let app, page, frame, frozen, final, fixture, failure, exportReceipt;
+let app, page, frame, frozen, final, fixture, failure, exportReceipt, narrowViewport;
 const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } };
 async function closeDesktop() {
@@ -157,12 +157,17 @@ try {
   const appTop = await page.locator('#pero-app-surface').evaluate(element => element.getBoundingClientRect().top);
   await page.mouse.click(await page.evaluate(() => innerWidth - 18), appTop + 16);
   await expect.poll(async () => (await state()).appChatOpen).toBe(false);
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(900, 800));
-  await expect.poll(() => page.evaluate(() => innerWidth)).toBe(900);
+  // The production main window has minWidth=1000; its sidebar leaves a narrow App pane.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 800));
+  await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1000);
   await expect(page.locator('iframe[title="lab"]')).toBeVisible();
   await expect(frame.getByRole('heading', { name: '96-well plate', exact: true })).toBeVisible();
-  await expect.poll(() => frame.locator('html').evaluate(element => element.clientWidth > 300 && element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await expect.poll(() => frame.locator('html').evaluate(element => element.clientWidth > 300 && element.clientWidth <= 760 && element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await frame.getByRole('button', { name: 'B1, 100 microliters', exact: true }).click();
+  narrowViewport = { scope: 'Supported Desktop minimum window; not mobile acceptance',
+    window: await page.evaluate(() => ({ width: innerWidth, height: innerHeight })),
+    app: await frame.locator('html').evaluate(element => ({ width: element.clientWidth, height: element.clientHeight, scrollWidth: element.scrollWidth })),
+    chatOpen: (await state()).appChatOpen, plateVisible: true, targetWellClicked: true };
   await page.screenshot({ path: resolve(out, 'deck-dark-narrow.png') });
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1488, 1000));
   await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1488);
@@ -210,5 +215,5 @@ try {
   try { await closeDesktop(); } catch (error) { failure ||= error; }
   await rm(temp, { recursive: true, force: true });
 }
-await writeFile(resolve(out, failure ? 'failure.json' : 'result.json'), JSON.stringify({ status: failure ? 'failed' : 'passed', scope: 'Real Desktop, Host, ACP fixture and PLR Chatterbox; not real model or physical lab acceptance', error: failure ? String(failure.stack || failure) : null, checks, errors, consoleErrors, cleanup, fixture, exportReceipt, experiment: final }, null, 2));
+await writeFile(resolve(out, failure ? 'failure.json' : 'result.json'), JSON.stringify({ status: failure ? 'failed' : 'passed', scope: 'Real Desktop, Host, ACP fixture and PLR Chatterbox; not real model or physical lab acceptance', error: failure ? String(failure.stack || failure) : null, checks, errors, consoleErrors, cleanup, fixture, exportReceipt, narrowViewport, experiment: final }, null, 2));
 if (failure) throw failure;
