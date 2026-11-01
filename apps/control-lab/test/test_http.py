@@ -73,6 +73,48 @@ class HttpTest(unittest.TestCase):
             finally:
                 server.shutdown();worker.join();server.server_close();store.close()
 
+    def test_frozen_plan_admits_real_http_search_and_cancellation_within_all_budgets(self):
+        # Lifecycle/preflight test, not a simulated scientific result: hold the
+        # solver seam until cancellation so request timing is deterministic.
+        entered = threading.Event()
+        def execute(_engine, _model, _parameters, _scenario, _directory, cancelled):
+            entered.set()
+            if not cancelled.wait(3):
+                raise RuntimeError('Cancellation was not delivered')
+            raise RuntimeError('Calculation cancelled')
+        with tempfile.TemporaryDirectory() as root:
+            store = ExperimentStore(root, execute)
+            server = ThreadingHTTPServer(('127.0.0.1', 0), handler(store, 'test-token'))
+            worker = threading.Thread(target=server.serve_forever); worker.start()
+            def request(path, data):
+                body = json.dumps(data).encode()
+                headers = {'X-Pero-App-Token': 'test-token', 'Content-Type': 'application/json'}
+                with urlopen(Request(f'http://127.0.0.1:{server.server_port}' + path, body, headers), timeout=3) as response:
+                    return json.load(response)
+            try:
+                for budget in (16, 30):
+                    with self.assertRaises(HTTPError) as denied:
+                        request('/api/experiments', {'templateId':'robust-pid','candidateBudget':budget,
+                                                    'parameters':{'horizon':2,'samples':201}})
+                    self.assertEqual(denied.exception.code, 400)
+                    self.assertIn('80 attempts', denied.exception.read().decode())
+                created = request('/api/experiments', {'templateId':'robust-pid','candidateBudget':15,
+                                                      'parameters':{'horizon':5,'samples':501}})
+                path = '/api/experiments/' + created['id']
+                running = request(path + '/search', {})
+                self.assertEqual(running['status'], 'running')
+                self.assertTrue(entered.wait(3))
+                request(path + '/cancel', {})
+                store.worker.join(timeout=3)
+                self.assertFalse(store.worker.is_alive())
+                cancelled = store.read(created['id'])
+                self.assertEqual(cancelled['status'], 'cancelled')
+                self.assertLessEqual(len(cancelled['candidates']), 15)
+                self.assertLessEqual(len(cancelled['trials']), 75)
+                self.assertNotEqual((cancelled.get('report') or {}).get('verdict'), 'PASS')
+            finally:
+                server.shutdown(); worker.join(); server.server_close(); store.close()
+
     def test_agent_summary_keeps_large_raw_evidence_and_saved_verdicts(self):
         # Transport fixture, not scientific acceptance: saved waveform bytes exceed
         # the Host write-response cap but remain intact in GET and export.

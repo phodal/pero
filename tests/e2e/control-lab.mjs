@@ -325,18 +325,18 @@ try {
   expect(await read(experimentPath(first.id))).toEqual(first);
   await frame.getByRole('button', { name: 'New experiment', exact: true }).click();
   await frame.getByLabel('Template', { exact: true }).selectOption(first.templateId);
-  // 30 candidates × 5 search cases + 2 final cases = 30,552 sample-points,
+  // 15 candidates × 5 search cases + 2 final cases = 77 attempts / 38,577 sample-points,
   // within the real 40,000-point frozen plan limit at 0.01 s resolution.
-  await frame.getByLabel('Observation window', { exact: true }).fill('2');
-  await frame.getByLabel('Samples', { exact: true }).fill('201');
-  await frame.getByLabel('Total candidate budget', { exact: true }).fill('30');
+  await frame.getByLabel('Observation window', { exact: true }).fill('5');
+  await frame.getByLabel('Samples', { exact: true }).fill('501');
+  await frame.getByLabel('Total candidate budget', { exact: true }).fill('15');
   const cancelTarget = await action('Freeze specification', '/api/experiments');
   const running = await action('Run bounded search', `${experimentPath(cancelTarget.id)}/search`);
   expect(running.status).toBe('running');
   await action('Cancel search', `${experimentPath(cancelTarget.id)}/cancel`);
   const cancelled = await settled(cancelTarget.id);
   expect(cancelled.status).toBe('cancelled');
-  expect(cancelled.candidates.length).toBeLessThanOrEqual(30);
+  expect(cancelled.candidates.length).toBeLessThanOrEqual(15);
   expect(cancelled.report?.verdict ?? 'INCONCLUSIVE').not.toBe('PASS');
   expect(await read(experimentPath(first.id))).toEqual(first);
   checks.push('Light/dark/narrow, keyboard history, rerun fresh identity, immutable prior evidence, real in-flight bounded cancellation');
