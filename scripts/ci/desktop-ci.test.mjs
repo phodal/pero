@@ -54,7 +54,7 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
     'npm --prefix apps/data run test:ui', 'node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs',
     'tests/fixtures/owned-electron-close.test.mjs', 'node tests/runtime/automation.mjs']) assert.ok(commands.includes(command), command);
   const core = workflow.jobs.core.steps.map(step => step.run || '').join('\n');
-  for (const command of ['npx tsc -p scripts/ci/tsconfig.core.json',
+  for (const command of ['node --test tests/runtime/lab/*.test.mjs', 'npx tsc -p scripts/ci/tsconfig.core.json',
     'node scripts/cargo.mjs test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker',
     'node scripts/cargo.mjs build --locked -p pero-host -p pero-worker',
     'node scripts/build/mcp.mjs', 'node tests/contracts/host.mjs', 'node tests/runtime/automation.mjs',
