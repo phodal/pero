@@ -19,10 +19,11 @@ import (
 )
 
 type Options struct {
-	Sandbox     *sandbox.Config
-	Workspace   string
-	EnableShell bool
-	Shell       string
+	Sandbox             *sandbox.Config
+	Workspace           string
+	EnableShell         bool
+	EnableResearchClone bool
+	Shell               string
 }
 type App struct {
 	files *fstools.Workspace
@@ -111,7 +112,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 		{"list_directory", "List up to 256 direct workspace directory entries; does not follow symlinks.", `"path":{"type":"string"}`, ``, false, func(c context.Context, a arguments) (any, error) { return files.List(c, a.Path) }},
 		{"search_files", "Find literal query text in bounded workspace files. At most 512 entries, 8 MiB text and 64 matches; symlinks skipped.", `"path":{"type":"string"},"query":{"type":"string","minLength":1,"maxLength":4096}`, `"query"`, false, func(c context.Context, a arguments) (any, error) { return files.Search(c, a.Path, a.Query) }},
 	}
-	if opts.EnableShell {
+	if opts.EnableShell || opts.EnableResearchClone {
 		if opts.Shell == "" {
 			if windowsShell {
 				return nil, errors.New("Windows shell requires an explicit absolute --shell path to pwsh.exe")
@@ -123,53 +124,60 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 			return nil, e
 		}
 		app.shell = executor
-		if opts.Sandbox != nil && opts.Sandbox.Backend != sandbox.BackendWindowsACL {
-			shellAdmission = func(c context.Context, request harness.ToolRequest) (*harness.NativeApprovalDescriptor, error) {
-				if request.Agent == nil {
-					return nil, errors.New("native shell admission requires agent")
-				}
-				if err := app.CheckCWD(request.Agent.Session().WorkingDirectory()); err != nil {
-					return nil, err
-				}
-				var a arguments
-				if err := json.Unmarshal(request.Arguments, &a); err != nil {
-					return nil, err
-				}
-				if _, err := executor.Resolve(shell.ExecRequest{Command: a.Command, Workdir: workspace, Timeout: time.Duration(a.TimeoutMS) * time.Millisecond}); err != nil {
-					return nil, err
-				}
-				if err := executor.CheckConfinement(c); err != nil {
-					return nil, err
-				}
-				return &harness.NativeApprovalDescriptor{Version: 1, Operation: "shell", Workspace: workspace, SandboxMode: string(opts.Sandbox.Mode), Enforcement: "required", Network: "deny"}, nil
+		if opts.EnableResearchClone {
+			if err := mountResearchClone(ctx, h, workspace, executor); err != nil {
+				return nil, err
 			}
 		}
-		description := "Run an approved foreground Bash command with a minimal environment, bounded output and timeout. NOT an OS sandbox: may access outside workspace or network. No background jobs."
-		if opts.Sandbox != nil {
-			if windowsShell {
-				description = "Run an approved bounded foreground PowerShell command with partial Windows ACL write isolation. Outside reads and network are NOT isolated. Workspace mode: " + string(opts.Sandbox.Mode) + ". File tools remain independently workspace-confined."
-			} else {
-				description = "Run an approved bounded foreground command in a strict native sandbox. Network denied; only declared runtime files and workspace readable. Workspace mode: " + string(opts.Sandbox.Mode)
+		if opts.EnableShell {
+			if opts.Sandbox != nil && opts.Sandbox.Backend != sandbox.BackendWindowsACL {
+				shellAdmission = func(c context.Context, request harness.ToolRequest) (*harness.NativeApprovalDescriptor, error) {
+					if request.Agent == nil {
+						return nil, errors.New("native shell admission requires agent")
+					}
+					if err := app.CheckCWD(request.Agent.Session().WorkingDirectory()); err != nil {
+						return nil, err
+					}
+					var a arguments
+					if err := json.Unmarshal(request.Arguments, &a); err != nil {
+						return nil, err
+					}
+					if _, err := executor.Resolve(shell.ExecRequest{Command: a.Command, Workdir: workspace, Timeout: time.Duration(a.TimeoutMS) * time.Millisecond}); err != nil {
+						return nil, err
+					}
+					if err := executor.CheckConfinement(c); err != nil {
+						return nil, err
+					}
+					return &harness.NativeApprovalDescriptor{Version: 1, Operation: "shell", Workspace: workspace, SandboxMode: string(opts.Sandbox.Mode), Enforcement: "required", Network: "deny"}, nil
+				}
 			}
+			description := "Run an approved foreground Bash command with a minimal environment, bounded output and timeout. NOT an OS sandbox: may access outside workspace or network. No background jobs."
+			if opts.Sandbox != nil {
+				if windowsShell {
+					description = "Run an approved bounded foreground PowerShell command with partial Windows ACL write isolation. Outside reads and network are NOT isolated. Workspace mode: " + string(opts.Sandbox.Mode) + ". File tools remain independently workspace-confined."
+				} else {
+					description = "Run an approved bounded foreground command in a strict native sandbox. Network denied; only declared runtime files and workspace readable. Workspace mode: " + string(opts.Sandbox.Mode)
+				}
+			}
+			definitions = append(definitions, struct {
+				name, description, properties, required string
+				approval                                bool
+				run                                     func(context.Context, arguments) (any, error)
+			}{"shell", description, `"command":{"type":"string","minLength":1,"maxLength":16384},"timeout_ms":{"type":"integer","minimum":1,"maximum":120000}`, `"command"`, true, func(c context.Context, a arguments) (any, error) {
+				if e := app.CheckCWD(workspace); e != nil {
+					return nil, e
+				}
+				spec, e := executor.Resolve(shell.ExecRequest{Command: a.Command, Workdir: workspace, Timeout: time.Duration(a.TimeoutMS) * time.Millisecond})
+				if e != nil {
+					return nil, e
+				}
+				result, runErr := executor.Run(c, spec)
+				if runErr == nil && result.ExitCode != nil && *result.ExitCode != 0 {
+					runErr = fmt.Errorf("shell exited with code %d", *result.ExitCode)
+				}
+				return result, runErr
+			}})
 		}
-		definitions = append(definitions, struct {
-			name, description, properties, required string
-			approval                                bool
-			run                                     func(context.Context, arguments) (any, error)
-		}{"shell", description, `"command":{"type":"string","minLength":1,"maxLength":16384},"timeout_ms":{"type":"integer","minimum":1,"maximum":120000}`, `"command"`, true, func(c context.Context, a arguments) (any, error) {
-			if e := app.CheckCWD(workspace); e != nil {
-				return nil, e
-			}
-			spec, e := executor.Resolve(shell.ExecRequest{Command: a.Command, Workdir: workspace, Timeout: time.Duration(a.TimeoutMS) * time.Millisecond})
-			if e != nil {
-				return nil, e
-			}
-			result, runErr := executor.Run(c, spec)
-			if runErr == nil && result.ExitCode != nil && *result.ExitCode != 0 {
-				runErr = fmt.Errorf("shell exited with code %d", *result.ExitCode)
-			}
-			return result, runErr
-		}})
 	}
 	// Registered contributions are owned by the Harness and drain before App.Close.
 	for _, d := range definitions {

@@ -37,6 +37,7 @@ func run() (resultErr error) {
 	keyEnv := flag.String("api-key-env", "AGENT_PROVIDER_API_KEY", "environment variable containing the provider credential")
 	auditPath := flag.String("http-attempt-audit", "", "optional absolute existing private file to durably record each provider HTTP attempt")
 	workspace := flag.String("workspace", "", "explicit native file tool authority root; absent disables native tools")
+	enableResearchClone := flag.Bool("enable-research-clone", false, "enable approved pinned GitHub acquisition without checkout; requires --workspace; Unix only")
 	enableShell := flag.Bool("enable-shell", false, "enable approved shell execution (Unix unsandboxed unless --sandbox supplied; Windows requires windows-acl; requires --workspace)")
 	shellPath := flag.String("shell", "", "absolute shell executable; defaults to /bin/bash on Unix; Windows requires explicit pwsh.exe")
 	approval := flag.String("approval", "ask", "tool approval policy: never or ask via ACP client")
@@ -54,8 +55,8 @@ func run() (resultErr error) {
 	if *approval != "never" && *approval != "ask" {
 		return errors.New("--approval must be never or ask")
 	}
-	if *enableShell && *workspace == "" {
-		return errors.New("--enable-shell requires --workspace")
+	if (*enableShell || *enableResearchClone) && *workspace == "" {
+		return errors.New("--enable-shell / --enable-research-clone requires --workspace")
 	}
 	if err := coding.validate(*workspace); err != nil {
 		return err
@@ -109,7 +110,7 @@ func run() (resultErr error) {
 		resultErr = errors.Join(resultErr, h.Dispose(cleanup), h.Drain(cleanup), native.Close(), skillCatalog.Close(), instructions.Close())
 	}()
 	if *workspace != "" {
-		native, err = nativetools.Mount(ctx, h, nativetools.Options{Workspace: *workspace, EnableShell: *enableShell, Shell: *shellPath, Sandbox: sandboxConfig})
+		native, err = nativetools.Mount(ctx, h, nativetools.Options{Workspace: *workspace, EnableShell: *enableShell, EnableResearchClone: *enableResearchClone, Shell: *shellPath, Sandbox: sandboxConfig})
 		if err != nil {
 			return err
 		}

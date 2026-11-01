@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "nativetools",
-    srcs = ["tools.go"],
+    srcs = ["tools.go", "research_clone.go"],
     importpath = "github.com/phodal/pero/harness/go/nativetools",
     visibility = ["//visibility:public"],
     deps = [
@@ -17,6 +17,7 @@ go_test(
     name = "nativetools_test",
     srcs = [
         "sandbox_test.go",
+        "research_clone_test.go",
         "tools_test.go",
         "windows_runtime_test.go",
     ],
