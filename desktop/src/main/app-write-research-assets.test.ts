@@ -68,3 +68,27 @@ test('research writes retain the existing AppWrite receipt limit', async () => {
   const prepared = new PreparedAppWrite(definition, { operation: 'status', bundleId: 'a'.repeat(64) });
   await assert.rejects(routes.apply(prepared, new AbortController().signal), /response exceeds/);
 });
+
+
+test('research App routes require the matching Host goal and inject its frozen digest', async () => {
+  const id = 'a'.repeat(32), hash = 'b'.repeat(64);
+  for (const app of ['control-lab', 'lab'] as const) {
+    const route = { app, panel: 'main', version: '1', name: 'experiment-step', description: '', path: '/api/agent-step',
+      schema: { type: 'object', properties: { action: { type: 'string' }, experimentId: { type: 'string' } }, required: ['action', 'experimentId'], additionalProperties: false } };
+    const { panel, version, ...write } = route;
+    const sent: unknown[] = [];
+    const routes = new AppWriteRoutes(async <T>(action: string) => {
+      if (action === 'list') return [{ name: app, version, enabled: true, panels: [{ id: panel }], writes: [write] }] as T;
+      return { backend: { url: 'http://unused.invalid', token: 'fixture-only' } } as T;
+    }, () => {}, async (_url, init) => { sent.push(JSON.parse(String(init.body))); return new Response('{}'); });
+    const document = { action: 'read', experimentId: id }, prepared = new PreparedAppWrite(route, document);
+    const goal = { app, experimentId: id, specHash: hash, maxExperiments: 1 as const };
+    await assert.rejects(routes.apply(prepared, new AbortController().signal), /goal is required/);
+    await assert.rejects(routes.apply(prepared, new AbortController().signal, { ...goal, app: app === 'lab' ? 'control-lab' : 'lab' }), /goal is required/);
+    assert.equal(sent.length, 0);
+    await routes.apply(prepared, new AbortController().signal, goal);
+    assert.deepEqual(sent, [{ ...document, specHash: hash }]);
+    assert.deepEqual(prepared.document, document);
+    assert.throws(() => new PreparedAppWrite(route, { ...document, specHash: 'agent-supplied' }), /specHash/);
+  }
+});

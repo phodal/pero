@@ -8,9 +8,9 @@ import { DesktopAppUse } from './app-use-mcp.ts';
 
 const id = 'a'.repeat(32), hash = 'b'.repeat(64);
 const scope = { app: 'control-lab', panel: 'main' };
-const ref = (experimentId = id, specHash = hash): ContextReference => ({
+const ref = (experimentId = id, specHash = hash, app = 'control-lab'): ContextReference => ({
   id: 'app-object-example', kind: 'app_object', label: 'Control Lab', source: 'pero-app://control-lab/',
-  content: { type: 'text', text: JSON.stringify({ schema: 'pero.app-object.v1', scope, objectId: 'control-lab', state: { experimentId, specHash } }) },
+  content: { type: 'text', text: JSON.stringify({ schema: 'pero.app-object.v1', scope: { app, panel: 'main' }, objectId: app, state: { experimentId, specHash } }) },
 });
 
 test('goal binds one submitted frozen reference to one session and fails closed on replay or tampering', () => {
@@ -26,7 +26,7 @@ test('goal binds one submitted frozen reference to one session and fails closed 
   assert.throws(() => goals.require('one', id), /Approve/);
   goals.approve(scope, 'one', [ref()]);
   goals.accept('one', [ref()]);
-  assert.deepEqual(goals.require('one', id), { experimentId: id, specHash: hash, maxExperiments: 1 });
+  assert.deepEqual(goals.require('one', id), { app: 'control-lab', experimentId: id, specHash: hash, maxExperiments: 1 });
   assert.throws(() => goals.require('one', 'c'.repeat(32)), /Approve/);
   assert.throws(() => goals.approve(scope, 'one', [ref('c'.repeat(32))]), /new conversation/);
   goals.revoke('one');
@@ -41,23 +41,26 @@ test('goal binds one submitted frozen reference to one session and fails closed 
   assert.throws(() => goals.approve(scope, 'one', [ref('c'.repeat(32))]), /new conversation/);
 });
 
-test('MCP requires the bound target and rejects generic Control Lab UI tasks in ordinary sessions', async () => {
+test('MCP requires the bound goal and restricts research Apps to declared domain tools', async () => {
   let selected = 'one';
   const surface = { ...scope, surfaceId: 'control-lab:main', instance: 'instance', visible: true,
     active: true, operable: true, rect: { x: 0, y: 0, width: 1, height: 1 } };
+  const labSurface = { ...surface, app: 'lab', surfaceId: 'lab:main' };
   const window = { webContents: { mainFrame: { frames: [] }, executeJavaScript: (expression: string) =>
     runInNewContext(expression, { window: {
       peroDiagnostics: { snapshot: () => JSON.stringify({ chats: [{ id: selected }], activeChat: 0 }) },
-      peroAppUse: () => ({ ok: true, value: { surfaces: [surface] } }),
+      peroAppUse: () => ({ ok: true, value: { surfaces: [surface, labSurface] } }),
     } }) } };
   const applied: unknown[] = [];
   const definition = { app: 'control-lab', panel: 'main', version: '1', name: 'experiment-step',
     description: '', path: '/api/agent-step', schema: { type: 'object', required: ['action', 'experimentId'],
       properties: { action: { type: 'string' }, experimentId: { type: 'string' } }, additionalProperties: false } };
   const proposal = { ...definition, name: 'propose-candidate' };
+  const labDefinition = { ...definition, app: 'lab' };
+  let computerCalls = 0;
   const desktop = new DesktopAppUse(() => window as never, () => {}, tmpdir(), {
-    describe: async () => [definition, proposal], apply: async (_write, _signal, goal) => { applied.push(goal); return {}; },
-  }, { stop: async () => {}, forget: async () => {} } as never);
+    describe: async () => [definition, proposal, labDefinition], apply: async (_write, _signal, goal) => { applied.push(goal); return {}; },
+  }, { stop: async () => {}, forget: async () => {}, call: async () => { computerCalls++; return { kind: 'receipt', receipt: { outcome: { status: 'executed' } } }; } } as never);
   const env = await desktop.start();
   const call = async (name: string, args: object) => {
     const response = await fetch(env.PERO_APP_USE_URL, { method: 'POST', headers: {
@@ -70,7 +73,11 @@ test('MCP requires the bound target and rejects generic Control Lab UI tasks in 
   const write = (experimentId: string, tool = 'experiment-step') => call('app_write', { app: 'control-lab', tool, document: { action: 'read', experimentId } });
   try {
     assert.equal((await write(id)).isError, true);
-    assert.equal((await call('app_use', { action: 'start', surfaceId: surface.surfaceId, actions: ['dom.click'] })).isError, true);
+    for (const target of [surface, labSurface]) for (const actions of [['dom.click'], ['dom.fill'], ['observe']]) {
+      const denied = await call('app_use', { action: 'start', surfaceId: target.surfaceId, actions });
+      assert.equal(denied.isError, true);
+      assert.match(denied.content[0].text, /APP_GOAL_DENIED/);
+    }
     assert.equal((await call('app_use', { action: 'runPlan', taskId: 'nonexistent', steps: [{ id: 'x', request: { action: 'act' } }] })).isError, true);
     // A queued approval emitted during an earlier live turn must not grant that turn authority.
     desktop.goals.approve(scope, selected, [ref()]);
@@ -83,12 +90,42 @@ test('MCP requires the bound target and rejects generic Control Lab UI tasks in 
     assert.equal((await write('c'.repeat(32))).isError, true);
     assert.equal((await write('c'.repeat(32), 'propose-candidate')).isError, true);
     assert.equal((await write(id)).isError, false);
-    assert.deepEqual(applied, [{ experimentId: id, specHash: hash, maxExperiments: 1 }]);
+    assert.deepEqual(applied, [{ app: 'control-lab', experimentId: id, specHash: hash, maxExperiments: 1 }]);
     desktop.command({ action: 'cancel', thread_id: selected });
     desktop.accept({ kind: 'turn_started', thread_id: selected });
     assert.equal((await write(id)).isError, true);
     assert.equal((await call('computer_use', { operation: 'status' })).isError, true);
     assert.throws(() => desktop.goals.approve(scope, selected, [ref('c'.repeat(32))]), /new conversation/);
+    selected = 'lab-scoped';
+    desktop.accept({ kind: 'session_created', thread_id: selected, data: { scope: { app: 'lab', panel: 'main' } } });
+    desktop.accept({ kind: 'turn_started', thread_id: selected });
+    const labComputer = await call('computer_use', { operation: 'status' });
+    assert.equal(labComputer.isError, true);
+    assert.match(labComputer.content[0].text, /APP_GOAL_DENIED/);
+    assert.equal(computerCalls, 0);
+    const labWrite = (experimentId: string) => call('app_write', { app: 'lab', tool: 'experiment-step', document: { action: 'read', experimentId } });
+    assert.equal((await labWrite(id)).isError, true);
+    desktop.accept({ kind: 'turn_finished', thread_id: selected });
+    const labScope = { app: 'lab', panel: 'main' }, labRef = ref(id, hash, 'lab');
+    desktop.goals.approve(labScope, selected, [labRef]);
+    desktop.accept({ kind: 'user_message', thread_id: selected, data: { contexts: [ref(id, 'c'.repeat(64), 'lab')] } });
+    desktop.accept({ kind: 'turn_started', thread_id: selected });
+    assert.equal((await labWrite(id)).isError, true); // altered frozen spec was not approved
+    desktop.accept({ kind: 'turn_finished', thread_id: selected });
+    desktop.goals.approve(labScope, selected, [labRef]);
+    desktop.accept({ kind: 'user_message', thread_id: selected, data: { contexts: [labRef] } });
+    desktop.accept({ kind: 'turn_started', thread_id: selected });
+    assert.equal((await labWrite('c'.repeat(32))).isError, true);
+    assert.equal((await labWrite(id)).isError, false);
+    assert.deepEqual(applied.at(-1), { app: 'lab', experimentId: id, specHash: hash, maxExperiments: 1 });
+    assert.throws(() => desktop.goals.require(selected, id, 'control-lab'), /Approve/);
+    assert.throws(() => desktop.goals.approve(labScope, selected, [ref(id, 'c'.repeat(64), 'lab')]), /new conversation/);
+    assert.equal((await call('app_write', { app: 'lab', tool: 'human-review', document: {} })).isError, true);
+    selected = 'ordinary-computer';
+    desktop.accept({ kind: 'session_created', thread_id: selected });
+    desktop.accept({ kind: 'turn_started', thread_id: selected });
+    assert.equal((await call('computer_use', { operation: 'status' })).isError, false);
+    assert.equal(computerCalls, 1); // No claim that global Computer Use is isolated from the App.
     selected = 'scoped';
     desktop.accept({ kind: 'session_created', thread_id: selected, data: { scope } });
     // Two prompts enqueued before the first turn starts cannot authorize the first turn with the second prompt's reference.
@@ -144,7 +181,7 @@ test('MCP requires the bound target and rejects generic Control Lab UI tasks in 
   } finally { await desktop.close(); }
 });
 
-test('computer dispatch rechecks research scope after the asynchronous session wait', async () => {
+for (const app of ['control-lab', 'lab']) test(`computer dispatch rechecks ${app} scope after the asynchronous session wait`, async () => {
   let release!: () => void, started!: () => void, calls = 0;
   const waiting = new Promise<void>(resolve => { started = resolve; });
   const delayed = new Promise<void>(resolve => { release = resolve; });
@@ -160,7 +197,7 @@ test('computer dispatch rechecks research scope after the asynchronous session w
       Authorization: `Bearer ${env.PERO_APP_USE_TOKEN}`, 'X-Pero-Thread': 'thread',
     }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'computer_use', arguments: {} } }) }).then(response => response.json());
     await waiting;
-    desktop.accept({ kind: 'session_created', thread_id: 'thread', data: { scope } });
+    desktop.accept({ kind: 'session_created', thread_id: 'thread', data: { scope: { app, panel: 'main' } } });
     desktop.accept({ kind: 'turn_started', thread_id: 'thread' });
     release();
     const reply = await result;

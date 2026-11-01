@@ -35,7 +35,7 @@ export class AppWriteRoutes {
     }
     const access=await this.request<AppAccess>('resolve',{name:route.app});
     if(!access.backend)throw new Error('The App write backend is unavailable');
-    if(route.app==='control-lab'&&route.path==='/api/agent-step'&&!goal)throw new Error('Control Lab goal is required');
+    if((route.app==='control-lab'||route.app==='lab')&&route.path==='/api/agent-step'&&(!goal||goal.app!==route.app))throw new Error('Bound research App goal is required');
     const body=goal?{...(prepared.document as Record<string,unknown>),specHash:goal.specHash}:prepared.document;
     const encoded = JSON.stringify(body), method = route.method || 'POST';
     const headers = { 'X-Pero-App-Token': access.backend.token };

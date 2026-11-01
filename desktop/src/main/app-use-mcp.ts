@@ -340,8 +340,8 @@ export class DesktopAppUse {
             thread,
             { app: definition.app, panel: definition.panel },
             async (_scope, signal) => {
-              const goal = input.app === 'control-lab'
-                ? this.goals.require(thread, (prepared.document as Record<string, unknown>).experimentId)
+              const goal = input.app === 'control-lab' || input.app === 'lab'
+                ? this.goals.require(thread, (prepared.document as Record<string, unknown>).experimentId, input.app)
                 : undefined;
               return { app: input.app, tool: input.tool, digest: prepared.digest,
                 result: await this.writes!.apply(prepared, signal, goal) };
@@ -365,8 +365,8 @@ export class DesktopAppUse {
           return;
         } else if (message.method === 'tools/call' && message.params?.name === 'computer_use' && this.computer) {
           const value = await this.authority.access(thread, undefined, (_scope, signal) => {
-            if (this.goals.has(thread) || this.authority.isControlLab(thread))
-              throw new AppUseError('APP_GOAL_DENIED', 'Computer Use is unavailable for Control Lab research conversations.');
+            if (this.goals.has(thread) || this.authority.isBoundedResearch(thread))
+              throw new AppUseError('APP_GOAL_DENIED', 'Computer Use is unavailable for bounded research App conversations.');
             return this.computer!.call(thread, message.params.arguments, signal);
           }, controller.signal);
           const images: object[] = [];

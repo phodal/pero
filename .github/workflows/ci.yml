@@ -43,6 +43,35 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
         run: python -m unittest discover -s apps/data/test -p 'test_*.py' -v
 
+  lab:
+    name: Lab real Chatterbox and evidence contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install pinned no-hardware backend
+        run: |
+          python -m pip install --only-binary=:all: -r apps/lab/requirements.txt
+      - name: Require real adapter, pure domain and authenticated evidence contracts
+        env:
+          LAB_REQUIRE_PLR: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python -m unittest discover -s apps/lab/test -p 'test_*.py' -v
+      - name: Reproduce published scoring math and constructed state-gate comparison
+        run: |
+          python apps/lab/benchmarks/paper_score.py --output test-results/lab-paper/paper-score.json
+          python apps/lab/benchmarks/stateful_gate.py --output test-results/lab-paper/stateful-gate.json
+      - name: Upload bounded software reproduction reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: lab-paper-software-${{ github.sha }}
+          path: test-results/lab-paper/
+          if-no-files-found: error
+          retention-days: 7
+
   control-lab:
     name: Control Lab actual python-control and ngspice
     runs-on: ubuntu-latest
@@ -472,7 +501,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [workbench, automation, toolcalls, data, data-product, control-lab, control-lab-app-use, control-lab-live, virtual-cell-comparison, virtual-cell-dataset-download, app-use, app-use-workbench, mcp-lifecycle, mcp-persistence, mcp-transport, scientific-viewer, automations-ui, paper-research-import]
+        suite: [workbench, automation, toolcalls, data, data-product, control-lab, control-lab-app-use, control-lab-live, lab, virtual-cell-comparison, virtual-cell-dataset-download, app-use, app-use-workbench, mcp-lifecycle, mcp-persistence, mcp-transport, scientific-viewer, automations-ui, paper-research-import]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -501,6 +530,17 @@ jobs:
           sudo apt-get install --yes ngspice
           python -m venv "$RUNNER_TEMP/control-lab-python"
           "$RUNNER_TEMP/control-lab-python/bin/python" -m pip install --only-binary=:all: -r apps/control-lab/requirements.txt
+      - name: Lab pinned no-hardware Python environment
+        if: matrix.suite == 'lab'
+        run: |
+          python -m venv "$RUNNER_TEMP/lab-python"
+          "$RUNNER_TEMP/lab-python/bin/python" -m pip install --only-binary=:all: -r apps/lab/requirements.txt
+      - name: Lab frontend contracts
+        if: matrix.suite == 'lab'
+        run: |
+          npm ci --prefix apps/lab
+          npm --prefix apps/lab run typecheck
+          node --test apps/lab/test/*.test.ts
       - name: Scientific Viewer real local molecular engine
         if: matrix.suite == 'scientific-viewer'
         run: |
@@ -539,7 +579,7 @@ jobs:
   complete:
     name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'Full-platform CI gate' || 'Linux CI gate' }}
     if: always()
-    needs: [core, data, control-lab, virtual-cell, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
+    needs: [core, data, lab, control-lab, virtual-cell, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

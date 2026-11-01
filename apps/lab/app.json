@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "name": "lab",
+  "version": "0.1.0",
+  "displayName": "Lab",
+  "description": "Design, dry-run and independently evaluate illustrative color-mixing experiments.",
+  "contributes": {
+    "panels": [
+      {
+        "id": "main",
+        "title": "Lab",
+        "entry": "dist/index.html"
+      }
+    ],
+    "writes": [
+      {
+        "name": "experiment-step",
+        "description": "Read, validate, simulate with real no-hardware PyLabRobot, attach a labelled synthetic fixture, independently evaluate, compare or cancel frozen experiments. No hardware, no arbitrary code. Execution completed is not verification PASS or human acceptance.",
+        "path": "/api/agent-step",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "experimentId": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "trialId": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "read",
+                "validate",
+                "simulate",
+                "observe",
+                "evaluate",
+                "compare",
+                "cancel"
+              ]
+            }
+          },
+          "required": [
+            "action",
+            "experimentId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "name": "propose-protocol",
+        "description": "Propose a typed protocol or linked revision with reason; consumes frozen trial budget. Cannot change frozen objective, checks, initial state or prior evidence. Further proposals require an evaluated parent trial.",
+        "path": "/api/agent-step",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "propose"
+              ]
+            },
+            "experimentId": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "protocol": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "integer",
+                  "enum": [
+                    1
+                  ]
+                },
+                "initial_revision": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "pickup_tip",
+                          "return_tip",
+                          "aspirate",
+                          "dispense"
+                        ]
+                      },
+                      "resource": {
+                        "type": "string",
+                        "maxLength": 4
+                      },
+                      "volume_ul": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 300
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "resource"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1,
+                  "maxItems": 64
+                }
+              },
+              "required": [
+                "version",
+                "initial_revision",
+                "steps"
+              ],
+              "additionalProperties": false
+            },
+            "parentTrialId": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          },
+          "required": [
+            "action",
+            "experimentId",
+            "protocol",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      }
+    ]
+  },
+  "backend": {
+    "type": "python",
+    "entry": "backend/server.py",
+    "dependencies": [
+      "pylabrobot==0.2.2",
+      "typing_extensions==4.16.0",
+      "websockets==17.4"
+    ]
+  }
+}

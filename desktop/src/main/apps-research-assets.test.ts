@@ -45,3 +45,22 @@ test('research assets keep the Host as the only cross-App authority', async () =
     }
   } finally { apps.close(); }
 });
+
+
+test('bounded research agent routes cannot be called by their App iframe', async () => {
+  const apps = new DesktopApps(() => { throw new Error('Private backend must not be resolved'); },
+    () => { throw new Error('No public Host event expected'); }, async () => undefined);
+  try {
+    for (const app of ['control-lab', 'lab']) {
+      for (const path of ['/api/agent-step', '/api/agent-step?ignored=1', '/api/extra/../agent-step', '/api/%61gent-step', '/api%2Fagent-step', '/api/extra/%2e%2e/agent-step']) {
+        for (const method of ['GET', 'POST']) {
+          const response = await apps.serve(new Request(`pero-app://${app}${path}`, {
+            method, headers: { Origin: `pero-app://${app}` }, ...(method === 'POST' ? { body: '{}' } : {}),
+          }));
+          assert.equal(response.status, 403);
+          assert.equal(await response.text(), 'Agent route is reserved for the Host');
+        }
+      }
+    }
+  } finally { apps.close(); }
+});
