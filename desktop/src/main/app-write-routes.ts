@@ -18,6 +18,21 @@ export class AppWriteRoutes {
   }
   async apply(prepared:PreparedAppWrite,signal:AbortSignal,goal?:import('./control-lab-goal.ts').ControlLabGoal):Promise<unknown>{
     const route=prepared.definition;prepared.requireCurrent((await this.describe()).find(current=>current.app===route.app&&current.name===route.name));
+    if (route.app === 'paper-agent' && route.path === '/api/research/assets') {
+      signal.throwIfAborted();
+      const deadline = AbortSignal.any([signal, AbortSignal.timeout(15000)]);
+      const value = await new Promise<unknown>((resolve, reject) => {
+        // Cancelling the wait cannot roll back an already-dispatched Host action.
+        const interrupted = () => reject(new Error('Research handoff interrupted after dispatch. Check status and cancel the asset if needed.', { cause: deadline.reason }));
+        deadline.addEventListener('abort', interrupted, { once: true });
+        this.request('research-assets', { name: route.app, request: prepared.document })
+          .then(resolve, reject).finally(() => deadline.removeEventListener('abort', interrupted));
+      });
+      const text = JSON.stringify(value);
+      if (!text || Buffer.byteLength(text) > 1000000) throw new Error('App write response exceeds 1 MiB');
+      await this.send({ version: 1, kind: 'app_written', request_id: null, text: '', data: { app: route.app, tool: route.name, digest: prepared.digest } });
+      return value;
+    }
     const access=await this.request<AppAccess>('resolve',{name:route.app});
     if(!access.backend)throw new Error('The App write backend is unavailable');
     if(route.app==='control-lab'&&route.path==='/api/agent-step'&&!goal)throw new Error('Control Lab goal is required');
