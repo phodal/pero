@@ -315,6 +315,7 @@ class EvidencePackageTests(unittest.TestCase):
         extracted.mkdir()
         with zipfile.ZipFile(destination) as archive:
             self.assertNotIn('local.json', archive.namelist())
+            self.assertNotIn('paper-binding.json', archive.namelist())
             self.assertNotIn('execution.log', archive.namelist())
             archive.extractall(extracted)  # only our own test-produced archive
         process = subprocess.run([sys.executable, str(extracted / 'verify.py')],
@@ -327,6 +328,40 @@ class EvidencePackageTests(unittest.TestCase):
         altered = subprocess.run([sys.executable, '-O', str(extracted / 'verify.py')],
                                  capture_output=True, text=True, timeout=15)
         self.assertNotEqual(altered.returncode, 0)
+
+    def test_bound_export_checks_binding_even_with_rehashed_manifest(self):
+        binding = {'paper_id': 'e' * 64, 'annotation_id': 'f' * 64}
+        spec = specification(paper_binding_digest=digest(binding))
+        write_json(self.root / 'spec.json', spec.to_dict())
+        write_json(self.root / 'paper-binding.json', binding)
+        self.raw['spec_id'] = spec.id
+        write_json(self.target / 'observations.json', self.raw)
+        self.receipt.update(spec_id=spec.id, observations_sha256=
+            hashlib.sha256((self.target / 'observations.json').read_bytes()).hexdigest())
+        write_json(self.target / 'execution.json', self.receipt)
+        destination = self.root / 'bound.zip'
+        export(self.root, 'b' * 64, destination)
+        extracted = self.root / 'bound-export'
+        with zipfile.ZipFile(destination) as archive:
+            self.assertIn('paper-binding.json', archive.namelist())
+            archive.extractall(extracted)
+        command = [sys.executable, str(extracted / 'verify.py')]
+        checked = subprocess.run(command, capture_output=True, text=True, timeout=15)
+        self.assertEqual(checked.returncode, 0, checked.stderr)
+        altered = {**binding, 'annotation_id': 'a' * 64}
+        write_json(extracted / 'paper-binding.json', altered)
+        manifest = read_json(extracted / 'manifest.json')
+        for item in manifest['files']:
+            if item['name'] == 'paper-binding.json':
+                item['sha256'] = hashlib.sha256((extracted / item['name']).read_bytes()).hexdigest()
+        write_json(extracted / 'manifest.json', manifest)
+        checked = subprocess.run(command, capture_output=True, text=True, timeout=15)
+        self.assertNotEqual(checked.returncode, 0)
+        self.assertIn('Paper binding differs', checked.stderr)
+        write_json(self.root / 'paper-binding.json', altered)
+        with self.assertRaises(Invalid):
+            export(self.root, 'b' * 64, self.root / 'changed-binding.zip')
+        self.assertFalse((self.root / 'changed-binding.zip').exists())
 
     def test_cli_checker_is_a_real_separate_process(self):
         for changed, expected_code in ((False, 0), (True, 2)):

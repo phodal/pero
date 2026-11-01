@@ -224,6 +224,12 @@ def export(root, attempt_id, destination):
         raise Invalid('integrity', 'Cannot export evidence whose observation receipt does not match')
     destination = Path(destination)
     files = {name: root / name for name in ('claim.json', 'spec.json', 'audit.json', 'source-manifest.json')}
+    spec = load_spec(root)
+    if spec.paper_binding_digest is not None:
+        binding = root / 'paper-binding.json'
+        if digest(read_json(binding)) != spec.paper_binding_digest:
+            raise Invalid('paper_binding_changed', 'Saved Paper inputs differ from the frozen specification')
+        files['paper-binding.json'] = binding
     files.update({name: target / name for name in ('execution.json', 'observations.json', 'verification.json')})
     # Include fresh numeric raw output only; no third-party paper/source or pickle.
     for name in ('base-raw.npz', 'shaped-raw.npz', 'oracle-raw.npz', 'environment.json'):
@@ -249,7 +255,7 @@ def export(root, attempt_id, destination):
 EXPORT_CHECKER = '''"""Run: python verify.py. No solver, Agent or network required."""
 from pathlib import Path
 import hashlib, json
-from pcgym_domain import ReproductionSpec, Observation, verification
+from pcgym_domain import ReproductionSpec, Observation, verification, digest
 root = Path(__file__).resolve().parent
 manifest = json.loads((root/'manifest.json').read_text())
 for f in manifest['files']:
@@ -259,6 +265,10 @@ for f in manifest['files']:
     if hashlib.sha256(p.read_bytes()).hexdigest() != f['sha256']:
         raise ValueError('Artifact changed: '+f['name'])
 spec = ReproductionSpec.parse(json.loads((root/'spec.json').read_text()))
+if spec.paper_binding_digest is not None:
+    binding = json.loads((root/'paper-binding.json').read_text())
+    if digest(binding) != spec.paper_binding_digest:
+        raise ValueError('Paper binding differs from frozen specification')
 raw = (root/'observations.json').read_bytes()
 obs = Observation.parse(json.loads(raw), spec)
 receipt = json.loads((root/'execution.json').read_text())
