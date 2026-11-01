@@ -4,6 +4,8 @@ import { Button, EmptyState, Feedback, Icon, PageHeader } from '@pero/app-sdk/ui
 import { messages } from './i18n';
 import { ImportPanel, PaperList } from './library';
 import { LibrarySearch } from './library-search';
+import { ResearchBundleList, ResearchBundleView } from './research-bundles';
+import type { ResearchBundle } from './research-types';
 import { Reader, EvidencePanel, type Citation } from './documents';
 import { ResearchRecords } from './research-records';
 import { Discovery, type DiscoveryOpening } from './discovery';
@@ -11,12 +13,13 @@ import type { EvidenceLocation, Intent, Library, LocalSearchHit, Paper, PdfAnnot
 import './styles.css';
 
 type WorkspaceScreen = 'library' | 'reading';
-type LibraryScreen = 'papers' | 'import' | 'discovery';
+type LibraryScreen = 'papers' | 'import' | 'discovery' | 'bundle';
 
 export default function PaperAgent() {
   const api = useAppApi(), chat = useAppChat(), info = useAppInfo(), { t } = useAppI18n(messages);
   const [library, setLibrary] = useState<Library>({ papers: [], intents: [], reports: [] });
   const [screen, setScreen] = useState<WorkspaceScreen>('library'), [libraryScreen, setLibraryScreen] = useState<LibraryScreen>('papers');
+  const [bundleOpening, setBundleOpening] = useState<{ id: string; startDownloadIds: string[]; token: number } | null>(null);
   const [importingPdf, setImportingPdf] = useState(false);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [reading, setReading] = useState<Paper | null>(null), [readingBusy, setReadingBusy] = useState(false);
   const [showResearch, setShowResearch] = useState(false);
@@ -29,6 +32,8 @@ export default function PaperAgent() {
   const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 760px)').matches);
   const mounted = useRef(true), active = useRef(info.active), readVersion = useRef(0), libraryVersion = useRef(0), evidenceVersion = useRef(0);
   const preserveView = useRef<(() => void) | null>(null), askButton = useRef<HTMLDivElement>(null), citationTrigger = useRef<HTMLElement | null>(null);
+  const libraryScreenNow = useRef(libraryScreen);
+  libraryScreenNow.current = libraryScreen;
   active.current = info.active;
   const onError = useCallback((value: unknown) => setError(value instanceof Error ? value.message : String(value)), []);
   const refresh = useCallback(async () => {
@@ -87,6 +92,10 @@ export default function PaperAgent() {
   async function added(paper: Paper, focus: boolean | (() => boolean)) {
     await refresh();
     if (mounted.current && active.current && (typeof focus === 'function' ? focus() : focus)) await read(paper);
+  }
+  async function bundleSaved(bundle: ResearchBundle, startDownloadIds: string[]) {
+    if (mounted.current) { setBundleOpening(previous => ({ id: bundle.id, startDownloadIds, token: (previous?.token ?? 0) + 1 })); if (active.current && libraryScreenNow.current === 'import') setLibraryScreen('bundle'); }
+    await refresh().catch(onError);
   }
   async function importPdf(file: File) {
     if (importingPdf) return;
@@ -203,14 +212,16 @@ export default function PaperAgent() {
     {error && <div className="pa-global-error"><Feedback kind="error"><span>{error}</span><Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback></div>}
     <div className="pa-workspace" data-hit-preview={hitPreview && screen === 'reading' ? 'true' : undefined}>
     <section className="pa-library-screen" hidden={screen !== 'library' && !hitPreview} aria-label={t('papers')}>
-      <PageHeader title={t(libraryScreen === 'import' ? 'add' : libraryScreen === 'discovery' ? 'discover' : 'papers')}
+      <PageHeader title={libraryScreen === 'bundle' ? 'Research bundle' : t(libraryScreen === 'import' ? 'add' : libraryScreen === 'discovery' ? 'discover' : 'papers')}
         navigation={libraryScreen !== 'papers' && <Button variant="ghost" aria-label={t('backToLibrary')} onClick={() => setLibraryScreen('papers')}><Icon name="chevron-left"/></Button>}
         actions={libraryScreen === 'papers' && <><Button variant="ghost" aria-label={t('refresh')} onClick={() => void refresh().catch(onError)}><Icon name="refresh"/></Button><Button variant="primary" onClick={() => setLibraryScreen('import')}><Icon name="plus"/>{t('add')}</Button></>}/>
       <div className="pa-library-content" hidden={libraryScreen !== 'papers'}>
         {loading ? <p role="status">{t('loading')}</p> : <LibrarySearch api={api} t={t} onAdded={added} activeHitId={openHit?.id} onOpen={openSearchHit}>{!library.papers.length ? <EmptyState heading={t('emptyLibrary')} description={t('emptyLibraryCopy')}/> : <PaperList selecting={false} papers={library.papers} selected={reading ? [reading.id] : []} readingId={reading?.id ?? ''} locked={false} onRead={paper => void read(paper)} onSelect={() => {}} onDiscover={discover} t={t}/>}</LibrarySearch>}
+        <ResearchBundleList bundles={library.bundles ?? []} onOpen={id => { setBundleOpening(previous => ({ id, startDownloadIds: [], token: (previous?.token ?? 0) + 1 })); setLibraryScreen('bundle'); }}/>
         {!!library.favorites?.length && <details className="pa-library-saved"><summary>{t('favorites')} {library.favorites.length}</summary><ul className="pa-report-list">{library.favorites.map(favorite => <li key={favorite.id} data-favorite-work={favorite.paper.id}><Button variant="ghost" disabled={!favorite.paper.abstract.trim()} onClick={() => void readFavorite(favorite)}>{favorite.paper.title}</Button><div className="pa-actions"><Button variant="ghost" disabled={!favorite.paper.abstract.trim()} onClick={() => void readFavorite(favorite, true)}>{t('addToMatrix')}</Button><Button variant="ghost" onClick={() => { setDiscoveryOpening({ historyId: favorite.batchId }); setLibraryScreen('discovery'); }}>{t('viewDiscovery')}</Button><a href={favorite.paper.url} target="_blank" rel="noreferrer">{t('original')}</a></div></li>)}</ul></details>}
       </div>
-      <div hidden={libraryScreen !== 'import'}><ImportPanel onImportPdf={importPdf} importingPdf={importingPdf} api={api} t={t} active={screen === 'library' && libraryScreen === 'import' && info.active} onAdded={added} onError={onError} onClose={() => setLibraryScreen('papers')}/></div>
+      <div hidden={libraryScreen !== 'import'}><ImportPanel onBundleSaved={bundleSaved} onImportPdf={importPdf} importingPdf={importingPdf} api={api} t={t} active={screen === 'library' && libraryScreen === 'import' && info.active} onAdded={added} onError={onError} onClose={() => setLibraryScreen('papers')}/></div>
+      <div hidden={libraryScreen !== 'bundle'}>{bundleOpening && <ResearchBundleView key={`${bundleOpening.id}:${bundleOpening.token}`} api={api} {...bundleOpening} onRead={id => { const paper = library.papers.find(item => item.id === id); if (paper) void read(paper); }}/>}</div>
       <div hidden={libraryScreen !== 'discovery'}><Discovery api={api} opening={discoveryOpening} library={library} locked={false} selected={reading ? [reading.id] : []} onRefresh={refresh} onRead={paper => read(paper)} onCompare={addToComparison} onReturn={id => { const paper = library.papers.find(p => p.id === id); if (paper) void read(paper); }} t={t}/></div>
     </section>
     <section className="pa-reading-screen" hidden={screen !== 'reading'} data-agent={showResearch}>

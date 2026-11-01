@@ -1,5 +1,5 @@
 export type Paper = {
-  id: string; source: string; sourceId: string; title: string; authors: string[];
+  id: string; resourceKind?: 'web_article' | 'paper'; limitation?: string; source: string; sourceId: string; title: string; authors: string[];
   url: string; pdfUrl?: string; contentKind: 'abstract' | 'report' | 'full-text';
   contentDigest: string; fetchedAt: string; content?: string;
 };
@@ -33,7 +33,7 @@ export type ResearchStudy = StudySummary & {
   steps: { action: 'search' | 'read' | 'note' | 'finalize'; paperId?: string; page?: number; query?: string }[];
   passages: { id: string; paperId: string; page: number; content: string }[];
 };
-export type Library = { papers: Paper[]; intents: Intent[]; reports: Report[]; studies?: StudySummary[]; matrixCount?: number; favorites?: SavedDiscovery[]; discoveries?: Pick<DiscoveryBatch, 'id' | 'seedId' | 'seedTitle' | 'relation' | 'page' | 'fetchedAt'>[] };
+export type Library = { bundles?: import('./research-types').ResearchBundle[]; papers: Paper[]; intents: Intent[]; reports: Report[]; studies?: StudySummary[]; matrixCount?: number; favorites?: SavedDiscovery[]; discoveries?: Pick<DiscoveryBatch, 'id' | 'seedId' | 'seedTitle' | 'relation' | 'page' | 'fetchedAt'>[] };
 export type SearchItem = { id: string; source: string; title: string; url?: string | null; authors?: string[]; abstract?: string;
   publicationDate?: string | null; citations?: number | null; citationSource?: string; doi?: string; pdfUrl?: string;
   paperUrl?: string; hfVotes?: number; thumbnailUrl?: string; thumbnailId?: string; githubUrl?: string; githubStars?: number; projectUrl?: string;
