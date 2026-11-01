@@ -5842,6 +5842,7 @@ dependencies = [
  "pero-contracts",
  "pero-runtime",
  "portable-pty",
+ "reqwest",
  "rusqlite",
  "serde",
  "serde_json",
