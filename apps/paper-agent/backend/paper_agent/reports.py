@@ -51,12 +51,14 @@ class EvidenceReference:
             if self.quote not in passage.content:
                 raise Invalid(f'Evidence is outside the frozen PDF passages: quote {self.quote[:160]!r} does not exactly match passage {passage.id} on page {passage.page}. '
                               'Use recall with this passageId and copy a contiguous quotation, preserving original line endings; a shorter same-line quote is also valid.')
-            offset = passage.content.index(self.quote)
+            offsets = [m.start() for m in re.finditer('(?=' + re.escape(self.quote) + ')', passage.content)]
+            offset = offsets[0]
             return dict(paperId=paper.id, start=offset, end=offset + len(self.quote), heading=f'Page {passage.page}',
                         before=passage.content[max(0, offset - 500):offset], quote=self.quote,
                         after=passage.content[offset + len(self.quote):offset + len(self.quote) + 500],
                         pdf=dict(documentId=passage.document_id, fileDigest=passage.file_digest,
-                                 pages=[passage.page], sourceStart=passage.start + offset))
+                                 pages=[passage.page], sourceStart=passage.start + offset,
+                                 sourceCandidates=[passage.start + offset for offset in offsets]))
         start = paper.content.find(self.quote)
         if start < 0:
             raise Invalid("Evidence quotation is absent from the frozen source")

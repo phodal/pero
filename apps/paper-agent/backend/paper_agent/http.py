@@ -215,6 +215,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                             content = pdf_files.download(paper)
                             document = store.save_pdf(pdf_files.inspect(paper, content, now()), content)
                         return self.reply(200, dict(document=document.to_dict(), annotations=[item.to_dict() for item in store.annotations(document.id)]))
+                    if path == '/api/pdf/locate':
+                        document = store.pdf(data.get('documentId'))
+                        return self.reply(200, pdf_files.locate_anchor(store.pdf_bytes(document), document, data))
                     if path == '/api/annotations':
                         document = store.pdf(data.get('documentId'))
                         annotation = PdfAnnotation.create(data, document, now())
@@ -255,13 +258,21 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         if 'pdf' in location:
                             locator = location['pdf']
                             document = store.pdf(locator['documentId'])
-                            rects = pdf_files.locate_quote(store.pdf_bytes(document), document, locator['pages'][0], locator['sourceStart'], evidence.quote)
-                            locator['rects'] = [r.to_dict() for r in rects]
+                            original = store.pdf_bytes(document)
+                            starts = locator.pop('sourceCandidates')
+                            candidates = [pdf_files.locate_anchor(original, document, dict(fileDigest=locator['fileDigest'],
+                                page=locator['pages'][0], start=start, end=start + len(evidence.quote)))
+                                for start in starts[:64]]
+                            if len(starts) == 1:
+                                locator.update(anchor=candidates[0], rects=candidates[0]['rects'], verification='pdf-text-match')
+                            else:
+                                locator.pop('sourceStart')
+                                locator.update(candidates=candidates, candidateCount=len(starts), verification='ambiguous')
                             return self.reply(200, location)
                         document = store.paper_pdf(evidence.paper_id)
                         pages = document.matching_pages(evidence.quote) if document else ()
                         if pages:
-                            location['pdf'] = dict(documentId=document.id, pages=list(pages))
+                            location['pdf'] = dict(documentId=document.id, pages=list(pages), verification='page-text-match')
                         return self.reply(200, location)
                 raise Invalid("Route not found", 404)
             except PcgymInvalid as error:

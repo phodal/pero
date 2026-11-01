@@ -14,7 +14,7 @@ from paper_agent.store import ResearchStore
 NOW = '2026-10-29T00:00:00Z'
 
 
-def pdf_fixture():
+def pdf_fixture(repeated=False, phrase="Exact original evidence."):
     """Two pages, with repeated words to exercise page-specific source anchors."""
     objects = [b'<< /Type /Catalog /Pages 2 0 R >>',
                b'<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>',
@@ -22,7 +22,8 @@ def pdf_fixture():
                b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 600] /Rotate 90 /Resources << /Font << /F1 5 0 R >> >> /Contents 7 0 R >>',
                b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>']
     for label in ('First', 'Second'):
-        stream = f'BT /F1 16 Tf 40 520 Td ({label} page. Exact original evidence.) Tj ET\n0.2 0.5 0.6 rg 40 100 200 250 re f'.encode()
+        repeat = f' 0 -30 Td ({phrase}) Tj' if repeated else ''
+        stream = f'BT /F1 16 Tf 40 520 Td ({label} page. {phrase}) Tj{repeat} ET\n0.2 0.5 0.6 rg 40 100 200 250 re f'.encode()
         objects.append(b'<< /Length ' + str(len(stream)).encode() + b' >>\nstream\n' + stream + b'\nendstream')
     data = bytearray(b'%PDF-1.4\n')
     offsets = [0]
@@ -55,6 +56,67 @@ class PdfTest(unittest.TestCase):
                      dict(x=.8,y=0,width=.3,height=1), dict(x=float('nan'),y=0,width=.1,height=.1)):
             with self.subTest(rect=rect), self.assertRaises(Invalid):
                 PdfRect.parse(rect)
+
+    def test_exact_windows_and_shared_selection_identity(self):
+        from dataclasses import replace
+        from paper_agent.context_file import ContextSelection, ContextFile
+        from paper_agent.model import digest
+        files, data = PdfFiles(), pdf_fixture(repeated=True)
+        paper = PaperSnapshot.from_reading(dict(title='Repeated fixture', sourceId='anchor-fixture',
+                    url='https://example.invalid/paper', contentKind='full-text', content='Fixture.'), NOW)
+        doc = files.inspect(paper, data, NOW)
+        quote = 'Exact original evidence.'
+        for page in doc.pages:
+            first, last = page.text.index(quote), page.text.rindex(quote)
+            anchors = [files.locate_anchor(data, doc, dict(fileDigest=doc.file_digest, page=page.number,
+                        start=start, end=start + len(quote))) for start in (first, last)]
+            self.assertNotEqual(anchors[0]['id'], anchors[1]['id'])
+            self.assertLess(anchors[0]['rects'][0]['y'], anchors[1]['rects'][0]['y'])
+            selected = dict(documentId=doc.id, fileDigest=doc.file_digest, page=page.number,
+                            rects=anchors[1]['rects'], quote=quote, kind='highlight')
+            annotation = PdfAnnotation.create(selected, doc, NOW)
+            edited = PdfAnnotation.create(dict(selected, note='A different note'), doc, NOW)
+            self.assertNotEqual(annotation.id, edited.id)
+            self.assertEqual(annotation.anchor.to_dict()['id'], edited.anchor.to_dict()['id'])
+            self.assertEqual(annotation.anchor.to_dict()['id'], anchors[1]['id'])
+            with tempfile.TemporaryDirectory() as root:
+                store = ResearchStore(root)
+                store.save_paper(paper); store.save_pdf(doc, data)
+                context = store.save_context(ContextSelection.parse(dict(selected, paperId=paper.id, content=quote)))
+                reopened = ResearchStore(root).stored_context(context.id)
+                self.assertEqual(reopened.anchor, annotation.anchor)
+                self.assertEqual(reopened.anchor.to_dict()['id'], anchors[1]['id'])
+                for change in (dict(fileDigest='0' * 64), dict(content='Absent words')):
+                    with self.subTest(change=change), self.assertRaises(Invalid):
+                        store.save_context(ContextSelection.parse({**selected, 'paperId': paper.id, 'content': quote, **change}))
+                page_context = store.save_context(ContextSelection.parse(dict(documentId=doc.id, fileDigest=doc.file_digest, page=page.number, paperId=paper.id, content=page.text)))
+                self.assertEqual(page_context.anchor.to_dict()['verification'], 'page-only')
+                with self.assertRaises(Invalid):
+                    ContextSelection.parse(dict(selected, paperId=paper.id, content=quote, rects=[]))
+                legacy = context.to_dict(); legacy.pop('anchor')
+                self.assertIsNone(ContextFile.from_record(legacy).anchor)
+            legacy = annotation.to_dict(); legacy.pop('anchor')
+            self.assertIsNone(PdfAnnotation.from_record(legacy).anchor)
+        for change in (dict(start=True), dict(start=-1), dict(end=999999), dict(fileDigest='0' * 64)):
+            with self.subTest(change=change), self.assertRaises(Invalid):
+                files.locate_anchor(data, doc, {'fileDigest': doc.file_digest, 'page': 1, 'start': 0, 'end': 5, **change})
+        with self.assertRaises(Invalid):
+            files.locate_quote(data, doc, 1, 1, quote)
+        with self.assertRaises(Invalid):
+            files.locate_anchor(data + b'changed', doc, dict(fileDigest=doc.file_digest, page=1, start=0, end=5))
+
+    def test_overlapping_substrings_keep_the_requested_occurrence(self):
+        from paper_agent.model import digest
+        data, files = pdf_fixture(phrase='banana banana'), PdfFiles()
+        doc = PdfDocument.create('a' * 64, digest(data), '', files.pages(data), NOW)
+        text = doc.pages[0].text
+        starts = [i for i in range(len(text)) if text.startswith('ana', i)]
+        anchors = [files.locate_anchor(data, doc, dict(fileDigest=doc.file_digest, page=1,
+                   start=i, end=i + 3)) for i in starts]
+        self.assertEqual(len(anchors), 4)
+        self.assertEqual(len({a['id'] for a in anchors}), 4)
+        positions = [a['rects'][0]['x'] for a in anchors]
+        self.assertEqual(positions, sorted(positions))
 
     def test_pdfium_files_and_persistent_annotations(self):
         from PIL import Image

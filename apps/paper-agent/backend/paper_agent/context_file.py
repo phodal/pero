@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 from .model import ID, Invalid, digest, mapping, text
 from .source_text import SourceText
+from .pdf import PdfAnchor
 
 
 @dataclass(frozen=True)
@@ -11,6 +12,7 @@ class ContextSelection:
     paper_id: str
     document_id: str | None = None
     page: int | None = None
+    anchor: PdfAnchor | None = None
 
     @classmethod
     def parse(cls, value):
@@ -26,11 +28,13 @@ class ContextSelection:
         if (document_id is None) != (page is None) or (page is not None and (type(page) is not int or page < 1)):
             raise Invalid('Choose a PDF page for the selected context')
         # Keep the original whitespace in the file, independently of text validation.
-        return cls(content, paper_id, document_id, page)
+        anchor = PdfAnchor.parse(value) if 'fileDigest' in value or 'rects' in value else None
+        return cls(content, paper_id, document_id, page, anchor)
 
     @property
     def id(self):
-        return digest(dict(content=self.content, paperId=self.paper_id, documentId=self.document_id, page=self.page))
+        return digest(dict(content=self.content, paperId=self.paper_id, documentId=self.document_id, page=self.page,
+                           **(dict(anchor=self.anchor.to_dict()) if self.anchor else {})))
 
 
 @dataclass(frozen=True)
@@ -41,14 +45,17 @@ class ContextFile:
     paper_id: str
     document_id: str | None
     page: int | None
+    anchor: PdfAnchor | None = None
 
     def to_dict(self):
         return dict(id=self.id, path=self.path, contentDigest=self.content_digest,
-                    paperId=self.paper_id, documentId=self.document_id, page=self.page)
+                    paperId=self.paper_id, documentId=self.document_id, page=self.page,
+                    **(dict(anchor=self.anchor.to_dict()) if self.anchor else {}))
 
     @classmethod
     def from_record(cls, value):
-        return cls(value['id'], value['path'], value['contentDigest'], value['paperId'], value['documentId'], value['page'])
+        return cls(value['id'], value['path'], value['contentDigest'], value['paperId'], value['documentId'], value['page'],
+                   PdfAnchor.parse(value['anchor']) if value.get('anchor') else None)
 
     def for_sources(self, paper_ids):
         if self.paper_id not in paper_ids:
