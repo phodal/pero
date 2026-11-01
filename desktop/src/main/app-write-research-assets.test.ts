@@ -50,7 +50,7 @@ test('dispatched research writes stop waiting on cancellation without claiming r
   const { app, panel, version, ...write } = definition;
   const routes = new AppWriteRoutes(async <T>(action: string) => {
     if (action === 'list') return [{ name: app, version, enabled: true, panels: [{ id: panel }], writes: [write] }] as T;
-    return await new Promise(resolve => { finish = resolve; controller.abort(); }) as T;
+    return await new Promise<unknown>(resolve => { finish = resolve; controller.abort(); }) as T;
   }, () => { writes++; }, async () => { throw new Error('Unexpected HTTP'); });
   const prepared = new PreparedAppWrite(definition, { operation: 'start', bundleId: 'a'.repeat(64), assetId: 'b'.repeat(64) });
   await assert.rejects(routes.apply(prepared, controller.signal), /after dispatch.*Check status and cancel/);

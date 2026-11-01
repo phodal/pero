@@ -722,6 +722,9 @@
         },
         {
           "$ref": "#/$defs/AutomationApp"
+        },
+        {
+          "$ref": "#/$defs/ResearchAssetsApp"
         }
       ]
     },
@@ -1005,6 +1008,12 @@
             },
             {
               "$ref": "#/$defs/AppGrant"
+            },
+            {
+              "$ref": "#/$defs/ResearchAssetReply"
+            },
+            {
+              "$ref": "#/$defs/ResearchBundleReply"
             }
           ]
         }
@@ -8733,6 +8742,174 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 128
+    },
+    "ResearchAssetLookup": {
+      "title": "ResearchAssetLookup",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "status"
+            },
+            {
+              "type": "string",
+              "const": "cancel"
+            }
+          ]
+        },
+        "bundleId": {
+          "$ref": "#/$defs/ResearchId"
+        },
+        "assetId": {
+          "$ref": "#/$defs/ResearchId"
+        }
+      },
+      "required": [
+        "operation",
+        "bundleId"
+      ],
+      "additionalProperties": false
+    },
+    "ResearchAssetReply": {
+      "title": "ResearchAssetReply",
+      "type": "object",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppDocumentSchema"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "download": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppDocumentSchema"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "asset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppDocumentSchema"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "receipt": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "source",
+        "download",
+        "asset",
+        "receipt"
+      ],
+      "additionalProperties": false,
+      "description": "Data owns the domain source/job/catalog documents. The handoff has no private paths or tokens."
+    },
+    "ResearchAssetsApp": {
+      "title": "ResearchAssetsApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "research-assets"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "request": {
+          "$ref": "#/$defs/ResearchAssetsRequest"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "request",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "ResearchAssetsRequest": {
+      "title": "ResearchAssetsRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ResearchAssetStart"
+        },
+        {
+          "$ref": "#/$defs/ResearchAssetLookup"
+        }
+      ]
+    },
+    "ResearchAssetStart": {
+      "title": "ResearchAssetStart",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "start"
+        },
+        "bundleId": {
+          "$ref": "#/$defs/ResearchId"
+        },
+        "assetId": {
+          "$ref": "#/$defs/ResearchId"
+        }
+      },
+      "required": [
+        "operation",
+        "bundleId",
+        "assetId"
+      ],
+      "additionalProperties": false
+    },
+    "ResearchBundleReply": {
+      "title": "ResearchBundleReply",
+      "type": "object",
+      "properties": {
+        "bundleId": {
+          "$ref": "#/$defs/ResearchId"
+        },
+        "assets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResearchAssetReply"
+          }
+        }
+      },
+      "required": [
+        "bundleId",
+        "assets"
+      ],
+      "additionalProperties": false
+    },
+    "ResearchId": {
+      "title": "ResearchId",
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Paper may request only saved research identities; Host owns the fixed Data target."
     },
     "ResetWorkspaceSession": {
       "title": "ResetWorkspaceSession",

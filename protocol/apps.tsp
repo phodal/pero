@@ -54,6 +54,21 @@ model DisableApp { action: "disable"; name: AppName; ...RequestBase; }
 model UninstallApp { action: "uninstall"; name: AppName; ...RequestBase; }
 model ResolveApp { action: "resolve"; name: AppName; ...RequestBase; }
 model ConnectorsApp { action: "connectors"; name: AppName; ...RequestBase; }
+/** Paper may request only saved research identities; Host owns the fixed Data target. */
+@minLength(64) @maxLength(64) @pattern("^[a-f0-9]{64}$") scalar ResearchId extends string;
+model ResearchAssetStart { operation: "start"; bundleId: ResearchId; assetId: ResearchId; ...AppClosed; }
+model ResearchAssetLookup { operation: "status" | "cancel"; bundleId: ResearchId; assetId?: ResearchId; ...AppClosed; }
+@oneOf union ResearchAssetsRequest { ResearchAssetStart, ResearchAssetLookup }
+model ResearchAssetsApp { action: "research-assets"; name: AppName; request: ResearchAssetsRequest; ...RequestBase; }
+/** Data owns the domain source/job/catalog documents. The handoff has no private paths or tokens. */
+model ResearchAssetReply {
+  source: AppDocumentSchema | null;
+  download: AppDocumentSchema | null;
+  asset: AppDocumentSchema | null;
+  receipt: AppDocumentSchema;
+  ...AppClosed;
+}
+model ResearchBundleReply { bundleId: ResearchId; assets: ResearchAssetReply[]; ...AppClosed; }
 model AgentInfoRequest { operation: "info"; ...AppClosed; }
 model AgentStartRequest { operation: "start"; @minLength(1) @maxLength(48) @pattern("^[a-zA-Z0-9_-]+$") requestId: string; @minLength(1) @maxLength(128000) prompt: string; agentId: string; ...AppClosed; }
 model AgentEventsRequest { operation: "events"; sessionId: string; after: uint32; ...AppClosed; }
@@ -71,9 +86,9 @@ model AppSessionBinding { app: AppName; requestId: string; agentId: string; prom
 model AutomationApiRequest {method:"GET"|"POST"|"PUT"|"DELETE";path:string;body?:unknown;...AppClosed}
 model AutomationApp {action:"automation";name:AppName;request:AutomationApiRequest;...RequestBase}
 model AutomationApiReply {status:uint16;body:unknown;...AppClosed}
-@oneOf union AppRequest { ListApps, InstallApp, PointAgent, PointCatalog, EnableApp, DisableApp, UninstallApp, ResolveApp, AgentApp, ConnectorsApp, AutomationApp }
+@oneOf union AppRequest { ListApps, InstallApp, PointAgent, PointCatalog, EnableApp, DisableApp, UninstallApp, ResolveApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
 model AppGrant { permitted: true; ...AppClosed; }
-model AppSuccess { ok: true; value: PointRun | PointTranscript | PointLookupReply | PointOpenReply | PointCatalogReply | AutomationApiReply | AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant; ...AppClosed; }
+model AppSuccess { ok: true; value: PointRun | PointTranscript | PointLookupReply | PointOpenReply | PointCatalogReply | AutomationApiReply | AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }
 
