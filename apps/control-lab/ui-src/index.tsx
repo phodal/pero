@@ -103,6 +103,7 @@ export default function ControlLab() {
     setHistory(result.experiments);
   }, [api]);
   function chooseTemplate(item: Template) {
+    setBudget(item.defaultCandidateBudget);
     setTemplateId(item.id);
     setParameters(
       Object.fromEntries(item.parameters.map((f) => [f.name, f.value])),
@@ -293,6 +294,7 @@ export default function ControlLab() {
     if (pending.current) return;
     selection.current++;
     setExperiment(null);
+    if (template) chooseTemplate(template);
     setDraft(null);
     pendingSelect.current = null;
     setError("");
@@ -497,7 +499,7 @@ export default function ControlLab() {
         ? {
             apply_generated_draft: {
               description:
-                "Replace the unsaved design draft for the selected template. parameters and criteria use only that template's fields. candidateBudget is an optional integer from 1 to 30. Does not freeze, search, propose, or accept scenarios, a spec hash, or an engine name.",
+                `Replace the unsaved design draft for the selected template. parameters and criteria use only that template's fields. candidateBudget is an optional integer from 1 to ${template.candidateBudgetMax}. Does not freeze, search, propose, or accept scenarios, a spec hash, or an engine name.`,
               parameters: generatedDraftSchema,
               run: (params: Record<string, unknown>) => {
                 if (experiment) throw new Error("A frozen experiment cannot accept a generated draft.");
@@ -743,7 +745,7 @@ export default function ControlLab() {
                         type="number"
                         required
                         min="1"
-                        max="30"
+                        max={template.candidateBudgetMax}
                         step="1"
                         value={Number.isNaN(budget) ? "" : budget}
                         disabled={busy || generating}
@@ -752,7 +754,7 @@ export default function ControlLab() {
                         }
                       />
                     </label>
-                    <p className="muted">Specification and policy are locked after freezing.</p>
+                    <p className="muted">Ledger limit: 80 attempts / 40,000 samples. Specification locks on freeze.</p>
                     <button
                       className="primary"
                       type="button"

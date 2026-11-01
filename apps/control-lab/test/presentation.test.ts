@@ -277,6 +277,7 @@ function draftField(name: string, min: number, max: number, step = 0.1, unit = "
 
 test("unsaved example exposes only the template search space and no observations", () => {
   const template = {
+    candidateBudgetMax: 25, defaultCandidateBudget: 6,
     id: "robust-pid",
     title: "Robust filtered PID",
     description: "",
@@ -295,6 +296,7 @@ test("unsaved example exposes only the template search space and no observations
 
 test("generated draft accepts only the selected template fields inside their bounds", () => {
   const pid = {
+    candidateBudgetMax: 25,
     parameters: [
       draftField("kp", 0, 8), draftField("ki", 0, 5), draftField("kd", 0, 2),
       draftField("n", 12, 12, 1), draftField("horizon", 2, 50, 1, "s"), draftField("samples", 101, 5001, 100),
@@ -307,8 +309,13 @@ test("generated draft accepts only the selected template fields inside their bou
     candidateBudget: 6,
   });
   assert.equal(draft.budget, 6);
+  assert.throws(() => parseGeneratedDraft(pid, {
+    parameters: draft.parameters, criteria: draft.criteria, candidateBudget: 26,
+  }), /1 to 25/);
+  assert.match(generationPrompt({ id: 'pid', title: 'PID', ...pid }, draft.parameters, draft.criteria, 6), /integer from 1 to 25/);
   assert.equal(draft.parameters.samples, 1001);
   const golden = {
+    candidateBudgetMax: 30,
     parameters: [draftField("horizon", 2, 50, 1, "s"), draftField("samples", 101, 5001, 100)],
     criteria: [draftField("overshootMax", 0, 2, 0.01)],
   };
@@ -317,6 +324,7 @@ test("generated draft accepts only the selected template fields inside their bou
     criteria: { overshootMax: 0.1 },
   }).budget, null);
   const filter = {
+    candidateBudgetMax: 25,
     parameters: [draftField("r", 100, 10000, 100, "Ω"), draftField("c", 1e-9, 1e-5, 1e-8, "F"), draftField("gain", 1, 2.8, 0.01)],
     criteria: [draftField("cutoffTarget", 10, 50000, 10, "Hz")],
   };
@@ -367,6 +375,7 @@ test("generated draft accepts only the selected template fields inside their bou
 
 test("transcript JSON applies the last valid draft and leaves the current values when it does not", () => {
   const golden = {
+    candidateBudgetMax: 30,
     parameters: [draftField("horizon", 2, 50, 1, "s"), draftField("samples", 101, 5001, 100)],
     criteria: [draftField("overshootMax", 0, 2, 0.01)],
   };

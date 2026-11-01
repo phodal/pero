@@ -425,7 +425,7 @@ function draftFields(fields: Field[], supplied: unknown) {
 
 /** Bounds come from the selected template fields. Step is shown to the model; samples must be a whole number. Template defaults are not required to land on step. */
 export function parseGeneratedDraft(
-  template: { parameters: Field[]; criteria: Field[] },
+  template: { parameters: Field[]; criteria: Field[]; candidateBudgetMax: number },
   payload: unknown,
 ): GeneratedDraft {
   if (!payload || typeof payload !== "object" || Array.isArray(payload))
@@ -437,8 +437,8 @@ export function parseGeneratedDraft(
   let budget: number | null = null;
   if (record.candidateBudget !== undefined) {
     const value = record.candidateBudget;
-    if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 30)
-      throw new Error("Candidate budget must be an integer from 1 to 30.");
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > template.candidateBudgetMax)
+      throw new Error(`Candidate budget must be an integer from 1 to ${template.candidateBudgetMax}.`);
     budget = value;
   }
   return {
@@ -455,7 +455,7 @@ function fieldLine(field: Field, value: number | undefined) {
 
 /** Names the selected template and its exposed fields. It does not authorize a freeze or a search. */
 export function generationPrompt(
-  template: { id: string; title: string; parameters: Field[]; criteria: Field[] },
+  template: { id: string; title: string; parameters: Field[]; criteria: Field[]; candidateBudgetMax: number },
   parameters: Record<string, number>,
   criteria: Record<string, number>,
   budget: number,
@@ -468,7 +468,7 @@ export function generationPrompt(
     ...template.parameters.map((field) => fieldLine(field, parameters[field.name])),
     "Criteria:",
     ...template.criteria.map((field) => fieldLine(field, criteria[field.name])),
-    `Candidate budget: current ${budget}; integer from 1 to 30.`,
+    `Candidate budget: current ${budget}; integer from 1 to ${template.candidateBudgetMax}.`,
     'End the reply with one JSON object and no text after it. Keys are only "parameters", "criteria", and optional "candidateBudget".',
   ].join("\n");
 }
@@ -511,7 +511,7 @@ function jsonObjects(text: string) {
 /** The last JSON object that matches the selected template wins. A failure returns the current draft unchanged. */
 export function applyTranscriptDraft(
   current: { parameters: Record<string, number>; criteria: Record<string, number>; budget: number },
-  template: { parameters: Field[]; criteria: Field[] },
+  template: { parameters: Field[]; criteria: Field[]; candidateBudgetMax: number },
   text: string,
   frozen: boolean,
 ) {
