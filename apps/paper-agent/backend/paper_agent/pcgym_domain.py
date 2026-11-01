@@ -142,12 +142,15 @@ class ReproductionSpec:
     comparison: str = 'dual_grain_unresolved'
     commit: str = COMMIT
     schema: str = SCHEMA
+    include_oracle: bool = True
 
     @classmethod
     def create(cls, *, seed, profile, packages, source_manifest_digest,
-               python_version, pipeline_digest, timeout_seconds=3600, anchor=None):
+               python_version, pipeline_digest, timeout_seconds=3600, anchor=None, include_oracle=True):
         if profile not in ('table6', 'smoke'):
             raise Invalid('profile', 'Choose table6 or smoke; smoke never establishes paper reproduction')
+        if type(include_oracle) is not bool:
+            raise Invalid('policy', 'include_oracle must be a boolean frozen before execution')
         seed = integer(seed, 'seed', 0, 2**31 - 1)
         timeout = integer(timeout_seconds, 'timeout_seconds', 1, 86400)
         identifier(source_manifest_digest, 'source_manifest_digest')
@@ -163,10 +166,18 @@ class ReproductionSpec:
         return cls(seed, 25000 if profile == 'table6' else 128,
                    50 if profile == 'table6' else 2, 60, timeout,
                    tuple(sorted(packages.items())), source_manifest_digest, python_version, pipeline_digest,
-                   anchor=anchor, profile=profile)
+                   anchor=anchor, profile=profile, include_oracle=include_oracle)
+
+    @property
+    def policies(self):
+        return POLICIES if self.include_oracle else POLICIES[:2]
 
     def payload(self):
-        return asdict(self)
+        value = asdict(self)
+        # Existing v1 specifications predate optional Oracle and keep their identity.
+        if self.include_oracle:
+            del value['include_oracle']
+        return value
 
     @property
     def id(self):
@@ -178,7 +189,7 @@ class ReproductionSpec:
     @classmethod
     def parse(cls, raw):
         fields(raw, ('id', 'seed', 'steps', 'episodes', 'samples', 'timeout_seconds', 'packages',
-                     'source_manifest_digest', 'python_version', 'pipeline_digest', 'metrics', 'anchor', 'mode', 'profile', 'comparison', 'commit', 'schema'))
+                     'source_manifest_digest', 'python_version', 'pipeline_digest', 'metrics', 'anchor', 'mode', 'profile', 'comparison', 'commit', 'schema'), ('include_oracle',))
         if not isinstance(raw['packages'], list) or any(not isinstance(p, list) or len(p) != 2 for p in raw['packages']):
             raise Invalid('environment', 'Expected package/version pairs')
         names = [p[0] for p in raw['packages']]
@@ -188,7 +199,8 @@ class ReproductionSpec:
                           source_manifest_digest=raw['source_manifest_digest'],
                           python_version=raw['python_version'], pipeline_digest=raw['pipeline_digest'],
                           timeout_seconds=raw['timeout_seconds'],
-                          anchor=PaperAnchor.parse(raw['anchor']) if raw['anchor'] is not None else None)
+                          anchor=PaperAnchor.parse(raw['anchor']) if raw['anchor'] is not None else None,
+                          include_oracle=raw.get('include_oracle', True))
         if raw != json.loads(canonical(spec.to_dict())):
             raise Invalid('spec_changed', 'Frozen specification differs from its declared identity or case policy')
         return spec
@@ -201,6 +213,7 @@ class ReproductionSpec:
             'The original custom_reward.py is executed unchanged, including its unresolved bound ordering.',
             'Fresh retraining does not recover the original unpublished checkpoints or raw Table 6 trajectories.',
             'Both metric grains are reported. Numerical proximity is not scientific confirmation.',
+            *(() if self.include_oracle else ('Oracle was excluded before execution; no Oracle comparison is available.',)),
             *(() if self.profile == 'table6' else ('Smoke uses fewer training steps/episodes than the paper case.',)),
         )
 
@@ -213,8 +226,8 @@ class PolicyTrace:
     @classmethod
     def parse(cls, raw, spec):
         fields(raw, ('policy', 'temperature_unit', 'temperatures', 'includes_initial_state'))
-        if raw['policy'] not in POLICIES:
-            raise Invalid('policy', 'Unexpected policy; preserve the whole base/shaped/oracle denominator')
+        if raw['policy'] not in spec.policies:
+            raise Invalid('policy', 'Unexpected policy; preserve the frozen policy coverage')
         if raw['temperature_unit'] != 'K' or raw['includes_initial_state'] is not True:
             raise Invalid('units_or_grid', 'Expected Kelvin and the upstream initial-state-inclusive sample grid')
         values = raw['temperatures']
@@ -243,10 +256,10 @@ class Observation:
         identifier(raw['attempt_id'], 'attempt_id')
         if raw['origin'] not in ('pcgym-execution', 'imported', 'synthetic-fixture'):
             raise Invalid('origin', 'Observation origin must be explicit')
-        if not isinstance(raw['policies'], list) or len(raw['policies']) != len(POLICIES):
-            raise Invalid('missing_policies', 'Expected exactly base, shaped and oracle; no successful-only filtering')
+        if not isinstance(raw['policies'], list) or len(raw['policies']) != len(spec.policies):
+            raise Invalid('missing_policies', 'Expected every frozen policy; no successful-only filtering')
         traces = tuple(PolicyTrace.parse(p, spec) for p in raw['policies'])
-        if set(t.policy for t in traces) != set(POLICIES):
+        if set(t.policy for t in traces) != set(spec.policies):
             raise Invalid('duplicate_policy', 'Missing or duplicate policy identity')
         return cls(spec.id, raw['attempt_id'], raw['origin'], traces)
 
@@ -292,6 +305,7 @@ def verification(spec, observation, execution_status, receipt_matches):
         'numeric_recomputation': 'PASS',
         'paper_verdict': 'INCONCLUSIVE',
         'acceptance': 'unreviewed',
+        'policy_coverage': list(spec.policies),
         'metrics': [asdict(m) for m in metrics],
         'reason': 'Equation 37 and the inspected implementation use different grains. Original experiment identity is unresolved.',
         'limitations': list(spec.deviations()) + [

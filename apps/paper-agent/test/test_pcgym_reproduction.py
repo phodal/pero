@@ -19,10 +19,11 @@ from paper_agent.pcgym import (write_json, read_json, check_attempt, export,
                               run, status, root_path)
 
 
-def specification(profile='smoke'):
+def specification(profile='smoke', *, include_oracle=True):
     return ReproductionSpec.create(seed=0, profile=profile,
         packages={name: 'fixture-version' for name in REQUIRED_PACKAGES},
-        source_manifest_digest='a' * 64, python_version='3.11.8', pipeline_digest='d' * 64)
+        source_manifest_digest='a' * 64, python_version='3.11.8', pipeline_digest='d' * 64,
+        include_oracle=include_oracle)
 
 
 def observation(spec, origin='synthetic-fixture'):
@@ -30,7 +31,7 @@ def observation(spec, origin='synthetic-fixture'):
             'attempt_id': 'b' * 64, 'origin': origin,
             'policies': [{'policy': name, 'temperature_unit': 'K', 'includes_initial_state': True,
                           'temperatures': [[324.] * spec.samples for _ in range(spec.episodes)]}
-                         for name in ('base', 'shaped', 'oracle')]}
+                         for name in spec.policies]}
 
 
 def synthetic_sources():
@@ -92,6 +93,26 @@ class MetricContractTests(unittest.TestCase):
                 with self.assertRaises(Invalid):
                     Observation.parse(raw, self.spec)
 
+    def test_frozen_policy_coverage_is_exact_with_or_without_oracle(self):
+        for include_oracle in (True, False):
+            with self.subTest(include_oracle=include_oracle):
+                spec = specification(include_oracle=include_oracle)
+                raw = observation(spec)
+                report = verification(spec, Observation.parse(raw, spec), 'completed', False)
+                self.assertEqual(report['numeric_recomputation'], 'PASS')
+                self.assertEqual(report['paper_verdict'], 'INCONCLUSIVE')
+                self.assertEqual(report['policy_coverage'], list(spec.policies))
+                self.assertEqual([m['policy'] for m in report['metrics']], list(spec.policies))
+                for missing in spec.policies:
+                    incomplete = deepcopy(raw)
+                    incomplete['policies'] = [p for p in incomplete['policies'] if p['policy'] != missing]
+                    with self.assertRaises(Invalid):
+                        Observation.parse(incomplete, spec)
+                if not include_oracle:
+                    raw['policies'].append(observation(specification())['policies'][-1])
+                    with self.assertRaises(Invalid):
+                        Observation.parse(raw, spec)
+
     def test_invalid_numbers_are_rejected(self):
         for value in (float('nan'), float('inf'), True, '324', None):
             with self.subTest(value=value):
@@ -134,6 +155,21 @@ class FrozenProtocolTests(unittest.TestCase):
         spec = specification()
         self.assertEqual(ReproductionSpec.parse(json.loads(canonical(spec.to_dict()))), spec)
         self.assertEqual(spec.id, specification().id)
+
+    def test_optional_oracle_is_frozen_without_changing_original_spec_identity(self):
+        original = specification()
+        optional = specification(include_oracle=False)
+        self.assertNotIn('include_oracle', original.payload())
+        self.assertFalse(optional.payload()['include_oracle'])
+        self.assertNotEqual(optional.id, original.id)
+        self.assertEqual(ReproductionSpec.parse(json.loads(canonical(optional.to_dict()))), optional)
+        changed = json.loads(canonical(optional.to_dict()))
+        del changed['include_oracle']
+        with self.assertRaises(Invalid):
+            ReproductionSpec.parse(changed)
+        for value in (0, 1, 'false', None):
+            with self.subTest(value=value), self.assertRaises(Invalid):
+                specification(include_oracle=value)
 
     def test_changes_are_rejected_not_absorbed(self):
         spec = specification()

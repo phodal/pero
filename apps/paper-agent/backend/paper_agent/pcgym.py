@@ -59,14 +59,15 @@ def load_spec(root):
     return ReproductionSpec.parse(read_json(root / 'spec.json'))
 
 
-def prepare(checkout, output, seed=0, profile='table6', timeout_seconds=3600):
+def prepare(checkout, output, seed=0, profile='table6', timeout_seconds=3600, *, include_oracle=True):
     checkout, sources, manifest = read_checkout(checkout)
     root = root_path(output)
     root.mkdir(parents=True, exist_ok=False)
     packages = package_inventory()
     spec = ReproductionSpec.create(seed=seed, profile=profile, packages=packages,
                                   source_manifest_digest=digest(manifest), python_version=platform.python_version(),
-                                  pipeline_digest=pipeline_digest(), timeout_seconds=timeout_seconds)
+                                  pipeline_digest=pipeline_digest(), timeout_seconds=timeout_seconds,
+                                  include_oracle=include_oracle)
     audit = audit_sources(sources, pinned=True)
     write_json(root / 'claim.json', Claim().to_dict())
     write_json(root / 'audit.json', audit)
@@ -294,6 +295,7 @@ def main(argv=None):
     prep.add_argument('--seed', type=int, default=0)
     prep.add_argument('--profile', choices=('table6', 'smoke'), default='table6')
     prep.add_argument('--timeout-seconds', type=int, default=3600)
+    prep.add_argument('--no-oracle', action='store_true', help='Freeze base/shaped coverage only; omit Oracle comparison')
     for name in ('run', 'verify', 'export', 'status', '_worker'):
         sub = commands.add_parser(name)
         sub.add_argument('--bundle', required=True)
@@ -308,7 +310,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         if args.command == 'prepare':
-            result = prepare(args.checkout, args.output, args.seed, args.profile, args.timeout_seconds)
+            result = prepare(args.checkout, args.output, args.seed, args.profile, args.timeout_seconds,
+                             include_oracle=not args.no_oracle)
         else:
             root = root_path(args.bundle)
             if args.command == 'run':

@@ -14,7 +14,7 @@ import random
 import platform
 import sys
 
-from .pcgym_domain import Invalid, Observation, POLICIES, canonical, digest
+from .pcgym_domain import Invalid, Observation, canonical, digest
 from .pcgym_sources import CASE, package_inventory, read_checkout, pipeline_digest
 
 
@@ -106,7 +106,7 @@ def run_case(spec, checkout, attempt_id, output):
 
     # Use public upstream evaluation, preserving its initial-state-inclusive grid.
     # A fresh evaluator per policy and episode makes the randomness explicit.
-    raw = {name: [] for name in POLICIES}
+    raw = {name: [] for name in spec.policies}
     for episode in range(spec.episodes):
         evaluation_seed = spec.seed + 10000 + episode
         for name in ('base', 'shaped'):
@@ -119,17 +119,18 @@ def run_case(spec, checkout, attempt_id, output):
                 evaluator.env.close()
             finally:
                 env.close()
-        event('evaluation', policy='oracle', episode=episode, seed=evaluation_seed)
-        seed_all(evaluation_seed)
-        env = pcgym.make_env(deepcopy(params(True)))
-        try:
-            evaluator, data = env.get_rollouts({}, reps=1, oracle=True, MPC_params={'N': 20})
-            raw['oracle'].append(data['oracle'])
-            evaluator.env.close()
-        finally:
-            env.close()
+        if spec.include_oracle:
+            event('evaluation', policy='oracle', episode=episode, seed=evaluation_seed)
+            seed_all(evaluation_seed)
+            env = pcgym.make_env(deepcopy(params(True)))
+            try:
+                evaluator, data = env.get_rollouts({}, reps=1, oracle=True, MPC_params={'N': 20})
+                raw['oracle'].append(data['oracle'])
+                evaluator.env.close()
+            finally:
+                env.close()
 
-    for name in POLICIES:
+    for name in spec.policies:
         temperatures = []
         arrays = {}
         for episode, result in enumerate(raw[name]):
@@ -150,11 +151,11 @@ def run_case(spec, checkout, attempt_id, output):
                               'includes_initial_state': True, 'temperatures': temperatures}
     observation = {'schema': 'pero.pcgym.observation.v1', 'spec_id': spec.id,
                    'attempt_id': attempt_id, 'origin': 'pcgym-execution',
-                   'policies': [trajectories[name] for name in POLICIES]}
+                   'policies': [trajectories[name] for name in spec.policies]}
     Observation.parse(observation, spec)
     # Recheck code and environment after execution; an unobserved mutation is not accepted.
     preflight(spec, checkout)
-    event('execution-complete', policies=list(POLICIES), episodes=spec.episodes)
+    event('execution-complete', policies=list(spec.policies), episodes=spec.episodes)
     return observation, {'source_manifest': source_manifest, 'checkpoints': checkpoint_hashes,
                          'training': training,
                          'python': sys.version, 'packages': package_inventory(),
