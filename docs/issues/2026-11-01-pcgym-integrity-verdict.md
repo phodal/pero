@@ -17,3 +17,10 @@ receipt digest, spec identity and attempt identity, and compare direct core,
 persisted CLI and a real offline checker process. Rehashing the archive manifest
 does not turn a mismatched receipt into PASS. Scientific acceptance remains
 INCONCLUSIVE, independently of numerical/integrity status.
+
+The local checker also read observation bytes twice: once to hash and again to
+parse. A deterministic file replacement between reads demonstrated a report whose
+counts came from different bytes than its matching receipt. The bounded JSON
+reader now returns both bytes and parsed value from one read; the checker hashes
+that same snapshot. The regression checks the original snapshot consistently,
+then confirms a subsequent check rejects the replacement against the old receipt.

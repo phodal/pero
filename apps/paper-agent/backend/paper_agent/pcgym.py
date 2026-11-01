@@ -24,15 +24,25 @@ from .pcgym_sources import audit_sources, package_inventory, read_checkout, pipe
 MAX_JSON = 8 * 1024 * 1024
 
 
-def read_json(path):
+def read_json_snapshot(path):
+    """Read bounded bytes once so parsing and integrity checks share one snapshot."""
     path = Path(path)
     if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_JSON:
         raise Invalid('file', 'Expected a bounded, non-symlink JSON file')
+    with path.open('rb') as stream:
+        content = stream.read(MAX_JSON + 1)
+    if len(content) > MAX_JSON:
+        raise Invalid('file', 'JSON file exceeds its limit')
     try:
-        return json.loads(path.read_text(encoding='utf-8'),
-                          parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
+        value = json.loads(content.decode('utf-8'),
+                           parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
     except (UnicodeError, ValueError) as error:
         raise Invalid('json', 'Invalid or non-finite JSON input') from error
+    return content, value
+
+
+def read_json(path):
+    return read_json_snapshot(path)[1]
 
 
 def write_json(path, value):
@@ -97,10 +107,7 @@ def check_attempt(root, attempt_id):
     spec = load_spec(root)
     target = attempt_directory(root, attempt_id)
     receipt = read_json(target / 'execution.json')
-    raw_bytes = (target / 'observations.json').read_bytes()
-    if len(raw_bytes) > MAX_JSON:
-        raise Invalid('file', 'Observation file exceeds its limit')
-    raw = read_json(target / 'observations.json')
+    raw_bytes, raw = read_json_snapshot(target / 'observations.json')
     observed = Observation.parse(raw, spec)
     if observed.attempt_id != attempt_id:
         raise Invalid('wrong_attempt', 'Results cannot be moved between attempts')

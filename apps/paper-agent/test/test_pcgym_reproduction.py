@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 BACKEND = Path(__file__).resolve().parents[1] / 'backend'
@@ -304,6 +305,45 @@ class EvidencePackageTests(unittest.TestCase):
         result = check_attempt(self.root, 'b' * 64)
         self.assertEqual(result['numeric_recomputation'], 'FAIL')
         self.assertEqual(result['execution_evidence'], 'UNVERIFIED')
+
+    def test_checker_hashes_the_same_snapshot_it_parses(self):
+        path = self.target / 'observations.json'
+        original_open = Path.open
+        altered = deepcopy(self.raw)
+        altered['policies'][0]['temperatures'][0][0] = 324.
+        changed = False
+
+        class ChangingReader:
+            def __init__(reader, stream):
+                reader.stream = stream
+
+            def __enter__(reader):
+                return reader
+
+            def __exit__(reader, *args):
+                reader.stream.close()
+
+            def read(reader, *args):
+                nonlocal changed
+                snapshot = reader.stream.read(*args)
+                if not changed:
+                    changed = True
+                    with original_open(path, 'wb') as output:
+                        output.write(canonical(altered))
+                return snapshot
+
+        def opening(current, *args, **kwargs):
+            stream = original_open(current, *args, **kwargs)
+            return ChangingReader(stream) if current == path else stream
+
+        with patch.object(Path, 'open', opening):
+            report = check_attempt(self.root, 'b' * 64)
+        self.assertTrue(changed)
+        self.assertEqual(report['metrics'][0]['violated_samples'], 1)
+        self.assertEqual(report['observation_sha256'], self.receipt['observations_sha256'])
+        self.assertEqual(report['numeric_recomputation'], 'PASS')
+        # A subsequent check sees the replacement snapshot and refuses its old receipt.
+        self.assertEqual(check_attempt(self.root, 'b' * 64)['numeric_recomputation'], 'FAIL')
 
     def test_observations_cannot_move_between_attempts(self):
         self.raw['attempt_id'] = 'c' * 64
