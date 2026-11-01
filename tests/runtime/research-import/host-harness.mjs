@@ -14,7 +14,7 @@ export const root = resolve(import.meta.dirname, '../../..');
 export const skillName = 'research-resource-import';
 export const seed = 'https://research.example.org/forecasting';
 
-export async function openHost({ directory, agent, endpoint, model, credential, audit, skills = true, useEnvironmentProxy = false }) {
+export async function openHost({ directory, agent, endpoint, model, credential, audit, skills = true, useEnvironmentProxy = false, prepareApp, pythonEnvironment, imageInput = false, allowedPaperTools }) {
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const sessions = resolve(directory, 'sessions');
   await mkdir(sessions, { mode: 0o700, recursive: true });
@@ -23,9 +23,10 @@ export async function openHost({ directory, agent, endpoint, model, credential, 
   const args = ['--endpoint', endpoint, '--model', model, '--session-dir', sessions,
     '--api-key-env', 'RESEARCH_CAMPAIGN_KEY', '--approval', 'never', '--max-retries', '0',
     '--http-attempt-audit', audit, ...(skills ? ['--skills-root', installedSkills] : []),
-    ...(useEnvironmentProxy ? ['--use-env-proxy'] : [])];
+    ...(useEnvironmentProxy ? ['--use-env-proxy'] : []), ...(imageInput ? ['--image-input'] : [])];
   await writeFile(resolve(directory, 'agents.json'), JSON.stringify([{ id: 'research-harness', name: 'Research Harness', command: agent, args }]), { mode: 0o600 });
-  await writeFile(resolve(directory, 'settings.json'), JSON.stringify({ computer_use: { enabled: false } }), { mode: 0o600 });
+  await writeFile(resolve(directory, 'settings.json'), JSON.stringify({ computer_use: { enabled: false },
+    ...(pythonEnvironment ? { app_python: { default: pythonEnvironment } } : {}) }), { mode: 0o600 });
   let child, selected, stderr = '';
   const pending = new Map(), waiters = new Set(), events = [], writes = [];
   const scrub = text => credential ? String(text).split(credential).join('[REDACTED]') : String(text);
@@ -81,14 +82,22 @@ export async function openHost({ directory, agent, endpoint, model, credential, 
     await cp(resolve(root, 'apps', name, 'backend'), resolve(source, 'backend'), {
       recursive: true, filter: path => !path.includes('__pycache__') && !path.endsWith('.pyc'),
     });
-    for (const [from, to] of [['research-import-backend.py', 'research_fixture_server.py'], ['research-resources.py', 'research_resources_fixture.py']])
-      await cp(resolve(root, 'tests/fixtures', from), resolve(source, 'backend', to));
+    let backend;
+    if (prepareApp) backend = await prepareApp(name, source);
+    else {
+      for (const [from, to] of [['research-import-backend.py', 'research_fixture_server.py'], ['research-resources.py', 'research_resources_fixture.py']])
+        await cp(resolve(root, 'tests/fixtures', from), resolve(source, 'backend', to));
+      backend = { type: 'python', entry: 'backend/research_fixture_server.py' };
+    }
     await writeFile(resolve(source, 'dist/index.html'), '<h1>Headless synthetic research validation</h1>');
     const manifest = JSON.parse(await readFile(resolve(root, 'apps', name, 'app.json'), 'utf8'));
+    const writes = manifest.contributes.writes || [];
+    if (name === 'paper-agent' && allowedPaperTools) assert(allowedPaperTools.every(tool => writes.some(write => write.name === tool)));
     await writeFile(resolve(source, 'app.json'), JSON.stringify({ schemaVersion: 1, name, version: 'fixture', displayName: name,
       permissions: { host: name === 'paper-agent' ? ['agent', 'research-assets'] : [] },
-      contributes: { panels: [{ id: 'main', title: name, entry: 'dist/index.html' }], writes: manifest.contributes.writes || [] },
-      backend: { type: 'python', entry: 'backend/research_fixture_server.py' } }));
+      contributes: { panels: [{ id: 'main', title: name, entry: 'dist/index.html' }], writes: name === 'paper-agent' && allowedPaperTools
+        ? writes.filter(write => allowedPaperTools.includes(write.name)) : writes },
+      backend }));
     await request('install', { path: source }); await request('enable', { name });
   }
   async function close() {

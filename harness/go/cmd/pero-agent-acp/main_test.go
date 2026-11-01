@@ -62,8 +62,23 @@ func TestProviderBudgetFlagsPreserveOmittedDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if config.DisableThinking || config.UseEnvironmentProxy || config.MaxRequests != 0 || config.MaxOutputTokens != 0 || config.RetryPolicy != nil || config.Models[0].MaxTokens != 0 || config.Models[0].Reasoning != nil {
+	if config.DisableThinking || config.UseEnvironmentProxy || budget.ImageInput || len(config.Models[0].InputModalities) != 0 || config.MaxRequests != 0 || config.MaxOutputTokens != 0 || config.RetryPolicy != nil || config.Models[0].MaxTokens != 0 || config.Models[0].Reasoning != nil {
 		t.Fatal("omitted flags changed provider defaults")
+	}
+}
+func TestImageCapabilityRequiresExplicitDeclaration(t *testing.T) {
+	flags := flag.NewFlagSet("test", flag.ContinueOnError)
+	budget := bindProviderBudget(flags)
+	if err := flags.Parse([]string{"--image-input"}); err != nil {
+		t.Fatal(err)
+	}
+	config, err := configuredProvider("https://fixture.invalid/v1", "fixture", "fixture", *budget)
+	if err != nil {
+		t.Fatal(err)
+	}
+	modalities := config.Models[0].InputModalities
+	if len(modalities) != 2 || modalities[0] != "text" || modalities[1] != "image" || config.MaxRequests != 0 || config.MaxOutputTokens != 0 {
+		t.Fatal("image opt-in changed unrelated provider limits or failed to declare images")
 	}
 }
 func TestProviderBudgetFlagsHardCapsAndExplicitZeroRetry(t *testing.T) {

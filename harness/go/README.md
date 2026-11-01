@@ -12,19 +12,12 @@ go test -count=1 ./...
 go test -race -count=1 ./...
 go vet ./...
 go build -o pero-agent-acp ./cmd/pero-agent-acp
-./pero-agent-acp \
-  --endpoint https://YOUR-PROVIDER/v1 --model YOUR-MODEL \
-  --session-dir /private/path/to/sessions \
-  --workspace /absolute/workspace --enable-shell --approval ask
 ```
 
-No endpoint, model or credential is discovered from Point settings or accounts.
-Credentials are read only from the named environment variable (`--api-key-env`),
-not a CLI secret argument. The selected variable is cleared from this process
-after reading so MCP children do not inherit it. The explicit endpoint must be HTTPS (loopback HTTP is
-permitted for local protocol tests). Stdout is ACP NDJSON only; diagnostics use
-stderr. Session files contain prompts, tool results and model output: use a
-private directory, and define your own retention policy.
+Live provider use requires separate configuration and authorization. No endpoint,
+model or credential is discovered from Point settings or accounts. Provider
+endpoints must be HTTPS (loopback HTTP is permitted for local protocol tests).
+Stdout is ACP NDJSON only; diagnostics use stderr. Do not publish raw sessions.
 
 An [isolated Bazel build](BAZEL.md) is available from `harness/go`. Its build
 graph is separate from the root server pilot; the server Go version and
@@ -56,7 +49,7 @@ Agent process lifetime and includes failed attempts; the output cap applies to
 each request. SDK retries are disabled independently. Omitted retry configuration
 retains the Harness policy, so set zero explicitly when paid retries are unwanted.
 
-`--http-attempt-audit /absolute/private/existing-file` durably records each HTTP
+`--http-attempt-audit <audit-file>` durably records each HTTP
 attempt before dispatch, including failed attempts. It also works with the default
 `--max-requests 0`: auditing does not require adding a request cap. A missing or
 unwritable audit file stops dispatch. Zero `--max-tokens` omits a local output cap;
@@ -74,11 +67,6 @@ Do not add proxy credentials to Agent JSON, disable TLS validation, or create
 new trust roots just to make a test pass. Keep localhost/127.0.0.1/::1 excluded
 when using local Cloud/provider fixtures.
 
-Set provider credentials securely in the launching process environment; the
-example above assumes AGENT_PROVIDER_API_KEY is already present. Under the Rust
-Worker, do not use a PERO_-prefixed provider variable because those are removed;
-select a supported inherited name explicitly with `--api-key-env`.
-
 ## ACP and authority boundary
 
 The executable supports ACP v1 initialize, new/load/resume/list/close sessions,
@@ -86,9 +74,18 @@ prompt and cancel. Resume does not replay history; load does. Model selection is
 fixed by default (`configOptions` is empty). Explicit `--selectable-model` IDs
 opt into an idle-only, durable ACP model selector; see [model selection](acp/README.md).
 All selected models share operator-declared context/output/reasoning settings.
-The current provider is explicitly
-text-only; image, audio, embedded contexts and provider extensions are not
-silently coerced into text. Unsupported inputs fail closed.
+The provider defaults to text-only. `--image-input` explicitly declares image
+capability for the configured model and enables bounded in-memory PNG/JPEG user
+or MCP images as typed data-URI content, without file/network access. See
+[provider limits](providers/openai/README.md). Audio, file uploads, embedded
+contexts and other unsupported inputs fail closed rather than becoming text.
+
+This is an **operator opt-in**, not automatic vision for every Pero Agent. The
+default built-in registry does not pass `--image-input`. Add this flag only to
+an explicitly configured image-capable custom Agent; it does not upgrade a
+text-only provider. Without it, images fail before HTTP with an explicit
+unsupported-input error rather than being flattened into text. This feature
+adds no native file/shell tools or permission to publish source images.
 
 Without `--workspace`, no native tools are registered. An explicit workspace
 enables bounded read/write/edit/list/search; `--enable-shell` separately enables

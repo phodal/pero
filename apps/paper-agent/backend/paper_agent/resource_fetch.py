@@ -20,6 +20,19 @@ class WebDocument:
     text: str
 
 
+@dataclass(frozen=True)
+class PdfResponse:
+    url: str
+    data: bytes
+
+
+@dataclass(frozen=True)
+class SourceResponse:
+    url: str
+    data: bytes
+    mime: str
+
+
 class PinnedHTTPS(HTTPSConnection):
     def __init__(self, host, address, timeout):
         super().__init__(host, timeout=timeout, context=ssl.create_default_context())
@@ -39,13 +52,29 @@ class PublicMetadata:
         self.resolve, self.connection, self.clock = resolve, connection, clock
 
     def fetch(self, url, *, timeout=6, limit=MAX_BYTES):
+        result = self._fetch(url, timeout=timeout, limit=limit, pdf=False)
+        return WebDocument(result[0], result[1], result[2].decode('utf-8', errors='replace'))
+
+    def fetch_pdf(self, url, *, timeout=30):
+        from .local_pdf import MAX_PDF_BYTES
+        final, _mime, data = self._fetch(url, timeout=timeout, limit=MAX_PDF_BYTES, pdf=True)
+        if not data.startswith(b'%PDF-'):
+            raise Invalid('The source did not return a PDF', 415)
+        return PdfResponse(final, data)
+
+    def fetch_source(self, url, *, timeout=30):
+        from .source_archive import MAX_ARCHIVE
+        final, mime, data = self._fetch(url, timeout=timeout, limit=MAX_ARCHIVE, pdf=False, source=True)
+        return SourceResponse(final, data, mime)
+
+    def _fetch(self, url, *, timeout, limit, pdf, source=False):
         deadline = self.clock() + timeout
         for _ in range(4):
             url = PublicURL.parse(url).value
             parts = urlsplit(url)
             try:
                 addresses = tuple(dict.fromkeys(item[4][0] for item in self.resolve(parts.hostname, 443, type=socket.SOCK_STREAM)))
-                if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
+                if not addresses or any(not ipaddress.ip_address(address).is_global or ipaddress.ip_address(address).is_multicast for address in addresses):
                     raise Invalid('Private or non-public network addresses are refused')
                 remaining = deadline - self.clock()
                 if remaining <= 0:
@@ -53,7 +82,7 @@ class PublicMetadata:
                 connection = self.connection(parts.hostname, addresses[0], remaining)
                 try:
                     connection.request('GET', parts.path + ('?' + parts.query if parts.query else ''), headers={
-                        'User-Agent': 'Pero-Research-Import/0.1', 'Accept': 'text/html,application/json,text/plain,application/xml',
+                        'User-Agent': 'Pero-Research-Import/0.1', 'Accept': 'application/pdf' if pdf else 'text/html,application/json,text/plain,application/xml',
                         'Accept-Encoding': 'identity'})
                     response = connection.getresponse()
                     if response.status in (301, 302, 303, 307, 308):
@@ -63,9 +92,15 @@ class PublicMetadata:
                         url = urljoin(url, location)
                         continue
                     if response.status != 200:
-                        raise Invalid(f'Metadata unavailable (HTTP {response.status})')
+                        retry = response.getheader('Retry-After', '')
+                        note = f'; Retry-After: {retry[:80]}' if retry else ''
+                        raise Invalid(f'Source unavailable (HTTP {response.status}){note}', response.status if response.status in (401, 403, 429) else 502)
                     content_type = response.getheader('Content-Type', '').split(';', 1)[0].lower()
-                    if not (content_type.startswith('text/') or content_type in ('application/json', 'application/xml', 'application/xhtml+xml', 'application/atom+xml')):
+                    if pdf and content_type != 'application/pdf':
+                        raise Invalid('The source did not return application/pdf', 415)
+                    if source and content_type not in ('application/pdf', 'application/gzip', 'application/x-gzip', 'application/x-tar', 'application/octet-stream', 'application/x-tex', 'text/x-tex', 'text/plain'):
+                        raise Invalid('Unsupported source response type; HTML is not source text', 415)
+                    if not pdf and not source and not (content_type.startswith('text/') or content_type in ('application/json', 'application/xml', 'application/xhtml+xml', 'application/atom+xml')):
                         raise Invalid('Only text metadata pages are inspected; no binary assets were downloaded')
                     if response.getheader('Content-Encoding', 'identity') not in ('identity', ''):
                         raise Invalid('Compressed metadata is not accepted')
@@ -86,7 +121,9 @@ class PublicMetadata:
                         size += len(chunk)
                         if size > limit:
                             raise Invalid('Metadata response exceeds the byte limit')
-                    return WebDocument(url, content_type, b''.join(chunks).decode('utf-8', errors='replace'))
+                    if length is not None and size != int(length):
+                        raise Invalid('Incomplete response body')
+                    return url, content_type, b''.join(chunks)
                 finally:
                     connection.close()
             except (OSError, ValueError, HTTPException) as error:

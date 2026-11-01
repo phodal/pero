@@ -9,17 +9,19 @@ import (
 )
 
 // Deliberately reject unsupported content instead of silently dropping attachments.
-func encodeRequest(r harness.GenerateRequest) (wireRequest, error) {
+func encodeRequest(r harness.GenerateRequest, imagesAllowed bool) (wireRequest, error) {
 	if r.MaxTokens < 0 || (r.Temperature != nil && (math.IsNaN(*r.Temperature) || math.IsInf(*r.Temperature, 0) || *r.Temperature < 0 || *r.Temperature > 2)) {
 		return wireRequest{}, fmt.Errorf("invalid generation controls")
 	}
 	w := wireRequest{Model: r.Model, ReasoningEffort: r.ReasoningEffort, Temperature: r.Temperature, MaxTokens: r.MaxTokens, Stop: r.Stop, Stream: true, StreamOptions: wireStreamOptions{IncludeUsage: true}}
+	imageBytes := 0
 	if r.System != "" {
 		w.Messages = append(w.Messages, wireMessage{Role: "system", Content: r.System})
 	}
 	for _, m := range r.Messages {
 		out := wireMessage{Role: string(m.Role)}
-		var text, reason strings.Builder
+		var reason strings.Builder
+		var content []harness.ContentBlock
 		switch m.Role {
 		case harness.RoleSystem, harness.RoleDeveloper, harness.RoleUser, harness.RoleAssistant, harness.RoleTool:
 		default:
@@ -34,7 +36,12 @@ func encodeRequest(r harness.GenerateRequest) (wireRequest, error) {
 				if m.Role == harness.RoleTool {
 					return w, fmt.Errorf("tool messages require tool results")
 				}
-				text.WriteString(b.Text)
+				content = append(content, b)
+			case harness.BlockImage:
+				if m.Role != harness.RoleUser {
+					return w, fmt.Errorf("image input requires user or tool-result content")
+				}
+				content = append(content, b)
 			case harness.BlockReasoning:
 				if m.Role != harness.RoleAssistant {
 					return w, fmt.Errorf("reasoning requires assistant role")
@@ -49,20 +56,21 @@ func encodeRequest(r harness.GenerateRequest) (wireRequest, error) {
 				if m.Role != harness.RoleTool || b.ToolCallID == "" {
 					return w, fmt.Errorf("invalid tool result")
 				}
-				var result strings.Builder
-				for _, part := range b.Content {
-					if part.Type != harness.BlockText || len(part.Extensions) > 0 {
-						return w, fmt.Errorf("unsupported tool result media/content")
-					}
-					result.WriteString(part.Text)
+				result, err := encodeContent(b.Content, imagesAllowed, &imageBytes)
+				if err != nil {
+					return w, err
 				}
-				w.Messages = append(w.Messages, wireMessage{Role: "tool", ToolCallID: string(b.ToolCallID), Content: result.String()})
+				w.Messages = append(w.Messages, wireMessage{Role: "tool", ToolCallID: string(b.ToolCallID), Content: result})
 			default:
 				return w, fmt.Errorf("unsupported content kind %q", b.Type)
 			}
 		}
 		if m.Role != harness.RoleTool {
-			out.Content = text.String()
+			var err error
+			out.Content, err = encodeContent(content, imagesAllowed, &imageBytes)
+			if err != nil {
+				return w, err
+			}
 			out.ReasoningContent = reason.String()
 			w.Messages = append(w.Messages, out)
 		}

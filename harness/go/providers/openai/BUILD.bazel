@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "adapter.go",
         "generate.go",
+        "image_input.go",
         "provider_errors.go",
         "request_encode.go",
         "stream.go",
@@ -24,7 +25,10 @@ go_library(
 
 go_test(
     name = "openai_test",
-    srcs = ["adapter_test.go"],
+    srcs = [
+        "adapter_test.go",
+        "image_input_test.go",
+    ],
     embed = [":openai"],
     deps = [
         "//harness",

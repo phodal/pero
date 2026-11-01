@@ -16,22 +16,22 @@ export function ResourceDetails({ resource, onRead }: { resource: ResearchResour
     <div className="pa-actions"><a href={resource.url} target="_blank" rel="noreferrer">Open source</a>{resource.paperId && onRead && <Button variant="ghost" onClick={() => onRead(resource.paperId!)}>Read saved source</Button>}</div>
     <details><summary>Source details</summary>
       <dl className="pa-resource-provenance"><dt>Identity</dt><dd>{resource.identity}</dd><dt>Original URL</dt><dd><a href={resource.originalUrl} target="_blank" rel="noreferrer">{resource.originalUrl}</a></dd><dt>Revision</dt><dd>{resource.revision || 'Not resolved'}</dd>{resource.observedAt && <><dt>Inspected</dt><dd>{resource.observedAt}</dd></>}</dl>
-      {resource.evidence.length > 0 && <ul>{resource.evidence.map((evidence, index) => <li key={index}><a href={evidence.url} target="_blank" rel="noreferrer">{evidence.label || evidence.url}</a></li>)}</ul>}
+      {resource.evidence.length > 0 && <ul>{resource.evidence.map((evidence, index) => <li key={index}><a href={evidence.url} target="_blank" rel="noreferrer">{evidence.label || evidence.url}</a>{evidence.position != null && ` (link ${evidence.position})`}{evidence.href && <div>{evidence.href}</div>}</li>)}</ul>}
       {resource.excerpt && <p className="pa-resource-excerpt">{resource.excerpt}</p>}
     </details>
   </>;
 }
 
-export function ResearchImport({ api, active, onSaved }: { api: Api; active: boolean; onSaved(bundle: ResearchBundle, startDownloadIds: string[]): Promise<void> }) {
+export function ResearchImport({ api, active, onSaved }: { api: Api; active: boolean; onSaved(bundle: ResearchBundle, startDownloadIds: string[], startPdfIds: string[], startSourceIds: string[]): Promise<void> }) {
   const [url, setUrl] = useState(''), [draft, setDraft] = useState<ImportDraft | null>(null), [drafts, setDrafts] = useState<ImportDraft[]>([]);
-  const [selected, setSelected] = useState<string[]>([]), [downloadIds, setDownloadIds] = useState<string[]>([]), [confirmed, setConfirmed] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]), [downloadIds, setDownloadIds] = useState<string[]>([]), [pdfIds, setPdfIds] = useState<string[]>([]), [sourceIds, setSourceIds] = useState<string[]>([]), [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false), [saving, setSaving] = useState(false), [error, setError] = useState(''), [draftsError, setDraftsError] = useState('');
   const mounted = useRef(true), epoch = useRef(0), requestPending = useRef(false), savePending = useRef(false), input = useRef<HTMLInputElement>(null), acceptedDraft = useRef<ImportDraft | null>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; epoch.current++; }; }, []);
   function accept(value: ImportDraft) {
     const previous = acceptedDraft.current;
     if (previous?.id !== value.id || previous.status !== 'ready' && value.status === 'ready') {
-      setSelected(value.resources.map(resource => resource.id)); setDownloadIds([]); setConfirmed(false);
+      setSelected(value.resources.map(resource => resource.id)); setDownloadIds([]); setPdfIds([]); setSourceIds([]); setConfirmed(false);
     }
     acceptedDraft.current = value; setDraft(value);
   }
@@ -53,7 +53,7 @@ export function ResearchImport({ api, active, onSaved }: { api: Api; active: boo
     if (requestPending.current || savePending.current) return;
     const seed = resume?.seedUrl ?? url.trim();
     if (!resume && !/^https:\/\//i.test(seed)) { setError('Use a public HTTPS URL.'); input.current?.focus(); return; }
-    requestPending.current = true; setBusy(true); setError(''); acceptedDraft.current = null; setDraft(null); setDownloadIds([]); setConfirmed(false);
+    requestPending.current = true; setBusy(true); setError(''); acceptedDraft.current = null; setDraft(null); setDownloadIds([]); setPdfIds([]); setSourceIds([]); setConfirmed(false);
     const version = ++epoch.current;
     try {
       const value = await api.post<ImportDraft>('/api/research/inspect', resume ? { draftId: resume.id } : { url: seed, ...(refresh ? { refresh: true } : {}) });
@@ -70,17 +70,17 @@ export function ResearchImport({ api, active, onSaved }: { api: Api; active: boo
     finally { if (mounted.current && version === epoch.current) { requestPending.current = false; setBusy(false); } }
   }
   function reset() {
-    epoch.current++; requestPending.current = false; setBusy(false); setDraft(null); setError(''); setUrl(''); setSelected([]); setDownloadIds([]); setConfirmed(false);
+    epoch.current++; requestPending.current = false; setBusy(false); setDraft(null); setError(''); setUrl(''); setSelected([]); setDownloadIds([]); setPdfIds([]); setSourceIds([]); setConfirmed(false);
     if (draft?.status === 'inspecting') void api.post('/api/research/inspect', { draftId: draft.id, cancel: true }).catch(error => { if (mounted.current) setDraftsError(`Previous inspection could not be cancelled: ${errorText(error)}`); });
     input.current?.focus(); void loadDrafts();
   }
   async function save() {
-    if (!draft || draft.status !== 'ready' || !selected.length || savePending.current || downloadIds.length > 0 && !confirmed) return;
+    if (!draft || draft.status !== 'ready' || !selected.length || savePending.current || (downloadIds.length + pdfIds.length + sourceIds.length) > 0 && !confirmed) return;
     savePending.current = true; setSaving(true); setError('');
     try {
-      const bundle = await api.post<ResearchBundle>('/api/research/commit', { draftId: draft.id, resourceIds: selected, downloadIds, confirmedDownloads: confirmed && downloadIds.length > 0 });
-      await onSaved(bundle, downloadIds);
-      if (mounted.current) { setDraft(null); setUrl(''); setDownloadIds([]); setConfirmed(false); void loadDrafts(); }
+      const bundle = await api.post<ResearchBundle>('/api/research/commit', { draftId: draft.id, resourceIds: selected, downloadIds, pdfIds, sourceIds, confirmedDownloads: confirmed && (downloadIds.length + pdfIds.length + sourceIds.length) > 0 });
+      await onSaved(bundle, downloadIds, pdfIds, sourceIds);
+      if (mounted.current) { setDraft(null); setUrl(''); setDownloadIds([]); setPdfIds([]); setSourceIds([]); setConfirmed(false); void loadDrafts(); }
     } catch (error) { if (mounted.current) setError(errorText(error)); }
     finally { savePending.current = false; if (mounted.current) setSaving(false); }
   }
@@ -105,13 +105,15 @@ export function ResearchImport({ api, active, onSaved }: { api: Api; active: boo
       <div className="pa-research-heading"><h2>Review resources</h2><span className="pa-muted">{selected.length} of {draft.resources.length} selected</span></div>
       {!draft.resources.length && <Feedback>No resources found. Try another public research URL.</Feedback>}
       <ul className="pa-resource-list">{draft.resources.map(resource => <li key={resource.id}>
-        <label className="pa-resource-title"><Checkbox checked={selected.includes(resource.id)} disabled={saving} onCheckedChange={checked => { setSelected(values => checked ? [...values, resource.id] : values.filter(id => id !== resource.id)); if (!checked) setDownloadIds(values => values.filter(id => !resource.assets.some(asset => asset.id === id))); setConfirmed(false); }}/><span>{resource.title || resource.url}</span></label>
+        <label className="pa-resource-title"><Checkbox checked={selected.includes(resource.id)} disabled={saving} onCheckedChange={checked => { setSelected(values => checked ? [...values, resource.id] : values.filter(id => id !== resource.id)); if (!checked) { setDownloadIds(values => values.filter(id => !resource.assets.some(asset => asset.id === id))); setPdfIds(values => values.filter(id => id !== resource.id)); setSourceIds(values => values.filter(id => id !== resource.id)); } setConfirmed(false); }}/><span>{resource.title || resource.url}</span></label>
         <div className="pa-resource-body"><ResourceDetails resource={resource}/>
+          {resource.kind === 'source_archive' && <label className="pa-resource-download"><Checkbox checked={sourceIds.includes(resource.id)} disabled={saving || !selected.includes(resource.id) || !!resource.workIdentity && !resource.revision || /\.zip(?:[?#]|$)/i.test(resource.url)} onCheckedChange={checked => { setSourceIds(values => checked ? [...values, resource.id] : values.filter(id => id !== resource.id)); setConfirmed(false); }}/><span>Get source for read-only inspection<small>{resource.workIdentity && !resource.revision ? 'Select an explicit arXiv vN first.' : `Version ${resource.revision || 'unresolved'}.`} Size and license unknown; maximum 16 MiB. May contain TeX or PDF only; nothing is compiled or executed.</small></span></label>}
+          {resource.kind === 'pdf_candidate' && <label className="pa-resource-download"><Checkbox checked={pdfIds.includes(resource.id)} disabled={saving || !selected.includes(resource.id)} onCheckedChange={checked => { setPdfIds(values => checked ? [...values, resource.id] : values.filter(id => id !== resource.id)); setConfirmed(false); }}/><span>Download PDF for reading<small>Size unknown; maximum 16 MiB. License not verified.</small></span></label>}
           {resource.assets.map(asset => <label className="pa-resource-download" key={asset.id}><Checkbox checked={downloadIds.includes(asset.id)} disabled={saving || !selected.includes(resource.id)} onCheckedChange={checked => { setDownloadIds(values => checked ? [...values, asset.id] : values.filter(id => id !== asset.id)); setConfirmed(false); }}/><span>Download {asset.filename} <small>{assetSize(asset.size)} / {asset.license}</small></span></label>)}
         </div>
       </li>)}</ul>
-      {downloadIds.length > 0 ? <label className="pa-download-confirm"><Checkbox checked={confirmed} disabled={saving} onCheckedChange={setConfirmed}/><span>I confirm downloading {downloadIds.length} selected {downloadIds.length === 1 ? 'file' : 'files'} ({assetSize(selectedAssets.reduce((total, asset) => total + asset.size, 0))}) to Data under the licenses shown. No code will run.</span></label> : <p className="pa-muted">References only. No files downloaded or code run.</p>}
-      <Toolbar><Button variant="primary" busy={saving} disabled={!selected.length || downloadIds.length > 0 && !confirmed} onClick={() => void save()}>{saving ? 'Saving…' : downloadIds.length ? 'Save and download' : 'Save references only'}</Button><Button disabled={saving} onClick={() => void inspect(undefined, true)}>Inspect again</Button></Toolbar>
+      {downloadIds.length + pdfIds.length + sourceIds.length > 0 ? <label className="pa-download-confirm"><Checkbox checked={confirmed} disabled={saving} onCheckedChange={setConfirmed}/><span>I confirm downloading only the {downloadIds.length + pdfIds.length + sourceIds.length} selected files. {sourceIds.length > 0 && `${sourceIds.length} source archive(s) will be saved in Paper for read-only inspection; TeX is not compiled. `}{pdfIds.length > 0 && `${pdfIds.length} PDF(s) will be saved in Paper for reading; size and license remain unverified. `}{downloadIds.length > 0 && `${downloadIds.length} file(s) (${assetSize(selectedAssets.reduce((total, asset) => total + asset.size, 0))}) will be saved in Data under the licenses shown. `}No code will run.</span></label> : <p className="pa-muted">References only. No files downloaded or code run.</p>}
+      <Toolbar><Button variant="primary" busy={saving} disabled={!selected.length || (downloadIds.length + pdfIds.length + sourceIds.length) > 0 && !confirmed} onClick={() => void save()}>{saving ? 'Saving…' : downloadIds.length + pdfIds.length + sourceIds.length ? 'Save and download' : 'Save references only'}</Button><Button disabled={saving} onClick={() => void inspect(undefined, true)}>Inspect again</Button></Toolbar>
     </section>}
     {!draft && !busy && <section className="pa-research-drafts" aria-label="Saved import reviews">
       {draftsError && <Feedback kind="error">{draftsError}<Button onClick={() => void loadDrafts()}>Retry saved reviews</Button></Feedback>}

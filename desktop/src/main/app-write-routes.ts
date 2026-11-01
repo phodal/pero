@@ -1,4 +1,5 @@
 import type { AppAccess, AppRecord } from '../../../protocol/generated/host';
+import { PaperSourceImage, SOURCE_IMAGE_RESPONSE_BYTES } from './paper-source-image.ts';
 import { PreparedAppWrite, type AppWriteDefinition } from './app-write.ts';
 
 /** Installed routes are resolved by Host; both shells use the same write boundary. */
@@ -40,7 +41,22 @@ export class AppWriteRoutes {
     const encoded = JSON.stringify(body), method = route.method || 'POST';
     const headers = { 'X-Pero-App-Token': access.backend.token };
     const response=await this.fetch(access.backend.url+route.path,{method,headers:{'Content-Type':'application/json',...headers},body:encoded,redirect:'error',signal:AbortSignal.any([signal,AbortSignal.timeout(15000)])});
-    const text=await response.text();if(Buffer.byteLength(text)>1000000)throw new Error('App write response exceeds 1 MiB');
+    let text: string;
+    if (PaperSourceImage.accepts(prepared)) {
+      const reader = response.body?.getReader(), chunks: Uint8Array[] = []; let size = 0;
+      if (!reader) throw new Error('Source image response body is unavailable');
+      try {
+        while (true) {
+          const part = await reader.read(); if (part.done) break;
+          size += part.value.byteLength;
+          if (size > SOURCE_IMAGE_RESPONSE_BYTES) throw new Error('Source image response exceeds its bounded PNG envelope');
+          chunks.push(part.value);
+        }
+        text = Buffer.concat(chunks).toString('utf8');
+      } finally { await reader.cancel(); reader.releaseLock(); }
+    } else {
+      text=await response.text();if(Buffer.byteLength(text)>1000000)throw new Error('App write response exceeds 1 MiB');
+    }
     if(!response.ok)throw new Error(text.slice(0,1000)||`App write failed (${response.status})`);
     const value=JSON.parse(text);await this.send({version:1,kind:'app_written',request_id:null,text:'',data:{app:route.app,tool:route.name,digest:prepared.digest}});return value;
   }

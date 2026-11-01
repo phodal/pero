@@ -3,6 +3,7 @@ import { resolve, join, sep, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { build } from 'esbuild';
 import { Product } from '../../packages/product/product.ts';
+import { stageBuiltinApp } from './builtin-app-payload.mjs';
 import { readAppBundle, stageAppBundle } from './app-bundle.mjs';
 import { stageAgentAdapters } from './agent-adapters.mjs';
 import { buildReader } from './reader.mjs';
@@ -97,10 +98,7 @@ for (const { app, input } of inputs) {
     stageAppBundle(input, join(output, 'apps', app));
     continue;
   }
-  for (const entry of ['app.json', 'dist', 'backend', 'examples', 'evidence', 'THIRD_PARTY_NOTICES.md', 'README.md', 'licenses']) {
-    const source = resolve(root, 'apps', app, entry);
-    if (existsSync(source)) cpSync(source, join(output, 'apps', app, entry), { recursive: true, filter: path => !path.includes('__pycache__') });
-  }
+  stageBuiltinApp(resolve(root, 'apps', app), app, join(output, 'apps', app));
 }
 for (const { kind, executable, source } of runtimes) {
   const destination = join(output, 'runtime', kind);

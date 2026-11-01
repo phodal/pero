@@ -52,6 +52,10 @@ class ResearchStore:
         self.embedder = embedder
         from .research_imports import ResearchImports
         self.imports = ResearchImports(self)
+        from .pdf_downloads import PdfDownloads
+        self.pdf_downloads = PdfDownloads(self)
+        from .source_downloads import SourceDownloads
+        self.source_downloads = SourceDownloads(self)
 
     def _read(self, kind, identity):
         if not isinstance(identity, str) or not ID.fullmatch(identity):
@@ -272,8 +276,38 @@ class ResearchStore:
                 if document.file_digest == upload.file_digest:
                     return self.paper(document.paper_id)
             paper, document = files.import_local(upload, now)
-            self.save_paper(paper)
-            self.save_pdf(document, upload.data)
+            return self.import_prepared_pdf(paper, document, upload.data)
+
+    def import_prepared_pdf(self, paper, document, data):
+        with self.lock:
+            for identity in self._list('pdfs'):
+                saved = self.pdf(identity)
+                if saved.file_digest == document.file_digest:
+                    try:
+                        existing = self.paper(saved.paper_id)
+                    except Invalid as error:
+                        if error.status != 404:
+                            raise
+                        # A crash between the two immutable writes is repairable.
+                        continue
+                    # A work snapshot may point at newer PDFs later. Only a
+                    # bytes-addressed snapshot is stable for the imported version.
+                    if existing.source == 'local-pdf' and existing.source_id == document.file_digest:
+                        self.save_pdf(saved, data)  # Restore missing bytes without replacing the version.
+                        return existing
+            paths = (self.root / 'pdfs' / (document.id + '.json'),
+                     self.root / 'papers' / (paper.id + '.json'),
+                     self.root / 'pdf-files' / (document.file_digest + '.pdf'))
+            created = tuple(path for path in paths if not path.exists())
+            try:
+                self.save_pdf(document, data)
+                self.save_paper(paper)
+            except Exception:
+                # Roll back only this import's new files; shared bytes and older
+                # citations stay untouched. Crash orphans are retried above.
+                for path in created:
+                    path.unlink(missing_ok=True)
+                raise
             return paper
 
     def save_paper(self, paper):
