@@ -45,7 +45,7 @@ crawler platform, graph database or download manager.
   confirmation of destination, revision, license and size, without checkout,
   submodules, LFS materialization or running repository code. Only an actual Host
   execution can provide a resolved commit/path/tool receipt. Paper does not write
-  a completed-clone state. This implementation's tests stop at the composer.
+  a completed-clone state. The original #72 tests stop at the composer; the controlled-clone follow-up below records its own verification.
 
 ## Verification (2026-11-01)
 
@@ -99,3 +99,56 @@ focused Paper typecheck and generated contract checks do not certify a full buil
 Screenshots/receipts are CI artifacts, not committed binaries. A draft PR, passing
 source tests or a successful import does not establish scientific reproducibility,
 license suitability, signed-package readiness or cross-platform GUI acceptance.
+
+## Controlled clone follow-up (#68; in verification)
+
+The built-in Unix Pero Agent now advertises `clone_repository` independently of
+its generic shell tool. The CLI composition requires the explicit
+`--enable-research-clone --workspace <directory>` flags. Custom Agents and Windows
+are not asserted to have this capability. The Paper button still prepares an
+**unsent** request; it never grants permission or records a completed clone.
+
+GitHub source inspection resolves the API-reported default branch to a full commit,
+checking repository and commit identity and recording the metadata URL. Failure
+keeps revision unknown. The controlled tool requires that exact SHA, a new single
+workspace directory, saved bundle/resource identifiers, and reviewed license/size
+(unknown is explicit). Each call reuses existing ACP approval, execution timeout,
+process cancellation and session tool history. No Paper endpoint accepts a caller's
+success receipt. Actual Git exit status, exact HEAD and origin produce the typed
+receipt; incomplete/error/unknown execution never produces `completed`.
+
+The operation initializes an empty repository and fetches the exact commit without
+checkout. It disables inherited Git configuration, hooks/templates, credential
+helpers, unapproved protocols and HTTP redirects; it does not recurse submodules,
+materialize LFS, install dependencies or execute repository code. The existing
+executor caps time at 120 seconds and output; a 128 MiB per-file limit also applies.
+This is not an aggregate download quota or OS network sandbox. An existing target
+is refused, including after interrupted work; inspect it before a separate retry.
+
+The real receipt remains visible in the expandable `clone_repository` tool result
+in the shared Host conversation and its saved history, rather than in model prose
+or a fabricated Paper asset. Bundle/resource IDs are source references, not proof
+that their metadata is semantically correct. No same-machine adversarial isolation
+or public-network clone success is claimed.
+
+Local follow-up evidence (Linux; based on `f448328`, final source review pending):
+
+- Paper backend: 127 tests run, OK, one existing Windows-only skip. Focused
+  research-import tests: 13 run, OK, one Windows-only skip. Data research-download:
+  13 passed. Paper TypeScript typecheck passed.
+- Go native-tools, ACP and ACP command packages passed with offline module caches.
+  Real Git fixtures cover exact commit/origin, no checkout, no implicit source
+  execution, invalid input/no effects, existing target refusal, failed fetch,
+  cancellation, and actual tool-produced receipt after approval.
+- Trusted `AlwaysAskApproval` registration goes through the existing permission
+  broker; auto-review cannot silently allow the clone. Broker tests preserve
+  read-only/never denial. ACP wire fixtures exercise real request_permission under
+  auto-review with allow and reject; rejected tool bodies never run. Native clone
+  opt-in does not enable the generic shell tool.
+- Initial runs exhausted the environment's `/tmp` tmpfs during Go linking and a
+  Paper HTTP case. Complete reruns with a task-owned workspace temporary directory
+  passed; the failed runs are not counted as passes.
+- No fresh real Desktop screenshot, public GitHub clone, Windows clone, paid-model
+  or release-package acceptance is claimed here. The shared tool-result UI path is
+  existing production code; it still requires the hosted clone-specific UX check
+  before the full #68 acceptance can be marked complete.

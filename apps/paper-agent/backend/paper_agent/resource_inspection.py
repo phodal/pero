@@ -291,9 +291,32 @@ class ResourceInspector:
             license = value.get('license') or {}
             license = license.get('spdx_id') if isinstance(license, dict) else None
             license = license if isinstance(license, str) and license and license != 'NOASSERTION' else None
-            resource = replace(resource, title=value['full_name'][:1000], license=license, confidence='metadata',
-                               excerpt=(value.get('description') if isinstance(value.get('description'), str) else '')[:2000], unresolved=('Repository saved as reference only; cloning is not part of import.',),
-                               evidence=(*resource.evidence, Evidence(document.url, 'GitHub public repository metadata')))
+            if value['full_name'].lower() != repo.lower():
+                raise Invalid('GitHub metadata identity does not match the requested repository')
+            revision = None
+            evidence = (*resource.evidence, Evidence(document.url, 'GitHub public repository metadata'))
+            unresolved = ['Repository saved as reference only; cloning requires a separate explicit Host approval.']
+            branch = value.get('default_branch')
+            if isinstance(branch, str) and branch and len(branch) <= 256:
+                try:
+                    commit_url = 'https://api.github.com/repos/' + repo + '/commits/' + quote(branch, safe='')
+                    commit_document = fetch(commit_url)
+                    commit = _scalars(json.loads(commit_document.text))
+                    sha = commit.get('sha') if isinstance(commit, dict) else None
+                    expected = 'https://github.com/' + repo + '/commit/' + sha if isinstance(sha, str) else ''
+                    if (commit_document.url != commit_url or not isinstance(sha, str)
+                            or not re.fullmatch(r'[a-f0-9]{40}', sha)
+                            or str(commit.get('html_url', '')).lower() != expected.lower()):
+                        raise Invalid('GitHub commit metadata does not match the repository and full commit')
+                    revision = sha
+                    evidence += (Evidence(commit_document.url, 'GitHub default-branch commit observed; clone must verify this exact commit'),)
+                except (Invalid, ValueError, TypeError):
+                    unresolved.append('Exact repository commit could not be confirmed; clone is unavailable.')
+            else:
+                unresolved.append('Repository default branch is unavailable; clone is unavailable.')
+            resource = replace(resource, title=value['full_name'][:1000], license=license, confidence='metadata', revision=revision,
+                               excerpt=(value.get('description') if isinstance(value.get('description'), str) else '')[:2000],
+                               unresolved=tuple(unresolved), evidence=evidence)
         elif resource.kind == 'paper':
             # Reuse the existing stable identifier/resolver, but route all its HTTP through this inspection's budget.
             def literature_fetch(url, *, timeout, headers):

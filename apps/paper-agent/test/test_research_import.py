@@ -221,6 +221,33 @@ class MetadataSafetyTest(unittest.TestCase):
         self.assertFalse(any('unrelated' in url for url in urls))
         self.assertLessEqual(len(urls), 18)
 
+    def test_github_commit_is_source_observed_and_identity_checked(self):
+        for repository, commit, branch, expected in (
+            ('example/code', {'sha': REV, 'html_url': 'https://github.com/example/code/commit/' + REV}, 'feature/research', REV),
+            ('other/code', {'sha': REV, 'html_url': 'https://github.com/other/code/commit/' + REV}, 'main', None),
+            ('example/code', {'sha': REV[:7], 'html_url': 'https://github.com/example/code/commit/' + REV[:7]}, 'main', None),
+            ('example/code', {'sha': REV, 'html_url': 'https://github.com/other/code/commit/' + REV}, 'main', None),
+            ('example/code', None, 'main', None),
+            ('example/code', {'sha': REV}, None, None),
+        ):
+            calls = []
+            def fetch(url, **_kwargs):
+                calls.append(url)
+                if '/commits/' in url:
+                    if commit is None:
+                        raise Invalid('Metadata unavailable')
+                    return WebDocument(url, 'application/json', json.dumps(commit))
+                return WebDocument(url, 'application/json', json.dumps({
+                    'full_name': repository, 'default_branch': branch, 'license': {'spdx_id': 'MIT'}}))
+            result = ResourceInspector(fetch).inspect(ImportDraft.create('https://github.com/example/code', NOW), threading.Event())
+            code = next(r for r in result.resources if r.kind == 'code')
+            self.assertEqual(code.revision, expected)
+            if expected:
+                self.assertIn('https://api.github.com/repos/example/code/commits/feature%2Fresearch', calls)
+                self.assertTrue(any('/commits/' in evidence.url for evidence in code.evidence))
+            else:
+                self.assertTrue(code.unresolved)
+
     def test_malformed_metadata_is_partial_and_redirect_identity_reuses(self):
         final = 'https://canonical.example/release'
         def fetch(url, **_kwargs):
