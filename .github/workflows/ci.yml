@@ -252,6 +252,13 @@ jobs:
       PERO_REQUIRE_WINDOWS_ACL: "1"
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Paper metadata worker lifecycle on Windows
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python -m unittest discover -s apps/paper-agent/test -p test_research_import.py -v
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27.3"
@@ -378,6 +385,12 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: apps/scientific-viewer/requirements.txt
+      - name: Research references and Data download contracts
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python -m unittest discover -s apps/paper-agent/test -p test_research_import.py -v
+          python -m unittest discover -s apps/data/test -v
       - name: Real local molecular backend contracts
         run: |
           python -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt
@@ -404,6 +417,7 @@ jobs:
       - name: Permission, cancellation and fixture contracts
         run: |
           npm run test:app-use:unit
+          node --experimental-transform-types --test desktop/src/main/apps-research-assets.test.ts desktop/src/main/app-write-research-assets.test.ts
           node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs
           node --test web/src/host-connection.test.ts
           node --test desktop/src/main/{app-context,app-use,connector-secrets,content-artifacts,control-lab-goal,harness-environment,home,mcp-sources}.test.ts web/src/{automation-model,content-results}.test.ts
@@ -415,6 +429,7 @@ jobs:
       - name: Actual Host stdio and durable ownership
         run: |
           node tests/contracts/host.mjs
+          node tests/contracts/research-import.mjs
           node tests/contracts/mcp-settings.mjs
           node tests/contracts/mcp-ownership.mjs
           node tests/runtime/automation.mjs
@@ -456,7 +471,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [workbench, automation, toolcalls, data, data-product, control-lab, control-lab-app-use, control-lab-live, virtual-cell-comparison, virtual-cell-dataset-download, app-use, app-use-workbench, mcp-lifecycle, mcp-persistence, mcp-transport, scientific-viewer, automations-ui]
+        suite: [workbench, automation, toolcalls, data, data-product, control-lab, control-lab-app-use, control-lab-live, virtual-cell-comparison, virtual-cell-dataset-download, app-use, app-use-workbench, mcp-lifecycle, mcp-persistence, mcp-transport, scientific-viewer, automations-ui, paper-research-import]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -492,8 +507,13 @@ jobs:
           python -m venv "$RUNNER_TEMP/scientific-viewer-python"
           "$RUNNER_TEMP/scientific-viewer-python/bin/python" -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt
           "$RUNNER_TEMP/scientific-viewer-python/bin/python" -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
-      - name: Browser for the explicitly mocked Automation iframe smoke
-        if: matrix.suite == 'automations-ui'
+      - name: Paper research import Python environment
+        if: matrix.suite == 'paper-research-import'
+        run: |
+          python -m venv "$RUNNER_TEMP/paper-research-python"
+          "$RUNNER_TEMP/paper-research-python/bin/python" -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
+      - name: Browser for explicitly mocked App UI seams
+        if: matrix.suite == 'automations-ui' || matrix.suite == 'paper-research-import'
         run: npx playwright install --with-deps chromium
       - name: Run independent acceptance with bounded cleanup
         env:

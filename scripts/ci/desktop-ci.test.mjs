@@ -13,7 +13,7 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   assert.deepEqual(Object.values(suites).map(([name]) => name).sort(), [
     'workbench', 'automation', 'toolcalls', 'data', 'data-product', 'control-lab', 'control-lab-app-use', 'control-lab-live',
     'virtual-cell-comparison', 'virtual-cell-dataset-download', 'app-use', 'app-use-workbench',
-    'mcp-settings', 'mcp-settings', 'mcp-settings', 'scientific-viewer', 'apps/automations/test/ui-smoke.mjs',
+    'mcp-settings', 'mcp-settings', 'mcp-settings', 'scientific-viewer', 'apps/automations/test/ui-smoke.mjs', 'paper-research-import-all',
   ].sort());
   const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
   const acceptance = workflow.jobs['desktop-acceptance'];
@@ -64,7 +64,7 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
     'python -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt',
     "python -m unittest discover -s apps/scientific-viewer/test -p 'test_*.py'"]) assert.ok(core.includes(command), command);
   assert.ok(commands.includes("python -m unittest discover -s apps/scientific-viewer/test -p 'test_*.py'"));
-  assert.equal(Object.keys(suites).length, 17);
+  assert.equal(Object.keys(suites).length, 18);
   const native = YAML.parse(readFileSync('.github/workflows/computer-use.yml', 'utf8'));
   assert.match(native.jobs.native.strategy.matrix.os, /schedule.*workflow_dispatch/);
   assert.equal(native.on.schedule[0].cron, '0 20 * * *');
