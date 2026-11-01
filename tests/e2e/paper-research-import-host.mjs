@@ -94,8 +94,12 @@ try {
   expect(article.limitation).toContain('Bounded external source excerpt');
   for (const resource of bundle.resources.filter(resource => ['paper', 'web_article'].includes(resource.kind))) expect(saved.papers.some(paper => paper.id === resource.paperId)).toBe(true);
   await frame.locator('.pa-resource-list>li').filter({ has: frame.getByRole('heading', { name: 'Synthetic forecasting release', exact: true }) }).getByRole('button', { name: 'Read saved source', exact: true }).click();
-  await expect(frame.getByText('Article excerpt', { exact: true })).toBeVisible();
-  await expect(frame.locator('.pa-source-text')).toContainText('This is a synthetic research article, not a paper.');
+  // The mounted library also has an "Article excerpt" badge. Assert the
+  // visible reader and its immutable snapshot, not that unrelated hidden row.
+  const reader = frame.getByRole('article', { name: article.title, exact: true });
+  await expect(reader).toHaveAttribute('data-paper-id', article.id);
+  await expect(reader.getByText('Article excerpt', { exact: true })).toBeVisible();
+  await expect(reader.locator('.pa-source-text')).toContainText('This is a synthetic research article, not a paper.');
   await page.screenshot({ path: resolve(out, 'host-article-excerpt.png') });
   await frame.getByRole('button', { name: 'Back to library', exact: true }).click(); await openImport(frame);
   await frame.getByRole('textbox', { name: 'Research URL', exact: true }).fill(seed);
