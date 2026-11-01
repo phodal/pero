@@ -9,6 +9,7 @@ import subprocess
 import sys
 import threading
 from molecules import MAX_OUTPUT, MAX_REQUEST
+from windows_job import WorkerJob
 
 
 class PreviewRunner:
@@ -35,10 +36,15 @@ class PreviewRunner:
         if not self.lock.acquire(blocking=False):
             return 503, {'error': 'A molecule preview is already running'}
         process = None
+        job = None
         try:
+            job = WorkerJob()
             env = {**os.environ, 'OMP_NUM_THREADS': '1', 'OPENBLAS_NUM_THREADS': '1', 'MKL_NUM_THREADS': '1'}
             process = subprocess.Popen(self.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
             self.process = process
+            # Bind ownership before sending any input. The fixed worker waits
+            # for stdin EOF before parsing data or importing RDKit.
+            job.assign(process)
             if self.closed.is_set():
                 process.kill()
             output = []
@@ -73,11 +79,19 @@ class PreviewRunner:
                 return 500, {'error': 'RDKit worker failed; check the configured App Python environment'}
             return (200 if process.returncode == 0 else 400), json.loads(output[0])
         except (OSError, ValueError):
-            return 500, {'error': 'RDKit worker unavailable or returned an invalid response'}
+            return 500, {'error': 'RDKit worker ownership or runtime unavailable; preview was not completed'}
         finally:
             if process is not None and process.poll() is None:
                 process.kill()
                 process.wait()
+            if process is not None:
+                for pipe in (process.stdin, process.stdout):
+                    try:
+                        pipe.close()
+                    except OSError:
+                        pass
+            if job is not None:
+                job.close()
             self.process = None
             self.lock.release()
 

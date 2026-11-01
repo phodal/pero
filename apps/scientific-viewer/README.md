@@ -22,6 +22,9 @@ deletes the original disk file. No background import or model execution occurs.
   Seven descriptors are reported: MolWt, ExactMolWt, MolLogP, TPSA, NumHDonors,
   NumHAcceptors, NumRotatableBonds—not the browser wrapper’s full descriptor set.
   Stop waiting discards the response; it does not claim to stop the backend worker.
+  Unix teardown uses Host process-group ownership. On Windows the server binds
+  a non-inherited kill-on-close Job Object before sending any molecule input;
+  ownership failure rejects computation rather than running an unowned child.
 - Actual public PDF.js renders PDF evidence. Quotations/crops and explicit
   quotation review use Pero's existing Host Agent authority, never App credentials.
 - JSON displays escaped metadata. Unsupported formats and model weights remain opaque.
