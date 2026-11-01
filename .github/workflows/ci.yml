@@ -490,6 +490,7 @@ jobs:
           npm ci --prefix apps/scientific-viewer --ignore-scripts
           python -m venv "$RUNNER_TEMP/scientific-viewer-python"
           "$RUNNER_TEMP/scientific-viewer-python/bin/python" -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt
+          "$RUNNER_TEMP/scientific-viewer-python/bin/python" -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
       - name: Browser for the explicitly mocked Automation iframe smoke
         if: matrix.suite == 'automations-ui'
         run: npx playwright install --with-deps chromium

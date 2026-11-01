@@ -16,9 +16,10 @@ await writeFile(agents,JSON.stringify([
 ]));
 const env={...process.env,PERO_AGENTS_FILE:agents,PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_BUILTIN_APPS:'scientific-viewer,paper-agent',PERO_REQUIRED_APPS:'scientific-viewer',PERO_LOCALE:'en'};
 const python = process.env.PERO_APP_PYTHON || 'python3';
-const engine = JSON.parse(execFileSync(python,['-E','-s','-c','import json,sys; from rdkit import rdBase; print(json.dumps({"root":sys.prefix,"version":rdBase.rdkitVersion}))'],{encoding:'utf8',timeout:30000}));
+const engine = JSON.parse(execFileSync(python,['-E','-s','-c','import json,sys; from rdkit import rdBase; from importlib.metadata import version; print(json.dumps({"root":sys.prefix,"version":rdBase.rdkitVersion,"paperRenderer":version("pypdfium2")}))'],{encoding:'utf8',timeout:30000}));
 expect(engine.version).toBe('2026.09.1');
-await writeFile(env.PERO_SETTINGS_PATH,JSON.stringify({app_python:{apps:{'scientific-viewer':engine.root}}}));
+expect(engine.paperRenderer).toBe('5.0.0');
+await writeFile(env.PERO_SETTINGS_PATH,JSON.stringify({app_python:{apps:{'scientific-viewer':engine.root,'paper-agent':engine.root}}}));
 delete env.ELECTRON_RUN_AS_NODE;delete env.POINT_ROOT;delete env.PERO_POINT_ROOT;delete env.PERO_APPS_ROOT;
 let app,page,frame;
 async function open(){
@@ -48,7 +49,19 @@ try{
    const box=await canvas.boundingBox();expect(box).not.toBeNull();await page.mouse.move(box.x+20,box.y+20);await page.mouse.down();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.up();await frame.getByRole('button',{name:'Save figure crop',exact:true}).click();await expect(frame.getByText('1 quotations, 1 figure crops. Unreviewed.',{exact:true})).toBeVisible();
    await frame.getByLabel('Review Agent',{exact:true}).selectOption('codex');await frame.getByRole('button',{name:'Review selected quotations',exact:true}).click();await expect(frame.locator('summary').filter({hasText:'Agent review — completed — unreviewed'})).toBeVisible({timeout:30000});await expect(frame.getByText('Synthetic transport review. The quotation is present; scientific validity is not assessed.',{exact:true})).toBeVisible();
    const prompts=(await readFile(capture,'utf8')).trim().split('\n').map(JSON.parse);expect(prompts).toHaveLength(1);expect(prompts[0].every(item=>item.type==='text')).toBe(true);expect(JSON.stringify(prompts)).not.toContain('%PDF');
-   const download=page.waitForEvent('download');await frame.getByRole('button',{name:'Export evidence',exact:true}).click();await(await download).saveAs(resolve(out,'evidence.zip'));const archive=unzipSync(await readFile(resolve(out,'evidence.zip')));expect(Buffer.from(archive['source/document.pdf'])).toEqual(Buffer.from(example.text));const manifest=JSON.parse(new TextDecoder().decode(archive['manifest.json']));expect(manifest.quotes).toHaveLength(1);expect(manifest.crops).toHaveLength(1);expect(manifest.review.status).toBe('completed');expect(manifest.review.text).toContain('Synthetic transport review.');
+   const exportPath=resolve(out,'evidence.zip');await rm(exportPath,{force:true});
+   // Electron owns App-frame downloads; Playwright Page does not receive this event.
+   await app.evaluate(({session},path)=>{
+    globalThis.viewerEvidenceDownload={state:'waiting',filename:null};
+    session.defaultSession.once('will-download',(_event,item)=>{
+     globalThis.viewerEvidenceDownload={state:'started',filename:item.getFilename()};
+     item.setSavePath(path);
+     item.once('done',(_event,state)=>{globalThis.viewerEvidenceDownload.state=state;});
+    });
+   },exportPath);
+   await frame.getByRole('button',{name:'Export evidence',exact:true}).click();
+   await expect.poll(()=>app.evaluate(()=>globalThis.viewerEvidenceDownload),{timeout:30000}).toEqual({state:'completed',filename:'scientific-evidence.zip'});
+   const archive=unzipSync(await readFile(exportPath));expect(Buffer.from(archive['source/document.pdf'])).toEqual(Buffer.from(example.text));const manifest=JSON.parse(new TextDecoder().decode(archive['manifest.json']));expect(manifest.quotes).toHaveLength(1);expect(manifest.crops).toHaveLength(1);expect(manifest.review.status).toBe('completed');expect(manifest.review.text).toContain('Synthetic transport review.');
   }checks.push(example.name);
  }
  // Harmless markup markers prove that user structure text never becomes DOM.
@@ -67,7 +80,9 @@ try{
  await expect(frame.getByRole('alert')).toContainText('No molecule records');await expect(frame.getByText('Preparing molecule preview…',{exact:true})).toHaveCount(0);
  await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'model.weights',mimeType:'application/octet-stream',buffer:Buffer.from('opaque synthetic model')});await expect(frame.getByText(/Metadata only/)).toBeVisible();
  await closeOwnedElectron(app);app=undefined;app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));await open();await frame.getByRole('button',{name:'sample.pdf',exact:true}).click();await expect(frame.getByText('1 quotations, 1 figure crops. Unreviewed.',{exact:true})).toBeVisible();await expect(frame.locator('summary').filter({hasText:'Agent review — completed — unreviewed'})).toBeVisible();expect((await readFile(capture,'utf8')).trim().split('\n')).toHaveLength(1);
- await frame.getByRole('button',{name:'model.weights',exact:true}).click();await expect(frame.getByText(/Metadata only/)).toBeVisible();await setAppearance(page,'dark');await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(800,700));expect(await frame.locator('html').evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
+ await frame.getByRole('button',{name:'model.weights',exact:true}).click();await expect(frame.getByText(/Metadata only/)).toBeVisible();await setAppearance(page,'dark');const narrowSize=await app.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.setSize(800,700);return window.getContentSize();});
+ await page.waitForFunction(([width,height])=>{const canvas=document.querySelector('canvas');return innerWidth===width&&innerHeight===height&&canvas?.width===Math.round(width*devicePixelRatio)&&canvas.height===Math.round(height*devicePixelRatio);},narrowSize);
+ await expect.poll(()=>frame.locator('html').evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
  await frame.getByRole('button',{name:'Open Paper App',exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).activeApp)).toMatchObject({name:'paper-agent',panel:'main'});
  await expect(page.frameLocator('iframe[title="paper-agent"]').getByRole('heading',{name:'Papers',exact:true})).toBeVisible();await open();
