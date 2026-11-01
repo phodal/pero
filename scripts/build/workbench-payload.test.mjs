@@ -38,7 +38,8 @@ test('Builtin staging ships only the exact Paper CLI and skill additions', async
   const { existsSync, symlinkSync } = await import('node:fs');
   const paperEntries = ['tools/research.py', 'skills/research-resource-import/SKILL.md',
     'skills/paper-code-audit/SKILL.md', 'skills/paper-code-audit/references/audit-contract.md',
-    'skills/paper-code-audit/references/other-cases.md', 'skills/paper-code-audit/references/pcgym-table6.md'];
+    'skills/paper-code-audit/references/other-cases.md', 'skills/paper-code-audit/references/pcgym-table6.md',
+    'skills/paper-reproduction/SKILL.md', 'skills/paper-reproduction/references/reproduction-protocol.md'];
   const directory = mkdtempSync(join(tmpdir(), 'pero-builtin-payload-'));
   try {
     const source = join(directory, 'source');
@@ -96,5 +97,16 @@ test('Staged Paper CLI executes references-only commit and export using its stag
     assert.deepEqual(references.sort(), ['references/audit-contract.md', 'references/other-cases.md', 'references/pcgym-table6.md']);
     for (const reference of references) assert.ok(readFileSync(join(auditDirectory, reference), 'utf8').length > 0);
     assert.match(auditSkill, /catalog reads SKILL.md only/);
+    // Resolve the actual installed links: entrypoints and their conditional
+    // references must remain usable without the development checkout.
+    for (const entry of ['skills/paper-code-audit/SKILL.md',
+      'skills/paper-code-audit/references/audit-contract.md',
+      'skills/paper-reproduction/SKILL.md',
+      'skills/paper-reproduction/references/reproduction-protocol.md']) {
+      const path = join(payload, entry);
+      for (const [, target] of readFileSync(path, 'utf8').matchAll(/\]\(([^)]+\.md)\)/g)) {
+        assert.ok(readFileSync(resolve(path, '..', target), 'utf8').length > 0, `${entry}: ${target}`);
+      }
+    }
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
