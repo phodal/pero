@@ -6663,6 +6663,9 @@
         "observable": {
           "type": "boolean"
         },
+        "closed": {
+          "type": "boolean"
+        },
         "servers": {
           "type": "array",
           "items": {
@@ -6677,6 +6680,7 @@
         "session_id",
         "revision",
         "observable",
+        "closed",
         "servers"
       ],
       "additionalProperties": false

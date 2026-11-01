@@ -142,7 +142,6 @@ fn start_with_workspace_access(
         {
             let mut snapshot = runtime_snapshot.lock().unwrap();
             snapshot.close();
-            if snapshot.session_id.is_some() { super::mcp_runtime::publish(&snapshot, &tx); }
         }
         if let Err(error) = result {
             if error.contains("explicit credential, provider and model catalog required") {
@@ -155,6 +154,9 @@ fn start_with_workspace_access(
             }
         }
         event(&tx, &thread, "session_closed", "会话已关闭", Value::Null);
+        // Pending snapshots may already be visible through settings. Publish their
+        // terminal state too, after preserving the established error/closed ordering.
+        super::mcp_runtime::publish(&runtime_snapshot.lock().unwrap(), &tx);
     });
     SessionHandle {
         mcp_runtime,

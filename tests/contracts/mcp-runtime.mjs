@@ -8,13 +8,14 @@ const validate = ajv.getSchema(`${schema.$id}#/$defs/McpRuntimeEvent`);
 const event = {
   version: 1, kind: 'mcp_runtime', request_id: null, text: '', thread_id: 'thread',
   data: { incarnation: 1, agent_id: 'agent', thread_id: 'thread', session_id: 'session', revision: 2,
-    observable: true, servers: [{ server: 'docs', generation: 1, status: 'connected', tools: ['lookup'] }] },
+    observable: true, closed: false, servers: [{ server: 'docs', generation: 1, status: 'connected', tools: ['lookup'] }] },
 };
 for (const status of ['connecting', 'connected', 'disconnected', 'error', 'closed']) {
   event.data.servers[0].status = status;
   assert(validate(event), ajv.errorsText(validate.errors));
 }
 assert(validate({ ...event, data: { ...event.data, observable: false, session_id: null, servers: [] } }));
+assert(validate({ ...event, data: { ...event.data, closed: true, session_id: null, servers: [] } }));
 for (const field of ['env', 'headers', 'transport', 'error']) {
   assert(!validate({ ...event, data: { ...event.data, [field]: 'private' } }), `reject unexpected ${field}`);
 }

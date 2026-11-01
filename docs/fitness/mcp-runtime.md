@@ -23,6 +23,10 @@ the actual ACP session ID returns. Wrong session/revision/server and stale
 connection generations are ignored. Closure clears catalogs and cannot be
 revived. A Host-process-local handle incarnation also prevents delayed cleanup
 from an old handle overwriting a replacement that reuses the same thread ID.
+Pre-ID startup failure, timeout and cancellation also publish an explicit closed
+projection after the existing error/closed lifecycle events. The renderer uses a
+tested presentation selector so a closed snapshot with no ACP ID or servers
+cannot remain labeled Connecting. Unnegotiated active Agents remain unobservable.
 Host settings reads that same session-owned projection; it does not
 persist observations to session history or maintain a second connection state.
 The UI separates saved configuration from session snapshots and identifies

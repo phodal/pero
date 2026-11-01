@@ -836,3 +836,26 @@ fn mcp_runtime_observations_negotiate_and_bind_before_exposing_catalogs() {
         assert!(snapshot.servers[0].tools.is_empty());
     }
 }
+
+#[test]
+fn mcp_pending_start_reports_terminal_snapshot_without_an_acp_session_id() {
+    for scenario in ["runtime_start_fail", "runtime_start_timeout", "runtime_start_cancel"] {
+        let (handle, rx, _workspace) = launch(scenario, None);
+        until(&rx, "session_update"); // Real fixture acknowledged session/new, without returning an ID.
+        if scenario != "runtime_start_fail" {
+            let pending = handle.mcp_runtime.lock().unwrap().clone();
+            assert!(pending.observable);
+            assert!(!pending.closed);
+            assert!(pending.session_id.is_none());
+        }
+        if scenario == "runtime_start_cancel" { handle.tx.send(SessionCommand::Cancel).unwrap(); }
+        until(&rx, "session_closed");
+        let terminal = until(&rx, "mcp_runtime");
+        let snapshot: pero_contracts::mcp_runtime::McpRuntimeSession = serde_json::from_value(terminal.data).unwrap();
+        assert!(snapshot.closed, "{scenario}");
+        assert!(snapshot.observable, "negotiation must remain distinct from session closure");
+        assert!(snapshot.session_id.is_none());
+        assert!(snapshot.servers.iter().all(|server| server.status == pero_contracts::mcp_runtime::McpRuntimeStatus::Closed && server.tools.is_empty()));
+        assert!(handle.mcp_runtime.lock().unwrap().closed);
+    }
+}

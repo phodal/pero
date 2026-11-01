@@ -12,6 +12,7 @@ const scenarioChecks = {
   lifecycle: ['actual GPUI add disabled', 'explicit server-wide enable confirmation', 'real ACP injection',
     'Host connector builtin has scoped loopback HTTP identity and auth shape; user-managed assertions remain exact',
     'edit revokes grant for new sessions', 'confirmed removal', 'configured state does not imply connected or discovered tools', 'external Agent is explicitly unobservable with frozen per-session revision', 'fixture runtime projection renders connected tools, refresh and cleanup', 'pending settings snapshot cannot overwrite newer live catalog',
+    'pending session startup closure replaces connecting without a refresh',
     'no operator credential disclosure', 'cleanup completes before success receipt'],
   persistence: ['write failure and retry', 'dark/narrow/Chinese',
     'Host connector builtin has scoped loopback HTTP identity and auth shape; user-managed assertions remain exact',
@@ -233,7 +234,7 @@ async function lifecycle() {
   // Exercise the existing trusted Host-event seam for presentation only. The Go
   // transport fixtures separately prove these observations come from real MCP.
   const projection = { incarnation: 1, agent_id: 'fixture', thread_id: 'ui-runtime-projection', session_id: 'fixture-session',
-    revision: 1, observable: true, servers: [{ server: 'Fixture docs', generation: 2, status: 'connected', tools: ['lookup', 'search'] }] };
+    revision: 1, observable: true, closed: false, servers: [{ server: 'Fixture docs', generation: 2, status: 'connected', tools: ['lookup', 'search'] }] };
   const report = async data => {
     await bounded(app.evaluate(({ BrowserWindow }, data) => BrowserWindow.getAllWindows()[0].webContents.send('pero:event', {
       version: 1, kind: 'mcp_runtime', request_id: null, text: '', thread_id: data.thread_id, data,
@@ -268,6 +269,11 @@ async function lifecycle() {
     version: 1, kind: 'mcp_runtime', request_id: null, text: '', thread_id: data.thread_id, data,
   }), retired), 'delayed retired-session closure');
   expect((await mcp()).sessions.find(session => session.thread_id === projection.thread_id)).toEqual(projection);
+  projection.incarnation = 3; projection.session_id = null;
+  projection.servers = []; projection.closed = false;
+  await report(projection);
+  projection.closed = true;
+  await report(projection); await capture('runtime-startup-closed');
 }
 async function persistence() {
   // Setup only: lifecycle covers the user-facing add/edit/grant actions. Use

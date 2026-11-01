@@ -17,7 +17,7 @@ use pero_chat_ui::conversation::AgentChoice;
 use pero_contracts::{
     HostEvent,
     mcp::{McpConfiguration, McpServerConfig, McpSettingsProjection, McpTransport},
-    mcp_runtime::{McpRuntimeSession, McpRuntimeStatus},
+    mcp_runtime::{McpRuntimeSession, McpRuntimeStatus, McpSessionPresentation},
 };
 use pero_theme::SettingMessage;
 use serde_json::json;
@@ -426,17 +426,22 @@ impl SettingsPanel {
                 section = section.child(pero_theme::settings_message(
                     self.t("mcp.runtime.previous_config"), SettingMessage::Help, chrome));
             }
-            if !session.observable {
-                section = section.child(pero_theme::settings_message(
-                    self.t("mcp.runtime.unobservable"), SettingMessage::Help, chrome));
-                continue;
-            }
-            if session.session_id.is_none() {
-                section = section.child(pero_theme::settings_message(
-                    self.t("mcp.runtime.connecting"), SettingMessage::Status, chrome));
-            } else if session.servers.is_empty() {
-                section = section.child(pero_theme::settings_message(
-                    self.t("mcp.runtime.no_servers"), SettingMessage::Help, chrome));
+            let presentation = session.presentation();
+            match presentation {
+                McpSessionPresentation::Closed | McpSessionPresentation::Unobservable => {
+                    let key = if presentation == McpSessionPresentation::Closed { "mcp.runtime.closed" } else { "mcp.runtime.unobservable" };
+                    section = section.child(pero_theme::settings_message(self.t(key), SettingMessage::Help, chrome));
+                    continue;
+                }
+                McpSessionPresentation::Starting => {
+                    section = section.child(pero_theme::settings_message(
+                        self.t("mcp.runtime.connecting"), SettingMessage::Status, chrome));
+                }
+                McpSessionPresentation::Ready if session.servers.is_empty() => {
+                    section = section.child(pero_theme::settings_message(
+                        self.t("mcp.runtime.no_servers"), SettingMessage::Help, chrome));
+                }
+                McpSessionPresentation::Ready => {}
             }
             for server in &session.servers {
                 let key = match server.status {

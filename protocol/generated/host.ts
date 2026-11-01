@@ -1173,6 +1173,7 @@ export interface McpRuntimeSession {
   session_id: string | null;
   revision: number;
   observable: boolean;
+  closed: boolean;
   servers: McpRuntimeServer[];
 }
 export interface McpRuntimeServer {

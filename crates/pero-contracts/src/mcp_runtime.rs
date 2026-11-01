@@ -24,8 +24,13 @@ pub struct McpRuntimeSession {
     pub session_id: Option<String>,
     pub revision: u64,
     pub observable: bool,
+    pub closed: bool,
     pub servers: Vec<McpRuntimeServer>,
 }
+
+/// Derived presentation, not another stored lifecycle owner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum McpSessionPresentation { Closed, Unobservable, Starting, Ready }
 
 /// Admission is at the ACP boundary; no raw descriptions, schemas, transport or errors escape.
 #[derive(Debug, Deserialize)]
@@ -41,7 +46,7 @@ pub struct McpRuntimeObservation {
 
 impl McpRuntimeSession {
     pub fn new(agent_id: String, thread_id: String, incarnation: u64, revision: u64, servers: Vec<String>) -> Self {
-        Self { agent_id, thread_id, incarnation, session_id: None, revision, observable: false,
+        Self { agent_id, thread_id, incarnation, session_id: None, revision, observable: false, closed: false,
             servers: servers.into_iter().map(|server| McpRuntimeServer {
                 server, generation: 0, status: McpRuntimeStatus::Connecting, tools: vec![],
             }).collect() }
@@ -49,12 +54,20 @@ impl McpRuntimeSession {
 
     /// An old handle may finish cleanup after a new session reuses its thread.
     pub fn can_replace(&self, current: &Self) -> bool {
-        self.thread_id == current.thread_id && self.incarnation >= current.incarnation
+        self.thread_id == current.thread_id && (self.incarnation > current.incarnation
+            || (self.incarnation == current.incarnation && (!current.closed || self.closed)))
+    }
+
+    pub fn presentation(&self) -> McpSessionPresentation {
+        if self.closed { McpSessionPresentation::Closed }
+        else if !self.observable { McpSessionPresentation::Unobservable }
+        else if self.session_id.is_none() { McpSessionPresentation::Starting }
+        else { McpSessionPresentation::Ready }
     }
 
     /// Only the frozen session/revision and an admitted server can change this projection.
     pub fn observe(&mut self, observation: McpRuntimeObservation) -> bool {
-        if !self.observable || self.session_id.as_deref() != Some(&observation.session_id)
+        if self.closed || !self.observable || self.session_id.as_deref() != Some(&observation.session_id)
             || self.revision != observation.revision || observation.generation == 0
             || observation.generation > 9_007_199_254_740_991
             || observation.tools.len() > 256
@@ -74,6 +87,7 @@ impl McpRuntimeSession {
     }
 
     pub fn close(&mut self) {
+        self.closed = true;
         for server in &mut self.servers { server.status = McpRuntimeStatus::Closed; server.tools.clear(); }
     }
 }
@@ -86,8 +100,22 @@ mod tests {
         let mut old = McpRuntimeSession::new("agent".into(), "thread".into(), 1, 7, vec![]);
         let current = McpRuntimeSession::new("agent".into(), "thread".into(), 2, 7, vec![]);
         old.close();
+        assert!(old.closed);
         assert!(!old.can_replace(&current));
         assert!(current.can_replace(&old));
+    }
+
+    #[test]
+    fn pre_id_closure_renders_terminal_even_with_no_servers_or_capability() {
+        for observable in [false, true] {
+            let mut state = McpRuntimeSession::new("agent".into(), "thread".into(), 1, 7, vec![]);
+            state.observable = observable;
+            let pending = state.clone();
+            assert_eq!(state.presentation(), if observable { McpSessionPresentation::Starting } else { McpSessionPresentation::Unobservable });
+            state.close();
+            assert_eq!(state.presentation(), McpSessionPresentation::Closed);
+            assert!(!pending.can_replace(&state));
+        }
     }
 
     #[test]
