@@ -75,3 +75,25 @@ record failed runs, complete denominators and adaptations. Wire the existing
 Paper/Host ownership and real source anchors, then exercise Desktop cancellation,
 restart, evidence navigation and export. Keep #77/#79 open until their own complete
 acceptance criteria are satisfied. Do not count the tests above as those gates.
+
+## Consolidated Paper adapter verification (2026-11-01)
+
+The #81 integration is represented by a thin adapter over the #82 core, not a
+second claim/spec/checker/runtime. Deterministic tests exercise the authenticated
+HTTP route and persisted JSON, repeated audit/freeze, optional Oracle coverage,
+exact PDF/annotation identities, source/spec/observation tampering, and offline
+export binding checks. Launch tests use a fake process seam, not scientific code:
+failed launch, early cancellation, exited owner, restart and unknown outcomes
+retain the original request and refuse replay.
+
+Builtin payload tests verify the exact Skill plus three public references, reject
+missing files, and do not include undeclared extras. Current master's complete
+Paper discovery and source/PDF gates are retained unchanged. No UI was changed.
+
+The installed App can audit and read evidence through its declared tool, but its
+server does not configure a trusted checkout or compute permission. Frozen local
+execution remains an explicitly authorized CLI path; constructor-seam tests are
+not a shipped Desktop execution approval flow. No new training, scientific
+package installation, model download, real-provider run or Desktop acceptance
+was performed for this consolidation. Earlier author's smoke evidence remains
+separate and does not become a new run or a Table 6 replication.

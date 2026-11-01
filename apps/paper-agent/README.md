@@ -6,7 +6,9 @@
 该 CLI 的运行方式与指标契约见
 [PC-Gym 设计](../../docs/design-docs/paper-pcgym-reproduction.md)，实际验收范围见
 [验证记录](../../docs/fitness/paper-pcgym-reproduction.md)。它尚未接入 Paper UI，
-也未完成原论文实验复现。
+也未完成原论文实验复现。固定 `reproduction-step` App 路由现可保存源码审计与
+PDF/标注绑定，并复用同一检查器；发布的 server 默认无计算许可或固定 checkout，
+不能由请求开启执行。Skill 与公开参考文件随安装包交付，但不代表自动发现/读取。
 
 Paper research in Pero: collect sources, read the exact saved text, freeze a
 question and selected papers, run the existing Host Agent, then review cited

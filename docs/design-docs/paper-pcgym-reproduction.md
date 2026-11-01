@@ -185,3 +185,30 @@ name+digest 接口读取 Skill。该接口只读取 `SKILL.md`；案例 referenc
    将 fixture、真实依赖、真实模型、真实科学检查分别记账。
 
 首个 PR 应保持 Draft；只引用 #77/#79，不自动关闭。上述缺口不是已经完成的产品能力。
+
+## 7. Paper 接线收敛（#81 → #82）
+
+只有 `pcgym_domain` / `pcgym_sources` / `pcgym_runtime` / `pcgym` 一套契约、
+审计、执行器与检查器。`pcgym_app` 仅把这套实现接到现有 ResearchStore 和
+认证的 `/api/reproduction/step`；`reproduction-step` 是固定 App 写路由。
+没有新的 Agent 循环、通用执行器或 UI。
+
+- `case` 离线返回固定案例；`inspect-source` 才显式请求四个固定提交源码之一，
+  核对 Git blob 后持久保存。源码或请求体不能授予执行许可。
+- `audit` 从已保存的 v4 PDF 第 20 页观察 Table 6 / Eq.37，并保留真实
+  PdfPassage、原 PDF digest、Paper 内容版本及可选标注。重复 JSON 请求幂等。
+- `freeze` 需要可信装配提供固定 checkout；绑定已审计源码、精确环境、预算和
+  PDF/标注摘要。当前发布的 server 没有该配置，因此明确返回 unavailable；
+  不能通过 HTTP 传入路径、解释器或开启计算。通常继续用明确授权的 CLI。
+- 可信测试/嵌入装配可显式启用固定 checkout 的本地计算；它只启动同一 CLI。
+  一个冻结 Spec 只允许一次 HTTP 启动请求；重复 requestId 查询原请求，不能
+  重放副作用。中断或启动效果不明保留 unknown；取消只针对本装配仍持有的进程，
+  不凭持久 PID 杀进程，也不自动清除未解决的运行锁。
+- `verify` 使用同一独立重算器，`export` 返回 JSON 证据视图；可携带离线检查器的
+  ZIP 继续由 CLI `export` 生成。两者都不返回本地执行配置。
+- `includeOracle=false`（CLI `--no-oracle`）在运行前冻结两策略覆盖；检查器仅要求
+  已登记策略，仍拒绝缺失/额外策略。该选项不改变科学结论的 INCONCLUSIVE。
+
+安装包精确包含通用 Skill 和三个公开参考文件，不复制任意 skills 目录。
+文件随包交付不代表 Desktop picker 自动发现、Host 自动读取 references，或真实
+Provider 已完成验收。无训练、模型下载或完整 Table 6 重现实验属于本次收敛验证。
