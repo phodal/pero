@@ -53,7 +53,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install pinned no-hardware backend
-        run: python -m pip install --only-binary=:all: -r apps/lab/requirements.txt
+        run: |
+          python -m pip install --only-binary=:all: -r apps/lab/requirements.txt
       - name: Require real adapter, pure domain and authenticated evidence contracts
         env:
           LAB_REQUIRE_PLR: '1'
