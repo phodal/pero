@@ -22,6 +22,7 @@ from .pcgym_domain import (Claim, Invalid, Observation, ReproductionSpec,
 from .pcgym_sources import audit_sources, package_inventory, read_checkout, pipeline_digest
 
 MAX_JSON = 8 * 1024 * 1024
+MAX_LOG = 16 * 1024 * 1024
 
 
 def read_json_snapshot(path):
@@ -135,10 +136,6 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
     spec = load_spec(root)
     if spec_id != spec.id or confirm is not True or accept_findings is not True:
         raise Invalid('approval_required', 'Approve this exact specification and its disclosed upstream ambiguities')
-    local = read_json(root / 'local.json')
-    if local.get('interpreter') != sys.executable:
-        raise Invalid('interpreter_changed', 'Run with the interpreter used to prepare this specification')
-    preflight(spec, local['checkout'])
     attempts = root / 'attempts'
     attempts.mkdir(exist_ok=True)
     lock = root / 'running.lock'
@@ -152,7 +149,8 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
     target = attempts / attempt_id
     target.mkdir()
     receipt = {'spec_id': spec.id, 'attempt_id': attempt_id, 'status': 'running',
-               'started_at': utc(), 'origin': 'local-foreground-cli', 'execution_identity_attested': False}
+               'started_at': utc(), 'origin': 'local-foreground-cli', 'execution_identity_attested': False,
+               'phase': 'preflight', 'worker_started': False}
     write_json(target / 'execution.json', receipt)
     process = None
     old_handlers = {name: signal.getsignal(name) for name in (signal.SIGTERM, signal.SIGINT)}
@@ -167,6 +165,11 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
     for name in old_handlers:
         signal.signal(name, stop)
     try:
+        (target / 'execution.log').touch()
+        local = read_json(root / 'local.json')
+        if local.get('interpreter') != sys.executable:
+            raise Invalid('interpreter_changed', 'Run with the interpreter used to prepare this specification')
+        preflight(spec, local['checkout'])
         # The parent remains inside the Host-owned process tree; no detached session.
         env = {k: os.environ[k] for k in ('PATH', 'SYSTEMROOT', 'WINDIR') if k in os.environ}
         home = target / 'runtime-home'
@@ -179,6 +182,8 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
                                         '--bundle', str(root), '--attempt', attempt_id],
                                        cwd=target, env=env, stdin=subprocess.DEVNULL, stdout=log,
                                        stderr=subprocess.STDOUT, start_new_session=False)
+            receipt.update(phase='worker', worker_started=True)
+            write_json(target / 'execution.json', receipt)
             deadline = time.monotonic() + spec.timeout_seconds
             while True:
                 try:
@@ -187,7 +192,7 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
                 except subprocess.TimeoutExpired:
                     if time.monotonic() >= deadline:
                         raise Invalid('execution_timeout', 'Frozen execution wall-time limit reached')
-                    if (target / 'execution.log').stat().st_size > 16 * 1024 * 1024:
+                    if (target / 'execution.log').stat().st_size > MAX_LOG:
                         raise Invalid('log_limit', 'Execution log exceeded 16 MiB; preserve partial evidence')
             if code != 0:
                 raise Invalid('execution_failed', f'Real engine process exited {code}; see execution.log')
@@ -200,7 +205,7 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
     except KeyboardInterrupt:
         receipt.update(status='cancelled', error='Operator or Host requested cancellation')
     except (Invalid, OSError) as error:
-        receipt.update(status='failed', error=str(error), error_code=getattr(error, 'code', 'io'))
+        receipt.update(status='failed', error=str(error)[:4096], error_code=getattr(error, 'code', 'io'))
     finally:
         # Repeated App cancel/close or CLI interrupt must not interrupt terminate/wait/kill or
         # receipt persistence. Restore the caller's handler only after cleanup.
@@ -216,6 +221,12 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
                         process.wait(timeout=5)
                     except subprocess.TimeoutExpired:
                         receipt.update(status='unknown', error='Cannot confirm child termination; reconcile before retry')
+            if 'error' in receipt:
+                # Keep failures observable even when preflight never started a worker.
+                path = target / 'execution.log'
+                with path.open('ab') as log:
+                    remaining = max(0, MAX_LOG - log.tell())
+                    log.write((receipt['phase'] + ': ' + receipt['error'] + '\n').encode('utf-8')[:remaining])
             receipt['finished_at'] = utc()
             write_json(target / 'execution.json', receipt)
             if receipt['status'] != 'unknown':

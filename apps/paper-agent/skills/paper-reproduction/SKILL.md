@@ -112,7 +112,11 @@ which actually ran and which dependencies/assets are still required.
   before using its CLI. The declared `reproduction-step` route supports fixed
   audit/evidence operations; the shipped server has no trusted execution checkout
   and its advertised schema has no `start`. CLI execution requires an authorized
-  shell and selected scientific environment. A numeric PASS cannot override a
+  shell and selected scientific environment. An explicitly configured Electron
+  deployment also has a direct fixed-smoke annotation UI with native per-run
+  confirmation, no Agent/model requirement, and the same Python execution owner.
+  Its private Host decision route is not an Agent tool or an HTTP approval flag;
+  an absent deployment capability remains unavailable. A numeric PASS cannot override a
   case adapter's unresolved paper verdict. Without case evidence, report that
   evidence is unavailable; this routing note is not an observed verdict.
 - Control Lab's checker is specific to its methods; it is not a universal paper

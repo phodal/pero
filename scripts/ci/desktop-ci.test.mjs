@@ -93,7 +93,7 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
 
 test('Paper aggregate reaches shared-reader acceptance in scoped PDF mode', () => {
   const temp = mkdtempSync(resolve(tmpdir(), 'pero-paper-wiring-'));
-  const entries = ['paper-research-import', 'paper-research-import-host', 'paper-pdf-study', 'paper-source-study', 'paper-agent'];
+  const entries = ['paper-research-import', 'paper-research-import-host', 'paper-pdf-study', 'paper-source-study', 'paper-reproduction-component', 'paper-agent'];
   try {
     writeFileSync(resolve(temp, 'aggregate.mjs'), readFileSync('tests/e2e/paper-research-import-all.mjs'));
     // Stub only the expensive Desktop boundary. Execute the actual aggregate so

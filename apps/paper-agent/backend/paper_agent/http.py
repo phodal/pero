@@ -20,7 +20,7 @@ from .context_file import ContextSelection, ContextRead
 from .research import ResearchPlan
 from .thumbnails import PaperThumbnails
 from .source_reading import source_read, source_image
-from .pcgym_domain import Invalid as PcgymInvalid
+from .pcgym_domain import Invalid as PcgymInvalid, fields as reproduction_fields
 
 MAX_BODY = 1024 * 1024
 
@@ -37,7 +37,7 @@ def research_stage(record):
     return dict(stage='select', id=record.id, requestId=record.plan.request.request_id + '-r' + str(len(record.queries)), question=record.plan.request.question, prompt=record.prompt(), round=len(record.queries))
 
 
-def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbnails=None):
+def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbnails=None, compute_secret=None):
     literature = literature if literature is not None else LiteratureClient()
     pdf_files = pdf_files if pdf_files is not None else PdfFiles()
     thumbnails = thumbnails if thumbnails is not None else PaperThumbnails()
@@ -162,7 +162,14 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, record.to_dict())
                 if self.command == "POST":
+                    if path == '/api/reproduction/host':
+                        if not compute_secret or not hmac.compare_digest(compute_secret, self.headers.get('X-Pero-Compute-Token', '')):
+                            raise Invalid('Private Host computation authority required', 403)
+                        return self.reply(200, store.pcgym.host_command(data))
                     if path == '/api/reproduction/step':
+                        if data.get('action') == 'start':
+                            reproduction_fields(data, ('action', 'specId', 'requestId', 'confirmation'))
+                            raise Invalid('Execution requires a private per-run Host decision', 403)
                         return self.reply(200, store.pcgym.command(data))
                     if path == '/api/research/inspect':
                         return self.reply(200, store.imports.inspect(data, now()).to_dict())

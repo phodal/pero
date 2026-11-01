@@ -250,6 +250,84 @@ class PcgymAppTests(unittest.TestCase):
         self.assertEqual(result['attempts'][0]['status'], 'unknown')
         self.assertEqual(result['requests'][0]['status'], 'unknown')
 
+    def test_numeric_item_is_frozen_and_comparison_never_accepts_fixture(self):
+        frozen, _ = self.freeze()
+        command = dict(action='create-item', specId=frozen['id'], policy='base',
+                       comparison=dict(mode='absolute', tolerance=1))
+        with self.assertRaisesRegex(Invalid, 'report value'):
+            self.app.command(command)
+        annotation = self.store.save_annotation(PdfAnnotation.create(dict(page=20, kind='highlight',
+            quote='0.0727', rects=[dict(x=.1, y=.2, width=.1, height=.1)]), self.document, NOW))
+        self.audit_command['annotationId'] = annotation.id
+        spec, raw, attempt = self.evidence()
+        command['specId'] = spec.id
+        item = self.app.command(command)
+        self.assertEqual(self.app.command(command), item)
+        self.assertEqual(PcgymApp(ResearchStore(self.home)).command(dict(action='item', itemId=item['id'])), item)
+        self.assertEqual(item['annotation_id'], annotation.id)
+        revision = self.app.command({**command, 'comparison': dict(mode='relative', tolerance=.1)})
+        self.assertNotEqual(item['id'], revision['id'])
+        self.assertEqual(item['spec_id'], revision['spec_id'])
+        comparison = self.app.command(dict(action='compare-item', itemId=item['id'], attemptId=raw['attempt_id']))
+        self.assertEqual(comparison['execution_status'], 'completed')
+        self.assertEqual(comparison['comparison_status'], 'inconclusive')
+        self.assertEqual(comparison['paper_verdict'], 'INCONCLUSIVE')
+        self.assertIn('unverified_execution_evidence', comparison['reasons'])
+        self.assertIsNone(comparison['diagnostic'])
+        self.assertIn('id', comparison)
+        (attempt / 'execution.log').write_bytes(b'x' * 65537)
+        log = self.app.command(dict(action='logs', specId=spec.id, attemptId=raw['attempt_id']))
+        self.assertEqual(len(log['text']), 65536)
+        self.assertTrue(log['truncated'])
+        with self.assertRaises(Invalid):
+            self.app.command(dict(action='compare-item', itemId=item['id'], attemptId='f' * 64))
+
+    def test_numeric_selection_does_not_strip_signs_or_exponents(self):
+        pages = tuple(PdfPage(p.number, p.width, p.height,
+            p.text + ' -0.0727 +0.0727 0.0727e2' if p.number == 20 else p.text)
+            for p in self.document.pages)
+        document = self.store.save_pdf(PdfDocument.create(self.paper.id, digest(b'signed fixture'),
+            self.document.source_url, pages, '2026-11-02T00:00:00Z'), b'signed fixture')
+        for quote in ('-0.0727', '+0.0727', '0.0727e2'):
+            with self.subTest(quote=quote):
+                annotation = self.store.save_annotation(PdfAnnotation.create(dict(page=20,
+                    kind='highlight', quote=quote, rects=[dict(x=.1, y=.2, width=.1, height=.1)]), document, NOW))
+                self.audit_command['annotationId'] = annotation.id
+                frozen, _ = self.freeze()
+                with self.assertRaisesRegex(Invalid, 'report value'):
+                    self.app.command(dict(action='create-item', specId=frozen['id'], policy='base',
+                                          comparison=dict(mode='absolute', tolerance=1)))
+
+    def test_confirmed_terminal_requests_allow_new_attempt_without_rebinding_history(self):
+        frozen, _ = self.freeze()
+        app = PcgymApp(self.store, checkout=self.checkout, allow_execution=True)
+        command = dict(action='start', specId=frozen['id'], requestId='first',
+                       confirmation='execute-frozen-local-simulation')
+        process = ProcessFixture()
+        with patch('paper_agent.pcgym_app.subprocess.Popen', return_value=process) as spawn:
+            app.command(command)
+            for index, terminal in enumerate(('completed', 'failed', 'cancelled')):
+                attempt_id = str(3 - index) * 64  # reverse sort order must not rebind earlier requests
+                target = app.bundle(frozen['id']) / 'attempts' / attempt_id
+                target.mkdir(parents=True)
+                pcgym.write_json(target / 'execution.json', dict(spec_id=frozen['id'],
+                    attempt_id=attempt_id, status=terminal))
+                process.returncode = 0
+                status = app.command(dict(action='status', specId=frozen['id']))
+                request = next(r for r in status['requests'] if r['request_id'] == command['requestId'])
+                self.assertEqual((request['status'], request['attempt_id']), (terminal, attempt_id))
+                app.command(command)  # an identical request is a read, not a launch
+                self.assertEqual(spawn.call_count, index + 1)
+                if index < 2:
+                    command = {**command, 'requestId': f'rerun-{index}'}
+                    app.command(command)
+                    process.returncode = None
+            reopened = PcgymApp(ResearchStore(self.home), checkout=self.checkout, allow_execution=True)
+            requests = reopened.command(dict(action='status', specId=frozen['id']))['requests']
+            self.assertEqual({r['request_id']: r['attempt_id'] for r in requests},
+                             {'first': '3' * 64, 'rerun-0': '2' * 64, 'rerun-1': '1' * 64})
+            self.assertEqual(spawn.call_count, 3)
+
     def test_http_authenticated_roundtrip_and_default_no_execution(self):
         from paper_agent.http import handler
         server = ThreadingHTTPServer(('127.0.0.1', 0), handler(self.store, 'fixture-token'))

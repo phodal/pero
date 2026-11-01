@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url';
 import { normalizeLocale, translate, type Locale, type MessageKey } from '../../../locales';
 import { RemoteAdapter, type StoredRemoteConnection } from './remote';
 import { DesktopApps } from './apps';
+import { confirmReproduction } from './reproduction-approval.ts';
 import {WebPages} from './web-pages';
 import {McpHost} from './mcp-host.ts';
 import { DesktopContributions } from './contributions';
@@ -70,7 +71,8 @@ const apps = new DesktopApps(request => {
   const selected = await dialog.showOpenDialog(window, { properties: ['openDirectory'] });
   return selected.canceled ? undefined : selected.filePaths[0];
 },async(name,token)=>{if(!appUse)throw new Error('App input unavailable');return appUse.input(name,token);},
-sessionId => appUse?.authority.command({ action: 'cancel', thread_id: sessionId }));
+sessionId => appUse?.authority.command({ action: 'cancel', thread_id: sessionId }),
+(summary, signal) => confirmReproduction(window, summary, signal));
 let harness: HarnessPreferences;
 let runtimeSettingsPath = '';
 const preferenceWrites = new Map<string, { resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();

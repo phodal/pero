@@ -458,7 +458,7 @@ jobs:
       - name: Permission, cancellation and fixture contracts
         run: |
           npm run test:app-use:unit
-          node --experimental-transform-types --test desktop/src/main/apps-research-assets.test.ts desktop/src/main/app-write-research-assets.test.ts
+          node --experimental-transform-types --test desktop/src/main/apps-research-assets.test.ts desktop/src/main/app-write-research-assets.test.ts desktop/src/main/apps-reproduction.test.ts
           node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs
           node --test web/src/host-connection.test.ts
           node --test desktop/src/main/{app-context,app-use,connector-secrets,content-artifacts,control-lab-goal,harness-environment,home,mcp-sources}.test.ts web/src/{automation-model,content-results}.test.ts
@@ -563,6 +563,7 @@ jobs:
       - name: Paper research import Python environment
         if: matrix.suite == 'paper-research-import'
         run: |
+          npm ci --prefix apps/paper-agent --ignore-scripts
           python -m venv "$RUNNER_TEMP/paper-research-python"
           "$RUNNER_TEMP/paper-research-python/bin/python" -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
       - name: Browser for explicitly mocked App UI seams

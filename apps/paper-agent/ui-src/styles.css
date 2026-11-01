@@ -104,3 +104,5 @@
 
 .pa-records-panel{display:flex;flex:1;min-height:0;flex-direction:column}
 .pa-record-evidence{max-height:45%;overflow:auto;padding-inline:var(--pero-space-5)}
+
+.pa-reproduction{margin-top:12px;border-top:1px solid var(--pero-border);padding-top:10px;overflow-wrap:anywhere}.pa-reproduction h3{font-size:13px;margin:0 0 8px}.pa-reproduction label{display:flex;flex-direction:column;gap:4px;margin:8px 0}.pa-reproduction input,.pa-reproduction select{box-sizing:border-box;width:100%;min-width:0;background:var(--pero-surface);color:var(--pero-text);border:1px solid var(--pero-border);border-radius:4px;padding:5px}.pa-reproduction pre{white-space:pre-wrap;max-height:240px;overflow:auto;font-size:11px}.pa-reproduction code{font-size:11px}.pa-reproduction dd{margin:0 0 6px;font-variant-numeric:tabular-nums}.pa-reproduction dt{color:var(--pero-text-muted)}
