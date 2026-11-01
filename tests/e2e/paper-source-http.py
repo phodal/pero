@@ -100,7 +100,20 @@ def main():
             read = call('/api/research/source-read', {**base, 'operation': 'read', 'memberId': tex['id'], 'startLine': 1, 'endLine': min(10, tex['lineCount'])})
             assert read['archiveDigest'] == receipt['archiveDigest'] and read['memberDigest'] == tex['sha256']
             assert read['content'] and read['startLine'] == 1
+            for window in (dict(startLine=1, endLine=3), dict(start=2, end=read['content'].index('\n') + 4)):
+                bounded = call('/api/research/source-read', {**base, 'operation': 'read', 'memberId': tex['id'], **window})
+                reopened = call('/api/research/source-read', {**base, 'operation': 'read', 'memberId': tex['id'], 'start': bounded['start'], 'end': bounded['end']})
+                assert reopened == bounded
+
             assert acquire(bundle, resource)['receipt'] == receipt
+            report = call('/api/research/source-report', dict(operation='create', bundleId=bundle['id'],
+                title='Observed source', observationIds=[read['observationId']], interpretations=['Scientific meaning remains unresolved.']))
+            assert report['observations'][0]['anchor']['memberDigest'] == tex['sha256']
+            assert report['interpretations'][0]['status'] == 'unresolved'
+            assert call('/api/research/source-report', dict(operation='read', bundleId=bundle['id'], reportId=report['id'])) == report
+            call('/api/research/source-report', dict(operation='create', bundleId=bundle['id'],
+                title='Forged read', observationIds=['a' * 64]), rejected=404)
+            summary['checks'].append('Authenticated report create/reopen uses only server-recorded source scopes; fabricated IDs rejected')
             summary.update(receipt=receipt, readScope={key: read[key] for key in ('memberId', 'memberPath', 'memberDigest', 'startLine', 'endLine')})
             summary['checks'].append('References-only has no acquisition; explicit source consent, exact member lines and repeat-cache receipt')
             if not options.live:

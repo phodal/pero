@@ -701,6 +701,12 @@ test('Only declared version-bound Paper image reads become MCP image content', a
   const prepared = new PreparedAppWrite(definition, document);
   for (const [name, value] of [
     ['unknown type', { ...image, type: 'other' }], ['wrong MIME', { ...image, mimeType: 'image/jpeg' }],
+    ['invalid observation ID', { ...image, observationId: 'forged' }],
+    ['null observation ID', { ...image, observationId: null }],
+    ['non-string warning', { ...image, observationWarning: false }],
+    ['empty warning', { ...image, observationWarning: ' ' }],
+    ['oversized warning', { ...image, observationWarning: 'x'.repeat(501) }],
+    ['ambiguous observation', { ...image, observationId: 'e'.repeat(64), observationWarning: 'Not persisted' }],
     ['URL not bytes', { ...image, data: 'https://example.org/picture.png' }], ['noncanonical base64', { ...image, data: data + '\n' }],
     ['extra field', { ...image, url: 'https://example.org' }], ['extra provenance', { ...image, provenance: { ...image.provenance, path: '/tmp/private' } }],
     ['wrong member', { ...image, provenance: { ...image.provenance, memberId: 'd'.repeat(64) } }],
@@ -735,6 +741,18 @@ test('Only declared version-bound Paper image reads become MCP image content', a
     assert.equal(result.content[1].data, data); assert.equal(result.content[1].mimeType, 'image/png');
     assert.deepEqual(JSON.parse(result.content[0].text).result.provenance, image.provenance);
     assert.equal(result.content[0].text.includes(data), false, 'base64 never becomes text or an artifact reference');
+    assert.equal(Object.hasOwn(JSON.parse(result.content[0].text).result, 'observationId'), false, 'legacy image remains supported without invented observation');
+    for (const observation of [{ observationId: 'e'.repeat(64) }, { observationWarning: 'Observation capacity reached; preview is not reportable.' }]) {
+      reply = { ...image, ...observation };
+      const observed = await call();
+      assert.equal(observed.isError, false);
+      assert.equal(observed.content[1].data, data, 'typed image survives observation metadata');
+      assert.deepEqual(JSON.parse(observed.content[0].text).result, {
+        type: 'source_image', mimeType: 'image/png', provenance: image.provenance, ...observation,
+      });
+      assert.equal(observed.content[0].text.includes(data), false);
+    }
+
     assert.equal((await call('read')).content.some((item: { type: string }) => item.type === 'image'), false, 'ordinary JSON remains data');
     reply = { ...image, type: 'unknown' };
     assert.equal((await call()).isError, true);

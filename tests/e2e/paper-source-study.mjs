@@ -1,4 +1,5 @@
 // Actual Electron/Host/Paper source-only UI. All default inputs are authored fixtures; no Agent runs.
+import { execFileSync } from 'node:child_process';
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { openResearchImport, researchUiState } from './paper-research-ui-controls.mjs';
@@ -20,7 +21,7 @@ const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop')
 delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT;
 const seed = live ? 'https://arxiv.org/src/2610.24806v1' : 'https://research.example.org/source-study';
 const checks = [], errors = [], receipts = [], acquisitionConflicts = [];
-let app, page, frame;
+let app, page, frame, savedSourceReport, savedWindowReport, savedWindows;
 const launch = () => electron.launch({ args: [resolve(root, 'desktop')], cwd: root, env });
 async function ready() {
   page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message));
@@ -88,12 +89,13 @@ try {
   expect(acquired.localAvailable).toBe(true); expect(bundle.pdfDownloadIds).toEqual([]);
   if (live) {
     await row(source.title).getByText('Source archive provenance', { exact: true }).click();
-    await sources().screenshot({ path: resolve(out, 'live-source-receipt.png') });
+    // Live third-party source UI is never captured in public artifacts.
   }
   await row(source.title).getByRole('button', { name: 'Browse source files', exact: true }).click();
   const catalog = await api('/api/research/source-read', { operation: 'list', bundleId: bundle.id, resourceId: source.id });
   const tex = catalog.members.find(member => member.path === 'main.tex') || catalog.members.find(member => member.path.endsWith('.tex'));
   expect(tex).toBeTruthy();
+  if (!live) expect((await api('/api/research/source-report', { operation: 'observations', bundleId: bundle.id })).observations).toEqual([]);
   await row(source.title).getByRole('button', { name: tex.path, exact: true }).click();
   await expect(frame.getByLabel(`Original source: ${tex.path}`, { exact: true })).toBeVisible();
   await expect(row(source.title).getByRole('region', { name: 'Source and PDF comparison', exact: true })).toContainText('No PDF approved in this bundle');
@@ -106,6 +108,26 @@ try {
     await setPaperAppearance(page, 'dark'); await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 800));
     await expect.poll(() => frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
     await page.screenshot({ path: resolve(out, 'source-image-dark-narrow.png') });
+    const reports = row(source.title).getByRole('region', { name: 'Source evidence reports', exact: true });
+    await reports.getByText('New report from recorded evidence', { exact: true }).click();
+    await expect(reports.getByRole('checkbox')).toHaveCount(2);
+    for (const choice of await reports.getByRole('checkbox').all()) await choice.check();
+    await reports.getByLabel('Report title', { exact: true }).fill('Authored source evidence');
+    await reports.getByLabel('Interpretation (optional; unresolved)', { exact: true }).fill('The authored figure may relate to the table; not established.');
+    await reports.getByRole('button', { name: 'Save source report', exact: true }).click();
+    await expect(reports.getByRole('article', { name: 'Saved source evidence report', exact: true })).toBeVisible();
+    await expect(reports.getByRole('region', { name: 'Unresolved interpretations', exact: true })).toContainText('not established');
+    savedSourceReport = (await api('/api/research/source-report', { operation: 'list', bundleId: bundle.id })).reports[0];
+    expect(savedSourceReport.observations.map(item => item.kind).sort()).toEqual(['source_image', 'source_text']);
+    expect(savedSourceReport.currentAvailability.every(item => item.available)).toBe(true);
+    await page.screenshot({ path: resolve(out, 'source-report-dark-narrow.png') });
+    const readRequest = { operation: 'read', bundleId: bundle.id, resourceId: source.id, memberId: tex.id };
+    const short = await api('/api/research/source-read', { ...readRequest, startLine: 1, endLine: 3 });
+    const partial = await api('/api/research/source-read', { ...readRequest, start: 2, end: short.content.indexOf('\n') + 4 });
+    savedWindows = [short, partial];
+    savedWindowReport = await api('/api/research/source-report', { operation: 'create', bundleId: bundle.id,
+      title: 'Exact bounded evidence', observationIds: savedWindows.map(value => value.observationId) });
+
   }
   checks.push('Explicit source-only consent, failure retry, original source lines and raster preview; no PDF/code/model download or TeX execution');
   await app.close(); app = await launch(); await ready(); await openPaper();
@@ -114,6 +136,42 @@ try {
   await api('/api/research/source', { operation: 'start', bundleId: bundle.id, resourceId: source.id });
   if (!live) expect((await requests()).filter(item => item.url === source.originalUrl)).toHaveLength(2);
   checks.push('Actual Desktop/backend restart and repeated start reuse the same archive receipt without reacquisition');
+  if (!live) {
+    await row(source.title).getByRole('button', { name: 'Browse source files', exact: true }).click();
+    const reports = row(source.title).getByRole('region', { name: 'Source evidence reports', exact: true });
+    await reports.getByRole('button', { name: 'Authored source evidence', exact: true }).click();
+    await expect(reports.getByRole('article', { name: 'Saved source evidence report', exact: true })).toBeVisible();
+    const reopened = await api('/api/research/source-report', { operation: 'read', bundleId: bundle.id, reportId: savedSourceReport.id });
+    expect(reopened).toEqual(savedSourceReport);
+    await reports.getByRole('article', { name: 'Saved source evidence report', exact: true }).getByRole('listitem').filter({ hasText: tex.path }).first().getByRole('button', { name: 'Open original evidence', exact: true }).click();
+    await expect(frame.getByLabel(`Original source: ${tex.path}`, { exact: true })).toBeVisible();
+    expect(await api('/api/research/source-report', { operation: 'read', bundleId: bundle.id, reportId: savedSourceReport.id })).toEqual(savedSourceReport);
+    await reports.getByRole('button', { name: 'Exact bounded evidence', exact: true }).click();
+    const observationCount = (await api('/api/research/source-report', { operation: 'observations', bundleId: bundle.id })).observations.length;
+    for (const original of savedWindows) {
+      const saved = reports.getByRole('article', { name: 'Saved source evidence report', exact: true });
+      const label = `${tex.path} · lines ${original.startLine}–${original.endLine} · characters ${original.start}–${original.end}`;
+      await saved.getByRole('listitem').filter({ has: frame.getByText(label, { exact: true }) }).getByRole('button', { name: 'Open original evidence', exact: true }).click();
+      await expect(frame.getByLabel(`Original source: ${tex.path}`, { exact: true })).toHaveText(original.content);
+      await expect(row(source.title).getByText(`Original lines ${original.startLine}–${original.endLine} of ${original.totalLines} / characters ${original.start}–${original.end}`, { exact: true })).toBeVisible();
+      expect((await api('/api/research/source-report', { operation: 'observations', bundleId: bundle.id })).observations).toHaveLength(observationCount);
+    }
+    expect(await api('/api/research/source-report', { operation: 'read', bundleId: bundle.id, reportId: savedWindowReport.id })).toEqual(savedWindowReport);
+    await reports.getByRole('button', { name: 'Authored source evidence', exact: true }).click();
+    const originalPath = resolve(profile, 'desktop/app-data/paper-agent/research-v1/source-files', acquired.receipt.archiveDigest + '.bin');
+    const originalBytes = await readFile(originalPath);
+    await rm(originalPath);
+    await sources().getByRole('button', { name: 'Refresh source status', exact: true }).click();
+    await expect(row(source.title)).toContainText('Source files or previews unavailable');
+    await reports.getByRole('button', { name: 'Authored source evidence', exact: true }).click();
+    await expect(reports.getByText('Original currently unavailable. Restore its exact version before rereading.', { exact: true })).toHaveCount(2);
+    await expect(reports.getByRole('button', { name: 'Open original evidence', exact: true })).toHaveCount(0);
+    await writeFile(originalPath, originalBytes); // Restore only the self-authored fixture bytes.
+    await sources().getByRole('button', { name: 'Refresh source status', exact: true }).click();
+    await expect(row(source.title)).toContainText('Source files available');
+    expect(await api('/api/research/source-report', { operation: 'read', bundleId: bundle.id, reportId: savedSourceReport.id })).toEqual(savedSourceReport);
+    checks.push('Only actual source/image reads become report evidence; selected scopes and unresolved interpretation persist through Desktop restart and missing-original recovery');
+  }
   if (!live) {
     const single = candidates.find(item => item.originalUrl.endsWith('/2610.00002v1')), pdfOnly = candidates.find(item => item.originalUrl.endsWith('/2610.00003v1'));
     await inspect();
@@ -165,9 +223,17 @@ try {
     checks.push('Cancellation interrupts source acquisition; explicit retry accepts gzip single TeX; PDF-only response never claims TeX');
   }
   expect(errors).toEqual([]); expect(acquisitionConflicts).toEqual([]);
+  if (live) {
+    await app.close(); app = null;
+    execFileSync(env.PERO_APP_PYTHON || 'python3', [resolve(root, 'tests/e2e/paper-source-live.py'),
+      '--cache', resolve(profile, 'desktop/app-data/paper-agent'), '--output', resolve(out, 'three-materials.json'),
+      '--aptamer-bundle', bundle.id, '--aptamer-resource', source.id],
+      { cwd: root, env, timeout: 105000, stdio: 'pipe' });
+    checks.push('Three fixed-v1 real source CLI journeys: classification, original scopes, reports and restart');
+  }
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ checks, errors, receipts, acquisitionConflicts, network: live ? 'real arXiv product path' : 'synthetic transport', agent: 'none', compilation: 'none', sourceBytesExported: false }, null, 2));
 } catch (error) {
-  if (page) {
+  if (page && !live) {
     await page.screenshot({ path: resolve(out, 'failure.png'),
       ...(live ? { mask: [page.locator('iframe[title="paper-agent"]'), page.locator('canvas')] } : {}) }).catch(() => {});
     await writeFile(resolve(out, 'failure-view.json'), JSON.stringify(

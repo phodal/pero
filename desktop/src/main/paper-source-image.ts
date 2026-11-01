@@ -11,7 +11,15 @@ type ImageProvenance = Readonly<{ archiveDigest: string; memberId: string; origi
 export class PaperSourceImage {
   readonly data: string;
   readonly provenance: ImageProvenance;
-  private constructor(data: string, provenance: ImageProvenance) { this.data = data; this.provenance = provenance; }
+  readonly observationId?: string;
+  readonly observationWarning?: string;
+  private constructor(data: string, provenance: ImageProvenance,
+    observationId?: string, observationWarning?: string) {
+    this.data = data;
+    this.provenance = provenance;
+    this.observationId = observationId;
+    this.observationWarning = observationWarning;
+  }
   static accepts(prepared: PreparedAppWrite): boolean {
     const route = prepared.definition;
     return route.app === 'paper-agent' && route.name === 'research-source-read'
@@ -23,7 +31,11 @@ export class PaperSourceImage {
     const invalid = () => { throw new AppUseError('APP_SOURCE_IMAGE_INVALID', 'The declared source image or its version provenance is invalid'); };
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return invalid();
     const value = raw as Record<string, unknown>;
-    if (Object.keys(value).sort().join(',') !== 'data,mimeType,provenance,type' || value.type !== 'source_image' || value.mimeType !== 'image/png'
+    const observationKeys = ['observationId', 'observationWarning'].filter(key => Object.hasOwn(value, key));
+    if (observationKeys.length > 1
+      || (observationKeys[0] === 'observationId' && (typeof value.observationId !== 'string' || !HASH.test(value.observationId)))
+      || (observationKeys[0] === 'observationWarning' && (typeof value.observationWarning !== 'string' || !value.observationWarning.trim() || value.observationWarning.length > 500))) return invalid();
+    if (Object.keys(value).filter(key => !observationKeys.includes(key)).sort().join(',') !== 'data,mimeType,provenance,type' || value.type !== 'source_image' || value.mimeType !== 'image/png'
       || typeof value.data !== 'string' || !value.data.length || value.data.length > 4 * Math.ceil(MAX_IMAGE_BYTES / 3)
       || /[^A-Za-z0-9+/=]/.test(value.data)) return invalid();
     const provenance = value.provenance as Record<string, unknown>;
@@ -41,8 +53,11 @@ export class PaperSourceImage {
       || createHash('sha256').update(bytes).digest('hex') !== provenance.previewSha256) return invalid();
     // Full decoding and RGB re-encoding belong to the bounded Paper acquisition
     // worker. This boundary checks the typed representation and immutable receipt.
-    return new PaperSourceImage(value.data, Object.freeze({ ...provenance }) as ImageProvenance);
+    return new PaperSourceImage(value.data, Object.freeze({ ...provenance }) as ImageProvenance,
+      value.observationId as string | undefined, value.observationWarning as string | undefined);
   }
-  metadata() { return { type: 'source_image', mimeType: 'image/png', provenance: this.provenance }; }
+  metadata() { return { type: 'source_image', mimeType: 'image/png', provenance: this.provenance,
+    ...(this.observationId ? { observationId: this.observationId } : {}),
+    ...(this.observationWarning ? { observationWarning: this.observationWarning } : {}) }; }
   content() { return { type: 'image' as const, mimeType: 'image/png', data: this.data }; }
 }

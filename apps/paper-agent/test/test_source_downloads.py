@@ -138,7 +138,7 @@ class SourceDownloadTest(unittest.TestCase):
                 envelope = json.loads(response.read())
                 connection.close()
                 self.assertEqual(response.status, 200, envelope)
-                self.assertEqual(set(envelope), {'type', 'mimeType', 'data', 'provenance'})
+                self.assertEqual(set(envelope), {'type', 'mimeType', 'data', 'provenance', 'observationId'})
                 self.assertEqual(envelope['type'], 'source_image')
                 preview = base64.b64decode(envelope['data'], validate=True)
                 proof = envelope['provenance']
