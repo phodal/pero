@@ -124,10 +124,17 @@ try {
   await expect(frame.getByText(/Accepted via UI/)).toBeVisible();
   final = await readExperiment(frozen.id);
   expect(final.decisions).toHaveLength(1); expect(final.decisions[0].human_identity_verified).toBe(false);
-  const downloading = page.waitForEvent('download');
+  // Electron owns downloads; use its real session event, as the Control Lab
+  // acceptance does, rather than a browser Page event Electron does not emit.
+  const exportPath = resolve(out, 'experiment-export.json');
+  await rm(exportPath, { force: true });
+  await app.evaluate(({ session }, path) => session.defaultSession.once('will-download', (_event, item) => item.setSavePath(path)), exportPath);
   await frame.getByRole('button', { name: 'Export JSON', exact: true }).click();
-  await (await downloading).saveAs(resolve(out, 'experiment-export.json'));
-  const exported = JSON.parse(await readFile(resolve(out, 'experiment-export.json'), 'utf8'));
+  let exported;
+  await expect.poll(async () => {
+    try { exported = JSON.parse(await readFile(exportPath, 'utf8')); return true; }
+    catch (error) { if (error.code === 'ENOENT' || error instanceof SyntaxError) return false; throw error; }
+  }).toBe(true);
   expect(exported.experiment).toEqual(final);
   await frame.getByRole('tab', { name: 'Deck', exact: true }).click();
   await expect(frame.getByRole('button', { name: 'B1, 100 microliters', exact: true })).toBeVisible();
