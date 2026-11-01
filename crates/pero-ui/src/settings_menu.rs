@@ -76,6 +76,7 @@ impl Workbench {
             pero_theme::ghost_icon_button("sidebar-settings", chrome, cx)
                 .tooltip(label.clone())
                 .icon(icon())
+                .cursor_pointer()
         } else {
             pero_theme::sidebar_menu_button(
                 "sidebar-settings",
@@ -86,7 +87,7 @@ impl Workbench {
                 cx,
             )
         };
-        button
+        let menu = button
             .accessibility_label(t("settings.title"))
             .dropdown_caret(false)
             .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, window, cx| {
@@ -158,6 +159,11 @@ impl Workbench {
                     this.settings_menu_open = *open;
                     cx.notify();
                 });
-            })
+            });
+        if icon_only {
+            menu.into_any_element()
+        } else {
+            pero_theme::sidebar_hover_row("sidebar-settings-hover", chrome, menu).into_any_element()
+        }
     }
 }

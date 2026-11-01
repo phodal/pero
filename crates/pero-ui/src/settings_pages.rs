@@ -11,18 +11,11 @@ pub(crate) fn navigation_roots(panel: &SettingsPanel, cx: &App) -> Vec<TreeItem>
             panel.t(SettingsSection::General.key()),
         ));
     }
-    let children = sections
-        .iter()
-        .copied()
-        .filter(|section| !section.exclusive())
-        .map(|section| TreeItem::new(section.key(), panel.t(section.key())))
-        .collect::<Vec<_>>();
-    if !children.is_empty() {
-        roots.push(
-            TreeItem::new("settings.appearance", panel.t("settings.appearance"))
-                .children(children)
-                .expanded(true),
-        );
+    if sections.iter().any(|section| section.is_appearance()) {
+        roots.push(TreeItem::new(
+            "settings.appearance",
+            panel.t("settings.appearance"),
+        ));
     }
     for section in [
         SettingsSection::Agents,

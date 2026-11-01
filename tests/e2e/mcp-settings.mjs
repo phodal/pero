@@ -66,7 +66,7 @@ async function open(direct = false) {
     const { query, matches } = (await state()).settings;
     expect(query).toBe(''); expect(matches).toContain('mcp.title');
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+e' : 'Control+Shift+e');
-    // Follow the visible tree, including its appearance group, rather than a stale row offset.
+    // Follow the visible tree rather than a stale row offset.
     for (let remaining = matches.length + 1; remaining > 0 && (await state()).settings.section !== 'mcp.title'; remaining--) {
       await page.keyboard.press('ArrowDown'); await frame();
     }

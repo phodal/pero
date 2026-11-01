@@ -630,7 +630,27 @@ pub fn ghost_icon_button(id: impl Into<ElementId>, chrome: Chrome, cx: &App) -> 
         .p_0()
 }
 
+/// Full-width hover shell. Matches `sidebar_row`: pointer cursor and the same wash.
+/// The settings trigger is a dropdown button, whose own hover fill does not track the row.
+pub fn sidebar_hover_row(
+    id: impl Into<ElementId>,
+    chrome: Chrome,
+    child: impl IntoElement,
+) -> Stateful<Div> {
+    let hover = wash(chrome);
+    div()
+        .id(id)
+        .w_full()
+        .flex()
+        .flex_col()
+        .rounded(chrome.geo(RADIUS_SELECTION))
+        .cursor_pointer()
+        .hover(move |row| row.bg(hover))
+        .child(child)
+}
+
 /// Sidebar action that must stay a button, with the same left icon column as `sidebar_row`.
+/// Hover is painted by `sidebar_hover_row`. This fill stays clear so the two washes do not stack.
 pub fn sidebar_menu_button(
     id: impl Into<ElementId>,
     label: impl Into<SharedString>,
@@ -641,8 +661,14 @@ pub fn sidebar_menu_button(
 ) -> Button {
     let label = label.into();
     Button::new(id)
-        .custom(ghost_colors(chrome, cx, chrome.palette.accent_soft))
+        .custom(
+            ButtonCustomVariant::new(cx)
+                .foreground(chrome.palette.text)
+                .hover(clear(chrome))
+                .active(chrome.palette.accent_soft),
+        )
         .selected(selected)
+        .cursor_pointer()
         .small()
         .w_full()
         .h(chrome.geo(ROW_NAV))

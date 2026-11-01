@@ -56,11 +56,10 @@ try{
   await expect.poll(async()=>(await state()).settings.section).toBe('settings.general');
   await page.keyboard.press('ArrowDown');
   await expect.poll(async()=>(await state()).settings.section).toBe('settings.theme');
-  await page.keyboard.press('ArrowLeft');await page.keyboard.press('ArrowRight');
-  await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');
-  await expect.poll(async()=>(await state()).settings.section).toBe('settings.interface_font');
   await page.keyboard.press('ArrowDown');
-  await expect.poll(async()=>(await state()).settings.section).toBe('settings.chat_font');
+  await expect.poll(async()=>(await state()).settings.section).toBe('settings.page.agents');
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(async()=>(await state()).settings.section).toBe('settings.theme');
   await capture('01-tree-fonts');
   let font=(await state()).settings.fontInputs[0];
   await page.mouse.click(font.x+font.width/2,font.y+font.height/2);await frames();
@@ -109,7 +108,8 @@ try{
   await expect.poll(async()=>(await state()).settingsSearch).toBe('回复');
   await expect.poll(async()=>(await state()).settings.matches).toEqual(['settings.chat_font']);
   await page.keyboard.press('ArrowDown');
-  await expect.poll(async()=>(await state()).settings.section).toBe('settings.chat_font');
+  await expect.poll(async()=>(await state()).settings.section).toBe('settings.theme');
+  await expect.poll(async()=>(await state()).settings.matches).toEqual(['settings.chat_font']);
   await capture('01-search-keyboard');
   await page.keyboard.press(process.platform==='darwin'?'Meta+f':'Control+f');await frames();
   await page.keyboard.press('Escape');
@@ -142,9 +142,17 @@ try{
   await app.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.setMinimumSize(760,650);window.setSize(760,700);});
   await page.waitForFunction(()=>innerWidth===760);
   await page.keyboard.press(process.platform==='darwin'?'Meta+Shift+e':'Control+Shift+e');
-  await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');
-  await expect.poll(async()=>(await state()).settings.section).toBe('settings.code_font');
-  await frames();
+  await expect.poll(async()=>(await state()).settings.section).toBe('settings.theme');
+  const content=(await state()).settings.scroll.bounds;
+  await page.mouse.move(content.x+content.width/2, content.y+Math.min(80, content.height/2));
+  for (let step=0; step<16; step++) {
+    const current=(await state()).settings;
+    const font=current.fontInputs[2];
+    const view=current.scroll.bounds;
+    if (font.y>=view.y && font.y+font.height<=view.y+view.height && current.scroll.offsetY<0) break;
+    await page.mouse.wheel(0, 280);
+    await frames();
+  }
   const narrow=(await state()).settings;
   const viewport=page.viewportSize() ?? await page.evaluate(()=>({width:innerWidth,height:innerHeight}));
   expect(narrow.bounds.y+narrow.bounds.height).toBeLessThanOrEqual(viewport.height);

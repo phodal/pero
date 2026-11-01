@@ -759,7 +759,14 @@ impl Render for SettingsPanel {
         if self.navigation_query.as_ref() != Some(&navigation_query) {
             self.navigation_query = Some(navigation_query);
             let roots = crate::settings_pages::navigation_roots(self, cx);
-            let selected = TreeItem::new(self.section.key(), "");
+            let selected = TreeItem::new(
+                if self.section.is_appearance() {
+                    "settings.appearance"
+                } else {
+                    self.section.key()
+                },
+                "",
+            );
             self.navigation.update(cx, |tree, cx| {
                 tree.set_items(roots, cx);
                 tree.set_selected_item(Some(&selected), cx);
@@ -780,12 +787,24 @@ impl Render for SettingsPanel {
             .id("settings-panel")
             .key_context("SettingsPanel")
             .capture_action(
+                cx.listener(|this, _: &gpui_kit::component::input::Escape, window, cx| {
+                    if !this.clear_search(window, cx) {
+                        cx.emit(SettingsAction::Close);
+                    }
+                    cx.stop_propagation();
+                }),
+            )
+            .capture_action(
                 cx.listener(|this, _: &gpui_kit::base::actions::Cancel, window, cx| {
                     if this.clear_search(window, cx) {
                         cx.stop_propagation();
-                    } else {
-                        cx.propagate();
                     }
+                }),
+            )
+            .on_action(
+                cx.listener(|_, _: &gpui_kit::base::actions::Cancel, _, cx| {
+                    cx.emit(SettingsAction::Close);
+                    cx.stop_propagation();
                 }),
             )
             .capture_action(cx.listener(|this, _: &FocusSettingsSearch, window, cx| {
