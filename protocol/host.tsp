@@ -166,7 +166,10 @@ model McpServerConfig {name:string;enabled?:boolean=false;transport:McpTransport
 model GetMcpSettingsRequest {method:"settings.mcp.get";request_id:string;agent_id:string;...Closed}
 model SetMcpSettingsRequest {method:"settings.mcp.set";request_id:string;agent_id:string;revision:safeint;servers:McpServerConfig[];...Closed}
 @oneOf union McpSettingsRequest {GetMcpSettingsRequest,SetMcpSettingsRequest}
-model McpSettingsEvent {kind:"mcp_settings";...EventBase;data:{agent_id:string;revision:safeint;servers:McpServerConfig[];...Closed}}
+model McpRuntimeServer {server:string;generation:safeint;status:"connecting"|"connected"|"disconnected"|"error"|"closed";tools:string[];...Closed}
+model McpRuntimeSession {incarnation:safeint;agent_id:string;thread_id:string;session_id:string|null;revision:safeint;observable:boolean;servers:McpRuntimeServer[];...Closed}
+model McpRuntimeEvent {kind:"mcp_runtime";...ThreadEventBase;data:McpRuntimeSession}
+model McpSettingsEvent {kind:"mcp_settings";...EventBase;data:{agent_id:string;revision:safeint;servers:McpServerConfig[];sessions:McpRuntimeSession[];...Closed}}
 model McpSettingsErrorEvent {kind:"mcp_settings_error";...EventBase;data:{agent_id:string;reason:"conflict"|"invalid"|"unavailable"|"read_write";...Closed}}
 
 // ---------- Host input: one JSON object per stdin line ----------
@@ -483,7 +486,7 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 @oneOf
 union HostEvent {
   TerminalEvent,
-  McpSettingsEvent, McpSettingsErrorEvent,
+  McpSettingsEvent, McpSettingsErrorEvent, McpRuntimeEvent,
   DocumentSaveChooseEvent,DocumentSavePathEvent,DocumentSaveCancelledEvent,
   WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,WorkspaceSourceEvent,WorkspaceSourceErrorEvent,WorkspaceResetEvent,WorkspaceSourceStoredEvent,DraftStoredEvent,
   WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,WebFocusedEvent,IconThemesEvent,

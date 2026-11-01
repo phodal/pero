@@ -314,3 +314,5 @@ pub mod content_preview_tape;
 pub mod workspace_panes;
 pub mod pane_tabs;
 pub mod text_edit_anchor;
+
+pub mod mcp_runtime;

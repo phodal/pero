@@ -28,6 +28,10 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
   const { id, method, params, result } = JSON.parse(line);
   if (method === 'initialize') {
     if (process.env.PERO_CONNECTORS_TOKEN) { fail(id, -32603, 'Host connector master key leaked into Agent environment'); return; }
+    if (scenario === 'runtime_catalog' || scenario === 'runtime_unobservable') {
+      if (params.clientCapabilities?._meta?.['pero.mcpRuntime'] !== 1) { fail(id, -32602, 'Missing runtime capability'); return; }
+      reply(id, {protocolVersion: 1, agentCapabilities: {mcpCapabilities: {http: true}, ...(scenario === 'runtime_catalog' ? {_meta: {'pero.mcpRuntime': 1}} : {})}, authMethods: []}); return;
+    }
     if (scenario === 'initialization_hangs') return;
     if (scenario === 'unsupported_protocol') { reply(id, { protocolVersion: 999, agentCapabilities: {}, authMethods: [] }); return; }
     if (scenario === 'dsh_wire') { reply(id, { protocolVersion: 1, agentCapabilities: { loadSession: true }, authMethods: [] }); return; }
@@ -40,6 +44,16 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     if (scenario === 'mcp_unsupported') { fail(id, -32602, 'Unexpected session creation'); return; }
     if (scenario === 'unsupported_protocol') { update('unexpected-session-new'); return; }
     if ((scenario === 'auth' || scenario === 'mcp_auth') && !authenticated) { fail(id, -32000, 'Fixture requires login'); return; }
+    if (scenario.startsWith('runtime_')) {
+      const observable = scenario === 'runtime_catalog';
+      if (observable !== (params._meta?.['pero.mcpRuntime']?.revision === 7)) { fail(id, -32602, 'Runtime revision negotiation mismatch'); return; }
+      const runtime = (generation, status, tools, extra = {}) => send({method: '_pero/mcp/runtime', params: {sessionId: 'fixture-session', revision: 7, server: 'docs', generation, status, tools, ...extra}});
+      runtime(1, 'connected', ['initial']); // Arrives before session identity is returned.
+      runtime(2, 'connected', ['current']);
+      runtime(1, 'disconnected', []);
+      runtime(3, 'connected', ['wrong-session'], {sessionId: 'old-session'});
+      runtime(3, 'connected', ['wrong-revision'], {revision: 8});
+    }
     const session = { sessionId: 'fixture-session' };
     if (scenario === 'dsh_wire') { reply(id, { ...session, configOptions: [] }); return; }
     if (scenario !== 'legacy_models' && scenario !== 'no_models') session.configOptions = configs();

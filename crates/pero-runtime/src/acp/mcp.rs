@@ -19,6 +19,7 @@ impl AgentConfig {
     /// Consumes an already admitted preferences snapshot, leaving all live sessions unchanged.
     pub fn with_managed_mcp(&self, configuration: &McpConfiguration) -> Self {
         let mut agent = self.clone();
+        agent.managed_mcp = Some(configuration.clone());
         agent.mcp_servers.extend(
             configuration
                 .servers

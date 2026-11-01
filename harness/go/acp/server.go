@@ -68,6 +68,7 @@ type Server struct {
 	nextID         uint64
 	pending        map[string]chan clientResponse
 	writer         *wireWriter
+	mcpRuntime     bool
 }
 
 type clientResponse struct {
@@ -260,11 +261,15 @@ func (w *wireWriter) currentError() error {
 func (s *Server) handle(ctx context.Context, message request) (any, *rpcError) {
 	switch message.Method {
 	case "initialize":
+		if err := s.negotiateMCPRuntime(message.Params); err != nil {
+			return nil, invalid(err.Error())
+		}
 		imagePrompts := s.h.Attachments() != nil
 		return map[string]any{
 			"protocolVersion": ProtocolVersion,
 			"agentInfo":       map[string]any{"name": s.name, "version": s.version},
 			"agentCapabilities": map[string]any{
+				"_meta":               map[string]any{"pero.mcpRuntime": 1},
 				"loadSession":         true,
 				"mcpCapabilities":     map[string]any{"http": true},
 				"promptCapabilities":  map[string]any{"image": imagePrompts, "audio": false, "embeddedContext": false},
@@ -423,6 +428,9 @@ func (s *Server) newSession(ctx context.Context, params NewSessionParams) (harne
 	}
 	id, err := randomSessionID()
 	if err != nil {
+		return "", err
+	}
+	if err := s.observeMCPServers(servers, id, params.Meta); err != nil {
 		return "", err
 	}
 	agent, err := s.h.Agents().Create(ctx, harness.AgentOptions{
@@ -687,6 +695,9 @@ func (s *Server) resumeSession(ctx context.Context, params ResumeSessionParams) 
 	}
 	servers, err := decodeMCPServers(params.MCPServers, params.CWD)
 	if err != nil {
+		return err
+	}
+	if err := s.observeMCPServers(servers, id, params.Meta); err != nil {
 		return err
 	}
 	agent, err := s.h.Agents().Resume(ctx, session, harness.AgentOptions{

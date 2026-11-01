@@ -5150,6 +5150,9 @@
           "$ref": "#/$defs/McpSettingsErrorEvent"
         },
         {
+          "$ref": "#/$defs/McpRuntimeEvent"
+        },
+        {
           "$ref": "#/$defs/DocumentSaveChooseEvent"
         },
         {
@@ -6540,6 +6543,144 @@
       ],
       "additionalProperties": false
     },
+    "McpRuntimeEvent": {
+      "title": "McpRuntimeEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_runtime"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/McpRuntimeSession"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "McpRuntimeServer": {
+      "title": "McpRuntimeServer",
+      "type": "object",
+      "properties": {
+        "server": {
+          "type": "string"
+        },
+        "generation": {
+          "type": "integer"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "connecting"
+            },
+            {
+              "type": "string",
+              "const": "connected"
+            },
+            {
+              "type": "string",
+              "const": "disconnected"
+            },
+            {
+              "type": "string",
+              "const": "error"
+            },
+            {
+              "type": "string",
+              "const": "closed"
+            }
+          ]
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "server",
+        "generation",
+        "status",
+        "tools"
+      ],
+      "additionalProperties": false
+    },
+    "McpRuntimeSession": {
+      "title": "McpRuntimeSession",
+      "type": "object",
+      "properties": {
+        "incarnation": {
+          "type": "integer"
+        },
+        "agent_id": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "observable": {
+          "type": "boolean"
+        },
+        "servers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/McpRuntimeServer"
+          }
+        }
+      },
+      "required": [
+        "incarnation",
+        "agent_id",
+        "thread_id",
+        "session_id",
+        "revision",
+        "observable",
+        "servers"
+      ],
+      "additionalProperties": false
+    },
     "McpServerConfig": {
       "title": "McpServerConfig",
       "type": "object",
@@ -6668,12 +6809,19 @@
               "items": {
                 "$ref": "#/$defs/McpServerConfig"
               }
+            },
+            "sessions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/McpRuntimeSession"
+              }
             }
           },
           "required": [
             "agent_id",
             "revision",
-            "servers"
+            "servers",
+            "sessions"
           ],
           "additionalProperties": false
         }

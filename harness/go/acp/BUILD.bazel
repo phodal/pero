@@ -4,6 +4,7 @@ go_library(
     name = "acp",
     srcs = [
         "lifecycle.go",
+        "mcp_runtime.go",
         "models.go",
         "permission.go",
         "server.go",
@@ -23,6 +24,7 @@ go_test(
     name = "acp_test",
     srcs = [
         "extraction_test.go",
+        "mcp_runtime_test.go",
         "models_test.go",
         "native_approval_test.go",
         "permission_test.go",

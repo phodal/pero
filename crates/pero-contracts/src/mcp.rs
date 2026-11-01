@@ -44,6 +44,8 @@ pub enum McpSettingsError {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct McpSettingsProjection {
+    #[serde(default)]
+    pub sessions: Vec<crate::mcp_runtime::McpRuntimeSession>,
     pub agent_id: String,
     pub revision: u64,
     pub servers: Vec<McpServerConfig>,

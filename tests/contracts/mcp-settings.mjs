@@ -1,5 +1,6 @@
 // Real Host persistence and ACP session/new injection; no model or MCP client.
 import assert from 'node:assert/strict';
+import './mcp-runtime.mjs';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { once } from 'node:events';
@@ -79,6 +80,11 @@ try {
   const enabled = { ...disabled, enabled: true };
   current = await set(current, [enabled]);
   assert.deepEqual(managed(await session('enabled')), [{ type: 'http', name: 'local-docs', url: fixture.url, headers: [] }]);
+  const observed = await get();
+  assert.deepEqual(observed.sessions.map(session => [session.thread_id, session.revision, session.observable]).sort(),
+    [['disabled', current.revision - 1, false], ['enabled', current.revision, false]],
+    'external Agent without negotiated reporting remains unobservable; each revision is frozen');
+  assert.deepEqual(observed.sessions.find(session => session.thread_id === 'enabled').servers.map(server => server.server), ['local-docs']);
   // Existing sessions are not recreated when future-session configuration changes.
   assert.equal((await fixture.sessions()).length, 2);
   const edited = { ...enabled, name: 'renamed-docs', transport: { type: 'stdio', command: process.execPath, args: ['--version'] } };
@@ -86,6 +92,7 @@ try {
   host.send({ action: 'prompt', thread_id: 'enabled', text: 'hello' });
   await host.next('turn_finished', event => event.thread_id === 'enabled');
   assert.equal((await fixture.sessions()).length, 2);
+  assert.equal((await get()).sessions.find(session => session.thread_id === 'enabled').revision, current.revision - 1, 'saving does not rewrite a live session revision');
   const next = managed(await session('edited'));
   assert.deepEqual(next, [{ name: 'renamed-docs', command: process.execPath, args: ['--version'], env: [] }]);
   assert((await fixture.sessions()).every(session => session.mcpServers.some(server => server.name === 'operator-only')), 'operator configuration lost');
@@ -125,7 +132,7 @@ try {
   await mkdir(output, { recursive: true });
   await writeFile(resolve(output, 'host-result.json'), JSON.stringify({ passed: true, checks: [
     'disabled omitted from ACP', 'enabled HTTP injected', 'stdio edit injected for new session only',
-    'existing session remains usable', 'operator configuration retained but not disclosed',
+    'existing session remains usable', 'unnegotiated Agent is unobservable and live revisions remain frozen', 'operator configuration retained but not disclosed',
     'restart persistence', 'remove omitted from ACP', 'unrelated preferences preserved',
     'operator-name collision remains readable and repairable while sessions fail closed', 'private settings file', 'no credentials in public events or stderr', 'no MCP connection or connected claim',
   ] }, null, 2));

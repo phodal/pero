@@ -240,7 +240,7 @@ mod tests {
                 id: "fixture".into(), name: "Fixture".into(),
                 command: std::env::current_exe().unwrap().to_string_lossy().into_owned(),
                 args: vec![], env: [("SECRET".into(), "private-test-key".into())].into(),
-                model: Some("frozen-model".into()), mcp_servers: vec![],
+                model: Some("frozen-model".into()), mcp_servers: vec![], managed_mcp: None,
             }],
             sessions: Default::default(), tx, history: Default::default(),
             app_bindings: Default::default(), point_journal: Default::default(), app_use: None, settings_path: None,

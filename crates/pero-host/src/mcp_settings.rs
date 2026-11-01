@@ -80,9 +80,17 @@ impl Manager {
         event.data = match result {
             Ok(configuration) => {
                 serde_json::json!(McpSettingsProjection {
-                    agent_id,
+                    agent_id: agent_id.clone(),
                     revision: configuration.revision,
-                    servers: configuration.servers
+                    servers: configuration.servers,
+                    sessions: {
+                        let mut sessions: Vec<_> = self.sessions.values().filter_map(|handle| {
+                            let snapshot = handle.mcp_runtime.lock().unwrap();
+                            (snapshot.agent_id == agent_id).then(|| snapshot.clone())
+                        }).collect();
+                        sessions.sort_by(|a, b| a.thread_id.cmp(&b.thread_id));
+                        sessions
+                    },
                 })
             }
             Err(reason) => serde_json::json!(McpSettingsErrorProjection { agent_id, reason }),

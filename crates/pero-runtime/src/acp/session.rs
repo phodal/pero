@@ -50,6 +50,7 @@ pub enum SessionCommand {
 }
 type Permissions = Arc<Mutex<HashMap<String, oneshot::Sender<Option<String>>>>>;
 pub struct SessionHandle {
+    pub mcp_runtime: Arc<Mutex<pero_contracts::mcp_runtime::McpRuntimeSession>>,
     pub tx: mpsc::UnboundedSender<SessionCommand>,
     pub permissions: Permissions,
 }
@@ -110,6 +111,14 @@ fn start_with_workspace_access(
     resume_id: Option<String>,
 ) -> SessionHandle {
     let (commands, rx) = mpsc::unbounded_channel();
+    static NEXT_MCP_INCARNATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    let incarnation = NEXT_MCP_INCARNATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let managed = config.managed_mcp.clone().unwrap_or_default();
+    let mcp_runtime = Arc::new(Mutex::new(pero_contracts::mcp_runtime::McpRuntimeSession::new(
+        config.id.clone(), thread.clone(), incarnation, managed.revision,
+        managed.servers.iter().filter(|server| server.enabled).map(|server| server.name.clone()).collect(),
+    )));
+    let runtime_snapshot = mcp_runtime.clone();
     let permissions: Permissions = Arc::default();
     let pending = permissions.clone();
     std::thread::spawn(move || {
@@ -127,8 +136,14 @@ fn start_with_workspace_access(
             acquire_workspace,
             app_use,
             resume_id,
+            runtime_snapshot.clone(),
         ));
         pending.lock().unwrap().clear();
+        {
+            let mut snapshot = runtime_snapshot.lock().unwrap();
+            snapshot.close();
+            if snapshot.session_id.is_some() { super::mcp_runtime::publish(&snapshot, &tx); }
+        }
         if let Err(error) = result {
             if error.contains("explicit credential, provider and model catalog required") {
                 let mut notice =
@@ -142,6 +157,7 @@ fn start_with_workspace_access(
         event(&tx, &thread, "session_closed", "会话已关闭", Value::Null);
     });
     SessionHandle {
+        mcp_runtime,
         tx: commands,
         permissions,
     }
@@ -212,6 +228,7 @@ async fn run(
     acquire_workspace: bool,
     app_use: Option<super::AppUseEndpoint>,
     resume_id: Option<String>,
+    mcp_runtime: Arc<Mutex<pero_contracts::mcp_runtime::McpRuntimeSession>>,
 ) -> Result<(), String> {
     config.validate_mcp()?;
     event(
@@ -241,6 +258,8 @@ async fn run(
             // belongs in the Agent; never inherit the token derivation key.
             .env("PERO_CONNECTORS_TOKEN", ""),
     );
+    let observations = Arc::new(Mutex::new(super::mcp_runtime::Observations::new(mcp_runtime.clone())));
+    let notification_observations = observations.clone();
     let model_api = Arc::new(Mutex::new(ModelApi::default()));
     let notification_models = model_api.clone();
     let configuration = Arc::new(Mutex::new(Configuration::default()));
@@ -253,6 +272,10 @@ async fn run(
     Client.builder()
         .on_receive_notification(
             async move |notification: UntypedMessage, _cx| {
+                if notification.method == "_pero/mcp/runtime" {
+                    notification_observations.lock().unwrap().receive(notification.params, &notify_tx);
+                    return Ok(());
+                }
                 if notification.method != "session/update" { return Ok(()); }
                 // The current typed schema removed legacy current_model_update. Preserve only
                 // that known compatibility variant; modern notifications still use SDK validation.
@@ -308,9 +331,14 @@ async fn run(
         .connect_with(agent, move |connection: ConnectionTo<Agent>| async move {
             let mut deferred = VecDeque::new();
             let Some(initialized) = setup_request(
-                connection.send_request(InitializeRequest::new(ProtocolVersion::V1)).block_task(),
+                connection.send_request(UntypedMessage::new("initialize", json!({
+                    "protocolVersion": 1, "clientCapabilities": {"_meta": {"pero.mcpRuntime": 1}}
+                }))?).block_task(),
                 &mut commands, &mut deferred, &tx, &thread, "Agent initialization",
             ).await? else { return Ok(()); };
+            let negotiated = initialized["agentCapabilities"]["_meta"][super::mcp_runtime::CAPABILITY] == json!(1);
+            mcp_runtime.lock().unwrap().observable = negotiated;
+            let initialized: InitializeResponse = serde_json::from_value(initialized).map_err(agent_client_protocol::Error::into_internal_error)?;
             // Never start a session under a protocol version this client does not implement.
             if initialized.protocol_version != ProtocolVersion::V1 {
                 return Err(failure("Agent negotiated an unsupported ACP protocol version"));
@@ -327,9 +355,12 @@ async fn run(
                         mcp_servers.push(endpoint.server(&thread));
                     }
                 }
-                let (method, request) = if let Some(id) = &resume_id {
+                let (method, mut request) = if let Some(id) = &resume_id {
                     ("session/load",json!({"sessionId":id,"cwd":cwd,"mcpServers":mcp_servers}))
                 } else { ("session/new",serde_json::to_value(NewSessionRequest::new(cwd.clone()).mcp_servers(mcp_servers)).map_err(agent_client_protocol::Error::into_internal_error)?) };
+                if negotiated {
+                    request["_meta"] = json!({"pero.mcpRuntime": {"revision": mcp_runtime.lock().unwrap().revision}});
+                }
                 let result = setup_request(
                     connection.send_request(UntypedMessage::new(method, request)?).block_task(),
                     &mut commands, &mut deferred, &tx, &thread, "Session creation",
@@ -376,6 +407,7 @@ async fn run(
             // Validate the standard fields without dropping legacy `models` from the raw response.
             let session: NewSessionResponse = serde_json::from_value(session_data.clone()).map_err(agent_client_protocol::Error::into_internal_error)?;
             let session_id = session.session_id.clone();
+            observations.lock().unwrap().bind(session_id.to_string(), &tx);
             // Session-ready is journaled and replayed on renderer reconnect;
             // initialization is transient, so carry its composer capabilities
             // in the retained session snapshot as well.
