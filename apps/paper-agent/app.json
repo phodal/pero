@@ -20,6 +20,30 @@
     ],
     "writes": [
       {
+        "name": "reproduction-step",
+        "path": "/api/reproduction/step",
+        "description": "Fixed PC-Gym Table 6 source audit and frozen evidence only. case lists pinned paths; inspect-source explicitly fetches one pinned source. audit binds saved v4 PDF/page20 and optional annotation. freeze requires trusted configured checkout; shipped App cannot execute compute. status/cancel/verify/export use frozen specId, never arbitrary paths. Unknown execution must not be replayed. Numerical consistency is not paper reproduction.",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "action": {"enum": ["case", "inspect-source", "audit", "freeze", "status", "cancel", "verify", "export"]},
+            "source": {"type": "string", "maxLength": 200},
+            "paperId": {"type": "string", "minLength": 64, "maxLength": 64},
+            "annotationId": {"type": "string", "minLength": 64, "maxLength": 64},
+            "sourceIds": {"type": "array", "maxItems": 4, "items": {"type": "string", "minLength": 64, "maxLength": 64}},
+            "auditId": {"type": "string", "minLength": 64, "maxLength": 64},
+            "profile": {"enum": ["smoke", "table6"]},
+            "seed": {"type": "integer", "minimum": 0, "maximum": 2147483647},
+            "includeOracle": {"type": "boolean"},
+            "maxSeconds": {"type": "integer", "minimum": 1, "maximum": 86400},
+            "specId": {"type": "string", "minLength": 64, "maxLength": 64},
+            "attemptId": {"type": "string", "minLength": 64, "maxLength": 64}
+          },
+          "required": ["action"],
+          "additionalProperties": false
+        }
+      },
+      {
         "name": "import-paper",
         "description": "Save an explicitly supplied source snapshot in this App library. It does not fetch a URL, execute research or accept a scientific claim.",
         "path": "/api/papers/import",

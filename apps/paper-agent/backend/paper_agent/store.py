@@ -56,6 +56,8 @@ class ResearchStore:
         self.pdf_downloads = PdfDownloads(self)
         from .source_downloads import SourceDownloads
         self.source_downloads = SourceDownloads(self)
+        from .pcgym_app import PcgymApp
+        self.pcgym = PcgymApp(self)
 
     def _read(self, kind, identity):
         if not isinstance(identity, str) or not ID.fullmatch(identity):

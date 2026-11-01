@@ -27,6 +27,7 @@ def main():
     try:
         server.serve_forever()
     finally:
+        store.pcgym.close()
         store.source_downloads.close()
         store.pdf_downloads.close()
         store.imports.close()

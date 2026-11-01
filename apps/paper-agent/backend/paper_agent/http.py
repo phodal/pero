@@ -20,6 +20,7 @@ from .context_file import ContextSelection, ContextRead
 from .research import ResearchPlan
 from .thumbnails import PaperThumbnails
 from .source_reading import source_read, source_image
+from .pcgym_domain import Invalid as PcgymInvalid
 
 MAX_BODY = 1024 * 1024
 
@@ -161,6 +162,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, record.to_dict())
                 if self.command == "POST":
+                    if path == '/api/reproduction/step':
+                        return self.reply(200, store.pcgym.command(data))
                     if path == '/api/research/inspect':
                         return self.reply(200, store.imports.inspect(data, now()).to_dict())
                     if path == '/api/research/commit':
@@ -261,6 +264,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                             location['pdf'] = dict(documentId=document.id, pages=list(pages))
                         return self.reply(200, location)
                 raise Invalid("Route not found", 404)
+            except PcgymInvalid as error:
+                self.reply(400, {"code": error.code, "detail": error.detail})
             except Invalid as error:
                 self.reply(error.status, {"code": "research_invalid", "detail": error.detail})
             except (ValueError, TypeError, KeyError, UnicodeError, RecursionError) as error:

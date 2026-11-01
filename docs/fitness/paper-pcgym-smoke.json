@@ -1,0 +1,280 @@
+{
+  "date": "2026-11-01",
+  "platform": "macOS arm64",
+  "python": "3.12.11",
+  "reference_read_mechanism": "Authorized Codex exec_command filesystem read; not automatic Harness reference loading",
+  "references": [
+    {
+      "path": "apps/paper-agent/skills/paper-code-audit/SKILL.md",
+      "sha256": "d7b5505825d4c1a2c7a4a60cf37fd96d2f38aa9c94542464d5a6bb223d46218c"
+    },
+    {
+      "path": "apps/paper-agent/skills/paper-code-audit/references/pcgym-table6.md",
+      "sha256": "6f269d86d6e09951339878c3fba39f5fcd81bf1582acd9372a5b8e20e82c6b5b"
+    },
+    {
+      "path": "apps/paper-agent/skills/paper-code-audit/references/audit-contract.md",
+      "sha256": "b94d20848f5342a90f0a1db0d081bdcf700c0beafd9be15b8b538cfc55591446"
+    }
+  ],
+  "spec": {
+    "anchor": null,
+    "commit": "fbfb36bf84b494cd157cff88292e1fd1b864cee5",
+    "comparison": "dual_grain_unresolved",
+    "episodes": 2,
+    "id": "289a0929caa46a24eb8a91eb17933d566c6017c1a24e530ebc49c7bc94f654e7",
+    "metrics": [
+      {
+        "bounds_kelvin": [
+          321.0,
+          327.0
+        ],
+        "denominator": "all N registered episodes",
+        "measurement_grain": "episode",
+        "metric_definition": "sum_i I(any_t violation(T_it)) / N",
+        "numerator": "episodes with at least one violating sample",
+        "sample_grid": "all registered samples, including the initial state",
+        "unit": "fraction",
+        "violation_predicate": "T < 321 K or T > 327 K; endpoints are allowed"
+      },
+      {
+        "bounds_kelvin": [
+          321.0,
+          327.0
+        ],
+        "denominator": "all registered samples across all episodes",
+        "measurement_grain": "sample",
+        "metric_definition": "sum_i sum_t I(violation(T_it)) / sum_i n_i",
+        "numerator": "violating samples",
+        "sample_grid": "all registered samples, including the initial state",
+        "unit": "fraction",
+        "violation_predicate": "T < 321 K or T > 327 K; endpoints are allowed"
+      }
+    ],
+    "mode": "adapted_upstream_rerun",
+    "packages": [
+      [
+        "casadi",
+        "3.8.2"
+      ],
+      [
+        "diffrax",
+        "0.7.2"
+      ],
+      [
+        "do-mpc",
+        "5.1.2"
+      ],
+      [
+        "equinox",
+        "0.13.8"
+      ],
+      [
+        "gymnasium",
+        "1.4.0"
+      ],
+      [
+        "jax",
+        "0.12.0.1"
+      ],
+      [
+        "numpy",
+        "2.5.4"
+      ],
+      [
+        "scipy",
+        "1.18.1"
+      ],
+      [
+        "stable-baselines3",
+        "2.9.2"
+      ],
+      [
+        "torch",
+        "2.15.0"
+      ]
+    ],
+    "pipeline_digest": "236c352878e72a26159fab1f6a6ad1d75bbfb584835ee50370e88bde4890aeb6",
+    "profile": "smoke",
+    "python_version": "3.12.11",
+    "samples": 60,
+    "schema": "pero.pcgym.reproduction.v1",
+    "seed": 0,
+    "source_manifest_digest": "501334c1180881f6ae167fb7bb71eb3abe9e5567c26124d6524c85f6d1011d11",
+    "steps": 128,
+    "timeout_seconds": 600
+  },
+  "execution": {
+    "attempt_id": "15e0b3cbf3386654b86aa7664efd12cb5e57843b1377b08245517d7e1afc191c",
+    "execution_identity_attested": false,
+    "exit_code": 0,
+    "finished_at": "2026-11-01T10:56:41.180264+00:00",
+    "observations_sha256": "1f120505d6219151d825addee94e481840144ce59b232d98b94c478613b986a2",
+    "origin": "local-foreground-cli",
+    "spec_id": "289a0929caa46a24eb8a91eb17933d566c6017c1a24e530ebc49c7bc94f654e7",
+    "started_at": "2026-11-01T10:56:24.737052+00:00",
+    "status": "completed"
+  },
+  "elapsed_seconds": 16.443212,
+  "dependency_freeze": [
+    "casadi==3.8.2",
+    "cloudpickle==3.1.2",
+    "contourpy==1.4.0",
+    "cycler==0.12.1",
+    "diffrax==0.7.2",
+    "do-mpc==5.1.2",
+    "equinox==0.13.8",
+    "farama-notifications==0.0.6",
+    "filelock==4.2.6",
+    "fonttools==4.68.0",
+    "fsspec==2026.9.0",
+    "gymnasium==1.4.0",
+    "jax==0.12.0.1",
+    "jaxlib==0.12.0.1",
+    "jaxtyping==0.3.11",
+    "jinja2==3.1.6",
+    "kiwisolver==1.5.1",
+    "lineax==0.1.1",
+    "markupsafe==3.0.4",
+    "matplotlib==3.11.2",
+    "ml-dtypes==0.6.0",
+    "mpmath==1.3.0",
+    "networkx==3.7",
+    "numpy==2.5.4",
+    "opt-einsum==3.4.0",
+    "optimistix==0.1.0",
+    "packaging==26.3",
+    "pandas==3.1.0",
+    "pillow==13.0.0",
+    "pyparsing==3.3.3",
+    "python-dateutil==4.0.0",
+    "scipy==1.18.1",
+    "setuptools==84.2.1",
+    "stable-baselines3==2.9.2",
+    "sympy==1.14.0",
+    "torch==2.15.0",
+    "typing-extensions==4.16.0",
+    "tzdata==2026.6",
+    "wadler-lindig==0.1.8"
+  ],
+  "raw_crosscheck": {
+    "base": {
+      "episodes": 2,
+      "samples": 120,
+      "min_kelvin": 325.0,
+      "max_kelvin": 414.47744856509325,
+      "raw_matches_observations": true,
+      "training": {
+        "actual_timesteps": 128,
+        "gradient_updates": 28,
+        "learning_starts": 100,
+        "requested_timesteps": 128
+      }
+    },
+    "shaped": {
+      "episodes": 2,
+      "samples": 120,
+      "min_kelvin": 312.72469304962425,
+      "max_kelvin": 325.0,
+      "raw_matches_observations": true,
+      "training": {
+        "actual_timesteps": 128,
+        "gradient_updates": 28,
+        "learning_starts": 100,
+        "requested_timesteps": 128
+      }
+    },
+    "oracle": {
+      "episodes": 2,
+      "samples": 120,
+      "min_kelvin": 321.00536732507567,
+      "max_kelvin": 326.9921448175714,
+      "raw_matches_observations": true
+    },
+    "checks": {
+      "offline_matches": true,
+      "numeric_recomputation": "PASS",
+      "execution_evidence": "CONSISTENT",
+      "paper_verdict": "INCONCLUSIVE",
+      "evidence_zip_sha256": "c203acbfc704fe952f1efdd096edb3d5bd4748fa6712a0ccb3df94832b4f2ea9"
+    }
+  },
+  "verification": {
+    "schema": "pero.pcgym.verification.v1",
+    "spec_id": "289a0929caa46a24eb8a91eb17933d566c6017c1a24e530ebc49c7bc94f654e7",
+    "attempt_id": "15e0b3cbf3386654b86aa7664efd12cb5e57843b1377b08245517d7e1afc191c",
+    "checker_version": "pcgym-dual-grain-v1",
+    "execution_evidence": "CONSISTENT",
+    "numeric_recomputation": "PASS",
+    "paper_verdict": "INCONCLUSIVE",
+    "acceptance": "unreviewed",
+    "metrics": [
+      {
+        "policy": "base",
+        "violated_samples": 118,
+        "total_samples": 120,
+        "violated_episodes": 2,
+        "total_episodes": 2,
+        "sample_fraction": 0.9833333333333333,
+        "episode_fraction": 1.0,
+        "reported": 0.0727,
+        "sample_difference": 0.9106333333333333,
+        "episode_difference": 0.9273,
+        "episode_grid_compatible": false
+      },
+      {
+        "policy": "shaped",
+        "violated_samples": 116,
+        "total_samples": 120,
+        "violated_episodes": 2,
+        "total_episodes": 2,
+        "sample_fraction": 0.9666666666666667,
+        "episode_fraction": 1.0,
+        "reported": 0.0003,
+        "sample_difference": 0.9663666666666667,
+        "episode_difference": 0.9997,
+        "episode_grid_compatible": false
+      },
+      {
+        "policy": "oracle",
+        "violated_samples": 0,
+        "total_samples": 120,
+        "violated_episodes": 0,
+        "total_episodes": 2,
+        "sample_fraction": 0.0,
+        "episode_fraction": 0.0,
+        "reported": 0.0,
+        "sample_difference": 0.0,
+        "episode_difference": 0.0,
+        "episode_grid_compatible": true
+      }
+    ],
+    "reason": "Equation 37 and the inspected implementation use different grains. Original experiment identity is unresolved.",
+    "limitations": [
+      "The paper does not pin this upstream commit or a training seed.",
+      "The driver deep-copies environment dictionaries to avoid the shared-dict mutation in constraint_paper.py.",
+      "Evaluation uses fresh environments and explicitly seeded randomness; original streams are unavailable.",
+      "The original custom_reward.py is executed unchanged, including its unresolved bound ordering.",
+      "Fresh retraining does not recover the original unpublished checkpoints or raw Table 6 trajectories.",
+      "Both metric grains are reported. Numerical proximity is not scientific confirmation.",
+      "Smoke uses fewer training steps/episodes than the paper case.",
+      "Digests bind bytes; they do not attest an execution owner or prevent same-account tampering.",
+      "A separate recomputation is not independent physical validation or an estimate of deployment safety."
+    ],
+    "observation_sha256": "1f120505d6219151d825addee94e481840144ce59b232d98b94c478613b986a2",
+    "checker_sha256": "072d212cd8792b9cd7a18b2b561bc8b87168a74627d98fe7fe3be6d3e3bf958b"
+  },
+  "independent_checks": {
+    "standalone_python": "3.12.11, without scientific packages",
+    "offline_matches": true,
+    "npz_loaded_with_allow_pickle": false
+  },
+  "first_attempt": {
+    "spec_id": "d58f1057bd14da82641fcf818d497e73b6306ca90b6592cb7cd332e420d0c7c2",
+    "attempt_id": "485b5a90d3cd94cde3113e036efbd6700af3917b9f0c1feca5c908b82f44eaf7",
+    "execution_status": "completed",
+    "timesteps_per_policy": 64,
+    "gradient_updates_per_policy": 0,
+    "limitation": "Wiring succeeded; optimizer was not exercised. Original export retains its original checker."
+  }
+}
