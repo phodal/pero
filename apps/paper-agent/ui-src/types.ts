@@ -6,6 +6,7 @@ export type Paper = {
 export type Intent = {
   id: string; createdAt?: string; question: string; requestId: string; paperIds?: string[]; papers: Paper[];
   retrieval?: { method: string; totalMatches: number; unmatchedPaperIds: string[]; gaps?: string[] };
+  contextFile?: { paperId: string; anchor?: PdfFocus };
   parentIntentId?: string; conversation?: { intentId: string; question: string; answer: string }[];
   verifyCode: boolean; verificationPlan: string; prompt: string; fullText?: boolean; passages?: { id: string; paperId: string; page: number; content: string }[];
 };
@@ -38,7 +39,7 @@ export type SearchItem = { id: string; source: string; title: string; url?: stri
   publicationDate?: string | null; citations?: number | null; citationSource?: string; doi?: string; pdfUrl?: string;
   paperUrl?: string; hfVotes?: number; thumbnailUrl?: string; thumbnailId?: string; githubUrl?: string; githubStars?: number; projectUrl?: string;
   alternatives?: { source: string; id: string; url: string | null }[] };
-export type EvidenceLocation = { start: number; end: number; heading?: string; before?: string; quote: string; after?: string; pdf?: { documentId: string; pages: number[]; rects?: PdfRect[] } };
+export type EvidenceLocation = { start: number; end: number; heading?: string; before?: string; quote: string; after?: string; pdf?: { documentId: string; pages: number[]; verification?: string; candidates?: PdfFocus[]; candidateCount?: number; rects?: PdfRect[] } };
 export type PdfRect = { x: number; y: number; width: number; height: number };
 export type PdfDocument = { id: string; paperId: string; fileDigest: string; sourceUrl: string; pages: { number: number; width: number; height: number; text: string }[]; createdAt: string };
 export type PdfAnnotation = { id: string; documentId: string; paperId: string; page: number; kind: 'highlight' | 'figure'; rects: PdfRect[]; quote: string; note: string; createdAt: string };

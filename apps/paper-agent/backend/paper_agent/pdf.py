@@ -85,6 +85,41 @@ class PdfRect:
 
 
 @dataclass(frozen=True)
+class PdfAnchor:
+    """A version-bound selected region, independent of notes or discussion text."""
+    document_id: str
+    file_digest: str
+    page: int
+    rects: tuple[PdfRect, ...]
+
+    @classmethod
+    def parse(cls, value):
+        from .model import ID
+        value = mapping(value, 'PDF anchor')
+        if any(not isinstance(value.get(k), str) or not ID.fullmatch(value[k]) for k in ('documentId', 'fileDigest')):
+            raise Invalid('Choose a fixed PDF version for the anchor')
+        if type(value.get('page')) is not int or value['page'] < 1:
+            raise Invalid('Choose a PDF page for the anchor')
+        rects = tuple(PdfRect.parse(r) for r in sequence(value['rects'], 100, 'PDF regions')) if 'rects' in value else ()
+        if 'rects' in value and not rects:
+            raise Invalid('Select a PDF region first')
+        return cls(value['documentId'], value['fileDigest'], value['page'], rects)
+
+    def check(self, document, quote=''):
+        if self.document_id != document.id or self.file_digest != document.file_digest:
+            raise Invalid('Anchor PDF version does not match the saved original', 409)
+        page = document.page(self.page)
+        if quote and not page.contains_quote(quote):
+            raise Invalid('Selected text does not match this PDF page')
+        return self
+
+    def to_dict(self):
+        location = dict(documentId=self.document_id, fileDigest=self.file_digest,
+                        page=self.page, **(dict(rects=[{k: float(v) for k, v in r.to_dict().items()} for r in self.rects]) if self.rects else {}))
+        return dict(id=digest(location), **location, verification='pdf-region' if self.rects else 'page-only')
+
+
+@dataclass(frozen=True)
 class PdfAnnotation:
     id: str
     document_id: str
@@ -95,38 +130,39 @@ class PdfAnnotation:
     quote: str
     note: str
     created_at: str
+    anchor: PdfAnchor | None = None
 
     @classmethod
     def create(cls, value, document, now):
         value = mapping(value, 'PDF annotation')
-        page = document.page(value.get('page'))
         kind = value.get('kind')
         if kind not in ('highlight', 'figure'):
             raise Invalid('Choose highlight or figure')
-        rects = tuple(PdfRect.parse(rect) for rect in sequence(value.get('rects'), 100, 'PDF regions'))
-        if not rects or (kind == 'figure' and len(rects) != 1):
-            raise Invalid('Select a PDF region first')
         quote = value.get('quote', '')
         if not isinstance(quote, str) or len(quote) > 4000:
             raise Invalid('PDF quotation exceeds 4,000 characters')
         if kind == 'highlight':
             text(quote, 4000, 'PDF quotation')
-            if not page.contains_quote(quote):
-                raise Invalid('Selected text does not match this PDF page')
         note = value.get('note', '')
         if not isinstance(note, str) or len(note) > 4000:
             raise Invalid('PDF note exceeds 4,000 characters')
-        content = dict(documentId=document.id, paperId=document.paper_id, page=page.number, kind=kind,
-                       rects=[rect.to_dict() for rect in rects], quote=quote, note=note)
-        return cls(digest(content), document.id, document.paper_id, page.number, kind, rects, quote, note, now)
+        anchor = PdfAnchor.parse(dict(documentId=document.id, fileDigest=value.get('fileDigest', document.file_digest),
+                                      page=value.get('page'), rects=value.get('rects'))).check(document, quote if kind == 'highlight' else '')
+        if kind == 'figure' and len(anchor.rects) != 1:
+            raise Invalid('Select a PDF region first')
+        content = dict(documentId=document.id, paperId=document.paper_id, page=anchor.page, kind=kind,
+                       rects=[rect.to_dict() for rect in anchor.rects], quote=quote, note=note)
+        return cls(digest(content), document.id, document.paper_id, anchor.page, kind, anchor.rects, quote, note, now, anchor)
 
     @classmethod
     def from_record(cls, value):
         return cls(value['id'], value['documentId'], value['paperId'], value['page'], value['kind'],
-                   tuple(PdfRect(**rect) for rect in value['rects']), value['quote'], value['note'], value['createdAt'])
+                   tuple(PdfRect(**rect) for rect in value['rects']), value['quote'], value['note'], value['createdAt'],
+                   PdfAnchor.parse(value['anchor']) if value.get('anchor') else None)
 
     def to_dict(self):
         return dict(id=self.id, documentId=self.document_id, paperId=self.paper_id, page=self.page,
                     kind=self.kind, rects=[rect.to_dict() for rect in self.rects], quote=self.quote,
                     note=self.note, createdAt=self.created_at,
-                    verification='page-text-match' if self.kind == 'highlight' else 'pdf-region')
+                    verification='page-text-match' if self.kind == 'highlight' else 'pdf-region',
+                    **(dict(anchor=self.anchor.to_dict()) if self.anchor else {}))

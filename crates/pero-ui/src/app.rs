@@ -805,6 +805,7 @@ pub fn snapshot() -> String {
         value["newChatButtonBounds"] = ui.view_bounds.new_chat.snapshot()["new-chat"].clone();
         value["sessionRowBounds"] = ui.view_bounds.sessions.snapshot();
         value["appOpenButtonBounds"] = ui.view_bounds.app_open.snapshot();
+        value["chatCloseButtonBounds"] = ui.view_bounds.chat_close.snapshot()["float-chat-close"].clone();
         value["chatVisible"] = serde_json::json!(ui.chat_visible());
         value["webDocuments"]=json!(ui.web_documents);
         value["webAddress"]=json!(ui.web_address.read(cx).value().as_ref());

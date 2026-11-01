@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Disclosure, EmptyState, Toolbar } from '@pero/app-sdk/ui';
-import type { Api, Evidence, EvidenceLocation, Intent, Paper, Report, PdfFocus, PdfSource, TextFocus } from './types';
+import type { Api, Evidence, EvidenceLocation, Intent, Paper, Report, PdfFocus, PdfSource, PdfRect, TextFocus } from './types';
 import { PdfReader, type ReaderChrome } from './pdf-reader';
 import { ScientificContent } from './scientific-content';
 import { EvidenceMatrix } from './evidence-matrix';
@@ -48,7 +48,7 @@ export function Reader({ paper, busy, api, pdfFocus, textFocus, onFull, onDiscus
   </article>;
 }
 
-export type Citation = { paperId: string; quote?: string; passageId?: string };
+export type Citation = { paperId: string; quote?: string; passageId?: string; anchor?: PdfFocus };
 function Citations({ paperIds, evidence, intent, onCite, t }: { paperIds: string[]; evidence?: Evidence[]; intent: Intent; onCite(value: Citation): void; t: Translator }) {
   return <div className="pa-citations" aria-label={t('evidence')}>{paperIds.flatMap(id => {
     const paper = intent.papers.find(paper => paper.id === id), refs = evidence?.filter(item => item.paperId === id) ?? [];
@@ -98,7 +98,7 @@ export function Experiments({ report, intent, onCite, t }: { report: Report | nu
     {experiment.files.map(file => <Disclosure key={file.path} summary={file.path}><pre className="pa-code"><code>{file.content}</code></pre></Disclosure>)}
   </article>)}</div>;
 }
-export function EvidencePanel({ citation, location, paper, busy, onClose, onRead, t }: { citation: Citation | null; location: EvidenceLocation | null; paper: Paper | undefined; busy: boolean; onClose(): void; onRead(page?: number): void; t: Translator }) {
+export function EvidencePanel({ citation, location, paper, busy, onClose, onRead, t }: { citation: Citation | null; location: EvidenceLocation | null; paper: Paper | undefined; busy: boolean; onClose(): void; onRead(page?: number, rects?: PdfRect[]): void; t: Translator }) {
   const panel = useRef<HTMLElement>(null);
   useEffect(() => { if (citation) panel.current?.querySelector('button')?.focus(); }, [citation]);
   if (!citation) return null;
@@ -106,6 +106,8 @@ export function EvidencePanel({ citation, location, paper, busy, onClose, onRead
     <Toolbar actions={<Button variant="ghost" onClick={onClose}>{t('close')}</Button>}><h2>{t('evidence')}</h2></Toolbar>
     <h3>{paper?.title}</h3><p className="pa-kicker">{paper?.source} / {paper && t(paper.contentKind === 'abstract' ? 'abstract' : paper.contentKind === 'report' ? 'sourceReport' : 'fullText')}</p>
     {busy ? <p role="status">{t('loading')}</p> : location ? <><p className="pa-kicker">{t('exactQuote')}{location.heading && ` / ${location.heading}`}</p><div className="pa-evidence-context">{location.before && <span>{location.before}</span>}<mark>{location.quote}</mark>{location.after && <span>{location.after}</span>}</div></> : <p>{t('missingQuote')}</p>}
-    {location?.pdf ? <div className="pa-actions">{location.pdf.pages.map(page => <Button key={page} disabled={!paper} onClick={() => onRead(page)}>{t('pdfPage')} {page} ↗</Button>)}</div> : <Button disabled={!paper} onClick={() => onRead()}>{t('readSource')}</Button>}
+    {location?.pdf?.verification === 'page-text-match' && <p>Matching pages only; the exact region is unavailable.</p>}
+    {!!location?.pdf?.candidates?.length && <p>Multiple exact matches. Choose a region. {location.pdf.candidateCount! > location.pdf.candidates!.length && `Showing the first ${location.pdf.candidates!.length} of ${location.pdf.candidateCount}; use a longer quote to narrow the location.`}</p>}
+    {location?.pdf?.candidates?.length ? <div className="pa-actions">{location.pdf.candidates.map((candidate, index) => <Button key={index} onClick={() => onRead(candidate.page, candidate.rects)}>Page {candidate.page} · Match {index + 1} ↗</Button>)}</div> : location?.pdf ? <div className="pa-actions">{location.pdf.pages.map(page => <Button key={page} disabled={!paper} onClick={() => onRead(page)}>{t('pdfPage')} {page} ↗</Button>)}</div> : <Button disabled={!paper} onClick={() => onRead()}>{t('readSource')}</Button>}
   </aside>;
 }

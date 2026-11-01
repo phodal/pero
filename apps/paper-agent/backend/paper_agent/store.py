@@ -105,11 +105,13 @@ class ResearchStore:
             if document.paper_id != selection.paper_id:
                 raise Invalid('Context PDF does not belong to the source')
             document.page(selection.page)
+            if selection.anchor:
+                selection.anchor.check(document, selection.content)
         identity = selection.id
         path = (self.root / 'context-files' / (identity + '.txt')).resolve()
         data = selection.content.encode('utf-8')
         record = ContextFile(identity, str(path), digest(data), selection.paper_id,
-                             selection.document_id, selection.page)
+                             selection.document_id, selection.page, selection.anchor)
         with self.lock:
             path.parent.mkdir(parents=True, exist_ok=True)
             if not path.exists():

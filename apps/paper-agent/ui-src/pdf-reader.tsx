@@ -16,7 +16,7 @@ import wasmUrl from '@embedpdf/pdfium/pdfium.wasm';
 import type { Api, Paper, PdfAnnotation, PdfDocument, PdfFocus, PdfReading, PdfSource } from './types';
 import type { Translator } from './i18n';
 
-export type ReaderChrome = { toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null> };
+export type ReaderChrome = { toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void };
 
 export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome }: {
   paper: Paper; api: Api; focus?: PdfFocus | null; lockText?: boolean; t: Translator; children: React.ReactNode; chrome: ReaderChrome;
@@ -46,7 +46,10 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
-  return <div className="pa-pdf-reading">
+  // Reader input (including portal toolbar events) supersedes a pending search
+  // reveal. Programmatic focus/scroll updates do not invalidate their own request.
+  return <div className="pa-pdf-reading" onPointerDownCapture={chrome.onNavigate} onClickCapture={chrome.onNavigate}
+    onKeyDownCapture={chrome.onNavigate} onWheelCapture={chrome.onNavigate} onChangeCapture={chrome.onNavigate}>
     {view === 'text' && !lockText && !busy && (paper.pdfUrl || reading.document) && <Toolbar><Button disabled={busy} onClick={() => void open()}>{busy ? t('pdfDownloading') : 'PDF'}</Button><Button variant="ghost" aria-pressed={view === 'text'} onClick={() => { setMode('text'); setError(''); }}>{t('pdfText')}</Button></Toolbar>}
     {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => void open()} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
     {busy && <p className="pa-loading" role="status">{t('pdfDownloading')}</p>}
@@ -108,7 +111,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   async function save(value: Record<string, unknown>) {
     setBusy(true); setError(''); setStatus('');
     try {
-      const annotation = await api.post<PdfAnnotation>('/api/annotations', { documentId: document.id, note, ...value });
+      const annotation = await api.post<PdfAnnotation>('/api/annotations', { documentId: document.id, fileDigest: document.fileDigest, note, ...value });
       onSaved(annotation); setNotes(true); setTarget(annotation.id); setStatus(t('pdfSaved')); setNote('');
       selection?.forDocument(documentId).clear();
     } catch (e) { fail(e); }

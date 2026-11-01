@@ -190,11 +190,45 @@ class ResearchHTTP(unittest.TestCase):
                 pdf_input = call('POST', '/api/intents', dict(question='PDF evidence?', paperIds=[pdf_paper['id']], requestId='pdf-input', verifyCode=False))[1]
                 located = call('POST', '/api/evidence', dict(intentId=pdf_input['id'], paperId=pdf_paper['id'], quote='Exact original evidence.'))[1]
                 self.assertEqual(located['pdf']['pages'], [1, 2])
+                self.assertEqual(located['pdf']['verification'], 'page-text-match')
                 full_input = call('POST', '/api/intents', dict(question='Second page', paperIds=[pdf_paper['id']], requestId='pdf-full-input', fullText=True))[1]
                 passage = full_input['passages'][0]
                 located = call('POST', '/api/evidence', dict(intentId=full_input['id'], paperId=pdf_paper['id'], passageId=passage['id'], quote='Second page. Exact original evidence.'))[1]
                 self.assertEqual(located['pdf']['pages'], [2])
                 self.assertTrue(located['pdf']['rects'])
+                scope = dict(documentId=document['id'], fileDigest=document['fileDigest'], page=2,
+                             start=0, end=len('Second page. Exact original evidence.'))
+                status, anchor = call('POST', '/api/pdf/locate', scope)
+                self.assertEqual(status, 200)
+                self.assertEqual(anchor['id'], located['pdf']['anchor']['id'])
+                self.assertEqual(call('POST', '/api/pdf/locate', dict(scope, fileDigest='0' * 64))[0], 409)
+                status, context = call('POST', '/api/contexts', dict(documentId=document['id'], fileDigest=document['fileDigest'],
+                    page=2, rects=anchor['rects'], paperId=pdf_paper['id'], content='Second page. Exact original evidence.'))
+                self.assertEqual(status, 201)
+                self.assertEqual(context['anchor']['id'], anchor['id'])
+
+                repeated = call('POST', '/api/pdf/import?filename=repeated.pdf', pdf_fixture(repeated=True))[1]
+                repeated_input = call('POST', '/api/intents', dict(question='Exact original evidence', paperIds=[repeated['id']], requestId='repeat-input', fullText=True))[1]
+                repeated_passage = repeated_input['passages'][0]
+                ambiguous = call('POST', '/api/evidence', dict(intentId=repeated_input['id'], paperId=repeated['id'], passageId=repeated_passage['id'], quote='Exact original evidence.'))[1]['pdf']
+                self.assertEqual(ambiguous['verification'], 'ambiguous')
+                self.assertNotIn('rects', ambiguous)
+                self.assertEqual(len(ambiguous['candidates']), 2)
+                self.assertNotEqual(ambiguous['candidates'][0]['id'], ambiguous['candidates'][1]['id'])
+                many_bytes = pdf_fixture(repeated=64, phrase='ana')
+                many = call('POST', '/api/pdf/import?filename=many.pdf', many_bytes)[1]
+                many_input = call('POST', '/api/intents', dict(question='ana', paperIds=[many['id']], requestId='many-input', fullText=True))[1]
+                many_passage = many_input['passages'][0]
+                many_request = dict(intentId=many_input['id'], paperId=many['id'], passageId=many_passage['id'], quote='ana')
+                bounded = call('POST', '/api/evidence', many_request)[1]['pdf']
+                self.assertEqual(bounded['candidateCount'], 65)
+                self.assertEqual(len(bounded['candidates']), 64)
+                self.assertEqual(len({a['id'] for a in bounded['candidates']}), 64)
+                original_path = store.root / 'pdf-files' / (bounded['fileDigest'] + '.pdf')
+                original_path.write_bytes(many_bytes + b'changed')
+                self.assertEqual(call('POST', '/api/evidence', many_request)[0], 409)
+                original_path.unlink()
+                self.assertEqual(call('POST', '/api/evidence', many_request)[0], 500)
                 uploaded_bytes = pdf_fixture().replace(b'Second', b'Local!')
                 status, local = call('POST', '/api/pdf/import?filename=local.pdf', uploaded_bytes)
                 self.assertEqual(status, 201)

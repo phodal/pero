@@ -1,7 +1,13 @@
-import { chatState, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
+import { chatState, askPaperChat, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
 import { exercisePdfSearch } from './paper-search-flow.mjs';
 import { expect } from '@playwright/test';
 import { resolve } from 'node:path';
+// Electron may expose an empty clipboard as one item with no advertised types.
+// It carries no bytes to preserve and cannot construct a new ClipboardItem.
+export async function savePaperClipboard({ clipboard, ClipboardItem }) {
+  globalThis.paperClipboard = await Promise.all((await clipboard.read()).filter(item => item.types.length)
+    .map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)]))))));
+}
 export async function setPaperAppearance(page, appearance) {
   await page.evaluate(value => {
     const state = JSON.parse(window.peroDiagnostics.snapshot());
@@ -57,7 +63,11 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await expect(nav.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(zoom);
   await closePaperChat(page);
   await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
+  const discussedResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/contexts' && response.request().method() === 'POST');
   await viewer.getByRole('button', { name: 'Discuss selection', exact: true }).click();
+  const discussed = await (await discussedResponse).json();
+  expect(discussed.anchor.fileDigest).toBe((await reading()).document.fileDigest);
+  expect(discussed.anchor.rects.length).toBeGreaterThan(0);
   await expect.poll(async () => (await chatState(page)).attachments.length).toBeGreaterThan(1);
   await expect(frame.locator('#paper-question')).toHaveCount(0);
   await closePaperChat(page);
@@ -65,6 +75,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await viewer.getByRole('button', { name: 'Highlight', exact: true }).click();
   await expect.poll(async () => (await reading()).annotations.length).toBe(1);
   expect((await reading()).annotations[0].quote).toContain(fixture.quote);
+  expect((await reading()).annotations[0].anchor.id).toBe(discussed.anchor.id);
   await expect(first.locator('[data-kind="highlight"]').first()).toBeVisible();
   await page.screenshot({ path: resolve(out, 'pdf-highlight.png') });
   await viewer.getByRole('button', { name: 'Close annotations', exact: true }).click();
@@ -82,7 +93,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   const note = viewer.locator(`[data-note-id="${figure.id}"]`), image = note.locator('img');
   await expect(image).toBeVisible(); expect(await image.evaluate(element => element.naturalWidth)).toBeGreaterThan(100);
   await page.screenshot({ path: resolve(out, 'pdf-figure.png') });
-  await app.evaluate(async ({ clipboard, ClipboardItem }) => { globalThis.paperClipboard = await Promise.all((await clipboard.read()).map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)])))))); });
+  await app.evaluate(savePaperClipboard);
   try {
     await note.getByRole('button', { name: 'Copy image', exact: true }).click();
     await expect(viewer.getByRole('status')).toContainText('Image copied');
@@ -141,7 +152,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
 
 export async function reopenPdf({ frame, saved, page }) {
   await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(saved.paper.title, { exact: true }) }).click();
-  await frame.getByRole('button', { name: 'Ask', exact: true }).click();
+  await askPaperChat(frame, page, frame.getByRole('button', { name: 'Ask', exact: true }));
   await closePaperChat(page);
   await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Research record', exact: true }).click();
   await frame.locator('.pa-output-matrix>summary').click();

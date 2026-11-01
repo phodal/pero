@@ -1,6 +1,31 @@
 import { expect } from '@playwright/test';
 import { resolve } from 'node:path';
 
+// Run inside the actual App frame: Electron's pero-app protocol is not a
+// Playwright network route. Preserve the real backend Response and hold delivery.
+export function deferPdfLocate() {
+  const original = window.fetch;
+  let release, ready;
+  const held = new Promise(resolve => { release = resolve; });
+  const gate = window.paperLocateGate = {
+    arrived: false, delivered: false, error: '', ready: new Promise(resolve => { ready = resolve; }),
+    release, restore() { window.fetch = original; release(); },
+  };
+  window.fetch = async (...args) => {
+    const url = new URL(typeof args[0] === 'string' ? args[0] : args[0].url, window.location.href);
+    if (url.pathname !== '/api/pdf/locate') return original.apply(window, args);
+    try {
+      const response = await original.apply(window, args);
+      if (!response.ok) throw Error(`PDF locate failed: ${response.status}`);
+      await response.clone().arrayBuffer();
+      gate.arrived = true; ready();
+      await held;
+      gate.delivered = true;
+      return response;
+    } catch (error) { gate.error = String(error); ready(); throw error; }
+  };
+}
+
 export async function exerciseLocalSearch({ frame, page, app, out }) {
   const search = frame.getByRole('region', { name: 'Search saved text', exact: true });
   const input = search.getByRole('searchbox', { name: 'Search saved text', exact: true });
@@ -53,5 +78,54 @@ export async function exercisePdfSearch({ frame, page, out, realPdf }) {
   await hit.getByRole('button').click();
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
   await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue(targetPage);
+  await expect(viewer.locator(`[data-page-number="${targetPage}"] [data-citation-region="true"]`).first()).toBeVisible();
   await page.screenshot({ path: resolve(out, 'local-search-pdf.png') });
+  // A real response is held until after a newer reader input, not delayed by a
+  // timer. Await the real response body and render frames before checking that the
+  // stale search did not change either the user's page or their Text view.
+  const nav = frame.locator('.pa-reading-bar');
+  for (const action of ['page', 'text']) {
+    await nav.getByRole('button', { name: 'Back to library', exact: true }).click();
+    await frame.locator('body').evaluate(deferPdfLocate);
+    try {
+      await hit.getByRole('button').click();
+      await expect.poll(() => frame.locator('body').evaluate(() => {
+        if (window.paperLocateGate.error) throw Error(window.paperLocateGate.error);
+        return window.paperLocateGate.arrived;
+      }), { message: 'Real PDF locate response reached the App fetch gate' }).toBe(true);
+      const pageInput = nav.getByRole('spinbutton', { name: 'Page', exact: true });
+      await expect(pageInput).toHaveValue(targetPage);
+      const chosenPage = targetPage === '1' ? '2' : '1';
+      if (action === 'page') {
+        await pageInput.fill(chosenPage);
+        await expect(pageInput).toHaveValue(chosenPage);
+      } else {
+        await viewer.focus(); await viewer.press('Shift+F10');
+        await viewer.getByRole('menuitem', { name: 'Text', exact: true }).click();
+        await expect(viewer).toHaveCount(0);
+      }
+      await frame.locator('body').evaluate(async () => {
+        window.paperLocateGate.release();
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      });
+      expect(await frame.locator('body').evaluate(() => window.paperLocateGate.delivered)).toBe(true);
+      if (action === 'page') {
+        await expect(pageInput).toHaveValue(chosenPage);
+        await expect(viewer.locator('[data-citation-region="true"]')).toHaveCount(0);
+      } else {
+        await expect(viewer).toHaveCount(0);
+        await expect(frame.locator('.pa-source-text')).toBeVisible();
+        await frame.locator('.pa-pdf-reading').getByRole('button', { name: 'PDF', exact: true }).click();
+        await expect(viewer).toBeVisible();
+      }
+      await page.screenshot({ path: resolve(out, `local-search-deferred-${action}.png`) });
+    } finally {
+      await frame.locator('body').evaluate(() => { window.paperLocateGate.restore(); delete window.paperLocateGate; });
+    }
+  }
+  // Cancelling stale work must not disable the next explicit search reveal.
+  await nav.getByRole('button', { name: 'Back to library', exact: true }).click();
+  await hit.getByRole('button').click();
+  await expect(viewer.locator(`[data-page-number="${targetPage}"] [data-citation-region="true"]`).first()).toBeVisible();
+
 }
