@@ -18,7 +18,7 @@ export async function buildScientificViewer({ outdir = resolve(root, 'apps/scien
   await build({ entryPoints: [resolve(app, 'ui-src/frame.tsx')], outfile: resolve(dist, 'index.js'), bundle: true, format: 'esm', platform: 'browser', target: 'chrome140', jsx: 'automatic', minify: true,
     alias: { react: resolve(modules, 'react'), 'react-dom': resolve(modules, 'react-dom'), '@pero/app-sdk': resolve(root, 'packages/app-sdk/src/index.tsx') }, nodePaths: [modules], loader: { '.wasm': 'file' } });
   for (const [source, target] of [
-    ['molstar/build/viewer/molstar.js', 'molstar.js'], ['molstar/build/viewer/molstar.css', 'molstar.css'],
+    ['molstar/build/viewer/molstar.css', 'molstar.css'],
     ['@rdkit/rdkit/dist/RDKit_minimal.js', 'RDKit_minimal.js'], ['@rdkit/rdkit/dist/RDKit_minimal.wasm', 'RDKit_minimal.wasm'],
     ['pdfjs-dist/build/pdf.worker.mjs', 'pdf.worker.mjs'], ['pdfjs-dist/standard_fonts', 'pdfjs-fonts'], ['pdfjs-dist/cmaps', 'pdfjs-cmaps'], ['pdfjs-dist/wasm', 'pdfjs-wasm'],
   ]) await cp(resolve(modules, source), resolve(dist, target), { recursive: true });
@@ -31,7 +31,7 @@ export async function buildScientificViewer({ outdir = resolve(root, 'apps/scien
     licenses.push({ name, version: pkg.version, license: pkg.license });
   }
   await writeFile(resolve(dist, 'public-engines.json'), JSON.stringify(licenses, null, 2));
-  await writeFile(resolve(dist, 'index.html'), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Scientific Viewer</title><link rel="stylesheet" href="./molstar.css"><link rel="stylesheet" href="./index.css"></head><body><div id="app"></div><script src="./molstar.js"></script><script src="./RDKit_minimal.js"></script><script type="module" src="./index.js"></script></body></html>`);
+  await writeFile(resolve(dist, 'index.html'), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Scientific Viewer</title><link rel="stylesheet" href="./molstar.css"><link rel="stylesheet" href="./index.css"></head><body><div id="app"></div><script src="./RDKit_minimal.js"></script><script type="module" src="./index.js"></script></body></html>`);
   console.log('Built independent Pero Scientific Viewer from pinned public engines.');
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await buildScientificViewer();

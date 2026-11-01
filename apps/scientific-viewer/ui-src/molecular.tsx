@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { structureText, blockStructureDrops, moleculeRecords, type Asset } from './files';
+import { structureText, moleculeRecords, type Asset } from './files';
 type Molecule = { is_valid(): boolean; get_svg(): string; get_descriptors(): string; delete(): void };
 type RDKit = { get_mol(value: string): Molecule | null };
-type Viewer = { plugin: { managers: { dragAndDrop: { addHandler(name: string, handler: () => boolean): void } } }; loadStructureFromData(value: string, format: string): Promise<void>; dispose(): void };
+import { createStructureEngine } from './structure-engine';
+type Viewer = Awaited<ReturnType<typeof createStructureEngine>>;
 declare global { interface Window {
   initRDKitModule: (options: { locateFile: (path: string) => string }) => Promise<RDKit>;
-  molstar: { Viewer: { create(element: HTMLElement, options: object): Promise<Viewer> } };
 } }
 let rdkit: Promise<RDKit> | undefined;
 export function Molecules({ asset }: { asset: Asset }) {
@@ -40,8 +40,7 @@ export function Structure({ asset }: { asset: Asset }) {
     let active = true, viewer: Viewer | undefined; setError(''); setStatus('Loading Mol*…');
     void (async () => {
       const text = structureText(asset.bytes);
-      const next = await window.molstar.Viewer.create(node.current!, { layoutIsExpanded: false, layoutShowControls: false, layoutShowLeftPanel: false, viewportShowControls: false, viewportShowSelectionMode: false, viewportShowSettings: false, viewportShowToggleFullscreen: false, volumeStreamingDisabled: true, layoutShowRemoteState: false, layoutShowSequence: true, layoutShowLog: false, viewportShowExpand: false, viewportShowScreenshotControls: false, extensions: [], showWelcomeToast: false });
-      blockStructureDrops(next.plugin.managers.dragAndDrop, setError);
+      const next = await createStructureEngine(node.current!, setError);
       viewer = next; if (!active) { next.dispose(); return; }
       await next.loadStructureFromData(text, /\.pdb$/i.test(asset.name) ? 'pdb' : 'mmcif');
       if (active) setStatus('Structure ready');
