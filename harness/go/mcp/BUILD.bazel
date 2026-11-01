@@ -29,5 +29,8 @@ go_test(
         "visibility_test.go",
     ],
     embed = [":mcp"],
-    deps = ["//runtime", "@com_github_modelcontextprotocol_go_sdk//mcp"],
+    deps = [
+        "//runtime",
+        "@com_github_modelcontextprotocol_go_sdk//mcp",
+    ],
 )

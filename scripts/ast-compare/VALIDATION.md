@@ -1,5 +1,48 @@
 # Validated reference snapshot
 
+## MCP source-receipt refresh — 2026-11-01
+
+The mapping now selects published Pero source
+[`6a42cd30a1e445b0c319d55ee5caaf2456ced2bf`](https://github.com/phodal/pero/commit/6a42cd30a1e445b0c319d55ee5caaf2456ced2bf).
+The official pin remains `f3803c96974ad4a94195fb97e5c637e9c2a3afe3`.
+The previous full extraction record below is historical, not a fresh pass.
+
+PR #92 AST job `124909064537` reported 14 extracted / 3 unavailable (exit 2).
+All three stale right-side selectors reference `harness/go/acp/server.go`:
+`acp-prompt-admission`, `acp-cancel-admission`, and `acp-settlement`.
+The previous containing-file hash was
+`aff1929fafdce8abbf04970466b46bf6a32a44b1feeae69d9c2356ce446dbd5e`;
+the actual hash is
+`40771e3721b9614e53dfd194e793dedbd3fb3e671a19c28c2b8f97b66f08612e`.
+The remote Git blob is `a34929ff04b22766ba9a742bde74580cff1b4088`.
+
+Reviewed the diff from the previous `db533bc` pin: MCP runtime capability
+negotiation and observer setup add a Server field and alter initialize/new/resume
+paths. They do not change either mapped callable. `Server.prompt` now starts at
+line 524 (1,589 bytes, SHA256
+`f6d2e97bd26d18e20e9f971791f0514ff94c0a686c9acb54c5433a8483debef8`);
+`Server.handleNotification` starts at line 388 (626 bytes, SHA256
+`eb174f0e12a1cc33ec736acbe2276d8bda78d771fd8fc96d1bf0ba4433859d25`).
+Both callable texts are byte-identical to the previous pin, using the same
+trailing-whitespace exclusion as the earlier record. This is not caused by
+#73's separate audit documentation and Skill compaction test.
+
+All ten mapped Go source files were checked against exact-ref GitHub contents
+blob identities; nine retain their selector SHA256, and only these three
+selectors need the new server.go SHA256. No callable, pair, landmark, parser
+check, hash check, official source pin, exit rule or
+`cross_language_review_required` classification is removed or relaxed.
+
+Local validation checks all 17 right-side hashes and both unchanged declarations.
+Full extraction was not rerun locally: this executor has no installed pinned
+Tree-sitter Python bindings or built extended TypeScript grammar. Exact-head
+hosted parser tests and full official extraction remain required; do not report
+17 extracted / 0 unavailable until that job establishes it. MCP lifecycle
+semantics changed outside the selected declarations and require their own
+runtime/permission tests; source admission is not semantic parity.
+
+## Historical ACP validation
+
 Updated run: 2026-10-31 (ACP source-receipt refresh). Python 3.12.14; pinned requirements; 18 unit tests passed (no skips).
 
 - Official DSH: `f3803c96974ad4a94195fb97e5c637e9c2a3afe3`
