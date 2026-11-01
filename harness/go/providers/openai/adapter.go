@@ -1,4 +1,5 @@
-// Package openai provides explicit, text-only OpenAI-compatible chat completions.
+// Package openai provides explicit OpenAI-compatible chat completions with
+// optional bounded in-memory raster input for declared image-capable models.
 // Streaming assembly is adapted from the pinned DSH port; product routing,
 // telemetry, identity persistence, Files uploads and settings discovery are absent.
 package openai
@@ -82,12 +83,24 @@ func New(c Config) (*Adapter, error) {
 		if _, ok := models[m.ID]; ok {
 			return nil, errors.New("openai adapter: duplicate model")
 		}
+		textInput, imageInput := len(m.InputModalities) == 0, false
 		for _, v := range m.InputModalities {
-			if v != "text" {
-				return nil, errors.New("openai adapter: only text input is supported")
+			switch v {
+			case "text":
+				textInput = true
+			case "image":
+				imageInput = true
+			default:
+				return nil, errors.New("openai adapter: unsupported input modality")
 			}
 		}
+		if !textInput {
+			return nil, errors.New("openai adapter: text input must remain enabled")
+		}
 		m.InputModalities = []string{"text"}
+		if imageInput {
+			m.InputModalities = append(m.InputModalities, "image")
+		}
 		if m.Name == "" {
 			m.Name = m.ID
 		}

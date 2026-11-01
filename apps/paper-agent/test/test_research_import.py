@@ -80,7 +80,7 @@ class ResourceIdentityTest(unittest.TestCase):
             ('https://huggingface.co/models/org/model', 'model', 'hf:model:org/model'),
             ('https://huggingface.co/datasets/org/data', 'dataset', 'hf:dataset:org/data'),
             ('https://huggingface.co/spaces/org/demo', 'service', 'hf:service:org/demo'),
-            ('https://arxiv.org/pdf/2310.10688v2.pdf', 'paper', 'arxiv:2310.10688'),
+            ('https://arxiv.org/pdf/2310.10688v2.pdf', 'pdf_candidate', 'url:https://arxiv.org/pdf/2310.10688v2.pdf'),
             ('https://doi.org/10.1234/EXAMPLE', 'paper', 'doi:10.1234/example'),
             ('https://github.com/Example/Code.git', 'code', 'github:example/code'),
             (SEED + '?utm_source=test', 'web_article', 'url:' + SEED),
@@ -93,6 +93,23 @@ class ResourceIdentityTest(unittest.TestCase):
         self.assertEqual((benchmark.kind, benchmark.relation, benchmark.assets), ('benchmark', 'evaluated_on', ()))
         cited = ResearchResource.linked('https://arxiv.org/abs/2310.10688', SEED, 'Foundational model')
         self.assertEqual(cited.relation, 'cites')
+
+    def test_managed_artifacts_cannot_be_granted_as_source_archives(self):
+        for path, kind in (
+            ('datasets/org/data/resolve/main/data.tar.gz', 'dataset'),
+            ('org/model/resolve/main/weights.gz', 'model'),
+            ('models/org/model/resolve/main/weights.zip', 'model'),
+        ):
+            with self.subTest(path=path):
+                resource = ResearchResource.linked('https://huggingface.co/' + path, SEED)
+                self.assertEqual(resource.kind, kind)
+                self.assertEqual(resource.assets, ())
+                draft = ImportDraft.create(SEED, NOW).finish((resource,), ())
+                value = dict(draftId=draft.id, resourceIds=[resource.id])
+                self.assertEqual(ImportSelection.parse(value, draft).sourceIds, ())
+                with self.assertRaisesRegex(Invalid, 'only source archives'):
+                    ImportSelection.parse({**value, 'sourceIds': [resource.id], 'confirmedDownloads': True}, draft)
+        self.assertEqual(ResourceIdentity.from_url('https://research.example/methods.tgz').kind, 'source_archive')
 
     def test_revision_links_are_not_silently_changed(self):
         arxiv = ResearchResource.linked('https://arxiv.org/abs/2310.10688v2', SEED)

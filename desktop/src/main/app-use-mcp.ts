@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { BrowserWindow } from 'electron';
 import type { AppScope } from './app-use-task.ts';
 import { PreparedAppWrite, parseAppWrite, type AppWriteDefinition } from './app-write.ts';
+import { PaperSourceImage } from './paper-source-image.ts';
 import { AppInputs } from './app-inputs.ts';
 import type { ContextReference } from '../../../protocol/generated/host';
 import { ContentArtifacts } from './content-artifacts.ts';
@@ -349,12 +350,13 @@ export class DesktopAppUse {
             controller.signal,
             'app-data',
           );
-          const selected=JSON.parse(await this.results.select(thread,value));
+          const sourceImage = PaperSourceImage.parse(prepared, value.result);
+          const selected=JSON.parse(await this.results.select(thread,sourceImage ? { ...value, result: sourceImage.metadata() } : value));
           const links=(value.result as {links?:{label:string;location:string}[]}|null)?.links;
           if(Array.isArray(links) && links.length<=64 && links.every(link=>link && typeof link.label==='string' && link.label.length>0 && link.label.length<=200 && typeof link.location==='string' && /^[a-zA-Z0-9/_-]{1,512}$/.test(link.location))) {
             selected.appLinks=links.map(link=>({label:link.label,url:`pero-app-location://${definition.app}/${definition.panel}/${link.location}`}));
           }
-          result = { content: [{ type: 'text', text: JSON.stringify(selected) }], isError: false };
+          result = { content: [{ type: 'text', text: JSON.stringify(selected) }, ...(sourceImage ? [sourceImage.content()] : [])], isError: false };
         } else if (message.method === 'tools/call' && message.params?.name === 'content_read') {
           const value = await this.results.read(thread, ContentRead.parse(message.params.arguments));
           const next = value.nextRead ? `Next read: ${JSON.stringify(value.nextRead)}` : 'End of selection.';

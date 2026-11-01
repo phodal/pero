@@ -15,7 +15,7 @@
     "writes": [
       {
         "name": "experiment-step",
-        "description": "Read, validate, simulate with real no-hardware PyLabRobot, attach a labelled synthetic fixture, independently evaluate, compare or cancel frozen experiments. No hardware, no arbitrary code. Execution completed is not verification PASS or human acceptance.",
+        "description": "Read, validate, simulate with real no-hardware PyLabRobot, attach a labelled synthetic fixture, independently evaluate, compare or cancel frozen experiments. read and compare are experiment-level actions: omit trialId. validate, simulate, observe, evaluate and cancel require trialId. The fraction criterion evaluates the observation, not the simulated composition; report these as different quantities. Every trial starts independently from the same frozen initial state; do not accumulate resource consumption across trials. Use the actual returned trial id, not an index or protocol hash; Read the compact /result/agent_trial_index through content_read to obtain actual id, status and parent_trial_id. observe attaches only a synthetic fixture, never imported or device evidence. Returned tips remain consumed under the single-use policy. No hardware, no arbitrary code. Execution completed is not verification PASS or human acceptance.",
         "path": "/api/agent-step",
         "schema": {
           "type": "object",

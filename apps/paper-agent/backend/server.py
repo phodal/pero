@@ -27,6 +27,8 @@ def main():
     try:
         server.serve_forever()
     finally:
+        store.source_downloads.close()
+        store.pdf_downloads.close()
         store.imports.close()
         server.server_close()
 

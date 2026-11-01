@@ -89,6 +89,15 @@ Captures return image content and a durable receipt containing App/panel,
 conversation, Agent, task, frame instance, crop, capture time, SHA-256, byte count
 and dimensions. The PNG and JSON receipt are stored together in the Desktop profile. Screenshots remain evidence rather than verification verdicts.
 Ordinary App fields named `image` remain App data during MCP serialization.
+The explicit Paper `research-source-read` / `operation=image` representation is a
+narrow exception: an already authorized member can return a typed managed PNG
+preview with archive/member/original/preview hashes and dimensions. Desktop checks
+that exact declared route, operation, member, canonical base64, PNG structure,
+4 MiB byte bound and dimensions before returning standard MCP ImageContent plus
+text-only provenance. No arbitrary App JSON, URL or filesystem path is promoted
+to image content. Other App response limits remain unchanged. The Paper worker
+owns full decoding/re-encoding; a provider must explicitly support image inputs.
+This receipt proves which pixels were supplied, not that a model understood them.
 
 `wait` polls declared state or revision with a bounded deadline. `verify` supports
 semantic equality, text containment, declared DOM existence and mechanical pixel

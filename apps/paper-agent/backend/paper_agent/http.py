@@ -19,6 +19,7 @@ from .source_text import SourceText
 from .context_file import ContextSelection, ContextRead
 from .research import ResearchPlan
 from .thumbnails import PaperThumbnails
+from .source_reading import source_read, source_image
 
 MAX_BODY = 1024 * 1024
 
@@ -90,6 +91,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if self.command == 'GET': return self.reply(200, store.report_matrix(matrix_match[1]))
                     if self.command == 'POST': return self.reply(201, store.edit_matrix(matrix_match[1], data, now()))
                 if self.command == "GET":
+                    source_image_match = re.fullmatch(r'/api/research/source-image/([a-f0-9]{64})/([a-f0-9]{64})', path)
+                    if source_image_match:
+                        return self.binary(200, source_image(store, *source_image_match.groups()), 'image/png')
                     if path == '/api/research/drafts':
                         return self.reply(200, dict(drafts=store.imports.drafts()))
                     bundle_match = re.fullmatch(r'/api/research/bundles/([a-f0-9]{64})', path)
@@ -161,6 +165,14 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         return self.reply(200, store.imports.inspect(data, now()).to_dict())
                     if path == '/api/research/commit':
                         return self.reply(201, store.imports.commit(data, now()).to_dict())
+                    if path == '/api/research/analysis':
+                        return self.reply(200, store.imports.analysis(data))
+                    if path == '/api/research/source':
+                        return self.reply(200, store.source_downloads.request(data))
+                    if path == '/api/research/source-read':
+                        return self.reply(200, source_read(store, data))
+                    if path == '/api/research/pdf':
+                        return self.reply(200, store.pdf_downloads.request(data))
                     if path == '/api/research/handoff':
                         return self.reply(200, store.imports.handoff(data))
                     if path in ('/api/research/prepare', '/api/research/followup'):

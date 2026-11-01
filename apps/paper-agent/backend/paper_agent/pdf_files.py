@@ -44,7 +44,10 @@ class PdfFiles:
         return PdfDocument.create(paper.id, digest(data), paper.pdf_url or paper.url, self.pages(data), now)
 
     def import_local(self, upload: LocalPdf, now):
-        pages = self.pages(upload.data)
+        return self.from_pages(upload, self.pages(upload.data), now)
+
+    @staticmethod
+    def from_pages(upload, pages, now):
         content = '\n\n'.join(page.text for page in pages)
         if not content.strip():
             raise Invalid('This PDF has no selectable text. OCR is not available.', 422)
@@ -60,7 +63,7 @@ class PdfFiles:
             with PDFIUM_LOCK, closing(pdfium.PdfDocument(data)) as pdf:
                 if not 1 <= len(pdf) <= 500:
                     raise Invalid('PDF must contain 1–500 pages')
-                pages = []
+                pages, characters = [], 0
                 for i in range(len(pdf)):
                     with closing(pdf[i]) as page:
                         # EmbedPDF normalizes intrinsic rotation on open. Use the
@@ -70,6 +73,9 @@ class PdfFiles:
                             content = textpage.get_text_range()
                         if len(content) > 120000:
                             raise Invalid('PDF page text exceeds 120,000 characters')
+                        characters += len(content)
+                        if characters > 8_000_000:
+                            raise Invalid('PDF text exceeds 8,000,000 characters', 413)
                         pages.append(PdfPage(i + 1, page.get_width(), page.get_height(), content))
                 return tuple(pages)
         except pdfium.PdfiumError as error:

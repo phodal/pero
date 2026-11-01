@@ -6,7 +6,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from .model import Invalid, digest, text
 from .literature import ARXIV, PaperIdentity
 
-KINDS = ('web_article', 'paper', 'code', 'model', 'dataset', 'benchmark', 'service')
+KINDS = ('web_article', 'paper', 'pdf_candidate', 'source_archive', 'code', 'model', 'dataset', 'benchmark', 'service')
 
 
 @dataclass(frozen=True)
@@ -45,15 +45,18 @@ class ResourceIdentity:
     kind: str
 
     @classmethod
-    def from_url(cls, value, label=''):
+    def from_url(cls, value, label='', pdf_hint=False):
         url = PublicURL.parse(value).value
         parts = urlsplit(url)
         host, path = parts.hostname, parts.path.strip('/')
         segments = path.split('/')
-        if host in ('github.com', 'www.github.com') and len(segments) >= 2 and segments[0].lower() not in ('features', 'topics', 'collections', 'orgs', 'settings', 'search'):
-            repo = '/'.join(segments[:2]).removesuffix('.git').lower()
-            if re.fullmatch(r'[a-z0-9_.-]+/[a-z0-9_.-]+', repo):
-                return cls('github:' + repo, 'https://github.com/' + repo, 'code')
+        if host in ('arxiv.org', 'www.arxiv.org') and path.startswith(('src/', 'e-print/')):
+            identifier = path.split('/', 1)[1]
+            if ARXIV.fullmatch(identifier) and re.search(r'v[1-9]\d*$', identifier):
+                return cls('arxiv-source:' + identifier, 'https://arxiv.org/src/' + identifier, 'source_archive')
+            if ARXIV.fullmatch(identifier):
+                return cls('url:' + url, url, 'source_archive')
+        # Managed model/dataset artifacts retain their Data eligibility rules.
         if host in ('huggingface.co', 'www.huggingface.co'):
             prefix = segments[0]
             if prefix == 'papers' and len(segments) >= 2 and ARXIV.fullmatch(segments[1]):
@@ -66,6 +69,17 @@ class ResourceIdentity:
                     kind = {'datasets': 'dataset', 'spaces': 'service'}.get(prefix, 'model')
                     stem = {'dataset': 'datasets/', 'service': 'spaces/'}.get(kind, '')
                     return cls(f'hf:{kind}:{repo.lower()}', 'https://huggingface.co/' + stem + repo, kind)
+        if parts.path.lower().endswith(('.tar.gz', '.tgz', '.gz', '.tar', '.zip')):
+            return cls('url:' + url, url, 'source_archive')
+        # An explicit representation is reviewed as a file, not collapsed into
+        # its work identity (which would discard the selected PDF/version).
+        arxiv_pdf = host in ('arxiv.org', 'www.arxiv.org') and path.startswith('pdf/') and ARXIV.fullmatch(path[4:].removesuffix('.pdf'))
+        if pdf_hint or parts.path.lower().endswith('.pdf') or arxiv_pdf:
+            return cls('url:' + url.rstrip('/'), url, 'pdf_candidate')
+        if host in ('github.com', 'www.github.com') and len(segments) >= 2 and segments[0].lower() not in ('features', 'topics', 'collections', 'orgs', 'settings', 'search'):
+            repo = '/'.join(segments[:2]).removesuffix('.git').lower()
+            if re.fullmatch(r'[a-z0-9_.-]+/[a-z0-9_.-]+', repo):
+                return cls('github:' + repo, 'https://github.com/' + repo, 'code')
         try:
             paper = PaperIdentity.parse({'id': url})
             identity = re.sub(r'v\d+$', '', paper.id, flags=re.I).lower()
@@ -74,6 +88,8 @@ class ResourceIdentity:
             return cls(source + ':' + identity, canonical, 'paper')
         except Invalid:
             pass
+        if parts.path.lower().endswith('.pdf') or re.search(r'\bpdf\b', label, re.I):
+            return cls('url:' + url.rstrip('/'), url, 'pdf_candidate')
         kind = 'benchmark' if re.search(r'benchmark|leaderboard|gift[- ]eval|fev[- ]bench', label, re.I) else 'web_article'
         return cls('url:' + url.rstrip('/'), url, kind)
 
@@ -82,6 +98,9 @@ class ResourceIdentity:
 class Evidence:
     url: str
     label: str
+    href: str = ''
+    kind: str = 'link'
+    position: int | None = None
 
 
 @dataclass(frozen=True)
@@ -125,30 +144,39 @@ class ResearchResource:
     paperId: str | None = None
     contentKind: str = 'report'
     observedAt: str = ''
+    workIdentity: str | None = None
 
     @property
     def id(self):
         return digest(self.identity)
 
     @classmethod
-    def linked(cls, url, source_url, label='', context=''):
+    def linked(cls, url, source_url, label='', context='', evidence_kind='link', position=None):
         url = PublicURL.parse(url).value
-        identity = ResourceIdentity.from_url(url, label + ' ' + context)
+        identity = ResourceIdentity.from_url(url, label + ' ' + context, evidence_kind in ('citation_pdf_url', 'alternate_pdf'))
         relation = 'cites' if identity.kind == 'paper' else 'releases' if identity.kind == 'model' else 'implements' if identity.kind == 'code' else 'links_to'
         kind = identity.kind
         if re.search(r'benchmark|leaderboard|gift[- ]eval|fev[- ]bench', label + ' ' + context, re.I) and kind in ('service', 'dataset', 'web_article'):
             kind, relation = 'benchmark', 'evaluated_on'
-        version = re.search(r'(?:/abs/|/pdf/)([^/?]+?)(v\d+)(?:\.pdf)?$', urlsplit(url).path)
-        revision = version[2] if version and identity.identity.startswith('arxiv:') else None
-        unresolved = ()
+        version = re.search(r'(?:/abs/|/pdf/|/src/|/e-print/)([^?]+?)(v\d+)(?:\.pdf)?$', urlsplit(url).path)
+        revision = version[2] if version and urlsplit(url).hostname in ('arxiv.org', 'www.arxiv.org') else None
+        unresolved = ('PDF candidate; paper identity and document version are unverified. No file has been downloaded.',) if kind == 'pdf_candidate' else ()
+        if kind == 'source_archive':
+            unresolved = ('Source candidate; archive contents and availability are unverified. Nothing is compiled or executed.',)
+        if kind == 'source_archive' and urlsplit(url).path.lower().endswith('.zip'):
+            unresolved = (*unresolved, 'ZIP source archives are unsupported; this link is reference-only.')
+        work = 'arxiv:' + version[1] if revision else None
+        if kind == 'source_archive' and urlsplit(url).hostname in ('arxiv.org', 'www.arxiv.org') and not revision:
+            work = 'arxiv:' + urlsplit(url).path.split('/', 2)[-1]
+            unresolved = (*unresolved, 'Select an explicit arXiv vN before downloading; latest version is not assumed.')
         if identity.identity.startswith(('hf:', 'github:')):
             pinned = re.search(r'/(?:tree|blob|resolve|commit)/([^/]+)', urlsplit(url).path)
             if pinned:
                 revision = pinned[1]
                 unresolved = ('Version-specific link saved as a reference; this path is not resolved or downloaded.',)
         return cls(identity.identity, kind, identity.url, url, label.strip()[:1000] or identity.url,
-                   revision=revision, confidence='unresolved' if unresolved else 'explicit', unresolved=unresolved,
-                   relation=relation, evidence=(Evidence(source_url, label.strip()[:500] or 'Explicit URL'),))
+                   revision=revision, workIdentity=work, confidence='unresolved' if unresolved else 'explicit', unresolved=unresolved,
+                   relation=relation, evidence=(Evidence(source_url, label.strip()[:500] or 'Explicit URL', url, evidence_kind, position),))
 
     def to_dict(self):
         return dict(id=self.id, **asdict(self))
@@ -174,6 +202,34 @@ class ResearchResource:
 
 
 @dataclass(frozen=True)
+class ObservedLink:
+    id: str
+    href: str
+    label: str
+    kind: str
+    position: int | None = None
+
+
+@dataclass(frozen=True)
+class ObservedPage:
+    url: str
+    text: str
+    digest: str
+    links: tuple[ObservedLink, ...]
+
+    @classmethod
+    def create(cls, url, body, links):
+        body = body[:16000]
+        page_digest = digest(dict(url=url, text=body, links=links))
+        observed = tuple(ObservedLink(digest(dict(page=page_digest, **link)), **link) for link in links)
+        return cls(url, body, page_digest, observed)
+
+    @classmethod
+    def from_record(cls, value):
+        return cls(**{**value, 'links': tuple(ObservedLink(**link) for link in value['links'])})
+
+
+@dataclass(frozen=True)
 class ImportDraft:
     id: str
     seedUrl: str
@@ -182,6 +238,7 @@ class ImportDraft:
     warnings: tuple[str, ...] = ()
     error: str = ''
     createdAt: str = ''
+    pages: tuple[ObservedPage, ...] = ()
 
     @classmethod
     def create(cls, url, now):
@@ -203,7 +260,8 @@ class ImportDraft:
     @classmethod
     def from_record(cls, value):
         return cls(**{**value, 'resources': tuple(ResearchResource.from_record(r) for r in value['resources']),
-                      'warnings': tuple(value['warnings'])})
+                      'warnings': tuple(value['warnings']),
+                      'pages': tuple(ObservedPage.from_record(p) for p in value.get('pages', ()))})
 
 
 @dataclass(frozen=True)
@@ -211,10 +269,12 @@ class ImportSelection:
     draftId: str
     resourceIds: tuple[str, ...]
     downloadIds: tuple[str, ...] = ()
+    pdfIds: tuple[str, ...] = ()
+    sourceIds: tuple[str, ...] = ()
 
     @classmethod
     def parse(cls, value, draft):
-        if set(value) - {'draftId', 'resourceIds', 'downloadIds', 'confirmedDownloads'} or value.get('draftId') != draft.id:
+        if set(value) - {'draftId', 'resourceIds', 'downloadIds', 'pdfIds', 'sourceIds', 'confirmedDownloads'} or value.get('draftId') != draft.id:
             raise Invalid('Invalid import selection')
         if draft.status != 'ready':
             raise Invalid('Inspect this link before saving references', 409)
@@ -226,9 +286,21 @@ class ImportSelection:
         assets = {a.id for r in draft.resources if r.id in ids for a in r.assets}
         if not isinstance(downloads, list) or len(downloads) > 16 or any(not isinstance(i, str) for i in downloads) or len(set(downloads)) != len(downloads) or not set(downloads) <= assets:
             raise Invalid('Select only verified files from selected references')
-        if downloads and value.get('confirmedDownloads') is not True:
+        pdfs = value.get('pdfIds', [])
+        candidates = {r.id for r in draft.resources if r.id in ids and r.kind == 'pdf_candidate'}
+        if not isinstance(pdfs, list) or len(pdfs) > 16 or any(not isinstance(i, str) for i in pdfs) or len(set(pdfs)) != len(pdfs) or not set(pdfs) <= candidates:
+            raise Invalid('Select only PDF candidates from selected references')
+        sources = value.get('sourceIds', [])
+        source_candidates = {r.id for r in draft.resources if r.id in ids and r.kind == 'source_archive'}
+        if not isinstance(sources, list) or len(sources) > 16 or any(not isinstance(i, str) for i in sources) or len(set(sources)) != len(sources) or not set(sources) <= source_candidates:
+            raise Invalid('Select only source archives from selected references')
+        if any(r.id in sources and r.workIdentity and not r.revision for r in draft.resources):
+            raise Invalid('Select an explicit arXiv source version before downloading')
+        if any(r.id in sources and urlsplit(r.url).path.lower().endswith('.zip') for r in draft.resources):
+            raise Invalid('ZIP source archives are unsupported; save references only')
+        if (downloads or pdfs or sources) and value.get('confirmedDownloads') is not True:
             raise Invalid('Confirm selected download sizes and licenses before continuing')
-        return cls(draft.id, tuple(ids), tuple(downloads))
+        return cls(draft.id, tuple(ids), tuple(downloads), tuple(pdfs), tuple(sources))
 
 
 @dataclass(frozen=True)
@@ -241,6 +313,8 @@ class ResearchBundle:
     updatedAt: str
     downloadIds: tuple[str, ...] = ()
     identities: tuple[str, ...] = ()
+    pdfDownloadIds: tuple[str, ...] = ()
+    sourceDownloadIds: tuple[str, ...] = ()
 
     def to_dict(self):
         return {**asdict(self), 'resources': [r.to_dict() for r in self.resources]}
@@ -248,7 +322,9 @@ class ResearchBundle:
     @classmethod
     def from_record(cls, value):
         return cls(**{**value, 'resources': tuple(ResearchResource.from_record(r) for r in value['resources']),
-                      'downloadIds': tuple(value['downloadIds']), 'identities': tuple(value['identities'])})
+                      'downloadIds': tuple(value['downloadIds']), 'identities': tuple(value['identities']),
+                      'pdfDownloadIds': tuple(value.get('pdfDownloadIds', ())),
+                      'sourceDownloadIds': tuple(value.get('sourceDownloadIds', ()))})
 
     @classmethod
     def selected(cls, draft, selection, now, previous=None):
@@ -265,4 +341,6 @@ class ResearchBundle:
         identities = tuple(dict.fromkeys((*(previous.identities if previous else ()), seed.identity, *seed.aliases)))
         return cls(previous.id if previous else seed.id, previous.seedUrl if previous else draft.seedUrl,
                    seed.title, tuple(selected.values()), previous.createdAt if previous else now, now,
-                   tuple(dict.fromkeys((*(previous.downloadIds if previous else ()), *selection.downloadIds))), identities)
+                   tuple(dict.fromkeys((*(previous.downloadIds if previous else ()), *selection.downloadIds))), identities,
+                   tuple(dict.fromkeys((*(previous.pdfDownloadIds if previous else ()), *selection.pdfIds))),
+                   tuple(dict.fromkeys((*(previous.sourceDownloadIds if previous else ()), *selection.sourceIds))))

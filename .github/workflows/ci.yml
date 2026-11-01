@@ -16,6 +16,11 @@ on:
   schedule:
     - cron: "0 20 * * *" # 04:00 UTC+08; GitHub runs schedules on the default branch.
   workflow_dispatch:
+    inputs:
+      paper_pdf_live:
+        description: "Opt in to public arXiv source and Google PDF journeys (no real model)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -418,9 +423,11 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
-          python -m unittest discover -s apps/paper-agent/test -p test_research_import.py -v
-          python -m unittest discover -s apps/paper-agent/test -p test_research_metadata.py -v
-          python -m unittest discover -s apps/paper-agent/test -p test_pcgym_reproduction.py -v
+          python -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
+          python -m unittest discover -s apps/paper-agent/test -p 'test_*.py' -v
+          python tests/e2e/paper-pdf-http.py --output test-results/paper-pdf-http/fixture.json
+          python tests/e2e/paper-source-http.py --output test-results/paper-source-http/fixture.json
+          python tests/e2e/paper-source-cli.py --output test-results/paper-source-cli/fixture.json
           python -m unittest discover -s apps/data/test -v
       - name: Real local molecular backend contracts
         run: |
@@ -429,6 +436,8 @@ jobs:
       - name: Independent App contracts with frozen dependencies
         run: |
           npm ci --prefix apps/automations --ignore-scripts
+          npm ci --prefix apps/paper-agent --ignore-scripts
+          npm run typecheck --prefix apps/paper-agent
           npm ci --prefix apps/scientific-viewer --ignore-scripts
           npm test --prefix apps/automations
           npm test --prefix apps/scientific-viewer
@@ -454,6 +463,7 @@ jobs:
           node --test desktop/src/main/{app-context,app-use,connector-secrets,content-artifacts,control-lab-goal,harness-environment,home,mcp-sources}.test.ts web/src/{automation-model,content-results}.test.ts
           node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs
           node --test tests/runtime/control-lab/*.test.mjs tests/runtime/control-lab/host-goal.test.ts
+          node --test tests/runtime/lab/*.test.mjs
           node tests/e2e/computer-transport.mjs
       - name: Build the actual Host MCP sidecar and HTTP assets
         run: node scripts/build/mcp.mjs
@@ -562,6 +572,24 @@ jobs:
           PERO_TEST_HEADED: '1'
           PERO_TEST_SOFTWARE_GL: '1'
         run: node scripts/ci/desktop-suite.mjs '${{ matrix.suite }}'
+      - name: Explicit public source study journey
+        if: ${{ !cancelled() && matrix.suite == 'paper-research-import' && ((github.event_name == 'workflow_dispatch' && inputs.paper_pdf_live) || contains(github.event.pull_request.labels.*.name, 'ci:paper-pdf-live')) }}
+        env:
+          PERO_SOURCE_STUDY_LIVE: '1'
+          PERO_TEST_HEADED: '1'
+          PERO_TEST_SOFTWARE_GL: '1'
+        run: |
+          export PERO_APP_PYTHON="$RUNNER_TEMP/paper-research-python/bin/python"
+          node scripts/ci/run-acceptance.mjs --name paper-source-live --timeout-seconds 180 -- xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/paper-source-study.mjs
+      - name: Explicit public PDF study journey
+        if: ${{ !cancelled() && matrix.suite == 'paper-research-import' && ((github.event_name == 'workflow_dispatch' && inputs.paper_pdf_live) || contains(github.event.pull_request.labels.*.name, 'ci:paper-pdf-live')) }}
+        env:
+          PERO_PDF_STUDY_LIVE: '1'
+          PERO_TEST_HEADED: '1'
+          PERO_TEST_SOFTWARE_GL: '1'
+        run: |
+          export PERO_APP_PYTHON="$RUNNER_TEMP/paper-research-python/bin/python"
+          node scripts/ci/run-acceptance.mjs --name paper-pdf-live --timeout-seconds 180 -- xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/paper-pdf-study.mjs
       - name: Observe public TimesFM and HF metadata separately
         if: ${{ !cancelled() && matrix.suite == 'paper-research-import' }}
         timeout-minutes: 3

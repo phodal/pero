@@ -36,7 +36,9 @@
   ],
   "adaptation": "Subset: stream assembly/framing and error taxonomy from pinned source; new explicit text-only constructor and request encoder. Removed defaults, identity, session-log uploads, Files API, dynamic settings. Optional atomic adapter-lifetime HTTP attempt cap, hard output-token clamp and explicit reasoning default; SDK retries remain disabled. Explicit environment-proxy opt-in preserves default direct connection and standard TLS verification. Explicit DisableThinking emits thinking.type disabled; default omits provider-specific extension.",
   "new_files": [
-    "adapter_test.go"
+    "adapter_test.go",
+    "image_input.go",
+    "image_input_test.go"
   ],
   "budget_adaptation_sha256": {
     "adapter.go": "32f185b4897404976fbe812c3c4929820e710ddfce24fff8410d8fe7793593de",
@@ -47,5 +49,6 @@
   "model_selection_destination_sha256": {
     "adapter.go": "5c71cd0604ef31156f709eeb9c4e466eac097e724dc45add3c9776577ca0444a",
     "adapter_test.go": "48acb9308e1a9fdecf6e641249c6cd8c2fb92cf6fc727651ee47bcae5f92c4c3"
-  }
+  },
+  "image_input_adaptation": "Issue75 local opt-in PNG/JPEG input: explicit model capability, bounded full raster decode and MIME validation, canonical typed image_url data URIs for user/tool content. No remote image URL/path, Files upload, implicit capability discovery or claim of upstream image parity. Default text wire remains unchanged."
 }

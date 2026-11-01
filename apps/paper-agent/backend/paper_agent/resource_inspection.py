@@ -9,8 +9,9 @@ from urllib.parse import quote, urljoin, urlsplit
 
 from .literature import LiteratureClient, _scalars
 from .model import Invalid
-from .research_resources import Evidence, ImportDraft, PublicURL, ResearchAsset, ResearchResource, ResourceIdentity
+from .research_resources import Evidence, ImportDraft, ObservedPage, PublicURL, ResearchAsset, ResearchResource, ResourceIdentity
 from .resource_fetch import PublicMetadata
+from .arxiv_versions import ArxivVersion, freeze_version, metadata_url, unpinned_work
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,8 @@ class PageLink:
     url: str
     label: str
     context: str
+    kind: str = 'link'
+    position: int | None = None
 
 
 class ResearchPage(HTMLParser):
@@ -26,6 +29,7 @@ class ResearchPage(HTMLParser):
         self.url, self.metadata, self.links, self.body = url, {}, [], []
         self.ignored, self.anchor, self.heading, self.title = [], None, '', ''
         self.in_heading, self.in_title, self.main_seen = False, False, False
+        self.pdf_metadata, self.link_position = [], 0
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
@@ -40,6 +44,10 @@ class ResearchPage(HTMLParser):
             name = attrs.get('name') or attrs.get('property') or ''
             content = attrs.get('content') or ''
             self.metadata.setdefault(name.lower(), []).append(content[:4000])
+            if name.lower() == 'citation_pdf_url' and content and len(self.pdf_metadata) < 32:
+                self.pdf_metadata.append(PageLink(urljoin(self.url, content), 'PDF linked by citation metadata', '', 'citation_pdf_url'))
+        if tag == 'link' and attrs.get('type', '').lower() == 'application/pdf' and attrs.get('href') and len(self.pdf_metadata) < 32:
+            self.pdf_metadata.append(PageLink(urljoin(self.url, attrs['href']), 'PDF alternate representation', '', 'alternate_pdf'))
         if tag == 'title':
             self.in_title = True
         if re.fullmatch('h[1-6]', tag):
@@ -59,7 +67,8 @@ class ResearchPage(HTMLParser):
         if tag == 'a' and self.anchor:
             if len(self.links) < 200:
                 url, label, context = self.anchor
-                self.links.append(PageLink(url, ' '.join(label).strip()[:500], context[:500]))
+                self.link_position += 1
+                self.links.append(PageLink(url, ' '.join(label).strip()[:500], context[:500], position=self.link_position))
             self.anchor = None
 
     def handle_data(self, data):
@@ -87,9 +96,9 @@ class InspectionCancelled(Exception):
 
 class ResourceInspector:
     """A single bounded inspection. The fetch seam is also used by literature.py."""
-    def __init__(self, fetch=None, clock=time.monotonic):
+    def __init__(self, fetch=None, clock=time.monotonic, arxiv_interval=3):
         self.fetch = fetch or PublicMetadata().fetch
-        self.clock = clock
+        self.clock, self.arxiv_interval = clock, arxiv_interval
 
     def inspect(self, draft, cancelled):
         started, requests, resources, warnings = self.clock(), 0, {}, []
@@ -111,6 +120,27 @@ class ResourceInspector:
             previous = resources.get(resource.id)
             resources[resource.id] = previous.merge(resource) if previous else resource
 
+        versions = {}
+        def pin(resource):
+            work = unpinned_work(resource)
+            if not work:
+                return resource
+            if work not in versions and 50 - (self.clock() - started) <= self.arxiv_interval:
+                return replace(resource, confidence='unresolved', unresolved=(*resource.unresolved, 'Inspection budget reached; arXiv version remains unresolved.'))
+            if work not in versions:
+                # One inspector runs at a time; each API request waits at least
+                # three seconds, including the first request after a refresh.
+                if cancelled.wait(self.arxiv_interval):
+                    raise InspectionCancelled()
+                try:
+                    versions[work] = ArxivVersion.parse(work, fetch(metadata_url(work)))
+                except (Invalid, ValueError, TypeError, KeyError) as error:
+                    versions[work] = error.detail if isinstance(error, Invalid) else 'Official arXiv version metadata is unavailable'
+            version = versions[work]
+            if isinstance(version, str):
+                return replace(resource, confidence='unresolved', unresolved=(*resource.unresolved, version + '; no version was guessed.'))
+            return freeze_version(resource, version)
+
         seed = ResearchResource.linked(draft.seedUrl, draft.seedUrl, 'Submitted research link')
         add(seed)
         try:
@@ -123,9 +153,17 @@ class ResourceInspector:
                                confidence='metadata', aliases=(ResourceIdentity.from_url(page.url).identity,),
                                evidence=(Evidence(page.url, 'Page title, byline and explicit links'),))
                 add(seed)
-                for link in parsed.links:
+                observed_links = []
+                for link in (*parsed.pdf_metadata, *parsed.links):
                     try:
-                        resource = ResearchResource.linked(link.url, page.url, link.label, link.context)
+                        href = PublicURL.parse(link.url).value
+                    except Invalid:
+                        continue
+                    observed_links.append(dict(href=href, label=link.label, kind=link.kind, position=link.position))
+                draft = replace(draft, pages=(ObservedPage.create(page.url, '\n'.join(parsed.body), observed_links),))
+                for link in (*parsed.pdf_metadata, *parsed.links):
+                    try:
+                        resource = ResearchResource.linked(link.url, page.url, link.label, link.context, link.kind, link.position)
                     except Invalid:
                         continue
                     # Navigation, images, and same-page anchors are not research candidates.
@@ -134,6 +172,23 @@ class ResourceInspector:
                     if re.search(r'bigquery|forecast', link.label, re.I) and resource.kind == 'web_article':
                         resource = replace(resource, kind='service')
                     add(resource)
+            for resource in tuple(resources.values()):
+                pinned = pin(resource)
+                if pinned.id != resource.id:
+                    resources.pop(resource.id)
+                add(pinned)
+            def offer_representations(resource):
+                if not resource.workIdentity or not resource.workIdentity.startswith('arxiv:') or not resource.revision:
+                    return
+                identifier = resource.workIdentity.removeprefix('arxiv:') + resource.revision
+                for kind, endpoint, label in (('source_archive', 'src', 'source'), ('pdf_candidate', 'pdf', 'PDF')):
+                    if any(r.kind == kind and r.workIdentity == resource.workIdentity and r.revision == resource.revision for r in resources.values()):
+                        continue
+                    offered = ResearchResource.linked('https://arxiv.org/' + endpoint + '/' + identifier, resource.originalUrl,
+                        'arXiv ' + identifier + ' ' + label + ' (availability unverified)', evidence_kind='documented_endpoint')
+                    add(replace(offered, evidence=(*offered.evidence, *(e for e in resource.evidence if e.kind == 'arxiv_api_version'))))
+            for resource in tuple(resources.values()):
+                offer_representations(resource)
             # Discover only seed-linked resources and one metadata link neighborhood.
             processed = set()
             while True:
@@ -143,8 +198,12 @@ class ResourceInspector:
                 resource = min(pending, key=lambda r: {'model': 0, 'code': 1, 'paper': 2}.get(r.kind, 3))
                 processed.add(resource.id)
                 try:
+                    resource = pin(resource)
+                    add(resource)
+                    offer_representations(resource)
                     updated, links = self.resolve(resource, fetch)
                     add(updated)
+                    offer_representations(updated)
                     for linked in links:
                         add(linked)
                 except (Invalid, ValueError, TypeError, KeyError) as error:
@@ -153,7 +212,9 @@ class ResourceInspector:
                 if len(processed) >= 12:
                     warnings.append('Follow-up lookup limit reached; remaining links are unverified.')
                     break
-            if not any(r.kind == 'paper' for r in resources.values()):
+            if any(r.kind == 'pdf_candidate' for r in resources.values()):
+                warnings.append('PDF candidates are unverified. Select files explicitly to download and read them; links alone are not full-text evidence.')
+            elif not any(r.kind == 'paper' for r in resources.values()):
                 warnings.append('No identifiable paper link was found. This article is not a peer-reviewed paper.')
             if not any(r.kind == 'dataset' for r in resources.values()):
                 warnings.append('No concrete downloadable dataset was identified; benchmark links are references only.')
@@ -240,9 +301,11 @@ class ResourceInspector:
                 response = io.BytesIO(page.text.encode('utf-8'))
                 response.status, response.headers = 200, {'Content-Type': page.content_type}
                 return response
-            value = LiteratureClient(fetch=literature_fetch).read({'id': resource.originalUrl if resource.revision else resource.url, 'full': False})
+            reading_url = ('https://arxiv.org/abs/' + resource.workIdentity.removeprefix('arxiv:') + resource.revision
+                           if resource.workIdentity and resource.workIdentity.startswith('arxiv:') and resource.revision else resource.originalUrl if resource.revision else resource.url)
+            value = LiteratureClient(fetch=literature_fetch).read({'id': reading_url, 'full': False})
             aliases = tuple('doi:' + value['doi'].lower().removeprefix('https://doi.org/') for _ in [0] if value.get('doi'))
             resource = replace(resource, title=value['title'][:1000], authors=tuple(value.get('authors', []))[:100],
                                excerpt=value.get('content', '')[:8000], contentKind=value.get('contentKind', 'abstract'), aliases=aliases,
-                               confidence='metadata', evidence=(*resource.evidence, Evidence(value.get('metadataUrl', resource.url), 'Literature metadata; cited work, not necessarily this release')))
+                               confidence='unresolved' if resource.identity.startswith('arxiv:') and not resource.revision else 'metadata', evidence=(*resource.evidence, Evidence(value.get('metadataUrl', resource.url), 'Literature metadata; cited work, not necessarily this release')))
         return resource, links
