@@ -4,7 +4,7 @@
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { deferDocumentRefresh } from './paper-document-refresh-gate.mjs';
-import { openResearchImport } from './paper-research-ui-controls.mjs';
+import { openResearchImport, inspectResearchReview } from './paper-research-ui-controls.mjs';
 import { clickAppShortcut } from './sidebar-controls.mjs';
 import { setPaperAppearance, backToLibrary } from './paper-pdf-flow.mjs';
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile, cp } from 'node:fs/promises';
@@ -66,10 +66,7 @@ try {
   expect(text).toContain(marker); expect(text).toContain(composition);
   await writeFile(entry, text.replace(marker, `${marker}\n    from structured_fixture import install\n    documents = install(store)`).replace(composition, 'handler(store, os.environ["PERO_APP_TOKEN"], documents=documents)'));
   await openPaper(); await openResearchImport(page, frame);
-  await frame.getByRole('textbox', { name: 'Research URL', exact: true }).fill(seed);
-  await frame.getByRole('textbox', { name: 'Research URL', exact: true }).press('Enter');
-  const review = frame.getByRole('region', { name: 'Review resources' });
-  await expect(review).toBeVisible({ timeout: 65000 });
+  const review = await inspectResearchReview(frame, seed);
   const draft = (await api('/api/research/drafts')).drafts.find(d => d.seedUrl === seed);
   const resource = draft.resources.find(r => r.originalUrl === pdfUrl);
   expect(resource.revision).toBe('v2'); expect(resource.workIdentity).toBe('arxiv:2606.03979');
@@ -222,12 +219,10 @@ try {
   // A distinct approved review reuses the exact original, but owns its own
   // evidence receipt. Do not silently attribute its reads to the first bundle.
   await backToLibrary(frame); await openResearchImport(page, frame);
-  await frame.getByRole('textbox', { name: 'Research URL', exact: true }).fill(seed + '-second');
-  await frame.getByRole('textbox', { name: 'Research URL', exact: true }).press('Enter');
-  await expect(review).toBeVisible({ timeout: 65000 });
+  const secondReview = await inspectResearchReview(frame, seed + '-second');
   const secondDraft = (await api('/api/research/drafts')).drafts.find(d => d.seedUrl === seed + '-second');
   const secondResource = secondDraft.resources.find(r => r.originalUrl === pdfUrl);
-  const secondRow = review.locator('.pa-resource-list>li').filter({ hasText: secondResource.title });
+  const secondRow = secondReview.locator('.pa-resource-list>li').filter({ hasText: secondResource.title });
   await secondRow.getByRole('checkbox', { name: /^Download PDF for reading/ }).check();
   await secondRow.getByRole('checkbox', { name: /^Allow official HTML for Read/ }).check();
   await frame.getByRole('checkbox', { name: /^I confirm downloading only/ }).check();

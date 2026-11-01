@@ -191,3 +191,28 @@ test('Ask readiness fails boundedly and cleans observers when only another reque
   await assert.rejects(askPaperChat(frame, page, { click: async () => {} }), /matching real Host handoff acknowledgement/);
   assert.ok(resultQueries > 1); assert.equal(disposed, 2);
 });
+
+import { inspectResearchReview } from '../../tests/e2e/paper-research-ui-controls.mjs';
+
+test('research inspection creates fresh page-bound locators after Desktop restart', async () => {
+  const events = [];
+  function pageFrame(id) {
+    let closed = false;
+    const active = () => assert.equal(closed, false, `page ${id} is closed`);
+    const review = { async waitFor(options) { active(); assert.deepEqual(options, { state: 'visible', timeout: 65000 }); events.push([id, 'visible']); } };
+    return { close() { closed = true; }, review, getByRole(role, options) {
+      active();
+      if (role === 'region') { assert.equal(options.name, 'Review resources'); return review; }
+      assert.equal(role, 'textbox'); assert.equal(options.name, 'Research URL');
+      return { async fill(url) { active(); events.push([id, url]); }, async press(key) { active(); assert.equal(key, 'Enter'); events.push([id, 'inspect']); } };
+    } };
+  }
+  const first = pageFrame('first');
+  assert.equal(await inspectResearchReview(first, 'authored-first'), first.review);
+  first.close();
+  const restarted = pageFrame('restarted');
+  assert.equal(await inspectResearchReview(restarted, 'authored-second'), restarted.review);
+  assert.deepEqual(events, [['first', 'authored-first'], ['first', 'inspect'], ['first', 'visible'],
+    ['restarted', 'authored-second'], ['restarted', 'inspect'], ['restarted', 'visible']]);
+  await assert.rejects(() => inspectResearchReview(first, 'stale'), /page first is closed/);
+});
