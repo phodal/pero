@@ -152,9 +152,13 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
     write_json(target / 'execution.json', receipt)
     process = None
     old_handler = signal.getsignal(signal.SIGTERM)
+    cancelling = False
 
     def stop(_signum, _frame):
-        raise KeyboardInterrupt
+        nonlocal cancelling
+        if not cancelling:
+            cancelling = True
+            raise KeyboardInterrupt
 
     signal.signal(signal.SIGTERM, stop)
     try:
@@ -193,21 +197,26 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
     except (Invalid, OSError) as error:
         receipt.update(status='failed', error=str(error), error_code=getattr(error, 'code', 'io'))
     finally:
-        signal.signal(signal.SIGTERM, old_handler)
-        if process is not None and process.poll() is None:
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
+        # Repeated App cancel/close must not interrupt terminate/wait/kill or
+        # receipt persistence. Restore the caller's handler only after cleanup.
+        cancelling = True
+        try:
+            if process is not None and process.poll() is None:
+                process.terminate()
                 try:
                     process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
-                    receipt.update(status='unknown', error='Cannot confirm child termination; reconcile before retry')
-        receipt['finished_at'] = utc()
-        write_json(target / 'execution.json', receipt)
-        if receipt['status'] != 'unknown':
-            lock.unlink()
+                    process.kill()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        receipt.update(status='unknown', error='Cannot confirm child termination; reconcile before retry')
+            receipt['finished_at'] = utc()
+            write_json(target / 'execution.json', receipt)
+            if receipt['status'] != 'unknown':
+                lock.unlink()
+        finally:
+            signal.signal(signal.SIGTERM, old_handler)
     if receipt['status'] == 'completed':
         # Run the checker in a separate stdlib-only process, not inside the solver.
         subprocess.run([sys.executable, '-m', 'paper_agent.pcgym', 'verify', '--bundle', str(root),

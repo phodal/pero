@@ -97,3 +97,10 @@ not a shipped Desktop execution approval flow. No new training, scientific
 package installation, model download, real-provider run or Desktop acceptance
 was performed for this consolidation. Earlier author's smoke evidence remains
 separate and does not become a new run or a Table 6 replication.
+
+A Linux real-process regression additionally synchronizes on a stdlib worker's
+first termination marker, then sends repeated cancel during owner cleanup. The
+fixed owner completes terminate/wait/kill, reaps that worker, saves `cancelled`,
+and removes the lock. This verifies the direct-worker POSIX path, not a scientific
+run, arbitrary descendant cleanup, or Windows TerminateProcess behavior. See the
+[resolved cancellation finding](../issues/2026-11-01-pcgym-repeated-cancel.md).
