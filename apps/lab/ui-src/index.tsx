@@ -4,6 +4,7 @@ import { Button, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } fr
 import type { Comparison, Engine, Experiment, Protocol } from './types';
 import { bytesToBase64, exampleProtocol } from './presentation';
 import { Deck } from './deck';
+import { labReferenceState } from './reference';
 import { Results, Timeline } from './evidence';
 import './styles.css';
 
@@ -111,13 +112,7 @@ export default function Lab() {
       update(await api.post<Experiment>(`/api/experiments/${experiment.id}/review`, { trialId: trial.id, decision, rationale })); setRationale('');
     });
   }
-  useAppObject({ id: 'lab', kind: 'lab-experiment', label: 'Lab', state: {
-    loading, busy, tab, experimentId: experiment?.id ?? null, specHash: experiment?.spec_hash ?? null,
-    trialId: trial?.id ?? null, status: trial?.status ?? 'empty', verification: trial?.verification ?? null,
-    engine, error: error || trial?.error || null,
-    history: history.map(item => ({ id: item.id, objective: item.objective, trials: item.trials.length })),
-    trials: experiment?.trials.map(item => ({ id: item.id, status: item.status, parent_trial_id: item.parent_trial_id, reason: item.reason, verification: item.verification })) ?? [],
-  }, actions: {
+  useAppObject({ id: 'lab', kind: 'lab-experiment', label: 'Lab', state: labReferenceState(experiment), actions: {
     refresh: { description: 'Reload saved evidence without executing actions.', parameters: emptySchema, run: refresh },
     open_experiment: { description: 'Open saved experiment.', parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false }, run: async ({ id }) => { if (!history.some(item => item.id === id)) throw new Error('Unknown experiment'); await open(String(id)); } },
     select_trial: { description: 'View a saved trial without execution.', parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false }, run: ({ id }) => { if (!experiment?.trials.some(item => item.id === id)) throw new Error('Unknown trial'); setTrialId(String(id)); } },
