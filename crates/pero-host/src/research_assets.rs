@@ -223,9 +223,13 @@ mod tests {
         fn drop(&mut self) { drop(self.store.take()); let _ = fs::remove_dir_all(&self.root); }
     }
 
-    const SERVER: &str = r#"import json, os
-from http.server import BaseHTTPRequestHandler, HTTPServer
+    const SERVER: &str = r#"import json, os, socket
+from http.server import BaseHTTPRequestHandler
+from socketserver import TCPServer
 from pathlib import Path
+def reject_reverse_dns(*args):
+    raise AssertionError('Loopback fixture must not resolve hostnames before readiness')
+socket.getfqdn = reject_reverse_dns
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args): pass
     def do_POST(self):
@@ -241,8 +245,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
-server = HTTPServer(('127.0.0.1', 0), Handler)
-print(json.dumps({'port': server.server_port}), flush=True)
+# HTTPServer.server_bind performs reverse DNS even for a numeric loopback address.
+# This private fixture needs TCP binding and HTTP handling, not a resolved hostname.
+server = TCPServer(('127.0.0.1', 0), Handler)
+print(json.dumps({'port': server.server_address[1]}), flush=True)
 server.serve_forever()
 "#;
 
