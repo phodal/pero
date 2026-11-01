@@ -65,7 +65,7 @@ test('real Host user_message activates only the submitted frozen target before A
     const result = JSON.parse(output.data.content.text);
     assert.equal(result.good.isError, false); assert.equal(result.foreign.isError, true);
     assert.match(result.foreign.content[0].text, /APP_GOAL_DENIED/);
-    assert.deepEqual(applied, [{ experimentId, specHash, maxExperiments: 1 }]);
+    assert.deepEqual(applied, [{ app: 'control-lab', experimentId, specHash, maxExperiments: 1 }]);
   } finally {
     child.stdin.end();
     await new Promise<void>(done => { if (child.exitCode !== null) return done(); const timer = setTimeout(() => child.kill('SIGKILL'), 5000); child.once('exit', () => { clearTimeout(timer); done(); }); });
