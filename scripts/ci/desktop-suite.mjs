@@ -27,6 +27,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   }
   const scriptPath = name === 'automations-ui' ? script : `tests/e2e/${script}.mjs`;
   if (name.startsWith('control-lab')) env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'control-lab-python/bin/python');
+  if (name === 'scientific-viewer') env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'scientific-viewer-python/bin/python');
   if (name === 'control-lab-live') {
     const agent = resolve('target/debug/pero-agent-acp');
     Object.assign(env, { PERO_CONTROL_LAB_REAL_MODEL: '1', PERO_CONTROL_LAB_LOCAL_FIXTURE: '1',

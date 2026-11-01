@@ -1,5 +1,6 @@
 // Real Desktop/App/public engines; synthetic examples and ACP, never a provider.
 import {expect} from '@playwright/test';
+import {execFileSync} from 'node:child_process';
 import {mkdir,mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
 import {resolve} from 'node:path';import {tmpdir} from 'node:os';import {createRequire} from 'node:module';
 import {electron} from './electron.mjs';import {closeOwnedElectron} from './owned-electron-close.mjs';
@@ -14,6 +15,10 @@ await writeFile(agents,JSON.stringify([
  {id:'codex',name:'Synthetic evidence review',command:process.execPath,args:[resolve(root,'apps/scientific-viewer/test/agent-fixture.mjs'),capture]},
 ]));
 const env={...process.env,PERO_AGENTS_FILE:agents,PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_BUILTIN_APPS:'scientific-viewer,paper-agent',PERO_REQUIRED_APPS:'scientific-viewer',PERO_LOCALE:'en'};
+const python = process.env.PERO_APP_PYTHON || 'python3';
+const engine = JSON.parse(execFileSync(python,['-E','-s','-c','import json,sys; from rdkit import rdBase; print(json.dumps({"root":sys.prefix,"version":rdBase.rdkitVersion}))'],{encoding:'utf8',timeout:30000}));
+expect(engine.version).toBe('2026.09.1');
+await writeFile(env.PERO_SETTINGS_PATH,JSON.stringify({app_python:{apps:{'scientific-viewer':engine.root}}}));
 delete env.ELECTRON_RUN_AS_NODE;delete env.POINT_ROOT;delete env.PERO_POINT_ROOT;delete env.PERO_APPS_ROOT;
 let app,page,frame;
 async function open(){
@@ -59,7 +64,7 @@ try{
  await expect(frame.locator('.molecule-view canvas').first()).toBeVisible();
  await expect(frame.getByRole('alert')).toContainText('Import file');await expect(frame.locator('#viewer-marker')).toHaveCount(0);
  await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'empty.smi',mimeType:'text/plain',buffer:Buffer.from(' \n\t\n')});
- await expect(frame.getByRole('alert')).toContainText('No molecule records');await expect(frame.getByText('Loading RDKit…',{exact:true})).toHaveCount(0);
+ await expect(frame.getByRole('alert')).toContainText('No molecule records');await expect(frame.getByText('Preparing molecule preview…',{exact:true})).toHaveCount(0);
  await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'model.weights',mimeType:'application/octet-stream',buffer:Buffer.from('opaque synthetic model')});await expect(frame.getByText(/Metadata only/)).toBeVisible();
  await closeOwnedElectron(app);app=undefined;app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));await open();await frame.getByRole('button',{name:'sample.pdf',exact:true}).click();await expect(frame.getByText('1 quotations, 1 figure crops. Unreviewed.',{exact:true})).toBeVisible();await expect(frame.locator('summary').filter({hasText:'Agent review — completed — unreviewed'})).toBeVisible();expect((await readFile(capture,'utf8')).trim().split('\n')).toHaveLength(1);
  await frame.getByRole('button',{name:'model.weights',exact:true}).click();await expect(frame.getByText(/Metadata only/)).toBeVisible();await setAppearance(page,'dark');await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(800,700));expect(await frame.locator('html').evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);

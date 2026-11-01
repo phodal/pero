@@ -60,7 +60,10 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   for (const command of ['ec89cfc36404667b7947aeb3d40b1c2859d729dd', 'https://github.com/longbridge/gpui-kit.git',
     'npm ci --prefix apps/automations --ignore-scripts', 'npm ci --prefix apps/scientific-viewer --ignore-scripts',
     'npm test --prefix apps/automations', 'npm test --prefix apps/scientific-viewer',
-    'node tests/runtime/automation-app.mjs', 'node tests/contracts/point-agent.mjs']) assert.ok(core.includes(command), command);
+    'node tests/runtime/automation-app.mjs', 'node tests/contracts/point-agent.mjs',
+    'python -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt',
+    "python -m unittest discover -s apps/scientific-viewer/test -p 'test_*.py'"]) assert.ok(core.includes(command), command);
+  assert.ok(commands.includes("python -m unittest discover -s apps/scientific-viewer/test -p 'test_*.py'"));
   assert.equal(Object.keys(suites).length, 17);
   const native = YAML.parse(readFileSync('.github/workflows/computer-use.yml', 'utf8'));
   assert.match(native.jobs.native.strategy.matrix.os, /schedule.*workflow_dispatch/);
