@@ -58,3 +58,11 @@ the returned catalog. An empty roots slice is a no-op. The implementation
 reuses the existing descriptor-rooted `fstools` reader, currently supported on
 Linux and macOS; it does not add another sandbox, agent, registry or scheduler.
 See `SOURCE.json` for the precise adapted-versus-new boundary.
+
+## Behavioral comparison
+
+Unlike official DSH, summaries are tool-schema descriptions rather than durable
+user-role catalog reminders. History compaction retains the registered schema,
+not a guarantee that a loaded Skill body remains visible. No automatic reload or
+catalog-update message is implemented. See the [pinned behavior audit](../../../docs/fitness/harness-behavior-parity.md)
+for observed contracts, deliberate authority differences and unverified gaps.

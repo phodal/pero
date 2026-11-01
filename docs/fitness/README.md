@@ -102,3 +102,6 @@ continuation: [Paper research Agent](paper-research-agent.md).
 Public literature search, source metadata and thumbnails: [Paper search](paper-search.md).
 
 
+
+Pinned Harness/DSH capability comparison, deterministic Skill compaction evidence
+and remaining gaps: [Harness behavior parity](harness-behavior-parity.md).
