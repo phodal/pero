@@ -250,6 +250,14 @@ func TestToolUsesExistingRegistry(t *testing.T) {
 		}
 		return out.Result
 	}
+	// These observed model mistakes must fail without releasing instructions,
+	// but direct the caller back to this tool's real list/read sequence.
+	for _, bad := range []string{`{"name":"demo"}`, `{"name":"demo","digest":"` + strings.Repeat("0", 71) + `"}`} {
+		got := run(bad)
+		if !got.IsError || !strings.Contains(got.Content[0].Text, "skill with {}") || strings.Contains(got.Content[0].Text, "automatically") {
+			t.Fatalf("missing safe recovery after rejected read: %+v", got)
+		}
+	}
 	result := run(`{}`)
 	if result.IsError {
 		t.Fatalf("%+v", result)
@@ -284,8 +292,13 @@ func TestToolUsesExistingRegistry(t *testing.T) {
 		t.Fatal(e)
 	}
 	fixture(t, root, "new", "")
-	if got := run(string(raw)); !got.IsError {
-		t.Fatal("advertising a summary bypassed stale-content rejection")
+	if got := run(string(raw)); !got.IsError || !strings.Contains(got.Content[0].Text, "restart") || strings.Contains(got.Content[0].Text, "skill with {}") {
+		t.Fatalf("stale content must require a new authorized snapshot, not a list retry: %+v", got)
+	}
+	listed := run(`{}`)
+	var unchanged []Summary
+	if listed.IsError || json.Unmarshal([]byte(listed.Content[0].Text), &unchanged) != nil || len(unchanged) != 1 || unchanged[0].Digest != rows[0].Digest {
+		t.Fatal("listing silently refreshed a stale catalog")
 	}
 	if schemas, err := h.Tools().SchemasForAgent(ctx, a); err != nil || schemas[0].Description != description {
 		t.Fatal("advertisement silently refreshed after catalog change")
