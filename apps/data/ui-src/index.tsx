@@ -3,6 +3,7 @@ import { AppFrame, Button, EmptyState, Feedback, FilePicker, SearchField } from 
 import { chartEligible, formatInt, IMPORT_LIMIT, parseImported, visibleAssets, type Asset, type PreviewMode } from './model';
 import { Preview } from './preview';
 import { seedAssets } from './sample';
+import { ResearchDownloads } from './research-downloads';
 import './styles.css';
 
 const initial = seedAssets();
@@ -11,6 +12,7 @@ export default function Data() {
   const dialog = useRef<HTMLDialogElement>(null);
   const nextId = useRef(1);
   const [assets, setAssets] = useState(initial);
+  const [research, setResearch] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState(initial[0]?.id ?? '');
   const [mode, setMode] = useState<PreviewMode>('chart');
@@ -60,8 +62,8 @@ export default function Data() {
     }
   }
 
-  return <AppFrame className="data-page" label="Data" actions={<Button variant="primary" onClick={openAdd}>Add data</Button>}>
-    <div className="data-split">
+  return <AppFrame className="data-page" label="Data" actions={<><Button onClick={() => setResearch(value => !value)}>{research ? 'Back to datasets' : 'Research downloads'}</Button>{!research && <Button variant="primary" onClick={openAdd}>Add data</Button>}</>}>
+    {research ? <ResearchDownloads/> : <div className="data-split">
       <section className="data-list" aria-label="Datasets">
         <div className="data-tools">
           <SearchField aria-label="Search data" placeholder="Search" value={query} onChange={event => setQuery(event.target.value)} />
@@ -80,7 +82,7 @@ export default function Data() {
         </div>
       </section>
       <Preview asset={selected} mode={mode} onMode={setMode} />
-    </div>
+    </div>}
     <dialog ref={dialog} className="data-add" aria-labelledby="data-add-title" {...{ closedby: 'any' }}>
       <form method="dialog">
         <header>
