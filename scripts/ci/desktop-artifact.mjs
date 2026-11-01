@@ -7,7 +7,11 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(import.meta.dirname, '../..');
 export function runtimePaths(directory) {
   const product = JSON.parse(readFileSync(resolve(directory, 'products/pero.json'), 'utf8'));
-  return ['desktop/dist', 'web/dist', ...product.apps.map(name => `apps/${name}/dist`),
+  // Acceptance also bundles Product entry points from this checkout. Their source
+  // graph imports bindgen modules; web/dist alone cannot satisfy those imports.
+  return ['desktop/dist', 'web/dist',
+    ...['wasm', 'chat-wasm', 'reader-wasm', 'content-wasm'].map(name => `web/src/${name}`),
+    ...product.apps.map(name => `apps/${name}/dist`),
     ...['pero-host', 'pero-worker', 'pero-agent-acp', 'pero-computer', 'pero-connector-worker', 'computer-source.json'].map(name => `target/debug/${name}`),
     'packages/connectors/helpers'];
 }

@@ -75,16 +75,34 @@ test('runtime archive is tied to exact revision, retains executable mode and ver
     mkdirSync(resolve(source, 'products'), { recursive: true }); mkdirSync(destination);
     writeFileSync(resolve(source, 'products/pero.json'), JSON.stringify({ apps: ['data'] }));
     for (const path of runtimePaths(source)) {
-      const file = path.endsWith('/dist') || path.endsWith('/helpers') ? `${path}/entry.js` : path;
+      const file = path.endsWith('/dist') || path.endsWith('/helpers') || path.startsWith('web/src/') ? `${path}/entry.js` : path;
       mkdirSync(dirname(resolve(source, file)), { recursive: true });
       writeFileSync(resolve(source, file), `fixture ${path}`, { mode: 0o755 });
     }
     assert.ok(!runtimePaths(source).some(path => path.includes('point-app')));
+    const bindings = ['wasm/pero_ui', 'chat-wasm/pero_chat_web', 'reader-wasm/pero_reader_web', 'content-wasm/pero_content_worker'];
+    // Artifact fixtures, not substitutes for the production-generated modules.
+    // Exercise the actual producer/consumer boundary into an empty checkout.
+    for (const binding of bindings) {
+      writeFileSync(resolve(source, `web/src/${binding}.js`), `export const artifact = '${binding}';`);
+      writeFileSync(resolve(source, `web/src/${binding}_bg.wasm`), Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]));
+    }
     const sha = 'a'.repeat(40);
     pack(source, archive, sha);
     assert.throws(() => unpack(destination, archive, 'b'.repeat(40)), /revision or platform mismatch/);
     unpack(destination, archive, sha);
     assert.equal(readFileSync(resolve(destination, 'target/debug/pero-host'), 'utf8'), 'fixture target/debug/pero-host');
+    for (const binding of bindings) {
+      for (const suffix of ['.js', '_bg.wasm']) {
+        const path = `web/src/${binding}${suffix}`;
+        assert.deepEqual(readFileSync(resolve(destination, path)), readFileSync(resolve(source, path)));
+      }
+    }
+    // Generated imports have the same integrity enforcement as executable outputs.
+    writeFileSync(resolve(source, 'web/src/wasm/pero_ui.js'), 'different revision');
+    execFileSync('tar', ['-czf', archive, ...runtimePaths(source), 'target/ci-runtime.json'], { cwd: source });
+    assert.throws(() => unpack(destination, archive, sha), /checksum mismatch/);
+    writeFileSync(resolve(source, 'web/src/wasm/pero_ui.js'), `export const artifact = 'wasm/pero_ui';`);
     // A changed payload cannot pass the manifest written by the producer.
     writeFileSync(resolve(source, 'target/debug/pero-host'), 'changed');
     assert.equal(statSync(resolve(destination, 'target/debug/pero-host')).mode & 0o777, 0o755);
