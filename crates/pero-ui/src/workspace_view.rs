@@ -157,6 +157,7 @@ impl Workbench {
                     )
                     .child(
                         Button::new("float-chat-close")
+                            .relative().child(self.view_bounds.chat_close.probe("float-chat-close".into()))
                             .ghost()
                             .small()
                             .icon(Icon::default().path("icons/minus.svg"))

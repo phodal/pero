@@ -100,8 +100,23 @@ Bounded readiness reports errors instead of leaving an unbounded promise; separa
 page/Text screenshots identify the last completed stage. Offline tests cover real
 Response identity, unchanged requests, unrelated fetches, failure and restoration.
 
-Actual Desktop execution/screenshots for this fetch-gate revision remain pending
-the next exact-head full Desktop CI. Local recent Desktop attempts are blocked by the
+Run `41324972140` (head `f9ffbeb6`, tested merge `e81a15f0`) failed
+earlier, at the first Ask/close gesture: the old fixture reconstructed Chat's
+close coordinate from composer rows and attachment count, while those values and
+the painted panel can settle at different times. Its failure screenshot retained
+the PDF selection and an open compact Chat; no Agent turn ran. The fetch gate was
+not reached, so that run does not invalidate or certify deferred navigation.
+The existing read-only GPUI ViewBounds now exposes the painted floating close
+button, clearing it with other workbench probes each render. The fixture requires
+a stable two-frame canvas hit target, clicks once, and verifies both closed state
+and null old bounds. No internal close action, forced click or timeout increase
+is used. CI-runner tests pass 13/13; independent focused review/tests pass 5/5.
+Local native UI compilation was attempted offline with cached GPUI paths but is
+blocked by missing `atk v0.18.2`; no dependency was downloaded. Actual Rust/UI
+build and the complete reader journey remain pending exact-head CI.
+
+Actual Desktop execution/screenshots for this painted-close revision remain
+pending the next exact-head full Desktop CI. Local recent Desktop attempts are blocked by the
 launcher/Chromium IPC environment; an older build is not acceptance evidence for
 these changes. No paid provider, external upload, new dependency installation or
 Mac operation was performed.
