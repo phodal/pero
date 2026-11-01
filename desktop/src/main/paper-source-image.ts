@@ -11,8 +11,15 @@ type ImageProvenance = Readonly<{ archiveDigest: string; memberId: string; origi
 export class PaperSourceImage {
   readonly data: string;
   readonly provenance: ImageProvenance;
+  readonly observationId?: string;
+  readonly observationWarning?: string;
   private constructor(data: string, provenance: ImageProvenance,
-    readonly observationId?: string, readonly observationWarning?: string) { this.data = data; this.provenance = provenance; }
+    observationId?: string, observationWarning?: string) {
+    this.data = data;
+    this.provenance = provenance;
+    this.observationId = observationId;
+    this.observationWarning = observationWarning;
+  }
   static accepts(prepared: PreparedAppWrite): boolean {
     const route = prepared.definition;
     return route.app === 'paper-agent' && route.name === 'research-source-read'
