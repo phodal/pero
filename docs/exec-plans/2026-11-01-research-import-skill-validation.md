@@ -135,8 +135,11 @@ output = 425,507 tokens** across 44 requests. No monetary cost is inferred.
 No additional assistant request/output-token cap was imposed; provider-supported
 defaults/ceilings, the existing 512-step guard and 120-second **per-turn** deadline
 remained. Credentials were supplied through non-echo stdin, kept out of source,
-arguments and reports, removed before tool subprocesses, and exact-value scrubbed
-before evidence persistence. Unrelated shell/file/execution tools were disabled.
+arguments and reports, and removed before tool subprocesses. Persistent run
+artifacts were checked and exact-value scrubbed during finalization before
+exposure/reporting; this is not a claim that raw session traces never reach disk
+before that check. No credential echo was detected in these runs. Unrelated
+shell/file/execution tools were disabled.
 
 The ledger ended idle, **7/20 sessions consumed**, with no lock remaining. Failed
 coverage attempts were not reset or excluded. No further model calls are planned
