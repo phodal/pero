@@ -1,4 +1,4 @@
-"""One explicit, cancellable download. Only fixed HTTPS source URLs are accepted."""
+"""One explicit, cancellable download. Only registered HTTPS source URLs are accepted."""
 from dataclasses import asdict, dataclass, replace
 import hashlib
 import json
@@ -111,7 +111,8 @@ class Downloads:
 
     def run(self, source):
         part = self.catalog.directory / (self.job.id + '.part')
-        hashes = {checksum.algorithm: hashlib.new(checksum.algorithm) for checksum in source.checksums}
+        hashes = {checksum.algorithm: (hashlib.sha1(f'blob {source.size}\0'.encode())
+                  if checksum.algorithm == 'git-sha1' else hashlib.new(checksum.algorithm)) for checksum in source.checksums}
         received, started = 0, time.monotonic()
         try:
             with self.opener(source) as response, part.open('wb') as output:
