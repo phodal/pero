@@ -2,6 +2,7 @@
 // clone provider proposals and clone transport are explicitly synthetic seams.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { chatState, focusPaperChat } from './paper-chat-controls.mjs';
 import { clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -25,10 +26,12 @@ if (cloneFixture) {
   disabled.push({ id: 'clone-fixture', name: 'Clone protocol fixture', command: resolve(root, 'target/debug/pero-agent-acp'), args: [
     '--endpoint', provider.endpoint, '--model', 'fixture', '--api-key-env', 'PERO_CLONE_FIXTURE_KEY',
     '--session-dir', resolve(profile, 'clone-sessions'), '--workspace', profile, '--enable-research-clone',
-    '--shell', cloneFixture.wrapper, '--approval', 'ask', '--max-retries', '0'] });
+    '--shell', cloneFixture.wrapper, '--approval', 'ask', '--max-retries', '0'],
+    // Explicit AgentConfig environment survives Desktop's PERO_* Host filtering.
+    env: { PERO_CLONE_FIXTURE_KEY: 'local-research-fixture' } });
   await writeFile(agents, JSON.stringify(disabled));
 }
-const env = { ...process.env, PERO_CLONE_FIXTURE_KEY: 'local-research-fixture', PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop'), PERO_LOCALE: 'en', PERO_SETTINGS_PATH: settings,
+const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop'), PERO_LOCALE: 'en', PERO_SETTINGS_PATH: settings,
   PERO_HISTORY_PATH: resolve(profile, 'sessions.jsonl'), PERO_AGENTS_FILE: agents, PERO_BUILTIN_APPS: 'paper-agent', PERO_REQUIRED_APPS: 'paper-agent', PERO_APP_INFRA_EMBED: '0' };
 delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT;
 const launch = () => electron.launch({ args: [resolve(root, 'desktop')], cwd: root, env });
@@ -172,23 +175,21 @@ def fetch(url, **options):
     expect(code.revision).toBe(cloneFixture.revision);
     cloneOptions.cloneRequest = { url: code.url, revision: code.revision, destination: 'reviewed-code', license: code.license || 'unknown', sizeBytes: code.size, bundleId: bundle.id, resourceId: code.id };
     const destination = resolve(profile, 'reviewed-code'), threadId = acknowledgment.value.threadId;
-    // Use the real floating Chat UI, not a low-level prompt command: a prepared
-    // draft has no ACP session yet. Enter runs send_chat/submit_prompt, preserving
-    // frozen attachments and starting the session before its queued prompt.
-    const chatFrame = () => page.frames().find(item => item.url().startsWith('pero://chat/'));
-    await expect.poll(() => Boolean(chatFrame())).toBe(true);
-    await chatFrame().waitForFunction(() => window.peroChatDiagnostics && JSON.parse(window.peroChatDiagnostics.snapshot()).connected);
-    const renderCanvas = () => chatFrame().locator('canvas:not([role="textbox"])');
-    const state = () => chatFrame().evaluate(() => JSON.parse(window.peroChatDiagnostics.snapshot()));
+    // Desktop Workbench renders floating Chat in its root GPUI canvas (unlike
+    // the separate Product Chat iframe). Match paper-chat-controls/workbench-floating.
+    // Enter runs send_chat/submit_prompt and preserves frozen attachments.
+    const renderCanvas = () => page.locator('canvas:not([role="textbox"])');
+    const state = () => chatState(page);
+    await expect(renderCanvas()).toHaveCount(1);
     const chat = async () => (await state()).chats.find(item => item.id === threadId);
     const propose = async () => {
       await expect.poll(async () => (await state()).composer).toContain('Prepare a repository clone from the attached saved Paper reference.');
       const current = await state();
       expect(current.chats[current.activeChat]).toMatchObject({ id: threadId, agent: 'clone-fixture' });
       expect(current.attachments).toHaveLength(1);
-      const canvas = await renderCanvas().boundingBox();
-      await page.mouse.click(canvas.x + 150, canvas.y + canvas.height - 70);
-      await expect.poll(async () => (await state()).composerFocused).toBe(true);
+      expect(current.appChatOpen && current.floatingChat).toBe(true);
+      if (current.chats[current.activeChat].error) throw Error(current.chats[current.activeChat].error);
+      await focusPaperChat(page);
       await page.keyboard.press('Enter');
       await expect.poll(async () => (await state()).composer).toBe('');
     };
@@ -234,8 +235,6 @@ def fetch(url, **options):
     await app.close(); app = await launch(); await ready(); frame = await openPaper();
     await frame.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: 'Synthetic forecasting release', exact: true }).click();
     await frame.getByRole('button', { name: 'Clone with Agent', exact: true }).click();
-    await expect.poll(() => Boolean(chatFrame())).toBe(true);
-    await chatFrame().waitForFunction(() => window.peroChatDiagnostics && JSON.parse(window.peroChatDiagnostics.snapshot()).connected);
     await expect.poll(async () => { const current = await state(); return current.chats[current.activeChat]?.id; }).toBe(threadId);
     await expect.poll(async () => (await chat())?.tools.find(item => item.id === tool.id)?.status).toBe('completed');
     const restored = (await chat()).tools.find(item => item.id === tool.id);
