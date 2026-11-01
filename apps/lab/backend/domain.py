@@ -24,7 +24,7 @@ def object_fields(value, allowed, required=()):
 
 
 def number(value, name, minimum, maximum):
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or (isinstance(value,float) and not math.isfinite(value)):
         raise Invalid('quantity', f'{name} must be a finite number')
     if not minimum <= value <= maximum:
         raise Invalid('quantity', f'{name} must be between {minimum} and {maximum}')
@@ -185,11 +185,15 @@ def apply_operation(state: LabState, operation: Operation) -> LabState:
                    pipette=pipette, revision=state.revision + 1)
 
 
-def validate_protocol(state: LabState, protocol: Protocol, max_steps: int = 64) -> tuple[LabState, ...]:
-    if protocol.version != 1 or protocol.initial_revision != state.revision:
+def validate_protocol_envelope(protocol: Protocol, initial_revision: int, max_steps: int):
+    if protocol.version != 1 or protocol.initial_revision != initial_revision:
         raise Invalid('state_mismatch', 'Protocol version or initial revision does not match the frozen state')
     if not 1 <= len(protocol.steps) <= max_steps:
         raise Invalid('step_budget', f'Protocol requires 1–{max_steps} steps')
+
+
+def validate_protocol(state: LabState, protocol: Protocol, max_steps: int = 64) -> tuple[LabState, ...]:
+    validate_protocol_envelope(protocol, state.revision, max_steps)
     snapshots = []
     for index, operation in enumerate(protocol.steps):
         try:
@@ -319,3 +323,38 @@ def parse_criteria(raw) -> EvaluationCriteria:
                               number(raw['tolerance'], 'tolerance', 0, 1),
                               number(raw['target_volume_ul'], 'target_volume_ul', 100, 100),
                               number(raw['volume_tolerance_ul'], 'volume_tolerance_ul', 1, 1))
+
+
+@dataclass(frozen=True)
+class TrialReference:
+    id: str
+    evaluated: bool
+
+
+@dataclass(frozen=True)
+class ProposalContext:
+    max_trials: int
+    max_steps: int
+    initial_revision: int
+    trials: tuple[TrialReference, ...]
+
+
+def validate_proposal(context: ProposalContext, protocol: Protocol,
+                      parent_id: str | None, reason: str) -> str:
+    """Admit a candidate without executing it or changing frozen search policy."""
+    if len(context.trials) >= context.max_trials:
+        raise Invalid('trial_budget', 'Frozen trial budget exhausted')
+    if not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 2000:
+        raise Invalid('rationale', 'A revision rationale is required (1–2000 characters)')
+    if parent_id is not None:
+        if not isinstance(parent_id, str) or not parent_id:
+            raise Invalid('parent', 'Parent trial must be a nonempty trial identity')
+        parent = next((trial for trial in context.trials if trial.id == parent_id), None)
+        if parent is None:
+            raise Invalid('parent', 'Parent trial does not belong to this experiment')
+        if not parent.evaluated:
+            raise Invalid('parent', 'Evaluate the parent trial before proposing a revision')
+    elif context.trials:
+        raise Invalid('parent', 'Further candidates must link an evaluated parent trial')
+    validate_protocol_envelope(protocol, context.initial_revision, context.max_steps)
+    return reason.strip()

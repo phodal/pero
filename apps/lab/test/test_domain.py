@@ -3,7 +3,7 @@ import unittest
 from dataclasses import FrozenInstanceError, replace
 from domain import (Invalid, LabState, Operation, Pipette, Protocol, apply_operation, initial_state,
                     parse_experiment, parse_experiment_snapshot, parse_protocol, parse_state,
-                    transition_trial, validate_protocol)
+                    transition_trial, validate_protocol, ProposalContext, TrialReference, validate_proposal)
 
 
 def protocol(red=50, water=50):
@@ -75,7 +75,7 @@ class DomainTests(unittest.TestCase):
         valid = protocol().to_dict()
         invalid = [dict(valid, version=True), dict(valid, arbitrary_code='print(1)'),
                    dict(valid, steps=[]), dict(valid, steps=valid['steps'] * 9)]
-        for volume in (True, 0, -1, float('inf'), '50', None):
+        for volume in (True, 0, -1, 10 ** 1000, float('inf'), '50', None):
             altered = protocol().to_dict()
             altered['steps'][1]['volume_ul'] = volume
             invalid.append(altered)
@@ -103,3 +103,21 @@ class DomainTests(unittest.TestCase):
                 transition_trial(end, 'running')
         with self.assertRaises(Invalid):
             transition_trial('proposed', 'completed')
+
+    def test_frozen_proposal_budget_and_parent_contract(self):
+        empty = ProposalContext(2, 64, 0, ())
+        evaluated = TrialReference('parent', True)
+        waiting = TrialReference('waiting', False)
+        self.assertEqual(validate_proposal(empty, protocol(), None, ' baseline '), 'baseline')
+        self.assertEqual(validate_proposal(replace(empty, trials=(evaluated,)), protocol(), 'parent', 'feedback'), 'feedback')
+        cases = [(replace(empty, max_trials=1, trials=(evaluated,)), 'parent', 'feedback', 'trial_budget'),
+                 (replace(empty, trials=(evaluated,)), None, 'feedback', 'parent'),
+                 (replace(empty, trials=(waiting,)), 'waiting', 'feedback', 'parent'),
+                 (empty, 'missing', 'feedback', 'parent'), (empty, [], 'feedback', 'parent'),
+                 (empty, None, '', 'rationale'), (empty, None, 'x' * 2001, 'rationale'),
+                 (replace(empty, initial_revision=1), None, 'baseline', 'state_mismatch'),
+                 (replace(empty, max_steps=2), None, 'baseline', 'step_budget')]
+        for context, parent, reason, code in cases:
+            with self.subTest(code=code), self.assertRaises(Invalid) as caught:
+                validate_proposal(context, protocol(), parent, reason)
+            self.assertEqual(caught.exception.code, code)
