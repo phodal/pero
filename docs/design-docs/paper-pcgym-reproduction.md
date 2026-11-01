@@ -171,12 +171,12 @@ name+digest 接口读取 Skill。该接口只读取 `SKILL.md`；案例 referenc
 
 ## 7. 全场景后续接线与验收（尚未完成）
 
-1. **Paper 结果拥有者**：在现有 `ResearchStore` 加具名结果记录，验证真实 study/passsage/
-   document/file digest；使用现有认证 App API，而不是接收任意本地路径。
+1. **Paper 结果拥有者**：最小 ResearchStore、真实 PDF passage/annotation/digest 与认证 API
+   已在下节收敛；完整 study 结果导航与 UI 回写仍未接通。
 2. **运行绑定**：将授权后的 Spec 映射到已有 Host/Worker 的实际执行身份；当前 CLI 本地
    回执不是受信远端 execution receipt，不能让 Agent 上传 JSON 就取得科学通过。
-3. **工具声明与能力暴露**：声明受控 prepare/status/verify/export，Host 继续拥有执行；
-   不把 reading-only `experiments=[]` 契约放宽成任意模型自报结果。
+3. **工具声明与能力暴露**：固定审计/证据路由已声明，默认计算仍禁用。Host 实际执行
+   审批与能力发现尚待接线；不把 reading-only `experiments=[]` 放宽成模型自报结果。
 4. **原文回写**：从选区进入案例，显示两种口径、原始整数计数和诊断，点击回到实际冻结
    原文。缺失和 metric conflict 可见；浏览旧记录不得触发运行。
 5. **真实引擎**：执行实际 smoke，然后完整 profile；检查每个新产物来自该 attempt，
@@ -186,7 +186,7 @@ name+digest 接口读取 Skill。该接口只读取 `SKILL.md`；案例 referenc
 
 首个 PR 应保持 Draft；只引用 #77/#79，不自动关闭。上述缺口不是已经完成的产品能力。
 
-## 7. Paper 接线收敛（#81 → #82）
+## 8. Paper 接线收敛（#81 → #82）
 
 只有 `pcgym_domain` / `pcgym_sources` / `pcgym_runtime` / `pcgym` 一套契约、
 审计、执行器与检查器。`pcgym_app` 仅把这套实现接到现有 ResearchStore 和
