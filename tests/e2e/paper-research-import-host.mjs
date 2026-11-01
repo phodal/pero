@@ -181,7 +181,8 @@ def fetch(url, **options):
       await expect.poll(async () => Boolean((await chat())?.permission), { timeout: 20000 }).toBe(true);
       await expect.poll(async () => (await state()).permissionBounds.find(item => item.chat === threadId && item.index === index)?.bounds?.width ?? 0).toBeGreaterThan(0);
       const bounds = (await state()).permissionBounds.find(item => item.chat === threadId && item.index === index).bounds;
-      await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+      const canvas = await page.locator('canvas').first().boundingBox();
+      await page.mouse.click(canvas.x + bounds.x + bounds.width / 2, canvas.y + bounds.y + bounds.height / 2);
       await expect.poll(async () => (await chat()).state, { timeout: 20000 }).toBe('idle');
     };
     await propose(); await choose(1);
@@ -197,16 +198,27 @@ def fetch(url, **options):
     expect(execFileSync('git', ['-C', destination, 'config', '--get', 'remote.origin.url'], { encoding: 'utf8' }).trim()).toBe(code.url);
     expect(existsSync(resolve(destination, 'README.md'))).toBe(false);
     expect((await readFile(cloneFixture.marker, 'utf8')).trim().split('\n')).toHaveLength(1);
-    await expect.poll(async () => (await state()).toolBounds.find(item => item.chat === threadId && item.tool === tool.id)?.bounds?.width ?? 0).toBeGreaterThan(0);
-    const toolBounds = (await state()).toolBounds.find(item => item.chat === threadId && item.tool === tool.id).bounds;
-    await page.mouse.click(toolBounds.x + 20, toolBounds.y + toolBounds.height / 2);
-    await expect.poll(async () => (await state()).expandedTools.length).toBeGreaterThan(0);
+    const expandReceipt = async () => {
+      const key = `${threadId}/${tool.id}`;
+      if (!(await state()).expandedTools.includes(key)) {
+        await expect.poll(async () => (await state()).toolBounds.find(item => item.chat === threadId && item.tool === tool.id)?.bounds?.width ?? 0).toBeGreaterThan(0);
+        const bounds = (await state()).toolBounds.find(item => item.chat === threadId && item.tool === tool.id).bounds;
+        const canvas = await page.locator('canvas').first().boundingBox();
+        await page.mouse.click(canvas.x + bounds.x + 20, canvas.y + bounds.y + bounds.height / 2);
+      }
+      await expect.poll(async () => (await state()).expandedTools).toContain(key);
+    };
+    await expandReceipt();
     await page.screenshot({ path: resolve(out, 'host-clone-actual-tool-receipt.png') });
     const callsBeforeRestart = provider.requests();
     await app.close(); app = await launch(); await ready(); frame = await openPaper();
     await frame.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: 'Synthetic forecasting release', exact: true }).click();
     await frame.getByRole('button', { name: 'Clone with Agent', exact: true }).click();
-    await expect.poll(async () => JSON.stringify((await chat()).tools)).toContain(cloneFixture.revision);
+    await expect.poll(async () => { const current = await state(); return current.chats[current.activeChat]?.id; }).toBe(threadId);
+    await expect.poll(async () => (await chat())?.tools.find(item => item.id === tool.id)?.status).toBe('completed');
+    const restored = (await chat()).tools.find(item => item.id === tool.id);
+    expect(JSON.parse(restored.output.map(item => item.content?.text || '').join(''))).toEqual(receipt);
+    await expandReceipt();
     expect(provider.requests()).toBe(callsBeforeRestart); expect(provider.errors).toEqual([]);
     expect((await library(frame)).bundles).toEqual(saved.bundles);
     await page.screenshot({ path: resolve(out, 'host-clone-history-reopened.png') });
