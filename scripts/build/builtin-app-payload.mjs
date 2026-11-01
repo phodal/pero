@@ -8,6 +8,8 @@ const PAPER_ENTRIES = [
   'skills/paper-code-audit/references/audit-contract.md',
   'skills/paper-code-audit/references/other-cases.md',
   'skills/paper-code-audit/references/pcgym-table6.md',
+  'skills/paper-reproduction/SKILL.md',
+  'skills/paper-reproduction/references/reproduction-protocol.md',
 ];
 
 /** Builtin distribution payload, shared by Workbench and standalone Products. */
