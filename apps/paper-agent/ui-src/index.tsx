@@ -27,6 +27,7 @@ export default function PaperAgent() {
   const [discoveryOpening, setDiscoveryOpening] = useState<DiscoveryOpening | null>(null), [matrixOpen, setMatrixOpen] = useState(false);
   const [pdfFocus, setPdfFocus] = useState<PdfFocus | null>(null), [pdfToolbar, setPdfToolbar] = useState<HTMLDivElement | null>(null);
   const [hitPreview, setHitPreview] = useState(false), [openHit, setOpenHit] = useState<LocalSearchHit | null>(null), [locateToken, setLocateToken] = useState(0);
+  const focusVersion = useRef(0);
   const textFocus: TextFocus | null = openHit && reading?.id === openHit.source.paperId && openHit.page == null ? { start: openHit.start, end: openHit.end, token: locateToken } : null;
   const [citation, setCitation] = useState<(Citation & { intent: Intent }) | null>(null), [evidence, setEvidence] = useState<EvidenceLocation | null>(null), [evidenceBusy, setEvidenceBusy] = useState(false);
   const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 760px)').matches);
@@ -87,7 +88,12 @@ export default function PaperAgent() {
   }
   useEffect(() => {
     if (!hitPreview || !openHit || reading?.id !== openHit.source.paperId || !openHit.source.documentId || !openHit.page) return;
+    let alive = true; const version = ++focusVersion.current;
     setPdfFocus({ documentId: openHit.source.documentId, page: openHit.page });
+    api.post<PdfFocus>('/api/pdf/locate', { documentId: openHit.source.documentId, fileDigest: openHit.source.fileDigest, page: openHit.page, start: openHit.start, end: openHit.end })
+      .then(anchor => { if (alive && version === focusVersion.current) setPdfFocus(anchor); })
+      .catch(error => { if (alive && version === focusVersion.current) onError(error); });
+    return () => { alive = false; };
   }, [hitPreview, openHit, reading?.id]);
   async function added(paper: Paper, focus: boolean | (() => boolean)) {
     await refresh();
@@ -139,11 +145,18 @@ export default function PaperAgent() {
     finally { if (mounted.current) setReadingBusy(false); }
   }
   async function revealPdf(paper: Paper, focus: PdfFocus) {
+    focusVersion.current++;
     if (reading?.id !== paper.id) await read(paper, true, true);
     setPdfFocus(focus);
     if (narrow) closeRecords();
   }
   async function cite(value: Citation, intent: Intent) {
+    if (value.anchor) {
+      evidenceVersion.current++; setCitation(null); setEvidenceBusy(false);
+      const paper = intent.papers.find(p => p.id === value.paperId);
+      if (paper) await revealPdf(paper, value.anchor).catch(onError);
+      return;
+    }
     citationTrigger.current = window.document.activeElement as HTMLElement;
     setCitation({ ...value, intent }); setEvidence(null); const version = ++evidenceVersion.current;
     if (!value.quote) { setEvidenceBusy(false); return; }
@@ -152,7 +165,7 @@ export default function PaperAgent() {
       const result = await api.post<EvidenceLocation>('/api/evidence', { intentId: intent.id, paperId: value.paperId, quote: value.quote, passageId: value.passageId });
       if (mounted.current && version === evidenceVersion.current) {
         setEvidence(result);
-        if (result.pdf && value.passageId) {
+        if (result.pdf && value.passageId && !result.pdf.candidates?.length) {
           const paper = intent.papers.find(p => p.id === value.paperId);
           if (paper) await revealPdf(paper, { documentId: result.pdf.documentId, page: result.pdf.pages[0], rects: result.pdf.rects });
           setCitation(null);
@@ -166,7 +179,7 @@ export default function PaperAgent() {
     if (!text || !reading) return;
     try {
       const context = await api.post<{ id: string }>('/api/contexts', {
-        content: text, paperId: reading.id, ...(pdf ? { documentId: pdf.documentId, page: pdf.page } : {}),
+        content: text, paperId: reading.id, ...(pdf ? { documentId: pdf.documentId, fileDigest: pdf.fileDigest, page: pdf.page, rects: pdf.rects } : {}),
       });
       await ask({ paperIds: [reading.id], contextId: context.id, fullText: !!pdf || !!reading.pdfUrl || reading.source === 'local-pdf' });
     } catch (error) { onError(error); }
@@ -244,7 +257,7 @@ export default function PaperAgent() {
         <header className="pa-records-header"><h2>{t('researchProgress')}</h2><Button variant="ghost" aria-label={t('closeRecords')} onClick={closeRecords}>×</Button></header>
         <div className="pa-records-panel">
           <ResearchRecords api={api} library={library} paper={reading} onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} t={t}/>
-          {citation && <div className="pa-record-evidence"><EvidencePanel citation={citation} location={evidence} paper={citation.intent.papers.find(p => p.id === citation.paperId)} busy={evidenceBusy} onClose={closeEvidence} onRead={page => { const paper = citation.intent.papers.find(p => p.id === citation.paperId), pdf = evidence?.pdf; if (paper && pdf) void revealPdf(paper, { documentId: pdf.documentId, page: page ?? pdf.pages[0], rects: pdf.rects }).catch(onError); else if (paper) void read(paper, true); }} t={t}/></div>}
+          {citation && <div className="pa-record-evidence"><EvidencePanel citation={citation} location={evidence} paper={citation.intent.papers.find(p => p.id === citation.paperId)} busy={evidenceBusy} onClose={closeEvidence} onRead={(page, rects) => { const paper = citation.intent.papers.find(p => p.id === citation.paperId), pdf = evidence?.pdf; if (paper && pdf) void revealPdf(paper, { documentId: pdf.documentId, page: page ?? pdf.pages[0], rects: rects ?? pdf.rects }).catch(onError); else if (paper) void read(paper, true); }} t={t}/></div>}
         </div>
       </aside>}
     </section>

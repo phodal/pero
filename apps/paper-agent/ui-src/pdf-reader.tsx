@@ -108,7 +108,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   async function save(value: Record<string, unknown>) {
     setBusy(true); setError(''); setStatus('');
     try {
-      const annotation = await api.post<PdfAnnotation>('/api/annotations', { documentId: document.id, note, ...value });
+      const annotation = await api.post<PdfAnnotation>('/api/annotations', { documentId: document.id, fileDigest: document.fileDigest, note, ...value });
       onSaved(annotation); setNotes(true); setTarget(annotation.id); setStatus(t('pdfSaved')); setNote('');
       selection?.forDocument(documentId).clear();
     } catch (e) { fail(e); }

@@ -43,6 +43,7 @@ function SavedTurn({ entry, reports, api, onCite, onResume, disabled, t }: { ent
   return <details className="pa-turn-history" data-turn-id={entry.id} onToggle={event => { if (event.currentTarget.open) void load(); }}><summary>{entry.question}</summary>
     {loading && <p role="status">{t('loading')}</p>}
     {error && <Feedback kind="error">{error}<Button onClick={() => void load()}>{t('retry')}</Button></Feedback>}
+    {loaded?.intent.contextFile?.anchor && <Button onClick={() => onCite({ paperId: loaded.intent.contextFile!.paperId, anchor: loaded.intent.contextFile!.anchor }, loaded.intent)}>{loaded.intent.contextFile.anchor.rects?.length ? 'Show discussed region' : 'Show discussed page'}</Button>}
     {loaded?.reports.map(report => <Answer key={report.id} report={report} intent={loaded.intent} api={api} onCite={onCite} t={t}/>)}
     <Button disabled={disabled || !loaded} onClick={() => loaded && onResume(loaded.intent)}>{t(reports.length ? 'continueFromHere' : 'resumeQuestion')}</Button>
   </details>;

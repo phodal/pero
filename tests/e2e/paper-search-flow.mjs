@@ -53,5 +53,6 @@ export async function exercisePdfSearch({ frame, page, out, realPdf }) {
   await hit.getByRole('button').click();
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
   await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue(targetPage);
+  await expect(viewer.locator(`[data-page-number="${targetPage}"] [data-citation-region="true"]`).first()).toBeVisible();
   await page.screenshot({ path: resolve(out, 'local-search-pdf.png') });
 }

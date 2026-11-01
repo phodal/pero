@@ -57,7 +57,11 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await expect(nav.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(zoom);
   await closePaperChat(page);
   await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
+  const discussedResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/contexts' && response.request().method() === 'POST');
   await viewer.getByRole('button', { name: 'Discuss selection', exact: true }).click();
+  const discussed = await (await discussedResponse).json();
+  expect(discussed.anchor.fileDigest).toBe((await reading()).document.fileDigest);
+  expect(discussed.anchor.rects.length).toBeGreaterThan(0);
   await expect.poll(async () => (await chatState(page)).attachments.length).toBeGreaterThan(1);
   await expect(frame.locator('#paper-question')).toHaveCount(0);
   await closePaperChat(page);
@@ -65,6 +69,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await viewer.getByRole('button', { name: 'Highlight', exact: true }).click();
   await expect.poll(async () => (await reading()).annotations.length).toBe(1);
   expect((await reading()).annotations[0].quote).toContain(fixture.quote);
+  expect((await reading()).annotations[0].anchor.id).toBe(discussed.anchor.id);
   await expect(first.locator('[data-kind="highlight"]').first()).toBeVisible();
   await page.screenshot({ path: resolve(out, 'pdf-highlight.png') });
   await viewer.getByRole('button', { name: 'Close annotations', exact: true }).click();
