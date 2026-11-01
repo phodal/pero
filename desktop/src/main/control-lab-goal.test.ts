@@ -8,9 +8,9 @@ import { DesktopAppUse } from './app-use-mcp.ts';
 
 const id = 'a'.repeat(32), hash = 'b'.repeat(64);
 const scope = { app: 'control-lab', panel: 'main' };
-const ref = (experimentId = id, specHash = hash): ContextReference => ({
+const ref = (experimentId = id, specHash = hash, app = 'control-lab'): ContextReference => ({
   id: 'app-object-example', kind: 'app_object', label: 'Control Lab', source: 'pero-app://control-lab/',
-  content: { type: 'text', text: JSON.stringify({ schema: 'pero.app-object.v1', scope, objectId: 'control-lab', state: { experimentId, specHash } }) },
+  content: { type: 'text', text: JSON.stringify({ schema: 'pero.app-object.v1', scope: { app, panel: 'main' }, objectId: app, state: { experimentId, specHash } }) },
 });
 
 test('goal binds one submitted frozen reference to one session and fails closed on replay or tampering', () => {
@@ -26,7 +26,7 @@ test('goal binds one submitted frozen reference to one session and fails closed 
   assert.throws(() => goals.require('one', id), /Approve/);
   goals.approve(scope, 'one', [ref()]);
   goals.accept('one', [ref()]);
-  assert.deepEqual(goals.require('one', id), { experimentId: id, specHash: hash, maxExperiments: 1 });
+  assert.deepEqual(goals.require('one', id), { app: 'control-lab', experimentId: id, specHash: hash, maxExperiments: 1 });
   assert.throws(() => goals.require('one', 'c'.repeat(32)), /Approve/);
   assert.throws(() => goals.approve(scope, 'one', [ref('c'.repeat(32))]), /new conversation/);
   goals.revoke('one');
@@ -90,7 +90,7 @@ test('MCP requires the bound goal and restricts research Apps to declared domain
     assert.equal((await write('c'.repeat(32))).isError, true);
     assert.equal((await write('c'.repeat(32), 'propose-candidate')).isError, true);
     assert.equal((await write(id)).isError, false);
-    assert.deepEqual(applied, [{ experimentId: id, specHash: hash, maxExperiments: 1 }]);
+    assert.deepEqual(applied, [{ app: 'control-lab', experimentId: id, specHash: hash, maxExperiments: 1 }]);
     desktop.command({ action: 'cancel', thread_id: selected });
     desktop.accept({ kind: 'turn_started', thread_id: selected });
     assert.equal((await write(id)).isError, true);
@@ -103,7 +103,23 @@ test('MCP requires the bound goal and restricts research Apps to declared domain
     assert.equal(labComputer.isError, true);
     assert.match(labComputer.content[0].text, /APP_GOAL_DENIED/);
     assert.equal(computerCalls, 0);
-    assert.equal((await call('app_write', { app: 'lab', tool: 'experiment-step', document: { action: 'read', experimentId: id } })).isError, false);
+    const labWrite = (experimentId: string) => call('app_write', { app: 'lab', tool: 'experiment-step', document: { action: 'read', experimentId } });
+    assert.equal((await labWrite(id)).isError, true);
+    desktop.accept({ kind: 'turn_finished', thread_id: selected });
+    const labScope = { app: 'lab', panel: 'main' }, labRef = ref(id, hash, 'lab');
+    desktop.goals.approve(labScope, selected, [labRef]);
+    desktop.accept({ kind: 'user_message', thread_id: selected, data: { contexts: [ref(id, 'c'.repeat(64), 'lab')] } });
+    desktop.accept({ kind: 'turn_started', thread_id: selected });
+    assert.equal((await labWrite(id)).isError, true); // altered frozen spec was not approved
+    desktop.accept({ kind: 'turn_finished', thread_id: selected });
+    desktop.goals.approve(labScope, selected, [labRef]);
+    desktop.accept({ kind: 'user_message', thread_id: selected, data: { contexts: [labRef] } });
+    desktop.accept({ kind: 'turn_started', thread_id: selected });
+    assert.equal((await labWrite('c'.repeat(32))).isError, true);
+    assert.equal((await labWrite(id)).isError, false);
+    assert.deepEqual(applied.at(-1), { app: 'lab', experimentId: id, specHash: hash, maxExperiments: 1 });
+    assert.throws(() => desktop.goals.require(selected, id, 'control-lab'), /Approve/);
+    assert.throws(() => desktop.goals.approve(labScope, selected, [ref(id, 'c'.repeat(64), 'lab')]), /new conversation/);
     assert.equal((await call('app_write', { app: 'lab', tool: 'human-review', document: {} })).isError, true);
     selected = 'ordinary-computer';
     desktop.accept({ kind: 'session_created', thread_id: selected });

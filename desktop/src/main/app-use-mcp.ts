@@ -340,8 +340,8 @@ export class DesktopAppUse {
             thread,
             { app: definition.app, panel: definition.panel },
             async (_scope, signal) => {
-              const goal = input.app === 'control-lab'
-                ? this.goals.require(thread, (prepared.document as Record<string, unknown>).experimentId)
+              const goal = input.app === 'control-lab' || input.app === 'lab'
+                ? this.goals.require(thread, (prepared.document as Record<string, unknown>).experimentId, input.app)
                 : undefined;
               return { app: input.app, tool: input.tool, digest: prepared.digest,
                 result: await this.writes!.apply(prepared, signal, goal) };

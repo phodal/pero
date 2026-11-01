@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type { ContextReference } from '../../../protocol/generated/host';
 import { AppUseError, type AppScope } from './app-use-task.ts';
 
-export type ControlLabGoal = Readonly<{ experimentId: string; specHash: string; maxExperiments: 1 }>;
+export type ControlLabGoal = Readonly<{ app: 'control-lab' | 'lab'; experimentId: string; specHash: string; maxExperiments: 1 }>;
 type Pending = { reference: ContextReference; goal: ControlLabGoal };
 
 /** A goal is approved in the selected draft and takes effect only when that exact reference is sent. */
@@ -14,18 +14,18 @@ export class ControlLabGoals {
 
   approve(scope: AppScope, thread: string, references: ContextReference[]) {
     if (this.restored.has(thread)) throw new AppUseError('APP_GOAL_RESTORED', 'Start a new conversation to approve a goal.');
-    if (scope.app !== 'control-lab' || scope.panel !== 'main' || references.length !== 1)
-      throw new AppUseError('APP_GOAL_INVALID', 'Approve one Control Lab experiment.');
+    if (!['control-lab', 'lab'].includes(scope.app) || scope.panel !== 'main' || references.length !== 1)
+      throw new AppUseError('APP_GOAL_INVALID', 'Approve one bounded research experiment.');
     const reference = references[0];
     if (reference.kind !== 'app_object' || reference.content.type !== 'text')
       throw new AppUseError('APP_GOAL_INVALID', 'The frozen experiment reference is required.');
     const snapshot = JSON.parse(reference.content.text);
     const state = snapshot?.state;
     if (snapshot?.schema !== 'pero.app-object.v1' || snapshot?.scope?.app !== scope.app ||
-        snapshot?.scope?.panel !== scope.panel || snapshot?.objectId !== 'control-lab' ||
+        snapshot?.scope?.panel !== scope.panel || snapshot?.objectId !== scope.app ||
         !/^[a-f0-9]{32}$/.test(state?.experimentId || '') || !/^[a-f0-9]{64}$/.test(state?.specHash || ''))
       throw new AppUseError('APP_GOAL_INVALID', 'Freeze an experiment before approving its goal.');
-    const goal: ControlLabGoal = Object.freeze({ experimentId: state.experimentId, specHash: state.specHash, maxExperiments: 1 });
+    const goal: ControlLabGoal = Object.freeze({ app: scope.app as 'control-lab' | 'lab', experimentId: state.experimentId, specHash: state.specHash, maxExperiments: 1 });
     const current = this.identities.get(thread);
     if (current && !isDeepStrictEqual(current, goal))
       throw new AppUseError('APP_GOAL_FIXED', 'Start a new conversation to approve a different goal.');
@@ -46,9 +46,9 @@ export class ControlLabGoals {
     }
   }
 
-  require(thread: string, experimentId: unknown): ControlLabGoal {
+  require(thread: string, experimentId: unknown, app = 'control-lab'): ControlLabGoal {
     const goal = this.bound.get(thread);
-    if (!goal || experimentId !== goal.experimentId)
+    if (!goal || app !== goal.app || experimentId !== goal.experimentId)
       throw new AppUseError('APP_GOAL_DENIED', 'Approve and submit this frozen experiment in this conversation first.');
     return goal;
   }
