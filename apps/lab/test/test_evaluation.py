@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 import unittest
 from domain import EvaluationCriteria, Invalid, validate_protocol, initial_state
 from evaluation import Measurement, Observation, evaluate, parse_observation
