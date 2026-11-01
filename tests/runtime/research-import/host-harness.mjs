@@ -11,8 +11,7 @@ import { AppWriteRoutes } from '../../../desktop/src/main/app-write-routes.ts';
 import { descendants, finishDescendants } from './cleanup.mjs';
 
 export const root = resolve(import.meta.dirname, '../../..');
-export const skillName = 'research-resource-import';
-export const seed = 'https://research.example.org/forecasting';
+export { skillName, seed } from './fixture-provider.mjs';
 
 export async function openHost({ directory, agent, endpoint, model, credential, audit, skills = true, useEnvironmentProxy = false, prepareApp, pythonEnvironment, imageInput = false, allowedPaperTools }) {
   await mkdir(directory, { recursive: true, mode: 0o700 });

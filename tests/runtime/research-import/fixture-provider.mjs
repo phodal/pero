@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { setTimeout as pause } from 'node:timers/promises';
-import { skillName, seed } from './host-harness.mjs';
+export const skillName = 'research-resource-import', seed = 'https://research.example.org/forecasting';
 
 const mcp = name => `mcp__pero-app-use__${name}`;
 const tool = (name, args, text) => ({ name, args, text });
@@ -24,7 +24,12 @@ function* invoke(name, args, pointer = '', text) {
 }
 const write = function* (name, document, text) { return yield* invoke(mcp('app_write'), { app: 'paper-agent', tool: name, document }, '/result', text); };
 
-function* plan(scene, digest) {
+function* plan(scene, digest, options) {
+  if (scene === 'clone') {
+    assert(options.cloneRequest, 'A source-observed fixture request is required');
+    yield tool('clone_repository', options.cloneRequest, 'Scripted fixture proposal; inspect the Host approval and actual tool result.');
+    return 'Scripted fixture finished. Inspect the actual clone_repository tool result; this is not real-model or public-network evidence.';
+  }
   const catalog = yield* invoke('skill', {});
   const selected = catalog.find(item => item.name === skillName);
   assert.equal(selected?.digest, digest);
@@ -63,8 +68,8 @@ function* plan(scene, digest) {
   return 'Synthetic protocol probe: explicit tiny-file approval produced a verified Data receipt. No clone or execution.';
 }
 
-export async function startFixtureProvider(scene, digest) {
-  let iterator = plan(scene, digest), finished = false;
+export async function startFixtureProvider(scene, digest, options = {}) {
+  let iterator = plan(scene, digest, options), finished = false;
   const calls = [], errors = [];
   let requests = 0;
   const server = createServer(async (request, response) => {
@@ -76,7 +81,7 @@ export async function startFixtureProvider(scene, digest) {
       // Audit must work without a synthetic assistant-imposed output/request cap.
       assert.equal(value.max_tokens, undefined);
       const last = value.messages.filter(message => message.role === 'tool').at(-1)?.content;
-      if (finished) { iterator = plan(scene, digest); finished = false; }
+      if (finished) { iterator = plan(scene, digest, options); finished = false; }
       const step = iterator.next(last);
       let delta, reason;
       if (step.done || step.value.answer) { finished = step.done; delta = { content: step.done ? step.value : step.value.answer }; reason = 'stop'; }
