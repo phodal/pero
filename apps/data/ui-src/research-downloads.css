@@ -1,0 +1,7 @@
+.data-research{flex:1;min-height:0;overflow:auto;padding:var(--pero-space-5);display:flex;flex-direction:column;gap:var(--pero-space-4)}
+.data-research-table{overflow-x:auto}.data-research table{border-collapse:collapse;width:100%;font-size:var(--pero-font-body)}
+.data-research td,.data-research th{padding:12px 8px;text-align:start;border-bottom:1px solid var(--pero-border);vertical-align:top;overflow-wrap:anywhere}
+.data-research td:first-child{width:65%;min-width:240px}.data-research label{display:flex;align-items:flex-start;gap:8px}
+.data-research small{display:block;color:var(--pero-text-muted);margin-top:4px}.data-research p{margin:0}
+.data-research-confirm{display:flex;flex-direction:column;align-items:flex-start;gap:12px}.data-research code{overflow-wrap:anywhere}
+.data-research-progress{display:flex;flex-wrap:wrap;align-items:center;gap:12px}.data-research-receipts article{padding:12px 0;border-bottom:1px solid var(--pero-border)}
