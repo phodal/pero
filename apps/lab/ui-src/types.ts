@@ -1,0 +1,12 @@
+export type Well = { id: string; volume_ul: number; red_fraction: number; capacity_ul: number };
+export type LabState = { wells: Well[]; available_tips: string[]; consumed_tips: string[]; pipette: { tip_id: string | null; volume_ul: number; red_fraction: number; capacity_ul: number }; revision: number };
+export type Operation = { op: 'pickup_tip' | 'return_tip' | 'aspirate' | 'dispense'; resource: string; volume_ul?: number };
+export type Protocol = { version: 1; initial_revision: number; steps: Operation[] };
+export type Verdict = 'PASS' | 'FAIL' | 'INCONCLUSIVE';
+export type Verification = { verdict: Verdict; checks: { name: string; verdict: Verdict; actual?: number | null; limit?: number | null; message?: string }[]; limitations?: string[] };
+export type Observation = { id: string; origin: 'synthetic' | 'imported'; source: string; measurements: { well: string; value: number; unit: string }[]; sha256: string; filename: string; attached_at: string; asset_ref: string };
+export type StepEvent = { index: number; operation: Operation; status: string; before: LabState; after: LabState | null; backend: unknown; started_at: string; completed_at?: string; error?: string | null };
+export type Trial = { id: string; parent_trial_id: string | null; reason: string; protocol: Protocol; protocol_hash: string; state_hash: string; status: string; events: StepEvent[]; initial_state: LabState; final_state: LabState | null; engine: unknown; error: string | null; observations: Observation[]; verification: Verification | null };
+export type Experiment = { id: string; objective: string; criteria: { target_well: string; target_fraction: number; tolerance: number; target_volume_ul: number; volume_tolerance_ul: number }; initial_state: LabState; max_trials: number; max_steps: number; mode: string; created_revision: number; spec_hash: string; created_at: string; trials: Trial[]; decisions: { trial_id: string; decision: string; rationale: string }[]; limitations: string[] };
+export type Engine = { name: string; available: boolean; version: string | null; error: string | null };
+export type Comparison = { trials: { trial_id: string; parent_trial_id: string | null; absolute_error: number | null; verdict: string }[]; improvement: number | null; message: string };
