@@ -112,7 +112,7 @@ impl Workbench {
         self.navigation.open(canonical);
         self.selected_project = Some(project.key.clone());
         self.project_tab = ProjectTab::Tasks;
-        self.local_roadmap.show_cloud = project.workspace.is_none();
+        self.local_roadmap.show_cloud = project.workspace.is_none() && self.remote.configured();
         self.local_roadmap.selected_line = None;
         self.task_status = Default::default();
         self.remote.creating = false;
@@ -184,7 +184,10 @@ impl Workbench {
                     .child(
                         div()
                             .flex_1()
-                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading))
+                            .text_size(
+                                pero_theme::UiAppearance::global(cx)
+                                    .text(pero_theme::TextRole::Heading),
+                            )
                             .font_weight(FontWeight::MEDIUM)
                             .child(self.t("nav.projects")),
                     )
@@ -206,7 +209,10 @@ impl Workbench {
                         Button::new("all-project-tasks")
                             .ghost()
                             .w_full()
-                            .h(px(pero_theme::UiAppearance::global(cx).typography.row_height() + 8.))
+                            .h(px(pero_theme::UiAppearance::global(cx)
+                                .typography
+                                .row_height()
+                                + 8.))
                             .justify_start()
                             .label(self.t("project.all_tasks"))
                             .on_click(cx.listener(|this, _, _, cx| {
@@ -247,7 +253,10 @@ impl Workbench {
                                             div()
                                                 .mt(px(4.))
                                                 .truncate()
-                                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                                .text_size(
+                                                    pero_theme::UiAppearance::global(cx)
+                                                        .text(pero_theme::TextRole::Caption),
+                                                )
                                                 .text_color(p.text_muted)
                                                 .child(path),
                                         ),
@@ -295,7 +304,10 @@ impl Workbench {
                     .flex_shrink_0()
                     .child(
                         div()
-                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Heading))
+                            .text_size(
+                                pero_theme::UiAppearance::global(cx)
+                                    .text(pero_theme::TextRole::Heading),
+                            )
                             .font_weight(FontWeight::MEDIUM)
                             .child(name),
                     )
@@ -304,7 +316,10 @@ impl Workbench {
                             div()
                                 .mt(px(4.))
                                 .truncate()
-                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                .text_size(
+                                    pero_theme::UiAppearance::global(cx)
+                                        .text(pero_theme::TextRole::Caption),
+                                )
                                 .text_color(p.text_muted)
                                 .child(path),
                         )
@@ -320,7 +335,9 @@ impl Workbench {
                                 Button::new(("project-tab", i))
                                     .ghost()
                                     .small()
-                                    .h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+                                    .h(px(pero_theme::UiAppearance::global(cx)
+                                        .typography
+                                        .control_height()))
                                     .rounded_none()
                                     .label(self.t(tab.label_key()))
                                     .toggled(self.project_tab == tab)
@@ -418,7 +435,10 @@ impl Workbench {
                     .child(
                         div()
                             .mt(px(4.))
-                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                            .text_size(
+                                pero_theme::UiAppearance::global(cx)
+                                    .text(pero_theme::TextRole::Caption),
+                            )
                             .text_color(p.text_muted)
                             .child(string(repo, "roadmap_path").to_string()),
                     )
@@ -597,5 +617,4 @@ impl Workbench {
                 el.child(div().child(self.t("project.choose_first")))
             })
     }
-
 }

@@ -149,7 +149,7 @@ impl Workbench {
                 },
             )
             .when(editing, |el| el.child(self.remote_connection_view(cx)))
-            .when(!configured && !editing,|el|el.child(div().p(px(pero_theme::WorkbenchStyle::PAGE)).flex().flex_col().gap(px(12.))
+            .when(!configured && !editing,|el|el.child(div().p(px(pero_theme::WorkbenchStyle::PAGE)).flex().flex_col().items_start().gap(px(12.))
                 .child(div().text_color(p.text_muted).child(self.t("project.connect_tasks")))
                 .child(Button::new("project-connect").outline().label(self.t("settings.connections"))
                     .on_click(cx.listener(|this,_,window,cx|{this.show_settings_page(WorkbenchPage::Connections,window,cx);} )))))

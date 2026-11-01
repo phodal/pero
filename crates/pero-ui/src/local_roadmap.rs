@@ -7,7 +7,7 @@ use gpui_kit::{
 };
 use pero_contracts::{
     HostEvent,
-    roadmap::{LocalRoadmap, RoadmapError},
+    roadmap::{LocalRoadmap, RoadmapError, RoadmapItem},
 };
 use serde::Serialize;
 use serde_json::json;
@@ -55,21 +55,25 @@ impl Workbench {
             .flex_col()
             .when(local, |el| {
                 el.child(
-                    div().px(px(24.)).py(px(8.)).flex().gap(px(8.)).children(
-                        [(false, "roadmap.local"), (true, "roadmap.cloud")]
-                            .into_iter()
-                            .enumerate()
-                            .map(|(i, (cloud, key))| {
-                                Button::new(("task-location", i))
-                                    .ghost()
-                                    .small()
-                                    .label(self.t(key))
-                                    .toggled(self.local_roadmap.show_cloud == cloud)
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.local_roadmap.show_cloud = cloud;
-                                        cx.notify();
-                                    }))
-                            }),
+                    div().px(px(24.)).pt(px(8.)).pb(px(4.)).flex().child(
+                        ButtonGroup::new("task-location")
+                            .outline()
+                            .small()
+                            .child(
+                                Button::new(("task-location", 0usize))
+                                    .label(self.t("roadmap.local"))
+                                    .selected(!self.local_roadmap.show_cloud),
+                            )
+                            .child(
+                                Button::new(("task-location", 1usize))
+                                    .label(self.t("roadmap.cloud"))
+                                    .selected(self.local_roadmap.show_cloud),
+                            )
+                            .on_click(cx.listener(|this, selected: &Vec<usize>, _, cx| {
+                                this.local_roadmap.show_cloud =
+                                    selected.first().copied() == Some(1);
+                                cx.notify();
+                            })),
                     ),
                 )
             })
@@ -136,7 +140,9 @@ impl Workbench {
         self.new_chat(cx);
         let thread_id = self.chat.update(cx, |panel, cx| {
             panel.submit_prompt(prompt, vec![], cx);
-            panel.chats[panel.active_chat.expect("new roadmap chat")].id.clone()
+            panel.chats[panel.active_chat.expect("new roadmap chat")]
+                .id
+                .clone()
         });
         self.local_roadmap.sessions.push(RoadmapSession {
             workspace,
@@ -192,7 +198,10 @@ impl Workbench {
                     .child(
                         div()
                             .flex_1()
-                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                            .text_size(
+                                pero_theme::UiAppearance::global(cx)
+                                    .text(pero_theme::TextRole::Caption),
+                            )
                             .text_color(p.text_muted)
                             .child(if loading {
                                 self.t("roadmap.loading").into()
@@ -249,6 +258,7 @@ impl Workbench {
                                     .ghost()
                                     .small()
                                     .label(self.t("roadmap.show_completed"))
+                                    .selected(self.local_roadmap.show_completed)
                                     .toggled(self.local_roadmap.show_completed)
                                     .on_click(cx.listener(|this, _, _, cx| {
                                         this.local_roadmap.show_completed =
@@ -272,59 +282,7 @@ impl Workbench {
                                         .child(self.t("roadmap.empty")),
                                 )
                             })
-                            .children(visible.iter().map(|item| {
-                                let line = item.line;
-                                div()
-                                    .py(px(4.))
-                                    .border_b_1()
-                                    .border_color(p.border)
-                                    .child(
-                                        Button::new(("local-roadmap-item", line))
-                                            .ghost()
-                                            .w_full()
-                                            .h_auto()
-                                            .min_h(px(56.))
-                                            .justify_start()
-                                            .accessibility_label(item.title.clone())
-                                            .child(
-                                                div()
-                                                    .flex_1()
-                                                    .min_w_0()
-                                                    .flex()
-                                                    .flex_col()
-                                                    .items_start()
-                                                    .pl(px(if item.parent_line.is_some() {
-                                                        16.
-                                                    } else {
-                                                        0.
-                                                    }))
-                                                    .child(div().whitespace_normal().child(
-                                                        format!(
-                                                            "{}{}",
-                                                            if item.checked { "✓ " } else { "" },
-                                                            item.title
-                                                        ),
-                                                    ))
-                                                    .child(
-                                                        div()
-                                                            .w_full()
-                                                            .truncate()
-                                                            .mt(px(3.))
-                                                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
-                                                            .text_color(p.text_muted)
-                                                            .child(format!(
-                                                                "{} · L{}",
-                                                                item.headings.join(" / "),
-                                                                line
-                                                            )),
-                                                    ),
-                                            )
-                                            .on_click(cx.listener(move |this, _, _, cx| {
-                                                this.local_roadmap.selected_line = Some(line);
-                                                cx.notify();
-                                            })),
-                                    )
-                            })),
+                            .children(self.roadmap_rows(&visible, p, cx)),
                     )
                 },
             )
@@ -366,7 +324,10 @@ impl Workbench {
                         .child(
                             div()
                                 .mt(px(16.))
-                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Title))
+                                .text_size(
+                                    pero_theme::UiAppearance::global(cx)
+                                        .text(pero_theme::TextRole::Title),
+                                )
                                 .font_weight(FontWeight::BOLD)
                                 .whitespace_normal()
                                 .child(item.title.clone()),
@@ -374,7 +335,10 @@ impl Workbench {
                         .child(
                             div()
                                 .mt(px(8.))
-                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                                .text_size(
+                                    pero_theme::UiAppearance::global(cx)
+                                        .text(pero_theme::TextRole::Caption),
+                                )
                                 .text_color(p.text_muted)
                                 .whitespace_normal()
                                 .child(format!("{} · L{}", item.headings.join(" / "), item.line)),
@@ -447,17 +411,83 @@ impl Workbench {
                                 },
                             )
                             .when_some(session, |el, chat| {
-                                el.child(div().mt(px(12.)).text_color(p.text_muted).child(
-                                    self.t(match chat.as_str() {
+                                el.child(div().mt(px(12.)).text_color(p.text_muted).child(self.t(
+                                    match chat.as_str() {
                                         "running" | "connecting" => "roadmap.running",
                                         "idle" => "roadmap.finished",
                                         "auth_required" => "roadmap.auth_required",
                                         _ => "roadmap.attention",
-                                    }),
-                                ))
+                                    },
+                                )))
                             })
                         }),
                 )
             })
+    }
+
+    fn roadmap_rows(
+        &self,
+        items: &[&RoadmapItem],
+        p: &pero_theme::Palette,
+        cx: &mut Context<Self>,
+    ) -> Vec<AnyElement> {
+        let caption = pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption);
+        let mut rows = Vec::new();
+        let mut section = String::new();
+        for item in items {
+            let next = item.headings.last().cloned().unwrap_or_default();
+            if next != section {
+                section = next;
+                if !section.is_empty() {
+                    rows.push(
+                        div()
+                            .pt(px(10.))
+                            .pb(px(2.))
+                            .text_size(caption)
+                            .text_color(p.text_muted)
+                            .child(section.clone())
+                            .into_any_element(),
+                    );
+                }
+            }
+            let line = item.line;
+            let title = format!("{}{}", if item.checked { "✓ " } else { "" }, item.title);
+            rows.push(
+                div()
+                    .border_b_1()
+                    .border_color(p.border)
+                    .child(
+                        Button::new(("local-roadmap-item", line))
+                            .ghost()
+                            .w_full()
+                            .h_auto()
+                            .min_h(px(36.))
+                            .justify_start()
+                            .accessibility_label(item.title.clone())
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(8.))
+                                    .pl(px(if item.parent_line.is_some() { 16. } else { 0. }))
+                                    .child(div().flex_1().min_w_0().truncate().child(title))
+                                    .child(
+                                        div()
+                                            .text_size(caption)
+                                            .text_color(p.text_muted)
+                                            .child(format!("L{line}")),
+                                    ),
+                            )
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.local_roadmap.selected_line = Some(line);
+                                cx.notify();
+                            })),
+                    )
+                    .into_any_element(),
+            );
+        }
+        rows
     }
 }
