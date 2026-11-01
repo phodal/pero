@@ -19,6 +19,8 @@ from .source_text import SourceText
 from .context_file import ContextSelection, ContextRead
 from .research import ResearchPlan
 from .thumbnails import PaperThumbnails
+from .reproduction import ReproductionError
+from .reproduction_store import PcgymResearch
 
 MAX_BODY = 1024 * 1024
 
@@ -35,10 +37,13 @@ def research_stage(record):
     return dict(stage='select', id=record.id, requestId=record.plan.request.request_id + '-r' + str(len(record.queries)), question=record.plan.request.question, prompt=record.prompt(), round=len(record.queries))
 
 
-def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbnails=None):
+def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbnails=None, reproduction=None):
     literature = literature if literature is not None else LiteratureClient()
     pdf_files = pdf_files if pdf_files is not None else PdfFiles()
     thumbnails = thumbnails if thumbnails is not None else PaperThumbnails()
+
+    reproduction = reproduction or PcgymResearch(store)
+    store.reproduction = reproduction
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -157,6 +162,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, record.to_dict())
                 if self.command == "POST":
+                    if path == '/api/reproduction/step':
+                        return self.reply(200, reproduction.command(data, now()))
                     if path == '/api/research/inspect':
                         return self.reply(200, store.imports.inspect(data, now()).to_dict())
                     if path == '/api/research/commit':
@@ -249,6 +256,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                             location['pdf'] = dict(documentId=document.id, pages=list(pages))
                         return self.reply(200, location)
                 raise Invalid("Route not found", 404)
+            except ReproductionError as error:
+                self.reply(error.status, {"code": error.code, "detail": str(error)})
             except Invalid as error:
                 self.reply(error.status, {"code": "research_invalid", "detail": error.detail})
             except (ValueError, TypeError, KeyError, UnicodeError, RecursionError) as error:
