@@ -3,7 +3,7 @@
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { chatState, focusPaperChat } from './paper-chat-controls.mjs';
-import { clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
+import { clickAppShortcut, clickSessionRow, setAppearance } from './sidebar-controls.mjs';
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -278,14 +278,17 @@ def fetch(url, **options):
     const callsBeforeRestart = provider.requests();
     await app.close(); app = await launch(); await ready(); frame = await openPaper();
     await frame.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: 'Synthetic forecasting release', exact: true }).click();
-    await frame.getByRole('button', { name: 'Clone with Agent', exact: true }).click();
+    expect((await library(frame)).bundles).toEqual(saved.bundles);
+    // Clone with Agent prepares a new request after restart; it is not a history
+    // selector. Reopen the original persisted conversation through Sessions UI.
+    await clickSessionRow(page, threadId);
+    await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'conversation', value: threadId });
     await expect.poll(async () => { const current = await state(); return current.chats[current.activeChat]?.id; }).toBe(threadId);
     await expect.poll(async () => (await chat())?.tools.find(item => item.id === tool.id)?.status).toBe('completed');
     const restored = (await chat()).tools.find(item => item.id === tool.id);
     expect(JSON.parse(restored.output.map(item => item.content?.text || '').join(''))).toEqual(receipt);
     await expandReceipt();
     expect(provider.requests()).toBe(callsBeforeRestart); expect(provider.errors).toEqual([]);
-    expect((await library(frame)).bundles).toEqual(saved.bundles);
     await page.screenshot({ path: resolve(out, 'host-clone-history-reopened.png') });
     checks.push('Linux real Desktop Host permission Reject has zero Git effects; Allow runs actual Go native and Git through an owned local transport seam; actual tool receipt expands and survives restart without replay. Not a public HTTPS clone or real-model test.');
   }
