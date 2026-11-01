@@ -36,21 +36,30 @@ test('Workbench payload drops standalone Chat while retaining its own runtime an
 test('Builtin staging ships only the exact Paper CLI and skill additions', async () => {
   const { stageBuiltinApp } = await import('./builtin-app-payload.mjs');
   const { existsSync, symlinkSync } = await import('node:fs');
+  const paperEntries = ['tools/research.py', 'skills/research-resource-import/SKILL.md',
+    'skills/paper-code-audit/SKILL.md', 'skills/paper-code-audit/references/audit-contract.md',
+    'skills/paper-code-audit/references/other-cases.md', 'skills/paper-code-audit/references/pcgym-table6.md'];
   const directory = mkdtempSync(join(tmpdir(), 'pero-builtin-payload-'));
   try {
     const source = join(directory, 'source');
     const files = ['app.json', 'backend/server.py', 'backend/__pycache__/server.pyc', 'dist/index.html',
-      'tools/research.py', 'tools/unrelated.py', 'skills/research-resource-import/SKILL.md', 'skills/other/SKILL.md', 'node_modules/private.js'];
+      ...paperEntries, 'tools/unrelated.py', 'skills/paper-code-audit/references/private.md',
+      'skills/other/SKILL.md', 'node_modules/private.js'];
     for (const path of files) {
       mkdirSync(join(source, path, '..'), { recursive: true }); writeFileSync(join(source, path), path);
     }
     for (const app of ['paper-agent', 'other-app']) {
       const output = join(directory, app); stageBuiltinApp(source, app, output);
       for (const path of files) {
-        const included = ['app.json', 'backend/server.py', 'dist/index.html'].includes(path) || app === 'paper-agent' && ['tools/research.py', 'skills/research-resource-import/SKILL.md'].includes(path);
+        const included = ['app.json', 'backend/server.py', 'dist/index.html'].includes(path) || app === 'paper-agent' && paperEntries.includes(path);
         assert.equal(existsSync(join(output, path)), included, `${app}: ${path}`);
         if (included) assert.equal(readFileSync(join(output, path), 'utf8'), path);
       }
+    }
+    for (const entry of paperEntries) {
+      rmSync(join(source, entry));
+      assert.throws(() => stageBuiltinApp(source, 'paper-agent', join(directory, 'missing-entry')), /requires a regular file/);
+      writeFileSync(join(source, entry), entry);
     }
     rmSync(join(source, 'tools/research.py'));
     assert.throws(() => stageBuiltinApp(source, 'paper-agent', join(directory, 'missing')), /requires a regular file/);
@@ -81,5 +90,11 @@ test('Staged Paper CLI executes references-only commit and export using its stag
     assert.equal(exported.result.acquisitions[0].status, 'reference_only');
     assert.equal(exported.result.bundle.resources[0].originalUrl, 'https://example.org/frozen-paper.pdf');
     assert.match(readFileSync(join(payload, 'skills/research-resource-import/SKILL.md'), 'utf8'), /research-resource-import/);
+    const auditDirectory = join(payload, 'skills/paper-code-audit');
+    const auditSkill = readFileSync(join(auditDirectory, 'SKILL.md'), 'utf8');
+    const references = [...auditSkill.matchAll(/\]\((references\/[^)]+)\)/g)].map(match => match[1]);
+    assert.deepEqual(references.sort(), ['references/audit-contract.md', 'references/other-cases.md', 'references/pcgym-table6.md']);
+    for (const reference of references) assert.ok(readFileSync(join(auditDirectory, reference), 'utf8').length > 0);
+    assert.match(auditSkill, /catalog reads SKILL.md only/);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
