@@ -7,7 +7,8 @@ import unittest
 from test_research import NOW, reading, request
 from test_studies import source
 from paper_agent.context_file import ContextSelection
-from paper_agent.model import Invalid, PaperSnapshot
+from paper_agent.model import Invalid, PaperSnapshot, digest
+from paper_agent.pdf import PdfDocument
 from paper_agent.store import ResearchStore
 
 
@@ -18,6 +19,7 @@ class ContextFiles(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             store = ResearchStore(root)
             store.save_paper(paper)
+            document = PdfDocument.create(paper.id, digest(b'fixture PDF bytes'), document.source_url, document.pages, NOW)
             store.save_pdf(document, b'fixture PDF bytes')
             context = store.save_context(ContextSelection(content, paper.id, document.id, 1))
             self.assertEqual(Path(context.path).read_bytes(), content.encode('utf-8'))

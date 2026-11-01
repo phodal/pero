@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 from test_research import NOW, reading, request
-from paper_agent.model import Invalid, PaperSnapshot, PdfPassage
+from paper_agent.model import Invalid, PaperSnapshot, PdfPassage, digest
 from paper_agent.pdf import PdfDocument, PdfPage
 from paper_agent.studies import ResearchStudy, ResearchStep, StudyCommand, StudyAction, STEP_LIMIT
 from paper_agent.store import ResearchStore
@@ -82,6 +82,7 @@ class ResearchStudies(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             store = ResearchStore(root)
             store.save_paper(paper)
+            document = PdfDocument.create(paper.id, digest(b'fixture PDF bytes'), document.source_url, document.pages, NOW)
             store.save_pdf(document, b'fixture PDF bytes')
             study = store.create_study(request([paper], fullText=True), NOW)
             self.assertEqual(study.sources[0].pages[0].line_count, 4)
@@ -197,12 +198,13 @@ class ResearchStudies(unittest.TestCase):
             store = ResearchStore(root)
             paper, document = source()
             store.save_paper(paper)
+            document = PdfDocument.create(paper.id, digest(b'original PDF bytes'), document.source_url, document.pages, NOW)
             store.save_pdf(document, b'original PDF bytes')
             study = store.create_study(request([paper], fullText=True), NOW)
             self.assertEqual(store.create_study(study.request, 'later').id, study.id)
             with self.assertRaises(Invalid):
                 store.create_study(replace(study.request, question='Changed input'), NOW)
-            newer = PdfDocument.create(paper.id, '3' * 64, paper.url,
+            newer = PdfDocument.create(paper.id, digest(b'new PDF bytes'), paper.url,
                                        (PdfPage(1, 600, 800, 'Changed replacement PDF content.'),), 'later')
             store.save_pdf(newer, b'new PDF bytes')
             searched = store.study_step(dict(studyId=study.id, action='search', query='Formal method'), NOW)

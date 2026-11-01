@@ -206,35 +206,87 @@ class PdfAcquisitionTest(unittest.TestCase):
             self.assertEqual(store.import_prepared_pdf(paper, document, upload.data).id, paper.id)
             self.assertEqual(store.pdf_bytes(store.pdf(document.id)), upload.data)
 
-    def test_missing_bytes_restore_requires_original_digest_and_keeps_receipt(self):
+    def test_unavailable_bytes_restore_requires_original_digest_and_keeps_receipt(self):
+        for damage in ('missing', 'truncated', 'same-size', 'symlink'):
+            with self.subTest(damage=damage), tempfile.TemporaryDirectory() as root:
+                store = ResearchStore(root)
+                selection = save_bundle(store)
+                downloads = PdfDownloads(store, PdfTransport(pdf_fixture()))
+                downloads.request(dict(operation='start', **selection))
+                original = finish(downloads, selection)
+                receipt = original['receipt']
+                path = store.root / 'pdf-files' / (receipt['fileDigest'] + '.pdf')
+                request = ResearchRequest.parse(dict(requestId='cached-version', question='Read original', paperIds=[receipt['paperId']], fullText=True))
+                study = store.create_study(request, NOW)
+                document_before = store.pdf(receipt['documentId']).to_record()
+                study_before = store.study(study.id).to_record()
+                external = Path(root) / 'unrelated.pdf'
+                external.write_bytes(b'unrelated user bytes')
+                if damage == 'missing':
+                    path.unlink()
+                elif damage == 'symlink':
+                    path.unlink()
+                    path.symlink_to(external)
+                else:
+                    path.write_bytes(pdf_fixture()[:12] if damage == 'truncated' else pdf_fixture().replace(b'First', b'Third'))
+                damaged_bytes = path.read_bytes() if path.exists() else None
+                reopened = ResearchStore(root)
+                unavailable = reopened.pdf_downloads.request(dict(operation='status', **selection))
+                self.assertEqual((unavailable['status'], unavailable['stage'], unavailable['localAvailable']), ('unavailable', 'unavailable', False))
+                self.assertEqual(unavailable['receipt'], receipt)
+                downloads = PdfDownloads(reopened, PdfTransport(pdf_fixture().replace(b'First', b'Third')))
+                downloads.request(dict(operation='start', **selection))
+                failed = finish(downloads, selection)
+                self.assertEqual(failed['status'], 'failed')
+                self.assertIn('source bytes changed', failed['error'])
+                self.assertEqual(failed['receipt'], receipt)
+                self.assertEqual(path.read_bytes() if path.exists() else None, damaged_bytes)
+                self.assertEqual(len(store._list('pdfs')), 1)
+                downloads.transport = PdfTransport(pdf_fixture())
+                downloads.request(dict(operation='start', **selection))
+                restored = finish(downloads, selection)
+                self.assertEqual((restored['status'], restored['localAvailable']), ('completed', True))
+                self.assertEqual(restored['receipt'], receipt)
+                self.assertTrue(restored['restoredAt'])
+                self.assertEqual(path.read_bytes(), pdf_fixture())
+                self.assertFalse(path.is_symlink())
+                self.assertEqual(external.read_bytes(), b'unrelated user bytes')
+                self.assertEqual(reopened.pdf(receipt['documentId']).to_record(), document_before)
+                self.assertEqual(reopened.study(study.id).to_record(), study_before)
+
+    def test_cache_repair_publish_failure_and_invalid_input_preserve_existing_bytes(self):
+        from unittest.mock import patch
+        from paper_agent.local_pdf import LocalPdf
+        from paper_agent.pdf_files import PdfFiles
         with tempfile.TemporaryDirectory() as root:
             store = ResearchStore(root)
-            selection = save_bundle(store)
-            downloads = PdfDownloads(store, PdfTransport(pdf_fixture()))
-            downloads.request(dict(operation='start', **selection))
-            original = finish(downloads, selection)
-            receipt = original['receipt']
-            path = store.root / 'pdf-files' / (receipt['fileDigest'] + '.pdf')
+            upload = LocalPdf.parse(pdf_fixture(), 'original.pdf')
+            paper, document = PdfFiles().import_local(upload, NOW)
+            store.import_prepared_pdf(paper, document, upload.data)
+            directory = store.root / 'pdf-files'
+            path = directory / (document.file_digest + '.pdf')
+            path.write_bytes(b'truncated')
+            with patch('paper_agent.store.os.replace', side_effect=OSError('Synthetic publish failure')):
+                with self.assertRaises(OSError):
+                    store.save_pdf(document, upload.data)
+            self.assertEqual(path.read_bytes(), b'truncated')
+            self.assertEqual(list(directory.iterdir()), [path])
+            with self.assertRaisesRegex(Invalid, 'original SHA-256'):
+                store.save_pdf(document, b'wrong original')
+            self.assertEqual(path.read_bytes(), b'truncated')
+            store.save_pdf(document, upload.data)
+            self.assertEqual(path.read_bytes(), upload.data)
+            self.assertEqual(store.pdf(document.id), document)
+            # Refuse a redirected cache directory rather than publishing outside it.
             path.unlink()
-            reopened = ResearchStore(root)
-            unavailable = reopened.pdf_downloads.request(dict(operation='status', **selection))
-            self.assertEqual((unavailable['status'], unavailable['stage'], unavailable['localAvailable']), ('unavailable', 'unavailable', False))
-            self.assertEqual(unavailable['receipt'], receipt)
-            downloads = PdfDownloads(reopened, PdfTransport(pdf_fixture().replace(b'First', b'Third')))
-            downloads.request(dict(operation='start', **selection))
-            failed = finish(downloads, selection)
-            self.assertEqual(failed['status'], 'failed')
-            self.assertIn('source bytes changed', failed['error'])
-            self.assertEqual(failed['receipt'], receipt)
-            self.assertFalse(path.exists())
-            self.assertEqual(len(store._list('pdfs')), 1)
-            downloads.transport = PdfTransport(pdf_fixture())
-            downloads.request(dict(operation='start', **selection))
-            restored = finish(downloads, selection)
-            self.assertEqual((restored['status'], restored['localAvailable']), ('completed', True))
-            self.assertEqual(restored['receipt'], receipt)
-            self.assertTrue(restored['restoredAt'])
-            self.assertEqual(path.read_bytes(), pdf_fixture())
+            directory.rmdir()
+            external = Path(root) / 'external'
+            external.mkdir()
+            directory.symlink_to(external, target_is_directory=True)
+            self.assertFalse(store.pdf_available(document.file_digest, len(upload.data)))
+            with self.assertRaisesRegex(Invalid, 'symbolic link'):
+                store.save_pdf(document, upload.data)
+            self.assertEqual(list(external.iterdir()), [])
 
     def test_real_pdfium_page_limit(self):
         import pypdfium2 as pdfium

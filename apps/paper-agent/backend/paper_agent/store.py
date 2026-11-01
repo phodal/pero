@@ -145,12 +145,25 @@ class ResearchStore:
     def pdf_bytes(self, document):
         return (self.root / 'pdf-files' / (document.file_digest + '.pdf')).read_bytes()
 
+    def pdf_available(self, file_digest, size):
+        directory = self.root / 'pdf-files'
+        path = directory / (file_digest + '.pdf')
+        try:
+            return (not directory.is_symlink() and not path.is_symlink() and path.is_file()
+                    and path.stat().st_size == size and digest(path.read_bytes()) == file_digest)
+        except OSError:
+            return False
+
     def save_pdf(self, document, data):
         directory = self.root / 'pdf-files'
+        if digest(data) != document.file_digest:
+            raise Invalid('PDF bytes do not match the original SHA-256', 409)
+        if directory.is_symlink():
+            raise Invalid('PDF cache directory must not be a symbolic link', 409)
         directory.mkdir(parents=True, exist_ok=True)
         target = directory / (document.file_digest + '.pdf')
         with self.lock:
-            if not target.exists():
+            if not self.pdf_available(document.file_digest, len(data)):
                 descriptor, name = tempfile.mkstemp(dir=directory)
                 try:
                     with os.fdopen(descriptor, 'wb') as output:

@@ -16,7 +16,7 @@ from test_research import reading, NOW
 from paper_agent import pcgym
 from paper_agent.pcgym_app import PcgymApp
 from paper_agent.pcgym_domain import COMMIT, Invalid, REQUIRED_PACKAGES
-from paper_agent.model import PaperSnapshot, Invalid as RequestInvalid
+from paper_agent.model import PaperSnapshot, Invalid as RequestInvalid, digest
 from paper_agent.pdf import PdfAnnotation, PdfDocument, PdfPage
 from paper_agent.store import ResearchStore
 
@@ -66,7 +66,7 @@ class PcgymAppTests(unittest.TestCase):
         pages = tuple(PdfPage(n, 400, 600, 'arXiv 2410.22093v4' if n == 1 else
             'Table 6 Base reward 0.0727 Shaped reward 0.0003 Oracle 0.0000 episodes trajectory' if n == 20 else 'Fixture')
             for n in range(1, 21))
-        self.document = self.store.save_pdf(PdfDocument.create(self.paper.id, 'a' * 64,
+        self.document = self.store.save_pdf(PdfDocument.create(self.paper.id, digest(b'synthetic fixture'),
             'https://arxiv.org/pdf/2410.22093v4', pages, NOW), b'synthetic fixture')
         self.annotation = self.store.save_annotation(PdfAnnotation.create(dict(page=20, kind='highlight',
             quote='Table 6', rects=[dict(x=.1, y=.1, width=.3, height=.1)]), self.document, NOW))
@@ -154,7 +154,7 @@ class PcgymAppTests(unittest.TestCase):
                 pages = tuple(PdfPage(p.number, p.width, p.height,
                     first if p.number == 1 else result if p.number == 20 else p.text)
                     for p in self.document.pages)
-                self.store.save_pdf(PdfDocument.create(paper.id, 'f' * 64,
+                self.store.save_pdf(PdfDocument.create(paper.id, digest(b'fixture'),
                     self.document.source_url, pages, NOW), b'fixture')
                 with self.assertRaises(Invalid):
                     self.app.binding(paper.id)
@@ -169,7 +169,7 @@ class PcgymAppTests(unittest.TestCase):
 
     def test_pdf_replacement_cannot_reuse_audit(self):
         _, command = self.freeze()
-        replacement = PdfDocument.create(self.paper.id, 'c' * 64, self.document.source_url,
+        replacement = PdfDocument.create(self.paper.id, digest(b'different fixture'), self.document.source_url,
                                          self.document.pages, '2026-11-01T00:00:00Z')
         self.store.save_pdf(replacement, b'different fixture')
         with self.assertRaises(Invalid):
