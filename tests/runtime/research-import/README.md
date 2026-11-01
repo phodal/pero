@@ -17,7 +17,7 @@ for scene in references download unsafe digest restart; do
 done
 ```
 
-- `references`: actual discovery/read, describe→inspect/status→review→commit;
+- `references`: actual discovery/read, schema→inspect/status→review→commit;
   persistent references, zero file opens and zero Data assets.
 - `download`: a separate confirmation turn selects only the 29-byte fixture
   file; actual Data bytes, checksum, size, revision and license are checked.
@@ -32,6 +32,10 @@ outcomes, HTTP-attempt audit and reported usage (missing usage stays `null`).
 All source content is public/synthetic. Evidence lives in private directories
 under ignored `test-results/research-import-harness`; no credentials belong there.
 Earlier failed checks remain failed instead of being overwritten.
+Task success and Skill coverage are separate results. An advertised App alias
+already carries its schema; `app_describe` is required for the generic write
+path, not an extra mandatory call before aliases. `describeBeforeInspect` is
+retained as an observation, not a standalone safety requirement.
 
 ## Authorized real inference
 
