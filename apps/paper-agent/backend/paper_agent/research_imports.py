@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import threading
+from urllib.parse import urlsplit
 
 from .model import ID, Invalid, PaperSnapshot, canonical, digest
 from .research_resources import ImportDraft, ImportSelection, ResearchBundle, ResourceIdentity
@@ -136,6 +137,37 @@ class ResearchImports:
             self.store._write('bundle-revisions', revision, record)
             self._replace('research-bundles', bundle.id, {'revisionId': revision})
             return bundle
+
+    def approved_pdf(self, bundle_id, resource_id):
+        bundle = self.bundle(bundle_id)
+        if resource_id not in bundle.pdfDownloadIds:
+            raise Invalid('This PDF was not explicitly confirmed in the research review', 403)
+        resource = next((r for r in bundle.resources if r.id == resource_id and r.kind == 'pdf_candidate'), None)
+        if resource is None:
+            raise Invalid('Approved PDF reference is unavailable; inspect the source again', 409)
+        return resource
+
+    def analysis(self, request):
+        from .research_analysis import analyze
+        with self.store.lock:
+            draft = self.draft(request.get('draftId'))
+            updated, response = analyze(draft, request)
+            if updated != draft:
+                self._replace('import-drafts', draft.id, updated.to_dict())
+            return response
+
+    def approved_source(self, bundle_id, resource_id):
+        bundle = self.bundle(bundle_id)
+        if resource_id not in bundle.sourceDownloadIds:
+            raise Invalid('This source archive was not explicitly confirmed in the research review', 403)
+        resource = next((r for r in bundle.resources if r.id == resource_id and r.kind == 'source_archive'), None)
+        if resource is None:
+            raise Invalid('Approved source reference is unavailable; inspect the source again', 409)
+        if urlsplit(resource.url).path.lower().endswith('.zip'):
+            raise Invalid('ZIP source archives are unsupported; save references only', 409)
+        if resource.workIdentity and not resource.revision:
+            raise Invalid('Select an explicit arXiv source version before downloading', 409)
+        return resource
 
     def handoff(self, request):
         if set(request) - {'bundleId', 'assetId'}:
