@@ -138,6 +138,26 @@ probe, retaining the 5000 ms bound and one real click. Offline regression covers
 false/false/stable samples and permanently missing bounds failing without a click.
 This polling correction still requires its own exact-head Desktop CI.
 
+## Reopened Ask handoff readiness
+
+The next exact-head run, `41330309722` at `2963af4d123cdecdab19af17cecf84541dcf08e8`,
+failed after 307897 ms in `reopenPdf`: the close pointer click did not close Chat.
+Artifact `13093596969` confirms normal search, both deferred actions and answer
+citation completed, but restart acceptance did not finish. The final snapshot has
+one attached reference and open Chat; it lacks the original click target, so it
+does not prove whether that target moved or the event was unconsumed.
+
+Source inspection confirms `appChatLauncher` opens Chat before awaiting the
+context command; reference insertion happens later in ChatPanel rendering. The
+reopened fixture previously clicked Ask and immediately selected close geometry.
+It now observes the actual request ID and matching Host acknowledgement, then
+waits for those exact reference IDs to have painted Host preview bounds before
+selecting the stable close target. Source/origin checks and observer cleanup are
+retained. Safe test logs record only request/reference IDs, pointer bounds and
+open/closed flags. Offline contracts cover open-before-attach, unrelated replies,
+source/origin rejection and bounded failure. No production API, retry click,
+arbitrary delay or suite timeout was added; exact-head GUI confirmation is pending.
+
 ## Not delivered here
 
 No #76 parser/HTML reader, Read/PDF state persistence, HTML/PDF alignment, source
