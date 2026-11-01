@@ -50,6 +50,8 @@ class ResearchStore:
         self.root = Path(root) / "research-v1"
         self.lock = threading.RLock()
         self.embedder = embedder
+        from .research_imports import ResearchImports
+        self.imports = ResearchImports(self)
 
     def _read(self, kind, identity):
         if not isinstance(identity, str) or not ID.fullmatch(identity):
@@ -231,6 +233,7 @@ class ResearchStore:
         discoveries.sort(key=lambda batch: batch.fetched_at, reverse=True)
         favorites = [self.favorite(i).to_dict() for i in self._list('favorites')]
         return dict(papers=papers, intents=intents, reports=reports, favorites=favorites,
+                    bundles=[b.to_dict() for b in self.imports.bundles()],
                     studies=[self.study(i).summary() for i in self._list('studies')], matrixCount=len(self._list('reading-cells')),
                     discoveries=[dict(id=b.id, seedId=b.seed_id, seedTitle=b.seed_title, relation=b.relation,
                                       page=b.page, fetchedAt=b.fetched_at) for b in discoveries])
