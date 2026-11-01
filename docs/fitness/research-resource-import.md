@@ -80,9 +80,15 @@ unavailability. No real LLM calls, model/dataset downloads, clones or experiment
 were performed during implementation.
 
 Existing aggregate `tests/contracts/apps.mjs` fails locally at its Python
-environment-recovery case (second enable at line 231). That fixture is unchanged;
-a clean-base reproduction has not been established, so no baseline-regression
-claim is made. The focused research-import contract passes independently.
+environment-recovery case (second enable at line 231). An exact `5d9bbd40`
+Host-only build (119 crate files checked against Git blobs) and the current Host
+both reproduce its binding mismatch with the unchanged fixture: initial recovery
+selects a managed venv, while the fixture subsequently repairs a different original
+venv. This controlled comparison denied package installation before any network
+and did not set `UV_OFFLINE`; it establishes that the mismatch predates #68, not
+an unrestricted baseline-suite result or the complete cause of the original local
+failure. Baseline CI does not invoke this standalone fixture. It remains unchanged;
+the focused research-import contract passes independently.
 Full `npm run check` locally requires the absent generated reader-Wasm declarations;
 focused Paper typecheck and generated contract checks do not certify a full build.
 Screenshots/receipts are CI artifacts, not committed binaries. A draft PR, passing
