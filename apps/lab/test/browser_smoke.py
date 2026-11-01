@@ -74,7 +74,7 @@ mountLab(document.querySelector('#app'),{get:request,post:request,ask:()=>{}});
                     content = target.read_bytes()
                     mime = mimetypes.guess_type(target)[0] or 'application/octet-stream'
                 self.send_response(200)
-                self.send_header('Content-Type', mime)
+                self.send_header('Content-Type', mime + ('; charset=utf-8' if mime.startswith('text/') else ''))
                 self.send_header('Content-Length', str(len(content)))
                 self.end_headers()
                 self.wfile.write(content)
@@ -143,7 +143,14 @@ mountLab(document.querySelector('#app'),{get:request,post:request,ask:()=>{}});
             frame.get_by_role('button', name='Deck', exact=True).click()
             actual_frame = page.frames[1]
             assert actual_frame.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Horizontal overflow'
+            expect(frame.get_by_role('button', name=re.compile(r'^B1: 200')).locator('small')).to_be_hidden()
+            frame.get_by_role('button', name=re.compile(r'^A1:')).focus()
+            frame.get_by_role('button', name=re.compile(r'^A1:')).press('Enter')
+            expect(frame.get_by_role('button', name=re.compile(r'^A1:'))).to_have_attribute('aria-pressed', 'true')
             page.screenshot(path=str(artifacts / '05-narrow.png'), full_page=True)
+            frame.get_by_role('button', name='Results', exact=True).click()
+            assert actual_frame.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Results overflow'
+            page.screenshot(path=str(artifacts / '05b-results-narrow.png'), full_page=True)
             page.set_viewport_size({'width': 1280, 'height': 900})
             page.emulate_media(color_scheme='light')
             page.evaluate("document.querySelector('iframe').contentWindow.postMessage({type:'pero:app:context',context:{locale:'en',dark:false,active:true}},'*')")
@@ -180,7 +187,7 @@ mountLab(document.querySelector('#app'),{get:request,post:request,ask:()=>{}});
             'view': 'production-bundle' if args.bundle else 'same-view-unbundled',
             'desktop': 'NOT RUN', 'real_agent': 'NOT RUN',
             'checks': ['two linked trials', 'FAIL then PASS', 'explicit review', 'restart without replay',
-                       'export', 'light/dark', 'narrow', 'invalid action', 'unavailable dependency'],
+                       'export', 'light/dark', 'narrow deck/results', 'keyboard well selection', 'invalid action', 'unavailable dependency'],
             'page_errors': errors}, indent=2))
     finally:
         http.shutdown(); http.server_close(); thread.join(timeout=5); store.close(); home.cleanup()
