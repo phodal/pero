@@ -520,6 +520,12 @@ jobs:
           PERO_TEST_HEADED: '1'
           PERO_TEST_SOFTWARE_GL: '1'
         run: node scripts/ci/desktop-suite.mjs '${{ matrix.suite }}'
+      - name: Observe public TimesFM and HF metadata separately
+        if: ${{ !cancelled() && matrix.suite == 'paper-research-import' }}
+        timeout-minutes: 3
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python apps/paper-agent/test/manual/research_metadata.py --allow-public-metadata --output test-results/research-import/live-metadata.json
       - name: Acceptance evidence including failure and timeout
         if: always()
         uses: actions/upload-artifact@v7

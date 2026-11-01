@@ -17,14 +17,28 @@ def main():
     parser.add_argument('--allow-public-metadata', action='store_true', required=True)
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
-    url = 'https://www.research.google/blog/timesfm-3-a-zero-shot-foundation-model-for-multivariate-forecasting/'
-    now = datetime.now(timezone.utc).isoformat()
-    result = inspect_bounded(ImportDraft.create(url, now), ResourceInspector(), threading.Event())
-    receipt = dict(observedAt=now, seedUrl=url, status=result.status, error=result.error,
-                   warnings=result.warnings, downloads=0, modelCalls=0, resources=[
-                       {key: r.to_dict()[key] for key in ('id', 'kind', 'title', 'url', 'originalUrl', 'revision', 'license',
-                                                        'size', 'relation', 'confidence', 'evidence', 'unresolved')}
-                       for r in result.resources])
+    observations = []
+    # The second seed is an independently observed candidate from issue #68,
+    # not an assertion that it was linked or announced by the first seed.
+    for url in (
+        'https://www.research.google/blog/timesfm-3-a-zero-shot-foundation-model-for-multivariate-forecasting/',
+        'https://huggingface.co/google/timesfm-3.0-pytorch',
+    ):
+        now = datetime.now(timezone.utc).isoformat()
+        draft = ImportDraft.create(url, now)
+        result = inspect_bounded(draft, ResourceInspector(), threading.Event())
+        seed = next((resource for resource in result.resources if resource.id == draft.resources[0].id), None)
+        observed = result.status == 'ready' and seed is not None and seed.confidence == 'metadata' and not seed.unresolved
+        observations.append(dict(observedAt=now, seedUrl=url,
+            outcome='METADATA_OBSERVED' if observed else 'INCONCLUSIVE', status=result.status,
+            reason=None if observed else result.error or '; '.join(seed.unresolved if seed else ()) or 'Seed metadata was not resolved.',
+            warnings=result.warnings, resources=[
+                {key: r.to_dict()[key] for key in ('id', 'kind', 'title', 'url', 'originalUrl', 'revision', 'license',
+                                                 'size', 'relation', 'confidence', 'evidence', 'unresolved')}
+                for r in result.resources]))
+    receipt = dict(outcome='METADATA_OBSERVED' if all(item['outcome'] == 'METADATA_OBSERVED' for item in observations) else 'INCONCLUSIVE',
+                   scope='Actual application metadata resolver; independent public seeds. Not fixture or scientific/reproducibility acceptance.',
+                   downloads=0, modelCalls=0, observations=observations)
     encoded = json.dumps(receipt, ensure_ascii=False, indent=2) + '\n'
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -21,6 +21,10 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   assert.match(acceptance.if, /schedule.*workflow_dispatch/);
   assert.equal(acceptance.strategy['fail-fast'], false);
   assert.equal(acceptance.needs, 'desktop-linux');
+  const metadata = acceptance.steps.find(step => step.name === 'Observe public TimesFM and HF metadata separately');
+  assert.equal(metadata.if, "${{ !cancelled() && matrix.suite == 'paper-research-import' }}");
+  assert.equal(metadata['timeout-minutes'], 3);
+  assert.match(metadata.run, /research_metadata\.py --allow-public-metadata --output test-results\/research-import\/live-metadata\.json/);
   assert.match(workflow.jobs.complete.if, /always\(\)/);
   assert.deepEqual(workflow.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
   assert.match(acceptance.if, /contains\(github.event.pull_request.labels.\*.name, 'ci:full'\)/);

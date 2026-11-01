@@ -71,7 +71,12 @@ Local source/contract evidence, not release acceptance:
   GUI pass is claimed. Windows parent-loss handle verification is also hosted-only.
 
 The opt-in `test/manual/research_metadata.py --allow-public-metadata` records actual
-TimesFM metadata observations separately. The local application run was blocked by
+TimesFM article and HF candidate metadata observations separately. Full-tier
+`paper-research-import` runs it in a separate three-minute step even after a GUI
+failure, but not after cancellation. `test-results/research-import/live-metadata.json`
+reports `METADATA_OBSERVED` or `INCONCLUSIVE` per independent seed and preserves
+unresolved reasons; observing the HF candidate does not imply an article link or
+scientific result. The initial local application run was blocked by
 DNS (`gaierror`) and correctly returned an unresolved article with zero assets.
 A separate web read saw the public Google article and HF model card (non-commercial
 license; foundational arXiv 2310.10688 citation); that is **not** an application

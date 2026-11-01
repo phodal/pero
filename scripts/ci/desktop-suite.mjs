@@ -29,7 +29,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   }
   const scriptPath = name === 'automations-ui' ? script : `tests/e2e/${script}.mjs`;
   if (name.startsWith('control-lab')) env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'control-lab-python/bin/python');
-  if (name === 'paper-research-import') Object.assign(env, { PERO_APP_PYTHON: resolve(process.env.RUNNER_TEMP, 'paper-research-python/bin/python'), PERO_RESEARCH_LIVE_METADATA: '1' });
+  if (name === 'paper-research-import') env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'paper-research-python/bin/python');
   if (name === 'scientific-viewer') env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'scientific-viewer-python/bin/python');
   if (name === 'control-lab-live') {
     const agent = resolve('target/debug/pero-agent-acp');
