@@ -71,10 +71,10 @@ export function Chart({ asset }: { asset: Asset }) {
 }
 
 export function Preview({ asset, mode, onMode }: { asset: Asset | null; mode: PreviewMode; onMode(mode: PreviewMode): void }) {
-  if (!asset) return <aside className="data-preview" aria-label="Preview"><EmptyState heading="No dataset selected" description="Choose a row to see its chart or records." /></aside>;
+  if (!asset) return <EmptyState heading="No dataset selected" description="Choose a row to see its chart or records." />;
   const keys = fields(asset);
   const missing = missingCount(asset);
-  return <aside className="data-preview" aria-label="Preview">
+  return <>
     <div className="data-preview-head">
       <h2>{asset.name}</h2>
       {asset.description ? <p>{asset.description}</p> : null}
@@ -94,5 +94,5 @@ export function Preview({ asset, mode, onMode }: { asset: Asset | null; mode: Pr
       <TabsContent value="chart"><Chart asset={asset} /></TabsContent>
       <TabsContent value="rows"><Rows asset={asset} /></TabsContent>
     </Tabs>
-  </aside>;
+  </>;
 }

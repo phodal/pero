@@ -60,6 +60,45 @@ textarea.pero-ui-input { height: auto; }
 .pero-ui-card { border: 0; border-radius: var(--pero-radius-panel); background: var(--pero-material-reading); min-width: 0; }
 .pero-ui-card-header { display: flex; align-items: center; justify-content: space-between; gap: var(--pero-space-2); padding: var(--pero-space-2) var(--pero-space-3); }
 .pero-ui-card-actions { display: flex; gap: var(--pero-space-1); }
+.pero-ui-split {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+}
+.pero-ui-split[data-resizing] { cursor: col-resize; user-select: none; }
+.pero-ui-split-pane { min-width: 0; min-height: 0; }
+.pero-ui-split-pane:not([data-sized]) { flex: 1 1 auto; }
+.pero-ui-split-pane[data-sized] { flex: none; width: var(--pero-split-size); }
+.pero-ui-split-handle {
+  flex: none;
+  width: 1px;
+  padding: 0;
+  border: 0;
+  background: var(--pero-border);
+  cursor: col-resize;
+  touch-action: none;
+  position: relative;
+  z-index: 2;
+}
+.pero-ui-split-handle::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: -6px;
+  width: 13px;
+}
+.pero-ui-split-handle:hover,
+.pero-ui-split-handle:focus-visible,
+.pero-ui-split[data-resizing] > .pero-ui-split-handle { background: var(--pero-focus); }
+.pero-ui-split[data-stacked] { flex-direction: column; }
+.pero-ui-split[data-stacked] > .pero-ui-split-pane[data-sized] {
+  flex: 0 0 var(--pero-split-stacked, 42%);
+  width: auto;
+  min-height: 180px;
+}
+.pero-ui-split[data-stacked] > .pero-ui-split-pane ~ .pero-ui-split-pane { border-block-start: var(--pero-hairline); }
 .pero-app {
   box-sizing: border-box;
   display: flex;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppFrame, Button, EmptyState, Feedback, FilePicker, SearchField } from '@pero/app-sdk/ui';
+import { AppFrame, Button, EmptyState, Feedback, FilePicker, SearchField, Split, SplitPane } from '@pero/app-sdk/ui';
 import { chartEligible, formatInt, IMPORT_LIMIT, parseImported, visibleAssets, type Asset, type PreviewMode } from './model';
 import { Preview } from './preview';
 import { seedAssets } from './sample';
@@ -61,8 +61,8 @@ export default function Data() {
   }
 
   return <AppFrame className="data-page" label="Data" actions={<Button variant="primary" onClick={openAdd}>Add data</Button>}>
-    <div className="data-split">
-      <section className="data-list" aria-label="Datasets">
+    <Split storageKey="pero.data.preview-width" collapseBelow={860}>
+      <SplitPane as="section" id="data-datasets" aria-label="Datasets" className="data-list" min={320}>
         <div className="data-tools">
           <SearchField aria-label="Search data" placeholder="Search" value={query} onChange={event => setQuery(event.target.value)} />
         </div>
@@ -78,9 +78,11 @@ export default function Data() {
             </tr>)}</tbody>
           </table> : <EmptyState heading="No matches" description="Try another name, field, or source." />}
         </div>
-      </section>
-      <Preview asset={selected} mode={mode} onMode={setMode} />
-    </div>
+      </SplitPane>
+      <SplitPane as="aside" id="data-preview" aria-label="Preview" className="data-preview" size={380} min={280} resizeLabel="Resize preview">
+        <Preview asset={selected} mode={mode} onMode={setMode} />
+      </SplitPane>
+    </Split>
     <dialog ref={dialog} className="data-add" aria-labelledby="data-add-title" {...{ closedby: 'any' }}>
       <form method="dialog">
         <header>
