@@ -115,6 +115,7 @@ def compare_source(store, value, source_resource, job, archive):
     if not pdf_job.receipt or not store.pdf_downloads.available(pdf_job):
         return unresolved('The selected PDF bytes are unavailable.')
     document = store.pdf(pdf_job.receipt.documentId)
+    consulted_pdf = dict(documentId=document.id, fileDigest=document.file_digest)
     matches, inspected = [], 0
     normalized_pages = {page.number: ' '.join(page.text.split()) for page in document.pages}
     for member in archive.members:
@@ -130,7 +131,7 @@ def compare_source(store, value, source_resource, job, archive):
             for page in document.pages:
                 inspected += len(page.text)
                 if inspected > 32_000_000:
-                    return dict(status='matched' if matches else 'unresolved', reason='Literal comparison reached its 32-million-character budget; remaining captions are unresolved.', matches=matches)
+                    return dict(status='matched' if matches else 'unresolved', reason='Literal comparison reached its 32-million-character budget; remaining captions are unresolved.', matches=matches, consultedPdf=consulted_pdf)
                 normalized = normalized_pages[page.number]
                 cursor = normalized.find(needle)
                 while cursor >= 0:
@@ -152,5 +153,5 @@ def compare_source(store, value, source_resource, job, archive):
                                  page=page.number, start=original_start, end=original_end, quote=page.text[original_start:original_end])))
                     cursor = normalized.find(needle, cursor + 1)
                     if len(matches) >= 64:
-                        return dict(status='matched', reason='First 64 literal caption matches; not a compiled source map or semantic validation.', matches=matches)
-    return dict(status='matched' if matches else 'unresolved', reason='Literal caption matches only; not a compiled source map or semantic validation.' if matches else 'No literal caption matched. Macro expansion, numbering and approximate page guesses were not used.', matches=matches)
+                        return dict(status='matched', reason='First 64 literal caption matches; not a compiled source map or semantic validation.', matches=matches, consultedPdf=consulted_pdf)
+    return dict(status='matched' if matches else 'unresolved', reason='Literal caption matches only; not a compiled source map or semantic validation.' if matches else 'No literal caption matched. Macro expansion, numbering and approximate page guesses were not used.', matches=matches, consultedPdf=consulted_pdf)

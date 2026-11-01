@@ -142,6 +142,58 @@ class SourceReports(unittest.TestCase):
             self.read('read', memberId=self.tex['id'], start=0)
         self.assertEqual(len(self.report('observations')['observations']), 1)
 
+    def test_legacy_negative_comparison_preserves_id_but_cannot_verify_unknown_pdf_scope(self):
+        from dataclasses import asdict
+        from paper_agent.source_reports import SourceObservation, SourceEvidenceReport
+        compared = self.read('compare', pdfResourceId=self.pdf.id)
+        record = self.store._read('source-observations', compared['observationId'])
+        record.pop('pdfConsulted')
+        record.pop('consultedPdf', None)
+        legacy_id = digest(record)
+        self.assertEqual(SourceObservation.from_record(record).id, legacy_id)
+        self.store._write('source-observations', legacy_id, record)
+        # Model a report saved before explicit comparison scopes existed.
+        report = SourceEvidenceReport(self.selection['bundleId'], 'Legacy', (legacy_id,), ())
+        self.store._write('source-reports', report.id, dict(asdict(report), id=report.id, createdAt='legacy'))
+        reopened = self.report('read', reportId=report.id)
+        self.assertEqual(reopened['id'], report.id)
+        self.assertEqual(reopened['observations'][0]['id'], legacy_id)
+        self.assertEqual(reopened['currentAvailability'], [dict(observationId=legacy_id, available=False, reason='comparison_scope_unrecorded')])
+        with self.assertRaises(Invalid):
+            self.report('create', title='Fresh claim from legacy result', observationIds=[legacy_id])
+
+    def test_no_match_comparison_keeps_consulted_pdf_identity_and_availability(self):
+        selection = dict(bundleId=self.selection['bundleId'], resourceId=self.pdf.id)
+        early = self.read('compare', pdfResourceId=self.pdf.id)
+        early_report = self.report('create', title='Not acquired', observationIds=[early['observationId']])
+        self.store.pdf_downloads = PdfDownloads(self.store, PdfTransport(pdf_fixture().replace(b'First', b'Third')))
+        self.store.pdf_downloads.request(dict(operation='start', **selection))
+        receipt = finish(self.store.pdf_downloads, selection)['receipt']
+        compared = self.read('compare', pdfResourceId=self.pdf.id)
+        self.assertEqual(compared['matches'], [])
+        self.assertEqual(compared['status'], 'unresolved')
+        report = self.report('create', title='No literal matches', observationIds=[compared['observationId']])
+        path = self.store.root / 'pdf-files' / (receipt['fileDigest'] + '.pdf')
+        for damage in ('missing', 'same-size'):
+            with self.subTest(damage=damage):
+                if damage == 'missing':
+                    path.unlink()
+                else:
+                    path.write_bytes(b'x' * path.stat().st_size)
+                self.assertFalse(self.report('read', reportId=report['id'])['currentAvailability'][0]['available'])
+                with self.assertRaises(Invalid):
+                    self.report('create', title='New report while ' + damage, observationIds=[compared['observationId']])
+                # The earlier outcome consulted no PDF and never claimed to compare its contents.
+                self.assertTrue(self.report('read', reportId=early_report['id'])['currentAvailability'][0]['available'])
+                self.store.pdf_downloads.request(dict(operation='start', **selection))
+                self.assertEqual(finish(self.store.pdf_downloads, selection)['receipt'], receipt)
+                self.assertEqual(self.report('read', reportId=report['id']), report)
+                self.assertEqual(self.read('compare', pdfResourceId=self.pdf.id), compared)
+        anchor = report['observations'][0]['anchor']
+        self.assertTrue(anchor['pdfConsulted'])
+        self.assertEqual(anchor['consultedPdf'], dict(documentId=receipt['documentId'], fileDigest=receipt['fileDigest']))
+        self.assertFalse(early_report['observations'][0]['anchor']['pdfConsulted'])
+
     def test_comparison_reports_only_actual_pdf_offsets_and_refuses_corrupt_pdf(self):
         unresolved = self.read('compare')
         report = self.report('create', title='No page mapping', observationIds=[unresolved['observationId']])
@@ -158,6 +210,16 @@ class SourceReports(unittest.TestCase):
         self.assertEqual(match['pdf']['documentId'], receipt['documentId'])
         self.assertEqual(match['source']['memberDigest'], self.tex['sha256'])
         self.assertTrue(report['currentAvailability'][0]['available'])
+        from paper_agent.source_reports import SourceObservation
+        legacy = self.store._read('source-observations', compared['observationId'])
+        legacy.pop('consultedPdf')
+        legacy.pop('pdfConsulted')
+        legacy_id = digest(legacy)
+        self.assertEqual(SourceObservation.from_record(legacy).id, legacy_id)
+        self.store._write('source-observations', legacy_id, legacy)
+        legacy_report = self.report('create', title='Legacy positive match', observationIds=[legacy_id])
+        self.assertTrue(legacy_report['currentAvailability'][0]['available'])
+        self.assertEqual(legacy_report['observations'][0]['id'], legacy_id)
         path = self.store.root / 'pdf-files' / (receipt['fileDigest'] + '.pdf')
         path.write_bytes(b'x' * path.stat().st_size)
         self.assertFalse(self.report('read', reportId=report['id'])['currentAvailability'][0]['available'])

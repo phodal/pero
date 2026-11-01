@@ -46,5 +46,5 @@ export type SourceEvidenceReport = {
 };
 export type OpenSourceEvidenceReport = SourceEvidenceReport & {
   observations: SourceObservation[];
-  currentAvailability: { observationId: string; available: boolean }[];
+  currentAvailability: { observationId: string; available: boolean; reason?: 'comparison_scope_unrecorded' }[];
 };

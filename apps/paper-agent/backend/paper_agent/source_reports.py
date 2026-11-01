@@ -34,6 +34,12 @@ class SourceLocation:
 
 
 @dataclass(frozen=True)
+class PdfIdentity:
+    documentId: str
+    fileDigest: str
+
+
+@dataclass(frozen=True)
 class PdfLocation:
     documentId: str
     fileDigest: str
@@ -55,17 +61,35 @@ class SourceObservation:
     comparisonStatus: str | None = None
     reason: str | None = None
     archiveDigest: str | None = None
+    consultedPdf: PdfIdentity | None = None
+    pdfConsulted: bool | None = None
 
     @property
     def id(self):
-        return digest(asdict(self))
+        return digest(self.to_record())
+
+    @property
+    def legacy_pdf_scope_unknown(self):
+        return self.kind == 'source_pdf_comparison' and self.pdfConsulted is None and bool(self.pdfResourceId) and not self.pdfs
+
+    def to_record(self):
+        value = asdict(self)
+        # Older immutable observations predate explicit comparison scope. Keep
+        # their IDs; unknown old negative scopes must not become fresh evidence.
+        for key in ('consultedPdf', 'pdfConsulted'):
+            if value[key] is None:
+                value.pop(key)
+        value['sources'] = [asdict(item) for item in self.sources]
+        value['pdfs'] = [asdict(item) for item in self.pdfs]
+        return value
 
     @classmethod
     def from_record(cls, value):
         return cls(value['bundleId'], value['resourceId'], value['kind'],
                    tuple(SourceLocation(**item) for item in value['sources']),
                    tuple(PdfLocation(**item) for item in value['pdfs']), value['pdfResourceId'],
-                   value['previewSha256'], value['comparisonStatus'], value['reason'], value['archiveDigest'])
+                   value['previewSha256'], value['comparisonStatus'], value['reason'], value['archiveDigest'],
+                   PdfIdentity(**value['consultedPdf']) if value.get('consultedPdf') else None, value.get('pdfConsulted'))
 
     def to_dict(self):
         anchor = asdict(self.sources[0]) if self.sources else {}
@@ -73,6 +97,7 @@ class SourceObservation:
             anchor.update(previewSha256=self.previewSha256, visualReview='not_reviewed', delivery='preview_returned')
         if self.kind == 'source_pdf_comparison':
             anchor = dict(archiveDigest=self.archiveDigest, pdfResourceId=self.pdfResourceId, status=self.comparisonStatus, reason=self.reason,
+                          pdfConsulted=self.pdfConsulted, consultedPdf=asdict(self.consultedPdf) if self.consultedPdf else None,
                           matches=[dict(source=asdict(source), pdf=asdict(pdf)) for source, pdf in zip(self.sources, self.pdfs)])
         return dict(id=self.id, bundleId=self.bundleId, resourceId=self.resourceId, kind=self.kind,
                     anchor=anchor, limitations=list(LIMITATIONS))
@@ -102,15 +127,16 @@ def record_observation(store, value, result):
             pdfs.append(PdfLocation(pdf['documentId'], pdf['fileDigest'], pdf['page'], pdf['start'], pdf['end'],
                                     digest(pdf['quote'].encode('utf-8'))))
         observation = SourceObservation(value['bundleId'], value['resourceId'], 'source_pdf_comparison',
-            tuple(sources), tuple(pdfs), value.get('pdfResourceId'), comparisonStatus=result['status'], reason=result['reason'])
+            tuple(sources), tuple(pdfs), value.get('pdfResourceId'), comparisonStatus=result['status'], reason=result['reason'],
+            consultedPdf=PdfIdentity(**result['consultedPdf']) if result.get('consultedPdf') else None,
+            pdfConsulted=bool(result.get('consultedPdf')))
     else:
         return result
     _, job = store.source_downloads.job(value['bundleId'], value['resourceId'])
     observation = replace(observation, archiveDigest=job.receipt.archiveDigest)
     try:
         with store.lock:
-            store._write('source-observations', observation.id, dict(asdict(observation),
-                sources=[asdict(item) for item in observation.sources], pdfs=[asdict(item) for item in observation.pdfs]))
+            store._write('source-observations', observation.id, observation.to_record())
     except (Invalid, OSError) as error:
         if isinstance(error, Invalid) and error.status != 413:
             raise
@@ -153,13 +179,18 @@ def verify_observation(store, observation):
             from .source_reading import checked_preview
             if digest(checked_preview(store, SourceMember.from_record(member))) != observation.previewSha256:
                 return False
-    if observation.pdfs:
+    if observation.legacy_pdf_scope_unknown:
+        return False  # Legacy negative result did not freeze which PDF it consulted.
+    if observation.pdfConsulted or observation.pdfs:
         store.imports.approved_pdf(observation.bundleId, observation.pdfResourceId)
         job_id = digest(dict(bundleId=observation.bundleId, resourceId=observation.pdfResourceId))
         pdf_job = store.pdf_downloads._read(job_id)
         if not pdf_job.receipt or not store.pdf_downloads.available(pdf_job):
             return False
         document = store.pdf(pdf_job.receipt.documentId)
+        identity = observation.consultedPdf or (PdfIdentity(observation.pdfs[0].documentId, observation.pdfs[0].fileDigest) if observation.pdfs else None)
+        if not identity or identity.documentId != document.id or identity.fileDigest != document.file_digest:
+            return False
         for pdf in observation.pdfs:
             if pdf.documentId != document.id or pdf.fileDigest != document.file_digest:
                 return False
@@ -205,7 +236,8 @@ def report_view(store, record, expected_id):
             available = verify_observation(store, observation)
         except (OSError, Invalid, UnicodeError):
             available = False
-        availability.append(dict(observationId=identity, available=available))
+        availability.append(dict(observationId=identity, available=available,
+            **(dict(reason='comparison_scope_unrecorded') if observation.legacy_pdf_scope_unknown else {})))
     return dict(id=report.id, bundleId=report.bundleId, title=report.title, createdAt=record['createdAt'],
                 observationIds=list(report.observationIds), observations=observations,
                 interpretations=[dict(text=note, status='unresolved') for note in report.interpretations],

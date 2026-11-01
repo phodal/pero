@@ -32,7 +32,7 @@ reader, model backend, scheduler, compiler or research execution framework is ad
 
 ## Verification
 
-- Backend suite: 133 tests run, OK (132 passed; one Windows-only lifecycle test skipped on Linux).
+- Backend suite: 135 tests run, OK (134 passed; one Windows-only lifecycle test skipped on Linux).
   New report tests cover observed-only references, cross-bundle rejection,
   immutable/idempotent exact-window reopening (including partial-line character windows), image interpretation boundaries, exact PDF
   comparison scopes, original loss/tampering/restoration, journal-capacity failure, and rejection of reportable empty windows.
@@ -76,3 +76,19 @@ not upgraded to success from cached originals. Earlier real-provider failures an
 semantic limitations remain unchanged. This report verifies evidence provenance
 and tool scopes, not scientific correctness, complete reading, visual understanding,
 original experiment reproduction, or correctness of arbitrary model claims.
+
+## Review corrections
+
+Zero-match comparisons now freeze the consulted PDF document/file digest separately
+from match locations. Missing or corrupted PDF originals invalidate current
+availability even when there were no caption matches, and exact-byte restoration
+preserves the observation/report. Early returns explicitly record that no PDF was
+consulted. Older negative comparisons without a recorded PDF identity retain their
+IDs but require a new comparison to produce verifiable evidence; restoring bytes
+cannot retroactively establish an unknown scope.
+
+The source image bridge uses explicit fields/constructor assignments, not TypeScript
+parameter properties. Direct Node 24 strip-only App Use tests passed (9 tests), and
+the repository App Use unit command passed (18 plus 10 tests). Node 22 was not
+available locally; hosted Node 22 CI remains the exact-version confirmation. The
+prior transformed bridge test alone did not establish strip-only compatibility.
