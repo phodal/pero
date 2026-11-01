@@ -210,7 +210,34 @@ jobs:
           go-version: "1.27.3"
           cache-dependency-path: harness/go/go.sum
       - name: Install supported sandbox backend
-        run: sudo apt-get update && sudo apt-get install --yes bubblewrap
+        timeout-minutes: 4
+        run: |
+          if command -v bwrap >/dev/null 2>&1; then
+            bwrap --version
+            exit 0
+          fi
+          # Avoid runner mirror outages and unrelated third-party repositories.
+          codename="$(lsb_release --codename --short)"
+          case "$codename" in
+            jammy|noble) ;;
+            *) echo "Unsupported Ubuntu release: $codename" >&2; exit 1 ;;
+          esac
+          sources="$RUNNER_TEMP/strict-sandbox.sources.list"
+          printf '%s\n' \
+            "deb https://archive.ubuntu.com/ubuntu $codename main universe" \
+            "deb https://archive.ubuntu.com/ubuntu $codename-updates main universe" \
+            "deb https://security.ubuntu.com/ubuntu $codename-security main universe" > "$sources"
+          apt_options=(
+            -o "Dir::Etc::sourcelist=$sources"
+            -o 'Dir::Etc::sourceparts=-'
+            -o 'Acquire::Retries=2'
+            -o 'Acquire::http::Timeout=15'
+            -o 'Acquire::https::Timeout=15'
+            -o 'APT::Update::Error-Mode=any'
+          )
+          sudo timeout --kill-after=5s 90s apt-get "${apt_options[@]}" update
+          sudo timeout --kill-after=5s 120s apt-get "${apt_options[@]}" install --yes --no-install-recommends bubblewrap
+          bwrap --version
       - name: Require positive isolation contract
         working-directory: harness/go
         run: go test -count=1 -v ./sandbox -run '^TestNativeRuntime$'
