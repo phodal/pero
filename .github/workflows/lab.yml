@@ -45,7 +45,7 @@ jobs:
           if-no-files-found: warn
 
   app-browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
