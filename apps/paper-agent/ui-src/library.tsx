@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button, Checkbox, EmptyState, Feedback, Field, FilePicker, Input, ListRow, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, Toolbar } from '@pero/app-sdk/ui';
 import type { Api, Paper, SearchItem } from './types';
 import type { Translator } from './i18n';
+import { ResourceImportPanel } from './resource-import';
 
 const sourceNames: Record<string, string> = { huggingface: 'Hugging Face', alphaxiv: 'alphaXiv', openalex: 'OpenAlex', biorxiv: 'bioRxiv', pubmed: 'PubMed' };
 
@@ -54,7 +55,8 @@ export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImpor
   }
   return <section className="pa-import" ref={panel} aria-label={t('add')}>
     <Tabs value={tab} onValueChange={setTab}>
-      <TabsList aria-label={t('add')}><TabsTrigger value="search">{t('search')}</TabsTrigger><TabsTrigger value="pdf">PDF</TabsTrigger><TabsTrigger value="import">{t('import')}</TabsTrigger></TabsList>
+      <TabsList aria-label={t('add')}><TabsTrigger value="search">{t('search')}</TabsTrigger><TabsTrigger value="link">Link</TabsTrigger><TabsTrigger value="pdf">PDF</TabsTrigger><TabsTrigger value="import">{t('import')}</TabsTrigger></TabsList>
+      <TabsContent value="link" forceMount><ResourceImportPanel api={api} active={active && tab === 'link'} onAdded={onAdded}/></TabsContent>
       <TabsContent value="search" forceMount>
         <div className="pa-search-form" role="search" onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing && event.target instanceof HTMLInputElement) { event.preventDefault(); void search(); } }}>
           <Field label={t('findLabel')}>{props => <Input {...props} value={query} onChange={event => setQuery(event.target.value)} placeholder={t('searchPlaceholder')} maxLength={500}/>}</Field>
@@ -77,7 +79,7 @@ export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImpor
           <Field label={t('paperTitle')}>{props => <Input {...props} required value={title} maxLength={1000} onChange={event => setTitle(event.target.value)}/>}</Field>
           <Field label={t('paperUrl')}>{props => <Input {...props} type="url" required value={url} onChange={event => setUrl(event.target.value)} placeholder="https://…"/>}</Field>
           <Select label={t('contentKind')} value={kind} onChange={setKind} options={[{ value: 'full-text', label: t('fullText') }, { value: 'abstract', label: t('abstract') }, { value: 'report', label: t('sourceReport') }]}/>
-          <Field label={t('paperText')}>{props => <Textarea {...props} required rows={12} value={content} maxLength={120000} onChange={event => setContent(event.target.value)}/>}</Field>
+          <Field label={t('paperText')}>{props => <Textarea {...props} required rows={12} value={content} onChange={event => setContent(event.target.value)} maxLength={120000}/>}</Field>
           <FilePicker label={t('importFile')} emptyLabel={t('textFileHint')} accept=".txt,.md,.markdown,text/plain,text/markdown" onFile={selected => void file(selected)}/>
           <Toolbar><Button onClick={() => void importText()} variant="primary" busy={adding === 'text'} disabled={!!adding || !title.trim() || !url.trim() || !content.trim()}>{adding === 'text' ? t('loading') : t('importAction')}</Button></Toolbar>
         </div>
@@ -100,8 +102,6 @@ export function LiteratureHits({ results, resultPriority, adding, addError, onAd
           {!!item.authors?.length && <p className="pa-muted">{item.authors.slice(0, 4).join(', ')}{item.authors.length > 4 ? ' et al.' : ''}</p>}
           <div className="pa-search-meta"><span>{item.publicationDate?.slice(0, 10) || t('dateUnavailable')}</span><span>{item.citations == null ? t('citationsUnavailable') : `${item.citations.toLocaleString()} ${t('citationCount')}${item.citationSource ? ` (${sourceNames[item.citationSource] ?? item.citationSource})` : ''}`}</span>{item.hfVotes != null && <span>{item.hfVotes.toLocaleString()} {t('communityLikes')} (Hugging Face)</span>}{item.githubStars != null && <span>{item.githubStars.toLocaleString()} {t('githubStars')} (GitHub)</span>}<span>{sourceNames[item.source] ?? item.source}</span></div>
           {item.abstract && <p className="pa-search-abstract">{item.abstract}</p>}
-          {adding === key && <p role="status">{t('addingPaper')}</p>}
-          {addError?.key === key && <Feedback kind="error">{addError.message}</Feedback>}
           <div className="pa-search-links">{item.url && item.url !== item.paperUrl && <a href={item.url} target="_blank" rel="noreferrer">{t('searchOriginal')}</a>}{item.paperUrl && <a href={item.paperUrl} target="_blank" rel="noreferrer">Hugging Face</a>}{item.pdfUrl && <a href={item.pdfUrl} target="_blank" rel="noreferrer">PDF</a>}{item.githubUrl && <a href={item.githubUrl} target="_blank" rel="noreferrer">GitHub</a>}{item.projectUrl && item.projectUrl !== item.githubUrl && <a href={item.projectUrl} target="_blank" rel="noreferrer">{t('projectPage')}</a>}{item.thumbnailUrl && <a href={item.thumbnailUrl} target="_blank" rel="noreferrer">{t('searchImage')}</a>}{item.doi && <span>DOI: {item.doi}</span>}</div>
           {!!item.alternatives?.length && <details className="pa-search-alternatives"><summary>{t('otherSources')} ({item.alternatives.length})</summary><ul>{item.alternatives.map(alternative => <li key={`${alternative.source}:${alternative.id}`}>{alternative.url ? <a href={alternative.url} target="_blank" rel="noreferrer">{sourceNames[alternative.source] ?? alternative.source}</a> : sourceNames[alternative.source] ?? alternative.source}</li>)}</ul></details>}
         </div>
