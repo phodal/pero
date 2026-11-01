@@ -10,6 +10,12 @@ from .source_text import SourceText
 
 
 def source_read(store, value):
+    from .source_reports import record_observation
+    result = read_source(store, value)
+    return record_observation(store, value, result)
+
+
+def read_source(store, value):
     if set(value) - {'bundleId', 'resourceId', 'operation', 'memberId', 'startLine', 'endLine', 'start', 'pdfResourceId'} or value.get('operation') not in ('list', 'read', 'compare', 'image'):
         raise Invalid('Choose list, read, image or compare for an approved source archive')
     resource, job = store.source_downloads.job(value.get('bundleId'), value.get('resourceId'))
