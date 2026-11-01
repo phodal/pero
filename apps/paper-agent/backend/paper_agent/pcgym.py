@@ -246,7 +246,8 @@ def export(root, attempt_id, destination):
             raise Invalid('paper_binding_changed', 'Saved Paper inputs differ from the frozen specification')
         files['paper-binding.json'] = binding
     files.update({name: target / name for name in ('execution.json', 'observations.json', 'verification.json')})
-    # Include fresh numeric raw output only; no third-party paper/source or pickle.
+    # Additional raw output is numeric only; the optional binding above includes
+    # the observed PDF passage text, but no full PDF/source file or pickle.
     for name in ('base-raw.npz', 'shaped-raw.npz', 'oracle-raw.npz', 'environment.json'):
         if (target / name).is_file():
             files[name] = target / name
@@ -263,7 +264,7 @@ def export(root, attempt_id, destination):
         manifests.append({'name': 'pcgym_domain.py', 'sha256': hashlib.sha256(checker).hexdigest(), 'bytes': len(checker)})
         archive.writestr('verify.py', EXPORT_CHECKER)
         archive.writestr('manifest.json', canonical({'files': manifests, 'paper_verdict': report['paper_verdict'],
-                         'omitted': ['Third-party paper and repository', 'Checkpoints (digests only)', 'Local paths and credentials']}))
+                         'omitted': ['Full third-party PDF and repository files (bound passage text is included)', 'Checkpoints (digests only)', 'Local paths and credentials']}))
     return {'exported': str(destination), 'paper_verdict': report['paper_verdict']}
 
 
