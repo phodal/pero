@@ -56,7 +56,19 @@ npm run typecheck
   pointer, keyboard, wheel, change and assistive click input invalidate the
   pending search epoch, including input in the existing portal toolbar.
 
-Actual Desktop execution/screenshots for this revision remain pending the
+The first full CI run for PR #88 did not execute these shared-reader assertions:
+`paper-agent.mjs` was absent from the Paper aggregate. That green run is not
+shared-anchor GUI acceptance. The existing `paper-research-import-all.mjs` now
+also runs `paper-agent.mjs` in its existing PDF-only mode, retaining selection,
+shared context/annotation identity, exact search, deferred navigation and restart
+checks while skipping the unrelated discovery tour. This mode uses authored PDF
+bytes and the scripted ACP agent by default. Each Desktop fixture closes its
+owned app/profile; the aggregate restores its temporary mode setting in finally.
+The CI wiring test executes this aggregate with only Desktop entries stubbed and
+requires the reader entry and scoped mode, preventing another silent omission.
+No workflow, runner or 360-second acceptance timeout was added or changed.
+
+Actual Desktop execution/screenshots for this wiring revision remain pending the
 existing full Desktop CI. Local recent Desktop attempts are blocked by the
 launcher/Chromium IPC environment; an older build is not acceptance evidence for
 these changes. No paid provider, external upload, new dependency installation or
@@ -65,8 +77,8 @@ Mac operation was performed.
 ## Not delivered here
 
 No #76 parser/HTML reader, Read/PDF state persistence, HTML/PDF alignment, source
-report schema replacement, or new execution authority is included. The #75
-unpublished source-report owner remains untouched. Unknown macros and unsupported
+report schema replacement, or new execution authority is included. The merged #75
+source-report ledger and image bridge remain unchanged. Unknown macros and unsupported
 scientific formats are not interpreted. Source/HTML integration and real Desktop
 acceptance remain explicit follow-on work; this record does not close #76/#79 or
 claim the whole research lifecycle works.

@@ -91,6 +91,30 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   assert.equal(native.on.pull_request.paths, undefined);
 });
 
+test('Paper aggregate reaches shared-reader acceptance in scoped PDF mode', () => {
+  const temp = mkdtempSync(resolve(tmpdir(), 'pero-paper-wiring-'));
+  const entries = ['paper-research-import', 'paper-research-import-host', 'paper-pdf-study', 'paper-source-study', 'paper-agent'];
+  try {
+    writeFileSync(resolve(temp, 'aggregate.mjs'), readFileSync('tests/e2e/paper-research-import-all.mjs'));
+    // Stub only the expensive Desktop boundary. Execute the actual aggregate so
+    // removing/skipping its reader import fails without launching Electron here.
+    for (const entry of entries) writeFileSync(resolve(temp, `${entry}.mjs`),
+      `globalThis.visited.push([${JSON.stringify(entry)}, process.env.PERO_PAPER_PDF_ONLY]);
+       if (${JSON.stringify(entry)} === 'paper-agent' && process.env.PAPER_STUB_FAIL === '1') throw Error('reader failed');`);
+    for (const previous of [undefined, 'prior-mode']) for (const fail of [false, true]) {
+      const env = { ...process.env, PAPER_STUB_FAIL: fail ? '1' : '0' };
+      if (previous === undefined) delete env.PERO_PAPER_PDF_ONLY;
+      else env.PERO_PAPER_PDF_ONLY = previous;
+      const result = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e',
+        "globalThis.visited = []; let error; try { await import('./aggregate.mjs'); } catch (e) { error = e.message; } console.log(JSON.stringify({ visited, error, after: process.env.PERO_PAPER_PDF_ONLY }));"],
+      { cwd: temp, env, encoding: 'utf8' }));
+      assert.deepEqual(result.visited, entries.map(entry => [entry, entry === 'paper-agent' ? '1' : previous ?? null]));
+      assert.equal(result.after, previous);
+      assert.equal(result.error, fail ? 'reader failed' : undefined);
+    }
+  } finally { rmSync(temp, { recursive: true, force: true }); }
+});
+
 test('runtime archive is tied to exact revision, retains executable mode and verifies bytes', { skip: process.platform !== 'linux' }, () => {
   const temp = mkdtempSync(resolve(tmpdir(), 'pero-ci-artifact-'));
   try {
