@@ -7,6 +7,7 @@ import (
 	openaisdk "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/phodal/pero/harness/go/harness"
+	"slices"
 	"time"
 )
 
@@ -96,7 +97,7 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 	if a.maxOutputTokens > 0 && (request.MaxTokens == 0 || request.MaxTokens > a.maxOutputTokens) {
 		request.MaxTokens = a.maxOutputTokens
 	}
-	wire, err := encodeRequest(request)
+	wire, err := encodeRequest(request, slices.Contains(a.models[request.Model].InputModalities, "image"))
 	if err != nil {
 		return harness.Completion{}, err
 	}
