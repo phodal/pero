@@ -235,6 +235,9 @@ try {
   await frame.getByRole('button', { name: 'Open saved PDF', exact: true }).click();
   await frame.getByRole('button', { name: 'Read', exact: true }).click();
   await frame.getByText('Source and parsing details', { exact: true }).click();
+  await expect(frame.getByRole('button', { name: 'Prepare fresh parse · v2', exact: true })).toHaveCount(2);
+  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toHaveValue(identity);
+  expect(await sourceReports({ operation: 'read', reportId: sourceReport.id })).toEqual(sourceReport);
   // Hold only the real refreshed overview after B preparation. The old overview
   // still contains A; no original read may silently fall back to that scope.
   await frame.locator('body').evaluate(() => {

@@ -38,7 +38,7 @@ function Contents({ tokens, onTarget }: { tokens: Inline[]; onTarget(target: str
 function readSetting(key: string) { try { return localStorage.getItem(key); } catch { return null; } }
 function saveSetting(key: string, value: string) { try { localStorage.setItem(key, value); } catch { /* Reading works without storage. */ } }
 
-export function StructuredReading({ api, paperId, onReady, onReview, showText, children }: { api: Api; paperId: string; showText?: boolean; onReady(ready: boolean): void; onReview(): void; children: React.ReactNode }) {
+export function StructuredReading({ api, paperId, openToken, onReady, onReview, showText, children }: { api: Api; paperId: string; openToken: number; showText?: boolean; onReady(ready: boolean): void; onReview(): void; children: React.ReactNode }) {
   const [overview, setOverview] = useState<Overview>({ revisions: [], sources: [] }), [document, setDocument] = useState<Document | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [original, setOriginal] = useState<Original | null>(null), [originalBlock, setOriginalBlock] = useState('');
   const [target, setTarget] = useState(''), [candidates, setCandidates] = useState<Block[]>([]), [targetError, setTargetError] = useState('');
@@ -68,7 +68,9 @@ export function StructuredReading({ api, paperId, onReady, onReview, showText, c
       if (identity) await load(identity, version);
     }).catch(error => { if (version === epoch.current) setError(String(error.message ?? error)); });
     return () => { epoch.current++; originalEpoch.current++; };
-  }, [api, paperId]);
+    // Reader stays mounted behind the library. An explicit reopen must discover
+    // newly approved bundle scopes even when the PDF identity did not change.
+  }, [api, paperId, openToken]);
   useEffect(() => {
     if (!document || !root.current) return;
     const container = root.current.closest('.pa-text-reading');
