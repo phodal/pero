@@ -20,3 +20,13 @@ test('import transport preserves every original byte including BOM and CRLF', ()
   const bytes = new Uint8Array([239, 187, 191, 66, 49, 44, 48, 46, 53, 13, 10]);
   assert.deepEqual(new Uint8Array(Buffer.from(bytesToBase64(bytes), 'base64')), bytes);
 });
+
+test('evidence tables use readable labels without substituting verification values', async () => {
+  const { checkLabel, trialLabel } = await import('../ui-src/presentation.ts');
+  assert.equal(checkLabel('target_volume_ul'), 'Target volume');
+  assert.equal(checkLabel('observed_fraction'), 'Observed fraction');
+  assert.equal(checkLabel('future_check'), 'future check');
+  const trials = [{ id: 'a'.repeat(32), parent_trial_id: null }, { id: 'b'.repeat(32), parent_trial_id: 'a'.repeat(32) }];
+  assert.equal(trialLabel(trials, trials[0].id), 'Trial 1 · Baseline');
+  assert.equal(trialLabel(trials, trials[1].id), 'Trial 2 · Revision');
+});

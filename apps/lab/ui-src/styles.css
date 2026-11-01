@@ -56,3 +56,9 @@ tbody th { font-weight: 500; }
 .result-actions { border-top: .5px solid var(--pero-border); padding-top: 16px; }
 .empty { padding: 24px 0; color: var(--pero-text-muted); }
 @media (max-width: 600px) { .lab-header { align-items: flex-start; } .lab-header .toolbar { width: 100%; } .lab .pero-ui-split-pane { padding: 0; } .toolbar { gap: 6px; } .context-row { align-items: flex-start; flex-direction: column; } .context-row label { width: 100%; } }
+/* Scientific labels must stay readable; narrow panes scroll the table, not the App. */
+.checks-table { min-width: 460px; }
+.checks-table th:first-child { min-width: 125px; }
+.checks-table th:nth-child(2), .checks-table td:nth-child(2) { min-width: 75px; white-space: nowrap; }
+.comparison-table { min-width: 540px; }
+.comparison-table th, .comparison-table td { white-space: nowrap; overflow-wrap: normal; }

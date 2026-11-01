@@ -28,3 +28,12 @@ export function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 export const formatNumber = (value: number | null | undefined): string => value == null ? '—' : Number(value.toFixed(4)).toString();
+
+export const checkLabel = (name: string): string => ({
+  execution: 'Execution', target_volume_ul: 'Target volume', observed_fraction: 'Observed fraction',
+}[name] ?? name.replaceAll('_', ' '));
+export function trialLabel(trials: { id: string; parent_trial_id: string | null }[], id: string): string {
+  const index = trials.findIndex(trial => trial.id === id);
+  if (index < 0) return 'Unknown trial';
+  return `Trial ${index + 1} · ${trials[index].parent_trial_id ? 'Revision' : 'Baseline'}`;
+}
