@@ -19,6 +19,7 @@ from .source_text import SourceText
 from .context_file import ContextSelection, ContextRead
 from .research import ResearchPlan
 from .thumbnails import PaperThumbnails
+from .resource_import import Discovery, ResourceImports
 
 MAX_BODY = 1024 * 1024
 
@@ -35,10 +36,13 @@ def research_stage(record):
     return dict(stage='select', id=record.id, requestId=record.plan.request.request_id + '-r' + str(len(record.queries)), question=record.plan.request.question, prompt=record.prompt(), round=len(record.queries))
 
 
-def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbnails=None):
+def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbnails=None, resource_discovery=None):
     literature = literature if literature is not None else LiteratureClient()
     pdf_files = pdf_files if pdf_files is not None else PdfFiles()
     thumbnails = thumbnails if thumbnails is not None else PaperThumbnails()
+    resource_imports = ResourceImports(store,
+        lambda reading, stamp: store.save_paper(PaperSnapshot.from_reading(reading, stamp)).to_dict(False),
+        resource_discovery if resource_discovery is not None else Discovery(read_paper=literature.read))
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -152,6 +156,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, record.to_dict())
                 if self.command == "POST":
+                    if path == '/api/resource-imports':
+                        return self.reply(200, resource_imports.command(data, now()))
                     if path == '/api/research/prepare':
                         request = ResearchRequest.parse(data)
                         if request.full_text:
