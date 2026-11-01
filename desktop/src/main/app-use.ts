@@ -15,6 +15,8 @@ import {
 } from './app-use-task.ts';
 
 export type AppUseEvent = { kind: string; thread_id?: string; data?: unknown; text?: string };
+// Research Apps expose only their bounded domain tools, not general UI automation.
+const boundedResearchApp = (app: string | undefined) => app === 'control-lab' || app === 'lab';
 type SessionAccess = 'selected' | 'app-data';
 type AppUseCall = { controller: AbortController; scope?: AppScope; access: SessionAccess };
 type Session = {
@@ -230,7 +232,7 @@ export class AppUse {
   private grantKey(thread: string, scope: AppScope) {
     return `${thread}\0${scope.app}\0${scope.panel}`;
   }
-  isControlLab(thread: string) { return this.sessions.get(thread)?.scope?.app === 'control-lab'; }
+  isBoundedResearch(thread: string) { return boundedResearchApp(this.sessions.get(thread)?.scope?.app); }
   canBeginGoal(thread: string) { const session = this.sessions.get(thread); return !!session && !session.running; }
   private publish(thread: string) {
     const session = this.sessions.get(thread);
@@ -405,8 +407,8 @@ export class AppUse {
       };
       const before = inventory.surfaces.find((surface) => surface.surfaceId === input.surfaceId);
       if (!before) fail('APP_SURFACE_UNKNOWN', 'Use the surfaceId from inventory.');
-      if (before.app === 'control-lab')
-        fail('APP_GOAL_DENIED', 'Use the approved Control Lab experiment tools instead of general App UI access.');
+      if (boundedResearchApp(before.app))
+        fail('APP_GOAL_DENIED', 'Use this research App’s bounded experiment tools instead of general App UI access.');
       const task = new AppUseTask(
         randomUUID(),
         thread,
