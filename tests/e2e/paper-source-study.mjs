@@ -225,7 +225,7 @@ try {
   expect(errors).toEqual([]); expect(acquisitionConflicts).toEqual([]);
   if (live) {
     await app.close(); app = null;
-    execFileSync('python3', [resolve(root, 'tests/e2e/paper-source-live.py'),
+    execFileSync(env.PERO_APP_PYTHON || 'python3', [resolve(root, 'tests/e2e/paper-source-live.py'),
       '--cache', resolve(profile, 'desktop/app-data/paper-agent'), '--output', resolve(out, 'three-materials.json'),
       '--aptamer-bundle', bundle.id, '--aptamer-resource', source.id],
       { cwd: root, env, timeout: 105000, stdio: 'pipe' });

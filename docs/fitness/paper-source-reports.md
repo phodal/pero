@@ -54,6 +54,19 @@ reader, model backend, scheduler, compiler or research execution framework is ad
   This was recorded/offline material, **not a new live-network acquisition**. Image
   visual review and interpretation remained unresolved; no new model call ran.
 
+## Explicit live verification path
+
+The existing opt-in Desktop source journey also invokes a bounded, serial CLI
+check for the three fixed-v1 materials, reusing its approved Aptamer cache and the
+App's configured Python environment. It records real response classification,
+short original source scopes, safe image delivery, report reopening/export and
+local preview repair. A changed VERID source response is reported explicitly,
+not forced to match an older PDF-only observation. The helper refuses to run
+without the existing live opt-in; ordinary fixture CI remains network-free.
+No workflow policy or timeout is expanded. Live artifacts contain only receipts,
+hashes, locations and outcomes; source/image payloads and screenshots are omitted.
+This new three-material path has syntax/opt-in-gate checks only until run by CI.
+
 ## Remaining acceptance
 
 Issue #75 is not closed by this feature. Historical Aptamer source and Google VERID

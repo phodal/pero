@@ -84,12 +84,13 @@ def main():
             if paper != '2610.32755v1':
                 assert tex and image, 'Expected TeX and safe raster members were not available'
             if tex:
-                anchors = [a for a in tex.get('structures', []) if a['kind'] in ('table', 'caption')]
-                first = anchors[0]['startLine'] if anchors else 1
-                read = invoke('source-read', dict(**request, operation='read', memberId=tex['id'], startLine=first, endLine=first))
+                anchors = [a for a in tex.get('structures', []) if a['kind'] in ('table', 'caption') and a['end'] > a['start']]
+                window = dict(start=anchors[0]['start'], end=min(anchors[0]['end'], anchors[0]['start'] + 1200)) if anchors else dict(start=0)
+                read = invoke('source-read', dict(**request, operation='read', memberId=tex['id'], **window))
+                assert read['content'], 'Source window did not contain readable original text'
                 assert read['archiveDigest'] == receipt['archiveDigest'] and read['memberDigest'] == tex['sha256']
                 observations.append(read['observationId'])
-                scopes.append({key: read[key] for key in ('memberId', 'memberPath', 'memberDigest', 'startLine', 'endLine')})
+                scopes.append({key: read[key] for key in ('memberId', 'memberPath', 'memberDigest', 'startLine', 'endLine', 'start', 'end')})
             if image:
                 read = invoke('source-read', dict(**request, operation='image', memberId=image['id']))
                 assert hashlib.sha256(base64.b64decode(read['data'])).hexdigest() == read['provenance']['previewSha256']
