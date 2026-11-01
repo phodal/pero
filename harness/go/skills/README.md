@@ -23,7 +23,11 @@ Task-specific instructions here.
 
 The `skill` tool accepts `{}` to list launch-time names, descriptions and
 SHA-256 digests, then `{"name":"example","digest":"sha256:..."}` to read
-that selected body. It has no path/root/write/execute arguments. Instructions
+that selected body. Its tool description advertises only names/descriptions from
+that same explicit catalog, so an Agent can recognize relevant workflows before
+listing. It does not advertise bodies, digests, paths or model-disabled entries;
+the existing catalog limits and fixed-snapshot rules still apply.
+It has no path/root/write/execute arguments. Instructions
 are untrusted task guidance, **not permission grants**; any separately installed
 tool retains its own authority/approval policy. No tool is invoked automatically.
 `disable-model-invocation: true` keeps a skill unavailable to this tool. Other

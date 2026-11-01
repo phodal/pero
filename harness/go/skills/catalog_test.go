@@ -225,7 +225,15 @@ func TestToolUsesExistingRegistry(t *testing.T) {
 		t.Fatalf("off: %v %v", off, e)
 	}
 	root := canonicalTempDir(t)
-	fixture(t, root, "demo", "")
+	path := fixture(t, root, "demo", "")
+	fixture(t, root, "disabled", "---\nname: disabled\ndescription: hidden summary\ndisable-model-invocation: true\n---\nsecret body")
+	offAgent, e := h.Agents().Create(ctx, harness.AgentOptions{ID: "skills-off", CWD: root})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if schemas, err := h.Tools().SchemasForAgent(ctx, offAgent); err != nil || len(schemas) != 0 {
+		t.Fatalf("default-off exposed tools: %+v %v", schemas, err)
+	}
 	c, e = Mount(ctx, h, []string{root})
 	if e != nil {
 		t.Fatal(e)
@@ -250,6 +258,19 @@ func TestToolUsesExistingRegistry(t *testing.T) {
 	if e = json.Unmarshal([]byte(result.Content[0].Text), &rows); e != nil || len(rows) != 1 {
 		t.Fatalf("%+v %v", result, e)
 	}
+	schemas, e := h.Tools().SchemasForAgent(ctx, a)
+	if e != nil || len(schemas) != 1 || schemas[0].Name != "skill" {
+		t.Fatalf("unexpected tool authority: %+v %v", schemas, e)
+	}
+	description := schemas[0].Description
+	if !strings.Contains(description, `"name":"demo"`) || !strings.Contains(description, `"description":"Example instructions"`) {
+		t.Fatalf("skill relevance was not discoverable: %s", description)
+	}
+	for _, forbidden := range []string{root, rows[0].Digest, "automatically", "hidden summary", "secret body"} {
+		if strings.Contains(description, forbidden) {
+			t.Fatalf("advertisement exposed body, digest, path or disabled skill: %s", forbidden)
+		}
+	}
 	raw, _ := json.Marshal(map[string]string{"name": "demo", "digest": rows[0].Digest})
 	if got := run(string(raw)); got.IsError || !strings.Contains(got.Content[0].Text, "automatically") {
 		t.Fatalf("%+v", got)
@@ -258,6 +279,16 @@ func TestToolUsesExistingRegistry(t *testing.T) {
 		if !run(bad).IsError {
 			t.Fatalf("authority widened: %s", bad)
 		}
+	}
+	if e = os.WriteFile(path, []byte("changed after advertisement"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	fixture(t, root, "new", "")
+	if got := run(string(raw)); !got.IsError {
+		t.Fatal("advertising a summary bypassed stale-content rejection")
+	}
+	if schemas, err := h.Tools().SchemasForAgent(ctx, a); err != nil || schemas[0].Description != description {
+		t.Fatal("advertisement silently refreshed after catalog change")
 	}
 }
 
