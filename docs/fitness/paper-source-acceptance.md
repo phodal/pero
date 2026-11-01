@@ -27,8 +27,8 @@ not itself close [issue #75](https://github.com/phodal/pero/issues/75).
 | Item | Established scope and evidence | Limit / remaining gate |
 | --- | --- | --- |
 | 1. Three materials | #85's live product CLI receipts classify both archives and PDF-only VERID accurately. | No claim that VERID contains TeX; future changed responses must be recorded rather than forced to this result. |
-| 2. Hostile/damaged input and recovery | [archive tests](../../apps/paper-agent/test/test_source_archives.py) reject unsafe paths, links/devices, duplicate normalized names, nested/oversized content and unsupported ZIP; [download tests](../../apps/paper-agent/test/test_source_downloads.py) cover denial/cancel/timeout/tampering/exact repair. New `test_source_publication_failure_and_interruption_require_explicit_retry` in [report tests](../../apps/paper-agent/test/test_source_reports.py) tests source-specific publication failure and actual process exit. | ZIP is unsupported, not decrypted. New regression needs exact-head CI; no OS crash/power-loss atomicity claim. |
-| 3. Deduplication/version retention | Existing receipt reuse and restoration tests plus new `test_source_versions_coexist_without_rebinding_old_observations`: same work, distinct v1/v2 archives and members, old read/observation/report/export unchanged across restart. Both cached starts retain receipts without fetching. | New regression needs exact-head CI. No migration of historical references to latest versions. |
+| 2. Hostile/damaged input and recovery | [archive tests](../../apps/paper-agent/test/test_source_archives.py) reject unsafe paths, links/devices, duplicate normalized names, nested/oversized content and unsupported ZIP; [download tests](../../apps/paper-agent/test/test_source_downloads.py) cover denial/cancel/timeout/tampering/exact repair. New `test_source_publication_failure_and_interruption_require_explicit_retry` in [report tests](../../apps/paper-agent/test/test_source_reports.py) tests source-specific publication failure and actual process exit. | ZIP is unsupported, not decrypted. Exact-head #94 CI passed (below); no OS crash/power-loss atomicity claim. |
+| 3. Deduplication/version retention | Existing receipt reuse and restoration tests plus new `test_source_versions_coexist_without_rebinding_old_observations`: same work, distinct v1/v2 archives and members, old read/observation/report/export unchanged across restart. Both cached starts retain receipts without fetching. | Exact-head #94 CI passed (below). No migration of historical references to latest versions. |
 | 4. Literal TeX structures | Authored [archive fixtures](../../apps/paper-agent/test/test_source_archives.py) cover longtable, tabular/tabularx, caption*, no labels, includes and bibitem; #85 supplies actual source windows from the public archives. | Literal indexing is not macro execution or a reconstructed scientific table. |
 | 5. Source/image/PDF anchors | [source report tests](../../apps/paper-agent/test/test_source_reports.py) bind archive/member/content/preview hashes and returned offsets. Positive and zero-match comparisons retain consulted PDF identity; unmatched cases are unresolved. | Image delivery is `not_reviewed`, not semantic interpretation. |
 | 6. Shared core and repeatable automation | [HTTP](../../tests/e2e/paper-source-http.py), [CLI](../../tests/e2e/paper-source-cli.py), [live CLI](../../tests/e2e/paper-source-live.py) and App routes use production domain owners. #85 establishes report creation, restart, export and repair. | Fixture transport and live acquisition are separate evidence. |
@@ -97,5 +97,21 @@ synthetic transport (HTTP uses loopback only). Local document links and
 `git diff --check` passed.
 
 No production fix was needed. The new tests run in the existing Paper test discovery;
-there is no CI lane, timeout, dependency or network-policy change. Hosted exact-head
-acceptance remains pending, rather than inherited from the historical #85 artifact.
+there is no CI lane, timeout, dependency or network-policy change. The later hosted
+exact-head acceptance is recorded below, independently of the historical #85 artifact.
+
+## Final hosted regression acceptance (2026-11-01)
+
+Merged [#94](https://github.com/phodal/pero/pull/94) passed
+[exact-head ordinary CI 41335731780](https://github.com/phodal/pero/actions/runs/41335731780).
+The actual core job logs show both source-publication interruption and
+version-coexistence regressions executing successfully: the full Paper suite ran
+137 tests, with 136 passing and one existing platform skip. This establishes the
+two engineering regressions in criteria 2–3, not a new full/Desktop, live-source,
+provider or scientific run. Earlier failures and evidence limits remain intact.
+
+Issue #75 remains open: criteria 8–9 retain the public-evidence qualification
+above and require separate acceptance reconciliation. Neither the merge nor these
+deterministic tests establish every historical provider scenario, model-quality
+improvement, visual understanding or scientific reproduction. No private historical
+model details are retrieved or republished by this reconciliation.

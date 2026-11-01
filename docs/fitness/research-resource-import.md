@@ -100,7 +100,7 @@ Screenshots/receipts are CI artifacts, not committed binaries. A draft PR, passi
 source tests or a successful import does not establish scientific reproducibility,
 license suitability, signed-package readiness or cross-platform GUI acceptance.
 
-## Controlled clone follow-up (#68; in verification)
+## Controlled clone follow-up (#68; merged #87)
 
 The built-in Unix Pero Agent now advertises `clone_repository` independently of
 its generic shell tool. The CLI composition requires the explicit
@@ -148,17 +148,42 @@ Local follow-up evidence (Linux; source changes independently reviewed):
 - Initial runs exhausted the environment's `/tmp` tmpfs during Go linking and a
   Paper HTTP case. Complete reruns with a task-owned workspace temporary directory
   passed; the failed runs are not counted as passes.
-- No fresh real Desktop screenshot, public GitHub clone, Windows clone, paid-model
-  or release-package acceptance is claimed here. The shared tool-result UI path is
-  existing production code; it still requires the hosted clone-specific UX check
-  before the full #68 acceptance can be marked complete.
+- At this local-verification stage, no fresh Desktop screenshot was available.
+  The hosted clone-specific UX check subsequently passed as recorded below. No
+  public GitHub clone, Windows clone, paid-model or release-package acceptance
+  is claimed by this follow-up.
 
 The existing `paper-research-import` Desktop suite now includes a clone-specific
 Linux journey: real permission UI Reject/Allow, actual Go tool/Git observation,
 expanded tool result and history after restart. Its provider is scripted and its
 strict test-only shell wrapper maps only the fixed fixture fetch to an owned
 local repository; production URL policy is unchanged. The wrapper's real Git
-smoke and scripted provider loopback checks passed locally. Desktop execution is
-**pending exact-head CI**: required local Desktop dependencies were unavailable,
-so the GUI journey was not run locally. This prepared test is not
-evidence that the Desktop journey or public HTTPS acquisition has passed.
+smoke and scripted provider loopback checks passed locally. Required local Desktop
+dependencies were unavailable, so this GUI journey was not run locally. The later hosted acceptance below establishes the Desktop
+journey, not public HTTPS acquisition.
+
+## Final hosted clone acceptance (2026-11-01)
+
+Merged [#87](https://github.com/phodal/pero/pull/87) has final head `6587d6bf`,
+which passed [ordinary CI 41324991989](https://github.com/phodal/pero/actions/runs/41324991989).
+Earlier feature head `50f798f` passed
+[full CI 41322228212](https://github.com/phodal/pero/actions/runs/41322228212)
+and [ordinary CI 41322457941](https://github.com/phodal/pero/actions/runs/41322457941).
+The full run tested merge revision `668e843`; its tree `cf44426f` matches the
+final `6587d6bf` tree. This is identical-tree evidence, not a full run at the final
+head SHA.
+The actual Linux Desktop journey verified rejection without effects, approval
+with a real Go/Git typed receipt, and reopening the original conversation after
+restart with the identical full receipt and no provider replay.
+[Artifact 13090037767](https://github.com/phodal/pero/actions/runs/41322228212/artifacts/13090037767)
+was inspected, including the expanded history screenshot. This is L1 scripted
+provider/local-transport evidence, not a live public HTTPS clone or real model.
+
+Together with [#72's final hosted acceptance](https://github.com/phodal/pero/pull/72),
+this closes the controlled-clone acceptance gap in #68. The original Paper/Host/Data
+contracts already cover explicitly approved eligible pinned HF files, actual tiny
+verified bytes, scoped receipts, cancellation, dedup and restart; the #72 Desktop
+journey itself did not download binaries. Its separate live application metadata
+checks observed TimesFM and the HF candidate with zero downloads/model calls; no
+concrete dataset was identified. These evidence layers remain distinct. Unsupported
+sources/platforms, arbitrary datasets and scientific validity are not implied.
