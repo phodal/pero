@@ -104,7 +104,7 @@ NaN/Inf、错误 spec/attempt 都拒绝。没有“只保留成功部分”评�
 | `pcgym_sources.py` | 固定 checkout 与四个 source blob 校验、静态 AST 证据位置、依赖清单 |
 | `pcgym_runtime.py` | 真实 PC-Gym / SB3 / CasADi 适配；不执行训练/可视化脚本，不读取未知 pickle |
 | `pcgym.py` | prepare/run/status/verify/export；前台执行、超时/取消/失败记录、独立检查子进程 |
-| `paper-pcgym-reproduction/SKILL.md` | 在已有 Host/Harness 中选择步骤、解释发现、取得执行确认、交付实际结果 |
+| `paper-code-audit/SKILL.md` + `references/pcgym-table6.md` | 通用审计入口；按需读取 PC-Gym 固定案例的执行说明 |
 | `test_pcgym_reproduction.py` | 自有 fixture 领域与持久化/CLI/离线交接测试；不冒充真实科研计算 |
 
 既有 Paper 的 `research-step`/observed evidence、资源导入、Host 权限/进程树和 Go Skill
@@ -152,7 +152,8 @@ simulator setting、MPC horizon 20，并使用未更改的 `custom_reward.py`。
 Table 6 结果。任何引擎缺失直接失败，无手写曲线 fallback。
 
 已有 Go Harness 可显式配置 `--skills-root /approved/installed-paper-agent/skills`，按其
-name+digest 接口读取 Skill。Desktop 内置 picker 未更新，不能声称它自动出现。
+name+digest 接口读取 Skill。该接口只读取 `SKILL.md`；案例 references 必须经独立获准的
+文件读取工具访问，不代表 catalog 已支持引用文件。Desktop 内置 picker 未更新，不能声称它自动出现。
 
 ## 6. 安全、恢复与结果交接
 

@@ -1,7 +1,9 @@
 # Paper Agent
 
-PC-Gym CSTR Table 6 的首个 Paper-Code Audit 提供固定案例 CLI 和独立双口径
-Checker，使用 Python 3.10+。运行方式与指标契约见
+通用 [Paper-Code Audit Skill](skills/paper-code-audit/SKILL.md) 支持论文与代码
+的一项 Claim 审计、指标重算和复现计划，PC-Gym、LoRA、top-k 与 F1 作为按需参考。
+其中 PC-Gym CSTR Table 6 提供固定案例 CLI 和独立双口径 Checker，使用 Python 3.10+。
+该 CLI 的运行方式与指标契约见
 [PC-Gym 设计](../../docs/design-docs/paper-pcgym-reproduction.md)，实际验收范围见
 [验证记录](../../docs/fitness/paper-pcgym-reproduction.md)。它尚未接入 Paper UI，
 也未完成原论文实验复现。

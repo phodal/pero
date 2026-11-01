@@ -3,6 +3,8 @@
 Date: 2026-11-01. Base inspected: `85453242733bef06b34f210bc22aa00b34291280`.
 Scope: fixed-case Python/Skill increment reviewed in an isolated full Pero worktree,
 based on the supplied `pero-pcgym-research` implementation bundle.
+The generalized skill and additional behavioral checks are recorded separately in
+[Paper-Code Audit skill verification](paper-code-audit-skill.md).
 
 ## Executed
 

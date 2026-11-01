@@ -1,13 +1,7 @@
----
-name: paper-pcgym-reproduction
-description: Audit PC-Gym CSTR Table 6 against its fixed code, prepare a frozen local replay, run only with explicit approval, and independently recompute sample and episode violation rates. Use for arXiv 2410.22093v4 constraint reproduction, not generic paper summaries.
----
+# Reference case: PC-Gym CSTR Table 6
 
-# PC-Gym: audit → explicit replay → independent check
-
-Use the current Host/Harness conversation and its already-authorized tools. This
-skill grants no shell, installation, network, App, filesystem or publication
-permissions. Do not launch Feynman, another Agent loop, or a scheduler.
+This worked case uses the fixed PC-Gym CLI. Its unresolved scientific verdict and
+execution flags apply to this adapter only. Read it when auditing that case.
 
 This implementation is a **fixed-case CLI workflow**, not a new Paper App tool.
 Do not invent `app__paper-agent__run-experiment` or write experimental outcomes
@@ -100,8 +94,9 @@ scientific replication are separate evidence levels.
 
 ## Integration limits
 
-This folder is discoverable in the existing headless Go Harness when an operator
-explicitly includes its parent directory in `--skills-root`. Load through the
-catalog's real name+digest procedure. The built-in Desktop picker, typed Paper
+The parent `paper-code-audit` skill is discoverable in the headless Go Harness
+when its skills root is explicitly configured. The catalog reads only SKILL.md;
+this reference requires a separate authorized file reader and is not fetched by
+the skill tool. The built-in Desktop picker, typed Paper
 result persistence, automatic source-anchor attachment and Desktop UI acceptance
 are **not delivered by this CLI slice**. Never announce them as completed.
