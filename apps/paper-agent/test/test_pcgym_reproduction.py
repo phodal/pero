@@ -19,11 +19,11 @@ from paper_agent.pcgym import (write_json, read_json, check_attempt, export,
                               run, status, root_path)
 
 
-def specification(profile='smoke', *, include_oracle=True):
+def specification(profile='smoke', *, include_oracle=True, paper_binding_digest=None):
     return ReproductionSpec.create(seed=0, profile=profile,
         packages={name: 'fixture-version' for name in REQUIRED_PACKAGES},
         source_manifest_digest='a' * 64, python_version='3.11.8', pipeline_digest='d' * 64,
-        include_oracle=include_oracle)
+        include_oracle=include_oracle, paper_binding_digest=paper_binding_digest)
 
 
 def observation(spec, origin='synthetic-fixture'):
@@ -170,6 +170,24 @@ class FrozenProtocolTests(unittest.TestCase):
         for value in (0, 1, 'false', None):
             with self.subTest(value=value), self.assertRaises(Invalid):
                 specification(include_oracle=value)
+
+    def test_paper_binding_digest_preserves_exact_frozen_input(self):
+        original = specification()
+        bound = specification(paper_binding_digest='e' * 64)
+        self.assertNotIn('paper_binding_digest', original.payload())
+        self.assertNotEqual(bound.id, original.id)
+        self.assertEqual(ReproductionSpec.parse(json.loads(canonical(bound.to_dict()))), bound)
+        for value in (None, 'f' * 64):
+            changed = json.loads(canonical(bound.to_dict()))
+            if value is None:
+                del changed['paper_binding_digest']
+            else:
+                changed['paper_binding_digest'] = value
+            with self.assertRaises(Invalid):
+                ReproductionSpec.parse(changed)
+        for value in ('', 'not-a-digest', True, 0):
+            with self.subTest(value=value), self.assertRaises(Invalid):
+                specification(paper_binding_digest=value)
 
     def test_changes_are_rejected_not_absorbed(self):
         spec = specification()

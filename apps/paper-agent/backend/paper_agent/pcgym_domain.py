@@ -143,14 +143,18 @@ class ReproductionSpec:
     commit: str = COMMIT
     schema: str = SCHEMA
     include_oracle: bool = True
+    paper_binding_digest: str | None = None
 
     @classmethod
     def create(cls, *, seed, profile, packages, source_manifest_digest,
-               python_version, pipeline_digest, timeout_seconds=3600, anchor=None, include_oracle=True):
+               python_version, pipeline_digest, timeout_seconds=3600, anchor=None, include_oracle=True,
+               paper_binding_digest=None):
         if profile not in ('table6', 'smoke'):
             raise Invalid('profile', 'Choose table6 or smoke; smoke never establishes paper reproduction')
         if type(include_oracle) is not bool:
             raise Invalid('policy', 'include_oracle must be a boolean frozen before execution')
+        if paper_binding_digest is not None:
+            identifier(paper_binding_digest, 'paper_binding_digest')
         seed = integer(seed, 'seed', 0, 2**31 - 1)
         timeout = integer(timeout_seconds, 'timeout_seconds', 1, 86400)
         identifier(source_manifest_digest, 'source_manifest_digest')
@@ -166,7 +170,8 @@ class ReproductionSpec:
         return cls(seed, 25000 if profile == 'table6' else 128,
                    50 if profile == 'table6' else 2, 60, timeout,
                    tuple(sorted(packages.items())), source_manifest_digest, python_version, pipeline_digest,
-                   anchor=anchor, profile=profile, include_oracle=include_oracle)
+                   anchor=anchor, profile=profile, include_oracle=include_oracle,
+                   paper_binding_digest=paper_binding_digest)
 
     @property
     def policies(self):
@@ -177,6 +182,8 @@ class ReproductionSpec:
         # Existing v1 specifications predate optional Oracle and keep their identity.
         if self.include_oracle:
             del value['include_oracle']
+        if self.paper_binding_digest is None:
+            del value['paper_binding_digest']
         return value
 
     @property
@@ -189,7 +196,7 @@ class ReproductionSpec:
     @classmethod
     def parse(cls, raw):
         fields(raw, ('id', 'seed', 'steps', 'episodes', 'samples', 'timeout_seconds', 'packages',
-                     'source_manifest_digest', 'python_version', 'pipeline_digest', 'metrics', 'anchor', 'mode', 'profile', 'comparison', 'commit', 'schema'), ('include_oracle',))
+                     'source_manifest_digest', 'python_version', 'pipeline_digest', 'metrics', 'anchor', 'mode', 'profile', 'comparison', 'commit', 'schema'), ('include_oracle', 'paper_binding_digest'))
         if not isinstance(raw['packages'], list) or any(not isinstance(p, list) or len(p) != 2 for p in raw['packages']):
             raise Invalid('environment', 'Expected package/version pairs')
         names = [p[0] for p in raw['packages']]
@@ -200,7 +207,8 @@ class ReproductionSpec:
                           python_version=raw['python_version'], pipeline_digest=raw['pipeline_digest'],
                           timeout_seconds=raw['timeout_seconds'],
                           anchor=PaperAnchor.parse(raw['anchor']) if raw['anchor'] is not None else None,
-                          include_oracle=raw.get('include_oracle', True))
+                          include_oracle=raw.get('include_oracle', True),
+                          paper_binding_digest=raw.get('paper_binding_digest'))
         if raw != json.loads(canonical(spec.to_dict())):
             raise Invalid('spec_changed', 'Frozen specification differs from its declared identity or case policy')
         return spec
