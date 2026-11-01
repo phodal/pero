@@ -51,8 +51,9 @@ def handler(store, secret):
                     if self.path=='/api/agent-step':
                         action=data.get('action')
                         fields={'read':set(),'propose':{'protocol','parentTrialId','reason'},'validate':{'trialId'},'simulate':{'trialId'},'observe':{'trialId'},'evaluate':{'trialId'},'cancel':{'trialId'},'compare':set()}
-                        if not isinstance(action,str) or action not in fields or set(data)-({'action','experimentId'}|fields[action]): raise ValueError('Unsupported action or fields')
+                        if not isinstance(action,str) or action not in fields or set(data)-({'action','experimentId','specHash'}|fields[action]): raise ValueError('Unsupported action or fields')
                         identity=data.get('experimentId'); trial=data.get('trialId')
+                        if not isinstance(data.get('specHash'),str) or store.read(identity)['spec_hash'] != data['specHash']: raise ValueError('Frozen experiment hash mismatch')
                         if action=='read': result=store.read(identity)
                         elif action=='propose': result=store.propose(identity,data.get('protocol'),data.get('parentTrialId'),data.get('reason','Initial candidate'))
                         elif action=='simulate': result=store.start(identity,trial)

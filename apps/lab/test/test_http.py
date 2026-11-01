@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 import http.client
 from http.server import ThreadingHTTPServer
 import json
@@ -53,11 +56,15 @@ class HttpTests(unittest.TestCase):
         status, experiment = self.request('POST', '/api/experiments', {})
         self.assertEqual(status, 201)
         identity = experiment['id']
-        request = {'action': 'propose', 'experimentId': identity, 'protocol': protocol().to_dict()}
+        request = {'action': 'propose', 'experimentId': identity, 'protocol': protocol().to_dict(), 'specHash': experiment['spec_hash']}
+        for missing in ({}, {'specHash':None}, {'specHash':'0'*64}):
+            invalid_request={key:value for key,value in request.items() if key!='specHash'} | missing
+            self.assertEqual(self.request('POST','/api/agent-step',invalid_request)[0],400)
+            self.assertEqual(self.store.read(identity)['trials'],[])
         status, record = self.request('POST', '/api/agent-step', request)
         self.assertEqual(status, 200)
         trial_id = record['trials'][0]['id']
-        status, record = self.request('POST', '/api/agent-step', {'action': 'validate', 'experimentId': identity, 'trialId': trial_id})
+        status, record = self.request('POST', '/api/agent-step', {'action': 'validate', 'experimentId': identity, 'trialId': trial_id,'specHash':experiment['spec_hash']})
         self.assertEqual(status, 200)
         self.assertEqual(record['trials'][0]['status'], 'validated')
         for action in ('execute_hardware', 'accept', 'set_policy', 'run_script'):
@@ -67,8 +74,9 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(self.request('GET', f'/api/experiments/{identity}')[1]['criteria'], experiment['criteria'])
         invalid = protocol().to_dict()
         invalid['steps'][1]['volume_ul'] = 0
-        other = self.request('POST', '/api/experiments', {})[1]['id']
-        status, result = self.request('POST', '/api/agent-step', dict(request, experimentId=other, protocol=invalid))
+        other_record = self.request('POST', '/api/experiments', {})[1]
+        other = other_record['id']
+        status, result = self.request('POST', '/api/agent-step', dict(request, experimentId=other, protocol=invalid,specHash=other_record['spec_hash']))
         self.assertEqual(status, 400)
         self.assertEqual(result['step_index'], 1)
         self.assertEqual(self.store.read(other)['trials'], [])
