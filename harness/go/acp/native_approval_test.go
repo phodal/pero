@@ -19,7 +19,7 @@ import (
 )
 
 func TestNativeApprovalMetadataWireAuthority(t *testing.T) {
-	for _, mode := range []string{"native", "ordinary_spoof", "mcp_spoof", "descriptor_error", "cancel", "retire", "tool_retire"} {
+	for _, mode := range []string{"always_ask_allow", "always_ask_reject", "native", "ordinary_spoof", "mcp_spoof", "descriptor_error", "cancel", "retire", "tool_retire"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx := t.Context()
 			calls, bodies, descriptors := 0, 0, 0
@@ -44,7 +44,8 @@ func TestNativeApprovalMetadataWireAuthority(t *testing.T) {
 				bodies++
 				return harness.ToolResult{}, nil
 			}}
-			if mode != "ordinary_spoof" && mode != "mcp_spoof" {
+			tool.AlwaysAskApproval = mode == "always_ask_allow" || mode == "always_ask_reject"
+			if mode != "ordinary_spoof" && mode != "mcp_spoof" && !tool.AlwaysAskApproval {
 				tool.ApprovalDescriptor = func(_ context.Context, req harness.ToolRequest) (*harness.NativeApprovalDescriptor, error) {
 					descriptors++
 					switch mode {
@@ -155,7 +156,11 @@ func TestNativeApprovalMetadataWireAuthority(t *testing.T) {
 						} else if p["_meta"] != nil {
 							t.Fatalf("untrusted tool acquired native metadata: %v", p)
 						}
-						if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": msg["id"], "result": map[string]any{"outcome": map[string]any{"outcome": "selected", "optionId": "allow-once"}}}); err != nil {
+						option := "allow-once"
+						if mode == "always_ask_reject" {
+							option = "reject-once"
+						}
+						if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": msg["id"], "result": map[string]any{"outcome": map[string]any{"outcome": "selected", "optionId": option}}}); err != nil {
 							t.Fatal(err)
 						}
 						continue
@@ -170,12 +175,24 @@ func TestNativeApprovalMetadataWireAuthority(t *testing.T) {
 			rpc("initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{}})
 			created := rpc("session/new", map[string]any{"cwd": t.TempDir(), "mcpServers": mcpServers})
 			id := created["result"].(map[string]any)["sessionId"].(string)
-			// This fixture proves the permission wire. Auto-review would allow the call without asking.
-			if configured := rpc("session/set_config_option", map[string]any{"sessionId": id, "configId": "permission", "value": "full-access"}); configured["error"] != nil {
+			// Explicitly stricter trusted registrations must ask even under auto-review.
+			permission := "full-access"
+			if tool.AlwaysAskApproval {
+				permission = "auto-review"
+			}
+			if configured := rpc("session/set_config_option", map[string]any{"sessionId": id, "configId": "permission", "value": permission}); configured["error"] != nil {
 				t.Fatal(configured["error"])
 			}
 			response := rpc("session/prompt", map[string]any{"sessionId": id, "prompt": []any{map[string]any{"type": "text", "text": "run"}}})
-			if mode == "native" || mode == "ordinary_spoof" || mode == "mcp_spoof" {
+			if tool.AlwaysAskApproval {
+				wantBodies := 1
+				if mode == "always_ask_reject" {
+					wantBodies = 0
+				}
+				if permissions != 1 || bodies != wantBodies || response["error"] != nil {
+					t.Fatalf("explicit approval permissions=%d bodies=%d response=%v", permissions, bodies, response)
+				}
+			} else if mode == "native" || mode == "ordinary_spoof" || mode == "mcp_spoof" {
 				if permissions != 1 || bodies != 1 || response["error"] != nil {
 					t.Fatalf("permissions=%d bodies=%d response=%v", permissions, bodies, response)
 				}
@@ -183,7 +200,7 @@ func TestNativeApprovalMetadataWireAuthority(t *testing.T) {
 				t.Fatalf("failed closed: permissions=%d bodies=%d", permissions, bodies)
 			}
 			want := 1
-			if mode == "ordinary_spoof" || mode == "mcp_spoof" {
+			if mode == "ordinary_spoof" || mode == "mcp_spoof" || tool.AlwaysAskApproval {
 				want = 0
 			}
 			if descriptors != want {

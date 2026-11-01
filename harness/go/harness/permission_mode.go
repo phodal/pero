@@ -86,6 +86,9 @@ func permissionDecision(policy ApprovalPolicy, request ApprovalRequest) (Approva
 	case PermissionFullAccess:
 		return "", true
 	case PermissionAutoReview:
+		if request.AlwaysAsk {
+			return "", true
+		}
 		return ApprovalAllowedOnce, false
 	default:
 		return ApprovalRejected, false

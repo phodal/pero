@@ -250,7 +250,7 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 			Content: []ContentBlock{{Type: BlockText, Text: "invalid tool arguments for " + filtered.Name + ": " + err.Error()}},
 		}}, nil
 	}
-	if tool.RequiresApproval || filtered.RequestApproval {
+	if tool.RequiresApproval || tool.AlwaysAskApproval || filtered.RequestApproval {
 		var native *NativeApprovalDescriptor
 		if tool.ApprovalDescriptor != nil {
 			candidate, descriptorErr := tool.ApprovalDescriptor(ctx, filtered)
@@ -289,7 +289,7 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 			}
 			approval, err = r.approval.Request(ctx, ApprovalRequest{
 				Agent: filtered.Agent, CallID: filtered.CallID, ToolName: filtered.Name,
-				Reason: reason, Native: native,
+				Reason: reason, Native: native, AlwaysAsk: tool.AlwaysAskApproval,
 			})
 			if err != nil {
 				if contextFailure(ctx) != nil {
