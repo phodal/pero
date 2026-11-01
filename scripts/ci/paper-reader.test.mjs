@@ -67,3 +67,43 @@ test('App fetch gate exposes backend failures instead of waiting indefinitely', 
     } finally { if (previous === undefined) delete globalThis.window; else globalThis.window = previous; }
   }
 });
+
+import { runInNewContext } from 'node:vm';
+import { closePaperChat, paintedPaperChatCloseTarget } from '../../tests/e2e/paper-chat-controls.mjs';
+
+test('Paper Chat close requires a stable painted Host hit target, not draft geometry', async () => {
+  const bounds = { x: 1400, y: 730, width: 20, height: 24 };
+  for (const phase of ['closed', 'missing', 'loading', 'wrong-size', 'covered', 'moving', 'ready']) {
+    let frames = 0;
+    const canvas = { width: phase === 'wrong-size' ? 1 : 1440, height: 900 };
+    const context = { innerWidth: 1440, innerHeight: 900, devicePixelRatio: 1,
+      window: { peroDiagnostics: { snapshot: () => JSON.stringify({ appChatOpen: phase !== 'closed', floatingChat: true,
+        chatCloseButtonBounds: phase === 'missing' ? null : { ...bounds, y: bounds.y + (phase === 'moving' && frames ? 32 : 0) } }) } },
+      document: { querySelector: () => canvas, getElementById: () => phase === 'loading' ? {} : null,
+        elementFromPoint: () => phase === 'covered' ? {} : canvas },
+      requestAnimationFrame(callback) { frames++; callback(); },
+    };
+    const observed = await runInNewContext(`(${paintedPaperChatCloseTarget})()`, context);
+    if (phase === 'ready') assert.deepEqual(JSON.parse(JSON.stringify(observed)), bounds);
+    else assert.equal(observed, false, phase);
+  }
+});
+
+test('Paper Chat closes with one real pointer click and requires old bounds to clear', async () => {
+  const bounds = { x: 1400, y: 730, width: 20, height: 24 }, clicks = [];
+  let open = true, disposed = false;
+  const page = {
+    evaluate: async () => ({ appChatOpen: open, floatingChat: true, chatCloseButtonBounds: open ? bounds : null }),
+    getByRole: () => ({ isVisible: async () => false }),
+    waitForFunction: async (predicate, argument, options) => {
+      assert.equal(predicate, paintedPaperChatCloseTarget);
+      assert.equal(options.timeout, 5000);
+      return { jsonValue: async () => bounds, dispose: async () => { disposed = true; } };
+    },
+    mouse: { click: async (x, y) => { assert.equal(disposed, true); clicks.push([x, y]); open = false; } },
+  };
+  await closePaperChat(page);
+  assert.deepEqual(clicks, [[1410, 742]]);
+  await closePaperChat(page);
+  assert.equal(clicks.length, 1);
+});

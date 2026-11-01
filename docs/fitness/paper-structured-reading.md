@@ -112,3 +112,13 @@ Response after its body arrives; Electron's custom protocol cannot use the forme
 Playwright routing gate. Requests/response identity, error propagation and cleanup
 are tested offline. Neither correction is proof of successful Desktop acceptance;
 the exact corrected revision must run both paper-reading and research-import.
+
+Run 41325933358 (head f48ed300) verifies Paper registration and the independent
+research-import aggregate (213.478 s), including real Desktop PDF/source studies.
+The reading fixture reached typed structures, original windows and shared report
+reopen, but refreshing identical bytes returned 409 before its PDF-only journey.
+The immutable store correctly rejected Python tuple values against persisted JSON
+lists. Preparation now retains the worker's JSON-native record after full existing
+schema/hash validation; same-byte refresh reuses the document, receipt timestamp,
+observation IDs and report without weakening immutable comparison or authorization.
+Corrected full reading/Read-PDF restart acceptance remains pending new exact-head CI.

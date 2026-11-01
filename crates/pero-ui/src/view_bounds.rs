@@ -36,6 +36,7 @@ pub(crate) struct WorkbenchBounds {
     pub new_chat: ViewBounds,
     pub sessions: ViewBounds,
     pub app_open: ViewBounds,
+    pub chat_close: ViewBounds,
 }
 
 impl WorkbenchBounds {
@@ -47,5 +48,22 @@ impl WorkbenchBounds {
         self.new_chat.clear();
         self.sessions.clear();
         self.app_open.clear();
+        self.chat_close.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hidden_chat_control_does_not_retain_its_last_paint() {
+        let observed = WorkbenchBounds::default();
+        observed.chat_close.0.borrow_mut().insert("float-chat-close".into(), Bounds {
+            origin: point(px(10.), px(20.)), size: size(px(30.), px(40.)),
+        });
+        assert!(!observed.chat_close.snapshot()["float-chat-close"].is_null());
+        observed.clear();
+        assert!(observed.chat_close.snapshot()["float-chat-close"].is_null());
     }
 }

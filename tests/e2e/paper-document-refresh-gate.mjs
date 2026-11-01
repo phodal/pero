@@ -17,7 +17,7 @@ export function deferDocumentRefresh() {
     if (body?.operation !== 'prepare' || body.refresh !== true) return original.apply(window, args);
     try {
       const response = await original.apply(window, args);
-      if (!response.ok) throw Error(`Document refresh failed: ${response.status}`);
+      if (!response.ok) throw Error(`Document refresh failed: ${response.status}: ${(await response.clone().text()).slice(0, 1000)}`);
       await response.clone().arrayBuffer();
       gate.arrived = true; ready();
       await held;

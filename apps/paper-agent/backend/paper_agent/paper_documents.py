@@ -144,7 +144,10 @@ class PaperDocuments:
                                      threading.Event(), 45, lambda _stage: None)
             if result[0] != 'complete':
                 raise Invalid(result[1], 422)
-            document = ScientificDocument.from_record(json.loads((Path(directory) / 'document.json').read_bytes()))
+            # Keep validated JSON-native values for immutable equality on refresh;
+            # dataclass reserialization contains tuples where persisted JSON has lists.
+            record = json.loads((Path(directory) / 'document.json').read_bytes())
+            document = ScientificDocument.from_record(record)
             original = (Path(directory) / 'source.html').read_bytes()
         # Recheck the same authorization after IO; an edited review cannot grant
         # a different version while an earlier request is in flight.
@@ -157,7 +160,7 @@ class PaperDocuments:
                 self.store._write('document-receipts', identity, dict(documentId=document.id, bundleRevision=bundle_revision,
                     resourceId=resource.id, sourceUrl=source.url, sourceDigest=document.source.digest, createdAt=now))
             self.store._write('scientific-documents', document.id,
-                              dict(document=document.to_dict(), sourceBytes=b64encode(original).decode('ascii')))
+                              dict(document=record, sourceBytes=b64encode(original).decode('ascii')))
         return self.read(document.id)[0]
 
     def command(self, value, now):

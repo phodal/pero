@@ -16,6 +16,7 @@ from paper_agent.paper_documents import PaperDocuments
 from paper_agent.research_resources import ImportDraft, ResearchResource
 from paper_agent.resource_fetch import SourceResponse
 from paper_agent.store import ResearchStore
+from paper_agent.source_reports import source_report
 
 NOW = '2026-11-01T00:00:00Z'
 SEED = 'https://research.example/structured-reading'
@@ -84,6 +85,34 @@ class ScientificDocuments(unittest.TestCase):
             self.assertEqual(calls.read_text(), '1')
             self.assertEqual(reopened.read(identity)[1], SOURCE)
             self.assertEqual(set(store._list('source-observations')), {read['observationId'], raw['observationId']})
+
+    def test_refresh_identical_original_reuses_json_record_and_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = ResearchStore(directory)
+            request = save_bundle(store, True)
+            calls = Path(directory) / 'calls'
+            documents = PaperDocuments(store, HtmlTransport(SOURCE, str(calls)))
+            first = documents.prepare(request, NOW)
+            record = store._read('scientific-documents', first.id)
+            receipts = store._list('document-receipts')
+            receipt = store._read('document-receipts', receipts[0])
+            raw = documents.command(dict(operation='source', documentId=first.id, start=13, limit=17), NOW)
+            journal = store._list('source-observations')
+            report = source_report(store, dict(operation='create', bundleId=request['bundleId'],
+                title='Same original refresh', observationIds=[raw['observationId']]), NOW)
+            for now in ('2026-11-01T00:01:00Z', '2026-11-01T00:02:00Z'):
+                current = documents.prepare(dict(request, refresh=True), now)
+                self.assertEqual(current.id, first.id)
+                self.assertEqual(store._read('scientific-documents', first.id), record)
+                self.assertEqual(store._list('document-receipts'), receipts)
+                self.assertEqual(store._read('document-receipts', receipts[0]), receipt)
+                reread = documents.command(dict(operation='source', documentId=first.id, start=13, limit=17), now)
+                self.assertEqual(reread['observationId'], raw['observationId'])
+                self.assertEqual(store._list('source-observations'), journal)
+                reopened = source_report(store, dict(operation='read', bundleId=request['bundleId'], reportId=report['id']), now)
+                self.assertEqual(reopened, report)
+            self.assertEqual(calls.read_text(), '3')
+            self.assertEqual(documents.read(first.id)[1], SOURCE)
 
     def test_refresh_preserves_old_versions_and_rejects_wrong_response_identity(self):
         with tempfile.TemporaryDirectory() as directory:
