@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 export const suites = Object.freeze({
   workbench: ['workbench'], automation: ['automation'], toolcalls: ['toolcalls'], data: ['data'], 'data-product': ['data-product'],
-  'control-lab': ['control-lab'], 'control-lab-app-use': ['control-lab-app-use'], 'control-lab-live': ['control-lab-live'],
+  lab: ['lab'], 'control-lab': ['control-lab'], 'control-lab-app-use': ['control-lab-app-use'], 'control-lab-live': ['control-lab-live'],
   'virtual-cell-comparison': ['virtual-cell-comparison'], 'virtual-cell-dataset-download': ['virtual-cell-dataset-download'],
   'app-use': ['app-use'], 'app-use-workbench': ['app-use-workbench'],
   'mcp-lifecycle': ['mcp-settings', '--scenario', 'lifecycle'],
@@ -30,6 +30,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const scriptPath = name === 'automations-ui' ? script : `tests/e2e/${script}.mjs`;
   if (name.startsWith('control-lab')) env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'control-lab-python/bin/python');
   if (name === 'paper-research-import') env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'paper-research-python/bin/python');
+  if (name === 'lab') env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'lab-python/bin/python');
   if (name === 'scientific-viewer') env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'scientific-viewer-python/bin/python');
   if (name === 'control-lab-live') {
     const agent = resolve('target/debug/pero-agent-acp');
