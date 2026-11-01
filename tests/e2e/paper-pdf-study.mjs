@@ -1,6 +1,7 @@
 // Real Electron/Host/Paper/PDFium + scripted ACP. Live mode changes only external network inputs.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { openResearchImport, researchUiState } from './paper-research-ui-controls.mjs';
 import { clickAppShortcut } from './sidebar-controls.mjs';
 import { chatState, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
 import { setPaperAppearance, backToLibrary } from './paper-pdf-flow.mjs';
@@ -52,8 +53,7 @@ async function api(path, body) {
   }, { path, body });
 }
 async function inspect() {
-  await frame.getByRole('button', { name: 'Add papers', exact: true }).click();
-  await frame.getByRole('tab', { name: 'Research URL', exact: true }).click();
+  await openResearchImport(page, frame);
   await frame.getByRole('textbox', { name: 'Research URL', exact: true }).fill(seed);
   await frame.getByRole('textbox', { name: 'Research URL', exact: true }).press('Enter');
   await expect(frame.getByRole('region', { name: 'Review resources' })).toBeVisible({ timeout: 65000 });
@@ -192,7 +192,12 @@ try {
   console.log(JSON.stringify({ checks, network: live ? 'live' : 'fixture' }, null, 2));
 } catch (error) {
   // Never publish a real source page/full text via failure artifacts.
-  if (page && !live) await page.screenshot({ path: resolve(out, 'failure.png') }).catch(() => {});
+  if (page) {
+    await page.screenshot({ path: resolve(out, 'failure.png'),
+      ...(live ? { mask: [page.locator('iframe[title="paper-agent"]'), page.locator('canvas')] } : {}) }).catch(() => {});
+    await writeFile(resolve(out, 'failure-view.json'), JSON.stringify(
+      await researchUiState(page, frame).catch(() => ({ unavailable: true })), null, 2));
+  }
   await writeFile(resolve(out, 'failure.json'), JSON.stringify({ error: String(error), live, scope: 'Attempt failed; not acceptance. No original PDF or extracted full text included.' }, null, 2));
   throw error;
 } finally { if (app) await app.close(); await rm(profile, { recursive: true, force: true }); }

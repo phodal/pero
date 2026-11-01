@@ -1,0 +1,40 @@
+import { expect } from '@playwright/test';
+import { closePaperChat } from './paper-chat-controls.mjs';
+import { backToLibrary } from './paper-pdf-flow.mjs';
+
+// Saving opens a bundle, whose header has Back, not Add papers. Use the same
+// visible navigation as a user, including when a reader or Host Chat is open.
+export async function openResearchImport(page, frame) {
+  const setup = page.getByRole('region', { name: 'App environment', exact: true });
+  if (await setup.isVisible()) await setup.getByRole('button', { name: 'Hide', exact: true }).click();
+  await closePaperChat(page);
+  await backToLibrary(frame);
+  const library = frame.locator('.pa-library-screen');
+  const back = library.getByRole('button', { name: 'Back to library', exact: true });
+  if (await back.isVisible()) await back.click();
+  const add = library.getByRole('button', { name: 'Add papers', exact: true });
+  await expect(add).toBeVisible();
+  await add.click();
+  await frame.getByRole('tab', { name: 'Research URL', exact: true }).click();
+}
+
+// Structural diagnostics only: never serialize source text, image bytes, URLs,
+// workspace paths, chat content or the full Host diagnostic snapshot.
+export async function researchUiState(page, frame) {
+  const host = await page.evaluate(() => {
+    const state = JSON.parse(window.peroDiagnostics?.snapshot() ?? '{}');
+    const iframe = document.querySelector('iframe[title="paper-agent"]');
+    const rect = iframe?.getBoundingClientRect();
+    return { viewport: { width: innerWidth, height: innerHeight },
+      activePaper: state.activeApp?.name === 'paper-agent', appChatOpen: !!state.appChatOpen,
+      iframe: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null };
+  });
+  const view = await frame.locator('body').evaluate(body => {
+    const visible = selector => [...body.querySelectorAll(selector)].some(element => element.getClientRects().length > 0);
+    return { screen: body.querySelector('.pa-workbench')?.getAttribute('data-screen'),
+      library: visible('.pa-library-screen'), bundle: visible('.pa-research-bundle'),
+      import: visible('[role="tablist"]'), reader: visible('.pa-reading-screen'),
+      horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 };
+  });
+  return { host, view };
+}

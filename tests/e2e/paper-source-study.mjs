@@ -1,6 +1,7 @@
 // Actual Electron/Host/Paper source-only UI. All default inputs are authored fixtures; no Agent runs.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { openResearchImport, researchUiState } from './paper-research-ui-controls.mjs';
 import { clickAppShortcut } from './sidebar-controls.mjs';
 import { setPaperAppearance, backToLibrary } from './paper-pdf-flow.mjs';
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
@@ -43,8 +44,7 @@ async function api(path, body) {
   }, { path, body });
 }
 async function inspect() {
-  await frame.getByRole('button', { name: 'Add papers', exact: true }).click();
-  await frame.getByRole('tab', { name: 'Research URL', exact: true }).click();
+  await openResearchImport(page, frame);
   await frame.getByRole('textbox', { name: 'Research URL', exact: true }).fill(seed);
   await frame.getByRole('textbox', { name: 'Research URL', exact: true }).press('Enter');
   await expect(frame.getByRole('region', { name: 'Review resources' })).toBeVisible({ timeout: 65000 });
@@ -167,7 +167,12 @@ try {
   expect(errors).toEqual([]); expect(acquisitionConflicts).toEqual([]);
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ checks, errors, receipts, acquisitionConflicts, network: live ? 'real arXiv product path' : 'synthetic transport', agent: 'none', compilation: 'none', sourceBytesExported: false }, null, 2));
 } catch (error) {
-  if (page && !live) await page.screenshot({ path: resolve(out, 'failure.png') }).catch(() => {});
+  if (page) {
+    await page.screenshot({ path: resolve(out, 'failure.png'),
+      ...(live ? { mask: [page.locator('iframe[title="paper-agent"]'), page.locator('canvas')] } : {}) }).catch(() => {});
+    await writeFile(resolve(out, 'failure-view.json'), JSON.stringify(
+      await researchUiState(page, frame).catch(() => ({ unavailable: true })), null, 2));
+  }
   await writeFile(resolve(out, 'failure.json'), JSON.stringify({ error: String(error), live, outcome: 'failed attempt, not acceptance' }, null, 2));
   throw error;
 } finally { if (app) await app.close(); await rm(profile, { recursive: true, force: true }); }
