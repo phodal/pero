@@ -1,7 +1,34 @@
 // Unit coverage of the pointer target; hosted E2E verifies the actual menu/action.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { runInNewContext } from 'node:vm';
 import { openSettings, setAppearance } from './sidebar-controls.mjs';
+
+test('Settings waits for bootstrap removal and a hit-testable painted canvas before one click', async () => {
+  const bounds = { x: 8, y: 590, width: 244, height: 32 }, clicks = [], diagnostics = [];
+  let menuOpen = false, ready = false;
+  const page = {
+    waitForFunction: async predicate => {
+      for (const phase of ['loading', 'wrong-size', 'covered', 'ready']) {
+        const canvas = { width: phase === 'wrong-size' ? 1 : 1000, height: 800 };
+        const observed = runInNewContext(`(${predicate})()`, { innerWidth:1000, innerHeight:800, devicePixelRatio:1,
+          window:{peroDiagnostics:{snapshot:()=>JSON.stringify({settingsButtonBounds:bounds})}},
+          document:{ querySelector:()=>canvas, getElementById:()=>phase === 'loading' ? {} : null,
+            elementFromPoint:()=>phase === 'covered' ? {} : canvas } });
+        assert.equal(observed, phase === 'ready', phase);
+      }
+      ready = true;
+    },
+    evaluate: async callback => callback.toString().includes('loading:')
+      ? { loading:false, snapshot:{settingsButtonBounds:bounds} }
+      : callback.toString().includes('peroDiagnostics.snapshot')
+        ? { settingsButtonBounds:bounds, settingsMenuOpen:menuOpen } : undefined,
+    mouse:{click:async (x,y)=>{ assert.equal(ready,true); clicks.push([x,y]); menuOpen=true; }},
+  };
+  await openSettings(page, value=>diagnostics.push(value));
+  assert.deepEqual(clicks, [[130,606]]);
+  assert.deepEqual(diagnostics, [{loading:false,snapshot:{settingsButtonBounds:bounds}}]);
+});
 
 for (const [layout, bounds] of [
   ['footer below Settings', { x: 8, y: 976, width: 244, height: 32 }],

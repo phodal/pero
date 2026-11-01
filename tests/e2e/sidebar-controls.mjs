@@ -26,12 +26,18 @@ export async function clickAppOpen(page, appName) {
 export async function clickAppShortcut(page, appName) {
   await clickBounds(page, snapshot => snapshot.sidebarButtonBounds?.[appName]);
 }
-export async function openSettings(page) {
+export async function openSettings(page, beforeClick) {
   await page.waitForFunction(() => {
     const canvas=document.querySelector('canvas');
-    return canvas?.width===Math.round(innerWidth*devicePixelRatio) && canvas.height===Math.round(innerHeight*devicePixelRatio);
+    const bounds=window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).settingsButtonBounds;
+    // Host connected is earlier than bootstrap's final apps_list and removal
+    // of the full-window loading screen. Wait for an actual pointer target.
+    return !document.getElementById('loading') && canvas?.width===Math.round(innerWidth*devicePixelRatio)
+      && canvas.height===Math.round(innerHeight*devicePixelRatio) && bounds?.width>0 && bounds.height>0
+      && document.elementFromPoint(bounds.x+bounds.width/2,bounds.y+bounds.height/2)===canvas;
   });
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  if (beforeClick) await beforeClick(await page.evaluate(()=>({ loading:!!document.getElementById('loading'), snapshot:JSON.parse(window.peroDiagnostics.snapshot()) })));
   await clickBounds(page, snapshot => snapshot.settingsButtonBounds);
   await expect.poll(async () => (await state(page)).settingsMenuOpen).toBe(true);
 }
