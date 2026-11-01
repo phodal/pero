@@ -119,6 +119,33 @@ class PcgymAppTests(unittest.TestCase):
         with self.assertRaisesRegex(Invalid, 'changed'):
             self.app.command(self.audit_command)
 
+    def test_annotation_identity_is_frozen_and_binding_tamper_blocks_compute_and_verify(self):
+        spec, raw, _ = self.evidence()
+        annotation = self.store.save_annotation(PdfAnnotation.create(dict(page=20, kind='highlight',
+            quote='Table 6', note='A separate saved selection',
+            rects=[dict(x=.2, y=.1, width=.3, height=.1)]), self.document, NOW))
+        audit = self.app.command({**self.audit_command, 'annotationId': annotation.id})
+        other = self.app.command(dict(action='freeze', auditId=audit['id'], profile='smoke',
+            seed=0, includeOracle=False, maxSeconds=30))
+        self.assertNotEqual(spec.id, other['id'])
+        self.assertEqual(spec.anchor.passage_id, other['spec']['anchor']['passage_id'])
+        self.assertNotEqual(spec.paper_binding_digest, other['spec']['paper_binding_digest'])
+        path = self.app.bundle(spec.id) / 'paper-binding.json'
+        binding = pcgym.read_json(path)
+        binding['annotation_id'] = annotation.id
+        pcgym.write_json(path, binding)
+        app = PcgymApp(self.store, checkout=self.checkout, allow_execution=True)
+        with patch('paper_agent.pcgym_app.subprocess.Popen') as spawn:
+            for action in ('verify', 'export'):
+                with self.subTest(action=action), self.assertRaises(Invalid) as failure:
+                    app.command(dict(action=action, specId=spec.id, attemptId=raw['attempt_id']))
+                self.assertEqual(failure.exception.code, 'binding_changed')
+            with self.assertRaises(Invalid) as failure:
+                app.command(dict(action='start', specId=spec.id, requestId='changed-binding',
+                    confirmation='execute-frozen-local-simulation'))
+            self.assertEqual(failure.exception.code, 'binding_changed')
+            spawn.assert_not_called()
+
     def test_version_claim_and_online_pin_checks_fail_closed(self):
         for first, result in (('arXiv 2410.22093v3', self.document.page(20).text),
                               ('arXiv 2410.22093v4', 'Table 6 Base reward 0.0003 Shaped reward 0.0727 Oracle 0.0000 episodes trajectory')):
