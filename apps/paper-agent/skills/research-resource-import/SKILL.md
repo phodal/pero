@@ -136,3 +136,23 @@ the same core, waits bounded acquisition, caches receipts and handles cancellati
 Do not share its cache with a concurrently running App. Export is an evidence
 manifest, not redistribution of full papers or source archives. This deterministic
 CLI does not invoke a model, compile TeX, run code or grant consent by itself.
+
+## Source evidence reports
+
+Successful `research-source-read` read/image/compare calls return an immutable
+`observationId`, recording only the exact tool-returned scope. `list` and download
+receipts are not reads. Image delivery records `visualReview: not_reviewed`: it
+cannot establish that a model saw or correctly interpreted the figure. Do not
+invent observation IDs, broaden line windows, or infer matching pages from figure
+numbers. Unknown macros, absent uninspected data and scientific meaning remain
+unresolved.
+
+When the user asks to save a source report and App-write is authorized, call
+`research-source-report` create with bundleId, title and actual observationIds.
+Optional interpretations are stored separately as unresolved, never validated
+facts. Use observations to recover delivered scopes, list/read to reopen reports.
+Reports freeze evidence identities; currentAvailability separately describes local
+originals. Restore missing originals only with explicit approved acquisition;
+changed bytes cannot update historical evidence. The existing CLI `source-report`
+action and export use the same core. Verification certifies hashes/scopes only,
+not scientific correctness, completeness, reproducibility or model vision.

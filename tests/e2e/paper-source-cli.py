@@ -66,7 +66,12 @@ def main():
             read = invoke('source-read', {**request, 'operation': 'read', 'memberId': tex['id'], 'startLine': 1, 'endLine': 5})
             assert read['archiveDigest'] == receipt['archiveDigest'] and read['memberDigest'] == tex['sha256']
             assert read['startLine'] == 1 and read['endLine'] == 5
+            report = invoke('source-report', dict(operation='create', bundleId=bundle['id'], title='Source evidence',
+                observationIds=[read['observationId']], interpretations=['Macro meaning remains unresolved.']))
+            assert report['verification'] == 'tool_observed_scopes_only'
+            assert report['interpretations'][0]['status'] == 'unresolved'
             exported = invoke('export', {'bundleId': bundle['id']})
+            assert exported['sourceReports'] == [report]
             assert exported['schema'] == 'pero.research-evidence.v1'
             assert 'members' not in exported and 'content' not in exported
             index = exported['sourceIndexes'][0]
@@ -125,6 +130,10 @@ def main():
         cached = subprocess.run(command, input=json.dumps(dict(action='source', input={**request, 'operation': 'start'})), text=True, capture_output=True, timeout=15)
         assert cached.returncode == 0, cached.stderr or cached.stdout
         assert json.loads(cached.stdout)['result']['receipt'] == receipt
+        reopened_report = subprocess.run(command, input=json.dumps(dict(action='source-report', input=dict(
+            operation='read', bundleId=bundle['id'], reportId=report['id']))), text=True, capture_output=True, timeout=15)
+        assert reopened_report.returncode == 0 and json.loads(reopened_report.stdout)['result'] == report
+        checks.append('Source reports select actual read scopes, keep interpretations unresolved, export and reopen in a new CLI process')
         invalid = subprocess.run(command, input='not-json', text=True, capture_output=True, timeout=15)
         assert invalid.returncode == 2 and json.loads(invalid.stdout)['code'] == 2
         empty = subprocess.run([sys.executable, str(CLI), '--cache', str(Path(directory) / 'separate-cache')],
