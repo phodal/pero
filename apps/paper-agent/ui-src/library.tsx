@@ -7,7 +7,7 @@ import type { ResearchBundle } from './research-types';
 
 const sourceNames: Record<string, string> = { huggingface: 'Hugging Face', alphaxiv: 'alphaXiv', openalex: 'OpenAlex', biorxiv: 'bioRxiv', pubmed: 'PubMed' };
 
-export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImportPdf, importingPdf, onBundleSaved }: { onBundleSaved(bundle: ResearchBundle, startDownloadIds: string[]): Promise<void>; api: Api; active: boolean; onImportPdf(file: File): Promise<void>; importingPdf: boolean; t: Translator; onAdded(paper: Paper, focus: boolean): Promise<void>; onClose(): void; onError(error: unknown): void }) {
+export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImportPdf, importingPdf, onBundleSaved }: { onBundleSaved(bundle: ResearchBundle, startDownloadIds: string[], startPdfIds: string[], startSourceIds: string[]): Promise<void>; api: Api; active: boolean; onImportPdf(file: File): Promise<void>; importingPdf: boolean; t: Translator; onAdded(paper: Paper, focus: boolean): Promise<void>; onClose(): void; onError(error: unknown): void }) {
   const [tab, setTab] = useState('search'), [query, setQuery] = useState(''), [source, setSource] = useState('all'), [priority, setPriority] = useState('recency');
   const [results, setResults] = useState<SearchItem[] | null>(null), [warnings, setWarnings] = useState<string[]>([]);
   const [resultPriority, setResultPriority] = useState('default');
