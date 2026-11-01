@@ -46,8 +46,9 @@ async function action(label, path) {
   const response = page.waitForResponse(r => new URL(r.url()).pathname === path && r.request().method() === 'POST');
   await frame.getByRole('button', { name: label, exact: true }).click();
   const result = await response;
-  expect(result.ok(), `${label}: HTTP ${result.status()}`).toBe(true);
-  return result.json();
+  const body = await result.text();
+  expect(result.ok(), `${label}: HTTP ${result.status()} — ${body.slice(0, 2000)}`).toBe(true);
+  return JSON.parse(body);
 }
 async function settled(id) {
   let result;
@@ -324,8 +325,10 @@ try {
   expect(await read(experimentPath(first.id))).toEqual(first);
   await frame.getByRole('button', { name: 'New experiment', exact: true }).click();
   await frame.getByLabel('Template', { exact: true }).selectOption(first.templateId);
-  await frame.getByLabel('Observation window', { exact: true }).fill('6');
-  await frame.getByLabel('Samples', { exact: true }).fill('601');
+  // 30 candidates × 5 search cases + 2 final cases = 30,552 sample-points,
+  // within the real 40,000-point frozen plan limit at 0.01 s resolution.
+  await frame.getByLabel('Observation window', { exact: true }).fill('2');
+  await frame.getByLabel('Samples', { exact: true }).fill('201');
   await frame.getByLabel('Total candidate budget', { exact: true }).fill('30');
   const cancelTarget = await action('Freeze specification', '/api/experiments');
   const running = await action('Run bounded search', `${experimentPath(cancelTarget.id)}/search`);

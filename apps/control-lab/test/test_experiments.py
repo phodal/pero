@@ -9,7 +9,8 @@ class ExperimentsTest(unittest.TestCase):
     def test_frozen_inputs(self):
         for change in ({'candidateBudget':31},{'candidateBudget':True},{'parameters':{'kp':float('nan')}},
                        {'parameters':{'samples':101,'horizon':60}}, {'parameters':{'unknown':1}},
-                       {'candidateBudget':30,'parameters':{'samples':5001}}):
+                       {'candidateBudget':30,'parameters':{'samples':5001}},
+                       {'candidateBudget':30,'parameters':{'horizon':6,'samples':601}}):
             with self.subTest(change=change),self.assertRaises(Invalid):
                 ExperimentSpec.parse(dict(templateId='robust-pid',**change))
         spec=ExperimentSpec.parse({'templateId':'robust-pid','candidateBudget':12,'parameters':{'horizon':6,'samples':601}})
@@ -21,6 +22,12 @@ class ExperimentsTest(unittest.TestCase):
         self.assertEqual(tuple(sorted((dict(s.parameters)['gain'], dict(s.parameters)['damping']) for s in spec.scenarios if s.role=='search')),
                          ((.8,1),(1,.8),(1,1),(1,1.2),(1.2,1)))
         self.assertEqual(tuple(s.id for s in spec.scenarios if s.role=='verification'), ('nominal-final','damping-low-final'))
+        cancellation=ExperimentSpec.parse({'templateId':'robust-pid','candidateBudget':30,'parameters':{'horizon':2,'samples':201}})
+        self.assertEqual(len(candidates(cancellation,30)),30)
+        self.assertEqual(sum(s.role=='search' for s in cancellation.scenarios),5)
+        self.assertEqual(sum(s.role=='verification' for s in cancellation.scenarios),2)
+        admit_attempts(cancellation,0,152)
+        self.assertEqual(dict(cancellation.parameters)['horizon']/(dict(cancellation.parameters)['samples']-1),.01)
         fresh=ExperimentSpec.parse({'templateId':'robust-pid','candidateBudget':6})
         self.assertEqual(dict(fresh.parameters)['horizon'],10)
         self.assertEqual(dict(fresh.parameters)['samples'],1001)
