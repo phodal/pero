@@ -19,6 +19,15 @@ test('external bundle stages only declared artifacts and refuses missing entries
     writeFileSync(join(source, 'private-source.mjs'), 'never stage this');
     const output = join(temp, 'distribution/apps/sample');
     stageAppBundle(readAppBundle(source), output);
+    // Even an externally supplied Paper bundle ships only its declared files;
+    // builtin CLI/skill additions must not widen this independent boundary.
+    writeFileSync(join(source, 'app-bundle.json'), JSON.stringify({ ...descriptor, name: 'paper-agent' }));
+    writeFileSync(join(source, 'app.json'), JSON.stringify({ ...manifest, name: 'paper-agent' }));
+    mkdirSync(join(source, 'tools'), { recursive: true });
+    writeFileSync(join(source, 'tools/research.py'), 'unlisted external tool');
+    const externalPaper = join(temp, 'external-paper');
+    stageAppBundle(readAppBundle(source), externalPaper);
+    assert.equal(existsSync(join(externalPaper, 'tools/research.py')), false);
     rmSync(source, { recursive: true });
     assert.equal(readFileSync(join(output, 'dist/index.html'), 'utf8'), 'external panel');
     assert.equal(existsSync(join(output, 'private-source.mjs')), false);
