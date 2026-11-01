@@ -37,8 +37,8 @@ function* plan(scene, digest) {
   const definitions = yield* invoke(mcp('app_describe'), {}, '/apps');
   assert(definitions.some(item => item.tool === 'inspect-research-link'));
   if (scene === 'unsafe') {
-    const error = yield tool(mcp('app_write'), { app: 'paper-agent', tool: 'inspect-research-link', document: { url: 'https://127.0.0.1/private' } });
-    assert.match(error, /public|unsafe|private|reserved|loopback|invalid/i);
+    const error = yield tool(mcp('app_write'), { app: 'paper-agent', tool: 'inspect-research-link', document: { url: 'https://localhost/' } });
+    assert.match(error, /Private research URLs are not supported/);
     return 'Synthetic protocol probe: unsafe source refused; no import or download.';
   }
   let draft = yield* write('inspect-research-link', { url: seed });
