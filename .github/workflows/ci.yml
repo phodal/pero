@@ -420,6 +420,7 @@ jobs:
         run: |
           python -m unittest discover -s apps/paper-agent/test -p test_research_import.py -v
           python -m unittest discover -s apps/paper-agent/test -p test_research_metadata.py -v
+          python -m unittest discover -s apps/paper-agent/test -p test_pcgym_reproduction.py -v
           python -m unittest discover -s apps/data/test -v
       - name: Real local molecular backend contracts
         run: |

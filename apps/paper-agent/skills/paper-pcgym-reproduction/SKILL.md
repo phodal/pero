@@ -1,0 +1,107 @@
+---
+name: paper-pcgym-reproduction
+description: Audit PC-Gym CSTR Table 6 against its fixed code, prepare a frozen local replay, run only with explicit approval, and independently recompute sample and episode violation rates. Use for arXiv 2410.22093v4 constraint reproduction, not generic paper summaries.
+---
+
+# PC-Gym: audit → explicit replay → independent check
+
+Use the current Host/Harness conversation and its already-authorized tools. This
+skill grants no shell, installation, network, App, filesystem or publication
+permissions. Do not launch Feynman, another Agent loop, or a scheduler.
+
+This implementation is a **fixed-case CLI workflow**, not a new Paper App tool.
+Do not invent `app__paper-agent__run-experiment` or write experimental outcomes
+into a reading-only `research-step` report (its `experiments` remains empty).
+If the Host does not expose an authorized shell and the selected Python package,
+report the execution boundary as blocked. Do not bypass an App-scoped restriction.
+
+## 1. Read and establish identity
+
+The target is arXiv `2410.22093v4`, Section 6.3, Equation 37 and Table 6. Use the
+existing `prepare-research` / `research-step` path for actual PDF observations;
+prefer advertised tools and their schemas. Preserve the returned paper, document,
+passage and file identities. A case template or previous answer is not observed
+paper evidence. HTML reading is optional and must not bypass PDF evidence rules.
+
+A local source checkout must be explicitly supplied/approved and pinned to:
+`MaximilianB2/pc-gym@fbfb36bf84b494cd157cff88292e1fd1b864cee5`.
+Do not clone, install or download assets as a side effect of this skill. Source
+acquisition stays a separate authorized workflow. Do not load upstream pickle or
+object-array data. The training curves from another case are not Table 6 data.
+
+## 2. Inspect and freeze a plan, without computation
+
+Use the chosen environment's Python (not an assumed system interpreter). The
+installed Paper backend provides `python -m paper_agent.pcgym`. From a Pero source
+checkout the operator can set `PYTHONPATH=apps/paper-agent/backend` for that command.
+
+Run `prepare --checkout <approved-absolute-checkout> --output <new-workspace-directory>
+--profile table6 --seed <explicit-seed> --timeout-seconds <approved-wall-time>`.
+
+`prepare` reads and checks source bytes, statically audits code, inventories
+packages, and saves a Claim, audit, source manifest and immutable Spec. It does
+not import the scientific packages or execute the upstream scripts. Respect a
+BLOCKED result. Installing dependencies creates a new environment and requires a
+new prepared Spec; do not edit a frozen one.
+
+Review the actual saved findings, including:
+- episode-level Equation 37 versus sample-level `np.mean(violations)`;
+- the reward function's bound ordering;
+- shared configuration mutation and the driver's explicit deep-copy adaptation;
+- absent original training seeds/checkpoints/trajectory provenance.
+
+Table 6's reported 0.0727 / 0.0003 / 0.0000 are reference values, never fresh results.
+The driver's full profile trains both DDPG variants for 25,000 steps and evaluates
+50 episodes × 60 samples for each policy, including the MPC oracle. `smoke` uses
+64 training steps and two episodes and must remain labelled a smoke test.
+
+## 3. Get exact execution approval
+
+Present the saved Spec digest, interpreter/environment, source revision, profile,
+seed, two training jobs plus oracle evaluations, wall-time limit, output location,
+and unresolved findings. Ask in the existing conversation when needed. Existing
+permissions are still enforced by the Host. Approval of a paper URL is not
+approval to install software or execute a repository.
+
+Only after the user approves that plan and knowingly accepts an **adapted
+upstream-code rerun**, invoke:
+`run --bundle <prepared-directory> --spec-sha <returned-digest>
+--confirm-execution --accept-audit-findings`.
+
+The implementation invokes real PC-Gym / Stable-Baselines3 / CasADi. Missing or
+changed dependencies, source, Python or driver/checker bytes must block, not fall
+back to analytic curves or fixtures. Do not replace the source's reward to make
+a test pass. A different scientific interpretation requires a separately reviewed
+implementation/protocol, not an argument that silently changes this case.
+
+## 4. Observe, independently check, and report
+
+The run is foreground and owned by the existing execution tool. Use its supported
+cancellation, not another process launcher. `status --bundle <directory>` reads
+persisted records; it does not prove a process is still live. An interrupted lock
+requires operator reconciliation. Never automatically delete that lock or replay
+an unknown attempt. Partial logs remain available and incomplete runs never PASS.
+
+Use `verify --bundle <directory> --attempt <returned-attempt-id>` to recompute from
+raw temperatures. Report both metrics and both integer denominators. Check receipt
+identity and bytes; a digest is not remote attestation or scientific truth.
+
+Use `export --bundle <directory> --attempt <id> --output <new-zip-path>` for a
+self-contained numeric check package. It contains a stdlib checker runnable with
+`python verify.py` without an Agent or solver. It omits third-party papers/source,
+local paths, credentials and large checkpoints.
+
+Deliver the artifact paths, execution state, exact experiment scope, numerical
+comparisons and limitations. In this implementation the paper-level verdict is
+**INCONCLUSIVE**: its metric interpretation and original experiment identity are
+unresolved. A valid numeric computation or a close table value cannot override it.
+Fixture tests, the real reward-callback probe, a smoke run, a full retraining and a
+scientific replication are separate evidence levels.
+
+## Integration limits
+
+This folder is discoverable in the existing headless Go Harness when an operator
+explicitly includes its parent directory in `--skills-root`. Load through the
+catalog's real name+digest procedure. The built-in Desktop picker, typed Paper
+result persistence, automatic source-anchor attachment and Desktop UI acceptance
+are **not delivered by this CLI slice**. Never announce them as completed.

@@ -1,5 +1,11 @@
 # Paper Agent
 
+PC-Gym CSTR Table 6 的首个 Paper-Code Audit 提供固定案例 CLI 和独立双口径
+Checker，使用 Python 3.10+。运行方式与指标契约见
+[PC-Gym 设计](../../docs/design-docs/paper-pcgym-reproduction.md)，实际验收范围见
+[验证记录](../../docs/fitness/paper-pcgym-reproduction.md)。它尚未接入 Paper UI，
+也未完成原论文实验复现。
+
 Paper research in Pero: collect sources, read the exact saved text, freeze a
 question and selected papers, run the existing Host Agent, then review cited
 reports and reported experiments together. The Python domain implementation

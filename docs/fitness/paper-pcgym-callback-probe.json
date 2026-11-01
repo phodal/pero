@@ -1,0 +1,16 @@
+{
+  "kind": "upstream-callback-probe",
+  "source_commit": "fbfb36bf84b494cd157cff88292e1fd1b864cee5",
+  "git_blob": "284967c39bfd7b444378810373cb805f9584c914",
+  "sha256": "f6e7bd98e52c45fa9420b495c95a63dcf3d63e4f095768f12103e5701eb25bca",
+  "input_origin": "self-authored synthetic callback inputs, not a PC-Gym environment",
+  "temperature_kelvin": 324,
+  "constraint_interval_kelvin": [
+    321,
+    327
+  ],
+  "reward_without_penalty": -0.0,
+  "reward_with_penalty": -0.0036,
+  "extra_cost": 0.0036,
+  "scope": "Real published pure reward function only. No DDPG, PC-Gym environment, original trajectories or Table 6 rerun."
+}
