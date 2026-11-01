@@ -1,1 +1,30 @@
-{"schemaVersion":1,"name":"scientific-viewer","version":"0.4.0","displayName":"Scientific Viewer","description":"Read-only local scientific files, structures, molecules, spectra and PDF evidence.","permissions":{"host":["agent"]},"contributes":{"panels":[{"id":"viewer","title":"Scientific Viewer","entry":"dist/index.html"}]}}
+{
+  "schemaVersion": 1,
+  "name": "scientific-viewer",
+  "version": "0.4.0",
+  "displayName": "Scientific Viewer",
+  "description": "Read-only local scientific files, structures, molecules, spectra and PDF evidence.",
+  "permissions": {
+    "host": [
+      "agent"
+    ]
+  },
+  "contributes": {
+    "panels": [
+      {
+        "id": "viewer",
+        "title": "Scientific Viewer",
+        "entry": "dist/index.html"
+      }
+    ]
+  },
+  "backend": {
+    "type": "python",
+    "entry": "backend/server.py",
+    "dependencies": [
+      "rdkit==2026.9.1",
+      "numpy==2.2.6",
+      "Pillow==12.0.0"
+    ]
+  }
+}
