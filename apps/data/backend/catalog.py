@@ -89,13 +89,17 @@ class Catalog:
                     for asset in reversed(self.assets)]
 
     def publish(self, part, name, kind, source, revision='', license='Unknown', checksums=(),
-                bundle_id='', source_id='', download_url=''):
-        digest = hashlib.sha256()
-        with part.open('rb') as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b''):
-                digest.update(chunk)
+                bundle_id='', source_id='', download_url='', verified_sha256=None):
+        # Downloads have already hashed and verified every byte while streaming.
+        # Local imports still compute their digest here before publication.
+        if verified_sha256 is None:
+            digest = hashlib.sha256()
+            with part.open('rb') as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                    digest.update(chunk)
+            verified_sha256 = digest.hexdigest()
         asset = Asset(uuid.uuid4().hex, name, kind, Path(name).suffix.lstrip('.').lower() or 'binary',
-                      part.stat().st_size, source, revision, license, digest.hexdigest(),
+                      part.stat().st_size, source, revision, license, verified_sha256,
                       datetime.now(timezone.utc).isoformat(), list(checksums), bundle_id, source_id, download_url)
         with self.lock:
             destination = self.files / asset.id

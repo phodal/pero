@@ -183,6 +183,20 @@ class ResearchDownloadTests(unittest.TestCase):
             downloads.start_research(changed)
         self.assertEqual(downloads.research_state(self.scope)['source']['license'], 'MIT')
 
+    def test_verified_stream_is_published_without_rereading_the_file_under_lock(self):
+        original = Path.open
+        def open_without_rehash(path, mode='r', *args, **kwargs):
+            if path.suffix == '.part' and mode == 'rb':
+                raise AssertionError('A completed verified download must not be rehashed under the catalog lock')
+            return original(path, mode, *args, **kwargs)
+        downloads = Downloads(self.catalog, opener=lambda _: io.BytesIO(self.content))
+        with patch.object(Path, 'open', open_without_rehash):
+            downloads.start_research(self.request)
+            self.join(downloads)
+        receipt = downloads.research_state(self.scope)
+        self.assertEqual(receipt['download']['status'], 'completed')
+        self.assertEqual(receipt['asset']['sha256'], hashlib.sha256(self.content).hexdigest())
+
     def test_legacy_verified_catalog_asset_is_reused_without_download(self):
         source = self.request.source
         part = self.catalog.directory / 'legacy.part'
@@ -194,6 +208,20 @@ class ResearchDownloadTests(unittest.TestCase):
         self.assertTrue(receipt['receipt']['reused'])
         self.assertEqual(receipt['receipt']['catalogAssetId'], original.id)
         self.assertIsNone(downloads.thread)
+
+    def test_missing_catalog_file_is_visible_and_explicit_start_redownloads(self):
+        downloads = Downloads(self.catalog, opener=lambda _: io.BytesIO(self.content))
+        downloads.start_research(self.request)
+        self.join(downloads)
+        completed = downloads.research_state(self.scope)
+        (self.catalog.files / completed['asset']['id']).unlink()
+        unavailable = downloads.research_state(self.scope)
+        self.assertFalse(unavailable['asset']['localAvailable'])
+        self.assertTrue(unavailable['receipt']['retryable'])
+        restarted = downloads.start_research(self.request)
+        self.assertNotEqual(restarted['receipt']['jobId'], completed['receipt']['jobId'])
+        self.join(downloads)
+        self.assertTrue(downloads.research_state(self.scope)['asset']['localAvailable'])
 
     def test_worker_start_failure_is_recorded_and_explicit_retry_can_recover(self):
         downloads = Downloads(self.catalog, opener=lambda _: io.BytesIO(self.content))

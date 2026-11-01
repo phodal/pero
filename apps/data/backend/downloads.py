@@ -88,7 +88,8 @@ class ResearchDownload:
                     receipt=dict(bundleId=self.source.bundleId, assetId=self.source.id,
                                  jobId=self.download.id, catalogAssetId=self.catalogAssetId or None,
                                  reused=self.reused,
-                                 retryable=self.download.status in ('failed', 'cancelled', 'interrupted')))
+                                 retryable=self.download.status in ('failed', 'cancelled', 'interrupted')
+                                 or (self.download.status == 'completed' and (not asset or not asset['localAvailable']))))
 
 
 class Downloads:
@@ -230,7 +231,8 @@ class Downloads:
                     raise InterruptedError('Download cancelled')
                 asset = self.catalog.publish(part, source.filename, source.kind, source.sourceUrl,
                                              source.revision, source.license, [asdict(c) for c in source.checksums],
-                                             source.bundleId, source.id, source.url)
+                                             source.bundleId, source.id, source.url,
+                                             verified_sha256=hashes['sha256'].hexdigest())
                 self._update_job(self.job.finish('completed'), asset.id)
         except InterruptedError:
             with self.catalog.lock:
