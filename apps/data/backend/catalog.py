@@ -61,6 +61,9 @@ class Asset:
     sha256: str
     createdAt: str
     checksums: list
+    bundleId: str = ''
+    sourceId: str = ''
+    downloadUrl: str = ''
 
 
 class Catalog:
@@ -85,14 +88,15 @@ class Catalog:
                          localAvailable=(self.files / asset.id).is_file())
                     for asset in reversed(self.assets)]
 
-    def publish(self, part, name, kind, source, revision='', license='Unknown', checksums=()):
+    def publish(self, part, name, kind, source, revision='', license='Unknown', checksums=(),
+                bundle_id='', source_id='', download_url=''):
         digest = hashlib.sha256()
         with part.open('rb') as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b''):
                 digest.update(chunk)
         asset = Asset(uuid.uuid4().hex, name, kind, Path(name).suffix.lstrip('.').lower() or 'binary',
                       part.stat().st_size, source, revision, license, digest.hexdigest(),
-                      datetime.now(timezone.utc).isoformat(), list(checksums))
+                      datetime.now(timezone.utc).isoformat(), list(checksums), bundle_id, source_id, download_url)
         with self.lock:
             destination = self.files / asset.id
             part.replace(destination)
@@ -103,6 +107,15 @@ class Catalog:
                 raise
             self.assets.append(asset)
         return asset
+
+    def matching_source(self, source):
+        checksum = next(c.value for c in source.checksums if c.algorithm == 'sha256')
+        with self.lock:
+            return next((asset for asset in self.assets
+                         if (asset.downloadUrl or f'{asset.source}/resolve/{asset.revision}/{asset.name}') == source.url
+                         and asset.revision == source.revision
+                         and asset.sha256 == checksum and asset.size == source.size
+                         and (self.files / asset.id).is_file()), None)
 
     def import_file(self, request):
         part = self.directory / f'{uuid.uuid4().hex}.part'

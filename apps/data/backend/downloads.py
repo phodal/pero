@@ -1,4 +1,4 @@
-"""One explicit, cancellable download. Only fixed HTTPS source URLs are accepted."""
+"""One explicit worker for fixed sources and approved pinned research files."""
 from dataclasses import asdict, dataclass, replace
 import hashlib
 import json
@@ -9,7 +9,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 import uuid
 from typing import Literal
 
-from sources import SOURCES
+from sources import Checksum, ResearchSelection, SOURCES, Source
 
 
 def require_url(url, hosts):
@@ -65,16 +65,50 @@ class DownloadJob:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class ResearchDownload:
+    source: Source
+    download: DownloadJob
+    catalogAssetId: str = ''
+    reused: bool = False
+
+    @classmethod
+    def restore(cls, value):
+        source = dict(value['source'])
+        source['checksums'] = tuple(Checksum(**checksum) for checksum in source['checksums'])
+        source['hosts'] = tuple(source['hosts'])
+        return cls(Source(**source), DownloadJob(**value['download']),
+                   value['catalogAssetId'], value['reused'])
+
+    def receipt(self, catalog):
+        asset = next((asset for asset in catalog.listing() if asset['id'] == self.catalogAssetId), None)
+        if asset:
+            asset.pop('location', None)  # A handoff returns a catalog identity, not a private path.
+        return dict(source=self.source.public(), download=self.download.to_dict(), asset=asset,
+                    receipt=dict(bundleId=self.source.bundleId, assetId=self.source.id,
+                                 jobId=self.download.id, catalogAssetId=self.catalogAssetId or None,
+                                 reused=self.reused,
+                                 retryable=self.download.status in ('failed', 'cancelled', 'interrupted')))
+
+
 class Downloads:
     def __init__(self, catalog, sources=SOURCES, opener=open_source):
         self.catalog, self.sources, self.opener = catalog, sources, opener
         self.cancelled = threading.Event()
         self.thread = None
+        records = catalog.directory / 'research-downloads.json'
+        self.research = [ResearchDownload.restore(value) for value in
+                         json.loads(records.read_text(encoding='utf-8'))] if records.exists() else []
         path = catalog.directory / 'download.json'
         self.job = DownloadJob(**json.loads(path.read_text(encoding='utf-8'))) if path.exists() else None
         if self.job and self.job.status == 'running':
             self.job = self.job.finish('interrupted', 'Download interrupted. Start again to retry.')
             catalog.atomic('download.json', self.job.to_dict())
+        if self.research:
+            self.research = [replace(record, download=record.download.finish('interrupted',
+                             'Download interrupted. Start again to retry.'))
+                             if record.download.status == 'running' else record for record in self.research]
+            self._persist_research()
         for part in catalog.directory.glob('*.part'):
             part.unlink()
 
@@ -83,26 +117,82 @@ class Downloads:
             return dict(assets=self.catalog.listing(), sources=[s.public() for s in self.sources],
                         download=self.job.to_dict() if self.job else None)
 
+    def _persist_research(self):
+        self.catalog.atomic('research-downloads.json', [asdict(record) for record in self.research])
+
+    def _update_job(self, job, asset_id=''):
+        self.job = job
+        self.research = [replace(record, download=job, catalogAssetId=asset_id or record.catalogAssetId)
+                         if record.download.id == job.id else record for record in self.research]
+
     def start(self, identity):
         source = next((source for source in self.sources if source.id == identity), None)
         if source is None:
             raise ValueError('Unknown source')
         with self.catalog.lock:
-            if self.thread and self.thread.is_alive():
-                raise ValueError('A download is already running')
-            self.cancelled.clear()
-            job = DownloadJob(id=uuid.uuid4().hex, sourceId=source.id, status='running',
-                       received=0, total=source.size, error='')
-            self.catalog.atomic('download.json', job.to_dict())
-            self.job = job
-            self.thread = threading.Thread(target=self.run, args=(source,), daemon=True)
-            try:
-                self.thread.start()
-            except RuntimeError as error:
-                self.thread = None
-                self.job = self.job.finish('failed', 'Download worker could not start. Retry manually.')
-                self.catalog.atomic('download.json', self.job.to_dict())
-                raise ValueError(self.job.error) from error
+            self._start(source)
+
+    def _start(self, source):
+        if self.thread and self.thread.is_alive():
+            raise ValueError('A download is already running')
+        self.cancelled.clear()
+        job = DownloadJob(id=uuid.uuid4().hex, sourceId=source.id, status='running',
+                          received=0, total=source.size, error='')
+        records = self.research
+        if source.bundleId:
+            selection = ResearchSelection(source.bundleId, source.id)
+            records = [item for item in self.research if not selection.contains(item.source)] + [ResearchDownload(source, job)]
+            # Persist the accepted handoff before any worker/network effect starts.
+            self.catalog.atomic('research-downloads.json', [asdict(record) for record in records])
+        self.catalog.atomic('download.json', job.to_dict())
+        self.research = records
+        self.job = job
+        self.thread = threading.Thread(target=self.run, args=(source,), daemon=True)
+        try:
+            self.thread.start()
+        except RuntimeError as error:
+            self.thread = None
+            self._update_job(self.job.finish('failed', 'Download worker could not start. Retry manually.'))
+            self.catalog.atomic('download.json', self.job.to_dict())
+            self._persist_research()
+            raise ValueError(self.job.error) from error
+        return job
+
+    def start_research(self, request):
+        source = request.source
+        selection = ResearchSelection(source.bundleId, source.id)
+        with self.catalog.lock:
+            previous = next((record for record in self.research if selection.contains(record.source)), None)
+            if previous and previous.source != source:
+                raise ValueError('Saved asset identity cannot change its source')
+            if previous and previous.download.status == 'running':
+                return previous.receipt(self.catalog)
+            asset = self.catalog.matching_source(source)
+            if asset:
+                job = previous.download if previous and previous.download.status == 'completed' else DownloadJob(
+                    'catalog-' + asset.id, source.id, 'completed', source.size, source.size)
+                record = ResearchDownload(source, job, asset.id, True)
+            else:
+                # The existing single worker remains the only download effect owner.
+                self._start(source)
+                return next(item for item in self.research if selection.contains(item.source)).receipt(self.catalog)
+            records = [item for item in self.research if not selection.contains(item.source)] + [record]
+            self.catalog.atomic('research-downloads.json', [asdict(item) for item in records])
+            self.research = records
+            return record.receipt(self.catalog)
+
+    def research_state(self, selection, cancel=False):
+        with self.catalog.lock:
+            records = [record for record in self.research if selection.contains(record.source)]
+            if cancel and self.job and any(record.download.id == self.job.id for record in records):
+                self.cancel()
+            if selection.assetId is None:
+                return dict(bundleId=selection.bundleId, assets=[record.receipt(self.catalog) for record in records])
+            if records:
+                return records[0].receipt(self.catalog)
+            return dict(source=None, download=None, asset=None,
+                        receipt=dict(bundleId=selection.bundleId, assetId=selection.assetId,
+                                     jobId=None, catalogAssetId=None, reused=False, retryable=False))
 
     def cancel(self):
         with self.catalog.lock:
@@ -130,7 +220,7 @@ class Downloads:
                     for digest in hashes.values():
                         digest.update(chunk)
                     with self.catalog.lock:
-                        self.job = self.job.progress(received)
+                        self._update_job(self.job.progress(received))
             if received != source.size:
                 raise ValueError('Downloaded size does not match the source')
             if any(hashes[c.algorithm].hexdigest() != c.value for c in source.checksums):
@@ -138,21 +228,23 @@ class Downloads:
             with self.catalog.lock:
                 if self.cancelled.is_set():
                     raise InterruptedError('Download cancelled')
-                self.catalog.publish(part, source.filename, source.kind, source.sourceUrl,
-                                     source.revision, source.license, [asdict(c) for c in source.checksums])
-                self.job = self.job.finish('completed')
+                asset = self.catalog.publish(part, source.filename, source.kind, source.sourceUrl,
+                                             source.revision, source.license, [asdict(c) for c in source.checksums],
+                                             source.bundleId, source.id, source.url)
+                self._update_job(self.job.finish('completed'), asset.id)
         except InterruptedError:
             with self.catalog.lock:
-                self.job = self.job.finish('cancelled')
+                self._update_job(self.job.finish('cancelled'))
         except Exception as error:
             # Transport failures are terminal; never publish partial or unverified files.
             with self.catalog.lock:
                 message = str(error) if isinstance(error, ValueError) else type(error).__name__
-                self.job = self.job.finish('failed', f'Download failed: {message}. Retry manually.')
+                self._update_job(self.job.finish('failed', f'Download failed: {message}. Retry manually.'))
         finally:
             part.unlink(missing_ok=True)
             with self.catalog.lock:
                 self.catalog.atomic('download.json', self.job.to_dict())
+                self._persist_research()
 
     def close(self):
         self.cancel()
