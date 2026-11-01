@@ -24,6 +24,19 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   const metadata = acceptance.steps.find(step => step.name === 'Observe public TimesFM and HF metadata separately');
   assert.equal(metadata.if, "${{ !cancelled() && matrix.suite == 'paper-research-import' }}");
   assert.equal(metadata['timeout-minutes'], 3);
+  assert.equal(workflow.on.workflow_dispatch.inputs.paper_pdf_live.default, false);
+  const livePdf = acceptance.steps.find(step => step.name === 'Explicit public PDF study journey');
+  assert.match(livePdf.if, /workflow_dispatch.*inputs.paper_pdf_live/);
+  assert.match(livePdf.if, /contains\(github.event.pull_request.labels.\*.name, 'ci:paper-pdf-live'\)/);
+  assert.equal(livePdf.env.PERO_PDF_STUDY_LIVE, '1');
+  const liveSource = acceptance.steps.find(step => step.name === 'Explicit public source study journey');
+  assert.equal(liveSource.if, livePdf.if);
+  assert.match(liveSource.if, /!cancelled\(\)/);
+  assert.equal(liveSource.env.PERO_SOURCE_STUDY_LIVE, '1');
+  assert.match(liveSource.run, /run-acceptance.*paper-source-study\.mjs/);
+  assert.equal(liveSource['continue-on-error'], undefined);
+  assert.equal(livePdf['continue-on-error'], undefined);
+  assert.match(livePdf.run, /run-acceptance.*paper-pdf-study\.mjs/);
   assert.match(metadata.run, /research_metadata\.py --allow-public-metadata --output test-results\/research-import\/live-metadata\.json/);
   assert.match(workflow.jobs.complete.if, /always\(\)/);
   assert.deepEqual(workflow.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
@@ -60,6 +73,9 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
     'node scripts/build/mcp.mjs', 'node tests/contracts/host.mjs', 'node tests/runtime/automation.mjs',
     'node tests/contracts/mcp-settings.mjs', 'node tests/contracts/mcp-ownership.mjs',
     'tests/fixtures/owned-electron-close.test.mjs', 'npm run test:app-use:unit']) assert.ok(core.includes(command), command);
+  assert.ok(core.includes("python -m unittest discover -s apps/paper-agent/test -p 'test_*.py' -v"));
+  assert.ok(core.includes('python tests/e2e/paper-pdf-http.py --output'));
+  assert.ok(core.includes('npm run typecheck --prefix apps/paper-agent'));
   assert.doesNotMatch(core, /npm run build|xvfb-run|build:wasm|scripts\/build\/(?:apps|wasm|reader|automation-app|scientific-viewer)\.mjs/);
   for (const command of ['ec89cfc36404667b7947aeb3d40b1c2859d729dd', 'https://github.com/longbridge/gpui-kit.git',
     'npm ci --prefix apps/automations --ignore-scripts', 'npm ci --prefix apps/scientific-viewer --ignore-scripts',
