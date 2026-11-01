@@ -63,6 +63,8 @@ async function launch() {
   await clickAppOpen(page, 'lab');
   await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'app', value: { name: 'lab', panel: 'main' } });
   frame = page.frameLocator('iframe[title="lab"]');
+  await expect(page.locator('iframe[title="lab"]')).toBeVisible();
+  await expect(frame.getByRole('heading', { name: 'Lab', exact: true })).toBeVisible();
   await expect(frame.getByRole('button', { name: 'Freeze experiment', exact: true })).toBeEnabled({ timeout: 120000 });
   await expect(page.locator('iframe[title="lab"]')).toHaveAttribute('sandbox', /allow-scripts/);
   expect(await page.locator('iframe[title="lab"]').getAttribute('sandbox')).not.toContain('allow-forms');
@@ -150,11 +152,24 @@ try {
   await setAppearance(page, 'dark');
   await expect.poll(() => frame.locator('html').evaluate(element => element.style.colorScheme)).toBe('dark');
   await page.screenshot({ path: resolve(out, 'deck-dark.png') });
+  // Close the visible dock through its actual header control before narrowing:
+  // the Host intentionally gives an open dock all content space at this width.
+  const appTop = await page.locator('#pero-app-surface').evaluate(element => element.getBoundingClientRect().top);
+  await page.mouse.click(await page.evaluate(() => innerWidth - 18), appTop + 16);
+  await expect.poll(async () => (await state()).appChatOpen).toBe(false);
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(900, 800));
-  await expect.poll(() => frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await expect.poll(() => page.evaluate(() => innerWidth)).toBe(900);
+  await expect(page.locator('iframe[title="lab"]')).toBeVisible();
+  await expect(frame.getByRole('heading', { name: '96-well plate', exact: true })).toBeVisible();
+  await expect.poll(() => frame.locator('html').evaluate(element => element.clientWidth > 300 && element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await frame.getByRole('button', { name: 'B1, 100 microliters', exact: true }).click();
   await page.screenshot({ path: resolve(out, 'deck-dark-narrow.png') });
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1488, 1000));
+  await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1488);
   checks.push('Actual App iframe displays deck, provenance, verification, comparison, explicit UI review and exported immutable evidence; light/dark/narrow');
   // Separate user-import UI path: bytes are test data, explicitly not instrument evidence.
+  await expect(page.locator('iframe[title="lab"]')).toBeVisible();
+  await expect(frame.getByRole('button', { name: 'New experiment', exact: true })).toBeVisible();
   await frame.getByRole('button', { name: 'New experiment', exact: true }).click();
   await frame.getByRole('textbox', { name: 'Objective', exact: true }).fill('Imported-file UI acceptance fixture');
   const importCreated = page.waitForResponse(response => new URL(response.url()).pathname === '/api/experiments' && response.request().method() === 'POST');
@@ -177,6 +192,7 @@ try {
   await page.screenshot({ path: resolve(out, 'imported-observation.png') });
   checks.push('UI imports user-supplied CSV test bytes with source, fraction units and exact original-byte SHA-256; never labelled device evidence');
   await closeDesktop(); await launch();
+  await expect(frame.getByRole('combobox', { name: 'Saved experiments', exact: true })).toBeVisible();
   await frame.getByRole('combobox', { name: 'Saved experiments', exact: true }).selectOption(frozen.id);
   await frame.getByRole('tab', { name: 'Runs', exact: true }).click();
   await expect(frame.getByRole('heading', { name: 'Execution completed', exact: true })).toBeVisible();
