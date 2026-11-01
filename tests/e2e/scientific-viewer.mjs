@@ -3,7 +3,7 @@ import {expect} from '@playwright/test';
 import {mkdir,mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
 import {resolve} from 'node:path';import {tmpdir} from 'node:os';import {createRequire} from 'node:module';
 import {electron} from './electron.mjs';import {closeOwnedElectron} from './owned-electron-close.mjs';
-import {clickAppShortcut,clickAppOpen,setAppearance} from './sidebar-controls.mjs';
+import {clickAppShortcut,setAppearance} from './sidebar-controls.mjs';
 import {examples} from '../../apps/scientific-viewer/ui-src/examples.ts';
 const {unzipSync}=createRequire(new URL('../../apps/scientific-viewer/package.json',import.meta.url))('fflate');
 const root=resolve(import.meta.dirname,'../..'),out=resolve(root,'test-results/scientific-viewer');await mkdir(out,{recursive:true});
@@ -16,7 +16,16 @@ await writeFile(agents,JSON.stringify([
 const env={...process.env,PERO_AGENTS_FILE:agents,PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_BUILTIN_APPS:'scientific-viewer,paper-agent',PERO_REQUIRED_APPS:'scientific-viewer',PERO_LOCALE:'en'};
 delete env.ELECTRON_RUN_AS_NODE;delete env.POINT_ROOT;delete env.PERO_POINT_ROOT;delete env.PERO_APPS_ROOT;
 let app,page,frame;
-async function open(){await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});await clickAppShortcut(page,'apps');await clickAppOpen(page,'scientific-viewer');frame=page.frameLocator('iframe[title="scientific-viewer"]');await expect(frame.getByRole('heading',{name:'Scientific Viewer',exact:true})).toBeVisible();}
+async function open(){
+ await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
+ await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(app=>app.name==='scientific-viewer'&&app.enabled))).toBe(true);
+ await page.waitForFunction(()=>{const canvas=document.querySelector('canvas');return canvas?.width===Math.round(innerWidth*devicePixelRatio)&&canvas.height===Math.round(innerHeight*devicePixelRatio);});
+ // Enabled catalog Apps also have a direct sidebar shortcut, measured at paint.
+ await clickAppShortcut(page,'scientific-viewer');
+ await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).activeApp)).toMatchObject({name:'scientific-viewer',panel:'viewer'});
+ frame=page.frameLocator('iframe[title="scientific-viewer"]');
+ await expect(frame.getByRole('heading',{name:'Scientific Viewer',exact:true})).toBeVisible();
+}
 try{
  app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));await open();
  for(const example of examples){
