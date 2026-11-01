@@ -177,7 +177,7 @@ export function installAutomation(send:(command:object)=>Promise<void>) {
   find('[aria-label="Close Automation"]').addEventListener('click',()=>{modal.close();clearTimeout(timer);});
   modal.addEventListener('close',()=>clearTimeout(timer));
   return {event(event:Event){
-    if(event.kind==='automation_open'){if(!modal.open)modal.showModal();void run(query).then(poll);return;}
+    if(event.kind==='automation_operations_open'){if(!modal.open)modal.showModal();void run(query).then(poll);return;}
     if(event.kind!=='automation_result'&&event.kind!=='automation_error')return;
     if(event.kind==='automation_error'&&!event.request_id){showError(event.text);return;}
     const request=event.request_id?pending.get(event.request_id):undefined;

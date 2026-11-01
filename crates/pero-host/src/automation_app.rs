@@ -1,10 +1,12 @@
-//! Point-compatible App REST boundary. Rust's existing store/ACP owner remains
-//! authoritative; Point's pure calendar interprets its original RRULE contract.
+//! App REST boundary. Pero's store/ACP owner remains authoritative;
+//! the local calendar interpreter only proposes wall-clock slots.
 use super::*;
 use chrono::{DateTime, Utc};
 use domain::{CalendarSchedule, catalog::CatalogEntry};
 use serde::{Deserialize, Serialize};
-use std::{io::Write, path::PathBuf, process::{Command as Process, Stdio}};
+#[path = "automation_calendar.rs"]
+mod calendar_rules;
+use calendar_rules::Calendar;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -19,9 +21,6 @@ pub(crate) struct AppResponse { status: u16, body: Value }
 fn reply(status: u16, body: Value) -> AppResponse { AppResponse { status, body } }
 fn iso(seconds: u64) -> String {
     DateTime::<Utc>::from_timestamp(seconds.min(i64::MAX as u64) as i64,0).map(|date|date.to_rfc3339_opts(chrono::SecondsFormat::Secs,true)).unwrap_or_default()
-}
-fn unix(value: &str) -> Result<u64,String> {
-    DateTime::parse_from_rfc3339(value).map_err(|e|e.to_string()).and_then(|date|u64::try_from(date.timestamp()).map_err(|e|e.to_string()))
 }
 #[derive(Clone, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
@@ -38,40 +37,22 @@ struct TargetInput { kind: String }
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EventInput { event: String, #[serde(default)] source: String }
-#[derive(Deserialize)]
-struct CalendarReply { status: u16, body: CalendarBody }
-#[derive(Deserialize)]
-struct CalendarBody {
-    #[serde(default)] rule: String,
-    next: Option<String>,
-    decision: Option<CalendarDecision>,
-    slot: Option<String>,
-    error: Option<String>,
+fn calendar(rule: &str, zone: &str, anchor: u64) -> Result<Calendar,String> {
+    let resolved=if zone=="Local" {iana_time_zone::get_timezone().map_err(|error|format!("Local time zone unavailable: {error}"))?}else{zone.into()};
+    Calendar::parse(rule,&resolved,anchor)
 }
-#[derive(Deserialize)]
-struct CalendarDecision { run: Option<CalendarRun>, next: Option<String> }
-#[derive(Deserialize)]
-struct CalendarRun { scheduled_for: String }
-
-fn calendar(definition: &Definition, rule: &str, zone: &str, operation: &str, at: u64) -> Result<CalendarBody,String> {
-    let Method::Agent{prompt,..}=&definition.method;
-    let input=json!({"method":"POST","path":"/api/automation-calendar","headers":{},"body":{
-        "operation":operation,"now":iso(at),"definition":{
-            "version":1,"id":definition.id,"revision":definition.revision,"name":definition.id,"enabled":true,
-            "trigger":{"rule":rule,"timezone":zone},"action":{"kind":"agent","prompt":prompt},
-            "target":{"kind":"local"},"policy":{"overlap":"skip","catchup_window":"1h","retry":{}},
-            "created_at":iso(at),"updated_at":iso(at)
+fn stored_calendar(schedule:&CalendarSchedule)->Result<Calendar,String> {
+    if schedule.timezone=="Local" {return Err("Re-save this schedule to freeze its IANA time zone before scheduled runs".into());}
+    Calendar::parse(&schedule.rule,&schedule.timezone,schedule.first_slot)
+}
+fn edited_calendar(rule:&str,zone:&str,at:u64,previous:Option<&CalendarSchedule>)->Result<CalendarSchedule,String> {
+    let value=calendar(rule,zone,at)?;let rule=value.rule();let timezone=value.timezone();
+    if let Some(previous)=previous {
+        if let Ok(old)=stored_calendar(previous) {
+            if old.rule()==rule&&old.timezone()==timezone {return Ok(previous.clone());}
         }
-    }});
-    let root=std::env::var_os("PERO_POINT_RUNTIME_ROOT").map(PathBuf::from).unwrap_or_else(||PathBuf::from("packages/point-app/dist"));
-    let binary=root.join(if cfg!(windows){"point-host.exe"}else{"point-host"});
-    let mut process=Process::new(binary).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e|format!("Calendar runtime unavailable: {e}"))?;
-    process.stdin.take().ok_or("Calendar input unavailable")?.write_all(&serde_json::to_vec(&input).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
-    let output=process.wait_with_output().map_err(|e|e.to_string())?;
-    if !output.status.success(){return Err(String::from_utf8_lossy(&output.stderr).chars().take(2000).collect());}
-    let reply:CalendarReply=serde_json::from_slice(&output.stdout).map_err(|e|e.to_string())?;
-    if reply.status!=200{return Err(reply.body.error.unwrap_or_else(||"Calendar rule refused".into()));}
-    Ok(reply.body)
+    }
+    Ok(CalendarSchedule{rule,timezone,first_slot:value.next(at)?,max_lateness_seconds:3600})
 }
 
 impl Automation {
@@ -147,9 +128,9 @@ impl Automation {
         let mut entry=previous.unwrap_or(CatalogEntry{id:id.clone(),name:id.clone(),deleted:false,created_at:now()});
         if let Some(name)=edit.name {entry.rename(name).map_err(str::to_string)?;}
         if !rule.is_empty(){
-            let value=calendar(&definition,&rule,&zone,"next",now())?;
-            let first_slot=value.next.as_deref().map(unix).transpose()?.ok_or("Schedule has no future run")?;
-            definition.trigger=domain::Trigger::Calendar{schedule:CalendarSchedule{rule:value.rule,timezone:zone,first_slot,max_lateness_seconds:3600},subject:id.clone(),exact:None};
+            let previous=old.as_ref().and_then(|definition|match &definition.trigger {domain::Trigger::Calendar{schedule,..}=>Some(schedule),_=>None});
+            let schedule=edited_calendar(&rule,&zone,now(),previous)?;
+            definition.trigger=domain::Trigger::Calendar{schedule,subject:id.clone(),exact:None};
         }
         let mut commands=vec![];
         if !state.bindings.iter().any(|b|b.id==binding_id){commands.push(Command::PutBinding{binding:SourceBinding{id:binding_id,owner:state.owner.clone(),authority:"trusted-local-host".into(),event_kinds:vec![event.map(|event|event.event).unwrap_or_else(||"changed".into())]}});}
@@ -170,13 +151,14 @@ impl Automation {
             domain::Trigger::Event{event_kind,..}=>(String::new(),"Local".into(),None,Some(json!({"event":event_kind}))),
             _=>(String::new(),"Local".into(),None,None),
         };
+        let calendar_error=match &definition.trigger {domain::Trigger::Calendar{schedule,..}=>stored_calendar(schedule).err(),_=>None};
         let runs=state.requests.iter().filter(|r|r.definition.id==definition.id).map(|request|{
             let (status,skip)=match request.status{RequestStatus::Completed=>("succeeded",None),RequestStatus::Failed|RequestStatus::NotStarted=>("failed",None),RequestStatus::Expired=>("skipped",Some("missed")),RequestStatus::Cancelled=>("canceled",None),RequestStatus::Reconcile=>("unknown",None),RequestStatus::Reconciled=>("interrupted",None),RequestStatus::Running|RequestStatus::Reserved=>("running",None),_=>("queued",None)};
             let scheduled=match request.intent{domain::Intent::Time{slot}=>slot,_=>request.created_at};
             json!({"key":{"automation":definition.id,"slot":iso(scheduled),"trigger":if matches!(request.intent,domain::Intent::Manual{..}){"manual"}else{"schedule"},"request_id":request.id},"scheduled_for":iso(scheduled),"state":status,"skip_reason":skip,"session_id":request.execution_id,"error":self.attention.get(&request.id)})
         }).collect::<Vec<_>>();
         let in_flight=state.requests.iter().rev().find(|r|r.definition.id==definition.id&&r.status.active()).and_then(|r|r.execution_id.clone());
-        Ok(json!({"id":definition.id,"name":entry.map(|e|e.name.as_str()).unwrap_or(&definition.id),"prompt":prompt,"enabled":enabled,"rule":rule,"timezone":zone,"next":if enabled{next}else{None},"event":event,"runs":runs,"in_flight":in_flight,"scheduled":self.fault.is_none(),"target":{"kind":"local"}}))
+        Ok(json!({"id":definition.id,"name":entry.map(|e|e.name.as_str()).unwrap_or(&definition.id),"prompt":prompt,"enabled":enabled,"rule":rule,"timezone":zone,"next":if enabled&&calendar_error.is_none(){next}else{None},"event":event,"runs":runs,"in_flight":in_flight,"scheduled":self.fault.is_none()&&calendar_error.is_none(),"error":calendar_error.as_ref().or(self.fault.as_ref()),"target":{"kind":"local"}}))
     }
     fn app_run(&mut self,definition:&Definition)->Result<String,String>{
         let content=format!("Automation {} manual run at {}",definition.id,iso(now()));
@@ -190,19 +172,14 @@ impl Automation {
         for definition in state.definitions.iter().filter(|d|state.latest_definition(&d.id).is_some_and(|latest|latest.revision==d.revision)){
             let domain::Trigger::Calendar{schedule,subject,..}=&definition.trigger else{continue;};
             let Some(slot)=state.calendar_slots.get(&definition.id).copied().filter(|slot|*slot<=at)else{continue;};
-            let mut next=calendar(definition,&schedule.rule,&schedule.timezone,"next",slot)?.next.as_deref().map(unix).transpose()?;
-            if at.saturating_sub(slot)>schedule.max_lateness_seconds{
-                let recent=calendar(definition,&schedule.rule,&schedule.timezone,"decide",at)?.decision;
-                if let Some(recent)=recent{next=recent.run.as_ref().map(|run|unix(&run.scheduled_for)).transpose()?.filter(|recent|*recent>slot).or(recent.next.as_deref().map(unix).transpose()?);}
-            }
-            // Point treats the repeated wall-clock minute during a DST fold as
-            // one occurrence. Advance past that duplicate before storing a cursor.
-            let current_key=calendar(definition,&schedule.rule,&schedule.timezone,"slot",slot)?.slot;
-            if let Some(upcoming)=next {
-                let next_key=calendar(definition,&schedule.rule,&schedule.timezone,"slot",upcoming)?.slot;
-                if current_key.is_some() && current_key==next_key {
-                    next=calendar(definition,&schedule.rule,&schedule.timezone,"next",upcoming)?.next.as_deref().map(unix).transpose()?;
-                }
+            // Refuse unavailable legacy rules without blocking independent definitions.
+            // app_record exposes the same validation error; no cursor is advanced.
+            let Ok(calendar)=stored_calendar(schedule) else {continue;};
+            let mut next=Some(calendar.next(slot)?);
+            if at.saturating_sub(slot)>schedule.max_lateness_seconds {
+                next=Some(match calendar.recent(at,schedule.max_lateness_seconds)?.filter(|recent|*recent>slot) {
+                    Some(recent)=>recent,None=>calendar.next(at)?,
+                });
             }
             let content=format!("Automation {} scheduled for {}",definition.id,iso(slot));let hash=digest(content.as_bytes());
             let candidate=CandidateRef{binding_id:definition.input_binding_id.clone(),subject:subject.clone(),revision:hash.clone(),digest:hash.clone(),content_ref:hash.clone()};
@@ -211,5 +188,24 @@ impl Automation {
             self.store.apply(commands,at,Some((&hash,&content)),None,None)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn persisted_local_requires_explicit_resave() {
+        let mut schedule=CalendarSchedule{rule:"FREQ=DAILY;BYHOUR=9;BYMINUTE=0".into(),timezone:"Local".into(),first_slot:1,max_lateness_seconds:3600};
+        assert!(stored_calendar(&schedule).unwrap_err().contains("Re-save"));
+        schedule.timezone="Asia/Shanghai".into();assert_eq!(stored_calendar(&schedule).unwrap().timezone(),"Asia/Shanghai");
+    }
+    #[test]
+    fn unchanged_edits_preserve_interval_anchor() {
+        let old=CalendarSchedule{rule:"FREQ=DAILY;BYHOUR=9;BYMINUTE=0;INTERVAL=3".into(),timezone:"UTC".into(),first_slot:32400,max_lateness_seconds:3600};
+        assert_eq!(edited_calendar("rrule:interval=3;byminute=00;byhour=09;freq=daily","UTC",90000,Some(&old)).unwrap(),old);
+        let changed=edited_calendar("FREQ=DAILY;BYHOUR=10;BYMINUTE=0;INTERVAL=3","UTC",90000,Some(&old)).unwrap();
+        assert!(changed.first_slot>90000);assert_ne!(changed.first_slot,old.first_slot);
+        let zone=edited_calendar(&old.rule,"Asia/Shanghai",90000,Some(&old)).unwrap();assert_eq!(zone.timezone,"Asia/Shanghai");assert_ne!(zone.first_slot,old.first_slot);
     }
 }

@@ -1,27 +1,14 @@
-/** The unchanged Point UI reads REST shapes; Pero's Host owns every operation. */
-export function installAutomationTransport() {
-  const hostFetch = globalThis.fetch.bind(globalThis);
-  globalThis.fetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
-    if (typeof input !== 'string' || !input.startsWith('/api/')) return hostFetch(input, init);
-    const response = await hostFetch('/host/automation', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: init.signal,
-      body: JSON.stringify({ method: init.method ?? 'GET', path: input, body: typeof init.body === 'string' ? JSON.parse(init.body) : null }),
-    });
-    if (!response.ok) return response;
-    const envelope: { status: number; body: unknown } = await response.json();
-    return new Response(envelope.status === 204 ? null : JSON.stringify(envelope.body), {
-      status: envelope.status, headers: { 'Content-Type': 'application/json' },
-    });
-  };
-  (globalThis as typeof globalThis & { pointGoDesktop: unknown }).pointGoDesktop = {
-    async workbench(namespace: string, request: unknown) {
-      if (namespace !== 'connectors') throw new Error('This App only exposes the declared Connectors capability');
-      const response = await hostFetch('/host/connectors', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request),
-      });
-      const value = await response.json();
-      if (!response.ok) throw new Error(value.error ?? value.code ?? `Connectors HTTP ${response.status}`);
-      return value;
-    },
-  };
+/** Explicit Host capability, never a global fetch override or backend credential. */
+export async function automationRequest<T>(method:string,path:string,body:unknown=null,signal?:AbortSignal):Promise<T> {
+  if(!/^\/api\/automations(?:\/[^/?#]+(?:\/run)?)?$/.test(path))throw new Error('Unsupported automation path');
+  const response=await fetch('/host/automation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({method,path,body}),signal});
+  const value=await response.json();
+  if(!response.ok)throw new Error(value.error||`Host HTTP ${response.status}`);
+  if(!Number.isInteger(value.status))throw new Error('Invalid Host response');
+  if(value.status<200||value.status>=300)throw new Error(value.body?.error||`Automation HTTP ${value.status}`);
+  return value.body as T;
+}
+export function openSession(sessionId:string) {
+  if(!sessionId||sessionId.length>256)throw new Error('Invalid session');
+  window.parent.postMessage({type:'pero:app:open-session',sessionId},'*');
 }

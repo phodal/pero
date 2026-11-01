@@ -131,7 +131,7 @@ function updateMenus() {
       { role: 'cut', label: t('menu.cut') }, { role: 'copy', label: t('menu.copy') },
       { role: 'paste', label: t('menu.paste') }, { role: 'selectAll', label: t('menu.select_all') },
     ] },
-    { label: t('menu.workbench'), submenu: [{id:'open-url',label:t('web.open_url'),click:()=>send({version:1,kind:'web_choose',request_id:null,text:''})}, { id: 'automation', label: t('automation.title'), accelerator: 'CmdOrCtrl+Shift+A', click: () => send({version:1,kind:'automation_open',request_id:null,text:''}) }, { id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
+    { label: t('menu.workbench'), submenu: [{id:'open-url',label:t('web.open_url'),click:()=>send({version:1,kind:'web_choose',request_id:null,text:''})}, { id: 'automation', label: t('automation.title'), accelerator: 'CmdOrCtrl+Shift+A', click: () => send({version:1,kind:'automation_open',request_id:null,text:''}) }, { id: 'automation-operations', label: t('automation.operations'), click: () => send({version:1,kind:'automation_operations_open',request_id:null,text:''}) }, { id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
     { label: t('menu.language'), submenu: [
       { id: 'locale-zh-CN', label: '简体中文', type: 'radio', checked: locale === 'zh-CN', click: () => changeLocale('zh-CN') },
       { id: 'locale-en', label: 'English', type: 'radio', checked: locale === 'en', click: () => changeLocale('en') },
@@ -157,7 +157,6 @@ app.whenReady().then(async () => {
   });
   protocol.handle('pero-app', request => apps.serve(request));
   const home = prepareWorkbenchHome(process.env, app.getPath('userData'));
-  apps.installedRoot = home.apps;
   runtimeSettingsPath = home.settings;
   harness = new HarnessPreferences(process.env.PERO_ENV_FILE || resolve(app.isPackaged ? app.getPath('userData') : root, '.env'), runtimeSettingsPath, send, fields => savePreference('settings.harness', fields));
   await harness.initialize();
@@ -208,7 +207,6 @@ app.whenReady().then(async () => {
     PERO_SETTINGS_PATH: runtimeSettingsPath,
     PERO_MCP_EXTERNAL:'1',
     PERO_APPS_ROOT: home.apps,
-    PERO_POINT_RUNTIME_ROOT: resolve(root, 'packages/point-app/dist'),
     PERO_BUILTIN_APPS_ROOT: resolve(root, 'apps'),
     // A source checkout holds test-only Apps too; seed only those the Pero product builds.
     // Required names stay enabled. They are not a field of the App manifest.

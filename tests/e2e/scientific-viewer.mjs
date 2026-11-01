@@ -1,152 +1,110 @@
-// Original Point package, real Pero Host/Electron, actual PDF/RDKit/Mol* assets.
-// Public literature snapshots and model output are explicitly synthetic fixtures.
-import assert from 'node:assert/strict';
-import { expect } from '@playwright/test';
-import { spawn,execFileSync } from 'node:child_process';
-import { createInterface } from 'node:readline';
-import { createHash,randomUUID } from 'node:crypto';
-import { mkdtemp,mkdir,writeFile,readFile,rm } from 'node:fs/promises';
-import { resolve } from 'node:path';
-import { tmpdir } from 'node:os';
-import { pathToFileURL } from 'node:url';
-import { createRequire } from 'node:module';
-import { electron } from './electron.mjs';
-import { clickAppOpen,setAppearance } from './sidebar-controls.mjs';
-import { buildPointRuntime } from '../../scripts/build/point-app.mjs';
-const root=resolve(import.meta.dirname,'../..');
-if(!process.env.POINT_ROOT)throw new Error('Set POINT_ROOT to the built Scientific Viewer source checkout');
-const point=resolve(process.env.POINT_ROOT),out=resolve(root,'test-results/scientific-viewer');
-const temp=await mkdtemp(resolve(tmpdir(),'pero-scientific-')),profile=resolve(temp,'profile');
-await mkdir(out,{recursive:true});await mkdir(profile);
-const checks=[],examples=[],errors=[],httpErrors=[];
-const env={...process.env,PERO_DESKTOP_DATA_DIR:profile,PERO_APPS_ROOT:resolve(profile,'apps'),PERO_SETTINGS_PATH:resolve(profile,'settings.json'),PERO_HISTORY_PATH:resolve(profile,'history.jsonl'),PERO_POINT_RUNTIME_ROOT:resolve(root,'packages/point-app/dist'),PERO_HOST_EXECUTABLE:process.env.PERO_HOST_EXECUTABLE??resolve(root,'target/point-apps/debug/pero-host'),PERO_BUILTIN_APPS:'no-builtins',PERO_REQUIRED_APPS:'no-builtins',PERO_LOCALE:'en'};
-delete env.POINT_ROOT;
-const registry=resolve(temp,'agents.json');await writeFile(registry,JSON.stringify([{id:'fixture',name:'Synthetic compatibility fixture',command:process.execPath,args:[resolve(root,'tests/fixtures/scientific-agent.mjs')]}]));env.PERO_AGENTS_FILE=registry;
-const hash=async path=>createHash('sha256').update(await readFile(path)).digest('hex');
-let app,host,ended;
-try{
- await buildPointRuntime({pointRoot:point,destination:env.PERO_POINT_RUNTIME_ROOT});
- host=spawn(env.PERO_HOST_EXECUTABLE,['--stdio'],{cwd:root,env:{...env,PERO_BUILTIN_APPS_ROOT:''},stdio:['pipe','pipe','inherit']});ended=new Promise(done=>host.once('exit',done));
- const pending=new Map();createInterface({input:host.stdout}).on('line',line=>{const event=JSON.parse(line);if(event.kind==='apps_result')pending.get(event.request_id)?.(event.data);});
- const call=(action,fields={})=>new Promise((done,reject)=>{const id=randomUUID(),timer=setTimeout(()=>{pending.delete(id);reject(new Error('Host timeout '+action));},20000);pending.set(id,value=>{pending.delete(id);clearTimeout(timer);value.ok?done(value.value):reject(new Error(value.error));});host.stdin.write(JSON.stringify({method:'apps',id,action,...fields})+'\n');});
- for(const name of ['scientific-viewer','welcome']){await call('install',{path:name==='scientific-viewer'&&process.env.SCIENTIFIC_APP_ROOT?resolve(process.env.SCIENTIFIC_APP_ROOT):resolve(point,'apps',name)});await call('enable',{name});}
- const installed=resolve(profile,'apps/scientific-viewer');
- assert.deepEqual(await readFile(resolve(installed,'dist/point-ui/dist/index.mjs')),await readFile(resolve(point,'apps/scientific-viewer/ui/dist/index.mjs')));
- const receipt=JSON.parse(await readFile(resolve(installed,'point-build.json')));
- const manifest=JSON.parse(await readFile(resolve(point,'apps/scientific-viewer/app.json')));
- host.stdin.end();await ended;host=undefined;
- // Seed only named public-service fixture snapshots through the original domain
- // API. Every PDF, evidence, review and Agent operation below uses the real App.
- const {LiteratureStore}=await import(pathToFileURL(resolve(point,'apps/scientific-viewer/backend-src/literature-store.mjs')));
- const {digest}=await import(pathToFileURL(resolve(point,'apps/scientific-viewer/backend-src/science-publisher.mjs')));
- const store=new LiteratureStore(resolve(profile,'app-data/scientific-viewer'));
- const hit={source:'alphaxiv',id:'1706.03762',title:'Synthetic compatibility reading',abstract:'Named integration fixture',url:'https://www.alphaxiv.org/abs/1706.03762',alternatives:[]};
- const search=await store.saveSearch({schema:'point.literature-search.v1',query:{query:'synthetic compatibility fixture'},items:[hit],fetchedAt:'2026-10-31T00:00:00Z',errors:[],status:'complete'});
- const content='# Synthetic compatibility reading\n\nEvidence fixture. $x^2$';
- await store.saveReading({schema:'point.literature-reading.v1',source:hit.source,id:hit.id,title:hit.title,url:hit.url,content,contentKind:'full-text',contentDigest:digest(content),fetchedAt:'2026-10-31T00:00:00Z'},search.items[0].recordId);
- const artifacts={host:await hash(env.PERO_HOST_EXECUTABLE),desktop:await hash(resolve(root,'desktop/dist/main.cjs')),runtime:receipt.runtime,appSource:receipt.files};
- const launch=()=>electron.launch({args:[...(process.platform==='darwin'?['--use-mock-keychain']:[]),resolve(root,'desktop')],cwd:root,env});
- app=await launch();let page=await app.firstWindow();
- page.on('pageerror',error=>{errors.push(error.message);console.error('Page error:',error.message);});page.on('console',message=>{if(message.type()==='error')console.error('Renderer:',message.text());});page.on('response',response=>{if(response.status()>=400)httpErrors.push({status:response.status(),url:response.url()});});
+// Real Desktop/App/public engines; synthetic examples and ACP, never a provider.
+import {expect} from '@playwright/test';
+import {execFileSync} from 'node:child_process';
+import {mkdir,mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
+import {resolve} from 'node:path';import {tmpdir} from 'node:os';import {createRequire} from 'node:module';
+import {electron} from './electron.mjs';import {closeOwnedElectron} from './owned-electron-close.mjs';
+import {clickAppShortcut,setAppearance} from './sidebar-controls.mjs';
+import {examples} from '../../apps/scientific-viewer/ui-src/examples.ts';
+const {unzipSync}=createRequire(new URL('../../apps/scientific-viewer/package.json',import.meta.url))('fflate');
+const root=resolve(import.meta.dirname,'../..'),out=resolve(root,'test-results/scientific-viewer');await mkdir(out,{recursive:true});
+const temp=await mkdtemp(resolve(tmpdir(),'pero-viewer-')),errors=[],checks=[];
+const capture=resolve(temp,'agent-prompts.jsonl'),agents=resolve(temp,'agents.json');
+await writeFile(agents,JSON.stringify([
+ ...['pero','claude','copilot','grok','qoder','opencode'].map(id=>({id,name:id,command:resolve(temp,`unavailable-${id}`)})),
+ {id:'codex',name:'Synthetic evidence review',command:process.execPath,args:[resolve(root,'apps/scientific-viewer/test/agent-fixture.mjs'),capture]},
+]));
+const env={...process.env,PERO_AGENTS_FILE:agents,PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_BUILTIN_APPS:'scientific-viewer,paper-agent',PERO_REQUIRED_APPS:'scientific-viewer',PERO_LOCALE:'en'};
+const python = process.env.PERO_APP_PYTHON || 'python3';
+const engine = JSON.parse(execFileSync(python,['-E','-s','-c','import json,sys; from rdkit import rdBase; from importlib.metadata import version; print(json.dumps({"root":sys.prefix,"version":rdBase.rdkitVersion,"paperRenderer":version("pypdfium2")}))'],{encoding:'utf8',timeout:30000}));
+expect(engine.version).toBe('2026.09.1');
+expect(engine.paperRenderer).toBe('5.0.0');
+await writeFile(env.PERO_SETTINGS_PATH,JSON.stringify({app_python:{apps:{'scientific-viewer':engine.root,'paper-agent':engine.root}}}));
+delete env.ELECTRON_RUN_AS_NODE;delete env.POINT_ROOT;delete env.PERO_POINT_ROOT;delete env.PERO_APPS_ROOT;
+let app,page,frame;
+async function open(){
  await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
- const open=async name=>{
-  const catalog=await page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).sidebarButtonBounds?.apps);
-  if(catalog)await page.mouse.click(catalog.x+catalog.width/2,catalog.y+catalog.height/2);else await page.mouse.click(80,await page.evaluate(()=>innerHeight-76));
-  await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).navigation)).toBe(7);
-  await clickAppOpen(page,name);const frame=page.frameLocator(`iframe[title="${name}"]`);await expect(frame.locator('#app')).not.toBeEmpty();return frame;
- };
- let frame=await open('scientific-viewer');
- const api=(path,body,method)=>frame.locator('body').evaluate(async(_element,{path,body,method})=>{const response=await fetch(path,{method:method??(body===undefined?'GET':'POST'),headers:{'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});const text=await response.text();if(!response.ok)throw new Error(`${response.status} ${text}`);return JSON.parse(text);},{path,body,method});
- const exampleMenu=async index=>{
-  let bounds;await expect.poll(async()=>{bounds=await page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).appExamplesBounds?.['scientific-viewer:viewer']?.examples);return !!bounds&&bounds.width>0;}).toBe(true);
-  await page.mouse.click(bounds.x+bounds.width/2,bounds.y+bounds.height/2);
-  for(let item=0;item<=index;item++)await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
- };
- const select=async(label,name)=>{
-  if(label==='Example'){const index=manifest.contributes.examples.findIndex(entry=>(entry.localizations?.en?.title??entry.title)===name);assert.ok(index>=0);await exampleMenu(index);return;}
-  await frame.getByRole('button',{name:label,exact:true}).click();await frame.getByRole('option',{name,exact:true}).click();
- };
- const semantic=()=>page.evaluate(()=>new Promise((done,reject)=>{
-  const frame=document.querySelector('iframe[title="scientific-viewer"]'),id=crypto.randomUUID();
-  const receive=event=>{if(event.source!==frame.contentWindow||event.data?.type!=='pero:app-use:result'||event.data.id!==id)return;clearTimeout(timer);window.removeEventListener('message',receive);event.data.ok?done(event.data.value.objects[0].state):reject(new Error(JSON.stringify(event.data)));};
-  const timer=setTimeout(()=>{window.removeEventListener('message',receive);reject(new Error('App Use timeout'));},5000);window.addEventListener('message',receive);frame.contentWindow.postMessage({type:'pero:app-use:request',id,request:{action:'semantic',target:'scientific-view'}},'*');
- }));
- await expect(frame.getByRole('button',{name:'Import file',exact:true})).toBeVisible();
- await frame.getByRole('button',{name:'Curves',exact:true}).click();
- await expect.poll(()=>frame.locator('.sv-table-wrap tbody tr').count(),{timeout:30000}).toBe(50);
- const selectedExamples=process.env.SCIENTIFIC_VISUAL_ONLY==='1'?manifest.contributes.examples.filter(entry=>['mauna-loa','1stp'].includes(entry.id)):manifest.contributes.examples;
- for(const example of selectedExamples){
-  if(!example.default)await select('Example',example.localizations?.en?.title??example.title);
-  if(example.id==='electrolyte-solvents'){await expect(frame.getByRole('button',{name:'Molecules',exact:true})).toBeVisible();await frame.getByRole('button',{name:'Molecules',exact:true}).click();}
-  const document=JSON.parse(await readFile(resolve(point,'apps/scientific-viewer/ui',example.entry),'utf8'));
-  await expect.poll(async()=>{const state=await semantic();return state.file?.name===document.files[0].name&&state.assetId===state.file.id&&state.status!=='loading';},{timeout:45000}).toBe(true);
-  const state=await semantic();assert.equal(state.status,'ready',JSON.stringify(state));
-  if(example.id==='spectrum-broken'){assert.equal(state.check,'failed');await expect(frame.locator('.sv-spec-issues [data-severity="error"]').first()).toBeVisible();}
-  if(example.id==='1crn'){await expect(frame.locator('.sv-molecule[data-status="ready"] canvas')).toBeVisible();await page.screenshot({path:resolve(out,'protein.png')});}
-  if(example.id==='electrolyte-solvents'){await expect(frame.locator('tr[data-status="invalid"]').first()).toBeVisible();await page.screenshot({path:resolve(out,'molecules.png')});}
-  examples.push({id:example.id,state});
+ await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(app=>app.name==='scientific-viewer'&&app.enabled))).toBe(true);
+ await page.waitForFunction(()=>{const canvas=document.querySelector('canvas');return canvas?.width===Math.round(innerWidth*devicePixelRatio)&&canvas.height===Math.round(innerHeight*devicePixelRatio);});
+ // Enabled catalog Apps also have a direct sidebar shortcut, measured at paint.
+ await clickAppShortcut(page,'scientific-viewer');
+ await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).activeApp)).toMatchObject({name:'scientific-viewer',panel:'viewer'});
+ frame=page.frameLocator('iframe[title="scientific-viewer"]');
+ await expect(frame.getByRole('heading',{name:'Scientific Viewer',exact:true})).toBeVisible();
+}
+try{
+ app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));await open();
+ for(const example of examples){
+  await frame.getByLabel('Example',{exact:true}).selectOption(example.name);await expect(frame.getByRole('heading',{name:example.name,exact:true})).toBeVisible();await expect(frame.getByText('Synthetic example · Unverified',{exact:true})).toBeVisible();
+  if(example.name.endsWith('.csv')){
+   await expect(frame.getByRole('table')).toBeVisible();if(example.name!=='quoted-table.csv'){await frame.getByRole('button',{name:'Spectrum',exact:true}).click();await expect(frame.getByRole('img',{name:'Spectrum from first two columns'})).toBeVisible();}
+   if(example.name==='invalid-spectrum.csv')await expect(frame.getByRole('alert')).toContainText('2 missing or nonnumeric pairs');
+  }
+  if(example.name.endsWith('.pdb')){await expect(frame.getByRole('status')).toContainText('Structure ready',{timeout:45000});await expect(frame.locator('.molecule-view canvas').first()).toBeVisible();}
+  if(example.name.endsWith('.smi')){await expect(frame.getByRole('img',{name:'Molecule 1',exact:true})).toBeVisible({timeout:45000});if(example.name.startsWith('invalid'))await expect(frame.getByRole('alert')).toContainText('Invalid molecule');}
+  if(example.name.endsWith('.pdf')){
+   const canvas=frame.getByLabel('PDF page 1',{exact:true});await expect(canvas).toBeVisible();await expect(frame.getByLabel('PDF page text')).toContainText('Synthetic scientific evidence.');
+   await frame.getByLabel('Find quotation').fill('invented quotation');await expect(frame.getByRole('button',{name:'Save quotation',exact:true})).toBeDisabled();
+   await frame.getByLabel('Find quotation').fill('Synthetic scientific evidence.');await frame.getByRole('button',{name:'Save quotation',exact:true}).click();await expect(frame.getByText('1 quotations, 0 figure crops. Unreviewed.',{exact:true})).toBeVisible();
+   const box=await canvas.boundingBox();expect(box).not.toBeNull();await page.mouse.move(box.x+20,box.y+20);await page.mouse.down();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.up();await frame.getByRole('button',{name:'Save figure crop',exact:true}).click();await expect(frame.getByText('1 quotations, 1 figure crops. Unreviewed.',{exact:true})).toBeVisible();
+   await frame.getByLabel('Review Agent',{exact:true}).selectOption('codex');await frame.getByRole('button',{name:'Review selected quotations',exact:true}).click();await expect(frame.locator('summary').filter({hasText:'Agent review — completed — unreviewed'})).toBeVisible({timeout:30000});await expect(frame.getByText('Synthetic transport review. The quotation is present; scientific validity is not assessed.',{exact:true})).toBeVisible();
+   const prompts=(await readFile(capture,'utf8')).trim().split('\n').map(JSON.parse);expect(prompts).toHaveLength(1);expect(prompts[0].every(item=>item.type==='text')).toBe(true);expect(JSON.stringify(prompts)).not.toContain('%PDF');
+   const exportPath=resolve(out,'evidence.zip');await rm(exportPath,{force:true});
+   // Electron owns App-frame downloads; Playwright Page does not receive this event.
+   await app.evaluate(({session},path)=>{
+    globalThis.viewerEvidenceDownload={state:'waiting',filename:null};
+    session.defaultSession.once('will-download',(_event,item)=>{
+     globalThis.viewerEvidenceDownload={state:'started',filename:item.getFilename()};
+     item.setSavePath(path);
+     item.once('done',(_event,state)=>{globalThis.viewerEvidenceDownload.state=state;});
+    });
+   },exportPath);
+   await frame.getByRole('button',{name:'Export evidence',exact:true}).click();
+   await expect.poll(()=>app.evaluate(()=>globalThis.viewerEvidenceDownload),{timeout:30000}).toEqual({state:'completed',filename:'scientific-evidence.zip'});
+   const archive=unzipSync(await readFile(exportPath));expect(Buffer.from(archive['source/document.pdf'])).toEqual(Buffer.from(example.text));const manifest=JSON.parse(new TextDecoder().decode(archive['manifest.json']));expect(manifest.quotes).toHaveLength(1);expect(manifest.crops).toHaveLength(1);expect(manifest.review.status).toBe('completed');expect(manifest.review.text).toContain('Synthetic transport review.');
+  }checks.push(example.name);
  }
- checks.push('All twelve integrity-checked examples: CSV, Mol* structures, RDKit molecule checks, IR/XRD/UV spectra; defective spectrum stays failed');
- await select('Example','Streptavidin–biotin · 1STP');
- await expect.poll(async()=>{const state=await semantic();return state.file?.name==='1STP.pdb'&&state.status==='ready';},{timeout:30000}).toBe(true);
- await app.evaluate(({Menu,BrowserWindow})=>{Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click();BrowserWindow.getAllWindows()[0].setSize(1400,940);});
- await expect(frame.getByRole('button',{name:'重置视图',exact:true})).toBeVisible();
- await expect.poll(()=>frame.locator('.sv-molecule canvas').evaluate(canvas=>canvas.getBoundingClientRect().height)).toBeGreaterThan(600);
- await frame.getByRole('button',{name:'重置视图',exact:true}).click();
- await page.screenshot({path:resolve(out,'1stp-zh.png')});
- if(process.env.SCIENTIFIC_VISUAL_ONLY==='1'){await writeFile(resolve(out,'visual.json'),JSON.stringify({examples,errors,artifacts},null,2));console.log('Scientific Viewer visual comparison: 1STP, zh, 1400x940, native titlebar examples and full-height Mol* canvas.');process.exitCode=0;}
- else {
- await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('locale-en').click());
- 
- const input=frame.locator('.sv-toolbar input[type=file]');
- await input.setInputFiles({name:'compatibility.csv',mimeType:'text/csv',buffer:Buffer.from('time[s],voltage[V]\n0,4.2\n1,\n2,3.9\n3,3.8')});
- await expect.poll(async()=>{const state=await semantic();return state.file?.name==='compatibility.csv'&&state.assetId===state.file.id;}).toBe(true);
- if(await frame.getByRole('button',{name:'Curves',exact:true}).isVisible())await frame.getByRole('button',{name:'Curves',exact:true}).click();
- await expect(frame.getByText('Missing values 1; missing X 0',{exact:true})).toBeVisible();
- const selected=await semantic();await open('welcome');frame=await open('scientific-viewer');assert.equal((await semantic()).file.id,selected.file.id);
- checks.push('Original CSV import and gap semantics; App state retained across panel switches');
- await frame.getByRole('button',{name:'Literature search and reading',exact:true}).click();
- await frame.locator('.sv-lit > details > summary').first().click();
- await frame.getByRole('button',{name:'Saved readings',exact:true}).click();await frame.getByRole('option').first().click();
- await expect(frame.getByRole('heading',{name:hit.title,exact:true,level:3})).toBeVisible();
- // These absolute original UI paths must resolve inside this installed App.
- assert.equal(await frame.locator('body').evaluate(async()=> (await fetch('/apps/scientific-viewer/ui/pdfjs/pdf.worker.min.mjs')).status),200);
- const {pdfFixture}=await import(pathToFileURL(resolve(point,'apps/scientific-viewer/test/pdf-fixture.mjs')));
- await frame.locator('.sv-lit input[type=file]').setInputFiles({name:'synthetic-original.pdf',mimeType:'application/pdf',buffer:pdfFixture()});
-  await expect.poll(()=>frame.locator('.sv-literature-pdf canvas').evaluate(canvas=>canvas.width),{timeout:30000}).toBe(300);
- await frame.getByLabel('Original quotation',{exact:false}).fill('invented quotation');
- await frame.getByRole('button',{name:'Save and check quotation',exact:true}).click();await expect(frame.getByRole('alert').filter({hasText:'Quotation is not present'})).toBeVisible();
- await frame.getByLabel('Original quotation',{exact:false}).fill('Evidence fixture.');await frame.getByRole('button',{name:'Save and check quotation',exact:true}).click();
- await expect(frame.getByText('Matched against PDF page text',{exact:false})).toBeVisible();
- await frame.getByText('Figure region coordinates',{exact:true}).click();
- await frame.getByLabel('W',{exact:true}).fill('0.8');await frame.getByLabel('H',{exact:true}).fill('0.8');
- await frame.getByRole('button',{name:'Save original figure',exact:true}).click();await expect(frame.locator('.sv-lit-evidence img')).toBeVisible();
- const library=await api('/apps/scientific-viewer/api/literature/library');assert.equal(library.evidence.length,2);assert.ok(library.evidence.every(item=>item.verification==='unverified'));
- checks.push('Real PDF worker/text/figure engine; invented quote rejected, original quote and PNG crop source-bound and unverified');
- await frame.getByRole('checkbox',{name:/Saved evidence/}).first().check();
- await frame.getByLabel('Review question',{exact:true}).fill('Synthetic compatibility fixture: preserve the supplied quotation and its evidence ID.');
- await select('Agent','Synthetic compatibility fixture');
- await frame.getByRole('button',{name:'Generate review with Agent',exact:true}).click();
- await expect(frame.getByRole('status').filter({hasText:'Generation completed'})).toBeVisible({timeout:30000});
- await frame.getByRole('button',{name:'Save review',exact:true}).click();
- await expect(frame.getByText('Not reviewed',{exact:false}).first()).toBeVisible();
- const saved=await api('/apps/scientific-viewer/api/literature/library');assert.equal(saved.reviews.length,1);assert.equal(saved.reviews[0].acceptance,'not-reviewed');assert.equal(saved.reviews[0].executionVerification,'client-reported-host-ledger');
- await frame.getByRole('button',{name:'Open Agent session',exact:true}).click();
- await expect.poll(()=>page.evaluate(()=>{const state=JSON.parse(window.peroDiagnostics.snapshot());return state.chats?.[state.activeChat]?.id;})).toBe(saved.runs[0].sessionId);
- await frame.locator('.sv-lit-review').scrollIntoViewIfNeeded();await page.screenshot({path:resolve(out,'review.png')});
- const download=page.waitForEvent('download');await frame.getByRole('button',{name:'Export review evidence bundle',exact:true}).click();const zip=await download;await zip.saveAs(resolve(out,'review.zip'));
- const require=createRequire(resolve(point,'apps/scientific-viewer/package.json'));const {unzipSync}=require('fflate');const files=unzipSync(await readFile(resolve(out,'review.zip')));assert.ok(files['review.md']);assert.ok(files['host-run.json']);assert.ok(Object.keys(files).some(name=>name.endsWith('.pdf')));assert.ok(Object.keys(files).some(name=>name.endsWith('.png')));
- checks.push('Original SDK Agent start/events, structured review save, exact Session selection and ZIP evidence export; synthetic ACP provider, no model credential in App');
- await setAppearance(page,'dark');await expect.poll(()=>frame.locator('html').getAttribute('data-theme')).toBe('point-dark');
- await app.evaluate(({Menu,BrowserWindow})=>{Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click();BrowserWindow.getAllWindows()[0].setSize(1000,788);});
- await expect(frame.getByRole('button',{name:'导入文件',exact:true})).toBeVisible();
- assert.equal(await frame.locator('html').evaluate(element=>element.scrollWidth<=element.clientWidth+1),true);
- assert.equal(await frame.locator('.scientific-viewer').evaluate(element=>element.scrollWidth<=element.clientWidth+1),true);
- await frame.getByRole('button',{name:'导入文件',exact:true}).focus();await expect(frame.getByRole('button',{name:'导入文件',exact:true})).toBeFocused();
- await page.screenshot({path:resolve(out,'dark-zh-narrow.png')});checks.push('Parent zh/en, light/dark, narrow layout and keyboard focus');
- assert.deepEqual(errors,[]);assert.deepEqual(httpErrors.filter(value=>value.status>=500),[]);
- await writeFile(resolve(out,'result.json'),JSON.stringify({checks,examples,errors,httpErrors,artifacts,pointRevision:execFileSync('git',['-C',point,'rev-parse','HEAD'],{encoding:'utf8'}).trim(),synthetic:['public literature snapshots','ACP model output'],runtimeNeedsPointService:false},null,2));
- console.log(JSON.stringify({checks,examples:examples.length,errors}));
- }
-}catch(error){if(app){const page=await app.firstWindow();await page.screenshot({path:resolve(out,'failure.png')});console.error('frames',await page.evaluate(()=>[...document.querySelectorAll('iframe')].map(frame=>({src:frame.src,title:frame.title}))));for(const frame of page.frames())console.error('alerts',await frame.getByRole('alert').allTextContents().catch(()=>[]));}throw error;
-}finally{if(app){const cleanup=setTimeout(()=>app.process().kill('SIGKILL'),5000);cleanup.unref();await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().forEach(window=>window.destroy())).catch(()=>{});await app.close();clearTimeout(cleanup);}if(host){host.stdin.end();host.kill();await ended;}await rm(temp,{recursive:true,force:true});}
+ // Harmless markup markers prove that user structure text never becomes DOM.
+ const marker="data_marker\n_struct.title '<b id=viewer-marker>untrusted</b>'\n";
+ await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'marker.cif',mimeType:'text/plain',buffer:Buffer.from(marker)});
+ await expect(frame.getByRole('alert')).toContainText('preview blocked');await expect(frame.locator('#viewer-marker')).toHaveCount(0);
+ await frame.getByRole('button',{name:'water.pdb',exact:true}).click();await expect(frame.getByRole('status')).toContainText('Structure ready',{timeout:45000});
+ const transfer=await frame.locator('.molecule-view').evaluateHandle((_node,text)=>{const data=new DataTransfer();data.items.add(new File([text],'marker.cif',{type:'text/plain'}));return data;},marker);
+ await frame.locator('.msp-layout-standard').dispatchEvent('dragenter',{dataTransfer:transfer});
+ await expect(frame.locator('.msp-drag-drop-overlay')).toBeVisible();
+ await frame.locator('.msp-drag-drop-overlay').dispatchEvent('drop',{dataTransfer:transfer});await transfer.dispose();
+ await expect(frame.getByRole('heading',{name:'water.pdb',exact:true})).toBeVisible();
+ await expect(frame.locator('.molecule-view canvas').first()).toBeVisible();
+ await expect(frame.getByRole('alert')).toContainText('Import file');await expect(frame.locator('#viewer-marker')).toHaveCount(0);
+ await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'empty.smi',mimeType:'text/plain',buffer:Buffer.from(' \n\t\n')});
+ await expect(frame.getByRole('alert')).toContainText('No molecule records');await expect(frame.getByText('Preparing molecule preview…',{exact:true})).toHaveCount(0);
+ await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'model.weights',mimeType:'application/octet-stream',buffer:Buffer.from('opaque synthetic model')});await expect(frame.getByText(/Metadata only/)).toBeVisible();
+ // Removal is explicit, defaults to Cancel, and affects only the App copy.
+ const removalPath=resolve(temp,'removal-check.json'),removalBytes=Buffer.from('{"synthetic":"local copy removal"}');
+ await writeFile(removalPath,removalBytes);
+ await frame.getByLabel('Import file',{exact:true}).setInputFiles(removalPath);
+ await expect(frame.getByRole('heading',{name:'removal-check.json',exact:true})).toBeVisible();
+ const removal=frame.getByRole('group',{name:'Confirm local copy removal',exact:true});
+ await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();
+ await expect(removal).toContainText('removal-check.json');await expect(removal.getByRole('button',{name:'Cancel',exact:true})).toBeFocused();
+ await removal.getByRole('button',{name:'Cancel',exact:true}).click();await expect(removal).toHaveCount(0);
+ await expect(frame.getByRole('button',{name:'removal-check.json',exact:true})).toBeVisible();
+ await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();await page.keyboard.press('Escape');await expect(removal).toHaveCount(0);
+ await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();
+ await frame.getByRole('button',{name:'model.weights',exact:true}).click();await expect(removal).toHaveCount(0);
+ await frame.getByRole('button',{name:'removal-check.json',exact:true}).click();
+ await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();await removal.getByRole('button',{name:'Confirm removal',exact:true}).click();
+ await expect(frame.getByRole('button',{name:'removal-check.json',exact:true})).toHaveCount(0);
+ await expect(frame.getByRole('button',{name:'model.weights',exact:true})).toBeVisible();expect(await readFile(removalPath)).toEqual(removalBytes);
+ checks.push('confirmed local-copy removal; original disk file retained');
+ await closeOwnedElectron(app);app=undefined;app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));await open();await frame.getByRole('button',{name:'sample.pdf',exact:true}).click();await expect(frame.getByText('1 quotations, 1 figure crops. Unreviewed.',{exact:true})).toBeVisible();await expect(frame.locator('summary').filter({hasText:'Agent review — completed — unreviewed'})).toBeVisible();expect((await readFile(capture,'utf8')).trim().split('\n')).toHaveLength(1);
+ await expect(frame.getByRole('button',{name:'removal-check.json',exact:true})).toHaveCount(0);expect(await readFile(removalPath)).toEqual(removalBytes);
+ await frame.getByRole('button',{name:'model.weights',exact:true}).click();await expect(frame.getByText(/Metadata only/)).toBeVisible();await setAppearance(page,'dark');const narrowSize=await app.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.setSize(800,700);return window.getContentSize();});
+ await page.waitForFunction(([width,height])=>{const canvas=document.querySelector('canvas');return innerWidth===width&&innerHeight===height&&canvas?.width===Math.round(width*devicePixelRatio)&&canvas.height===Math.round(height*devicePixelRatio);},narrowSize);
+ await expect.poll(()=>frame.locator('html').evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
+ await frame.getByRole('button',{name:'Open Paper App',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).activeApp)).toMatchObject({name:'paper-agent',panel:'main'});
+ await expect(page.frameLocator('iframe[title="paper-agent"]').getByRole('heading',{name:'Papers',exact:true})).toBeVisible();await open();
+ await page.screenshot({path:resolve(out,'viewer.png')});expect(errors).toEqual([]);await writeFile(resolve(out,'result.json'),JSON.stringify({checks,errors,synthetic:true,independentPublicEngines:true,scope:'local scientific previews and evidence; no physical validity claim'},null,2));
+}catch(error){if(page)await page.screenshot({path:resolve(out,'failure.png')}).catch(()=>{});throw error;}
+finally{if(app)await closeOwnedElectron(app);await rm(temp,{recursive:true,force:true});}

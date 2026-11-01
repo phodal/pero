@@ -14,7 +14,7 @@ const readerDirectory = args.includes('--reader-dist') ? resolve(args[args.index
 if (!args.includes('--reader-dist')) await buildReader();
 for (const appName of appNames) {
 if (appName === 'scientific-viewer') { await buildScientificViewer(); continue; }
-if (appName === 'automations') { await buildAutomationApp({pointRoot:process.env.PERO_POINT_ROOT}); continue; }
+if (appName === 'automations') { await buildAutomationApp(); continue; }
 if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(appName)) throw new Error('Invalid App name');
 const appRoot = resolve(root, 'apps', appName);
 // Each App has a frozen dependency tree, separate from Desktop's runtime.

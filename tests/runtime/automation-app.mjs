@@ -1,4 +1,4 @@
-// Original Point REST shapes through the real App grant, SQLite and local ACP owner.
+// Real Pero App grant, SQLite and local ACP owner; no UI build or provider.
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {mkdtemp, mkdir, writeFile, readFile, rm} from 'node:fs/promises';
@@ -9,6 +9,15 @@ import {EventEmitter} from 'node:events';
 const root=resolve(import.meta.dirname,'../..');
 const temp=await mkdtemp(resolve(tmpdir(),'pero-automation-app-'));
 const capture=resolve(temp,'prompts.jsonl');
+// Minimal installed assets prove Host contracts, not production UI rendering.
+const builtins=resolve(temp,'builtins');
+for(const name of ['automations','control-lab']) {
+  const directory=resolve(builtins,name);await mkdir(resolve(directory,'dist'),{recursive:true});
+  const declaration=name==='automations'?JSON.parse(await readFile(resolve(root,'apps/automations/app.json'),'utf8')):
+    {schemaVersion:1,name,version:'0.1.0',displayName:'Grantless fixture',contributes:{panels:[{id:'main',title:'Fixture',entry:'dist/index.html'}]}};
+  await writeFile(resolve(directory,'app.json'),JSON.stringify(declaration));
+  await writeFile(resolve(directory,'dist/index.html'),'<title>Host contract fixture</title>');
+}
 await writeFile(capture,'');
 await writeFile(resolve(temp,'agents.json'),JSON.stringify([
   ...['codex','claude','copilot','grok','qoder','opencode'].map(id=>({id,name:id,command:resolve(temp,'unavailable'),args:[]})),
@@ -20,7 +29,7 @@ async function launch(){
   child=spawn(resolve(root,'target/debug/pero-host'),['--stdio'],{cwd:temp,env:{...process.env,
     PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),
     PERO_AGENTS_FILE:resolve(temp,'agents.json'),PERO_APPS_ROOT:resolve(temp,'installed'),
-    PERO_BUILTIN_APPS_ROOT:resolve(root,'apps'),PERO_POINT_RUNTIME_ROOT:resolve(root,'packages/point-app/dist'),
+    PERO_BUILTIN_APPS_ROOT:builtins,
   },stdio:['pipe','pipe','inherit']});
   exited=new Promise(done=>child.once('exit',done));
   createInterface({input:child.stdout}).on('line',line=>{const event=JSON.parse(line);events.push(event);signal.emit('event',event);});

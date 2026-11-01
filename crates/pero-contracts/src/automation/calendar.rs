@@ -1,4 +1,4 @@
-//! Point owns RRULE/IANA interpretation. This core owns the durable cursor and
+//! The Host interprets RRULE/IANA schedules. This core owns the durable cursor and
 //! the accepted time intent; an external calendar decision never dispatches work.
 use super::*;
 
@@ -37,6 +37,9 @@ pub(super) fn valid_restored_intent(request: &RunRequest) -> bool {
 impl State {
     pub(super) fn reset_calendar_cursor(&mut self, definition: &Definition) {
         if let Trigger::Calendar { schedule, .. } = &definition.trigger {
+            // Method/metadata revisions cannot rewind progress, including exhaustion.
+            if self.latest_definition(&definition.id).is_some_and(|previous|
+                matches!(&previous.trigger,Trigger::Calendar{schedule:old,..} if old==schedule)) {return;}
             self.calendar_slots.insert(definition.id.clone(), schedule.first_slot);
         } else {
             self.calendar_slots.remove(&definition.id);

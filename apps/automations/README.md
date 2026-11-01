@@ -1,37 +1,41 @@
-# Automations App
+# Automations
 
-The App compiles Point's original Workbench `AutomationPage`, its editor, rows,
-source history, template gallery, controls, icons, CSS and design tokens. The
-Point checkout is a build input; no Point service or source checkout is needed
-when the resulting App runs. Point's source files are not modified.
+Pero-owned React/App SDK UI. Build inputs are this repository and frozen public
+npm dependencies; no external Workbench checkout, runtime or scheduler is used.
 
-Build from the installed source dependency tree:
+The compact list supports search, templates, create/edit, enable/pause, manual
+run, run history and existing-session navigation. New drafts and templates are
+paused by default. Hourly/daily/weekly/monthly rules support intervals 1–366 and
+IANA zones. Host resolves `Local` when saving. Unsupported advanced RRULEs are
+rejected rather than approximated; existing rules retain their exact text when
+edited. Legacy errors appear in the list and remain editable for explicit
+re-save. Event-triggered rules are viewable but not editable here.
+
+Only the declared `automation` capability is used: POST `/host/automation` with
+`{method,path,body}`, receiving `{status,body}`. Host owns workspace/Agent
+admission, permissions, persistence, scheduling and execution. A queued receipt
+is not success; completion is not scientific validation. No global fetch hook,
+connector capability, credentials or arbitrary code execution is introduced.
+
+The editor has no native forms: Enter cannot navigate an iframe lacking
+`allow-forms`; Ctrl/Cmd+Enter explicitly saves.
 
 ```sh
-node scripts/build/automation-app.mjs --point-root /Users/phodal/ai/point
+npm ci --prefix apps/automations --ignore-scripts
+node scripts/build/automation-app.mjs
+npm run typecheck --prefix apps/automations
+node --test apps/automations/test/*.test.mjs
 ```
 
-`PERO_POINT_ROOT` selects another source checkout. Build output is in `dist/`.
-`source-receipt.json` records the Point revision and SHA-256 of every consumed
-Point source. The built package carries the SDK's existing license notices.
+Optional built-UI loopback fixture:
 
-The only new frontend code is the App frame and transport boundary. Original
-Point REST requests are forwarded as `{method,path,body}` to `/host/automation`.
-The Host returns `{status,body}`; the original page continues handling HTTP
-success, conflict, unavailable and error responses. Connector management uses
-the separately declared `/host/connectors` permission. Run links emit the
-bounded `pero:app:open-session` message for the parent shell to select an existing
-Host session. Opening the App does not start an Automation or Agent.
+```sh
+node apps/automations/test/ui-smoke.mjs
+```
 
-The Host remains the authority for definitions, scheduling, execution, history
-and access checks. Building the original UI is not evidence that all Point
-backend capabilities are available; parent-shell and real Host verification
-must cover the supported operations before release.
-
-Frontend checks: `node --test apps/automations/test/transport.test.mjs` verifies
-the capability boundary and HTTP error/204 behavior. `node
-apps/automations/test/preview.mjs` starts a loopback-only fixture for inspecting
-the compiled App without running an Agent. Browser checks covered the list,
-original creation editor and submission, template gallery, dark theme, and a
-640px narrow window. The fixture does not prove real scheduling, connectors,
-execution, persistence or parent session navigation.
+It uses Playwright Chromium (or `PERO_CHROMIUM_PATH`) and an iframe with only
+`allow-scripts allow-same-origin`. It checks legacy error/re-save affordance,
+create/edit, enable/pause, run receipt, history/session navigation and templates.
+Screenshots go to `test-results/automations/`. The mock Host is UI evidence only;
+real Host/SQLite/ACP contracts belong to `tests/runtime/automation-app.mjs`.
+For manual fixture inspection: `node apps/automations/test/preview.mjs`.

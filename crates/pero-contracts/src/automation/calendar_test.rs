@@ -184,3 +184,20 @@ fn calendar_and_event_run_now_keep_trigger_responsibility() {
         }
     }
 }
+
+#[test]
+fn unchanged_calendar_revision_retains_progress_and_exhaustion() {
+    for next in [Some(200),None] {
+        let progressed=advance(&configured(),tick(1,100,next),100,"r1").state;
+        let mut definition=progressed.definitions[0].clone();definition.revision=2;
+        let Method::Agent{prompt,..}=&mut definition.method;*prompt="Updated prompt without rescheduling".into();
+        let edited=advance(&progressed,Command::PutDefinition{definition},101,"unused").state;
+        assert_eq!(edited.calendar_slots.get("a").copied(),next);
+        assert_eq!(edited.requests[0].status,RequestStatus::DefinitionChanged);
+        assert_eq!(advance(&edited,tick(2,100,Some(200)),101,"unused").state,edited);
+        if next.is_some() {
+            let due=advance(&edited,tick(2,200,Some(300)),200,"r2").state;
+            assert_eq!(due.requests.len(),2);assert_eq!(due.requests[1].intent,Intent::Time{slot:200});assert_eq!(due.requests[1].definition.revision,2);
+        }
+    }
+}

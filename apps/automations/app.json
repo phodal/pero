@@ -3,7 +3,19 @@
   "name": "automations",
   "version": "0.1.0",
   "displayName": "Automations",
-  "description": "Point Automation management: schedules, templates, run history and editing.",
-  "permissions": { "host": ["automation", "connectors"] },
-  "contributes": { "panels": [{ "id": "main", "title": "Automations", "entry": "dist/index.html" }] }
+  "description": "Local automation schedules, templates and run history.",
+  "permissions": {
+    "host": [
+      "automation"
+    ]
+  },
+  "contributes": {
+    "panels": [
+      {
+        "id": "main",
+        "title": "Automations",
+        "entry": "dist/index.html"
+      }
+    ]
+  }
 }

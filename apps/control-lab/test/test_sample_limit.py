@@ -58,6 +58,24 @@ class SampleLimitTest(unittest.TestCase):
                 reopened.start(identity, 'search')
             self.assertEqual(reopened.read(identity), before)
 
+    def test_legacy_attempt_overflow_remains_readable_but_cannot_start(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = ExperimentStore(directory)
+            record = store.create({'templateId':'robust-pid','candidateBudget':15,
+                                   'parameters':{'horizon':2,'samples':201}})
+            with store.lock:
+                saved = store.get_record(record['id'])
+                saved['candidateBudget'] = 30
+                saved['specHash'] = ExperimentSpec.restore(saved).hash
+                store.save(saved)
+            reopened = ExperimentStore(directory)
+            before = reopened.read(record['id'])
+            self.assertEqual(reopened.export(record['id'])['experiment']['specHash'],before['specHash'])
+            with self.assertRaisesRegex(Invalid,'80-attempt'):
+                reopened.start(record['id'],'search')
+            self.assertEqual(reopened.read(record['id']),before)
+            store.close(); reopened.close()
+
     def test_legacy_five_by_five_thousand_refuses_before_solver_and_preserves_export(self):
         data = {'templateId': 'active-filter', 'candidateBudget': 5,
                 'parameters': {'samples': 5000}}

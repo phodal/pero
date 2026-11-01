@@ -1,6 +1,6 @@
 // Workbench and standalone Products share the same MCP authority and App RPC.
 import { expect } from '@playwright/test';
-import { clickAppOpen, clickNewChat } from './sidebar-controls.mjs';
+import { clickAppOpen, clickAppShortcut, clickNewChat } from './sidebar-controls.mjs';
 import { electron } from './electron.mjs';
 import { requestAppChat } from '../fixtures/app-chat-launch.mjs';
 import { waitForFullAppUse } from '../fixtures/app-use-progress.mjs';
@@ -24,8 +24,8 @@ try{
  const state=()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()));
  await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
  await expect.poll(async()=>(await state()).apps?.some(a=>a.name==='virtual-cell')).toBe(true);
- // Apps is the second compact footer row, below Insights.
- await page.mouse.click(80,await page.evaluate(()=>innerHeight-55));
+ // Follow the rendered Apps control instead of assuming a footer row position.
+ await clickAppShortcut(page, 'apps');
  await expect.poll(async()=>(await state()).navigation).toBe(7);
  await expect.poll(async()=>(await state()).appsLoading).toBe(false);
  await clickAppOpen(page, 'virtual-cell');

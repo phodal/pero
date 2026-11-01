@@ -7,6 +7,7 @@ import re
 
 
 MAX_EVIDENCE_SAMPLES = 40000
+MAX_EVIDENCE_ATTEMPTS = 80
 
 
 def sample_reservation(engine, samples):
@@ -74,10 +75,27 @@ class Template:
     criteria: tuple[Parameter, ...]
     scenarios: tuple[Scenario, ...]
 
+    @property
+    def candidate_budget_max(self):
+        if self.id in ('p-golden', 'pi-golden'):
+            return 30  # Analytic fixtures always execute one candidate.
+        search = sum(s.role == 'search' for s in self.scenarios)
+        final = sum(s.role == 'verification' for s in self.scenarios)
+        return min(30, (MAX_EVIDENCE_ATTEMPTS - final) // search)
+
+    @property
+    def default_candidate_budget(self):
+        search = sum(s.role == 'search' for s in self.scenarios)
+        final = sum(s.role == 'verification' for s in self.scenarios)
+        samples = next(p.value for p in self.parameters if p.name == 'samples')
+        sample_max = (MAX_EVIDENCE_SAMPLES // sample_reservation(self.engine, samples) - final) // search
+        return min(6, self.candidate_budget_max, sample_max)
+
     def to_dict(self):
         return dict(id=self.id, title=self.title, description=self.description, engine=self.engine,
                     parameters=[p.to_dict() for p in self.parameters], criteria=[p.to_dict() for p in self.criteria],
-                    scenarios=[s.to_dict() for s in self.scenarios])
+                    scenarios=[s.to_dict() for s in self.scenarios],
+                    candidateBudgetMax=self.candidate_budget_max, defaultCandidateBudget=self.default_candidate_budget)
 
 
 def scenario(identity, role, label=None, **parameters):
@@ -181,7 +199,7 @@ class ExperimentSpec:
         item = template(data.get('templateId'))
         # Five robust-PID search cases plus two final trials, at the default
         # 1001-point grid, exceed 40000 evidence points above 7 candidates.
-        budget = data.get('candidateBudget', 6)
+        budget = data.get('candidateBudget', item.default_candidate_budget)
         if isinstance(budget, bool) or not isinstance(budget, int) or not 1 <= budget <= 30:
             raise Invalid('Candidate budget must be an integer from 1 to 30')
         parameters = values(item.parameters, data.get('parameters', {}))
@@ -191,6 +209,8 @@ class ExperimentSpec:
         effective_budget=1 if item.id in ('p-golden','pi-golden') else budget
         if (effective_budget*search_count+final_count)*sample_reservation(item.engine, parsed['samples']) > MAX_EVIDENCE_SAMPLES:
             raise Invalid('The frozen search and final-verification plan exceeds 40000 evidence sample-points; reduce candidate budget or samples (shorten horizon to retain 0.01 s control resolution)')
+        if effective_budget*search_count+final_count > MAX_EVIDENCE_ATTEMPTS:
+            raise Invalid(f'The frozen search and final-verification plan exceeds {MAX_EVIDENCE_ATTEMPTS} attempts; this template allows at most {item.candidate_budget_max} candidates')
         if item.engine == 'python-control' and parsed['horizon']/(parsed['samples']-1) > .010000001:
             raise Invalid('Control responses require a sample interval at most 0.01 s; increase samples or shorten the horizon')
         names={'kp','ki','kd'} if item.id=='robust-pid' else {'r','c','gain'} if item.id=='active-filter' else set()

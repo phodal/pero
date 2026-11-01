@@ -1,37 +1,53 @@
-# Scientific Viewer in Pero
+# Scientific Viewer
 
-The original Point Scientific Viewer runs inside Pero with its unchanged panel,
-Node backend, examples, Mol*, RDKit and PDF engines. Pero owns App installation,
-data, workspace, Agent Sessions, credentials and approvals. No Point service or
-Point checkout is used at runtime.
+Repository-owned Pero App: no Point checkout, SDK, backend or runtime dependency.
 
-Build the App and shared SDK from an explicit Point source checkout:
-
-```sh
-POINT_ROOT=/absolute/path/to/point node scripts/build/scientific-viewer.mjs
+```
+npm ci --prefix apps/scientific-viewer --ignore-scripts
+node scripts/build/scientific-viewer.mjs
+npm test --prefix apps/scientific-viewer
+npm run typecheck --prefix apps/scientific-viewer
 ```
 
-The Point checkout needs the Scientific Viewer and App SDK npm dependencies.
-The build runs the original App production builder, checks its declaration and
-creates the generated App package in this directory. Generated runtime/native
-assets are not source files. The build receipt records original inputs, the
-Point revision and file hashes. Workbench payloads include this optional App;
-users may disable or uninstall it. Existing data is not replaced by a rebuild.
+User-selected files persist in this App's IndexedDB profile: 10 MiB per file,
+50 MiB library. Clearing the profile removes them. Removing a local copy never
+deletes the original disk file. No background import or model execution occurs.
 
-Alternatively, install the built original Point App directory through Pero's
-**Install from folder** action. Both paths use the same adapter and Host authority.
+- CSV/TSV tables and first-two-column spectra retain missing values and gaps.
+- Actual public Mol* renders PDB/mmCIF structures; it does not verify science.
+- Official RDKit Python wheel 2026.9.1 draws and checks up to 200 SMILES/MOL/SDF
+  records in the existing Host-managed local backend (no browser dynamic eval).
+  Host prepares the declared Python environment; preparation failures remain visible.
+  Records are limited to 32 KiB each, the request to 1 MiB, and the worker to 20 seconds.
+  Seven descriptors are reported: MolWt, ExactMolWt, MolLogP, TPSA, NumHDonors,
+  NumHAcceptors, NumRotatableBonds—not the browser wrapper’s full descriptor set.
+  Stop waiting discards the response; it does not claim to stop the backend worker.
+  Unix teardown uses Host process-group ownership. On Windows the server binds
+  a non-inherited kill-on-close Job Object before sending any molecule input;
+  ownership failure rejects computation rather than running an unowned child.
+- Actual public PDF.js renders PDF evidence. Quotations/crops and explicit
+  quotation review use Pero's existing Host Agent authority, never App credentials.
+- JSON displays escaped metadata. Unsupported formats and model weights remain opaque.
+- Twelve independently authored CC0-1.0 synthetic examples are not Point's sample
+  set, experimental observations or scientific benchmarks.
 
-Compatible workflows include scientific tables/structures/spectra, PDF quotation
-and figure evidence, App-scoped literature records, and workspace-scoped review
-Agent start, reconciliation, events, cancellation, explicit retry and Session
-selection. Restoring an existing Agent Session uses ACP `session/load` only
-when the selected Harness advertises support. Unsupported load or a changed
-Harness configuration fails explicitly without creating a replacement Session.
+Browser engines are pinned in package-lock.json: Mol* MIT, PDF.js Apache-2.0,
+fflate MIT. RDKit BSD-3-Clause is pinned in the App Python environment, not npm.
+Build retains notices and public-engines.json. Molecule records go only to this
+App’s local authenticated backend, never a remote provider. No model weights or
+user scripts are loaded or executed.
 
-Evidence and computed descriptors keep the original unverified/not-reviewed
-labels. Review exports retain `client-reported-host-ledger`; they are not Host
-attestations or scientific acceptance. Public search still contacts only the
-user-selected original providers. No automatic Project knowledge promotion occurs.
+Structure text containing `<`, `>`, or `&` is deliberately rejected before Mol*
+creation because its stock labels interpret metadata as HTML. Original bytes
+remain unchanged. Stock import controls are disabled and the public drop manager
+consumes all drops, so imports cannot bypass this boundary or the file-size limit.
+Empty molecule records fail explicitly before starting RDKit.
 
-See [verification and limits](../../docs/fitness/scientific-viewer.md) and the
-[shared compatibility contract](../../packages/point-app/README.md).
+This is independent implementation, not full Point equivalence or scientific
+acceptance. Real GUI tests and release validation must produce their own receipts;
+unit/build success does not establish graphical or physical validity.
+
+**Open Paper App** explicitly selects the existing enabled paper-agent/main
+Workbench entry. It transfers no file, query or source text and starts no search.
+Products without Paper report unavailable; the current Electron handoff reports
+an unacknowledged request on unsupported shells rather than claiming success.

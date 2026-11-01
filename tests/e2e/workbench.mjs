@@ -1,3 +1,4 @@
+import { closeOwnedElectron } from './owned-electron-close.mjs';
 import { clickNewChat, clickSessionRow, setAppearance } from './sidebar-controls.mjs';
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
@@ -25,6 +26,7 @@ try{
  await expect.poll(async()=>(await state()).agents?.length||0,{timeout:15000}).toBeGreaterThan(2);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await page.screenshot({path:resolve(out,'overview.png')});
+ await expect.poll(async()=>(await state()).connected).toBe(true);
  await clickNewChat(page);
  await expect.poll(async()=>(await state()).navigation).toBe(0);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
@@ -140,16 +142,29 @@ try{
  await expect.poll(async()=>(await state()).locale).toBe('en');
  await page.screenshot({path:resolve(out,'english.png')});
  await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click());
- await setAppearance(page,'dark');
- await expect.poll(async()=>(await state()).dark).toBe(true);
+ await expect.poll(async()=>(await state()).locale).toBe('zh-CN');
+ const darkState=await setAppearance(page,'dark');
+ // Reuse the verified observation instead of serializing retained history again.
+ expect(darkState.dark).toBe(true);
  await page.screenshot({path:resolve(out,'dark.png')});
  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1000,788));
  await page.screenshot({path:resolve(out,'narrow.png')});
  console.log(JSON.stringify({checks:'stream,followup,cancel,permission,long-stream,scroll-up,reload,history-retained-draft,locale,dark,narrow',streamStats:stats,errors}));
  await writeFile(resolve(out,'result.json'),JSON.stringify({state:await state(),errors},null,2));
  expect(errors).toEqual([]);
-}catch(error){const page=await app.firstWindow();console.error({errors,state:await page.evaluate(()=>window.peroDiagnostics?.snapshot()).catch(e=>`snapshot unavailable: ${e.message}`)});await page.screenshot({path:resolve(out,'failure.png')});throw error;}finally{
+}catch(error){
+ const page=await app.firstWindow();
+ const failure=await page.evaluate(()=>{
+  const s=JSON.parse(window.peroDiagnostics.snapshot());
+  return {connected:s.connected,workspace:s.workspace,activeContent:s.activeContent,chatVisible:s.chatVisible,
+   chats:s.chats.map(c=>({id:c.id,agent:c.agent,state:c.state,session_id:c.session_id,error:c.error})),
+   events:s.events?.slice(-10),error:s.error};
+ }).catch(e=>({snapshotError:e.message}));
+ console.error({errors,failure});
+ await writeFile(resolve(out,'failure.json'),JSON.stringify({error:String(error),errors,failure},null,2));
+ await page.screenshot({path:resolve(out,'failure.png')});throw error;
+}finally{
  const trace=await app.evaluate(()=>globalThis.workspaceReplayTrace??null).catch(()=>null);
  console.log(JSON.stringify({workspaceReplayTrace:trace,invalidHostEventErrors}));
- await app.close();
+ await closeOwnedElectron(app);
 }

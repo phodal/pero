@@ -205,7 +205,7 @@ impl Manager {
     fn app_binding(&self, app: &AppName, session_id: &str) -> Result<&AppSessionBinding, String> {
         self.app_bindings
             .get(session_id)
-            .filter(|binding| &binding.app == app)
+            .filter(|binding| &binding.app == app && binding.point.is_none())
             .ok_or_else(|| "This session does not belong to the requesting App".into())
     }
 

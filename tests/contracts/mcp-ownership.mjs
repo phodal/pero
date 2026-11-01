@@ -38,6 +38,8 @@ async function next(kind, requestId) {
       assert(!line.done, `Host stopped before ${kind}`);
       const event = JSON.parse(line.value);
       assert(!line.value.includes(fixture.secret), 'operator credential reached Host events');
+      if (event.kind === 'mcp_error' && kind !== 'mcp_error' && event.request_id === requestId)
+        throw new Error(`Host rejected ${requestId}: ${event.text}`);
       if (event.kind === kind && (requestId === undefined || event.request_id === requestId)) {
         assert(output(event), `${event.kind}: ${ajv.errorsText(output.errors)}`);
         return event;

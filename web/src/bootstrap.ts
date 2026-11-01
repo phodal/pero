@@ -1,3 +1,5 @@
+import { connectHost } from './host-connection';
+import { installAutomation } from './automation';
 import {installContentAnalysis} from './content-analysis';
 import { loadContentResult, cancelContentResult } from './content-results';
 import type { ContentChunk, ConversationReadParameters } from '../../packages/content-source/index';
@@ -34,7 +36,6 @@ const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
 const updateDocument = () => { document.documentElement.lang = locale; document.title = t('window.title'); loading.textContent = t('loading'); };
 updateDocument();
 try {
-  const connection = window.pero ? await window.pero.connect() : null;
   if (window.pero) locale = normalizeLocale(await window.pero.getLocale());
   updateDocument();
   const dark = matchMedia('(prefers-color-scheme: dark)').matches;
@@ -75,7 +76,20 @@ try {
     },
     deliver:(thread_id,contexts,text,replace)=>receive_host_event(JSON.stringify({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}})),
   });
-  const apps = mountAppSurfaces(value=>{if('action' in value && value.action==='automation_session_open'){receive_host_event(JSON.stringify({version:1,kind:'automation_session_open',request_id:null,text:'',data:value}));return Promise.resolve();}return window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser')));},launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})),pane=>receive_host_event(JSON.stringify({version:1,kind:'pane_focus',request_id:null,text:'',data:{id:pane}})),async slot=>{
+  const apps = mountAppSurfaces(async value=>{
+    if ('action' in value && value.action === 'scientific_paper_open') {
+      const before = JSON.parse(snapshot());
+      if (!before.apps?.some((app: { name: string; enabled: boolean; panels: { id: string }[] }) => app.name === 'paper-agent' && app.enabled && app.panels.some(panel => panel.id === 'main'))) throw new Error('Paper App is not installed and enabled in this product');
+      receive_host_event(JSON.stringify({ version: 1, kind: 'scientific_paper_open', request_id: null, text: '', data: {} }));
+      const deadline = performance.now() + 5000;
+      while (performance.now() < deadline) {
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        const current = JSON.parse(snapshot());
+        if (current.activeApp?.name === 'paper-agent' && current.activeApp?.panel === 'main') return;
+      }
+      throw new Error('Paper App did not open');
+    }
+    if('action' in value && value.action==='automation_session_open'){receive_host_event(JSON.stringify({version:1,kind:'automation_session_open',request_id:null,text:'',data:value}));return Promise.resolve();}return window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser')));},launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})),pane=>receive_host_event(JSON.stringify({version:1,kind:'pane_focus',request_id:null,text:'',data:{id:pane}})),async slot=>{
     receive_host_event(JSON.stringify({version:1,kind:'app_chat_slot',request_id:null,text:'',data:slot}));
     if(!slot)return false;
     const deadline=performance.now()+5000;
@@ -102,7 +116,12 @@ try {
     }
     window.pero.sendProbe(request).catch(() => receive_host_event(JSON.stringify({ version: 1, kind: 'error', request_id: request.id, text: '', message_key: 'error.connection' })));
   };
+  // Workbench operator controls are not exposed through App write routes.
+  const automationOperations = installAutomation(command => window.pero
+    ? window.pero.sessionCommand(command) : Promise.reject(new Error('Desktop Host required')));
   const onEvent = (event: HostEvent) => {
+    automationOperations.event(event);
+    if (event.kind === 'automation_operations_open') return;
     if (event.kind === 'settings') { locale = normalizeLocale(event.text); updateDocument(); }
     receive_host_event(JSON.stringify(event));
     if (event.kind === 'workbench_settings') applyAppearance(JSON.parse(snapshot()).appearance);
@@ -158,8 +177,7 @@ try {
     await new Promise(requestAnimationFrame);
   }
   if (window.pero) {
-    window.pero.onEvent(onEvent);
-    if (connection) onEvent(connection);
+    await connectHost(window.pero, onEvent);
     await window.pero.sessionCommand({method:'settings.workbench.get'});
     await window.pero.sessionCommand({method:'icons',action:'get',request_id:'icon-themes-startup'});
     await window.pero.sessionCommand({action:'list_agents'});

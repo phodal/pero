@@ -94,8 +94,6 @@ export type ContextContent = TextContextContent | ImageContextContent;
 export type AppRequest =
   | ListApps
   | InstallApp
-  | PointConfig
-  | PointProjects
   | PointAgent
   | PointCatalog
   | EnableApp
@@ -949,35 +947,6 @@ export interface InstallApp {
   method: "apps";
   id: RequestId;
 }
-export interface PointConfig {
-  action: "pointconfig";
-  name: AppName;
-  config?: AppDocumentSchema;
-  method: "apps";
-  id: RequestId;
-}
-/**
- * Public catalog: no local paths or backend credentials.
- */
-export interface AppDocumentSchema {
-  [k: string]: unknown | undefined;
-}
-export interface PointProjects {
-  action: "pointprojects";
-  name: AppName;
-  request: PointProjectRequest;
-  method: "apps";
-  id: RequestId;
-}
-export interface PointProjectRequest {
-  method: "GET" | "POST";
-  path: string;
-  headers?: PointProjectHeaders;
-  body?: unknown;
-}
-export interface PointProjectHeaders {
-  [k: string]: string | undefined;
-}
 export interface PointAgent {
   action: "pointagent";
   name: AppName;
@@ -995,6 +964,12 @@ export interface PointStart {
 }
 export interface PointScope {
   workspaceId: string;
+}
+/**
+ * Public catalog: no local paths or backend credentials.
+ */
+export interface AppDocumentSchema {
+  [k: string]: unknown | undefined;
 }
 export interface PointLookup {
   operation: "lookup";
@@ -1724,6 +1699,7 @@ export interface PointBinding {
   harnessId: string;
   panel: string;
   runtimeDigest: string;
+  appRevision?: string;
   createdAt: string;
   context?: AppDocumentSchema;
 }
@@ -2186,8 +2162,6 @@ export interface AppSuccess {
     | PointOpenReply
     | PointCatalogReply
     | AutomationApiReply
-    | PointProjectReply
-    | PointConfigReply
     | AppRecord[]
     | AppAccess
     | AppAgentInfo
@@ -2240,14 +2214,6 @@ export interface PointHarness {
 export interface AutomationApiReply {
   status: number;
   body: unknown;
-}
-export interface PointProjectReply {
-  status: number;
-  headers: PointProjectHeaders;
-  body: unknown;
-}
-export interface PointConfigReply {
-  config: AppDocumentSchema;
 }
 export interface AppRecord {
   name: AppName;

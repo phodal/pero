@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 const directory = resolve(import.meta.dirname, '../dist');
-const records = [{ id: 'pulse-daily-brief', name: 'Pulse 每日简报', prompt: 'Summarize the supplied local material.', rule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=0;BYSECOND=0', timezone: 'Local', enabled: true, target: { kind: 'local' }, next: '2026-11-02T09:00:00+08:00', scheduled: true, runs: [
+const records = [{ id: 'pulse-daily-brief', name: 'Pulse 每日简报', prompt: 'Summarize the supplied local material.', rule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=0;BYSECOND=0', timezone: 'Local', enabled: true, target: { kind: 'local' }, next: null, scheduled: false, error: 'Re-save this schedule to freeze its IANA time zone', runs: [
   { key: { automation: 'pulse-daily-brief', slot: '2026-10-31T08:35:00+08:00', trigger: 'manual' }, scheduled_for: '2026-10-31T08:35:00+08:00', settled_at: '2026-10-31T08:35:00+08:00', state: 'succeeded', session_id: 'fixture-session' },
   { key: { automation: 'pulse-daily-brief', slot: '2026-10-31T08:33:00+08:00', trigger: 'schedule' }, scheduled_for: '2026-10-31T08:33:00+08:00', state: 'skipped', skip_reason: 'missed' },
 ]}];
@@ -16,7 +16,7 @@ const server = createServer(async (request, response) => {
     const match = command.path.match(/^\/api\/automations\/([^/]+)(\/run)?$/);
     if (command.path === '/api/automations' && command.method === 'GET') body = { items: records };
     else if (command.path === '/api/automations' && command.method === 'POST') {
-      const record = { ...command.body, id: `fixture-${records.length + 1}`, enabled: true, scheduled: true, next: '2026-11-02T09:00:00+08:00', runs: [] };
+      const record = { ...command.body, id: `fixture-${records.length + 1}`, enabled: !!command.body.enabled, scheduled: true, next: null, runs: [] };
       records.push(record); body = record;
     } else if (match) {
       const index = records.findIndex(record => record.id === decodeURIComponent(match[1]));
@@ -24,14 +24,14 @@ const server = createServer(async (request, response) => {
       else if (command.method === 'DELETE') { records.splice(index, 1); status = 204; body = null; }
       else if (command.method === 'PUT') { Object.assign(records[index], command.body); body = records[index]; }
       else if (command.method === 'GET') body = records[index];
-      else body = { accepted: true };
+      else { const id = `request-${records[index].runs.length + 1}`; records[index].runs.push({key:{request_id:id,slot:'2026-10-31T09:00:00Z',trigger:'manual'},scheduled_for:'2026-10-31T09:00:00Z',state:'succeeded',session_id:'fixture-session'});body = {request_id:id}; }
     } else if (command.path === '/api/webhooks') body = { sources: [] };
     else if (command.path === '/api/projects') body = { items: [] };
     else { status = 503; body = { error: 'Not available in the UI fixture' }; }
     response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ status, body })); return;
   }
-  if (request.method === 'POST' && url.pathname === '/host/connectors') {
-    response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true, connections: [], providers: [] })); return;
+  if (url.pathname === '/test-shell') {
+    response.writeHead(200, {'Content-Type':'text/html'}).end(`<html><body style="margin:0"><iframe title="Automations" sandbox="allow-scripts allow-same-origin" src="/" style="width:100%;height:100vh;border:0"></iframe><script>window.openedSessions=[];addEventListener('message',e=>{if(e.data?.type==='pero:app:open-session')openedSessions.push(e.data.sessionId);if(e.data?.type==='pero:app:ready')e.source.postMessage({type:'pero:app:context',context:{locale:'en',dark:false,active:true}},'*')})</script></body></html>`);return;
   }
   const file = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
   if (!['index.html', 'index.js', 'index.css'].includes(file)) { response.writeHead(404).end(); return; }

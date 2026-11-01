@@ -5,6 +5,16 @@
   "type": "module",
   "scripts": {
     "build": "node ../../scripts/build/automation-app.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
+    "test:ui": "node test/ui-smoke.mjs"
+  },
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
   }
 }

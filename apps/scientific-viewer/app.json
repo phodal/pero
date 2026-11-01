@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "name": "scientific-viewer",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "displayName": "Scientific Viewer",
-  "description": "检索与阅读公共文献，导出带来源的阅读成果，预览科研数据与 PDF 证据。",
+  "description": "Read-only local scientific files, structures, molecules, spectra and PDF evidence.",
   "permissions": {
     "host": [
       "agent"
@@ -19,7 +19,12 @@
     ]
   },
   "backend": {
-    "type": "node",
-    "entry": "point-backend.mjs"
+    "type": "python",
+    "entry": "backend/server.py",
+    "dependencies": [
+      "rdkit==2026.9.1",
+      "numpy==2.2.6",
+      "Pillow==12.0.0"
+    ]
   }
 }

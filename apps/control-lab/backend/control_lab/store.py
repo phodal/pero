@@ -8,7 +8,7 @@ import threading
 import uuid
 import platform
 
-from .experiments import Attempt, Candidate, ExperimentSpec, Invalid, Trial, admit_attempts, candidates, canonical, input_digest, proposal, sample_reservation, template
+from .experiments import MAX_EVIDENCE_ATTEMPTS, Attempt, Candidate, ExperimentSpec, Invalid, Trial, admit_attempts, candidates, canonical, input_digest, proposal, sample_reservation, template
 from .verification import Observation, aggregate, verify_observation
 from . import engines
 
@@ -232,7 +232,7 @@ class ExperimentStore:
                         pass
                 existing_samples+=actual if valid else max(actual,per_trial_samples)
             admit_attempts(spec,existing_samples,len(jobs))
-            if len(record['trials'])+len(jobs)>80:
+            if len(record['trials'])+len(jobs)>MAX_EVIDENCE_ATTEMPTS:
                 raise Invalid('This ledger has reached its 80-attempt evidence limit; export it and create a new experiment')
             record['candidates'].extend(added)
             if not jobs:

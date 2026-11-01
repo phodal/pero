@@ -478,6 +478,7 @@ mod tests {
     }
 }
 
+#[cfg(any(target_family = "wasm", feature = "native"))]
 impl crate::app::Workbench {
     pub(crate) fn open_app_link(&mut self, href:&str, _window:&mut gpui_kit::Window, cx:&mut gpui_kit::Context<Self>) {
         if !href.starts_with("pero-app-location:") {cx.open_url(href);return;}

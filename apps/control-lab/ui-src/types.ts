@@ -15,6 +15,8 @@ export type Scenario = {
   parameters: Record<string, number>;
 };
 export type Template = {
+  candidateBudgetMax: number;
+  defaultCandidateBudget: number;
   id: string;
   title: string;
   description: string;

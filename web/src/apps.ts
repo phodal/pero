@@ -1,3 +1,4 @@
+import { admitPaperNavigation } from './app-navigation';
 import { mountAppExamples } from './app-examples';
 import { mountAppPreparation } from './app-preparation';
 import { translate, normalizeLocale } from '../../locales';
@@ -186,6 +187,15 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   window.addEventListener('message', event => {
     const frame = [...frames.values()].find(frame => frame.element.contentWindow === event.source);
     if (!frame) return;
+    if (event.data?.type === 'pero:app:navigate') {
+      const url = new URL(frame.element.src), origin = `${url.protocol}//${url.host}`;
+      const id = admitPaperNavigation({ name: frame.name, panel: frame.panel, visible: !!mounts.get(key(frame.name, frame.panel))?.surface.visible, origin: event.origin, expectedOrigin: origin }, event.data);
+      if (!id) return;
+      void command({ action: 'scientific_paper_open' }).then(() => {
+        frame.element.contentWindow?.postMessage({ type: 'pero:app:navigate-result', id, ok: true }, origin);
+      }, error => frame.element.contentWindow?.postMessage({ type: 'pero:app:navigate-result', id, ok: false, error: String(error) }, origin));
+      return;
+    }
     if(event.data?.type==='pero:app:open-session' && frame.name==='automations' && mounts.get(key(frame.name,frame.panel))?.surface.visible) {
       const url=new URL(frame.element.src), sessionId=event.data.sessionId;
       if(event.origin===`${url.protocol}//${url.host}` && typeof sessionId==='string' && sessionId.length<=128)

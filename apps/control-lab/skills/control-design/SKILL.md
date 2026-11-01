@@ -30,3 +30,10 @@ scenario coverage, limitations and remaining budget. If no candidate is
 feasible, report that outcome. Do not change thresholds to remove a failure.
 Tool completion or your own explanation is not an engineering PASS; use the
 verifier's PASS, FAIL or INCONCLUSIVE and distinguish process errors from it.
+
+Agent-step responses are explicitly marked `view: agent-summary`. Trial identities,
+checks, metrics and artifact hashes remain available; `observationSummary` is not
+a complete raw Observation. Waveform samples stay in the App ledger. The response
+identifies the current authenticated record and export paths for full evidence;
+these paths are live views, not immutable result versions. Do not infer curves
+from a summary or treat missing samples as verified.

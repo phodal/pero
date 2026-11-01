@@ -16,6 +16,8 @@ pub struct Binding {
     pub harness_id: String,
     pub panel: String,
     pub runtime_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub app_revision: Option<String>,
     pub created_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context: Option<serde_json::Value>,

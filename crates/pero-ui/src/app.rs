@@ -519,6 +519,10 @@ impl Workbench {
     ) {
         #[cfg(not(target_family="wasm"))]
         self.receive_native_app(&event,window,cx);
+        if event.kind=="scientific_paper_open" {
+            if self.apps.contains_panel("paper-agent","main") { self.open_app("paper-agent".into(),"main".into(),cx); }
+            return;
+        }
         if event.kind=="automation_session_open" {
             if let Some(id)=event.data["sessionId"].as_str(){self.open_automation_session(id,cx);}
             return;
@@ -796,6 +800,8 @@ pub fn snapshot() -> String {
         value["terminal"] = ui.terminal.snapshot(cx);
         value["terminalControls"] = ui.view_bounds.terminal.snapshot();
         value["sidebarButtonBounds"] = ui.view_bounds.sidebar.snapshot();
+        value["settingsButtonBounds"] = ui.view_bounds.settings.snapshot()["settings"].clone();
+        value["settingsMenuOpen"] = serde_json::json!(ui.settings_menu_open);
         value["newChatButtonBounds"] = ui.view_bounds.new_chat.snapshot()["new-chat"].clone();
         value["sessionRowBounds"] = ui.view_bounds.sessions.snapshot();
         value["appOpenButtonBounds"] = ui.view_bounds.app_open.snapshot();

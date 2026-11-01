@@ -77,10 +77,22 @@ async function exercise(prompt, signal) {
     assert.fail('Real solver did not finish within fixture deadline');
   }
   await step({ action: 'baseline' }, '/result/status'); await settled();
-  const baseline = await step({ action: 'read' });
-  assert.equal(baseline.candidates.length, 1);
-  assert.equal(baseline.candidates[0].id, 'baseline');
-  assert.equal(baseline.trials.filter(item => item.candidateId === 'baseline' && item.status === 'completed').length, 2);
+  const baseline = await step({ action: 'read' }, '/result/candidates');
+  assert.equal(baseline.length, 1);
+  assert.equal(baseline[0].id, 'baseline');
+  const searchScenarios = original.scenarios.filter(item => item.role === 'search');
+  const progress = await step({ action: 'read' }, '/result/progress');
+  assert.equal(progress.completed, searchScenarios.length);
+  assert.equal(progress.total, searchScenarios.length);
+  const observedScenarios = [];
+  for (let index = 0; index < searchScenarios.length; index++) {
+    const path = `/result/trials/${index}`;
+    assert.equal(await step({ action: 'read' }, `${path}/candidateId`), 'baseline');
+    assert.equal(await step({ action: 'read' }, `${path}/status`), 'completed');
+    assert.equal(await step({ action: 'read' }, `${path}/phase`), 'search');
+    observedScenarios.push(await step({ action: 'read' }, `${path}/scenarioId`));
+  }
+  assert.deepEqual(observedScenarios.sort(), searchScenarios.map(item => item.id).sort());
   await step({ action: 'propose', parameters: { kp: 3 } }, '/result/status');
   await settled();
   await step({ action: 'search-next' }, '/result/status'); await settled();
