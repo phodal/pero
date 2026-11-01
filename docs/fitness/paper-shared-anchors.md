@@ -48,6 +48,13 @@ npm run typecheck
 - `paper-search-flow.mjs` now requires a visible actual search-hit region;
   `paper-pdf-flow.mjs` captures the real selection-context response and requires
   its anchor identity to equal the later saved highlight's identity.
+- Deferred-response Desktop regression holds the actual `/api/pdf/locate`
+  response, manually changes page or switches to Text, then releases the response
+  and checks that the newer user navigation survives. It also checks that a
+  subsequent explicit search can still reveal its region. There is no timed
+  network delay; response completion and render frames are awaited. Reader
+  pointer, keyboard, wheel, change and assistive click input invalidate the
+  pending search epoch, including input in the existing portal toolbar.
 
 Actual Desktop execution/screenshots for this revision remain pending the
 existing full Desktop CI. Local recent Desktop attempts are blocked by the

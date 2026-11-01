@@ -55,4 +55,58 @@ export async function exercisePdfSearch({ frame, page, out, realPdf }) {
   await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue(targetPage);
   await expect(viewer.locator(`[data-page-number="${targetPage}"] [data-citation-region="true"]`).first()).toBeVisible();
   await page.screenshot({ path: resolve(out, 'local-search-pdf.png') });
+  // A real response is held until after a newer reader input, not delayed by a
+  // timer. Await transport completion and render frames before checking that the
+  // stale search did not change either the user's page or their Text view.
+  const nav = frame.locator('.pa-reading-bar');
+  for (const action of ['page', 'text']) {
+    await nav.getByRole('button', { name: 'Back to library', exact: true }).click();
+    let received, rejected, release;
+    const arrived = new Promise((resolve, reject) => { received = resolve; rejected = reject; });
+    const deferred = async route => {
+      try {
+        const response = await route.fetch();
+        expect(response.ok()).toBe(true);
+        release = async () => {
+          const finished = page.waitForEvent('requestfinished', request => request === route.request());
+          await route.fulfill({ response });
+          await finished;
+          await frame.locator('body').evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        };
+        received();
+      } catch (error) { rejected(error); await route.abort(); }
+    };
+    await page.route('**/api/pdf/locate', deferred);
+    try {
+      await Promise.all([hit.getByRole('button').click(), arrived]);
+      const pageInput = nav.getByRole('spinbutton', { name: 'Page', exact: true });
+      await expect(pageInput).toHaveValue(targetPage);
+      const chosenPage = targetPage === '1' ? '2' : '1';
+      if (action === 'page') {
+        await pageInput.fill(chosenPage);
+        await expect(pageInput).toHaveValue(chosenPage);
+      } else {
+        await viewer.focus(); await viewer.press('Shift+F10');
+        await viewer.getByRole('menuitem', { name: 'Text', exact: true }).click();
+        await expect(viewer).toHaveCount(0);
+      }
+      await release();
+      if (action === 'page') {
+        await expect(pageInput).toHaveValue(chosenPage);
+        await expect(viewer.locator('[data-citation-region="true"]')).toHaveCount(0);
+      } else {
+        await expect(viewer).toHaveCount(0);
+        await expect(frame.locator('.pa-source-text')).toBeVisible();
+        await frame.locator('.pa-pdf-reading').getByRole('button', { name: 'PDF', exact: true }).click();
+        await expect(viewer).toBeVisible();
+      }
+    } finally {
+      await page.unroute('**/api/pdf/locate', deferred);
+    }
+  }
+  // Cancelling stale work must not disable the next explicit search reveal.
+  await nav.getByRole('button', { name: 'Back to library', exact: true }).click();
+  await hit.getByRole('button').click();
+  await expect(viewer.locator(`[data-page-number="${targetPage}"] [data-citation-region="true"]`).first()).toBeVisible();
+
 }
