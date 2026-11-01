@@ -14,7 +14,7 @@ const root = resolve(import.meta.dirname, '../..'), out = resolve(root, 'test-re
 await mkdir(out, { recursive: true });
 const execute = promisify(execFile), errors = [], consoleErrors = [], checks = [], cleanup = [];
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-lab-desktop-'));
-let app, page, frame, frozen, final, fixture, failure;
+let app, page, frame, frozen, final, fixture, failure, exportReceipt;
 const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } };
 async function closeDesktop() {
@@ -136,6 +136,14 @@ try {
     catch (error) { if (error.code === 'ENOENT' || error instanceof SyntaxError) return false; throw error; }
   }).toBe(true);
   expect(exported.experiment).toEqual(final);
+  const exportedBytes = await readFile(exportPath);
+  exportReceipt = { filename: 'experiment-export.json', bytes: exportedBytes.length,
+    sha256: createHash('sha256').update(exportedBytes).digest('hex') };
+  for (const observation of final.trials.flatMap(trial => trial.observations)) {
+    const bytes = Buffer.from(exported.assets[observation.sha256], 'base64');
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(observation.sha256);
+  }
+  checks.push('UI download saved real JSON bytes with a file digest and original observation asset hashes');
   await frame.getByRole('tab', { name: 'Deck', exact: true }).click();
   await expect(frame.getByRole('button', { name: 'B1, 100 microliters', exact: true })).toBeVisible();
   await page.screenshot({ path: resolve(out, 'deck-light.png') });
@@ -186,5 +194,5 @@ try {
   try { await closeDesktop(); } catch (error) { failure ||= error; }
   await rm(temp, { recursive: true, force: true });
 }
-await writeFile(resolve(out, failure ? 'failure.json' : 'result.json'), JSON.stringify({ status: failure ? 'failed' : 'passed', scope: 'Real Desktop, Host, ACP fixture and PLR Chatterbox; not real model or physical lab acceptance', error: failure ? String(failure.stack || failure) : null, checks, errors, consoleErrors, cleanup, fixture, experiment: final }, null, 2));
+await writeFile(resolve(out, failure ? 'failure.json' : 'result.json'), JSON.stringify({ status: failure ? 'failed' : 'passed', scope: 'Real Desktop, Host, ACP fixture and PLR Chatterbox; not real model or physical lab acceptance', error: failure ? String(failure.stack || failure) : null, checks, errors, consoleErrors, cleanup, fixture, exportReceipt, experiment: final }, null, 2));
 if (failure) throw failure;
