@@ -19,6 +19,9 @@ from .source_text import SourceText
 from .context_file import ContextSelection, ContextRead
 from .research import ResearchPlan
 from .thumbnails import PaperThumbnails
+from .paper_documents import PaperDocuments
+from .scientific_document import DocumentError
+from .document_html import render_document
 
 MAX_BODY = 1024 * 1024
 
@@ -35,10 +38,11 @@ def research_stage(record):
     return dict(stage='select', id=record.id, requestId=record.plan.request.request_id + '-r' + str(len(record.queries)), question=record.plan.request.question, prompt=record.prompt(), round=len(record.queries))
 
 
-def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbnails=None):
+def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbnails=None, paper_documents=None):
     literature = literature if literature is not None else LiteratureClient()
     pdf_files = pdf_files if pdf_files is not None else PdfFiles()
     thumbnails = thumbnails if thumbnails is not None else PaperThumbnails()
+    paper_documents = paper_documents if paper_documents is not None else PaperDocuments(store)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -90,6 +94,22 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if self.command == 'GET': return self.reply(200, store.report_matrix(matrix_match[1]))
                     if self.command == 'POST': return self.reply(201, store.edit_matrix(matrix_match[1], data, now()))
                 if self.command == "GET":
+                    if path == '/api/paper-documents':
+                        document = paper_documents.latest(parse_qs(parsed.query).get('paperId', [''])[0])
+                        return self.reply(200, dict(document=document.to_dict() if document else None))
+                    structured_match = re.fullmatch(r'/api/paper-documents/([a-f0-9]{64})(/html|/outline|/blocks/b[0-9]{6})?', path)
+                    if structured_match:
+                        document = paper_documents.read(structured_match[1])
+                        operation = structured_match[2]
+                        if operation == '/html':
+                            return self.binary(200, render_document(document).encode('utf-8'), 'text/html; charset=utf-8')
+                        if operation == '/outline':
+                            return self.reply(200, dict(documentId=document.id, outline=document.outline()))
+                        if operation and operation.startswith('/blocks/'):
+                            query = parse_qs(parsed.query)
+                            return self.reply(200, document.read(operation.removeprefix('/blocks/'),
+                                int(query.get('start', ['0'])[0]), int(query.get('limit', ['4800'])[0])))
+                        return self.reply(200, document.to_dict())
                     if path == '/api/research/drafts':
                         return self.reply(200, dict(drafts=store.imports.drafts()))
                     bundle_match = re.fullmatch(r'/api/research/bundles/([a-f0-9]{64})', path)
@@ -157,6 +177,11 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, record.to_dict())
                 if self.command == "POST":
+                    if path == '/api/paper-documents':
+                        if set(data) - {'paperId', 'refresh'} or type(data.get('refresh', False)) is not bool:
+                            raise Invalid('Choose a saved paper and an optional refresh flag')
+                        document = paper_documents.prepare(data.get('paperId'), now(), data.get('refresh', False))
+                        return self.reply(200, document.to_dict())
                     if path == '/api/research/inspect':
                         return self.reply(200, store.imports.inspect(data, now()).to_dict())
                     if path == '/api/research/commit':
@@ -249,6 +274,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                             location['pdf'] = dict(documentId=document.id, pages=list(pages))
                         return self.reply(200, location)
                 raise Invalid("Route not found", 404)
+            except DocumentError as error:
+                self.reply(error.status, {"code": error.code, "detail": error.detail})
             except Invalid as error:
                 self.reply(error.status, {"code": "research_invalid", "detail": error.detail})
             except (ValueError, TypeError, KeyError, UnicodeError, RecursionError) as error:

@@ -1,0 +1,27 @@
+name: Paper document contracts
+on:
+  pull_request:
+    paths:
+      - 'apps/paper-agent/**'
+      - '.github/workflows/paper-documents.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  documents:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install existing pinned PDF dependencies
+        run: python -m pip install ./apps/paper-agent
+      - name: Scientific document and authenticated persistence contracts
+        run: |
+          python -m unittest discover -s apps/paper-agent/test -p 'test_scientific_document.py' -v
+          python -m unittest discover -s apps/paper-agent/test -p 'test_paper_documents.py' -v
+          python -m unittest discover -s apps/paper-agent/test -p 'test_document_http.py' -v
+      - name: Existing Paper regressions
+        run: python -m unittest discover -s apps/paper-agent/test -p 'test_*.py' -v
