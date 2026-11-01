@@ -32,10 +32,15 @@ outcomes, HTTP-attempt audit and reported usage (missing usage stays `null`).
 All source content is public/synthetic. Evidence lives in private directories
 under ignored `test-results/research-import-harness`; no credentials belong there.
 Earlier failed checks remain failed instead of being overwritten.
-Task success and Skill coverage are separate results. An advertised App alias
+Persistence/safety, Skill coverage and review quality are separate results. An advertised App alias
 already carries its schema; `app_describe` is required for the generic write
 path, not an extra mandatory call before aliases. `describeBeforeInspect` is
 retained as an observation, not a standalone safety requirement.
+Automated `passed` covers mechanical checks and the actual Skill read only.
+`reviewAssessment` preserves public pre-commit messages for manual comparison
+with actual inspected resources. Neither arbitrary text nor keyword matches
+prove the requested review happened before saving; assess that separately and
+retain the original result when appending a semantic assessment.
 
 ## Authorized real inference
 
