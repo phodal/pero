@@ -9,7 +9,7 @@ from urllib.parse import quote, urljoin, urlsplit
 
 from .literature import LiteratureClient, _scalars
 from .model import Invalid
-from .research_resources import Evidence, ImportDraft, PublicURL, ResearchAsset, ResearchResource
+from .research_resources import Evidence, ImportDraft, PublicURL, ResearchAsset, ResearchResource, ResourceIdentity
 from .resource_fetch import PublicMetadata
 
 
@@ -105,6 +105,7 @@ class ResourceInspector:
             return self.fetch(url, timeout=min(6, remaining), limit=1024 * 1024)
 
         def add(resource):
+            resource = replace(resource, observedAt=draft.createdAt)
             if len(resources) >= 32 and resource.id not in resources:
                 return
             previous = resources.get(resource.id)
@@ -119,7 +120,8 @@ class ResourceInspector:
                 parsed.feed(page.text)
                 seed = replace(seed, title=(parsed.first('og:title', 'citation_title') or parsed.title.strip() or seed.url)[:1000],
                                excerpt='\n'.join(parsed.body)[:8000], authors=tuple(a.strip()[:300] for a in parsed.metadata.get('citation_author', parsed.metadata.get('author', [])) if a.strip())[:30],
-                               confidence='metadata', evidence=(Evidence(page.url, 'Page title, byline and explicit links'),))
+                               confidence='metadata', aliases=(ResourceIdentity.from_url(page.url).identity,),
+                               evidence=(Evidence(page.url, 'Page title, byline and explicit links'),))
                 add(seed)
                 for link in parsed.links:
                     try:

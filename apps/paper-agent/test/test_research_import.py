@@ -63,6 +63,16 @@ def orphan_parent(result_pipe, started, cancelled):
     os._exit(0)
 
 
+def parent_waiting_for_force_kill(result_pipe, started, cancelled, identity_pipe):
+    context = multiprocessing.get_context('spawn')
+    process = context.Process(target=inspect_child, args=(result_pipe, ImportDraft.create(SEED, NOW),
+                              StartedStall(started), cancelled, 30))
+    process.start()
+    identity_pipe.send(process.pid)
+    identity_pipe.close()
+    threading.Event().wait(30)
+
+
 class ResourceIdentityTest(unittest.TestCase):
     def test_classification_and_aliases(self):
         cases = [
@@ -111,6 +121,9 @@ class ResourceIdentityTest(unittest.TestCase):
         same_selection = ImportSelection.parse(dict(draftId=draft.id, resourceIds=[first.id, doi.id]), same_draft)
         self.assertEqual(len(ResearchBundle.selected(same_draft, same_selection, NOW).resources), 1)
         article, model = resource_fixture()
+        asset = model.assets[0]
+        changed_license = ResearchAsset.create(asset.name, asset.kind, asset.filename, asset.size, 'different-license', asset.revision, asset.sourceUrl, asset.url, asset.sha256)
+        self.assertNotEqual(asset.id, changed_license.id)
         review = ImportDraft.create(SEED, NOW).finish((article, model), ())
         body = dict(draftId=review.id, resourceIds=[model.id], downloadIds=[model.assets[0].id])
         with self.assertRaisesRegex(Invalid, 'Confirm'):
@@ -144,6 +157,14 @@ class MetadataSafetyTest(unittest.TestCase):
         self.assertEqual(opened[-1], ('research.example', '93.184.216.34'))
         for url in ('http://research.example', 'https://user:password@research.example', 'https://localhost/', 'https://private.example/'):
             with self.subTest(url=url), self.assertRaises(Invalid): fetch(url)
+        for key in ('token', 'access_token', 'api_key', 'X-Amz-Signature', 'x-goog-signature', '%74oken'):
+            with self.subTest(key=key), self.assertRaisesRegex(Invalid, 'Credential-bearing') as error:
+                fetch(SEED + '?' + key + '=never-echo-this-secret')
+            self.assertNotIn('never-echo', str(error.exception))
+        with self.assertRaisesRegex(Invalid, 'Credential-bearing'):
+            ResearchResource.linked(SEED + '#access_token=never-echo-this-secret', SEED)
+        replies.append(response(status=302, Location=SEED + '?access_token=never-echo-this-secret'))
+        with self.assertRaisesRegex(Invalid, 'Credential-bearing'): fetch(SEED)
         replies.append(response(status=302, Location='https://private.example/secret'))
         with self.assertRaisesRegex(Invalid, 'Private'): fetch(SEED)
         replies.append(response(b'12345'))
@@ -183,6 +204,27 @@ class MetadataSafetyTest(unittest.TestCase):
         self.assertFalse(any('unrelated' in url for url in urls))
         self.assertLessEqual(len(urls), 18)
 
+    def test_malformed_metadata_is_partial_and_redirect_identity_reuses(self):
+        final = 'https://canonical.example/release'
+        def fetch(url, **_kwargs):
+            if 'github' in url:
+                return WebDocument(url, 'application/json', 'not valid JSON')
+            html = '<meta name><meta property="og:title" content="' + 'T' * 1200 + '"><meta name="author" content="' + 'A' * 500 + '"><main><p>Article excerpt.</p><a href="https://github.com/example/repo">Code</a></main>'
+            return WebDocument(final, 'text/html', html)
+        inspector = ResourceInspector(fetch)
+        with tempfile.TemporaryDirectory() as root:
+            store = ResearchStore(root)
+            for seed in (SEED, final):
+                draft = inspector.inspect(ImportDraft.create(seed, NOW), threading.Event())
+                self.assertEqual(draft.status, 'ready')
+                self.assertTrue(next(r for r in draft.resources if r.kind == 'code').unresolved)
+                store.imports._replace('import-drafts', draft.id, draft.to_dict())
+                store.imports.commit(dict(draftId=draft.id, resourceIds=[r.id for r in draft.resources]), NOW)
+            self.assertEqual(len(store.library()['papers']), 1)
+            self.assertEqual(len(store.library()['bundles']), 1)
+            self.assertEqual(len(store.library()['papers'][0]['title']), 1000)
+            self.assertEqual(len(store.library()['papers'][0]['authors'][0]), 300)
+
     def test_worker_deadline_cancel_and_parent_loss_release_process(self):
         draft = ImportDraft.create(SEED, NOW)
         before = {p.pid for p in multiprocessing.active_children()}
@@ -208,6 +250,40 @@ class MetadataSafetyTest(unittest.TestCase):
         finally:
             if parent.is_alive(): parent.kill(); parent.join()
             parent.close(); output.close()
+
+
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows process-handle lifecycle evidence runs on hosted Windows')
+    def test_worker_force_killed_parent_exits_actual_windows_child_handle(self):
+        import ctypes
+        from ctypes import wintypes
+        context = multiprocessing.get_context('spawn')
+        output, child_output = context.Pipe(duplex=False)
+        identity, child_identity = context.Pipe(duplex=False)
+        started, cancelled = context.Event(), context.Event()
+        parent = context.Process(target=parent_waiting_for_force_kill,
+                                 args=(child_output, started, cancelled, child_identity))
+        parent.start(); child_output.close(); child_identity.close()
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel.WaitForSingleObject.restype = wintypes.DWORD
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        handle = None
+        try:
+            self.assertTrue(identity.poll(5))
+            child_pid = identity.recv()
+            self.assertTrue(started.wait(5))
+            handle = kernel.OpenProcess(0x00100000, False, child_pid)  # SYNCHRONIZE, no inherited fake PID check.
+            self.assertTrue(handle)
+            parent.kill(); parent.join(timeout=5)
+            self.assertFalse(parent.is_alive())
+            self.assertEqual(kernel.WaitForSingleObject(handle, 5000), 0, 'Metadata child must terminate after actual parent handle is signaled')
+        finally:
+            cancelled.set()
+            if parent.is_alive(): parent.kill(); parent.join()
+            if handle: kernel.CloseHandle(handle)
+            parent.close(); output.close(); identity.close()
 
 
 class ImportPersistenceTest(unittest.TestCase):
@@ -295,6 +371,10 @@ class ImportPersistenceTest(unittest.TestCase):
                 self.assertEqual(bundle['downloadIds'], [])
                 self.assertEqual(call('/api/research/handoff', {'bundleId': bundle['id'], 'assetId': draft['resources'][1]['assets'][0]['id']})[0], 403)
                 self.assertEqual(call('/api/research/inspect', {'url': SEED})[1]['id'], draft['id'])
+                self.assertEqual(call('/api/research/inspect', {'url': SEED, 'refresh': True})[1]['status'], 'inspecting')
+                worker = store.imports.running.get(draft['id'])
+                if worker: worker[1].join(timeout=5)
+                self.assertEqual(len(store.library()['bundles']), 1)
                 store.imports.inspector = StalledInspector()
                 _, waiting = call('/api/research/inspect', {'url': 'https://research.example/another'})
                 self.assertEqual(call('/api/research/inspect', {'draftId': waiting['id'], 'cancel': True})[1]['status'], 'cancelled')

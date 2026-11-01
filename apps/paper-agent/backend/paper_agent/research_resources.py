@@ -1,5 +1,5 @@
 """Research import values. External pages are evidence, never instructions."""
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, replace
 import re
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -28,7 +28,12 @@ class PublicURL:
         if host in ('localhost', 'localhost.localdomain') or host.endswith(('.localhost', '.local', '.internal')):
             raise Invalid('Private research URLs are not supported')
         host = f'[{host}]' if ':' in host else host
-        query = urlencode([(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)
+        parameters = parse_qsl(parts.query, keep_blank_values=True)
+        credential_keys = {'token', 'access_token', 'api_key', 'apikey', 'auth', 'authorization',
+                           'signature', 'sig', 'oauth_token', 'id_token', 'client_secret'}
+        if any(key.lower() in credential_keys or key.lower().startswith(('x-amz-', 'x-goog-')) for key, _ in (*parameters, *parse_qsl(parts.fragment.lstrip('?'), keep_blank_values=True))):
+            raise Invalid('Credential-bearing or signed URLs are not supported; use the public resource page')
+        query = urlencode([(k, v) for k, v in parameters
                            if not k.lower().startswith('utm_') and k.lower() not in ('fbclid', 'gclid')])
         return cls(urlunsplit(('https', host, parts.path or '/', query, '')))
 
@@ -94,7 +99,8 @@ class ResearchAsset:
 
     @classmethod
     def create(cls, name, kind, filename, size, license, revision, source_url, url, sha256):
-        identity = digest(dict(source=source_url, revision=revision, filename=filename, sha256=sha256))
+        identity = digest(dict(source=source_url, revision=revision, filename=filename, sha256=sha256,
+                               size=size, license=license, url=url, kind=kind))
         return cls(identity, name, kind, filename.rsplit("/", 1)[-1], size, license, revision, source_url, url, sha256)
 
 
@@ -118,6 +124,7 @@ class ResearchResource:
     aliases: tuple[str, ...] = ()
     paperId: str | None = None
     contentKind: str = 'report'
+    observedAt: str = ''
 
     @property
     def id(self):
@@ -125,6 +132,7 @@ class ResearchResource:
 
     @classmethod
     def linked(cls, url, source_url, label='', context=''):
+        url = PublicURL.parse(url).value
         identity = ResourceIdentity.from_url(url, label + ' ' + context)
         relation = 'cites' if identity.kind == 'paper' else 'releases' if identity.kind == 'model' else 'implements' if identity.kind == 'code' else 'links_to'
         kind = identity.kind

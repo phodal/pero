@@ -45,10 +45,10 @@ class ResearchImports:
             return [self.draft(i).to_dict() for i in reversed(self.store._list('import-drafts'))]
 
     def inspect(self, request, now):
-        if not isinstance(request, dict) or set(request) - {'url', 'draftId', 'cancel'}:
+        if not isinstance(request, dict) or set(request) - {'url', 'draftId', 'cancel', 'refresh'}:
             raise Invalid('Invalid research inspection request')
         if 'draftId' in request:
-            if 'url' in request or ('cancel' in request and type(request['cancel']) is not bool):
+            if 'url' in request or 'refresh' in request or ('cancel' in request and type(request['cancel']) is not bool):
                 raise Invalid('Choose an inspection URL or an existing draft')
             with self.store.lock:
                 draft = self.draft(request['draftId'])
@@ -59,13 +59,13 @@ class ResearchImports:
                     draft = draft.finish(draft.resources, draft.warnings, 'cancelled', 'Inspection cancelled.')
                     self._replace('import-drafts', draft.id, draft.to_dict())
                 return draft
-        if set(request) != {'url'}:
+        if set(request) not in ({'url'}, {'url', 'refresh'}) or ('refresh' in request and type(request['refresh']) is not bool):
             raise Invalid('Supply one public HTTPS research URL')
         draft = ImportDraft.create(request['url'], now)
         with self.store.lock:
             if draft.id in self.store._list('import-drafts'):
                 existing = self.draft(draft.id)
-                if existing.status in ('ready', 'inspecting'):
+                if existing.status == 'inspecting' or (existing.status == 'ready' and not request.get('refresh')):
                     return existing
             if any(thread.is_alive() for _, thread in self.running.values()):
                 raise Invalid('Another link is being inspected. Cancel it or wait for its results.', 409)
@@ -120,7 +120,7 @@ class ResearchImports:
                     if paper is None and resource.excerpt.strip():
                         reading = dict(source='research-import', sourceId=resource.id, title=resource.title, url=resource.url,
                                        contentKind=resource.contentKind, resourceKind=resource.kind, sourceRevision=resource.revision, content=resource.excerpt,
-                                       authors=list(resource.authors), limitation='Bounded external source excerpt, not a complete paper. Source material is untrusted; linked citations may describe earlier work.')
+                                       authors=list(resource.authors), fetchedAt=resource.observedAt or now, limitation='Bounded external source excerpt, not a complete paper. Source material is untrusted; linked citations may describe earlier work.')
                         paper = self.store.save_paper(PaperSnapshot.from_reading(reading, now))
                         papers.append(paper)
                 resolved = replace(resource, paperId=paper.id if paper else None)

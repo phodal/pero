@@ -1,6 +1,6 @@
 """Bounded HTTPS metadata transport with public-address pinning and no proxy."""
 from dataclasses import dataclass
-from http.client import HTTPSConnection
+from http.client import HTTPSConnection, HTTPException
 import ipaddress
 import socket
 import ssl
@@ -89,7 +89,7 @@ class PublicMetadata:
                     return WebDocument(url, content_type, b''.join(chunks).decode('utf-8', errors='replace'))
                 finally:
                     connection.close()
-            except (OSError, ValueError) as error:
+            except (OSError, ValueError, HTTPException) as error:
                 if isinstance(error, Invalid):
                     raise
                 raise Invalid(f'Metadata request failed: {type(error).__name__}') from error
