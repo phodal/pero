@@ -108,6 +108,35 @@ try {
   await expect(frame.getByText('Saved references', { exact: true })).toBeVisible();
   expect((await library(frame)).bundles).toEqual(saved.bundles); expect((await library(frame)).papers).toEqual(saved.papers);
   await page.screenshot({ path: resolve(out, 'host-reopened-bundle.png') });
+  // Exercise the existing Host composer and its frozen-context preview, never submit.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900));
+  await frame.locator('body').evaluate(() => {
+    window.researchCloneReplies = [];
+    window.addEventListener('message', event => { if (event.source === window.parent && event.data?.type === 'pero:app:chat-result') window.researchCloneReplies.push(event.data); });
+  });
+  const beforeChat = await page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
+  const userMessagesBefore = beforeChat.chats.flatMap(chat => chat.messages).filter(message => message.role === 'user').length;
+  await frame.getByRole('button', { name: 'Clone with Agent', exact: true }).click();
+  await expect(frame.getByText('Clone request prepared in Host. Nothing cloned yet.', { exact: true })).toBeVisible();
+  await expect.poll(() => frame.locator('body').evaluate(() => window.researchCloneReplies.length)).toBe(1);
+  const acknowledgment = await frame.locator('body').evaluate(() => window.researchCloneReplies[0]);
+  expect(acknowledgment.ok).toBe(true); expect(acknowledgment.value.references).toHaveLength(1);
+  await expect.poll(() => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).composer)).toContain('Prepare a repository clone from the attached saved Paper reference.');
+  await expect.poll(() => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).attachments.length)).toBe(1);
+  const afterChat = await page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
+  expect(afterChat.chats.flatMap(chat => chat.messages).filter(message => message.role === 'user')).toHaveLength(userMessagesBefore);
+  expect(afterChat.chats[afterChat.activeChat].id).toBe(acknowledgment.value.threadId);
+  await expect.poll(() => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).contextPreviewBounds[0]?.bounds?.width ?? 0)).toBeGreaterThan(0);
+  const bounds = await page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).contextPreviewBounds[0].bounds);
+  const canvas = await page.locator('canvas').first().boundingBox();
+  await page.mouse.click(canvas.x + bounds.x + bounds.width / 2, canvas.y + bounds.y + bounds.height / 2);
+  const preview = page.getByRole('dialog'); await expect(preview).toBeVisible();
+  const frozen = JSON.parse(await preview.locator('pre').innerText()), code = bundle.resources.find(resource => resource.kind === 'code');
+  expect(frozen).toMatchObject({ schema: 'pero.app-object.v1', scope: { app: 'paper-agent', panel: 'main' }, objectId: `research-code-${code.id}`, kind: 'research-clone-request', selection: { intent: 'clone-repository', bundleId: bundle.id, resourceId: code.id }, state: { status: 'not_started', bundleId: bundle.id, seedUrl: seed, resourceId: code.id, source: { identity: code.identity, url: code.url, originalUrl: code.originalUrl, revision: code.revision, license: code.license, size: code.size, evidence: code.evidence, unresolved: code.unresolved, observedAt: code.observedAt ?? '' } } });
+  await page.screenshot({ path: resolve(out, 'host-clone-frozen-request.png') });
+  await preview.getByRole('button', { name: 'Close', exact: true }).click();
+  expect((await library(frame)).bundles).toEqual(saved.bundles);
+  checks.push('Clone with Agent receives actual Host acknowledgement and a frozen provenance attachment in the unsent composer; user-message count and saved bundle remain unchanged, no clone executed');
   const fetches = (await readFile(resolve(profile, 'desktop/app-data/paper-agent/research-fixture-fetches.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
   expect(fetches.length).toBeGreaterThan(2); expect(fetches.every(item => !item.url.includes('/resolve/'))).toBe(true);
   checks.push('Actual Electron/Host/Paper restart preserves bundle and snapshots; zero asset handoffs or binary URLs, no Agent invocation');
