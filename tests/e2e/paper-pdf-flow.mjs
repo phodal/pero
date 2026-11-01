@@ -2,6 +2,12 @@ import { chatState, fillPaperChat, closePaperChat, showPaperReport } from './pap
 import { exercisePdfSearch } from './paper-search-flow.mjs';
 import { expect } from '@playwright/test';
 import { resolve } from 'node:path';
+// Electron may expose an empty clipboard as one item with no advertised types.
+// It carries no bytes to preserve and cannot construct a new ClipboardItem.
+export async function savePaperClipboard({ clipboard, ClipboardItem }) {
+  globalThis.paperClipboard = await Promise.all((await clipboard.read()).filter(item => item.types.length)
+    .map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)]))))));
+}
 export async function setPaperAppearance(page, appearance) {
   await page.evaluate(value => {
     const state = JSON.parse(window.peroDiagnostics.snapshot());
@@ -87,7 +93,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   const note = viewer.locator(`[data-note-id="${figure.id}"]`), image = note.locator('img');
   await expect(image).toBeVisible(); expect(await image.evaluate(element => element.naturalWidth)).toBeGreaterThan(100);
   await page.screenshot({ path: resolve(out, 'pdf-figure.png') });
-  await app.evaluate(async ({ clipboard, ClipboardItem }) => { globalThis.paperClipboard = await Promise.all((await clipboard.read()).map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)])))))); });
+  await app.evaluate(savePaperClipboard);
   try {
     await note.getByRole('button', { name: 'Copy image', exact: true }).click();
     await expect(viewer.getByRole('status')).toContainText('Image copied');

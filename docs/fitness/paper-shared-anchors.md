@@ -76,8 +76,19 @@ The CI wiring test executes this aggregate with only Desktop entries stubbed and
 requires the reader entry and scoped mode, preventing another silent omission.
 No workflow, runner or 360-second acceptance timeout was added or changed.
 
-Actual Desktop execution/screenshots for this wiring revision remain pending the
-existing full Desktop CI. Local recent Desktop attempts are blocked by the
+Full CI run `41320298054` (PR head `95cbe893`, tested merge `759b39db`)
+reached the PDF-only reader: selected context/annotation identity, highlight and
+figure capture passed before its clipboard-backup fixture rejected an empty-MIME
+native clipboard item. The aggregate failed after 141.883 seconds, not its
+360-second deadline. All four earlier sub-suite results had no errors. Search,
+deferred navigation and reader restart were not reached; this is partial evidence,
+not complete shared-anchor GUI acceptance. The fixture now ignores empty native
+placeholders when preserving the clipboard, while retaining every advertised
+format, the real image-copy assertion and finally restoration. An offline test
+executes that same callback for empty and populated clipboard cases.
+
+Actual Desktop execution/screenshots for this clipboard-fixture revision remain
+pending the next exact-head full Desktop CI. Local recent Desktop attempts are blocked by the
 launcher/Chromium IPC environment; an older build is not acceptance evidence for
 these changes. No paid provider, external upload, new dependency installation or
 Mac operation was performed.
