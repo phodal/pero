@@ -107,16 +107,26 @@ questions in the existing conversation.
    intact. Do not retry a failed download automatically; ask or follow an explicit
    retry request. If a call's outcome is unknown, inspect status before retrying.
 8. A saved GitHub reference can stay reference-only or use **Clone with Agent**.
-   That button only opens a Host composer draft with frozen source provenance; it
-   does not submit, grant permission, or clone. In conversation, first confirm the
-   exact public HTTPS repository, destination, revision, license and size (including
-   unknowns). Then use the existing authorized execution tools and their normal
-   permission/cancellation flow, not a new App execution endpoint. Clone without
-   checkout, submodules or LFS materialization. Never execute repository code,
-   install dependencies or launch experiments. Only after real execution succeeds,
-   report the repository URL, resolved HEAD commit, local destination and Host tool
-   receipt in that session. A prepared request is not a completed clone or Data
-   asset; blocked/failed/cancelled requests leave the saved reference intact.
+   The button opens an unsent Host composer draft with frozen source provenance;
+   it does not submit, grant permission or clone. Review the exact public GitHub
+   HTTPS repository, metadata-observed full 40-character commit, a NEW single
+   directory name inside the configured workspace, license and size (including
+   unknowns). Never guess a commit or silently replace a saved revision with latest.
+   Use the controlled `clone_repository` tool, with bundleId/resourceId from the
+   saved reference, only after this review; its existing ACP approval is required.
+   Built-in Unix Pero supports it. If the tool or confirmed revision is missing,
+   stop and explain that nothing was cloned; refresh source metadata if needed.
+   Do not fall back to arbitrary shell, another downloader or automatic execution.
+   The tool acquires the exact commit without checkout, hooks, submodules or LFS;
+   it does not install dependencies or execute repository code. Inspect the actual
+   typed tool result: success requires state=completed, resolvedCommit equal to the
+   selected commit and origin equal to the reviewed URL. A failed, incomplete,
+   cancelled or unknown result is not success; inspect existing effects before
+   requesting a new attempt. Report the source, resolved commit and destination,
+   and direct the user to expand the `clone_repository` tool result in this Host
+   conversation (also retained in history). Do not manufacture a receipt or write
+   a Paper/Data completed asset from model text. The source IDs link the saved
+   reference; they are not independent proof of its scientific claims.
 
 Report saved references separately from verified downloaded bytes. A successful
 import does not establish scientific validity or reproducibility. Do not infer

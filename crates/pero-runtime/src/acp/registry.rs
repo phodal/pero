@@ -180,6 +180,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
     ];
     if !cfg!(windows) {
         agents[0].args.push("--enable-shell".into());
+        agents[0].args.push("--enable-research-clone".into());
     }
     // Packaged adapters use Electron's Node runtime directly on every OS.
     // In particular, Windows CreateProcess does not execute npm .cmd shims.

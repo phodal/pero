@@ -51,6 +51,8 @@ type ApprovalRequest struct {
 	Reason   string     `json:"reason,omitempty"`
 	// Native is produced only by trusted registration code, never tool arguments.
 	Native *NativeApprovalDescriptor `json:"-"`
+	// Set only by trusted tool registration, never by model arguments.
+	AlwaysAsk bool `json:"alwaysAsk,omitempty"`
 }
 
 // NativeApprovalDescriptor describes required confinement for one native call.

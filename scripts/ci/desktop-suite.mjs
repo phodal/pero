@@ -15,7 +15,7 @@ export const suites = Object.freeze({
   'scientific-viewer': ['scientific-viewer'],
   // Explicit mock Host envelope; real Host contracts remain in core.
   'automations-ui': ['apps/automations/test/ui-smoke.mjs'],
-  // Broad fixture UI states plus actual Electron/Host/Paper persistence, with synthetic metadata only.
+  // Broad UI plus real Host/Paper persistence and clone consent; external seams are explicit fixtures.
   'paper-research-import': ['paper-research-import-all'],
 });
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

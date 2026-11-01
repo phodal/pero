@@ -1,12 +1,16 @@
 import { expect } from '@playwright/test';
 export const chatState = page => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
+export async function focusPaperChat(page) {
+  const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+  await page.mouse.click(viewport.width - 180, viewport.height - 55);
+  await expect.poll(async () => (await chatState(page)).composerFocused).toBe(true);
+}
 export async function fillPaperChat(page, text) {
   const setup = page.getByRole('region', { name: 'App environment', exact: true });
   if (await setup.isVisible()) await setup.getByRole('button', { name: 'Hide', exact: true }).click();
   await expect.poll(async () => { const s = await chatState(page); return s.appChatOpen && s.composer.includes('@Paper Agent'); }).toBe(true);
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
-  const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
-  await page.mouse.click(viewport.width - 180, viewport.height - 55);
+  await focusPaperChat(page);
   const current = (await chatState(page)).composer;
   const referenceStart = current.indexOf('@Paper Agent');
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home');

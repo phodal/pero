@@ -41,6 +41,9 @@ type Tool struct {
 	// RequiresApproval asks the nearest approval channel before execution.
 	// With no channel or grant, execution fails closed as a tool result.
 	RequiresApproval bool
+	// AlwaysAskApproval is trusted registration policy: even auto-review must
+	// consult the existing approval channel for each call. Never/read-only still deny.
+	AlwaysAskApproval bool `json:"-"`
 	// ExecuteRequest receives the exact Agent/call identity for tools whose
 	// behavior depends on the session workspace or other scoped facts. Execute
 	// remains the compact context-free form; exactly one executor is required.

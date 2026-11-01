@@ -19,11 +19,14 @@ func TestPermissionModeDecidesApproval(t *testing.T) {
 	defer h.Dispose(context.Background())
 	for _, row := range []struct {
 		name, mode, tool, operation string
-		never                       bool
+		never, alwaysAsk            bool
 		want                        ApprovalOutcome
 		consulted                   int32
 	}{
 		{name: "unset-asks", tool: "write_file", want: ApprovalAllowedOnce, consulted: 1},
+		{name: "auto-review-explicit-call-asks", mode: "auto-review", tool: "clone_repository", alwaysAsk: true, want: ApprovalAllowedOnce, consulted: 1},
+		{name: "never-still-denies-explicit-call", mode: "auto-review", tool: "clone_repository", alwaysAsk: true, never: true, want: ApprovalRejected},
+		{name: "read-only-still-denies-explicit-call", mode: "read-only", tool: "clone_repository", alwaysAsk: true, want: ApprovalRejected},
 		{name: "auto-review-allows-shell", mode: "auto-review", tool: "shell", operation: "shell", want: ApprovalAllowedOnce},
 		{name: "read-only-rejects-writes", mode: "read-only", tool: "write_file", want: ApprovalRejected},
 		{name: "workspace-asks-for-files", mode: "workspace-write", tool: "write_file", want: ApprovalAllowedOnce, consulted: 1},
@@ -69,7 +72,7 @@ func TestPermissionModeDecidesApproval(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			request := ApprovalRequest{Agent: agent, ToolName: row.tool}
+			request := ApprovalRequest{Agent: agent, ToolName: row.tool, AlwaysAsk: row.alwaysAsk}
 			if row.operation != "" {
 				request.Native = &NativeApprovalDescriptor{Operation: row.operation}
 			}

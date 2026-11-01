@@ -1,18 +1,36 @@
-// Real Electron -> Host App proxy -> Paper HTTP/parser/store. Only metadata fetch is synthetic.
+// Real Electron -> Host App proxy -> Paper HTTP/parser/store. External metadata,
+// clone provider proposals and clone transport are explicitly synthetic seams.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
+import { chatState, focusPaperChat } from './paper-chat-controls.mjs';
+import { clickAppShortcut, clickSessionRow, setAppearance } from './sidebar-controls.mjs';
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { startFixtureProvider } from '../runtime/research-import/fixture-provider.mjs';
+import { prepareCloneFixture } from '../runtime/research-import/clone-fixture.mjs';
 
 const root = resolve(import.meta.dirname, '../..'), out = resolve(root, 'test-results/research-import-host');
 await mkdir(out, { recursive: true });
 const profile = await realpath(await mkdtemp(resolve(tmpdir(), 'pero-research-host-')));
 const settings = resolve(profile, 'settings.json'), agents = resolve(profile, 'agents.json');
-await writeFile(settings, '{}');
+const cloneFixture = process.platform === 'linux' ? await prepareCloneFixture(profile) : null;
+const cloneOptions = {}, provider = cloneFixture ? await startFixtureProvider('clone', '', cloneOptions) : null;
+await writeFile(settings, JSON.stringify(cloneFixture ? { chat_agent: 'clone-fixture' } : {}));
 await writeFile(agents, JSON.stringify(['pero', 'codex', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({ id, name: id, command: resolve(profile, `unavailable-${id}`) }))));
+if (cloneFixture) {
+  const disabled = JSON.parse(await readFile(agents, 'utf8'));
+  disabled.push({ id: 'clone-fixture', name: 'Clone protocol fixture', command: resolve(root, 'target/debug/pero-agent-acp'), args: [
+    '--endpoint', provider.endpoint, '--model', 'fixture', '--api-key-env', 'PERO_CLONE_FIXTURE_KEY',
+    '--session-dir', resolve(profile, 'clone-sessions'), '--workspace', profile, '--enable-research-clone',
+    '--shell', cloneFixture.wrapper, '--approval', 'ask', '--max-retries', '0'],
+    // Explicit AgentConfig environment survives Desktop's PERO_* Host filtering.
+    env: { PERO_CLONE_FIXTURE_KEY: 'local-research-fixture' } });
+  await writeFile(agents, JSON.stringify(disabled));
+}
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop'), PERO_LOCALE: 'en', PERO_SETTINGS_PATH: settings,
   PERO_HISTORY_PATH: resolve(profile, 'sessions.jsonl'), PERO_AGENTS_FILE: agents, PERO_BUILTIN_APPS: 'paper-agent', PERO_REQUIRED_APPS: 'paper-agent', PERO_APP_INFRA_EMBED: '0' };
 delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT;
@@ -51,7 +69,16 @@ try {
   // Patch the disposable installed package before any Paper backend is opened.
   // The production Host, authenticated App API, parser, domain and persistence stay real.
   const installed = resolve(profile, 'desktop/apps/paper-agent/backend');
-  await writeFile(resolve(installed, 'research_fixture.py'), await readFile(resolve(root, 'tests/fixtures/research-resources.py')));
+  let metadataFixture = await readFile(resolve(root, 'tests/fixtures/research-resources.py'), 'utf8');
+  if (cloneFixture) metadataFixture = metadataFixture.replace("'full_name': 'example/forecast', 'private': False,", "'full_name': 'example/forecast', 'private': False, 'default_branch': 'main',") + `
+_original_fetch = fetch
+def fetch(url, **options):
+    if url == 'https://api.github.com/repos/example/forecast/commits/main':
+        from paper_agent.resource_fetch import WebDocument
+        return WebDocument(url, 'application/json', json.dumps({'sha': '${cloneFixture.revision}', 'html_url': '${cloneFixture.url}/commit/${cloneFixture.revision}'}))
+    return _original_fetch(url, **options)
+`;
+  await writeFile(resolve(installed, 'research_fixture.py'), metadataFixture);
   const entry = resolve(installed, 'server.py'), original = await readFile(entry, 'utf8');
   const marker = '    store = ResearchStore(os.environ["PERO_APP_DATA"], open_embedder())';
   expect(original).toContain(marker);
@@ -114,7 +141,8 @@ try {
   await expect(frame.getByText('Saved references', { exact: true })).toBeVisible();
   expect((await library(frame)).bundles).toEqual(saved.bundles); expect((await library(frame)).papers).toEqual(saved.papers);
   await page.screenshot({ path: resolve(out, 'host-reopened-bundle.png') });
-  // Exercise the existing Host composer and its frozen-context preview, never submit.
+  // First prove the existing Host composer handoff is unsent; Linux then separately
+  // submits controlled proposals and exercises actual permission UI and native Git.
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900));
   await frame.locator('body').evaluate(() => {
     window.researchCloneReplies = [];
@@ -143,13 +171,134 @@ try {
   await preview.getByRole('button', { name: 'Close', exact: true }).click();
   expect((await library(frame)).bundles).toEqual(saved.bundles);
   checks.push('Clone with Agent receives actual Host acknowledgement and a frozen provenance attachment in the unsent composer; user-message count and saved bundle remain unchanged, no clone executed');
+  if (cloneFixture) {
+    expect(code.revision).toBe(cloneFixture.revision);
+    cloneOptions.cloneRequest = { url: code.url, revision: code.revision, destination: 'reviewed-code', license: code.license || 'unknown', sizeBytes: code.size, bundleId: bundle.id, resourceId: code.id };
+    const destination = resolve(profile, 'reviewed-code'), threadId = acknowledgment.value.threadId;
+    // Desktop Workbench renders floating Chat in its root GPUI canvas (unlike
+    // the separate Product Chat iframe). Match paper-chat-controls/workbench-floating.
+    // Enter runs send_chat/submit_prompt and preserves frozen attachments.
+    const renderCanvas = () => page.locator('canvas:not([role="textbox"])');
+    const state = () => chatState(page);
+    await expect(renderCanvas()).toHaveCount(1);
+    const chat = async () => (await state()).chats.find(item => item.id === threadId);
+    const propose = async () => {
+      await expect.poll(async () => (await state()).composer).toContain('Prepare a repository clone from the attached saved Paper reference.');
+      const current = await state();
+      expect(current.chats[current.activeChat]).toMatchObject({ id: threadId, agent: 'clone-fixture' });
+      expect(current.attachments).toHaveLength(1);
+      expect(current.appChatOpen && current.floatingChat).toBe(true);
+      if (current.chats[current.activeChat].error) throw Error(current.chats[current.activeChat].error);
+      await focusPaperChat(page);
+      await page.keyboard.press('Enter');
+      await expect.poll(async () => (await state()).composer).toBe('');
+    };
+    const choose = async index => {
+      await expect.poll(async () => {
+        const current = await chat();
+        if (current?.error) throw Error(current.error);
+        return Boolean(current?.permission);
+      }, { timeout: 20000 }).toBe(true);
+      const permission = (await chat()).permission, permissionId = permission.permission_id;
+      const optionId = permission.options[index].optionId;
+      expect(optionId).toBe(index === 0 ? 'allow-once' : 'reject-once');
+      const evidence = { permissionId, optionId, index, providerRequestsBefore: provider.requests(), samples: [] };
+      const probe = () => page.evaluate(({ threadId, index }) => {
+        const state = JSON.parse(window.peroDiagnostics.snapshot());
+        const permission = state.chats.find(chat => chat.id === threadId)?.permission;
+        const bounds = state.permissionBounds.find(item => item.chat === threadId && item.index === index)?.bounds;
+        const canvas = document.querySelector('canvas:not([role="textbox"])');
+        const rect = canvas?.getBoundingClientRect();
+        const point = bounds && { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+        const hit = point && document.elementFromPoint(point.x, point.y);
+        const describe = element => element && { tag: element.tagName, id: element.id, role: element.getAttribute('role'),
+          title: element.getAttribute('title'), bounds: element.getBoundingClientRect().toJSON(),
+          pointerEvents: getComputedStyle(element).pointerEvents, zIndex: getComputedStyle(element).zIndex, clipPath: getComputedStyle(element).clipPath };
+        return { permissionId: permission?.permission_id, optionId: permission?.options[index]?.optionId,
+          bounds, canvas: rect?.toJSON(), point, hit: { ...describe(hit), isCanvas: hit === canvas },
+          hitParents: [describe(hit?.parentElement), describe(hit?.parentElement?.parentElement)],
+          viewport: { width: innerWidth, height: innerHeight, devicePixelRatio }, expanded: state.floatingChatExpanded };
+      }, { threadId, index });
+      // Approval expands the float and chat tail-follow applies on later frames.
+      // Wait for painted geometry, not just the first nonzero prepaint probe.
+      let previous;
+      try {
+        await expect.poll(async () => {
+          await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
+          const sample = await probe(); evidence.samples.push(sample);
+          const stable = JSON.stringify(sample) === JSON.stringify(previous); previous = sample;
+          return stable && sample.permissionId === permissionId && sample.optionId === optionId && sample.expanded &&
+            sample.bounds?.width > 0 && sample.hit.isCanvas && sample.canvas?.x === 0 && sample.canvas?.y === 0;
+        }).toBe(true);
+        evidence.before = previous;
+        await page.evaluate(() => {
+          window.clonePointerEvents = [];
+          window.clonePointerListener = event => window.clonePointerEvents.push({ type: event.type, x: event.clientX, y: event.clientY, target: event.target?.tagName });
+          for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) document.addEventListener(type, window.clonePointerListener, true);
+        });
+        // Root Workbench diagnostics are viewport coordinates, as in workbench.mjs.
+        await page.mouse.click(previous.point.x, previous.point.y);
+        await expect.poll(async () => (await chat()).permission).toBeNull();
+        await expect.poll(async () => (await chat()).state, { timeout: 20000 }).toBe('idle');
+      } finally {
+        evidence.after = { permission: (await chat())?.permission, state: (await chat())?.state, providerRequests: provider.requests(), geometry: await probe() };
+        evidence.pointerEvents = await page.evaluate(() => {
+          for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) document.removeEventListener(type, window.clonePointerListener, true);
+          return window.clonePointerEvents || [];
+        });
+        await writeFile(resolve(out, `host-clone-permission-${index}.json`), JSON.stringify(evidence, null, 2));
+      }
+    };
+    await propose(); await choose(1);
+    expect(existsSync(destination)).toBe(false); expect(existsSync(cloneFixture.marker)).toBe(false);
+    await page.screenshot({ path: resolve(out, 'host-clone-denied-no-effects.png') });
+    await frame.getByRole('button', { name: 'Clone with Agent', exact: true }).click();
+    await propose(); await choose(0);
+    const tool = (await chat()).tools.at(-1);
+    expect(tool.status).toBe('completed');
+    const output = tool.output.map(item => item.content?.text || '').join('');
+    const receipt = JSON.parse(output);
+    expect(receipt).toMatchObject({ state: 'completed', resolvedCommit: cloneFixture.revision, origin: code.url, checkout: false });
+    expect(execFileSync('git', ['-C', destination, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()).toBe(code.revision);
+    expect(execFileSync('git', ['-C', destination, 'config', '--get', 'remote.origin.url'], { encoding: 'utf8' }).trim()).toBe(code.url);
+    expect(existsSync(resolve(destination, 'README.md'))).toBe(false);
+    expect((await readFile(cloneFixture.marker, 'utf8')).trim().split('\n')).toHaveLength(1);
+    const expandReceipt = async () => {
+      const key = `${threadId}/${tool.id}`;
+      if (!(await state()).expandedTools.includes(key)) {
+        await expect.poll(async () => (await state()).toolBounds.find(item => item.chat === threadId && item.tool === tool.id)?.bounds?.width ?? 0).toBeGreaterThan(0);
+        const bounds = (await state()).toolBounds.find(item => item.chat === threadId && item.tool === tool.id).bounds;
+        const canvas = await renderCanvas().boundingBox();
+        await page.mouse.click(canvas.x + bounds.x + 20, canvas.y + bounds.y + bounds.height / 2);
+      }
+      await expect.poll(async () => (await state()).expandedTools).toContain(key);
+    };
+    await expandReceipt();
+    await page.screenshot({ path: resolve(out, 'host-clone-actual-tool-receipt.png') });
+    const callsBeforeRestart = provider.requests();
+    await app.close(); app = await launch(); await ready(); frame = await openPaper();
+    await frame.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: 'Synthetic forecasting release', exact: true }).click();
+    expect((await library(frame)).bundles).toEqual(saved.bundles);
+    // Clone with Agent prepares a new request after restart; it is not a history
+    // selector. Reopen the original persisted conversation through Sessions UI.
+    await clickSessionRow(page, threadId);
+    await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'conversation', value: threadId });
+    await expect.poll(async () => { const current = await state(); return current.chats[current.activeChat]?.id; }).toBe(threadId);
+    await expect.poll(async () => (await chat())?.tools.find(item => item.id === tool.id)?.status).toBe('completed');
+    const restored = (await chat()).tools.find(item => item.id === tool.id);
+    expect(JSON.parse(restored.output.map(item => item.content?.text || '').join(''))).toEqual(receipt);
+    await expandReceipt();
+    expect(provider.requests()).toBe(callsBeforeRestart); expect(provider.errors).toEqual([]);
+    await page.screenshot({ path: resolve(out, 'host-clone-history-reopened.png') });
+    checks.push('Linux real Desktop Host permission Reject has zero Git effects; Allow runs actual Go native and Git through an owned local transport seam; actual tool receipt expands and survives restart without replay. Not a public HTTPS clone or real-model test.');
+  }
   const fetches = (await readFile(resolve(profile, 'desktop/app-data/paper-agent/research-fixture-fetches.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
   expect(fetches.length).toBeGreaterThan(2); expect(fetches.every(item => !item.url.includes('/resolve/'))).toBe(true);
-  checks.push('Actual Electron/Host/Paper restart preserves bundle and snapshots; zero asset handoffs or binary URLs, no Agent invocation');
+  checks.push('Actual Electron/Host/Paper restart preserves bundle and snapshots; zero asset handoffs or binary URLs; clone protocol fixture is separately reported');
   await expect.poll(() => Object.keys(payloads).length).toBe(2);
   for (const extension of ['js', 'css']) expect(payloads[extension]).toBe(createHash('sha256').update(await readFile(resolve(root, `apps/paper-agent/dist/index.${extension}`))).digest('hex'));
   expect(errors).toEqual([]); expect(assetRequests).toEqual([]);
-  await writeFile(resolve(out, 'result.json'), JSON.stringify({ checks, errors, payloads, metadataRequests: fetches, scope: 'Real Electron + Rust Host + Paper Python HTTP/parser/store; only external metadata fetch is synthetic. No model, PDF, binary download or live-network acceptance.' }, null, 2));
+  await writeFile(resolve(out, 'result.json'), JSON.stringify({ checks, errors, payloads, metadataRequests: fetches, scope: 'Real Electron + Rust Host + Paper Python HTTP/parser/store; external metadata, scripted provider and clone transport are synthetic. No real model, PDF, model/data download or public-network acceptance. Linux clone uses actual native Git with a test-only local transport wrapper.' }, null, 2));
   console.log(JSON.stringify({ checks, errors, payloads }, null, 2));
 } catch (error) {
   if (page) {
@@ -159,4 +308,4 @@ try {
       text: await page.frameLocator('iframe[title="paper-agent"]').locator('body').innerText({ timeout: 1000 }).catch(() => 'App unavailable') }, null, 2));
   }
   throw error;
-} finally { if (app) await app.close(); await rm(profile, { recursive: true, force: true }); }
+} finally { if (app) await app.close(); if (provider) await provider.close(); await rm(profile, { recursive: true, force: true }); }
