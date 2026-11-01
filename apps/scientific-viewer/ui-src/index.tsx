@@ -36,21 +36,39 @@ function Preview({ asset }: { asset: Asset }) {
 }
 export default function ScientificViewer() {
   const [assets, setAssets] = useState<Asset[]>([]), [selected, setSelected] = useState(''), [error, setError] = useState('');
+  const [pendingRemoval, setPendingRemoval] = useState<{ id: string; name: string } | null>(null), [removing, setRemoving] = useState(false);
   const chat = useAppChat(); const asset = assets.find(item => item.id === selected);
   const refresh = async () => setAssets(await files());
   useEffect(() => { void refresh().catch(error => setError(String(error))); }, []);
   async function importFile(file: File, synthetic = false) {
     setError('');
-    try { const item = await assetFrom(file, synthetic ? { synthetic: true, source: 'Pero independently authored synthetic example', license: 'CC0-1.0' } : {}); await saveFile(item); await refresh(); setSelected(item.id); }
+    try { const item = await assetFrom(file, synthetic ? { synthetic: true, source: 'Pero independently authored synthetic example', license: 'CC0-1.0' } : {}); await saveFile(item); await refresh(); setPendingRemoval(null); setSelected(item.id); }
     catch (error) { setError(String(error)); }
+  }
+  async function confirmRemoval() {
+    if (!pendingRemoval || removing) return;
+    const { id } = pendingRemoval;
+    setRemoving(true); setError('');
+    try {
+      await removeFile(id);
+      setSelected(current => current === id ? '' : current);
+      setPendingRemoval(null);
+      await refresh();
+    } catch (error) { setError(String(error)); }
+    finally { setRemoving(false); }
   }
   return <main className="scientific-viewer"><header><h1>Scientific Viewer</h1><button onClick={() => void openPaperApp().catch(error => setError(String(error)))}>Open Paper App</button><label className="import">Import file<input aria-label="Import file" type="file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }} /></label>
     <select aria-label="Example" value="" onChange={event => { const example = examples.find(item => item.name === event.target.value); if (example) void importFile(new File([example.text], example.name), true); }}><option value="">Examples</option>{examples.map(item => <option key={item.name}>{item.name}</option>)}</select></header>
     <p className="muted">Local files · 10 MiB per file · Stored in this App profile · Unverified</p>{error && <p role="alert">{error}</p>}
-    <div className="layout"><aside aria-label="Files">{assets.map(item => <button key={item.id} aria-current={item.id === selected} onClick={() => setSelected(item.id)}>{item.name}</button>)}{!assets.length && <p>Import a file or choose an example.</p>}</aside>
+    <div className="layout"><aside aria-label="Files">{assets.map(item => <button key={item.id} aria-current={item.id === selected} onClick={() => { setPendingRemoval(null); setSelected(item.id); }}>{item.name}</button>)}{!assets.length && <p>Import a file or choose an example.</p>}</aside>
       <article>{asset && <><h2>{asset.name}</h2><dl><dt>Size</dt><dd>{asset.size} bytes</dd><dt>Source</dt><dd>{asset.source}</dd><dt>License</dt><dd>{asset.license}</dd><dt>SHA-256</dt><dd className="hash">{asset.sha256}</dd><dt>Status</dt><dd>{asset.synthetic ? 'Synthetic example · ' : ''}Unverified</dd></dl>
         <button onClick={() => void chat.compose(`Inspect metadata for ${asset.name}. SHA-256 ${asset.sha256}; source: ${asset.source}; license: ${asset.license}. Unverified. File contents have not been shared.`).catch(error => setError(String(error)))}>Discuss metadata</button>
-        <button onClick={() => void removeFile(asset.id).then(() => { setSelected(''); return refresh(); }).catch(error => setError(String(error)))}>Remove local copy</button>
+        <button disabled={removing} onClick={() => setPendingRemoval({ id: asset.id, name: asset.name })}>Remove local copy</button>
+        {pendingRemoval && <div role="group" aria-label="Confirm local copy removal" onKeyDown={event => { if (event.key === 'Escape' && !removing) { event.preventDefault(); setPendingRemoval(null); } }}>
+          <p>Remove “{pendingRemoval.name}” from this App? The original file is unchanged.</p>
+          <button autoFocus disabled={removing} onClick={() => setPendingRemoval(null)}>Cancel</button>
+          <button disabled={removing} onClick={() => void confirmRemoval()}>{removing ? 'Removing…' : 'Confirm removal'}</button>
+        </div>}
         <PreviewBoundary key={asset.id}><Preview asset={asset} /></PreviewBoundary></>}</article></div>
   </main>;
 }

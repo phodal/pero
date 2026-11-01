@@ -79,7 +79,26 @@ try{
  await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'empty.smi',mimeType:'text/plain',buffer:Buffer.from(' \n\t\n')});
  await expect(frame.getByRole('alert')).toContainText('No molecule records');await expect(frame.getByText('Preparing molecule preview…',{exact:true})).toHaveCount(0);
  await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'model.weights',mimeType:'application/octet-stream',buffer:Buffer.from('opaque synthetic model')});await expect(frame.getByText(/Metadata only/)).toBeVisible();
+ // Removal is explicit, defaults to Cancel, and affects only the App copy.
+ const removalPath=resolve(temp,'removal-check.json'),removalBytes=Buffer.from('{"synthetic":"local copy removal"}');
+ await writeFile(removalPath,removalBytes);
+ await frame.getByLabel('Import file',{exact:true}).setInputFiles(removalPath);
+ await expect(frame.getByRole('heading',{name:'removal-check.json',exact:true})).toBeVisible();
+ const removal=frame.getByRole('group',{name:'Confirm local copy removal',exact:true});
+ await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();
+ await expect(removal).toContainText('removal-check.json');await expect(removal.getByRole('button',{name:'Cancel',exact:true})).toBeFocused();
+ await removal.getByRole('button',{name:'Cancel',exact:true}).click();await expect(removal).toHaveCount(0);
+ await expect(frame.getByRole('button',{name:'removal-check.json',exact:true})).toBeVisible();
+ await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();await page.keyboard.press('Escape');await expect(removal).toHaveCount(0);
+ await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();
+ await frame.getByRole('button',{name:'model.weights',exact:true}).click();await expect(removal).toHaveCount(0);
+ await frame.getByRole('button',{name:'removal-check.json',exact:true}).click();
+ await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();await removal.getByRole('button',{name:'Confirm removal',exact:true}).click();
+ await expect(frame.getByRole('button',{name:'removal-check.json',exact:true})).toHaveCount(0);
+ await expect(frame.getByRole('button',{name:'model.weights',exact:true})).toBeVisible();expect(await readFile(removalPath)).toEqual(removalBytes);
+ checks.push('confirmed local-copy removal; original disk file retained');
  await closeOwnedElectron(app);app=undefined;app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));await open();await frame.getByRole('button',{name:'sample.pdf',exact:true}).click();await expect(frame.getByText('1 quotations, 1 figure crops. Unreviewed.',{exact:true})).toBeVisible();await expect(frame.locator('summary').filter({hasText:'Agent review — completed — unreviewed'})).toBeVisible();expect((await readFile(capture,'utf8')).trim().split('\n')).toHaveLength(1);
+ await expect(frame.getByRole('button',{name:'removal-check.json',exact:true})).toHaveCount(0);expect(await readFile(removalPath)).toEqual(removalBytes);
  await frame.getByRole('button',{name:'model.weights',exact:true}).click();await expect(frame.getByText(/Metadata only/)).toBeVisible();await setAppearance(page,'dark');const narrowSize=await app.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.setSize(800,700);return window.getContentSize();});
  await page.waitForFunction(([width,height])=>{const canvas=document.querySelector('canvas');return innerWidth===width&&innerHeight===height&&canvas?.width===Math.round(width*devicePixelRatio)&&canvas.height===Math.round(height*devicePixelRatio);},narrowSize);
  await expect.poll(()=>frame.locator('html').evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
