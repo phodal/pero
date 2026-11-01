@@ -1,4 +1,5 @@
 // Actual Electron/Host/Paper source-only UI. All default inputs are authored fixtures; no Agent runs.
+import { execFileSync } from 'node:child_process';
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { openResearchImport, researchUiState } from './paper-research-ui-controls.mjs';
@@ -88,7 +89,7 @@ try {
   expect(acquired.localAvailable).toBe(true); expect(bundle.pdfDownloadIds).toEqual([]);
   if (live) {
     await row(source.title).getByText('Source archive provenance', { exact: true }).click();
-    await sources().screenshot({ path: resolve(out, 'live-source-receipt.png') });
+    // Live third-party source UI is never captured in public artifacts.
   }
   await row(source.title).getByRole('button', { name: 'Browse source files', exact: true }).click();
   const catalog = await api('/api/research/source-read', { operation: 'list', bundleId: bundle.id, resourceId: source.id });
@@ -222,9 +223,17 @@ try {
     checks.push('Cancellation interrupts source acquisition; explicit retry accepts gzip single TeX; PDF-only response never claims TeX');
   }
   expect(errors).toEqual([]); expect(acquisitionConflicts).toEqual([]);
+  if (live) {
+    await app.close(); app = null;
+    execFileSync('python3', [resolve(root, 'tests/e2e/paper-source-live.py'),
+      '--cache', resolve(profile, 'desktop/app-data/paper-agent'), '--output', resolve(out, 'three-materials.json'),
+      '--aptamer-bundle', bundle.id, '--aptamer-resource', source.id],
+      { cwd: root, env, timeout: 105000, stdio: 'pipe' });
+    checks.push('Three fixed-v1 real source CLI journeys: classification, original scopes, reports and restart');
+  }
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ checks, errors, receipts, acquisitionConflicts, network: live ? 'real arXiv product path' : 'synthetic transport', agent: 'none', compilation: 'none', sourceBytesExported: false }, null, 2));
 } catch (error) {
-  if (page) {
+  if (page && !live) {
     await page.screenshot({ path: resolve(out, 'failure.png'),
       ...(live ? { mask: [page.locator('iframe[title="paper-agent"]'), page.locator('canvas')] } : {}) }).catch(() => {});
     await writeFile(resolve(out, 'failure-view.json'), JSON.stringify(
