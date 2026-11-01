@@ -73,6 +73,7 @@ async function assertFinalReport(experiment) {
   expect(experiment.report.candidateId).toBe(experiment.lockedCandidateId);
   for (const scenario of scenarios) expect(experiment.report.checks.some(check => check.name === scenario.label || check.name.startsWith(`${scenario.label} / `))).toBe(true);
   for (const [index, check] of experiment.report.checks.entries()) {
+    await expect(rows.nth(index).locator('td')).toHaveCount(5);
     await expect(rows.nth(index).locator('td').nth(0)).toHaveText(check.name);
     await expect(rows.nth(index).locator('td').nth(1)).toHaveText(check.verdict);
     await expect(rows.nth(index).locator('td').nth(4)).toHaveText(check.message);
@@ -249,18 +250,20 @@ try {
     const lockedCandidate = verified.candidates.find(item => item.id === verified.lockedCandidateId);
     const lockedRow = frame.getByRole('button', { name: `Select ${lockedCandidate.label}`, exact: true });
     await expect(lockedRow).toContainText(`${lockedCandidate.label} (locked)`);
-    const finalCheckText = await verification.locator('table tbody').innerText();
+    const finalCheckRows = () => verification.locator('table tbody tr').evaluateAll(rows =>
+      rows.map(row => Array.from(row.querySelectorAll('td'), cell => cell.textContent)));
+    const finalCheckCells = await finalCheckRows();
     const otherCandidate = verified.candidates.find(item => item.id !== verified.lockedCandidateId);
     if (otherCandidate) {
       const otherRow = frame.getByRole('button', { name: `Select ${otherCandidate.label}`, exact: true });
       await otherRow.click();
       await expect(otherRow).toHaveAttribute('aria-pressed', 'true');
       await expect(lockedRow).toContainText(`${lockedCandidate.label} (locked)`);
-      await expect(verification.locator('table tbody')).toHaveText(finalCheckText);
+      await expect.poll(finalCheckRows).toEqual(finalCheckCells);
       expect((await read(experimentPath(frozen.id))).report).toEqual(verified.report);
       await lockedRow.click();
       await expect(lockedRow).toHaveAttribute('aria-pressed', 'true');
-      await expect(verification.locator('table tbody')).toHaveText(finalCheckText);
+      await expect.poll(finalCheckRows).toEqual(finalCheckCells);
     }
     const reevaluated = await action('Re-evaluate evidence', `${experimentPath(frozen.id)}/reevaluate`);
     expect(reevaluated.trials).toEqual(verified.trials);
