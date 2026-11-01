@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 export const suites = Object.freeze({
   workbench: ['workbench'], automation: ['automation'], toolcalls: ['toolcalls'], data: ['data'], 'data-product': ['data-product'],
-  lab: ['lab'], 'control-lab': ['control-lab'], 'control-lab-app-use': ['control-lab-app-use'], 'control-lab-live': ['control-lab-live'],
+  'control-lab': ['control-lab'], 'control-lab-app-use': ['control-lab-app-use'], 'control-lab-live': ['control-lab-live'], lab: ['lab'],
   'virtual-cell-comparison': ['virtual-cell-comparison'], 'virtual-cell-dataset-download': ['virtual-cell-dataset-download'],
   'app-use': ['app-use'], 'app-use-workbench': ['app-use-workbench'],
   'mcp-lifecycle': ['mcp-settings', '--scenario', 'lifecycle'],
