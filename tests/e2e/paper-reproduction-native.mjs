@@ -50,10 +50,8 @@ if (process.platform !== 'linux') {
       // GTK disables the owner while its native modal is open. If the installed
       // Electron does not expose this readiness, fail; never substitute a delay.
       await expect.poll(() => application.evaluate(() => globalThis.paperNative.state().disabled), { timeout: 10000 }).toBe(true);
-      await application.evaluate(mode => {
-        if (mode === 'abort') globalThis.paperNative.abort();
-        else globalThis.paperNative.closeOwner();
-      }, mode);
+      if (mode === 'abort') await application.evaluate(() => globalThis.paperNative.abort());
+      else await application.evaluate(() => globalThis.paperNative.closeOwner());
       await expect.poll(() => application.evaluate(() => globalThis.paperNative.state().result), { timeout: 10000 }).toBe(false);
       const state = await application.evaluate(() => globalThis.paperNative.state());
       assert.equal(state.failure, undefined);

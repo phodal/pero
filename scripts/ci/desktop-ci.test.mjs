@@ -166,3 +166,29 @@ test('Linux gate permits only full Desktop/platform skips; full gate requires th
     assert.deepEqual(failures({ core: { result } }, false), ['core']);
   assert.deepEqual(failures({ desktop: { result: 'failure' } }, false), ['desktop']);
 });
+
+test('native reproduction fixture dispatches cancellation modes outside Electron evaluate arguments', async () => {
+  const source = readFileSync('tests/e2e/paper-reproduction-native.mjs', 'utf8');
+  const readiness = source.indexOf('globalThis.paperNative.state().disabled)');
+  assert.ok(readiness >= 0);
+  const start = source.indexOf('\n', readiness) + 1;
+  const end = source.indexOf('      await expect.poll(() => application.evaluate(() => globalThis.paperNative.state().result)', start);
+  assert.ok(end > start);
+  // Execute the actual fixture dispatch, not a copy of its branching logic.
+  // Electron evaluate supplies Electron's API as the callback's first argument.
+  const dispatch = new Function('application', 'mode', `return (async () => { ${source.slice(start, end)} })()`);
+  const previous = globalThis.paperNative;
+  const calls = [];
+  globalThis.paperNative = { abort: () => calls.push('abort'), closeOwner: () => calls.push('close') };
+  try {
+    const application = { async evaluate(callback, argument) { return callback({ electronAPI: true }, argument); } };
+    await dispatch(application, 'abort');
+    assert.deepEqual(calls, ['abort']);
+    calls.length = 0;
+    await dispatch(application, 'owner-close');
+    assert.deepEqual(calls, ['close']);
+  } finally {
+    if (previous === undefined) delete globalThis.paperNative;
+    else globalThis.paperNative = previous;
+  }
+});

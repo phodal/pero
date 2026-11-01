@@ -153,3 +153,10 @@ monkeypatching the dialog or running a worker. It has no timing fallback.
 Native execution remains pending CI at this commit; this test cannot establish
 an actual Run-once click, a configured Host/Python journey, human identity or
 scientific reproduction.
+
+The first native lifecycle CI attempt failed in the test invocation adapter:
+Electron's injected API argument was mistaken for the requested cancellation
+mode. Dispatch now selects the mode outside Electron evaluation, with an offline
+invocation-contract regression. The distinct native assertions are unchanged;
+that failed attempt did not verify both modes or reach the later shared-reader
+journey. Both remain pending a successful rerun.
