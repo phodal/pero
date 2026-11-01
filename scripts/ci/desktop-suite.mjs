@@ -17,19 +17,20 @@ export const suites = Object.freeze({
   'automations-ui': ['apps/automations/test/ui-smoke.mjs'],
   // Broad fixture UI states plus actual Electron/Host/Paper persistence, with synthetic metadata only.
   'paper-research-import': ['paper-research-import-all'],
+  'paper-reading': ['paper-reading'],
 });
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const name = process.argv[2];
   if (!Object.hasOwn(suites, name)) throw new Error(`Unknown acceptance suite: ${name}`);
   const [script, ...args] = suites[name];
   const env = { ...process.env };
-  if (name === 'automations-ui' || name === 'paper-research-import') {
+  if (name === 'automations-ui' || name === 'paper-research-import' || name === 'paper-reading') {
     const { chromium } = await import('@playwright/test');
     env.PERO_CHROMIUM_PATH = chromium.executablePath();
   }
   const scriptPath = name === 'automations-ui' ? script : `tests/e2e/${script}.mjs`;
   if (name.startsWith('control-lab')) env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'control-lab-python/bin/python');
-  if (name === 'paper-research-import') env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'paper-research-python/bin/python');
+  if (name === 'paper-research-import' || name === 'paper-reading') env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'paper-research-python/bin/python');
   if (name === 'lab') env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'lab-python/bin/python');
   if (name === 'scientific-viewer') env.PERO_APP_PYTHON = resolve(process.env.RUNNER_TEMP, 'scientific-viewer-python/bin/python');
   if (name === 'control-lab-live') {

@@ -338,3 +338,12 @@ without an Agent. The Host must enable Paper's `research-assets` grant and Data;
 Paper cannot access Data's private directory or backend token.
 
 Developer boundaries and verification: [Research URL import](../../docs/fitness/research-resource-import.md).
+
+## Structured Read
+
+For an explicitly selected arXiv vN, review **Allow official HTML for Read**
+separately from PDF permission, then choose **Prepare Read** in the saved paper.
+Tables, equations and figure metadata retain source structure; **Reveal original**
+shows the actual inert HTML bytes. Read/PDF keeps the existing PDF viewer state.
+Images are not downloaded, and parsed content is not automatically study evidence.
+See [scope and verification](../../docs/fitness/paper-structured-reading.md).

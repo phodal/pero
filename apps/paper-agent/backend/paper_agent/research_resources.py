@@ -265,16 +265,44 @@ class ImportDraft:
 
 
 @dataclass(frozen=True)
+class OfficialHtml:
+    """An independently reviewed official HTML representation of a fixed work."""
+    work: str
+    revision: str
+
+    @classmethod
+    def from_resource(cls, resource):
+        work = (resource.workIdentity or '').removeprefix('arxiv:')
+        if (resource.kind not in ('paper', 'pdf_candidate')
+                or resource.workIdentity != 'arxiv:' + work
+                or not ARXIV.fullmatch(work) or re.search(r'v\d+$', work, re.I)
+                or not re.fullmatch(r'v[1-9]\d*', resource.revision or '')):
+            raise Invalid('Choose a paper or PDF with an explicit arXiv work and version for HTML', 409)
+        for url in (resource.url, resource.originalUrl):
+            parsed = urlsplit(url)
+            if parsed.hostname in ('arxiv.org', 'www.arxiv.org'):
+                match = re.fullmatch(r'/(?:abs|pdf|html)/(.+?)(v[1-9]\d*)(?:\.pdf)?', parsed.path)
+                if match and (match[1].lower(), match[2]) != (work.lower(), resource.revision):
+                    raise Invalid('The HTML work/version conflicts with the source reference', 409)
+        return cls(work.lower(), resource.revision)
+
+    @property
+    def url(self):
+        return 'https://arxiv.org/html/' + self.work + self.revision
+
+
+@dataclass(frozen=True)
 class ImportSelection:
     draftId: str
     resourceIds: tuple[str, ...]
     downloadIds: tuple[str, ...] = ()
     pdfIds: tuple[str, ...] = ()
     sourceIds: tuple[str, ...] = ()
+    htmlIds: tuple[str, ...] = ()
 
     @classmethod
     def parse(cls, value, draft):
-        if set(value) - {'draftId', 'resourceIds', 'downloadIds', 'pdfIds', 'sourceIds', 'confirmedDownloads'} or value.get('draftId') != draft.id:
+        if set(value) - {'draftId', 'resourceIds', 'downloadIds', 'pdfIds', 'sourceIds', 'htmlIds', 'confirmedDownloads'} or value.get('draftId') != draft.id:
             raise Invalid('Invalid import selection')
         if draft.status != 'ready':
             raise Invalid('Inspect this link before saving references', 409)
@@ -298,9 +326,19 @@ class ImportSelection:
             raise Invalid('Select an explicit arXiv source version before downloading')
         if any(r.id in sources and urlsplit(r.url).path.lower().endswith('.zip') for r in draft.resources):
             raise Invalid('ZIP source archives are unsupported; save references only')
-        if (downloads or pdfs or sources) and value.get('confirmedDownloads') is not True:
+        html = value.get('htmlIds', [])
+        if not isinstance(html, list) or len(html) > 16 or any(not isinstance(i, str) for i in html) or len(set(html)) != len(html) or not set(html) <= set(ids):
+            raise Invalid('Select only official HTML from selected references')
+        html_targets = {}
+        for resource in draft.resources:
+            if resource.id in html:
+                target = OfficialHtml.from_resource(resource).url
+                if resource.id in html_targets and html_targets[resource.id] != target:
+                    raise Invalid('Choose one explicit version for each HTML reference')
+                html_targets[resource.id] = target
+        if (downloads or pdfs or sources or html) and value.get('confirmedDownloads') is not True:
             raise Invalid('Confirm selected download sizes and licenses before continuing')
-        return cls(draft.id, tuple(ids), tuple(downloads), tuple(pdfs), tuple(sources))
+        return cls(draft.id, tuple(ids), tuple(downloads), tuple(pdfs), tuple(sources), tuple(html))
 
 
 @dataclass(frozen=True)
@@ -315,16 +353,30 @@ class ResearchBundle:
     identities: tuple[str, ...] = ()
     pdfDownloadIds: tuple[str, ...] = ()
     sourceDownloadIds: tuple[str, ...] = ()
+    htmlDownloadIds: tuple[str, ...] = ()
+
+    def approved_html(self, resource_id):
+        if resource_id not in self.htmlDownloadIds:
+            raise Invalid('This official HTML was not independently confirmed in the research review', 403)
+        resource = next((r for r in self.resources if r.id == resource_id), None)
+        if resource is None:
+            raise Invalid('Approved HTML reference is unavailable; inspect the source again', 409)
+        OfficialHtml.from_resource(resource)
+        return resource
 
     def to_dict(self):
-        return {**asdict(self), 'resources': [r.to_dict() for r in self.resources]}
+        result = {**asdict(self), 'resources': [r.to_dict() for r in self.resources]}
+        if not self.htmlDownloadIds:
+            result.pop('htmlDownloadIds')
+        return result
 
     @classmethod
     def from_record(cls, value):
         return cls(**{**value, 'resources': tuple(ResearchResource.from_record(r) for r in value['resources']),
                       'downloadIds': tuple(value['downloadIds']), 'identities': tuple(value['identities']),
                       'pdfDownloadIds': tuple(value.get('pdfDownloadIds', ())),
-                      'sourceDownloadIds': tuple(value.get('sourceDownloadIds', ()))})
+                      'sourceDownloadIds': tuple(value.get('sourceDownloadIds', ())),
+                      'htmlDownloadIds': tuple(value.get('htmlDownloadIds', ()))})
 
     @classmethod
     def selected(cls, draft, selection, now, previous=None):
@@ -339,8 +391,23 @@ class ResearchBundle:
                     selected[resource.id] = resource
         seed = next((r for r in draft.resources if r.id == draft.id), draft.resources[0])
         identities = tuple(dict.fromkeys((*(previous.identities if previous else ()), seed.identity, *seed.aliases)))
+        html = []
+        if previous:
+            for resource in previous.resources:
+                current = selected.get(resource.id)
+                if resource.id in previous.htmlDownloadIds and current and (resource.workIdentity, resource.revision, resource.kind) == (current.workIdentity, current.revision, current.kind):
+                    html.append(resource.id)
+        for resource in draft.resources:
+            if resource.id in selection.htmlIds:
+                target = OfficialHtml.from_resource(resource).url
+                aliases = {resource.identity, *resource.aliases}
+                html.extend(item.id for item in selected.values()
+                            if aliases.intersection((item.identity, *item.aliases))
+                            and item.kind in ('paper', 'pdf_candidate') and item.workIdentity == resource.workIdentity
+                            and item.revision == resource.revision and OfficialHtml.from_resource(item).url == target)
         return cls(previous.id if previous else seed.id, previous.seedUrl if previous else draft.seedUrl,
                    seed.title, tuple(selected.values()), previous.createdAt if previous else now, now,
                    tuple(dict.fromkeys((*(previous.downloadIds if previous else ()), *selection.downloadIds))), identities,
                    tuple(dict.fromkeys((*(previous.pdfDownloadIds if previous else ()), *selection.pdfIds))),
-                   tuple(dict.fromkeys((*(previous.sourceDownloadIds if previous else ()), *selection.sourceIds))))
+                   tuple(dict.fromkeys((*(previous.sourceDownloadIds if previous else ()), *selection.sourceIds))),
+                   tuple(dict.fromkeys(html)))

@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Feedback } from '@pero/app-sdk/ui';
+import { Button, Disclosure, Feedback } from '@pero/app-sdk/ui';
 import type { Api, PdfFocus } from './types';
 import { ResourceDetails } from './research-import';
 import { ResearchSources } from './research-sources';
 import { ResearchPdfDownloads } from './research-pdf-downloads';
 import { ResearchDownloads } from './research-downloads';
 import { ResearchClone } from './research-clone';
+import { SourceReports } from './research-source-reports';
 import type { ResearchBundle } from './research-types';
 
 export function ResearchBundleList({ bundles, onOpen }: { bundles: ResearchBundle[]; onOpen(id: string): void }) {
@@ -28,6 +29,10 @@ export function ResearchBundleView({ api, id, startDownloadIds, startPdfIds, sta
     {error ? <Feedback kind="error">{error}<Button onClick={() => setAttempt(value => value + 1)}>Retry</Button></Feedback> : !bundle && <p role="status">Loading bundle…</p>}
     {bundle && <><h2>{bundle.title}</h2><p className="pa-muted">Saved references</p><a href={bundle.seedUrl} target="_blank" rel="noreferrer">Original research URL</a>
       <ul className="pa-resource-list">{bundle.resources.map(resource => <li key={resource.id}><h3>{resource.title}</h3><ResourceDetails resource={resource} onRead={onRead}/>{resource.kind === 'code' && resource.identity.startsWith('github:') && <ResearchClone bundle={bundle} resource={resource}/>}</li>)}</ul>
+      {(!!bundle.htmlDownloadIds?.length || bundle.resources.some(resource => ['paper', 'pdf_candidate'].includes(resource.kind) && resource.workIdentity?.startsWith('arxiv:') && /^v[1-9]\d*$/.test(resource.revision ?? ''))) && <Disclosure summary="Saved evidence">
+        <SourceReports key={`evidence:${bundle.id}`} api={api} bundleId={bundle.id} refresh={attempt} navigating={false}
+          canOpenSource={() => false} openSource={() => {}} canOpenPdf={() => false} openPdf={() => {}}/>
+      </Disclosure>}
       <ResearchSources key={`source:${bundle.id}`} api={api} bundle={bundle} startSourceIds={startSourceIds} onRead={onRead} onAutoQueueComplete={sourceBatchComplete}/>
       <ResearchPdfDownloads key={`pdf:${bundle.id}`} api={api} bundle={bundle} startPdfIds={startPdfIds} onRead={onRead} waitForSources={waitForSources}/>
       <ResearchDownloads key={bundle.id} bundle={bundle} startDownloadIds={startDownloadIds}/>

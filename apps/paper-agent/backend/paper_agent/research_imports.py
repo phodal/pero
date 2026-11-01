@@ -156,6 +156,9 @@ class ResearchImports:
                 self._replace('import-drafts', draft.id, updated.to_dict())
             return response
 
+    def approved_html(self, bundle_id, resource_id):
+        return self.bundle(bundle_id).approved_html(resource_id)
+
     def approved_source(self, bundle_id, resource_id):
         bundle = self.bundle(bundle_id)
         if resource_id not in bundle.sourceDownloadIds:

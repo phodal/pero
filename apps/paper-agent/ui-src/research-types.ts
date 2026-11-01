@@ -16,7 +16,7 @@ export type ImportDraft = {
 };
 export type ResearchBundle = {
   id: string; seedUrl: string; title: string; resources: ResearchResource[];
-  createdAt: string; updatedAt: string; downloadIds: string[]; pdfDownloadIds?: string[]; sourceDownloadIds?: string[];
+  createdAt: string; updatedAt: string; downloadIds: string[]; pdfDownloadIds?: string[]; sourceDownloadIds?: string[]; htmlDownloadIds?: string[];
 };
 export const resourceKinds: Record<ResearchResource['kind'], string> = {
   web_article: 'Article', paper: 'Paper', pdf_candidate: 'PDF / unverified paper', source_archive: 'Source archive', code: 'Code', model: 'Model', dataset: 'Dataset', benchmark: 'Benchmark', service: 'Service',
@@ -32,11 +32,15 @@ export type SourceEvidenceLocation = {
   memberId?: string; memberPath?: string; startLine?: number; endLine?: number; start?: number; end?: number; archiveDigest?: string; memberDigest?: string;
 };
 export type SourceEvidenceMatch = { source: SourceEvidenceLocation; pdf: { page: number; fileDigest: string; documentId: string } };
+export type DocumentEvidenceScope = {
+  documentId: string; parserRevision: string; sourceDigest: string; blockId: string;
+  unit: 'characters' | 'tokens' | 'cells' | 'images' | 'original-html'; start: number; end: number; contentDigest: string;
+};
 export type SourceObservation = {
-  id: string; kind: 'source_text' | 'source_image' | 'source_pdf_comparison'; resourceId: string;
+  id: string; kind: 'source_text' | 'source_image' | 'source_pdf_comparison' | 'scientific_document'; resourceId: string;
   anchor: SourceEvidenceLocation & {
     pdfResourceId?: string; previewSha256?: string; status?: 'matched' | 'unresolved'; reason?: string;
-    matches?: SourceEvidenceMatch[];
+    matches?: SourceEvidenceMatch[]; documentScopes?: DocumentEvidenceScope[]; visualReview?: 'not_reviewed';
   };
   limitations: string[];
 };

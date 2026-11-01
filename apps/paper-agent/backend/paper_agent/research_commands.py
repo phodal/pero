@@ -20,6 +20,9 @@ def execute(store, action, request):
     if action == 'source-read':
         from .source_reading import source_read
         return source_read(store, request)
+    if action == 'document':
+        from .paper_documents import PaperDocuments
+        return PaperDocuments(store).command(request, now)
     if action == 'source-report':
         from .source_reports import source_report
         return source_report(store, request, now)

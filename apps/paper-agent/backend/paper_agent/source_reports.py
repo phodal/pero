@@ -50,6 +50,42 @@ class PdfLocation:
 
 
 @dataclass(frozen=True)
+class DocumentReadScope:
+    documentId: str
+    parserRevision: str
+    sourceDigest: str
+    blockId: str
+    unit: str
+    start: int
+    end: int
+    contentDigest: str
+
+
+def document_window(result):
+    """Fixed v1 delivery projection, not UI flags or scientific acceptance.
+
+    original-html is raw markup, not a parsed scientific-content window.
+    """
+    def token(item):
+        return {key: item[key] for key in ('kind', 'text', 'latex', 'mathml', 'target', 'url', 'target_status')}
+    value = dict(schema='pero.document-read-window.v1', unit=result['unit'])
+    if result['unit'] in ('characters', 'original-html'):
+        value['content'] = result['content']
+    elif result['unit'] == 'tokens':
+        value['items'] = [token(item) for item in result['items']]
+    elif result['unit'] == 'cells':
+        value['items'] = [dict({key: item[key] for key in ('row', 'column', 'row_span', 'column_span', 'header')},
+                              content=[token(part) for part in item['content']]) for item in result['items']]
+    elif result['unit'] == 'images':
+        value['items'] = [{key: item[key] for key in ('url', 'alt')} for item in result['items']]
+    else:
+        raise Invalid('Unknown scientific document read unit', 409)
+    if result['unit'] in ('cells', 'images'):
+        value['context'] = result['context']
+    return value
+
+
+@dataclass(frozen=True)
 class SourceObservation:
     bundleId: str
     resourceId: str
@@ -63,6 +99,7 @@ class SourceObservation:
     archiveDigest: str | None = None
     consultedPdf: PdfIdentity | None = None
     pdfConsulted: bool | None = None
+    documentScopes: tuple[DocumentReadScope, ...] = ()
 
     @property
     def id(self):
@@ -79,6 +116,10 @@ class SourceObservation:
         for key in ('consultedPdf', 'pdfConsulted'):
             if value[key] is None:
                 value.pop(key)
+        if self.documentScopes:
+            value['documentScopes'] = [asdict(item) for item in self.documentScopes]
+        else:
+            value.pop('documentScopes')
         value['sources'] = [asdict(item) for item in self.sources]
         value['pdfs'] = [asdict(item) for item in self.pdfs]
         return value
@@ -89,10 +130,15 @@ class SourceObservation:
                    tuple(SourceLocation(**item) for item in value['sources']),
                    tuple(PdfLocation(**item) for item in value['pdfs']), value['pdfResourceId'],
                    value['previewSha256'], value['comparisonStatus'], value['reason'], value['archiveDigest'],
-                   PdfIdentity(**value['consultedPdf']) if value.get('consultedPdf') else None, value.get('pdfConsulted'))
+                   PdfIdentity(**value['consultedPdf']) if value.get('consultedPdf') else None, value.get('pdfConsulted'),
+                   tuple(DocumentReadScope(**item) for item in value.get('documentScopes', ())))
 
     def to_dict(self):
         anchor = asdict(self.sources[0]) if self.sources else {}
+        if self.kind == 'scientific_document':
+            anchor = dict(documentScopes=[asdict(item) for item in self.documentScopes])
+            if any(item.unit == 'images' for item in self.documentScopes):
+                anchor.update(visualReview='not_reviewed', delivery='image_metadata_only')
         if self.kind == 'source_image':
             anchor.update(previewSha256=self.previewSha256, visualReview='not_reviewed', delivery='preview_returned')
         if self.kind == 'source_pdf_comparison':
@@ -146,16 +192,87 @@ def record_observation(store, value, result):
     return dict(result, observationId=observation.id)
 
 
+def record_document_observation(store, receipt, document, result):
+    """Admit only a real nonempty typed or original-markup read after integrity checks."""
+    if result.get('missing') or not (result.get('content') or result.get('items') or result.get('context')):
+        return dict(result, observationWarning='No readable content was returned; no reportable observation was recorded.')
+    frozen = store._read('bundle-revisions', receipt['bundleRevision'])
+    block_id = '' if result['unit'] == 'original-html' else result['blockId']
+    scope = DocumentReadScope(document.id, document.parser, document.source.digest, block_id,
+                              result['unit'], result['start'], result['end'], digest(document_window(result)))
+    observation = SourceObservation(frozen['id'], receipt['resourceId'], 'scientific_document', (), documentScopes=(scope,))
+    try:
+        with store.lock:
+            store._write('source-observations', observation.id, observation.to_record())
+    except (Invalid, OSError) as error:
+        if isinstance(error, Invalid) and error.status != 413:
+            raise
+        return dict(result, observationWarning='Read delivered, but its observation could not be saved. This read cannot be added to a report; existing reports are unchanged.')
+    return dict(result, observationId=observation.id, evidenceAdmission='tool-observed-scope')
+
+
+def _document_receipt(store, observation, scope):
+    from .paper_documents import PaperDocuments
+    receipt = PaperDocuments(store)._receipt(scope.documentId, observation.bundleId, observation.resourceId)
+    if receipt['sourceDigest'] != scope.sourceDigest:
+        raise Invalid('Document observation differs from its acquisition receipt', 409)
+    return receipt
+
+
+def _verify_document_observation(store, observation):
+    from .paper_documents import PaperDocuments
+    from .scientific_document import DocumentError
+    try:
+        if not observation.documentScopes:
+            return False
+        for scope in observation.documentScopes:
+            _document_receipt(store, observation, scope)
+            document, original = PaperDocuments(store).read(scope.documentId)
+            if document.parser != scope.parserRevision or document.source.digest != scope.sourceDigest:
+                return False
+            if scope.unit == 'original-html':
+                text = original.decode('utf-8')
+                if (scope.blockId != '' or type(scope.start) is not int or type(scope.end) is not int
+                        or not 0 <= scope.start < scope.end <= len(text) or scope.end - scope.start > 4800):
+                    return False
+                result = dict(unit='original-html', content=text[scope.start:scope.end])
+            else:
+                result = document.read(scope.blockId, scope.start, 4800)
+                if (result['unit'] != scope.unit or type(scope.end) is not int
+                        or not scope.start <= scope.end <= result['end'] or result['missing']):
+                    return False
+                length = scope.end - scope.start
+                if scope.unit == 'characters':
+                    result['content'] = result['content'][:length]
+                else:
+                    result['items'] = result['items'][:length]
+            if not (result.get('content') or result.get('items') or result.get('context')):
+                return False
+            if digest(document_window(result)) != scope.contentDigest:
+                return False
+        return True
+    except (OSError, Invalid, UnicodeError, DocumentError):
+        return False
+
+
 def observed(store, identity, bundle_id):
     observation = SourceObservation.from_record(store._read('source-observations', identity))
     if observation.id != identity or observation.bundleId != bundle_id:
         raise Invalid('Observation is outside this bundle or failed its identity check', 409)
-    store.imports.approved_source(bundle_id, observation.resourceId)
+    if observation.kind == 'scientific_document':
+        if not observation.documentScopes:
+            raise Invalid('Document observation has no delivered scope', 409)
+        for scope in observation.documentScopes:
+            _document_receipt(store, observation, scope)
+    else:
+        store.imports.approved_source(bundle_id, observation.resourceId)
     return observation
 
 
 def verify_observation(store, observation):
     """Recheck original bytes and exact scopes, without new acquisition or read claims."""
+    if observation.kind == 'scientific_document':
+        return _verify_document_observation(store, observation)
     _, job = store.source_downloads.job(observation.bundleId, observation.resourceId)
     if not job.receipt or observation.archiveDigest != job.receipt.archiveDigest or not store.source_downloads.available(job):
         return False

@@ -63,6 +63,31 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await expect(nav.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(zoom);
   await closePaperChat(page);
   await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
+  const document = (await reading()).document;
+  const storedView = () => frame.locator('body').evaluate((_element, key) => JSON.parse(localStorage.getItem(key)), `pero.paper.pdf-view:${document.id}:${document.fileDigest}`);
+  await expect.poll(async () => (await storedView())?.selection ?? null).not.toBeNull();
+  const selectedRange = (await storedView()).selection;
+  await nav.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  const retainedZoom = await nav.getByRole('button', { name: 'Fit page', exact: true }).innerText();
+  const viewport = viewer.locator('.pa-pdf-viewport');
+  await viewport.hover(); await page.mouse.wheel(0, 60);
+  await expect.poll(async () => (await storedView()).position.y).toBeGreaterThan(0);
+  const beforeText = await storedView();
+  await first.locator('img,canvas').first().evaluate(element => element.dataset.readingIdentity = 'retained');
+  await frame.locator('.pa-pdf-reading > .pero-ui-toolbar').getByRole('button', { name: 'Text', exact: true }).click();
+  await expect(viewer).toHaveCount(0);
+  await expect(frame.locator('.pa-pdf-view-slot')).toHaveAttribute('inert', '');
+  await expect(frame.locator('[data-reading-identity="retained"]')).toHaveCount(1);
+  await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveCount(0);
+  await expect.poll(async () => (await storedView()).mode).toBe('text');
+  await frame.locator('.pa-pdf-reading > .pero-ui-toolbar').getByRole('button', { name: 'PDF', exact: true }).click();
+  await expect(viewer).toBeVisible();
+  await expect(first.locator('[data-reading-identity="retained"]')).toHaveCount(1);
+  await expect(nav.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(retainedZoom);
+  await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
+  await expect.poll(async () => (await storedView()).selection).toEqual(selectedRange);
+  expect((await storedView()).page).toBe(beforeText.page);
+  expect((await storedView()).position.y).toBeCloseTo(beforeText.position.y, 1);
   const discussedResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/contexts' && response.request().method() === 'POST');
   await viewer.getByRole('button', { name: 'Discuss selection', exact: true }).click();
   const discussed = await (await discussedResponse).json();
@@ -147,11 +172,26 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await expect(viewer.locator('[data-citation-identity="retained"]')).toHaveCount(1);
   await page.screenshot({ path: resolve(out, 'pdf-answer-citation.png') });
   await frame.getByRole('button', { name: 'Close research records', exact: true }).click();
-  return { paper, figure, fileDigest: result.document.fileDigest, targetPage };
+  // Leave an actual selection for the existing full Desktop restart journey.
+  await nav.getByRole('button', { name: 'Fit page', exact: true }).click();
+  await nav.getByRole('spinbutton', { name: 'Page', exact: true }).fill('1');
+  await expect(first).toHaveAttribute('data-selection-ready', 'true');
+  const reopenBox = await first.boundingBox();
+  await page.mouse.move(reopenBox.x + s.x1 * reopenBox.width, reopenBox.y + s.y * reopenBox.height);
+  await page.mouse.down(); await page.mouse.move(reopenBox.x + s.x2 * reopenBox.width, reopenBox.y + s.y * reopenBox.height, { steps: 20 }); await page.mouse.up();
+  await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
+  await expect.poll(async () => (await storedView()).selection).not.toBeNull();
+  return { paper, figure, fileDigest: result.document.fileDigest, targetPage, readerState: await storedView() };
 }
 
 export async function reopenPdf({ frame, saved, page }) {
   await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(saved.paper.title, { exact: true }) }).click();
+  const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
+  await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
+  await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue(String(saved.readerState.page));
+  await expect(frame.locator('.pa-reading-bar').getByRole('button', { name: 'Fit page', exact: true })).toHaveText(`${Math.round(saved.readerState.zoom * 100)}%`);
+  const restored = await frame.locator('body').evaluate((_element, key) => JSON.parse(localStorage.getItem(key)), `pero.paper.pdf-view:${saved.readerState.documentId}:${saved.fileDigest}`);
+  expect(restored.selection).toEqual(saved.readerState.selection);
   await frame.getByRole('button', { name: 'Ask', exact: true }).click();
   await closePaperChat(page);
   await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Research record', exact: true }).click();
