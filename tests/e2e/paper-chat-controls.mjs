@@ -43,9 +43,11 @@ export async function closePaperChat(page) {
   expect(state.floatingChat).toBe(true);
   const setup = page.getByRole('region', { name: 'App environment', exact: true });
   if (await setup.isVisible()) await setup.getByRole('button', { name: 'Hide', exact: true }).click();
-  const target = await page.waitForFunction(paintedPaperChatCloseTarget, undefined, { timeout: 5000 });
-  const bounds = await target.jsonValue();
-  await target.dispose();
+  let bounds;
+  await expect.poll(async () => {
+    bounds = await page.evaluate(paintedPaperChatCloseTarget);
+    return !!bounds;
+  }, { timeout: 5000, message: 'Paper Chat close has a stable painted Host hit target' }).toBe(true);
   await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
   await expect.poll(async () => (await chatState(page)).appChatOpen).toBe(false);
   await expect.poll(async () => (await chatState(page)).chatCloseButtonBounds).toBeNull();
