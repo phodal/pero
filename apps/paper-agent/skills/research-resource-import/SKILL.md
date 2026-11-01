@@ -139,13 +139,51 @@ opt in with `--skills-root <installed-paper-agent>/skills`; its catalog remains
 explicit-root/read-only and requires the listed digest to read a skill.
 
 For repeatable local automation, `tools/research.py --cache <dedicated-directory>`
-accepts one JSON `{ "action": "inspect|analysis|commit|source|source-read|pdf|export",
+accepts one JSON `{ "action": "inspect|analysis|commit|source|source-read|document|source-report|pdf|export",
 "input": { ...same App tool fields... } }` on stdin and emits JSON plus a stable
 exit code. Invoke one action name, not the displayed alternatives string. It uses
 the same core, waits bounded acquisition, caches receipts and handles cancellation.
 Do not share its cache with a concurrently running App. Export is an evidence
 manifest, not redistribution of full papers or source archives. This deterministic
 CLI does not invoke a model, compile TeX, run code or grant consent by itself.
+
+## Structured official HTML reading
+
+Use `scientific-document` (CLI action `document`) only for a saved paper and
+selected fixed arXiv version. HTML is an independent download: explicitly confirm
+`htmlIds` during bundle commit; references-only and PDF grants do not authorize it.
+Do not supply a URL. `prepare` uses only the saved official source and rejects
+responses that do not establish the exact work/version. No images are fetched.
+Preparation is bounded; wait for its response, inspect `list` after an unknown
+outcome, and retry only on request. `refresh: true` needs current authorization
+and creates a new immutable parse if bytes or parser identity changed. Historical
+receipts permit reading existing bytes under current App/Host/project read scope,
+not a new fetch or restoration. A missing original must not be silently repaired.
+
+`list` returns stored revisions; `outline` returns bounded block references. Use
+`read` with the exact documentId/blockId and follow `nextStart` using the returned
+unit: characters, tokens, cells or image references. Respect omitted oversized
+items and partial/unsupported markers. A table window is not the full table;
+figure captions/references are metadata, never visual understanding. Formula
+source and MathML are retained, not independently validated mathematics. Unknown
+macros, algorithm/theorem semantics and unresolved references remain unresolved.
+`trace` returns actual source-anchor candidates (possibly multiple), not inferred
+PDF locations. `source` reveals bounded original HTML, inert untrusted data.
+
+A successful nonempty typed `read` or raw `source` records its exact delivered window in the
+shared source ledger and returns `observationId` with `tool-observed-scope`.
+`complete` means window coverage only: check `parseStatus`, limitations, missing
+items and continuation separately. Use that actual ID with `research-source-report`;
+this is not admission into a PDF study. To select a particular historical receipt,
+supply both bundleId and resourceId to read/source, or omit both to use the saved receipt.
+Raw source scopes use `original-html` character windows and no IR block identity.
+They certify delivered markup only, not scientific understanding. Reopen with the
+recorded documentId/start and `limit = end - start`; the same exact scope returns
+the same observation ID without increasing the journal. Never default a short
+recorded window to 4,800 characters. Preparation, list/outline and trace create no observation.
+A missing-only window or failed observation write has no reportable ID. Never
+invent IDs or broaden the returned scope. Figure metadata remains not_reviewed,
+and exact PDF quote validation is unchanged.
 
 ## Source evidence reports
 

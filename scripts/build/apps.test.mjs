@@ -72,3 +72,37 @@ globalThis.render = () => renderToString(<Shared />);
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 }
+
+// This is a contract of the installed (pinned) PDF dependency, not a substitute
+// for the Desktop reopen/visible-canvas/search assertions.
+test('Paper boots EmbedPDF with an auto mode before restoring numeric zoom', async () => {
+  const { ZoomPlugin, ZoomMode } = await import(join(modules, '@embedpdf/plugin-zoom/dist/index.js'));
+  const source = readFileSync(join(root, 'apps/paper-agent/ui-src/pdf-reader.tsx'), 'utf8');
+  assert.match(source, /defaultZoomLevel: ZoomMode\.FitPage/);
+  assert.match(source, /if \(initial\) zoom\.requestZoom\(initial\.zoom\)/);
+  for (const initial of [ZoomMode.FitPage, 1.25]) {
+    const requests = [], gates = new Set();
+    let state;
+    const scope = {
+      defaultZoomLevel: initial,
+      viewport: { gate: (kind, id) => gates.add(`${kind}:${id}`) },
+      dispatch(action) { state = action.payload.state; },
+      logger: { debug() {} },
+      getDocumentState: () => state,
+      handleRequest({ level }, id) { requests.push(level); gates.delete(`zoom:${id}`); },
+      recalcAuto: ZoomPlugin.prototype.recalcAuto,
+    };
+    ZoomPlugin.prototype.onDocumentLoadingStarted.call(scope, 'paper');
+    ZoomPlugin.prototype.onDocumentLoaded.call(scope, 'paper');
+    if (initial === ZoomMode.FitPage) {
+      assert.deepEqual(requests, [ZoomMode.FitPage]);
+      assert.equal(gates.size, 0);
+      // The existing restore uses the public scoped request path after layout.
+      scope.handleRequest({ level: 1.25 }, 'paper');
+      assert.deepEqual(requests, [ZoomMode.FitPage, 1.25]);
+    } else {
+      assert.deepEqual(requests, []);
+      assert.equal(gates.size, 1, 'numeric startup never opens the initial viewport gate');
+    }
+  }
+});

@@ -63,9 +63,11 @@ async function launch() {
   await clickAppOpen(page, 'lab');
   await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'app', value: { name: 'lab', panel: 'main' } });
   frame = page.frameLocator('iframe[title="lab"]');
+  // Backend preparation may precede apps_opened/iframe mounting. Use the existing
+  // startup gate first; keep the subsequent visibility and sandbox checks intact.
+  await expect(frame.getByRole('button', { name: 'Freeze experiment', exact: true })).toBeEnabled({ timeout: 120000 });
   await expect(page.locator('iframe[title="lab"]')).toBeVisible();
   await expect(frame.getByRole('heading', { name: 'Lab', exact: true })).toBeVisible();
-  await expect(frame.getByRole('button', { name: 'Freeze experiment', exact: true })).toBeEnabled({ timeout: 120000 });
   await expect(page.locator('iframe[title="lab"]')).toHaveAttribute('sandbox', /allow-scripts/);
   expect(await page.locator('iframe[title="lab"]').getAttribute('sandbox')).not.toContain('allow-forms');
 }

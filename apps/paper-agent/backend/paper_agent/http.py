@@ -13,6 +13,8 @@ from .reports import EvidenceReference
 from .discovery import DiscoveryQuery, DiscoveryBatch
 from .pdf import PdfAnnotation
 from .pdf_files import PdfFiles
+from .paper_documents import PaperDocuments
+from .scientific_document import DocumentError
 from .retrieval import SearchQuery
 from .local_pdf import LocalPdf, MAX_PDF_BYTES
 from .source_text import SourceText
@@ -37,10 +39,11 @@ def research_stage(record):
     return dict(stage='select', id=record.id, requestId=record.plan.request.request_id + '-r' + str(len(record.queries)), question=record.plan.request.question, prompt=record.prompt(), round=len(record.queries))
 
 
-def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbnails=None):
+def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbnails=None, documents=None):
     literature = literature if literature is not None else LiteratureClient()
     pdf_files = pdf_files if pdf_files is not None else PdfFiles()
     thumbnails = thumbnails if thumbnails is not None else PaperThumbnails()
+    documents = documents if documents is not None else PaperDocuments(store)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -124,6 +127,14 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         return self.reply(200, store.study_view(study_match[1]))
                     if path == '/api/matrix':
                         return self.reply(200, dict(cells=store.reading_matrix()))
+                    if path == '/api/paper-documents':
+                        return self.reply(200, documents.overview(parse_qs(parsed.query).get('paperId', [''])[0]))
+                    scientific = re.fullmatch(r'/api/paper-documents/([a-f0-9]{64})(/original)?', path)
+                    if scientific:
+                        document, original = documents.read(scientific[1])
+                        if scientific[2]:
+                            return self.binary(200, original, 'text/plain; charset=utf-8')
+                        return self.reply(200, document.to_dict())
                     if path == '/api/pdf':
                         document = store.paper_pdf(parse_qs(parsed.query).get('paperId', [''])[0])
                         return self.reply(200, dict(document=document.to_dict() if document else None,
@@ -162,6 +173,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, record.to_dict())
                 if self.command == "POST":
+                    if path == '/api/paper-document':
+                        return self.reply(200, documents.command(data, now()))
                     if path == '/api/reproduction/step':
                         return self.reply(200, store.pcgym.command(data))
                     if path == '/api/research/inspect':
@@ -277,6 +290,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                             location['pdf'] = dict(documentId=document.id, pages=list(pages), verification='page-text-match')
                         return self.reply(200, location)
                 raise Invalid("Route not found", 404)
+            except DocumentError as error:
+                self.reply(error.status, {'code': error.code, 'detail': error.detail})
             except PcgymInvalid as error:
                 self.reply(400, {"code": error.code, "detail": error.detail})
             except Invalid as error:

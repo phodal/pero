@@ -117,14 +117,19 @@ class PdfDownloads:
                         job = job.finish('completed', receipt=receipt)
                     else:
                         job = job.finish('failed' if result[0] == 'denied' else result[0], result[1])
-                    self._save(job)
         except Exception as error:
             with self.store.lock:
                 detail = error.detail if isinstance(error, Invalid) else f'PDF acquisition failed ({type(error).__name__}). Retry this file.'
-                self._save(job.finish('cancelled' if cancelled.is_set() else 'failed', detail))
+                # A prepared result is not terminal until cleanup and settlement succeed.
+                job = replace(job, status='running').finish('cancelled' if cancelled.is_set() else 'failed', detail)
         finally:
             with self.store.lock:
-                self.running.pop(job.id, None)
+                # Terminal visibility and admission settle together, after staging cleanup.
+                # A failed write leaves the persisted running record for restart recovery.
+                try:
+                    self._save(job)
+                finally:
+                    self.running.pop(job.id, None)
 
     def close(self):
         with self.store.lock:

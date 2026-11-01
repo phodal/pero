@@ -13,7 +13,7 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   assert.deepEqual(Object.values(suites).map(([name]) => name).sort(), [
     'workbench', 'automation', 'toolcalls', 'data', 'data-product', 'control-lab', 'control-lab-app-use', 'control-lab-live', 'lab',
     'virtual-cell-comparison', 'virtual-cell-dataset-download', 'app-use', 'app-use-workbench',
-    'mcp-settings', 'mcp-settings', 'mcp-settings', 'scientific-viewer', 'apps/automations/test/ui-smoke.mjs', 'paper-research-import-all',
+    'mcp-settings', 'mcp-settings', 'mcp-settings', 'scientific-viewer', 'apps/automations/test/ui-smoke.mjs', 'paper-research-import-all', 'paper-reading',
   ].sort());
   const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
   const acceptance = workflow.jobs['desktop-acceptance'];
@@ -84,34 +84,63 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
     'python -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt',
     "python -m unittest discover -s apps/scientific-viewer/test -p 'test_*.py'"]) assert.ok(core.includes(command), command);
   assert.ok(commands.includes("python -m unittest discover -s apps/scientific-viewer/test -p 'test_*.py'"));
-  assert.equal(Object.keys(suites).length, 19);
+  assert.equal(Object.keys(suites).length, 20);
   const native = YAML.parse(readFileSync('.github/workflows/computer-use.yml', 'utf8'));
   assert.match(native.jobs.native.strategy.matrix.os, /schedule.*workflow_dispatch/);
   assert.equal(native.on.schedule[0].cron, '0 20 * * *');
   assert.equal(native.on.pull_request.paths, undefined);
 });
 
-test('Paper aggregate reaches shared-reader acceptance in scoped PDF mode', () => {
+test('independent Paper aggregates cover every offline journey once and restore scoped PDF mode', () => {
   const temp = mkdtempSync(resolve(tmpdir(), 'pero-paper-wiring-'));
-  const entries = ['paper-research-import', 'paper-research-import-host', 'paper-pdf-study', 'paper-source-study', 'paper-agent'];
+  const groups = {
+    'paper-research-import': ['paper-research-import', 'paper-research-import-host', 'paper-pdf-study', 'paper-source-study'],
+    'paper-reading': ['paper-structured-reading', 'paper-agent'],
+  };
+  const entries = Object.values(groups).flat();
   try {
-    writeFileSync(resolve(temp, 'aggregate.mjs'), readFileSync('tests/e2e/paper-research-import-all.mjs'));
-    // Stub only the expensive Desktop boundary. Execute the actual aggregate so
-    // removing/skipping its reader import fails without launching Electron here.
+    for (const name of Object.keys(groups)) {
+      const [aggregate, ...args] = suites[name];
+      assert.deepEqual(args, []);
+      writeFileSync(resolve(temp, `${aggregate}.mjs`), readFileSync(`tests/e2e/${aggregate}.mjs`));
+    }
+    // Execute both actual registry-selected aggregates. Only the costly Desktop
+    // boundaries are replaced, never the ordering or environment scoping logic.
     for (const entry of entries) writeFileSync(resolve(temp, `${entry}.mjs`),
       `globalThis.visited.push([${JSON.stringify(entry)}, process.env.PERO_PAPER_PDF_ONLY]);
-       if (${JSON.stringify(entry)} === 'paper-agent' && process.env.PAPER_STUB_FAIL === '1') throw Error('reader failed');`);
-    for (const previous of [undefined, 'prior-mode']) for (const fail of [false, true]) {
-      const env = { ...process.env, PAPER_STUB_FAIL: fail ? '1' : '0' };
+       if (process.env.PAPER_STUB_FAIL === ${JSON.stringify(entry)}) throw Error(${JSON.stringify(entry + ' failed')});`);
+    function run(name, previous, failure = '') {
+      const env = { ...process.env, PAPER_STUB_FAIL: failure };
       if (previous === undefined) delete env.PERO_PAPER_PDF_ONLY;
       else env.PERO_PAPER_PDF_ONLY = previous;
-      const result = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e',
-        "globalThis.visited = []; let error; try { await import('./aggregate.mjs'); } catch (e) { error = e.message; } console.log(JSON.stringify({ visited, error, after: process.env.PERO_PAPER_PDF_ONLY }));"],
+      return JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e',
+        `globalThis.visited = []; let error; try { await import('./${suites[name][0]}.mjs'); } catch (e) { error = e.message; } console.log(JSON.stringify({ visited, error, after: process.env.PERO_PAPER_PDF_ONLY }));`],
       { cwd: temp, env, encoding: 'utf8' }));
-      assert.deepEqual(result.visited, entries.map(entry => [entry, entry === 'paper-agent' ? '1' : previous ?? null]));
-      assert.equal(result.after, previous);
-      assert.equal(result.error, fail ? 'reader failed' : undefined);
     }
+    for (const previous of [undefined, 'prior-mode']) {
+      const covered = [];
+      for (const [name, expected] of Object.entries(groups)) {
+        const result = run(name, previous);
+        assert.deepEqual(result.visited, expected.map(entry => [entry, entry === 'paper-agent' ? '1' : previous ?? null]));
+        assert.equal(result.error, undefined);
+        assert.equal(result.after, previous);
+        covered.push(...result.visited.map(([entry]) => entry));
+        for (const failure of expected) {
+          const failed = run(name, previous, failure);
+          assert.equal(failed.error, `${failure} failed`);
+          assert.equal(failed.after, previous);
+          assert.deepEqual(failed.visited, result.visited.slice(0, expected.indexOf(failure) + 1));
+        }
+      }
+      assert.deepEqual(covered.sort(), [...entries].sort());
+      assert.equal(new Set(covered).size, entries.length, 'no duplicate acceptance across parallel groups');
+    }
+    const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
+    const steps = workflow.jobs['desktop-acceptance'].steps;
+    const python = steps.find(step => step.name === 'Paper research Python environment');
+    assert.equal(python.if, "matrix.suite == 'paper-research-import' || matrix.suite == 'paper-reading'");
+    const browser = steps.find(step => step.name === 'Browser for explicitly mocked App UI seams');
+    assert.equal(browser.if, "matrix.suite == 'automations-ui' || matrix.suite == 'paper-research-import' || matrix.suite == 'paper-reading'");
   } finally { rmSync(temp, { recursive: true, force: true }); }
 });
 
