@@ -9,5 +9,5 @@ await import("./paper-source-study.mjs");
 // Explicit synthetic component contract, independent of native approval and scientific execution.
 await import("./paper-reproduction-component.mjs");
 
-// Real native cancellation/owner-close only; no Host or scientific worker.
+// Real native semantic Run once/cancellation/owner-close; no Host or worker.
 await import("./paper-reproduction-native.mjs");

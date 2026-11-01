@@ -221,3 +221,18 @@ test('native reproduction fixture dispatches cancellation modes outside Electron
     else globalThis.paperNative = previous;
   }
 });
+
+test('native Paper approval reuses scoped Desktop prerequisites and retains the suite deadline', () => {
+  const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
+  const steps = workflow.jobs['desktop-acceptance'].steps;
+  const native = steps.find(step => step.name === 'Native Paper dialog accessibility on the isolated display');
+  assert.equal(native.if, "matrix.suite == 'paper-research-import'");
+  assert.equal(native.run, 'sudo apt-get install --yes --no-install-recommends at-spi2-core dbus-daemon');
+  assert.ok(workflow.jobs.core.steps.some(step => step.run?.includes('tests/fixtures/paper-native-approval.test.mjs')));
+  assert.ok(runtimePaths(process.cwd()).includes('target/debug/pero-computer'));
+  assert.match(readFileSync('scripts/ci/desktop-suite.mjs', 'utf8'), /'--timeout-seconds', '360'/);
+  const source = readFileSync('tests/e2e/paper-reproduction-native.mjs', 'utf8');
+  assert.match(source, /spawnSync\('dbus-run-session'/);
+  assert.match(source, /PERO_PAPER_NATIVE_DBUS: '1'/);
+  assert.match(source, /GTK_A11Y: 'atspi', NO_AT_BRIDGE: ''/);
+});

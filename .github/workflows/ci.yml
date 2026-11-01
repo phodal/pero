@@ -462,7 +462,7 @@ jobs:
           node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs
           node --test web/src/host-connection.test.ts
           node --test desktop/src/main/{app-context,app-use,connector-secrets,content-artifacts,control-lab-goal,harness-environment,home,mcp-sources}.test.ts web/src/{automation-model,content-results}.test.ts
-          node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs
+          node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs tests/fixtures/paper-native-approval.test.mjs
           node --test tests/runtime/control-lab/*.test.mjs tests/runtime/control-lab/host-goal.test.ts
           node --test tests/runtime/lab/*.test.mjs
           node tests/e2e/computer-transport.mjs
@@ -536,6 +536,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64 xvfb
+      - name: Native Paper dialog accessibility on the isolated display
+        if: matrix.suite == 'paper-research-import'
+        run: sudo apt-get install --yes --no-install-recommends at-spi2-core dbus-daemon
       - name: Install real numerical engines
         if: startsWith(matrix.suite, 'control-lab')
         run: |
