@@ -185,7 +185,7 @@ impl AppDefinition {
                 return Err("App panel needs a title and relative HTML entry".into());
             }
         }
-        if value.contributes.writes.len()>16 || !value.contributes.writes.is_empty()&&value.backend.is_none(){return Err("App write routes require a backend and at most 16 declarations".into());}
+        if value.contributes.writes.len()>32 || !value.contributes.writes.is_empty()&&value.backend.is_none(){return Err("App write routes require a backend and at most 32 declarations".into());}
         let mut names=std::collections::BTreeSet::new();
         for route in &value.contributes.writes {
             if !names.insert(route.name.as_str())||route.description.trim().is_empty()||route.description.len()>1000||!route.path.starts_with("/api/")||!relative_entry(&route.path[1..])||!route.schema.is_object()||serde_json::to_vec(&route.schema).map_err(|e|e.to_string())?.len()>16384{return Err("App write route needs a unique name, description, local /api path and bounded schema".into());}
@@ -228,6 +228,25 @@ impl AppDefinition {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn builtin_paper_manifest_and_write_capacity() {
+        // Exercise the actual packaged manifest at the Host validation boundary:
+        // a valid JSON/UI build alone does not guarantee App registration.
+        let bytes = include_bytes!("../../../../apps/paper-agent/app.json");
+        let paper = AppDefinition::parse(bytes).expect("builtin Paper manifest must register");
+        assert!(paper.contributes.writes.iter().any(|route| route.name.as_str() == "scientific-document"));
+        let mut candidate: serde_json::Value = serde_json::from_slice(bytes).unwrap();
+        for (count, accepted) in [(32, true), (33, false)] {
+            candidate["contributes"]["writes"] = serde_json::json!((0..count).map(|index| {
+                serde_json::json!({"name":format!("route-{index}"), "description":"Bounded route",
+                    "path":format!("/api/route-{index}"), "schema":{"type":"object"}})
+            }).collect::<Vec<_>>());
+            let result = AppDefinition::parse(&serde_json::to_vec(&candidate).unwrap());
+            assert_eq!(result.is_ok(), accepted, "{count} unique routes: {result:?}");
+            if !accepted { assert!(result.unwrap_err().contains("at most 32 declarations")); }
+        }
+    }
+
     #[test]
     fn manifest_contract() {
         let valid = serde_json::json!({"schemaVersion":1,"name":"virtual-cell","version":"0.1.0",

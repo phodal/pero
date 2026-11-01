@@ -96,3 +96,19 @@ publisher parser, unsupported-format conversion, inferred formula semantics,
 experiment/reproduction result, #77 result writeback or new execution/runtime is
 delivered. Unsupported originals and ambiguous references remain available and
 unresolved. Exact PDF quote validation remains unchanged.
+
+## First exact-head Desktop attempt and corrective contracts
+
+Full CI run 41322973475 (head f50268c8, tree 76ea99fd) did **not** pass
+reading acceptance: Paper registration failed before opening the fixture, because
+its 17 declared Agent routes exceeded the Host's 16-route manifest bound.
+The Host now accepts at most 32 declarations, with the actual builtin Paper
+manifest and unique 32/33-route boundaries tested at its existing parser owner.
+Backend presence, unique names, local paths, schemas, total manifest bytes and
+permission validation are unchanged. No old route is hidden or removed.
+
+The refresh busy-state fixture holds the actual authenticated App-frame fetch
+Response after its body arrives; Electron's custom protocol cannot use the former
+Playwright routing gate. Requests/response identity, error propagation and cleanup
+are tested offline. Neither correction is proof of successful Desktop acceptance;
+the exact corrected revision must run both paper-reading and research-import.

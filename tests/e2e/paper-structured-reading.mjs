@@ -1,8 +1,9 @@
 // Offline authored corpus through actual Desktop/Host/approved Paper APIs/PDFium.
 // No mocked API responses, remote provider or scientific acceptance claim.
-// One refresh holds the unchanged real route.fetch() response to exercise busy UI.
+// One refresh holds the unchanged real App fetch response to exercise busy UI.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { deferDocumentRefresh } from './paper-document-refresh-gate.mjs';
 import { openResearchImport } from './paper-research-ui-controls.mjs';
 import { clickAppShortcut } from './sidebar-controls.mjs';
 import { setPaperAppearance, backToLibrary } from './paper-pdf-flow.mjs';
@@ -27,7 +28,7 @@ const seed = 'https://research.example.org/structured-reading', pdfUrl = 'https:
 const sourceFixture = await readFile(resolve(root, 'apps/paper-agent/test/fixtures/scientific-document.html'), 'utf8');
 const original = Buffer.from(sourceFixture.replace('</article>', '<table id="Tgap"><tr><td rowspan="2">A</td></tr><tr></tr><tr><td>B</td></tr></table></article>'));
 const checks = [], errors = [], remoteRequests = [];
-let app, page, frame, releaseRefresh;
+let app, page, frame;
 const launch = () => electron.launch({ args: [resolve(root, 'desktop')], cwd: root, env });
 async function ready() {
   page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message));
@@ -166,24 +167,21 @@ try {
   checks.push('Only actual typed and raw-markup windows enter the existing source-observation ledger; shared source-report UI saves and reopens fixed block scopes without additional observations');
   checks.push('Real LaTeXML parser and authenticated typed block reads preserve table strings, MathML and figure metadata; original byte windows reveal safely');
   // Delay delivery only: the real API has already parsed/persisted its unchanged response.
-  let refreshResponseReady = false;
-  const refreshGate = new Promise(resolve => { releaseRefresh = resolve; });
-  const refreshRoute = async route => {
-    const body = route.request().postDataJSON();
-    if (body?.operation !== 'prepare' || body.refresh !== true) { await route.continue(); return; }
-    const response = await route.fetch();
-    refreshResponseReady = true;
-    await refreshGate;
-    await route.fulfill({ response });
-  };
-  await page.route('**/api/paper-document', refreshRoute);
-  await frame.getByText('Source and parsing details', { exact: true }).click();
-  await frame.getByRole('button', { name: 'Prepare fresh parse · v2', exact: true }).click();
-  await expect.poll(() => refreshResponseReady).toBe(true);
-  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeDisabled();
-  releaseRefresh();
-  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeEnabled();
-  await page.unroute('**/api/paper-document', refreshRoute);
+  await frame.locator('body').evaluate(deferDocumentRefresh);
+  try {
+    await frame.getByText('Source and parsing details', { exact: true }).click();
+    await frame.getByRole('button', { name: 'Prepare fresh parse · v2', exact: true }).click();
+    await expect.poll(() => frame.locator('body').evaluate(() => {
+      if (window.paperRefreshGate.error) throw Error(window.paperRefreshGate.error);
+      return window.paperRefreshGate.arrived;
+    }), { message: 'Real document refresh response reached the App fetch gate' }).toBe(true);
+    await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeDisabled();
+    await frame.locator('body').evaluate(() => window.paperRefreshGate.release());
+    await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeEnabled();
+    expect(await frame.locator('body').evaluate(() => window.paperRefreshGate.delivered)).toBe(true);
+  } finally {
+    await frame.locator('body').evaluate(() => { window.paperRefreshGate.restore(); delete window.paperRefreshGate; });
+  }
   expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
   checks.push('Logical empty table rows preserve rowspan; version switching is disabled while an actual refresh response is pending and recovers after delivery');
   await page.screenshot({ path: resolve(out, 'structured-light.png') });
@@ -238,4 +236,4 @@ try {
   if (page) await page.screenshot({ path: resolve(out, 'failure.png') }).catch(() => {});
   await writeFile(resolve(out, 'failure.json'), JSON.stringify({ error: String(error), scope: 'Failed attempt, not acceptance; synthetic corpus only.' }, null, 2));
   throw error;
-} finally { releaseRefresh?.(); if (app) await app.close(); await rm(profile, { recursive: true, force: true }); }
+} finally { if (app) await app.close(); await rm(profile, { recursive: true, force: true }); }

@@ -1,7 +1,14 @@
 # Paper Agent
 
+端到端 [Paper Reproduction Skill](skills/paper-reproduction/SKILL.md) 串起结果提取、
+代码审计、协议冻结、获准执行、独立重算与结果包交接；支持只做计划、重分析和新实验，
+分别报告来源一致性、执行状态、数值核验与科学结论。它复用当前可用执行入口，
+不增加通用实验 API、Worker 接线或 UI 回写。详细记录约定见
+[复现协议](skills/paper-reproduction/references/reproduction-protocol.md)。
+
 通用 [Paper-Code Audit Skill](skills/paper-code-audit/SKILL.md) 支持论文与代码
-的一项 Claim 审计、指标重算和复现计划，PC-Gym、LoRA、top-k 与 F1 作为按需参考。
+的一项 Claim 一致性审计和诊断性重算，PC-Gym、LoRA、top-k 与 F1 作为按需参考；
+新实验与可交接的重分析结果包由 Paper Reproduction 接续，复用已有审计证据。
 其中 PC-Gym CSTR Table 6 提供固定案例 CLI 和独立双口径 Checker，使用 Python 3.10+。
 该 CLI 的运行方式与指标契约见
 [PC-Gym 设计](../../docs/design-docs/paper-pcgym-reproduction.md)，实际验收范围见

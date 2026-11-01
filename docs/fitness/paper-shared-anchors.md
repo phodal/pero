@@ -87,8 +87,21 @@ placeholders when preserving the clipboard, while retaining every advertised
 format, the real image-copy assertion and finally restoration. An offline test
 executes that same callback for empty and populated clipboard cases.
 
-Actual Desktop execution/screenshots for this clipboard-fixture revision remain
-pending the next exact-head full Desktop CI. Local recent Desktop attempts are blocked by the
+The next run `41322451027` (head `3d829967`, tested merge `c7c8795f`)
+passed the clipboard/matrix path and the actual normal search-region assertion
+(`local-search-pdf.png`), then the Playwright route-based deferred-response gate
+never completed and the aggregate reached its unchanged 360-second deadline.
+This still does not certify deferred navigation or reader restart. The gate now
+runs at the App frame's actual fetch boundary, rather than relying on interception
+of Electron's custom `pero-app` protocol. It forwards the request unchanged,
+awaits the real response bytes, holds that same Response until the newer user
+navigation, and checks delivery and the existing page/Text/new-search assertions.
+Bounded readiness reports errors instead of leaving an unbounded promise; separate
+page/Text screenshots identify the last completed stage. Offline tests cover real
+Response identity, unchanged requests, unrelated fetches, failure and restoration.
+
+Actual Desktop execution/screenshots for this fetch-gate revision remain pending
+the next exact-head full Desktop CI. Local recent Desktop attempts are blocked by the
 launcher/Chromium IPC environment; an older build is not acceptance evidence for
 these changes. No paid provider, external upload, new dependency installation or
 Mac operation was performed.
