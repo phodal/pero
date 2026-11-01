@@ -15,7 +15,7 @@ export function ResourceDetails({ resource, onRead }: { resource: ResearchResour
     {resource.unresolved.length > 0 && <ul className="pa-resource-warnings">{resource.unresolved.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
     <div className="pa-actions"><a href={resource.url} target="_blank" rel="noreferrer">Open source</a>{resource.paperId && onRead && <Button variant="ghost" onClick={() => onRead(resource.paperId!)}>Read saved source</Button>}</div>
     <details><summary>Source details</summary>
-      <dl className="pa-resource-provenance"><dt>Identity</dt><dd>{resource.identity}</dd><dt>Original URL</dt><dd><a href={resource.originalUrl} target="_blank" rel="noreferrer">{resource.originalUrl}</a></dd><dt>Revision</dt><dd>{resource.revision || 'Not resolved'}</dd></dl>
+      <dl className="pa-resource-provenance"><dt>Identity</dt><dd>{resource.identity}</dd><dt>Original URL</dt><dd><a href={resource.originalUrl} target="_blank" rel="noreferrer">{resource.originalUrl}</a></dd><dt>Revision</dt><dd>{resource.revision || 'Not resolved'}</dd>{resource.observedAt && <><dt>Inspected</dt><dd>{resource.observedAt}</dd></>}</dl>
       {resource.evidence.length > 0 && <ul>{resource.evidence.map((evidence, index) => <li key={index}><a href={evidence.url} target="_blank" rel="noreferrer">{evidence.label || evidence.url}</a></li>)}</ul>}
       {resource.excerpt && <p className="pa-resource-excerpt">{resource.excerpt}</p>}
     </details>
@@ -49,14 +49,14 @@ export function ResearchImport({ api, active, onSaved }: { api: Api; active: boo
     }, 700);
     return () => { alive = false; clearTimeout(timer); };
   }, [api, active, draft, error, busy]);
-  async function inspect(resume?: ImportDraft) {
+  async function inspect(resume?: ImportDraft, refresh = false) {
     if (requestPending.current || savePending.current) return;
     const seed = resume?.seedUrl ?? url.trim();
     if (!resume && !/^https:\/\//i.test(seed)) { setError('Use a public HTTPS URL.'); input.current?.focus(); return; }
     requestPending.current = true; setBusy(true); setError(''); acceptedDraft.current = null; setDraft(null); setDownloadIds([]); setConfirmed(false);
     const version = ++epoch.current;
     try {
-      const value = await api.post<ImportDraft>('/api/research/inspect', resume ? { draftId: resume.id } : { url: seed });
+      const value = await api.post<ImportDraft>('/api/research/inspect', resume ? { draftId: resume.id } : { url: seed, ...(refresh ? { refresh: true } : {}) });
       if (mounted.current && version === epoch.current) { setUrl(value.seedUrl); accept(value); }
       else if (mounted.current && value.status === 'inspecting') void api.post('/api/research/inspect', { draftId: value.id, cancel: true }).catch(() => {});
     } catch (error) { if (mounted.current && version === epoch.current) setError(errorText(error)); }
@@ -105,7 +105,7 @@ export function ResearchImport({ api, active, onSaved }: { api: Api; active: boo
         </div>
       </li>)}</ul>
       {downloadIds.length > 0 ? <label className="pa-download-confirm"><Checkbox checked={confirmed} disabled={saving} onCheckedChange={setConfirmed}/><span>I confirm downloading {downloadIds.length} selected {downloadIds.length === 1 ? 'file' : 'files'} ({assetSize(selectedAssets.reduce((total, asset) => total + asset.size, 0))}) to Data under the licenses shown. No code will run.</span></label> : <p className="pa-muted">References only. No files downloaded or code run.</p>}
-      <Toolbar><Button variant="primary" busy={saving} disabled={!selected.length || downloadIds.length > 0 && !confirmed} onClick={() => void save()}>{saving ? 'Saving…' : downloadIds.length ? 'Save and download' : 'Save references only'}</Button></Toolbar>
+      <Toolbar><Button variant="primary" busy={saving} disabled={!selected.length || downloadIds.length > 0 && !confirmed} onClick={() => void save()}>{saving ? 'Saving…' : downloadIds.length ? 'Save and download' : 'Save references only'}</Button><Button disabled={saving} onClick={() => void inspect(undefined, true)}>Inspect again</Button></Toolbar>
     </section>}
     {!draft && !busy && <section className="pa-research-drafts" aria-label="Saved import reviews">
       {draftsError && <Feedback kind="error">{draftsError}<Button onClick={() => void loadDrafts()}>Retry saved reviews</Button></Feedback>}

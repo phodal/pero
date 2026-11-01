@@ -10,7 +10,8 @@ requests as questions. Ask selection questions in the existing conversation.
 
 1. Call `inspect-research-link` with the user's HTTPS URL. Retain the returned
    draft ID; read it with `draftId` until it is ready. A retry of the same URL
-   reuses its draft. To stop inspection, use that ID with `cancel: true`.
+   reuses its draft. If the user requests fresh metadata, add `refresh: true`
+   with the URL; saved bundles remain intact. To stop, use the ID with `cancel: true`.
 2. Present one concise review: type, source/evidence, relation, unresolved items,
    license and file size. A blog is an article, an HF model is not a dataset, and
    a cited foundational paper need not announce the linked release. Never invent

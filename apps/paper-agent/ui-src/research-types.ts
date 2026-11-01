@@ -4,7 +4,7 @@ export type ResearchAsset = {
   size: number; license: string; revision: string; sourceUrl: string; url: string; sha256: string | null;
 };
 export type ResearchResource = {
-  id: string; identity: string; kind: 'web_article' | 'paper' | 'code' | 'model' | 'dataset' | 'benchmark' | 'service';
+  id: string; identity: string; observedAt?: string; kind: 'web_article' | 'paper' | 'code' | 'model' | 'dataset' | 'benchmark' | 'service';
   url: string; originalUrl: string; title: string; authors: string[]; revision: string | null;
   license: string | null; size: number | null; confidence: 'explicit' | 'metadata' | 'unresolved';
   relation: 'links_to' | 'implements' | 'cites' | 'releases' | 'evaluated_on';
