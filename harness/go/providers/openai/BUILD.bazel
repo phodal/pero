@@ -25,7 +25,10 @@ go_library(
 
 go_test(
     name = "openai_test",
-    srcs = ["adapter_test.go", "image_input_test.go"],
+    srcs = [
+        "adapter_test.go",
+        "image_input_test.go",
+    ],
     embed = [":openai"],
     deps = [
         "//harness",
