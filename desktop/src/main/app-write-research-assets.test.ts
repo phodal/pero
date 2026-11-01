@@ -92,3 +92,26 @@ test('research App routes require the matching Host goal and inject its frozen d
     assert.throws(() => new PreparedAppWrite(route, { ...document, specHash: 'agent-supplied' }), /specHash/);
   }
 });
+
+test('Only the declared Paper image operation admits a bounded base64 response', async () => {
+  const { SOURCE_IMAGE_RESPONSE_BYTES } = await import('./paper-source-image.ts');
+  const imageRoute = { app: 'paper-agent', panel: 'main', version: '1', name: 'research-source-read', description: '', path: '/api/research/source-read', schema: {
+    type: 'object', properties: { operation: { type: 'string', enum: ['read', 'image'] }, memberId: { type: 'string' } }, required: ['operation', 'memberId'], additionalProperties: false,
+  } };
+  let body = JSON.stringify({ data: 'x'.repeat(1000000) }), receipts = 0, cancelled = false;
+  const { app, panel, version, ...write } = imageRoute;
+  const routes = new AppWriteRoutes(async <T>(action: string) => {
+    if (action === 'list') return [{ name: app, version, enabled: true, panels: [{ id: panel }], writes: [write] }] as T;
+    return { backend: { url: 'http://unused.invalid', token: 'fixture-only' } } as T;
+  }, () => { receipts++; }, async () => new Response(new ReadableStream({
+    start(controller) { controller.enqueue(new TextEncoder().encode(body)); }, cancel() { cancelled = true; },
+    pull(controller) { if (body.length <= SOURCE_IMAGE_RESPONSE_BYTES) controller.close(); },
+  })));
+  const image = new PreparedAppWrite(imageRoute, { operation: 'image', memberId: 'a'.repeat(64) });
+  assert.equal((await routes.apply(image, new AbortController().signal) as { data: string }).data.length, 1000000);
+  assert.equal(receipts, 1);
+  await assert.rejects(routes.apply(new PreparedAppWrite(imageRoute, { operation: 'read', memberId: 'a'.repeat(64) }), new AbortController().signal), /response exceeds 1 MiB/);
+  body = 'x'.repeat(SOURCE_IMAGE_RESPONSE_BYTES + 1); cancelled = false;
+  await assert.rejects(routes.apply(image, new AbortController().signal), /bounded PNG envelope/);
+  assert.equal(cancelled, true); assert.equal(receipts, 1, 'oversized responses do not publish successful receipts');
+});

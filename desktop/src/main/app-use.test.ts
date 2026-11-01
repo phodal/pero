@@ -681,3 +681,64 @@ test('MCP advertises only the UI operations supplied by its shell', async () => 
     } finally {await endpoint.close();}
   }
 });
+
+test('Only declared version-bound Paper image reads become MCP image content', async () => {
+  const { createHash } = await import('node:crypto');
+  const { DesktopAppUse } = await import('./app-use-mcp.ts');
+  const { PreparedAppWrite } = await import('./app-write.ts');
+  const { PaperSourceImage } = await import('./paper-source-image.ts');
+  const { runInNewContext } = await import('node:vm');
+  const { tmpdir } = await import('node:os');
+  const data = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9xkAAAAASUVORK5CYII=';
+  const image = { type: 'source_image', mimeType: 'image/png', data, provenance: {
+    archiveDigest: 'a'.repeat(64), memberId: 'b'.repeat(64), originalSha256: 'c'.repeat(64),
+    previewSha256: createHash('sha256').update(Buffer.from(data, 'base64')).digest('hex'), width: 1, height: 1,
+  } };
+  const definition = { app: 'paper-agent', panel: 'main', version: '1', name: 'research-source-read', description: 'Read frozen source', path: '/api/research/source-read', schema: {
+    type: 'object', properties: { operation: { type: 'string', enum: ['image', 'read'] }, memberId: { type: 'string' } }, required: ['operation', 'memberId'], additionalProperties: false,
+  } };
+  const document = { operation: 'image', memberId: image.provenance.memberId };
+  const prepared = new PreparedAppWrite(definition, document);
+  for (const [name, value] of [
+    ['unknown type', { ...image, type: 'other' }], ['wrong MIME', { ...image, mimeType: 'image/jpeg' }],
+    ['URL not bytes', { ...image, data: 'https://example.org/picture.png' }], ['noncanonical base64', { ...image, data: data + '\n' }],
+    ['extra field', { ...image, url: 'https://example.org' }], ['extra provenance', { ...image, provenance: { ...image.provenance, path: '/tmp/private' } }],
+    ['wrong member', { ...image, provenance: { ...image.provenance, memberId: 'd'.repeat(64) } }],
+    ['non-PNG bytes', { ...image, data: Buffer.alloc(64).toString('base64'), provenance: { ...image.provenance, previewSha256: createHash('sha256').update(Buffer.alloc(64)).digest('hex') } }],
+    ['wrong SHA', { ...image, provenance: { ...image.provenance, previewSha256: 'd'.repeat(64) } }],
+    ['dimension mismatch', { ...image, provenance: { ...image.provenance, width: 2 } }],
+    ['too many pixels', { ...image, provenance: { ...image.provenance, width: 2049 } }],
+    ['oversized bytes', { ...image, data: Buffer.alloc(4 * 1024 * 1024 + 1).toString('base64') }],
+  ] as const) assert.throws(() => PaperSourceImage.parse(prepared, value), /source image.*invalid/, name);
+  for (const [name, route, input] of [
+    ['foreign App', { ...definition, app: 'other' }, document], ['undeclared tool', { ...definition, name: 'other' }, document],
+    ['other path', { ...definition, path: '/api/other' }, document], ['other operation', definition, { ...document, operation: 'read' }],
+  ] as const) assert.equal(PaperSourceImage.parse(new PreparedAppWrite(route, input), image), null, name);
+  const window = { webContents: { mainFrame: { frames: [] }, executeJavaScript: (expression: string) => runInNewContext(expression, {
+    window: { peroDiagnostics: { snapshot: () => JSON.stringify({ chats: [{ id: 'source-image' }], activeChat: 0 }) } },
+  }) } };
+  let reply: unknown = image;
+  const desktop = new DesktopAppUse(() => window as never, () => {}, tmpdir(), { describe: async () => [definition], apply: async () => reply });
+  const env = await desktop.start();
+  desktop.accept({ kind: 'session_created', thread_id: 'source-image', data: { scope: { app: 'paper-agent', panel: 'main' } } });
+  desktop.accept({ kind: 'turn_started', thread_id: 'source-image' });
+  const call = async (operation = 'image') => {
+    const response = await fetch(env.PERO_APP_USE_URL, { method: 'POST', headers: { Authorization: `Bearer ${env.PERO_APP_USE_TOKEN}`, 'X-Pero-Thread': 'source-image' }, body: JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'app__paper-agent__research-source-read', arguments: { ...document, operation } },
+    }) });
+    return (await response.json()).result;
+  };
+  try {
+    const result = await call();
+    assert.equal(result.isError, false);
+    assert.deepEqual(result.content.map((item: { type: string }) => item.type), ['text', 'image']);
+    assert.equal(result.content[1].data, data); assert.equal(result.content[1].mimeType, 'image/png');
+    assert.deepEqual(JSON.parse(result.content[0].text).result.provenance, image.provenance);
+    assert.equal(result.content[0].text.includes(data), false, 'base64 never becomes text or an artifact reference');
+    assert.equal((await call('read')).content.some((item: { type: string }) => item.type === 'image'), false, 'ordinary JSON remains data');
+    reply = { ...image, type: 'unknown' };
+    assert.equal((await call()).isError, true);
+    desktop.accept({ kind: 'turn_finished', thread_id: 'source-image' });
+    assert.equal((await call()).isError, true, 'image route does not bypass Host turn authority');
+  } finally { desktop.close(); }
+});
