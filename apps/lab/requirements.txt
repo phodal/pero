@@ -1,0 +1,4 @@
+# Real no-hardware engine; Python 3.12 integration tested. No hardware extras.
+pylabrobot==0.2.2
+typing_extensions==4.16.0
+websockets==17.4
