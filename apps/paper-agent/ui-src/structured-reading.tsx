@@ -11,7 +11,8 @@ type Locator = { start: number; end: number; start_line: number; end_line: numbe
 type Block = { id: string; kind: string; content: Inline[]; cells: Cell[]; images: { url: string; alt: string }[]; anchors: string[]; level: number; section_id: string; locator: Locator | null; limitations: string[] };
 type Document = { id: string; paperId: string; parser: string; metadata: { title: string; authors: string[]; abstract: string; identifiers: [string, string][]; date: string | null }; source: { url: string; digest: string; version: string }; warnings: string[]; blocks: Block[]; parseStatus: string; sourceIdentity: string };
 type Source = { bundleId: string; resourceId: string; url: string; revision: string; authorized: boolean; reviewUrl: string };
-type Overview = { revisions: { id: string; source: Document['source']; parser: string; createdAt: string; bundleId: string; resourceId: string }[]; sources: Source[] };
+type EvidenceScope = { bundleId: string; resourceId: string };
+type Overview = { revisions: { id: string; source: Document['source']; parser: string; createdAt: string; bundleId: string; resourceId: string; scopes: EvidenceScope[] }[]; sources: Source[] };
 type Original = { observationId?: string; documentId: string; content: string; start: number; end: number; nextStart: number | null; sourceDigest: string; blockLocator: Locator | null };
 const mathTags = new Set('math mrow mi mn mo mtext ms mspace msup msub msubsup mfrac msqrt mroot munder mover munderover mtable mtr mtd mlabeledtr mfenced menclose mpadded mphantom mmultiscripts mprescripts none semantics'.split(' '));
 const mathAttrs = new Set('display mathvariant stretchy fence separator accent accentunder columnalign rowalign columnspan rowspan open close separators notation linethickness bevelled'.split(' '));
@@ -41,11 +42,18 @@ export function StructuredReading({ api, paperId, onReady, onReview, showText, c
   const [overview, setOverview] = useState<Overview>({ revisions: [], sources: [] }), [document, setDocument] = useState<Document | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [original, setOriginal] = useState<Original | null>(null), [originalBlock, setOriginalBlock] = useState('');
   const [target, setTarget] = useState(''), [candidates, setCandidates] = useState<Block[]>([]), [targetError, setTargetError] = useState('');
+  const [evidenceScope, setEvidenceScope] = useState<EvidenceScope | null>(null);
   const [recordedScope, setRecordedScope] = useState<DocumentEvidenceScope | null>(null), [reportRefresh, setReportRefresh] = useState(0);
   const root = useRef<HTMLDivElement>(null), epoch = useRef(0), originalEpoch = useRef(0);
-  async function load(identity: string, version: number) {
+  function chooseScope(identity: string, scope: EvidenceScope | null) {
+    originalEpoch.current++; setOriginal(null); setRecordedScope(null); setEvidenceScope(scope);
+    saveSetting(`paper-read-scope:${identity}`, JSON.stringify(scope));
+  }
+  async function load(identity: string, version: number, scope?: EvidenceScope) {
     const value = await api.get<Document>(`/api/paper-documents/${identity}`);
     if (version !== epoch.current) return;
+    if (scope) chooseScope(identity, { bundleId: scope.bundleId, resourceId: scope.resourceId });
+    else { try { setEvidenceScope(JSON.parse(readSetting(`paper-read-scope:${identity}`) ?? 'null')); } catch { setEvidenceScope(null); } }
     originalEpoch.current++; setRecordedScope(null); setDocument(value); setOriginal(null); setOriginalBlock(''); setCandidates([]); setTargetError(''); onReady(true);
     saveSetting(`paper-read-revision:${paperId}`, identity);
     return value;
@@ -77,8 +85,8 @@ export function StructuredReading({ api, paperId, onReady, onReview, showText, c
     if (busy) return;
     const version = ++epoch.current; setBusy(true); setError('');
     try {
-      const prepared = await api.post<{ documentId: string }>('/api/paper-document', { operation: 'prepare', paperId, bundleId: source.bundleId, resourceId: source.resourceId, refresh });
-      await load(prepared.documentId, version);
+      const prepared = await api.post<{ documentId: string } & EvidenceScope>('/api/paper-document', { operation: 'prepare', paperId, bundleId: source.bundleId, resourceId: source.resourceId, refresh });
+      await load(prepared.documentId, version, prepared);
       const next = await api.get<Overview>(`/api/paper-documents?paperId=${paperId}`);
       if (version === epoch.current) setOverview(next);
     } catch (error) { if (version === epoch.current) setError(error instanceof Error ? error.message : String(error)); }
@@ -89,20 +97,24 @@ export function StructuredReading({ api, paperId, onReady, onReview, showText, c
     const element = root.current?.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(blockId)}"]`);
     element?.scrollIntoView({ block: 'center' }); element?.focus({ preventScroll: true });
   }
-  const activeRevision = overview.revisions.find(revision => revision.id === document?.id);
-  function recordedRevision(scope: DocumentEvidenceScope) {
-    return overview.revisions.find(revision => revision.id === scope.documentId && revision.parser === scope.parserRevision
-      && revision.source.digest === scope.sourceDigest && revision.bundleId === activeRevision?.bundleId);
+  const revision = overview.revisions.find(revision => revision.id === document?.id);
+  const scopes = revision?.scopes ?? (revision ? [revision] : []);
+  const selectedScope = scopes.find(scope => scope.bundleId === evidenceScope?.bundleId && scope.resourceId === evidenceScope?.resourceId) ?? (!evidenceScope && scopes.length === 1 ? scopes[0] : null);
+  const activeRevision = revision && selectedScope ? { ...revision, ...selectedScope } : null;
+  function recordedRevision(scope: DocumentEvidenceScope, resourceId = activeRevision?.resourceId) {
+    const revision = overview.revisions.find(revision => revision.id === scope.documentId && revision.parser === scope.parserRevision && revision.source.digest === scope.sourceDigest);
+    const selected = revision?.scopes.find(value => value.bundleId === activeRevision?.bundleId && value.resourceId === resourceId);
+    return revision && selected ? { ...revision, ...selected } : null;
   }
-  async function openRecorded(scope: DocumentEvidenceScope, observationId: string) {
-    if (busy || !recordedRevision(scope)) return;
+  async function openRecorded(scope: DocumentEvidenceScope, observationId: string, resourceId: string) {
+    if (busy || !recordedRevision(scope, resourceId)) return;
     const version = ++epoch.current; setBusy(true); setError('');
     try {
-      const loaded = await load(scope.documentId, version);
+      const loaded = await load(scope.documentId, version, recordedRevision(scope, resourceId)!);
       if (version !== epoch.current || !loaded) return;
       if (loaded.parser !== scope.parserRevision || loaded.source.digest !== scope.sourceDigest || (scope.unit !== 'original-html' && !loaded.blocks.some(block => block.id === scope.blockId))) throw Error('Recorded document scope does not match this saved revision.');
       if (scope.unit === 'original-html') {
-        const revision = recordedRevision(scope)!;
+        const revision = recordedRevision(scope, resourceId)!;
         const rawVersion = ++originalEpoch.current;
         const raw = await api.post<Original>('/api/paper-document', { operation: 'source', documentId: scope.documentId,
           bundleId: revision.bundleId, resourceId: revision.resourceId, start: scope.start, limit: scope.end - scope.start });
@@ -123,7 +135,8 @@ export function StructuredReading({ api, paperId, onReady, onReview, showText, c
     if (matches.length === 1) reveal(matches[0].id);
   }
   async function source(block?: Block, start?: number) {
-    if (!document) return;
+    if (!document || busy) return;
+    if (!activeRevision) { setError('Choose an evidence bundle before reading original HTML.'); return; }
     setRecordedScope(null);
     const version = ++originalEpoch.current;
     try {
@@ -139,14 +152,17 @@ export function StructuredReading({ api, paperId, onReady, onReview, showText, c
     {busy && <p role="status">Loading Read… PDF remains available.</p>}
     {error && <Feedback kind="error">{error}<Button onClick={() => setError('')}>Dismiss</Button>{overview.sources.filter(s => s.authorized).map(s => <Button key={`${s.bundleId}:${s.resourceId}`} disabled={busy} onClick={() => void prepare(s, true)}>Retry {s.revision}</Button>)}</Feedback>}
     {!document ? children : <>
-      <Toolbar><Select disabled={busy} label="Read version" value={document.id} onChange={id => { const version = ++epoch.current; void load(id, version).catch(error => { if (version === epoch.current) setError(String(error.message ?? error)); }); }} options={overview.revisions.map(r => ({ value: r.id, label: `${r.source.version} · ${r.parser} · ${r.source.digest.slice(0, 10)}` }))}/><Button variant="ghost" onClick={() => void source()}>Original HTML</Button></Toolbar>
+      {(scopes.length > 1 || !!evidenceScope && !selectedScope) && <Select label="Evidence bundle" disabled={busy} value={selectedScope ? `${selectedScope.bundleId}:${selectedScope.resourceId}` : ''} onChange={value => {
+        const scope = scopes.find(scope => `${scope.bundleId}:${scope.resourceId}` === value); chooseScope(document.id, scope ?? null);
+      }} options={[{ value: '', label: 'Choose evidence bundle' }, ...scopes.map(scope => ({ value: `${scope.bundleId}:${scope.resourceId}`, label: `${scope.bundleId.slice(0, 12)} · ${scope.resourceId.slice(0, 8)}` }))]}/>}
+      <Toolbar><Select disabled={busy} label="Read version" value={document.id} onChange={id => { const version = ++epoch.current; void load(id, version).catch(error => { if (version === epoch.current) setError(String(error.message ?? error)); }); }} options={overview.revisions.map(r => ({ value: r.id, label: `${r.source.version} · ${r.parser} · ${r.source.digest.slice(0, 10)}` }))}/><Button variant="ghost" disabled={busy || !activeRevision} onClick={() => void source()}>Original HTML</Button></Toolbar>
       <p className="pa-document-meta">Derived structure · PDF alignment unavailable · {document.parseStatus === 'partial' ? 'Partial parse' : 'Parsed, not fully read'}</p>
       {!!document.metadata.authors.length && <p>{document.metadata.authors.join(', ')}</p>}
-      <Disclosure summary="Source and parsing details"><a href={document.source.url} target="_blank" rel="noreferrer">Official source · {document.source.version}</a><dl><dt>Original SHA-256</dt><dd><code>{document.source.digest}</code></dd><dt>Parser</dt><dd>{document.parser}</dd><dt>Response identity</dt><dd>{document.sourceIdentity}</dd>{document.metadata.date && <><dt>Declared date</dt><dd>{document.metadata.date}</dd></>}{document.metadata.identifiers.map(([kind, value], i) => <React.Fragment key={i}><dt>{kind}</dt><dd>{value}</dd></React.Fragment>)}</dl>{document.warnings.length > 0 && <ul>{document.warnings.map(w => <li key={w}>{w}</li>)}</ul>}<a href={`/api/paper-documents/${document.id}/original`} download="source.html.txt">Download original bytes (text)</a><div>{overview.sources.filter(s => s.authorized).map(s => <Button key={`${s.bundleId}:${s.resourceId}`} disabled={busy} onClick={() => void prepare(s, true)}>Prepare fresh parse · {s.revision}</Button>)}</div></Disclosure>
+      <Disclosure summary="Source and parsing details"><a href={document.source.url} target="_blank" rel="noreferrer">Official source · {document.source.version}</a><dl><dt>Original SHA-256</dt><dd><code>{document.source.digest}</code></dd><dt>Parser</dt><dd>{document.parser}</dd><dt>Response identity</dt><dd>{document.sourceIdentity}</dd>{document.metadata.date && <><dt>Declared date</dt><dd>{document.metadata.date}</dd></>}{document.metadata.identifiers.map(([kind, value], i) => <React.Fragment key={i}><dt>{kind}</dt><dd>{value}</dd></React.Fragment>)}</dl>{document.warnings.length > 0 && <ul>{document.warnings.map(w => <li key={w}>{w}</li>)}</ul>}<a href={`/api/paper-documents/${document.id}/original`} download="source.html.txt">Download original bytes (text)</a><div>{overview.sources.filter(s => s.authorized && !scopes.some(scope => scope.bundleId === s.bundleId && scope.resourceId === s.resourceId)).map(s => <Button key={`reuse:${s.bundleId}:${s.resourceId}`} disabled={busy} onClick={() => void prepare(s)}>Use saved Read · {s.revision}</Button>)}{overview.sources.filter(s => s.authorized).map(s => <Button key={`${s.bundleId}:${s.resourceId}`} disabled={busy} onClick={() => void prepare(s, true)}>Prepare fresh parse · {s.revision}</Button>)}</div></Disclosure>
       {activeRevision && <Disclosure summary="Recorded evidence"><Button disabled={busy} onClick={() => setReportRefresh(value => value + 1)}>Refresh recorded evidence</Button>
         <SourceReports key={activeRevision.bundleId} api={api} bundleId={activeRevision.bundleId} refresh={reportRefresh} navigating={busy}
           canOpenSource={() => false} openSource={() => {}} canOpenPdf={() => false} openPdf={() => {}}
-          canOpenDocument={(_observation, scope) => !!recordedRevision(scope)} openDocument={(observation, scope) => void openRecorded(scope, observation.id)}/>
+          canOpenDocument={(observation, scope) => !!recordedRevision(scope, observation.resourceId)} openDocument={(observation, scope) => void openRecorded(scope, observation.id, observation.resourceId)}/>
       </Disclosure>}
       {recordedScope && <p role="status">Recorded {recordedScope.unit} {recordedScope.start}–{recordedScope.end} {recordedScope.unit === 'original-html' ? ' · Raw markup only; not structured scientific understanding.' : ` · ${recordedScope.blockId}. Showing the surrounding block; other content is not marked observed.`}</p>}
       <Disclosure summary="Contents"><nav aria-label="Document contents">{document.blocks.filter(b => b.kind === 'heading').map(b => <Button key={b.id} variant="ghost" onClick={() => reveal(b.id)}>{b.content.map(t => t.text).join('')}</Button>)}</nav></Disclosure>
@@ -161,10 +177,10 @@ export function StructuredReading({ api, paperId, onReady, onReview, showText, c
             : block.kind === 'figure' ? <figure><figcaption>{content}</figcaption><p className="pa-document-meta">Image bytes not acquired or visually observed.</p>{block.images.map((image, index) => <span key={index}>{image.alt || `Image ${index + 1}`} · metadata only </span>)}</figure>
             : block.kind === 'code' ? <pre>{content}</pre> : <div>{content}</div>}
           {block.limitations.length > 0 && <p className="pa-document-meta">{block.limitations.join('; ')}</p>}
-          <Button variant="ghost" onClick={() => void source(block)}>Reveal original</Button>
+          <Button variant="ghost" disabled={busy || !activeRevision} onClick={() => void source(block)}>Reveal original</Button>
         </section>;
       })}
-      {original && <aside className="pa-original-html" aria-label="Original HTML source"><Toolbar><strong>Original HTML · characters {original.start}–{original.end}</strong><Button onClick={() => { originalEpoch.current++; setOriginal(null); if (originalBlock) reveal(originalBlock); }}>Close source</Button></Toolbar><p>{original.blockLocator ? `Block source: lines ${original.blockLocator.start_line}–${original.blockLocator.end_line}` : 'No exact block window available.'}</p><pre tabIndex={0}>{original.content}</pre>{original.nextStart != null && <Button onClick={() => void source(document.blocks.find(b => b.id === originalBlock), original.nextStart!)}>Next original window</Button>}</aside>}
+      {original && <aside className="pa-original-html" aria-label="Original HTML source"><Toolbar><strong>Original HTML · characters {original.start}–{original.end}</strong><Button onClick={() => { originalEpoch.current++; setOriginal(null); if (originalBlock) reveal(originalBlock); }}>Close source</Button></Toolbar><p>{original.blockLocator ? `Block source: lines ${original.blockLocator.start_line}–${original.blockLocator.end_line}` : 'No exact block window available.'}</p><pre tabIndex={0}>{original.content}</pre>{original.nextStart != null && <Button disabled={busy || !activeRevision} onClick={() => void source(document.blocks.find(b => b.id === originalBlock), original.nextStart!)}>Next original window</Button>}</aside>}
     </>}
   </div>;
 }

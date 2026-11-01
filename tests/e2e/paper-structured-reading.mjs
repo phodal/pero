@@ -219,6 +219,79 @@ try {
   expect(await sourceReports({ operation: 'read', reportId: sourceReport.id })).toEqual(sourceReport);
   expect((await sourceReports({ operation: 'observations' })).observations).toHaveLength(observedIds.length);
   checks.push('Read/PDF retains page and zoom; real Desktop/backend restart reopens the same offline parse without acquisition');
+  // A distinct approved review reuses the exact original, but owns its own
+  // evidence receipt. Do not silently attribute its reads to the first bundle.
+  await backToLibrary(frame); await openResearchImport(page, frame);
+  await frame.getByRole('textbox', { name: 'Research URL', exact: true }).fill(seed + '-second');
+  await frame.getByRole('textbox', { name: 'Research URL', exact: true }).press('Enter');
+  await expect(review).toBeVisible({ timeout: 65000 });
+  const secondDraft = (await api('/api/research/drafts')).drafts.find(d => d.seedUrl === seed + '-second');
+  const secondResource = secondDraft.resources.find(r => r.originalUrl === pdfUrl);
+  const secondRow = review.locator('.pa-resource-list>li').filter({ hasText: secondResource.title });
+  await secondRow.getByRole('checkbox', { name: /^Download PDF for reading/ }).check();
+  await secondRow.getByRole('checkbox', { name: /^Allow official HTML for Read/ }).check();
+  await frame.getByRole('checkbox', { name: /^I confirm downloading only/ }).check();
+  await frame.getByRole('button', { name: 'Save and download', exact: true }).click();
+  await expect(frame.getByRole('region', { name: 'PDF reading sources', exact: true })).toBeVisible();
+  const secondBundle = (await api('/api/library')).bundles.find(b => b.seedUrl === seed + '-second');
+  expect(secondBundle.id).not.toBe(bundle.id);
+  await expect.poll(async () => (await status(secondBundle, secondResource)).status, { timeout: 60000 }).toBe('completed');
+  expect((await status(secondBundle, secondResource)).receipt.paperId).toBe(paperId);
+  await frame.getByRole('button', { name: 'Open saved PDF', exact: true }).click();
+  await frame.getByRole('button', { name: 'Read', exact: true }).click();
+  await frame.getByText('Source and parsing details', { exact: true }).click();
+  // Hold only the real refreshed overview after B preparation. The old overview
+  // still contains A; no original read may silently fall back to that scope.
+  await frame.locator('body').evaluate(() => {
+    const original = window.fetch; let release;
+    const held = new Promise(resolve => { release = resolve; });
+    window.paperScopeOverviewGate = { arrived: false, error: '', release, restore() { window.fetch = original; release(); } };
+    window.fetch = async (...args) => {
+      const response = await original.apply(window, args);
+      if (new URL(typeof args[0] === 'string' ? args[0] : args[0].url, location.href).pathname === '/api/paper-documents') {
+        if (!response.ok) window.paperScopeOverviewGate.error = `Overview failed: ${response.status}`;
+        await response.clone().arrayBuffer(); window.paperScopeOverviewGate.arrived = true; await held;
+      }
+      return response;
+    };
+  });
+  try {
+    await frame.getByRole('button', { name: 'Use saved Read · v2', exact: true }).click();
+    await expect.poll(() => frame.locator('body').evaluate(() => {
+      if (window.paperScopeOverviewGate.error) throw Error(window.paperScopeOverviewGate.error);
+      return window.paperScopeOverviewGate.arrived;
+    })).toBe(true);
+    await expect(frame.getByRole('button', { name: 'Original HTML', exact: true })).toBeDisabled();
+    await expect(frame.getByRole('button', { name: 'Reveal original', exact: true }).first()).toBeDisabled();
+    expect((await api('/api/research/source-report', { operation: 'observations', bundleId: secondBundle.id })).observations).toEqual([]);
+    expect((await sourceReports({ operation: 'observations' })).observations).toHaveLength(observedIds.length);
+    await frame.locator('body').evaluate(() => window.paperScopeOverviewGate.release());
+    await expect(frame.getByRole('button', { name: 'Original HTML', exact: true })).toBeEnabled();
+  } finally { await frame.locator('body').evaluate(() => { window.paperScopeOverviewGate.restore(); delete window.paperScopeOverviewGate; }); }
+  const selectedEvidence = `${secondBundle.id}:${secondResource.id}`;
+  await expect(frame.getByRole('combobox', { name: 'Evidence bundle', exact: true })).toHaveValue(selectedEvidence);
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
+  await frame.getByRole('button', { name: 'Original HTML', exact: true }).click();
+  await expect(frame.getByRole('complementary', { name: 'Original HTML source', exact: true })).toBeVisible();
+  const secondScope = { documentId: identity, bundleId: secondBundle.id, resourceId: secondResource.id };
+  const secondTyped = await api('/api/paper-document', { operation: 'read', blockId: table.id, ...secondScope });
+  const secondRaw = await api('/api/paper-document', { operation: 'source', start: 13, limit: 17, ...secondScope });
+  const secondReport = await api('/api/research/source-report', { operation: 'create', bundleId: secondBundle.id,
+    title: 'Second scoped report', observationIds: [secondTyped.observationId, secondRaw.observationId] });
+  expect(secondReport.observations.every(o => o.bundleId === secondBundle.id && o.resourceId === secondResource.id)).toBe(true);
+  expect(await sourceReports({ operation: 'read', reportId: sourceReport.id })).toEqual(sourceReport);
+  await backToLibrary(frame); await app.close(); app = await launch(); await ready(); await openPaper();
+  await frame.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: secondBundle.title, exact: true }).click();
+  await frame.getByRole('button', { name: 'Open saved PDF', exact: true }).click();
+  await frame.getByRole('button', { name: 'Read', exact: true }).click();
+  await expect(frame.getByRole('combobox', { name: 'Evidence bundle', exact: true })).toHaveValue(selectedEvidence);
+  await frame.getByText('Recorded evidence', { exact: true }).click();
+  await frame.getByRole('button', { name: 'Second scoped report', exact: true }).click();
+  await frame.getByRole('button', { name: 'Open recorded original-html 13–30', exact: true }).click();
+  await expect(frame.getByRole('complementary', { name: 'Original HTML source', exact: true }).locator('pre')).toHaveText(secondRaw.content);
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
+  expect(await api('/api/research/source-report', { operation: 'read', bundleId: secondBundle.id, reportId: secondReport.id })).toEqual(secondReport);
+  checks.push('Second approved bundle reuses identical HTML without fetching; selected typed/raw report ownership and exact windows survive restart without changing the first report');
   expect(errors).toEqual([]); expect(remoteRequests).toEqual([]);
   // Export a private stopped-profile copy through the existing real JSON CLI.
   await app.close(); app = null;

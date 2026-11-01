@@ -138,3 +138,26 @@ historical page/selection. The installed dependency lifecycle is covered in App
 builder tests, and Desktop now requires a rendered PDF and positive viewport
 geometry at the saved zoom after reopening before proceeding to exact search.
 The entire corrected reading aggregate still needs new exact-head GUI acceptance.
+
+### Cached documents across approved reviews
+
+A cached immutable document can be associated with another independently approved
+bundle/resource without a second HTML fetch. Preparation now uses one receipt
+registration owner for both fresh and cached bytes, rechecking the requesting
+bundle revision, fixed source URL and saved paper. Original document bytes and
+existing receipts/observation IDs are not rewritten. The returned scope identifies
+the requesting review, not whichever receipt was encountered first.
+
+When multiple bundle/resource scopes exist, Agent reads must provide both IDs;
+an omitted scope is an actionable ambiguity error. Single-scope calls remain
+compatible. Read preserves the explicitly prepared/selected evidence bundle and
+uses each report observation's resource when reopening. A pending overview cannot
+fall back to a different scope or deliver raw text. Historical receipts still
+allow offline saved-byte reads, but never authorize a new fetch/restore.
+
+Offline tests cover two independent bundles, typed/raw observations and reports,
+restart, unchanged originals/old reports, one HTML acquisition and denial of
+unapproved acquisition or restore. The Desktop fixture additionally holds the real
+second-scope overview response, checks zero cross-scope journal changes, and
+reopens the selected second report after restart. This increment needs a new
+exact-head GUI run; the earlier 62d3e743 success is prior-revision evidence only.

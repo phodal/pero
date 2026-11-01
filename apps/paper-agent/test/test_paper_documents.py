@@ -40,12 +40,13 @@ class HtmlTransport:
         return SourceResponse(self.final or url, self.data, self.mime)
 
 
-def save_bundle(store, approved=False, revision='v2'):
-    resource = replace(ResearchResource.linked('https://arxiv.org/abs/2606.03979' + revision, SEED, 'Scientific fixture'),
+def save_bundle(store, approved=False, revision='v2', seed=SEED, extra=False):
+    resource = replace(ResearchResource.linked('https://arxiv.org/abs/2606.03979' + revision, seed, 'Scientific fixture'),
                        excerpt='Self-authored metadata fixture, not paper content.', contentKind='abstract')
-    draft = ImportDraft.create(SEED, NOW).finish((resource,), ())
+    resources = (ResearchResource.linked(seed, seed, 'Review article'), resource) if extra else (resource,)
+    draft = ImportDraft.create(seed, NOW).finish(resources, ())
     store.imports._replace('import-drafts', draft.id, draft.to_dict())
-    bundle = store.imports.commit(dict(draftId=draft.id, resourceIds=[resource.id],
+    bundle = store.imports.commit(dict(draftId=draft.id, resourceIds=[item.id for item in resources],
         htmlIds=[resource.id] if approved else [], confirmedDownloads=approved), NOW)
     saved = next(r for r in bundle.resources if r.id == resource.id)
     return dict(operation='prepare', bundleId=bundle.id, resourceId=resource.id, paperId=saved.paperId)

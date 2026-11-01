@@ -73,7 +73,8 @@ class PaperDocuments:
                     authorized=resource.id in bundle.htmlDownloadIds, reviewUrl=bundle.seedUrl))
         return choices
 
-    def _receipt(self, document_id, bundle_id=None, resource_id=None):
+    def _receipt(self, document_id, bundle_id=None, resource_id=None, require_scope=False):
+        matches = []
         for identity in self.store._list('document-receipts'):
             receipt = self.store._read('document-receipts', identity)
             if receipt.get('documentId') != document_id or resource_id is not None and receipt.get('resourceId') != resource_id:
@@ -89,8 +90,38 @@ class PaperDocuments:
                 continue
             resource = bundle.approved_html(receipt['resourceId'])
             if OfficialHtml.from_resource(resource).url == receipt['sourceUrl']:
-                return receipt
-        raise Invalid('This document has no saved HTML acquisition authorization', 403)
+                matches.append((bundle.id, receipt))
+        if not matches:
+            raise Invalid('This document has no saved HTML acquisition authorization', 403)
+        if require_scope and len({(bundle, receipt['resourceId']) for bundle, receipt in matches}) > 1:
+            raise Invalid('This document belongs to multiple evidence scopes; supply bundleId and resourceId', 409)
+        return matches[0][1]
+
+    def _scopes(self, document_id):
+        scopes = {}
+        for identity in self.store._list('document-receipts'):
+            receipt = self.store._read('document-receipts', identity)
+            if receipt.get('documentId') != document_id:
+                continue
+            bundle = ResearchBundle.from_record(self.store._read('bundle-revisions', receipt['bundleRevision']))
+            self._receipt(document_id, bundle.id, receipt['resourceId'])
+            scopes[(bundle.id, receipt['resourceId'])] = dict(bundleId=bundle.id, resourceId=receipt['resourceId'])
+        return list(scopes.values())
+
+    def _register_receipt(self, document, bundle, resource, now):
+        # An association with cached bytes requires the requesting review's own
+        # fixed-version grant. It never creates authority to fetch or restore.
+        current = self.store.imports.bundle(bundle.id)
+        approved = current.approved_html(resource.id)
+        if (digest(current.to_dict()) != digest(bundle.to_dict())
+                or OfficialHtml.from_resource(approved).url != document.source.url
+                or self._paper_for_resource(bundle.id, approved) != document.paper_id):
+            raise Invalid('HTML authorization changed during preparation; review the source again', 409)
+        revision = digest(bundle.to_dict())
+        identity = digest(dict(documentId=document.id, bundleRevision=revision, resourceId=resource.id))
+        if identity not in self.store._list('document-receipts'):
+            self.store._write('document-receipts', identity, dict(documentId=document.id, bundleRevision=revision,
+                resourceId=resource.id, sourceUrl=document.source.url, sourceDigest=document.source.digest, createdAt=now))
 
     def read(self, identity):
         receipt = self._receipt(identity)
@@ -119,7 +150,7 @@ class PaperDocuments:
             revisions.append(dict(id=document.id, source=asdict(document.source), parser=document.parser,
                 warnings=list(document.warnings), createdAt=receipt['createdAt'],
                 bundleId=ResearchBundle.from_record(self.store._read('bundle-revisions', receipt['bundleRevision'])).id,
-                resourceId=receipt['resourceId']))
+                resourceId=receipt['resourceId'], scopes=self._scopes(identity)))
         revisions.sort(key=lambda item: (item['createdAt'], item['id']), reverse=True)
         return dict(paperId=paper_id, revisions=revisions, sources=self.sources(paper_id))
 
@@ -135,8 +166,10 @@ class PaperDocuments:
         if not value.get('refresh', False):
             for revision in self.overview(paper.id)['revisions']:
                 if revision['source']['url'] == source.url and revision['parser'] == PARSER:
-                    return self.read(revision['id'])[0]
-        bundle_revision = digest(bundle.to_dict())
+                    with self.store.lock:
+                        document = self.read(revision['id'])[0]
+                        self._register_receipt(document, bundle, resource, now)
+                        return document
         # Bounded worker is shared with PDF/source acquisition. No source scripts,
         # arbitrary paths, model calls or independent task runtime are added.
         with tempfile.TemporaryDirectory(prefix='pero-paper-html-') as directory:
@@ -152,13 +185,7 @@ class PaperDocuments:
         # Recheck the same authorization after IO; an edited review cannot grant
         # a different version while an earlier request is in flight.
         with self.store.lock:
-            current = self.store.imports.approved_html(value['bundleId'], value['resourceId'])
-            if OfficialHtml.from_resource(current).url != source.url or self._paper_for_resource(value['bundleId'], current) != paper.id:
-                raise Invalid('HTML authorization changed during preparation; review the source again', 409)
-            identity = digest(dict(documentId=document.id, bundleRevision=bundle_revision, resourceId=resource.id))
-            if identity not in self.store._list('document-receipts'):
-                self.store._write('document-receipts', identity, dict(documentId=document.id, bundleRevision=bundle_revision,
-                    resourceId=resource.id, sourceUrl=source.url, sourceDigest=document.source.digest, createdAt=now))
+            self._register_receipt(document, bundle, resource, now)
             self.store._write('scientific-documents', document.id,
                               dict(document=record, sourceBytes=b64encode(original).decode('ascii')))
         return self.read(document.id)[0]
@@ -169,7 +196,7 @@ class PaperDocuments:
         operation = value.get('operation')
         if operation == 'prepare':
             document = self.prepare(value, now)
-            return dict(documentId=document.id, source=asdict(document.source), warnings=list(document.warnings),
+            return dict(documentId=document.id, bundleId=value['bundleId'], resourceId=value['resourceId'], source=asdict(document.source), warnings=list(document.warnings),
                         evidenceAdmission='not-observed-in-study')
         if operation == 'list':
             if set(value) != {'operation', 'paperId'}:
@@ -189,7 +216,7 @@ class PaperDocuments:
             return document.outline(value.get('start', 0), value.get('limit', 64))
         if operation == 'read':
             from .source_reports import record_document_observation
-            receipt = self._receipt(document.id, value.get('bundleId'), value.get('resourceId'))
+            receipt = self._receipt(document.id, value.get('bundleId'), value.get('resourceId'), require_scope=True)
             result = document.read(value.get('blockId'), value.get('start', 0), value.get('limit', 4800))
             return record_document_observation(self.store, receipt, document, result)
         if operation == 'source':
@@ -206,7 +233,7 @@ class PaperDocuments:
                 textKind='original-html', blockLocator=asdict(block.locator) if block and block.locator else None,
                 evidenceAdmission='not-observed-in-study')
             from .source_reports import record_document_observation
-            receipt = self._receipt(document.id, value.get('bundleId'), value.get('resourceId'))
+            receipt = self._receipt(document.id, value.get('bundleId'), value.get('resourceId'), require_scope=True)
             return record_document_observation(self.store, receipt, document, result)
         if operation == 'trace':
             block = document.block(value.get('blockId'))

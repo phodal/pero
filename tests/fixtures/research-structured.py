@@ -13,6 +13,7 @@ from pdf_fixture import pdf_bytes
 from paper_agent.resource_fetch import PublicMetadata
 
 SEED = 'https://research.example.org/structured-reading'
+SECOND_SEED = SEED + '-second'
 PDF = 'https://arxiv.org/pdf/2606.03979v2'
 HTML = 'https://arxiv.org/html/2606.03979v2'
 
@@ -40,9 +41,11 @@ class Connection:
 
     def getresponse(self):
         record(self.url)
-        if self.url == SEED:
+        if self.url in (SEED, SECOND_SEED):
             data = ('<title>Synthetic structured reading</title><main><h1>Synthetic structured reading</h1>'
                     f'<a href="{PDF}">Fixed v2 synthetic paper PDF</a></main>').encode()
+            if self.url == SECOND_SEED:
+                data = data.replace(b'Synthetic structured reading', b'Synthetic second review')
             mime = 'text/html'
         elif self.url == PDF:
             data, mime = pdf_bytes('Structured fixture'), 'application/pdf'

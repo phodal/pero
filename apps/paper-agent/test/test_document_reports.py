@@ -15,6 +15,56 @@ from paper_agent.store import ResearchStore
 
 
 class DocumentReports(unittest.TestCase):
+    def test_cached_document_registers_each_approved_scope_without_fetching(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = ResearchStore(directory)
+            calls = Path(directory) / 'calls'
+            documents = PaperDocuments(store, HtmlTransport(SOURCE, str(calls)))
+            first = save_bundle(store, True)
+            original = documents.prepare(first, NOW)
+            record = store._read('scientific-documents', original.id)
+            block = next(b for b in original.blocks if b.kind == 'table')
+            reports = []
+            for request in (first, save_bundle(store, True, seed='https://research.example/second-review', extra=True)):
+                prepared = documents.command(request, NOW)
+                self.assertEqual(prepared['documentId'], original.id)
+                self.assertEqual(prepared['bundleId'], request['bundleId'])
+                self.assertEqual(prepared['resourceId'], request['resourceId'])
+                scope = dict(documentId=original.id, bundleId=request['bundleId'], resourceId=request['resourceId'])
+                typed = documents.command(dict(operation='read', blockId=block.id, **scope), NOW)
+                raw = documents.command(dict(operation='source', start=13, limit=17, **scope), NOW)
+                report = source_report(store, dict(operation='create', bundleId=request['bundleId'],
+                    title='Scoped cached read', observationIds=[typed['observationId'], raw['observationId']]), NOW)
+                self.assertTrue(all(o['bundleId'] == request['bundleId'] and o['resourceId'] == request['resourceId'] for o in report['observations']))
+                reports.append((request, report, typed, raw))
+            self.assertNotEqual(reports[0][0]['bundleId'], reports[1][0]['bundleId'])
+            self.assertNotEqual(reports[0][2]['observationId'], reports[1][2]['observationId'])
+            self.assertEqual(calls.read_text(), '1')
+            self.assertEqual(store._read('scientific-documents', original.id), record)
+            self.assertEqual(len(store._list('document-receipts')), 2)
+            for operation in ('read', 'source'):
+                with self.assertRaisesRegex(Invalid, 'multiple evidence scopes'):
+                    documents.command(dict(operation=operation, documentId=original.id, blockId=block.id), NOW)
+            reopened_store = ResearchStore(directory)
+            reopened = PaperDocuments(reopened_store, HtmlTransport(b'no fetch', str(calls)))
+            for request, report, typed, raw in reports:
+                result = source_report(reopened_store, dict(operation='read', bundleId=request['bundleId'], reportId=report['id']), NOW)
+                self.assertEqual(result, report)
+                scope = dict(documentId=original.id, bundleId=request['bundleId'], resourceId=request['resourceId'])
+                self.assertEqual(reopened.command(dict(operation='read', blockId=block.id, **scope), NOW)['observationId'], typed['observationId'])
+                self.assertEqual(reopened.command(dict(operation='source', start=13, limit=17, **scope), NOW)['observationId'], raw['observationId'])
+            denied = save_bundle(reopened_store, False, seed='https://research.example/third-review', extra=True)
+            with self.assertRaises(Invalid): reopened.prepare(denied, NOW)
+            self.assertEqual(calls.read_text(), '1')
+            self.assertEqual(len(reopened_store._list('source-observations')), 4)
+            # Historical B receipt keeps existing bytes readable; it cannot grant
+            # a new download/restore after B's current version loses permission.
+            save_bundle(reopened_store, False, revision='v3', seed='https://research.example/second-review', extra=True)
+            self.assertEqual(source_report(reopened_store, dict(operation='read', bundleId=reports[1][0]['bundleId'], reportId=reports[1][1]['id']), NOW), reports[1][1])
+            (reopened_store.root / 'scientific-documents' / (original.id + '.json')).unlink()
+            with self.assertRaises(Invalid): reopened.prepare(dict(reports[1][0], refresh=True), NOW)
+            self.assertEqual(calls.read_text(), '1')
+
     def test_typed_read_shared_report_export_and_offline_restore_permission(self):
         with tempfile.TemporaryDirectory() as directory:
             store = ResearchStore(directory)
