@@ -197,6 +197,11 @@ class PcgymAppTests(unittest.TestCase):
             self.assertFalse(reopened.command(dict(action='cancel', specId=frozen['id']))['cancellation_requested'])
             with self.assertRaises(RequestInvalid):
                 reopened.command({**command, 'requestId': 'do-not-replay'})
+            _, freeze_command = self.freeze()
+            other = reopened.command({**freeze_command, 'seed': 1})
+            for request_id in ('stable-launch', 'different-spec-retry'):
+                with self.subTest(request_id=request_id), self.assertRaises(RequestInvalid):
+                    reopened.command({**command, 'specId': other['id'], 'requestId': request_id})
             self.assertEqual(spawn.call_count, 1)
 
     def test_failed_launch_and_exited_process_remain_unknown(self):
