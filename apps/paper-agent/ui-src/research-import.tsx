@@ -86,10 +86,16 @@ export function ResearchImport({ api, active, onSaved }: { api: Api; active: boo
   }
   const selectedAssets = draft?.resources.flatMap(resource => resource.assets).filter(asset => downloadIds.includes(asset.id)) ?? [];
   return <div className="pa-research-import">
-    <form className="pa-research-url" onSubmit={event => { event.preventDefault(); void inspect(); }}>
+    <div className="pa-research-url" role="group" aria-label="Inspect research URL" onKeyDown={event => {
+      // App frames deliberately disallow native form submission. Keep both
+      // keyboard and pointer actions on the same authenticated API path.
+      if (event.key === 'Enter' && !event.nativeEvent.isComposing && event.target instanceof HTMLInputElement) {
+        event.preventDefault(); if (!draft && !busy && !saving) void inspect();
+      }
+    }}>
       <Field label="Research URL">{props => <Input {...props} ref={input} type="url" required maxLength={2048} value={url} readOnly={!!draft || busy || saving} placeholder="https://…" onChange={event => { setUrl(event.target.value); setError(''); }}/>}</Field>
-      <Toolbar>{!draft && <Button type="submit" variant="primary" busy={busy} disabled={!url.trim() || saving}>{busy ? 'Inspecting…' : 'Inspect link'}</Button>}{(draft || busy || error) && <Button type="button" disabled={saving} onClick={reset}>New URL</Button>}</Toolbar>
-    </form>
+      <Toolbar>{!draft && <Button variant="primary" busy={busy} disabled={!url.trim() || saving} onClick={() => void inspect()}>{busy ? 'Inspecting…' : 'Inspect link'}</Button>}{(draft || busy || error) && <Button type="button" disabled={saving} onClick={reset}>New URL</Button>}</Toolbar>
+    </div>
     {error && <Feedback kind="error">{error}{draft?.status === 'inspecting' ? <Button disabled={busy} onClick={() => setError('')}>Retry status</Button> : !draft && <Button disabled={busy} onClick={() => void inspect()}>Retry</Button>}</Feedback>}
     {draft?.status === 'inspecting' && <div className="pa-actions"><p role="status">Inspecting sources…</p><Button busy={busy} onClick={() => void cancel()}>Cancel inspection</Button></div>}
     {draft?.status === 'failed' && <Feedback kind="error">{draft.error || 'Inspection failed.'}<Button onClick={() => void inspect()}>Retry inspection</Button></Feedback>}

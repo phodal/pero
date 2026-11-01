@@ -17,12 +17,14 @@ const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop')
   PERO_HISTORY_PATH: resolve(profile, 'sessions.jsonl'), PERO_AGENTS_FILE: agents, PERO_BUILTIN_APPS: 'paper-agent', PERO_REQUIRED_APPS: 'paper-agent', PERO_APP_INFRA_EMBED: '0' };
 delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT;
 const launch = () => electron.launch({ args: [resolve(root, 'desktop')], cwd: root, env });
-const seed = 'https://research.example.org/forecasting', errors = [], checks = [], assetRequests = [], payloads = {};
+const seed = 'https://research.example.org/forecasting', errors = [], checks = [], assetRequests = [], payloads = {}, consoleErrors = [], researchResponses = [];
 let app, page;
 function observe(current) {
   current.on('pageerror', error => errors.push(error.message));
+  current.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   current.on('request', request => { if (request.url().includes('/host/research-assets')) assetRequests.push(request.postData()); });
   current.on('response', response => {
+    if (response.url().includes('/api/research/')) researchResponses.push({ url: response.url(), status: response.status() });
     const extension = /^pero-app:\/\/paper-agent\/dist\/index\.(js|css)$/.exec(response.url())?.[1];
     if (extension) void response.body().then(body => { payloads[extension] = createHash('sha256').update(body).digest('hex'); }).catch(error => errors.push(error.message));
   });
@@ -146,6 +148,11 @@ try {
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ checks, errors, payloads, metadataRequests: fetches, scope: 'Real Electron + Rust Host + Paper Python HTTP/parser/store; only external metadata fetch is synthetic. No model, PDF, binary download or live-network acceptance.' }, null, 2));
   console.log(JSON.stringify({ checks, errors, payloads }, null, 2));
 } catch (error) {
-  if (page) { await page.screenshot({ path: resolve(out, 'failure.png') }).catch(() => {}); await writeFile(resolve(out, 'failure-state.json'), await page.evaluate(() => window.peroDiagnostics?.snapshot() ?? '{}').catch(() => '{}')); }
+  if (page) {
+    await page.screenshot({ path: resolve(out, 'failure.png') }).catch(() => {});
+    await writeFile(resolve(out, 'failure-state.json'), await page.evaluate(() => window.peroDiagnostics?.snapshot() ?? '{}').catch(() => '{}'));
+    await writeFile(resolve(out, 'failure-app.json'), JSON.stringify({ consoleErrors, errors, researchResponses,
+      text: await page.frameLocator('iframe[title="paper-agent"]').locator('body').innerText({ timeout: 1000 }).catch(() => 'App unavailable') }, null, 2));
+  }
   throw error;
 } finally { if (app) await app.close(); await rm(profile, { recursive: true, force: true }); }

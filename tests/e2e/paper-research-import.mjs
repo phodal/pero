@@ -16,7 +16,10 @@ const server = createServer(async (request, response) => {
     const path = resolve(dist, `.${new URL(request.url, 'http://localhost').pathname === '/' ? '/index.html' : new URL(request.url, 'http://localhost').pathname}`);
     if (!path.startsWith(dist + sep)) throw Error('Invalid fixture path');
     const data = await readFile(path);
-    response.writeHead(200, { 'Content-Type': ({ '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm' })[extname(path)] || 'application/octet-stream' }); response.end(data);
+    // Match the production App frame's sandbox flags, including no allow-forms.
+    // CSP applies the same browser restrictions without replacing the SDK seam.
+    const sandbox = extname(path) === '.html' ? { 'Content-Security-Policy': 'sandbox allow-scripts allow-same-origin allow-downloads allow-popups' } : {};
+    response.writeHead(200, { ...sandbox, 'Content-Type': ({ '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm' })[extname(path)] || 'application/octet-stream' }); response.end(data);
   } catch (error) { response.writeHead(404); response.end(String(error)); }
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -33,12 +36,20 @@ const inspect = async url => { await urlInput().fill(url); await urlInput().pres
 const capture = name => page.screenshot({ path: resolve(out, `${name}.png`), fullPage: true });
 try {
   await page.goto(origin); await openImport();
+  // Negative control: native submission must really be blocked in this fixture.
+  expect(await page.evaluate(() => {
+    const form = document.createElement('form'); let submitted = false;
+    form.addEventListener('submit', event => { event.preventDefault(); submitted = true; });
+    document.body.append(form); form.requestSubmit(); form.remove(); return submitted;
+  })).toBe(false);
   await page.getByRole('tab', { name: 'Research URL', exact: true }).focus();
   await page.keyboard.press('Home'); await expect(page.getByRole('tab', { name: 'Search', exact: true })).toBeFocused();
   await page.keyboard.press('End'); await expect(page.getByRole('tab', { name: 'Research URL', exact: true })).toBeFocused();
   await inspect('http://example.org/article'); await expect(page.getByRole('alert')).toContainText('Use a public HTTPS URL');
   expect(fixture.requests.filter(item => item.path.endsWith('/inspect'))).toHaveLength(0);
-  await inspect('https://example.org/article'); await expect(review()).toBeVisible();
+  await urlInput().fill('https://example.org/article');
+  await page.getByRole('button', { name: 'Inspect link', exact: true }).click(); await expect(review()).toBeVisible();
+  expect(fixture.requests.filter(item => item.path.endsWith('/inspect') && item.body.url)).toHaveLength(1);
   await expect(review().getByRole('checkbox')).toHaveCount(6);
   for (const checkbox of await review().locator('.pa-resource-title input').all()) await expect(checkbox).toBeChecked();
   await expect(review().getByRole('checkbox', { name: /^Download / })).not.toBeChecked();
@@ -142,6 +153,9 @@ try {
   await page.getByRole('button', { name: 'Cancel inspection', exact: true }).click(); await expect(page.getByText('Inspection cancelled.', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'New URL', exact: true }).click(); fixture.delayedStart = 'https://example.org/delayed';
   await inspect(fixture.delayedStart); await expect.poll(() => typeof fixture.releaseStart).toBe('function');
+  await expect(page.getByRole('button', { name: 'Inspecting…', exact: true })).toBeDisabled();
+  await urlInput().press('Enter'); await urlInput().press('Enter');
+  expect(fixture.requests.filter(item => item.body.url === fixture.delayedStart)).toHaveLength(1);
   await page.getByRole('button', { name: 'New URL', exact: true }).click();
   fixture.releaseStart(); fixture.holdInspection = false;
   await inspect('https://example.org/new'); await expect(review()).toBeVisible(); await expect(urlInput()).toHaveValue('https://example.org/new');
@@ -150,7 +164,7 @@ try {
   await expect(review()).toBeVisible(); await expect(urlInput()).toHaveValue('https://example.org/new');
   await page.reload(); await openImport(); await page.getByText(/^Resume an inspection/).click();
   await page.getByRole('button', { name: 'https://example.org/new', exact: true }).click(); await expect(review()).toBeVisible();
-  checks.push('Inspection error/retry/cancel; delayed old response cannot replace a new URL; close/reopen and persisted draft resume');
+  checks.push('No-forms App sandbox with pointer/Enter inspection, no duplicate pending starts; error/retry/cancel, stale response rejection and persisted draft resume');
   expect(errors).toEqual([]);
   const hashes = Object.fromEntries(await Promise.all(['js', 'css'].map(async extension => [extension, createHash('sha256').update(await readFile(resolve(dist, `index.${extension}`))).digest('hex')])));
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ checks, errors, hashes, scope: 'Chromium real Paper UI with synthetic HTTP Paper and Host seams. No Electron/native Host, real network, LLM, or actual asset download.' }, null, 2));
