@@ -36,12 +36,12 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
     request<SourceList>({ operation: 'list' }).then(value => { if (alive) setListing(value); }, error => { if (alive) setError(String(error)); }).finally(() => { if (alive) setBusy(false); });
     return () => { alive = false; };
   }, [api, resourceId, attempt, available]);
-  async function readMember(item: SourceMember, start = 0) {
+  async function readMember(item: SourceMember, start = 0, end?: number) {
     if (!available) return;
     const version = ++epoch.current; setMember(item); setReading(null); clearImage(); setBusy(true); setError(''); setObservationWarning('');
     try {
       if (item.kind === 'tex' || item.kind === 'text') {
-        const value = await request<SourceRead>({ operation: 'read', memberId: item.id, start });
+        const value = await request<SourceRead>({ operation: 'read', memberId: item.id, start, ...(end == null ? {} : { end }) });
         if (mounted.current && version === epoch.current) { setReading(value); setObservationWarning(value.observationWarning || ''); if (value.observationId) setReportRefresh(n => n + 1); }
       } else if (item.kind === 'image' && item.previewUrl) {
         // The same bounded image operation used by App tools records the supplied
@@ -103,7 +103,7 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
     </section>
     <SourceReports key={bundle.id} api={api} bundleId={bundle.id} refresh={reportRefresh} navigating={busy}
       canOpenSource={(observation, location) => !!originalMember(observation, location)}
-      openSource={(observation, location) => { const item = originalMember(observation, location); if (item) void readMember(item, location.start ?? 0); }}
+      openSource={(observation, location) => { const item = originalMember(observation, location); if (item) void readMember(item, location.start ?? 0, location.end ?? undefined); }}
       canOpenPdf={observation => !!observation.anchor.pdfResourceId && pdfs.some(pdf => pdf.id === observation.anchor.pdfResourceId)}
       openPdf={(observation, match) => { if (observation.anchor.pdfResourceId && pdfs.some(pdf => pdf.id === observation.anchor.pdfResourceId)) void reveal(match, observation.anchor.pdfResourceId); }}/>
   </div>;

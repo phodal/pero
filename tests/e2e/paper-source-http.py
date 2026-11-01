@@ -100,6 +100,11 @@ def main():
             read = call('/api/research/source-read', {**base, 'operation': 'read', 'memberId': tex['id'], 'startLine': 1, 'endLine': min(10, tex['lineCount'])})
             assert read['archiveDigest'] == receipt['archiveDigest'] and read['memberDigest'] == tex['sha256']
             assert read['content'] and read['startLine'] == 1
+            for window in (dict(startLine=1, endLine=3), dict(start=2, end=read['content'].index('\n') + 4)):
+                bounded = call('/api/research/source-read', {**base, 'operation': 'read', 'memberId': tex['id'], **window})
+                reopened = call('/api/research/source-read', {**base, 'operation': 'read', 'memberId': tex['id'], 'start': bounded['start'], 'end': bounded['end']})
+                assert reopened == bounded
+
             assert acquire(bundle, resource)['receipt'] == receipt
             report = call('/api/research/source-report', dict(operation='create', bundleId=bundle['id'],
                 title='Observed source', observationIds=[read['observationId']], interpretations=['Scientific meaning remains unresolved.']))

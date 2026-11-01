@@ -66,6 +66,11 @@ def main():
             read = invoke('source-read', {**request, 'operation': 'read', 'memberId': tex['id'], 'startLine': 1, 'endLine': 5})
             assert read['archiveDigest'] == receipt['archiveDigest'] and read['memberDigest'] == tex['sha256']
             assert read['startLine'] == 1 and read['endLine'] == 5
+            for window in (dict(startLine=1, endLine=3), dict(start=2, end=read['content'].index('\n') + 4)):
+                bounded = invoke('source-read', {**request, 'operation': 'read', 'memberId': tex['id'], **window})
+                reopened = invoke('source-read', {**request, 'operation': 'read', 'memberId': tex['id'], 'start': bounded['start'], 'end': bounded['end']})
+                assert reopened == bounded
+
             report = invoke('source-report', dict(operation='create', bundleId=bundle['id'], title='Source evidence',
                 observationIds=[read['observationId']], interpretations=['Macro meaning remains unresolved.']))
             assert report['verification'] == 'tool_observed_scopes_only'

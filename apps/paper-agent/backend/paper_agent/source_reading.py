@@ -16,7 +16,7 @@ def source_read(store, value):
 
 
 def read_source(store, value):
-    if set(value) - {'bundleId', 'resourceId', 'operation', 'memberId', 'startLine', 'endLine', 'start', 'pdfResourceId'} or value.get('operation') not in ('list', 'read', 'compare', 'image'):
+    if set(value) - {'bundleId', 'resourceId', 'operation', 'memberId', 'startLine', 'endLine', 'start', 'end', 'pdfResourceId'} or value.get('operation') not in ('list', 'read', 'compare', 'image'):
         raise Invalid('Choose list, read, image or compare for an approved source archive')
     resource, job = store.source_downloads.job(value.get('bundleId'), value.get('resourceId'))
     if not job.receipt or not store.source_downloads.available(job):
@@ -46,12 +46,16 @@ def read_source(store, value):
         start = value['start']
         if 'startLine' in value or 'endLine' in value or type(start) is not int or not 0 <= start < max(1, len(text.content)):
             raise Invalid('Choose either original lines or a valid character offset')
-        end = min(len(text.content), start + 4800)
+        end = value.get('end', min(len(text.content), start + 4800))
+        if type(end) is not int or not start <= end <= min(len(text.content), start + 4800):
+            raise Invalid('Choose an end offset within the original 4,800-character window')
         line_starts = (0, *tuple(accumulate(len(line) for line in text.lines))[:-1])
         first = bisect_right(line_starts, start)
         last = bisect_right(line_starts, max(start, end - 1))
         content = text.content[start:end]
     else:
+        if 'end' in value:
+            raise Invalid('An end offset requires a start offset, not line ranges')
         first = value.get('startLine', 1)
         last = value.get('endLine', min(first + 39, len(text.lines))) if type(first) is int else 0
         start, content = text.range(first, last, limit=4800)

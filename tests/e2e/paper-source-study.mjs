@@ -20,7 +20,7 @@ const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop')
 delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT;
 const seed = live ? 'https://arxiv.org/src/2610.24806v1' : 'https://research.example.org/source-study';
 const checks = [], errors = [], receipts = [], acquisitionConflicts = [];
-let app, page, frame, savedSourceReport;
+let app, page, frame, savedSourceReport, savedWindowReport, savedWindows;
 const launch = () => electron.launch({ args: [resolve(root, 'desktop')], cwd: root, env });
 async function ready() {
   page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message));
@@ -120,6 +120,13 @@ try {
     expect(savedSourceReport.observations.map(item => item.kind).sort()).toEqual(['source_image', 'source_text']);
     expect(savedSourceReport.currentAvailability.every(item => item.available)).toBe(true);
     await page.screenshot({ path: resolve(out, 'source-report-dark-narrow.png') });
+    const readRequest = { operation: 'read', bundleId: bundle.id, resourceId: source.id, memberId: tex.id };
+    const short = await api('/api/research/source-read', { ...readRequest, startLine: 1, endLine: 3 });
+    const partial = await api('/api/research/source-read', { ...readRequest, start: 2, end: short.content.indexOf('\n') + 4 });
+    savedWindows = [short, partial];
+    savedWindowReport = await api('/api/research/source-report', { operation: 'create', bundleId: bundle.id,
+      title: 'Exact bounded evidence', observationIds: savedWindows.map(value => value.observationId) });
+
   }
   checks.push('Explicit source-only consent, failure retry, original source lines and raster preview; no PDF/code/model download or TeX execution');
   await app.close(); app = await launch(); await ready(); await openPaper();
@@ -138,6 +145,18 @@ try {
     await reports.getByRole('article', { name: 'Saved source evidence report', exact: true }).getByRole('listitem').filter({ hasText: tex.path }).first().getByRole('button', { name: 'Open original evidence', exact: true }).click();
     await expect(frame.getByLabel(`Original source: ${tex.path}`, { exact: true })).toBeVisible();
     expect(await api('/api/research/source-report', { operation: 'read', bundleId: bundle.id, reportId: savedSourceReport.id })).toEqual(savedSourceReport);
+    await reports.getByRole('button', { name: 'Exact bounded evidence', exact: true }).click();
+    const observationCount = (await api('/api/research/source-report', { operation: 'observations', bundleId: bundle.id })).observations.length;
+    for (const original of savedWindows) {
+      const saved = reports.getByRole('article', { name: 'Saved source evidence report', exact: true });
+      const label = `${tex.path} · lines ${original.startLine}–${original.endLine} · characters ${original.start}–${original.end}`;
+      await saved.getByRole('listitem').filter({ has: frame.getByText(label, { exact: true }) }).getByRole('button', { name: 'Open original evidence', exact: true }).click();
+      await expect(frame.getByLabel(`Original source: ${tex.path}`, { exact: true })).toHaveText(original.content);
+      await expect(row(source.title).getByText(`Original lines ${original.startLine}–${original.endLine} of ${original.totalLines} / characters ${original.start}–${original.end}`, { exact: true })).toBeVisible();
+      expect((await api('/api/research/source-report', { operation: 'observations', bundleId: bundle.id })).observations).toHaveLength(observationCount);
+    }
+    expect(await api('/api/research/source-report', { operation: 'read', bundleId: bundle.id, reportId: savedWindowReport.id })).toEqual(savedWindowReport);
+    await reports.getByRole('button', { name: 'Authored source evidence', exact: true }).click();
     const originalPath = resolve(profile, 'desktop/app-data/paper-agent/research-v1/source-files', acquired.receipt.archiveDigest + '.bin');
     const originalBytes = await readFile(originalPath);
     await rm(originalPath);

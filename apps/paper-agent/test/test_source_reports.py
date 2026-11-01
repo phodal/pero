@@ -72,6 +72,24 @@ class SourceReports(unittest.TestCase):
         with self.assertRaises(Invalid):
             execute(self.store, 'source-report', dict(operation='create', bundleId=other['bundleId'], title='Wrong bundle', observationIds=[read['observationId']]))
 
+    def test_exact_reopen_preserves_short_and_partial_line_windows_without_new_observations(self):
+        full = self.read('read', memberId=self.tex['id'], start=0)
+        newline = full['content'].index('\n')
+        for window in (dict(startLine=1, endLine=3), dict(start=2, end=newline + 4), dict(start=5, end=14)):
+            with self.subTest(window=window):
+                original = self.read('read', memberId=self.tex['id'], **window)
+                report = self.report('create', title=str(window), observationIds=[original['observationId']])
+                anchor = report['observations'][0]['anchor']
+                count = len(self.report('observations')['observations'])
+                reopened = self.read('read', memberId=anchor['memberId'], start=anchor['start'], end=anchor['end'])
+                self.assertEqual(reopened, original)
+                self.assertEqual(len(self.report('observations')['observations']), count)
+                self.assertEqual(self.report('read', reportId=report['id']), report)
+        for window in (dict(end=5), dict(start=2, end=1), dict(start=0, end=4801),
+                       dict(start=0, end=True), dict(startLine=1, endLine=3, end=4)):
+            with self.subTest(invalid=window), self.assertRaises(Invalid):
+                self.read('read', memberId=self.tex['id'], **window)
+
     def test_report_filename_cannot_alias_another_legitimate_report(self):
         read = self.read('read', memberId=self.tex['id'], startLine=1, endLine=2)
         first = self.report('create', title='First', observationIds=[read['observationId']])
