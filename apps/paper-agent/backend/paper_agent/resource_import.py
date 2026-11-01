@@ -138,7 +138,7 @@ class Discovery:
 
     def inspect(self, url):
         seed_url = canonical_url(url)
-        resources, warnings, requests = {}, [], 0
+        resources, warnings, requests, paper_reads = {}, [], 0, 0
 
         def read(address):
             nonlocal requests
@@ -146,6 +146,14 @@ class Discovery:
                 raise ValueError('Discovery reached its 12-request limit')
             requests += 1
             return self.web.read(address)
+
+        def resolve(item):
+            nonlocal paper_reads
+            if item.kind == 'paper':
+                if paper_reads >= 4:
+                    raise ValueError('Discovery reached its four-paper reading limit')
+                paper_reads += 1
+            return self._resolve(item, read)
 
         def add(link, source, seed=False):
             try:
@@ -179,7 +187,7 @@ class Discovery:
             final = identify(document.url, document.url, page.heading(), True)
             # Preserve the original request as evidence when following a public redirect.
             final = replace(final, evidence=(Evidence(seed_url, 'Submitted URL', 'user-link'),), status='resolved',
-                reading=Reading('web-article', final.canonicalId, page.heading(), final.url, (), 'full-text', content,
+                reading=Reading('web-article', final.id, page.heading(), final.url, (), 'full-text', content,
                     'Research web article, not necessarily a formal paper. HTML text extraction.' +
                     (' Text or links were truncated at the discovery limit.' if page.truncated else '')))
             resources = {final.id: final}
@@ -203,7 +211,7 @@ class Discovery:
             if not item.provider:
                 continue
             try:
-                enriched, links, source = self._resolve(item, read)
+                enriched, links, source = resolve(item)
                 resources[identity] = enriched
                 for link in links:
                     add(link, source)
@@ -213,7 +221,7 @@ class Discovery:
             item = resources[identity]
             if identity not in initial and item.kind == 'paper':
                 try:
-                    enriched, _, _ = self._resolve(item, read)
+                    enriched, _, _ = resolve(item)
                     resources[identity] = enriched
                 except (OSError, ValueError, KeyError, TypeError) as error:
                     resources[identity] = replace(item, status='unavailable', warning=str(error)[:300])
@@ -230,6 +238,8 @@ class Discovery:
             root = 'https://api.github.com/repos/' + item.providerId
             data = read(root).json()
             license_info = data.get('license') or {}
+            if not isinstance(license_info, dict):
+                raise ValueError('Invalid GitHub license metadata')
             license_name = bounded_text(license_info.get('spdx_id'), 200)
             if license_name == 'NOASSERTION':
                 license_name = ''
@@ -264,9 +274,18 @@ class Discovery:
             card = data.get('cardData') or {}
             license_name = card.get('license', '') if isinstance(card, dict) else ''
             license_name = ', '.join(license_name) if isinstance(license_name, list) and all(isinstance(x, str) for x in license_name) else bounded_text(license_name, 200)
-            sizes = [file.get('size', (file.get('lfs') or {}).get('size')) for file in data.get('siblings', []) if isinstance(file, dict)]
+            siblings = data.get('siblings', [])
+            if not isinstance(siblings, list):
+                raise ValueError('Invalid Hugging Face file metadata')
+            sizes = []
+            for file in siblings:
+                lfs = file.get('lfs') if isinstance(file, dict) else None
+                sizes.append(file.get('size', lfs.get('size') if isinstance(lfs, dict) else None) if isinstance(file, dict) else None)
             size = sum(sizes) if sizes and all(type(n) is int and n >= 0 for n in sizes) else None
-            for tag in data.get('tags', []):
+            tags = data.get('tags') or []
+            if not isinstance(tags, list):
+                raise ValueError('Invalid Hugging Face paper tags')
+            for tag in tags:
                 if isinstance(tag, str) and tag.startswith('arxiv:') and ARXIV.fullmatch(tag[6:]):
                     links.append(PageLink('https://arxiv.org/abs/' + tag[6:], 'Paper referenced by model or dataset metadata'))
             warning = 'Access approval may be required at the provider.' if data.get('gated') else ''
