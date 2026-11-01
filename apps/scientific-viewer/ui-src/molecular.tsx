@@ -1,37 +1,29 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { structureText, moleculeRecords, type Asset } from './files';
-type Molecule = { is_valid(): boolean; get_svg(): string; get_descriptors(): string; delete(): void };
-type RDKit = { get_mol(value: string): Molecule | null };
+import { useAppApi } from '@pero/app-sdk';
 import { createStructureEngine } from './structure-engine';
 type Viewer = Awaited<ReturnType<typeof createStructureEngine>>;
-declare global { interface Window {
-  initRDKitModule: (options: { locateFile: (path: string) => string }) => Promise<RDKit>;
-} }
-let rdkit: Promise<RDKit> | undefined;
+type MoleculeRow = { input: string; svg?: string; descriptors?: Record<string, number>; error?: string };
+type MoleculeResult = { engine: { name: string; version: string }; rows: MoleculeRow[] };
 export function Molecules({ asset }: { asset: Asset }) {
-  const [rows, setRows] = useState<{ input: string; svg?: string; descriptors?: string; error?: string }[]>([]);
-  const [error, setError] = useState('');
+  const api = useAppApi(), generation = useRef(0);
+  const [rows, setRows] = useState<MoleculeRow[]>([]), [engine, setEngine] = useState('');
+  const [error, setError] = useState(''), [status, setStatus] = useState('loading'), [retry, setRetry] = useState(0);
   useEffect(() => {
-    let active = true; setRows([]); setError('');
+    const current = ++generation.current; setRows([]); setError(''); setStatus('loading'); setEngine('');
     void (async () => {
-      const entries = moleculeRecords(asset.name, asset.bytes);
-      const kit = await (rdkit ??= window.initRDKitModule({ locateFile: path => new URL(path, location.href).href }));
-      const result = entries.map(input => {
-        let molecule: Molecule | null = null;
-        try {
-          molecule = kit.get_mol(input);
-          if (!molecule?.is_valid()) return { input, error: 'Invalid molecule' };
-          return { input, svg: molecule.get_svg(), descriptors: molecule.get_descriptors() };
-        } catch { return { input, error: 'Invalid molecule' }; }
-        finally { molecule?.delete(); }
-      });
-      if (active) setRows(result);
-    })().catch(error => active && setError(String(error)));
-    return () => { active = false; };
-  }, [asset]);
-  return <section aria-label="Molecules"><h2>Molecules</h2><p>RDKit computed descriptors · Not scientifically verified</p>{error && <p role="alert">{error}</p>}
-    {!rows.length && !error && <p role="status">Loading RDKit…</p>}
-    {rows.map((row, index) => <article key={index} data-status={row.error ? 'invalid' : 'ready'}><code>{row.input.slice(0, 200)}</code>{row.error ? <p role="alert">{row.error}</p> : <><img alt={`Molecule ${index + 1}`} src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(row.svg!)}`} /><details><summary>Computed descriptors</summary><pre>{row.descriptors}</pre></details></>}</article>)}
+      const records = moleculeRecords(asset.name, asset.bytes);
+      const format = /\.sdf$/i.test(asset.name) ? 'sdf' : /\.mol$/i.test(asset.name) ? 'mol' : 'smiles';
+      const result = await api.post<MoleculeResult>('/api/molecules', { format, records });
+      if (current === generation.current) { setRows(result.rows); setEngine(`${result.engine.name} ${result.engine.version}`); setStatus('ready'); }
+    })().catch(error => { if (current === generation.current) { setError(String(error)); setStatus('failed'); } });
+    return () => { generation.current++; };
+  }, [asset, api, retry]);
+  return <section aria-label="Molecules"><h2>Molecules</h2><p>{engine || 'Local RDKit backend'} · Computed descriptors · Not scientifically verified</p>{error && <p role="alert">{error}</p>}
+    {status === 'loading' && <><p role="status">Preparing molecule preview…</p><button onClick={() => { generation.current++; setStatus('stopped'); }}>Stop waiting</button></>}
+    {status === 'stopped' && <p role="status">Result discarded. The bounded local calculation may still finish.</p>}
+    {(status === 'failed' || status === 'stopped') && <button onClick={() => setRetry(value => value + 1)}>Retry molecule preview</button>}
+    {rows.map((row, index) => <article key={index} data-status={row.error ? 'invalid' : 'ready'}><code>{row.input.slice(0, 200)}</code>{row.error ? <p role="alert">{row.error}</p> : <><img alt={`Molecule ${index + 1}`} src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(row.svg!)}`} /><details><summary>Computed descriptors</summary><pre>{JSON.stringify(row.descriptors, null, 2)}</pre></details></>}</article>)}
   </section>;
 }
 export function Structure({ asset }: { asset: Asset }) {

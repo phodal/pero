@@ -15,15 +15,24 @@ deletes the original disk file. No background import or model execution occurs.
 
 - CSV/TSV tables and first-two-column spectra retain missing values and gaps.
 - Actual public Mol* renders PDB/mmCIF structures; it does not verify science.
-- Actual public RDKit draws and checks up to 200 SMILES/MOL/SDF records.
+- Official RDKit Python wheel 2026.9.1 draws and checks up to 200 SMILES/MOL/SDF
+  records in the existing Host-managed local backend (no browser dynamic eval).
+  Host prepares the declared Python environment; preparation failures remain visible.
+  Records are limited to 32 KiB each, the request to 1 MiB, and the worker to 20 seconds.
+  Seven descriptors are reported: MolWt, ExactMolWt, MolLogP, TPSA, NumHDonors,
+  NumHAcceptors, NumRotatableBonds—not the browser wrapper’s full descriptor set.
+  Stop waiting discards the response; it does not claim to stop the backend worker.
 - Actual public PDF.js renders PDF evidence. Quotations/crops and explicit
   quotation review use Pero's existing Host Agent authority, never App credentials.
 - JSON displays escaped metadata. Unsupported formats and model weights remain opaque.
 - Twelve independently authored CC0-1.0 synthetic examples are not Point's sample
   set, experimental observations or scientific benchmarks.
 
-Public engines are pinned in package-lock.json: Mol* MIT, RDKit BSD-3-Clause,
-PDF.js Apache-2.0, fflate MIT. Build retains notices and public-engines.json.
+Browser engines are pinned in package-lock.json: Mol* MIT, PDF.js Apache-2.0,
+fflate MIT. RDKit BSD-3-Clause is pinned in the App Python environment, not npm.
+Build retains notices and public-engines.json. Molecule records go only to this
+App’s local authenticated backend, never a remote provider. No model weights or
+user scripts are loaded or executed.
 
 Structure text containing `<`, `>`, or `&` is deliberately rejected before Mol*
 creation because its stock labels interpret metadata as HTML. Original bytes

@@ -10,8 +10,10 @@ test('production viewer replaces stale outputs and ships its pinned local engine
     await writeFile(resolve(outdir, 'obsolete-private-backend.js'), 'stale');
     await buildScientificViewer({ outdir });
     await assert.rejects(stat(resolve(outdir, 'obsolete-private-backend.js')), { code: 'ENOENT' });
-    for (const name of ['index.html', 'index.js', 'molstar.css', 'RDKit_minimal.wasm', 'pdf.worker.mjs', 'licenses/RDKit.txt']) assert.ok((await stat(resolve(outdir, name))).size > 0);
-    assert.deepEqual(JSON.parse(await readFile(resolve(outdir, 'public-engines.json'))).map(item => item.name), ['molstar', '@rdkit/rdkit', 'pdfjs-dist', 'fflate']);
+    await assert.rejects(stat(resolve(outdir, 'RDKit_minimal.js')), { code: 'ENOENT' });
+    await assert.rejects(stat(resolve(outdir, 'RDKit_minimal.wasm')), { code: 'ENOENT' });
+    for (const name of ['index.html', 'index.js', 'molstar.css', 'pdf.worker.mjs', 'licenses/RDKit.txt']) assert.ok((await stat(resolve(outdir, name))).size > 0);
+    assert.deepEqual(JSON.parse(await readFile(resolve(outdir, 'public-engines.json'))).map(item => item.name), ['molstar', 'pdfjs-dist', 'fflate', 'rdkit']);
   } finally { await rm(outdir, { recursive: true, force: true }); }
 });
 

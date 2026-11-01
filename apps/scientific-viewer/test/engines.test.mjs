@@ -4,12 +4,7 @@ import { createRequire } from 'node:module';
 import { examples } from '../ui-src/examples.ts';
 import { blockStructureDrops } from '../ui-src/files.ts';
 const require = createRequire(import.meta.url);
-test('pinned RDKit actually parses and rejects synthetic molecule inputs', async () => {
-  const init = require('@rdkit/rdkit'); const kit = await init();
-  const molecule = kit.get_mol('CCO');
-  try { assert.ok(molecule.is_valid()); assert.match(molecule.get_svg(), /<svg/); assert.ok(JSON.parse(molecule.get_descriptors()).exactmw > 40); } finally { molecule.delete(); }
-  assert.equal(kit.get_mol('not-a-smiles'), null);
-});
+// Real RDKit parser/drawing acceptance lives in backend tests (official Python wheel).
 test('pinned PDF.js actually extracts synthetic PDF text without browser mocks', async () => {
   const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const task = getDocument({ data: new TextEncoder().encode(examples.find(x => x.name === 'sample.pdf').text), useSystemFonts: true });
