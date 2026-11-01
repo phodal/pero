@@ -1,0 +1,45 @@
+name: Paper reproduction contracts
+
+on:
+  pull_request:
+    paths:
+      - 'apps/paper-agent/**'
+      - '.github/workflows/paper-reproduction.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paper-reproduction-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare existing Paper dependencies
+        run: python -m pip install ./apps/paper-agent
+      - name: Paper backend regression
+        run: python -m unittest discover -s apps/paper-agent/test -p 'test_*.py' -v
+      - name: Compile Paper backend
+        run: python -m compileall -q apps/paper-agent/backend
+      - name: Preserve exact reviewed source for reproducible verification
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/paper-reproduction"
+          git rev-parse HEAD > "$RUNNER_TEMP/paper-reproduction/commit.txt"
+          git archive --format=tar HEAD apps/paper-agent packages/app-sdk scripts/build package.json package-lock.json | gzip > "$RUNNER_TEMP/paper-reproduction/source.tgz"
+          sha256sum "$RUNNER_TEMP/paper-reproduction/source.tgz" > "$RUNNER_TEMP/paper-reproduction/source.sha256"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-reproduction-source-${{ github.sha }}
+          path: ${{ runner.temp }}/paper-reproduction
+          retention-days: 3
