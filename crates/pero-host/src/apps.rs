@@ -22,6 +22,9 @@ enum Request {
         id: String,
         path: PathBuf,
     },
+    Pluginlist { method: Method, id: String },
+    Plugininstall { method: Method, id: String, path: PathBuf },
+    Pluginenable { method: Method, id: String, name: AppName, enabled: bool },
     Pointagent { method: Method, id: String, name: AppName, request: pero_runtime::apps::point_agent::Request },
     Pointcatalog { method: Method, id: String, name: AppName, path: String },
     Enable {
@@ -84,6 +87,14 @@ pub struct Apps {
     names: Option<Vec<String>>,
 }
 impl Apps {
+    pub(crate) fn agent_panel(&self, name: &AppName) -> Result<String, String> {
+        let guard = self.store.try_lock().map_err(|_| "An App environment is being prepared; retry when installation finishes")?;
+        guard.as_ref().map_err(Clone::clone)?.point_agent_panel(name)
+    }
+    pub(crate) fn session_plugins(&self, name: &AppName, panel: &str) -> Result<Option<pero_runtime::apps::AppSessionPlugins>, String> {
+        let guard = self.store.try_lock().map_err(|_| "An App environment is being prepared; retry when installation finishes")?;
+        guard.as_ref().map_err(Clone::clone)?.session_plugins(name, panel)
+    }
     pub fn new(settings: Option<&Path>) -> Self {
         let root = std::env::var_os("PERO_APPS_ROOT")
             .map(PathBuf::from)
@@ -140,7 +151,7 @@ impl Apps {
     /// cancellation remain responsive while pip downloads packages.
     pub fn dispatch_async(&self, value: serde_json::Value, agents: &mut crate::agents::Manager) {
         let action = value["action"].as_str().unwrap_or("");
-        if matches!(action, "pointagent" | "pointcatalog" | "agent" | "insights" | "connectors" | "disable" | "uninstall") {
+        if matches!(action, "pointagent" | "pointcatalog" | "agent" | "insights" | "connectors" | "disable" | "uninstall" | "pluginenable") {
             let mut this = self.clone();
             let event = this.dispatch(value, Some(agents));
             let _ = crate::emit(event);
@@ -177,6 +188,21 @@ impl Apps {
                 let _ = crate::emit(event);
             };
             match request {
+                Request::Pluginlist { method, id } => {
+                    let _ = (method, id);
+                    serde_json::to_value(store.agent_plugins()?.list())
+                }
+                Request::Plugininstall { method, id, path } => {
+                    let _ = (method, id);
+                    serde_json::to_value(store.agent_plugins()?.install(&path)?)
+                }
+                Request::Pluginenable { method, id, name, enabled } => {
+                    let _ = (method, id);
+                    let mut plugins = store.agent_plugins()?;
+                    plugins.set_enabled(&name, enabled)?;
+                    if !enabled { agents.as_deref_mut().expect("Host manager").stop_plugin_sessions(&name); }
+                    serde_json::to_value(plugins.list())
+                }
                 Request::List { method, id } => {
                     let _ = (method, id);
                     if let Some(catalog) = &self.builtins {
@@ -191,6 +217,7 @@ impl Apps {
                 Request::Pointagent { method,id,name,request } => {
                     let _=(method,id);let panel=store.point_agent_panel(&name)?;
                     let revision=store.agent_declaration_revision(&name)?;
+                    drop(guard);
                     return agents.as_deref_mut().expect("Host manager").point_request(name,panel,revision,request);
                 }
                 Request::Pointcatalog { method,id,name,path } => {
@@ -258,6 +285,7 @@ impl Apps {
                 } => {
                     let _ = (method, id);
                     store.require_agent(&name)?;
+                    drop(guard);
                     return agents.as_deref_mut().expect("Host manager").app_request(name, request);
                 }
             }

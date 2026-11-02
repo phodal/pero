@@ -32,6 +32,8 @@ pub struct Manager {
     app_bindings: HashMap<String, AppSessionBinding>,
     point_journal: point_app_agent::Journal,
     app_use: Option<acp::AppUseEndpoint>,
+    pub(crate) apps: Option<crate::apps::Apps>,
+    app_plugins: HashMap<String, pero_runtime::apps::AppSessionPlugins>,
     connectors: Option<acp::ConnectorsEndpoint>,
     settings_path: Option<PathBuf>,
     history_path: PathBuf,
@@ -154,6 +156,8 @@ impl Manager {
             app_bindings,
             point_journal,
             app_use: acp::AppUseEndpoint::from_environment(),
+            apps: None,
+            app_plugins: HashMap::new(),
             connectors: acp::ConnectorsEndpoint::from_environment(),
             settings_path,
             history_path,
@@ -423,6 +427,7 @@ impl Manager {
             }
             HostCommand::Insights { thread_id } => self.publish_insights(thread_id),
             HostCommand::Delete { thread_id } => {
+                self.app_plugins.remove(&thread_id);
                 if thread_id.is_empty() || thread_id.len() > 128 {
                     self.send("error", "Invalid session request", serde_json::Value::Null);
                     return;
@@ -483,6 +488,7 @@ impl Manager {
                         method_id,
                     } => (thread_id, SessionCommand::Authenticate(method_id)),
                     HostCommand::Close { thread_id } => {
+                        self.app_plugins.remove(&thread_id);
                         if let Some(session) = self.sessions.remove(&thread_id) {
                             session.permissions.lock().unwrap().clear();
                             let _ = session.tx.send(SessionCommand::Close);

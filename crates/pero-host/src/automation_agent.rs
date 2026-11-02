@@ -244,7 +244,7 @@ mod tests {
                 model: Some("frozen-model".into()), mcp_servers: vec![], managed_mcp: None,
             }],
             sessions: Default::default(), tx, history: Default::default(),
-            app_bindings: Default::default(), point_journal: Default::default(), app_use: None, settings_path: None,
+            app_bindings: Default::default(), point_journal: Default::default(), app_use: None, apps: None, app_plugins: Default::default(), settings_path: None,
             connectors: None,
             history_path: PathBuf::new(), automation_threads: Default::default(),
             automation_tx, automation_rx: Some(automation_rx),

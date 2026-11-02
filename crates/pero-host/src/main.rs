@@ -34,6 +34,7 @@ fn main() -> io::Result<()> {
     let mut agents = agents::Manager::new(std::env::current_dir()?);
     let settings_path = std::env::var_os("PERO_SETTINGS_PATH").map(std::path::PathBuf::from);
     let apps = apps::Apps::new(settings_path.as_deref());
+    agents.apps = Some(apps.clone());
     let mut workspace_store = settings_path
         .as_deref()
         .map(pero_runtime::workspace_store::WorkspaceStore::new);

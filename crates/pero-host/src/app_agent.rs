@@ -52,6 +52,29 @@ impl Manager {
                 "MCP settings are unavailable or invalid; review local connector settings"
             })?;
         let mut agent = agent.with_managed_mcp(&configuration);
+        let plugins = match (&scope, &self.apps) {
+            (Some(scope), Some(apps)) => apps.session_plugins(&AppName::try_from(scope.app.clone())?, &scope.panel)?,
+            _ => None,
+        };
+        if let Some(plugins) = &plugins {
+            if plugins.assembly.is_some() && self.app_use.is_none() {
+                return Err("App Agent Plugin tools require the Desktop App Use endpoint".into());
+            }
+            let mut names: std::collections::HashSet<_> = agent.mcp_server_names().into_iter().collect();
+            for server in &plugins.dependencies.mcp_servers {
+                let name = match server {
+                    acp::sdk::schema::v1::McpServer::Stdio(server) => &server.name,
+                    acp::sdk::schema::v1::McpServer::Http(server) => &server.name,
+                    acp::sdk::schema::v1::McpServer::Sse(server) => &server.name,
+                    _ => return Err("Unsupported plugin MCP transport".into()),
+                };
+                if matches!(name.as_str(), "pero-app-use" | "pero-connectors") || !names.insert(name.clone()) {
+                    return Err(format!("Plugin MCP server name conflicts with session configuration: {name}"));
+                }
+            }
+            agent.mcp_servers.extend(plugins.dependencies.mcp_servers.clone());
+            agent.session_instructions = plugins.instructions.clone();
+        }
         if let Some(endpoint) = &self.connectors {
             endpoint.bind(&mut agent, &thread_id)?;
         }
@@ -67,7 +90,15 @@ impl Manager {
         let mut event = HostEvent::new("session_created", None, String::new());
         event.thread_id = Some(thread_id.clone());
         event.data = serde_json::json!({"agent":agent.id,"workspace":self.workspace});
-        let app_use = self.app_use.clone();
+        if let Some(plugins) = &plugins {
+            if let Some(assembly) = &plugins.assembly {
+                event.data["appPlugin"] = serde_json::to_value(assembly).map_err(|error| error.to_string())?;
+            }
+            event.data["agentPlugins"] = serde_json::to_value(&plugins.dependencies.plugins).map_err(|error| error.to_string())?;
+        }
+        let app_use = self.app_use.clone().map(|endpoint| {
+            if plugins.as_ref().is_some_and(|plugins| plugins.assembly.is_some()) { endpoint.require_http() } else { endpoint }
+        });
         if let Some(scope) = scope {
             event.data["scope"] = serde_json::json!(scope);
         }
@@ -76,6 +107,7 @@ impl Manager {
                 serde_json::to_value(binding).map_err(|error| error.to_string())?;
         }
         if binding.is_some_and(|binding|binding.point.is_some()) { self.point_journal.append(&self.tx,event)?; } else { let _ = self.tx.send(event); }
+        if let Some(plugins) = plugins { self.app_plugins.insert(thread_id.clone(), plugins); }
         self.sessions.insert(
             thread_id.clone(),
             if let Some(resume_id)=resume_id {
@@ -123,13 +155,14 @@ impl Manager {
                     }
                     return Ok(serde_json::json!({"sessionId":id}));
                 }
+                let panel = self.apps.as_ref().ok_or("App catalog is unavailable")?.agent_panel(&binding.app)?;
                 self.create_session(
                     id.clone(),
                     &binding.agent_id,
                     Some(&binding),
                     Some(pero_contracts::app_chat::AppChatScope {
                         app: binding.app.as_str().into(),
-                        panel: "main".into(),
+                        panel,
                     }),
                 )?;
                 let context = ContextReference {
@@ -215,9 +248,17 @@ impl Manager {
             .iter()
             .filter(|(_, binding)| &binding.app == app)
             .map(|(id, _)| id.clone())
+            .chain(self.app_plugins.iter().filter(|(_, plugins)| &plugins.app == app).map(|(id, _)| id.clone()))
             .collect::<Vec<_>>();
         for thread_id in sessions {
             self.command(HostCommand::Close { thread_id });
         }
+    }
+
+    pub fn stop_plugin_sessions(&mut self, plugin: &AppName) {
+        let sessions = self.app_plugins.iter()
+            .filter(|(_, mounted)| mounted.dependencies.plugins.iter().any(|entry| &entry.name == plugin))
+            .map(|(id, _)| id.clone()).collect::<Vec<_>>();
+        for thread_id in sessions { self.command(HostCommand::Close { thread_id }); }
     }
 }

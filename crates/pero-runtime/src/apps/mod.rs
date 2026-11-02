@@ -11,6 +11,8 @@ mod tenure;
 use tenure::{StoreError, Tenure, TenureAsk, permit};
 mod python;
 mod preparation;
+mod session_plugins;
+pub use session_plugins::AppSessionPlugins;
 pub use preparation::AppPreparation;
 pub use definition::{AppDefinition, AppName, AppSummary};
 use process::AppProcess;
@@ -451,6 +453,7 @@ impl AppStore {
     /// An older selected environment, including the existing 3.14 default, is left
     /// on disk and is not the target.
     pub fn prepare(&mut self, name: &AppName, progress: &mut impl FnMut(AppPreparation)) -> Result<(), String> {
+        self.prepare_agent_plugins(name)?;
         let app = self.installed.get(name).ok_or("App is not installed")?;
         if self.processes.contains_key(name) { return Ok(()); }
         let Some(backend) = &app.definition.backend else { return Ok(()); };
