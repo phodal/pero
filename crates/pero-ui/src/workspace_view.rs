@@ -517,6 +517,9 @@ impl Workbench {
                                     .min_w(px(100.))
                                     .max_w(px(220.))
                                     .h_full()
+                                    .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                                        cx.stop_propagation();
+                                    })
                                     .bg(p.color(if current == Some(item) {
                                         "surface"
                                     } else if ruled {
@@ -591,7 +594,8 @@ impl Workbench {
                                         ),
                                     )
                             }),
-                    ),
+                    )
+                    .child(div().flex_1().h_full().min_w(px(8.))),
             )
             .when(self.navigation.route().can_clone_pane(), |strip| {
                 strip.child(self.workspace_split_control(cx))
@@ -727,7 +731,7 @@ impl Workbench {
                         .absolute()
                         .top_0()
                         .left_0()
-                        .w(px(6.))
+                        .w(px(4.))
                         .h_full()
                         .cursor(CursorStyle::ResizeLeftRight)
                         .on_mouse_down(

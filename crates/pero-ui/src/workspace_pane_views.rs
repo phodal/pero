@@ -475,9 +475,9 @@ impl Workbench {
                             .bg(cx.theme().border)
                             .map(|view| {
                                 if horizontal {
-                                    view.w(px(4.)).h_full().cursor_col_resize()
+                                    view.w(px(1.)).h_full().cursor_col_resize()
                                 } else {
-                                    view.h(px(4.)).w_full().cursor_row_resize()
+                                    view.h(px(1.)).w_full().cursor_row_resize()
                                 }
                             })
                             .on_mouse_down(

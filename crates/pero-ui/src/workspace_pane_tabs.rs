@@ -505,6 +505,9 @@ impl Workbench {
                         this.close_pane_tab(view, window, cx);
                     })),
             )
+            .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                cx.stop_propagation();
+            })
             .on_mouse_down(
                 MouseButton::Middle,
                 cx.listener(move |this, _, window, cx| {

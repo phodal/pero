@@ -1,5 +1,8 @@
 /* Reading workspace: one document, with an optional conversation. */
-.pa-workbench{height:100dvh;min-height:0;display:flex;flex-direction:column;container-type:inline-size;font:var(--pero-font-body)/1.5 system-ui,sans-serif;color:var(--pero-text);background:var(--pero-material-chrome)}
+.pa-workbench{height:100dvh;min-height:0;display:flex;flex-direction:column;container-type:inline-size;font:var(--pero-font-body)/1.5 system-ui,sans-serif;color:var(--pero-text);background:var(--pero-material-chrome);scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--pero-text) 32%,transparent) transparent}
+.pa-workbench *::-webkit-scrollbar{width:8px;height:8px}
+.pa-workbench *::-webkit-scrollbar-track{background:transparent}
+.pa-workbench *::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--pero-text) 32%,transparent);border-radius:8px}
 .pa-workbench *{box-sizing:border-box}.pa-workbench [hidden]{display:none!important}
 .pa-workbench h1,.pa-workbench h2,.pa-workbench h3,.pa-workbench p{margin:0}.pa-workbench h1{font-size:var(--pero-font-title);font-weight:600}.pa-workbench h2,.pa-workbench h3{font-size:var(--pero-font-heading);font-weight:600}.pa-workbench small{font-size:var(--pero-font-caption);color:var(--pero-text-muted)}
 .pa-workbench a{color:var(--pero-link);text-underline-offset:3px}.pa-workbench summary{cursor:pointer}.pa-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.pa-muted,.pa-kicker{color:var(--pero-text-muted);font-size:var(--pero-font-caption,12px)}.pa-global-error{padding:8px 16px}.pa-global-error .pero-ui-feedback>span{flex:1;overflow-wrap:anywhere}.pa-sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}

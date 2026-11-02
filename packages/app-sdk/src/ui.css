@@ -86,13 +86,15 @@ textarea.pero-ui-input { height: auto; }
   content: "";
   position: absolute;
   inset-block: 0;
-  inset-inline-start: -6px;
-  width: 13px;
+  inset-inline-start: -3px;
+  width: 7px;
 }
 .pero-ui-split-handle:hover,
 .pero-ui-split-handle:focus-visible,
 .pero-ui-split[data-resizing] > .pero-ui-split-handle { background: var(--pero-focus); }
 .pero-ui-split[data-stacked] { flex-direction: column; }
+.pero-ui-split[data-stacked] > .pero-ui-split-handle { width: auto; height: 1px; cursor: row-resize; }
+.pero-ui-split[data-stacked] > .pero-ui-split-handle::before { inset: -3px 0; width: auto; height: 7px; }
 .pero-ui-split[data-stacked] > .pero-ui-split-pane[data-sized] {
   flex: 0 0 var(--pero-split-stacked, 42%);
   width: auto;

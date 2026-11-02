@@ -11,6 +11,9 @@ pub(crate) fn window_titlebar(
     sidebar_width: f32,
     title: SharedString,
     tabs: Option<AnyElement>,
+    // Document panes paint the tab strip on the page background. Project tabs
+    // and the empty title sit on the same muted chrome as the search control.
+    pane_chrome: bool,
     on_toggle: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     on_search: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     dragging: &Entity<bool>,
@@ -77,10 +80,12 @@ pub(crate) fn window_titlebar(
             .h_full()
             .flex()
             .items_center()
-            .bg(p.bg)
+            .bg(if pane_chrome { p.bg } else { p.surface_muted })
             .pr(px(8.))
             .when_some(tabs, |el, tabs| {
-                el.child(keep_click(div()).flex_1().min_w_0().h_full().child(tabs))
+                // Empty strip space has to reach `window_drag`. Tabs and buttons
+                // stop the mouse-down themselves.
+                el.child(div().flex_1().min_w_0().h_full().child(tabs))
             })
             .when(show_title, |el| {
                 el.child(

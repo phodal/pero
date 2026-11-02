@@ -90,7 +90,7 @@ impl Workbench {
             let leaves = layout.leaves();
             (leaves.len() == 1).then(|| leaves[0].clone())
         });
-        let tabs = if let Some(leaf) = single_pane { Some(div().flex_1().min_w_0().h_full().child(self.pane_tab_bar(&leaf, crate::workspace_pane_tabs::TabBarPlacement::WindowChrome, cx)).into_any_element()) }
+        let tabs = if let Some(ref leaf) = single_pane { Some(div().flex_1().min_w_0().h_full().child(self.pane_tab_bar(leaf, crate::workspace_pane_tabs::TabBarPlacement::WindowChrome, cx)).into_any_element()) }
             else { has_tabs.then(|| self.content_tabs(false, cx).into_any_element()) };
         let title = if has_tabs {
             SharedString::default()
@@ -103,6 +103,7 @@ impl Workbench {
             self.layout.sidebar_width,
             title,
             tabs,
+            single_pane.is_some(),
             cx.listener(|this, _, _, cx| this.toggle_sidebar(cx)),
             cx.listener(|this, _, window, cx| this.toggle_spotlight(window, cx)),
             dragging,
@@ -123,7 +124,7 @@ impl Workbench {
             .absolute()
             .top_0()
             .right_0()
-            .w(px(6.))
+            .w(px(4.))
             .h_full()
             .cursor(CursorStyle::ResizeLeftRight)
             .on_mouse_down(
