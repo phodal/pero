@@ -156,6 +156,7 @@ export const messages = {
   original: { zh: '打开原始来源', en: 'Open original source' }, originalPdf: { zh: '原始 PDF', en: 'Original PDF' },
   localPdfFile: { zh: '本地PDF', en: 'PDF file' },
   downloadPaper: { zh: '保存', en: 'Save' },
+  savedRefreshFailed: { zh: '副本已保存，但文献列表刷新失败：', en: 'Copies saved, but the Library could not refresh:' },
   saveCopies: { zh: '保存副本', en: 'Save copies' },
   saveInspecting: { zh: '检查来源，尚未下载…', en: 'Checking sources; no files downloaded…' },
   saveVersion: { zh: '版本', en: 'Version' }, saveUnknown: { zh: '未知', en: 'Unknown' },

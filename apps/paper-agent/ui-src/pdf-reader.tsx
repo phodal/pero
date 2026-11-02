@@ -27,6 +27,7 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
 }) {
   const [reading, setReading] = useState<PdfReading>({ document: null, annotations: [] });
   const pdfLoadEpoch = useRef(0);
+  const [lookupAttempt, setLookupAttempt] = useState(0);
   const [mode, setMode] = useState<'text' | 'pdf'>('text'), [busy, setBusy] = useState(false), [error, setError] = useState('');
   useEffect(() => {
     if (lockText) return;
@@ -38,7 +39,7 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
       if (alive && version === pdfLoadEpoch.current) { setReading(value); if (value.document) setMode(focus ? 'pdf' : loadReaderState(value.document)?.mode ?? 'pdf'); }
     }).catch(e => { if (alive && version === pdfLoadEpoch.current) setError(String(e.message ?? e)); }).finally(() => { if (alive && version === pdfLoadEpoch.current) setBusy(false); });
     return () => { alive = false; };
-  }, [api, paper.id, focus?.documentId, lockText]);
+  }, [api, paper.id, focus?.documentId, lockText, lookupAttempt]);
   // Export may attach a PDF to a metadata paper. Refresh that missing document
   // only; existing PDF/Read views and annotations keep their mounted owners.
   const seenPdfReload = useRef(pdfReloadToken);
@@ -66,7 +67,7 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   return <div className="pa-pdf-reading" onPointerDownCapture={chrome.onNavigate} onClickCapture={chrome.onNavigate}
     onKeyDownCapture={chrome.onNavigate} onWheelCapture={chrome.onNavigate} onChangeCapture={chrome.onNavigate}>
     {!lockText && !busy && (paper.pdfUrl || reading.document) && <Toolbar><Button variant="ghost" aria-pressed={view === 'text'} onClick={() => { setMode('text'); setError(''); }}>{textLabel}</Button><Button variant="ghost" aria-pressed={view === 'pdf'} disabled={busy} onClick={() => void open()}>PDF</Button></Toolbar>}
-    {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => void open()} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
+    {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => setLookupAttempt(value => value + 1)} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
     {busy && <p className="pa-loading" role="status">{t('loading')}</p>}
     {view !== 'pdf' && chrome.back && <div className="pa-pdf-inline-toolbar"><Button variant="ghost" aria-label={t('backToLibrary')} onClick={chrome.back}>‹</Button></div>}
     <div className="pa-reader-views" style={{ display: 'grid', flex: 1, minHeight: 0 }}>
