@@ -1,5 +1,5 @@
 // Opt-in: real public sources, real PDF and authenticated Codex through the Host.
-import { backToLibrary, saveLibraryCopies } from './paper-pdf-flow.mjs';
+import { saveLibraryCopies } from './paper-pdf-flow.mjs';
 import { electron } from './electron.mjs';
 import { clickAppOpen, clickNewChat } from './sidebar-controls.mjs';
 import { expect } from '@playwright/test';
@@ -247,10 +247,10 @@ try {
   await expect(frame.locator('.pa-reading-bar').getByRole('button', { name: 'Back to library', exact: true })).toBeVisible({ timeout: 90000 });
   const paper = (await api('/api/library')).papers.find(p => p.sourceId === '2610.14224');
   expect(paper).toBeTruthy();
-  await backToLibrary(frame);
+  await expect(frame.getByRole('dialog', { name: 'Save copies', exact: true })).toBeVisible();
   const save = await saveLibraryCopies(frame, paper.title, { timeout: 90000 });
   await save.getByRole('button', { name: 'Close', exact: true }).click();
-  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
+  // Export refreshes the missing PDF in this same reader; no implicit fetch.
   const nav = frame.locator('.pa-reading-bar');
   await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveAttribute('max', '37', { timeout: 90000 });
   await expect(frame.locator('.pa-pdf-page img,.pa-pdf-page canvas').first()).toBeVisible({ timeout: 30000 });

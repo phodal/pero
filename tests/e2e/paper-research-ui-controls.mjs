@@ -7,7 +7,7 @@ import { backToLibrary } from './paper-pdf-flow.mjs';
 export async function openResearchImport(page, frame) {
   const setup = page.getByRole('region', { name: 'App environment', exact: true });
   if (await setup.isVisible()) await setup.getByRole('button', { name: 'Hide', exact: true }).click();
-  await closePaperChat(page);
+  await closePaperChat(page, frame);
   await backToLibrary(frame);
   const library = frame.locator('.pa-library-screen');
   const back = library.getByRole('button', { name: 'Back to library', exact: true });

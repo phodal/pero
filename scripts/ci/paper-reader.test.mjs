@@ -106,6 +106,26 @@ test('Paper Chat retries initially missing or moving bounds before one real poin
   assert.equal(clicks.length, 1);
 });
 
+test('closing Paper question mode uses App Escape even when Host Chat is already closed', async () => {
+  for (const [question, records] of [[false, false], [true, false], [true, true]]) {
+    let questioning = question, recordsOpen = records;
+    const actions = [];
+    const frame = {
+      locator: selector => selector === '.pa-workspace'
+        ? { getAttribute: async name => { assert.equal(name, 'data-question'); return questioning ? 'true' : null; } }
+        : { press: async key => { assert.equal(selector, 'body'); assert.equal(key, 'Escape'); assert.equal(recordsOpen, false); actions.push('App Escape'); questioning = false; } },
+      getByRole: (role, options) => {
+        assert.equal(role, 'button'); assert.equal(options.name, 'Close research records');
+        return { isVisible: async () => recordsOpen, click: async () => { actions.push('close records'); recordsOpen = false; } };
+      },
+    };
+    const page = { evaluate: async () => ({ appChatOpen: false }) };
+    await closePaperChat(page, frame);
+    assert.deepEqual(actions, question ? [...(records ? ['close records'] : []), 'App Escape'] : []);
+    assert.equal(questioning, false);
+  }
+});
+
 test('Paper Chat never clicks when painted bounds remain unavailable', async () => {
   let samples = 0;
   const page = {

@@ -276,7 +276,7 @@ try {
     expect(await savedCount(frame)).toBe(1);
     await expect(frame.locator('#paper-question')).toHaveCount(0);
     checks.push('invalid quotation is rejected by Paper through the shared MCP tool; no duplicate report parser or composer');
-    await closePaperChat(page);
+    await closePaperChat(page, frame);
     await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Research record', exact: true }).click();
     // Opening Chat closed the records drawer; reopen the selected saved answer.
     const exportTurn = await showPaperReport(frame, page, firstReport.intentId);
@@ -300,7 +300,7 @@ try {
     await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
     await expect.poll(async () => { const s = await chatState(page); return s.chats[s.activeChat].state; }).toBe('idle');
     expect(await savedCount(frame)).toBe(1);
-    await closePaperChat(page);
+    await closePaperChat(page, frame);
     await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Research record', exact: true }).click();
     checks.push('cancellation uses the shared Host Chat stop control');
     await setAppearance(page,'dark');

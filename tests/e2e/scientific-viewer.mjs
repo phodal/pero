@@ -104,7 +104,9 @@ try{
  await expect.poll(()=>frame.locator('html').evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
  await frame.getByRole('button',{name:'Open Paper App',exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).activeApp)).toMatchObject({name:'paper-agent',panel:'main'});
- await expect(page.frameLocator('iframe[title="paper-agent"]').getByRole('heading',{name:'Papers',exact:true})).toBeVisible();await open();
+ const paper=page.frameLocator('iframe[title="paper-agent"]');
+ await expect(paper.locator('.pa-library-screen')).toBeVisible();
+ await expect(paper.getByRole('button',{name:'Add papers',exact:true})).toBeVisible();await open();
  await page.screenshot({path:resolve(out,'viewer.png')});expect(errors).toEqual([]);await writeFile(resolve(out,'result.json'),JSON.stringify({checks,errors,synthetic:true,independentPublicEngines:true,scope:'local scientific previews and evidence; no physical validity claim'},null,2));
 }catch(error){if(page)await page.screenshot({path:resolve(out,'failure.png')}).catch(()=>{});throw error;}
 finally{if(app)await closeOwnedElectron(app);await rm(temp,{recursive:true,force:true});}

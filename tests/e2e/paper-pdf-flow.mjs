@@ -1,11 +1,16 @@
-import { chatState, askPaperChat, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
+import { chatState, askPaperChat, fillPaperChat, closePaperChat, showPaperReport, exitPaperQuestionMode } from './paper-chat-controls.mjs';
 import { exercisePdfSearch } from './paper-search-flow.mjs';
 import { expect } from '@playwright/test';
 import { resolve } from 'node:path';
 export async function saveLibraryCopies(frame, title, { tex = false, timeout = 20000 } = {}) {
-  const row = frame.locator('.pa-library-list > li').filter({ hasText: title });
-  await row.getByRole('button', { name: 'Save', exact: true }).click();
   const dialog = frame.getByRole('dialog', { name: 'Save copies', exact: true });
+  // Add may already have opened this review. Never dismiss it or approve a
+  // residual dialog for another paper merely to reach the Library button.
+  if (!await dialog.isVisible()) {
+    const row = frame.locator('.pa-library-list > li').filter({ hasText: title });
+    await row.getByRole('button', { name: 'Save', exact: true }).click();
+  }
+  await expect(dialog.getByText(title, { exact: true })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled({ timeout });
   if (tex) await dialog.getByRole('checkbox', { name: 'TeX', exact: true }).check();
   await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
@@ -59,6 +64,7 @@ export async function setPaperAppearance(page, appearance) {
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).preferences.appearance)).toBe(appearance);
 }
 export async function backToLibrary(frame) {
+  await exitPaperQuestionMode(frame);
   const close = frame.getByRole('button', { name: 'Close research records', exact: true });
   if (await close.isVisible()) await close.click();
   const back = frame.locator('.pa-reading-bar').getByRole('button', { name: 'Back to library', exact: true });
@@ -94,7 +100,9 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await expect.poll(async () => { const pageBox = await first.boundingBox(), viewport = await viewer.locator('.pa-pdf-viewport').boundingBox(); return pageBox.height <= viewport.height + 1 && pageBox.width <= viewport.width + 1; }).toBe(true);
   await page.screenshot({ path: resolve(out, 'reading-first-1440.png') });
   const reading = () => frame.locator('body').evaluate(async (_element, id) => (await fetch(`/api/pdf?paperId=${id}`)).json(), paper.id);
-  expect((await reading()).document.pages).toHaveLength(fixture.pages);
+  const document = (await reading()).document;
+  expect(document.pages).toHaveLength(fixture.pages);
+  const storedView = () => frame.locator('body').evaluate((_element, key) => JSON.parse(localStorage.getItem(key)), `pero.paper.pdf-view:${document.id}:${document.fileDigest}`);
   // Real pointer selection. Opening/closing Ask must keep the same PDF image and selection.
   const box = await first.boundingBox(), s = fixture.selection;
   await page.mouse.move(box.x + s.x1 * box.width, box.y + s.y * box.height);
@@ -105,11 +113,13 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await nav.getByRole('button', { name: 'Ask', exact: true }).click();
   await expect.poll(async () => (await chatState(page)).appChatOpen).toBe(true);
   await expect(first.locator('img,canvas').first()).toHaveAttribute('data-reading-identity', 'retained');
+  await expect(frame.locator('.pa-workspace')).toHaveAttribute('data-question', 'true');
+  await expect(nav).toHaveCount(0);
+  await expect.poll(async () => `${Math.round((await storedView()).zoom * 100)}%`).toBe(zoom);
+  await closePaperChat(page, frame);
+  await expect(first.locator('img,canvas').first()).toHaveAttribute('data-reading-identity', 'retained');
   await expect(nav.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(zoom);
-  await closePaperChat(page);
   await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
-  const document = (await reading()).document;
-  const storedView = () => frame.locator('body').evaluate((_element, key) => JSON.parse(localStorage.getItem(key)), `pero.paper.pdf-view:${document.id}:${document.fileDigest}`);
   await expect.poll(async () => (await storedView())?.selection ?? null).not.toBeNull();
   const selectedRange = (await storedView()).selection;
   await nav.getByRole('button', { name: 'Zoom in', exact: true }).click();
@@ -138,7 +148,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   expect(discussed.anchor.rects.length).toBeGreaterThan(0);
   await expect.poll(async () => (await chatState(page)).attachments.length).toBeGreaterThan(1);
   await expect(frame.locator('#paper-question')).toHaveCount(0);
-  await closePaperChat(page);
+  await closePaperChat(page, frame);
   await page.screenshot({ path: resolve(out, 'pdf-selection-context.png') });
   await viewer.getByRole('button', { name: 'Highlight', exact: true }).click();
   await expect.poll(async () => (await reading()).annotations.length).toBe(1);
@@ -186,7 +196,7 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   await expect.poll(async () => (await chatState(page)).appChatOpen).toBe(true);
   await expect(frame.locator('.pa-reading-main')).not.toHaveAttribute('inert', '');
   await page.screenshot({ path: resolve(out, 'pdf-dark-narrow.png') });
-  await closePaperChat(page);
+  await closePaperChat(page, frame);
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900));
   await setPaperAppearance(page, 'light');
 
@@ -253,7 +263,7 @@ export async function reopenPdf({ frame, saved, page }) {
   const restored = await frame.locator('body').evaluate((_element, key) => JSON.parse(localStorage.getItem(key)), `pero.paper.pdf-view:${saved.readerState.documentId}:${saved.fileDigest}`);
   expect(restored.selection).toEqual(saved.readerState.selection);
   await askPaperChat(frame, page, frame.getByRole('button', { name: 'Ask', exact: true }));
-  await closePaperChat(page);
+  await closePaperChat(page, frame);
   await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Research record', exact: true }).click();
   await frame.locator('.pa-output-matrix>summary').click();
   const cell = frame.locator(`[data-matrix-annotation="${saved.figure.id}"]`);
