@@ -27,6 +27,7 @@ impl Workbench {
                 .iter()
                 .map(|chat| chat.workspace.clone()),
         );
+        workspaces.extend(self.preferences.research_projects.iter().filter_map(|project| project.workspace.clone()));
         let mut shared = self.remote.data["identity"]["projects"]
             .as_array()
             .into_iter()
@@ -64,13 +65,13 @@ impl Workbench {
                 })
             })
             .collect::<Vec<_>>();
-        Project::catalog(
+        Project::with_research(Project::catalog(
             &workspaces,
             &shared,
             &self.preferences.projects,
             &self.workspace_repositories,
             &repositories,
-        )
+        ), &self.preferences.research_projects)
     }
 
     pub(crate) fn reconcile_project_selection(&mut self, cx: &App) {
@@ -111,7 +112,10 @@ impl Workbench {
             .replace_identity(&WorkspaceItem::Project(key), canonical.clone());
         self.navigation.open(canonical);
         self.selected_project = Some(project.key.clone());
-        self.project_tab = ProjectTab::Tasks;
+        self.project_tab = ProjectTab::Overview;
+        self.cancel_research_editor();
+        self.research.choosing = false;
+        self.refresh_project_resources(cx);
         self.local_roadmap.show_cloud = project.workspace.is_none() && self.remote.configured();
         self.local_roadmap.selected_line = None;
         self.task_status = Default::default();
@@ -191,6 +195,9 @@ impl Workbench {
                             .font_weight(FontWeight::MEDIUM)
                             .child(self.t("nav.projects")),
                     )
+                    .child(Button::new("project-new").primary().label(self.t("research.new"))
+                        .relative().child(self.view_bounds.projects.probe("new".into()))
+                        .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(true, window, cx))))
                     .child(
                         Button::new("project-open-folder")
                             .outline()
@@ -200,6 +207,7 @@ impl Workbench {
                             })),
                     ),
             )
+            .when(self.research.editor.is_some(), |el| el.child(self.research_editor(cx)))
             .child(
                 div()
                     .mt(px(pero_theme::WorkbenchStyle::SECTION))
@@ -231,6 +239,7 @@ impl Workbench {
                                 .workspace
                                 .clone()
                                 .unwrap_or_else(|| project.shared_id.clone().unwrap_or_default());
+                            let goal = self.preferences.research_projects.iter().find(|saved| project.key == format!("research:{}",saved.id)).map(|saved| saved.goal.clone()).filter(|goal| !goal.is_empty()).unwrap_or(path.clone());
                             let key = project.key;
                             div()
                                 .py(px(8.))
@@ -258,7 +267,7 @@ impl Workbench {
                                                         .text(pero_theme::TextRole::Caption),
                                                 )
                                                 .text_color(p.text_muted)
-                                                .child(path),
+                                                .child(goal),
                                         ),
                                 )
                                 .child(
@@ -266,6 +275,7 @@ impl Workbench {
                                         .outline()
                                         .small()
                                         .label(self.t("project.open"))
+                                        .relative().child(self.view_bounds.projects.probe(format!("open:{key}")))
                                         .on_click(cx.listener(move |this, _, window, cx| {
                                             this.open_project(key.clone(), window, cx)
                                         })),
@@ -340,6 +350,7 @@ impl Workbench {
                                         .control_height()))
                                     .rounded_none()
                                     .label(self.t(tab.label_key()))
+                                    .relative().child(self.view_bounds.projects.probe(format!("tab:{}", tab.label_key())))
                                     .toggled(self.project_tab == tab)
                                     .border_b_2()
                                     .border_color(p.color(if self.project_tab == tab {
@@ -354,6 +365,7 @@ impl Workbench {
                             })),
                     ),
             )
+            .when(self.project_tab == ProjectTab::Overview, |el| el.child(self.research_overview(cx)))
             .when(self.project_tab == ProjectTab::Tasks, |el| {
                 el.child(self.project_tasks(narrow, cx))
             })

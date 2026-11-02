@@ -407,7 +407,7 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
         .border_r_1().border_color(p.border).p(px(8.)).gap(px(4.))
         .child(nav("sidebar-sessions", ui.t("nav.sessions"), "icons/message-circle.svg", props.navigation == WorkbenchPage::Conversation, SidebarAction::Navigate(WorkbenchPage::Conversation))
             .relative().child(props.shortcut_bounds.probe("sessions".into())))
-        .child(nav("sidebar-projects", ui.t("nav.projects"), "icons/folder.svg", matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks), SidebarAction::Navigate(WorkbenchPage::Projects)))
+        .child(nav("sidebar-projects", ui.t("nav.projects"), "icons/folder.svg", matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks), SidebarAction::Navigate(WorkbenchPage::Projects)).relative().child(props.shortcut_bounds.probe("projects".into())))
         .children(app_rows(primary))
         .child(div().id("sidebar-app-scroll").flex_1().min_h_0().overflow_y_scroll()
             .when(!collapsed, |el| el.child(div().px(px(8.)).pt(px(8.)).pb(px(4.)).text_color(p.text_muted).text_size(px(12.)).child(ui.t("nav.workspace"))))
