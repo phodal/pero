@@ -467,6 +467,7 @@ impl Render for Workbench {
                 }
             }))
             .on_action(cx.listener(|this, _: &gpui_kit::component::input::Paste, _, cx| {
+                #[cfg(not(target_family = "wasm"))]
                 if this.paste_app_text(cx) {
                     return;
                 }
