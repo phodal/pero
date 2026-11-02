@@ -181,3 +181,36 @@ Existing Go `TestExplicit*` Skill tests and
 `TestImageInputRejectsUnsafeMediaBeforeHTTP` also passed offline; the provider hard
 guard was not modified. Independent review verified the persisted event fields,
 exact injected-body formatting and both MCP rejection routes.
+
+## Current-source synthetic permission controller (2026-11-02)
+
+The four closure fixtures use `--approval ask` and an owned test-only ACP
+controller. It matches each permission to the current session, pending tool-call
+ID, exact scripted Paper tool/arguments and current prompt phase, once. A maximum
+of 128 decisions is accepted per case. Turn one permits only inspection and
+candidate context/proposal; decline turn permits none. Standard turn two permits
+only the authored source/PDF acquisition, reading and report trajectory after
+checking the observed original URLs against the exact approved arXiv version.
+No Data downloads, generic app_write, image, shell, installation or execution
+receive grants. Decisions and unexpected requests are retained in result.json.
+This is a synthetic policy, not human approval or evidence of model judgment.
+
+Current source `08f248cc` plus freshly rebuilt Host/Go initially failed all four
+cases: master now honors explicit MCP `readOnlyHint:false`, while the old fixture
+used `--approval never`. Inspection was correctly denied; the scripted provider
+then mistook the denial text for JSON. These failures do not invalidate or update
+historical real-provider evidence; they expose a stale test authorization setup.
+The fixture now reports a terminal explicit denial instead of opaque HTTP 500.
+
+Only these four synthetic cases have the bounded controller. Other historical
+fixture modes stop explicitly until their own scope is reviewed. Real campaign
+mode stops before reading credentials or starting a provider: this runner has no
+human ACP permission responder. Synthetic grants must never be reused for real
+inference, public networking or a different case.
+
+Historical real-provider proof remains pinned to its recorded source and binary
+hashes; these current scripted passes cannot establish current real-provider
+end-to-end success. For real inference, use the existing product Host/ACP
+permission UI to review individual requests. A headless campaign needs an explicit
+human responder before it can proceed; a plan's `confirmed` flag is not a human
+permission response.

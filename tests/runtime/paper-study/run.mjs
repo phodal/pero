@@ -11,6 +11,7 @@ import { CampaignLedger } from './ledger.mjs';
 import { providerEvaluationPlan } from './plan.mjs';
 import { startFixtureProvider } from './fixture-provider.mjs';
 import { assess, referenceBoundary } from './assess.mjs';
+import { FixtureApproval } from './fixture-approval.mjs';
 import { scenes, prompts, publicSourceTools } from './scenarios.mjs';
 
 const [mode, scene, agentArg, planPath] = process.argv.slice(2);
@@ -18,6 +19,8 @@ assert(['--fixture', '--real'].includes(mode) && scenes[scene], 'Use --fixture|-
 assert(agentArg?.startsWith('/'), 'Explicit absolute Go executable required');
 assert.equal(process.platform, 'linux', 'Owned-descendant verification requires Linux /proc');
 const real = mode === '--real', agent = resolve(agentArg);
+assert(!real, 'Real campaign stopped: this runner has no human ACP permission responder; synthetic grants cannot authorize a real provider. Use the existing product Host/ACP permission UI for individually reviewed requests; this headless runner must first be wired to an explicit human responder');
+const fixtureApproval = new FixtureApproval(scene);
 const pythonEnvironment = process.env.PAPER_STUDY_PYTHON_ENV;
 assert(pythonEnvironment && isAbsolute(pythonEnvironment), 'Set PAPER_STUDY_PYTHON_ENV to an absolute isolated Python environment directory');
 const configuredPrivateRoot = process.env.PAPER_STUDY_PRIVATE_ROOT;
@@ -80,16 +83,17 @@ try {
   if (real) { ledger = await CampaignLedger.acquire(resolve(evidenceRoot, `provider-ledger-${plan.authorizationReference}.json`), plan, scrub); await ledger.reserve(scene, directory, result.startedAt); }
   else {
     const skillText = await readFile(resolve(root, 'apps/paper-agent/skills', skillName, 'SKILL.md'), 'utf8');
-    provider = await startFixtureProvider(scene, identity.skillDigest, skillText.replace(/^---\n[\s\S]*?\n---\n/, '').trim());
+    provider = await startFixtureProvider(scene, identity.skillDigest, skillText.replace(/^---\n[\s\S]*?\n---\n/, '').trim(), fixtureApproval);
   }
   host = await openHost({ directory, agent, endpoint: real ? plan.endpoint : provider.endpoint,
     model: real ? plan.model : 'fixture', credential, audit, useEnvironmentProxy: real, prepareApp,
     allowedPaperTools: scenes[scene].publicRecording ? publicSourceTools : undefined,
-    pythonEnvironment, providerBudget: plan?.limits, imageInput: scenes[scene].vision === true });
+    pythonEnvironment, fixtureApproval, providerBudget: plan?.limits, imageInput: scenes[scene].vision === true });
   if (interrupted) throw new Error('Cancelled during startup');
   thread = await host.start();
   const turns = prompts(scene); result.prompts = turns; result.turns = [];
   for (const [index, prompt] of turns.entries()) {
+    fixtureApproval.beginTurn(index);
     const startedAt = Date.now();
     await host.prompt(thread, prompt, result.limits.perTurnWallTimeMs);
     result.turns.push({ index, wallTimeMs: Date.now() - startedAt });
@@ -97,6 +101,7 @@ try {
     if (index === 0) result.referenceBoundary = await referenceBoundary(host, directory, { inspectOnly: scenes[scene].inspectOnly });
   }
   Object.assign(result, await assess({ host, scene, directory, digest: identity.skillDigest, credential }));
+  assert.deepEqual(fixtureApproval.errors, [], 'Unexpected permission requests');
   if (result.automatedFailure) throw new Error(result.automatedFailure);
   if (provider) { result.fixtureCounts = provider.counts(); result.fixtureErrors = provider.errors; assert.deepEqual(provider.errors, []);
     if (scenes[scene].vision) assert.equal(result.fixtureCounts.imageRequests, 1, 'Require actual image_url provider payload'); }
@@ -127,6 +132,9 @@ finally {
     result.finishedAt = new Date().toISOString();
     if (ledger?.reservation) await attempt('ledger-save', () => ledger.finish({ httpAttempts: result.httpAttempts, passed: !failure,
       finishedAt: result.finishedAt, usage: result.usage || [] }));
+    result.permissionDecisions = fixtureApproval.decisions;
+    result.permissionErrors = fixtureApproval.errors;
+    if (fixtureApproval.errors.length) failure ||= 'Unexpected synthetic permission request';
     result.passed = !failure; result.failure = failure; result.cleanupErrors = cleanupErrors;
     await attempt('result-save', () => writeFile(resolve(directory, 'result.json'), scrub(JSON.stringify(result, null, 2)) + '\n', { mode: 0o600 }));
   } finally {

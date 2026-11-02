@@ -24,14 +24,15 @@ export function paperWritesForSession(writes, allowedPaperTools, imageInput) {
   }));
 }
 
-export async function openHost({ directory, agent, endpoint, model, credential, audit, skills = true, useEnvironmentProxy = false, prepareApp, pythonEnvironment, imageInput = false, allowedPaperTools, providerBudget }) {
+export async function openHost({ directory, agent, endpoint, model, credential, audit, skills = true, useEnvironmentProxy = false, prepareApp, pythonEnvironment, imageInput = false, allowedPaperTools, providerBudget, fixtureApproval }) {
+  if (fixtureApproval) assert(new URL(endpoint).hostname === '127.0.0.1' && !useEnvironmentProxy, 'Synthetic grants require owned loopback provider');
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const sessions = resolve(directory, 'sessions');
   await mkdir(sessions, { mode: 0o700, recursive: true });
   const installedSkills = resolve(directory, 'paper-skills');
   await cp(resolve(root, 'apps/paper-agent/skills'), installedSkills, { recursive: true });
   const args = [...providerConnectionArgs({ endpoint, model, providerBudget }), '--session-dir', sessions,
-    '--api-key-env', 'RESEARCH_CAMPAIGN_KEY', '--approval', 'never', '--max-retries', '0',
+    '--api-key-env', 'RESEARCH_CAMPAIGN_KEY', '--approval', fixtureApproval ? 'ask' : 'never', '--max-retries', '0',
     '--http-attempt-audit', audit, ...(skills ? ['--skills-root', installedSkills] : []),
     ...(useEnvironmentProxy ? ['--use-env-proxy'] : []), ...(imageInput ? ['--image-input'] : [])];
   await writeFile(resolve(directory, 'agents.json'), JSON.stringify([{ id: 'research-harness', name: 'Research Harness', command: agent, args }]), { mode: 0o600 });
@@ -69,6 +70,10 @@ export async function openHost({ directory, agent, endpoint, model, credential, 
     const event = JSON.parse(line);
     if (event.kind === 'apps_result') { pending.get(event.request_id)?.(event.data); return; }
     desktop.accept(event);
+    if (fixtureApproval) {
+      fixtureApproval.observe(event, selected);
+      if (event.kind === 'permission') command(fixtureApproval.respond(event, selected));
+    }
     // MCP descriptors and private backend credentials are never part of this stream.
     const clean = JSON.parse(scrub(JSON.stringify(event)));
     events.push(clean);
