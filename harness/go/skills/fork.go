@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"sync/atomic"
 
 	"github.com/phodal/pero/harness/go/harness"
@@ -66,6 +67,9 @@ func forkInvocation(ctx context.Context, options MountOptions, parent *harness.A
 	}
 	if definition.Agent == "" {
 		definition.Agent = "general-purpose"
+	}
+	if definition.Claude {
+		definition.Content = "Base directory for this skill: " + filepath.Join(definition.ResourceBase, filepath.FromSlash(definition.Directory)) + "\nPlugin root: " + definition.ResourceBase + "\n\n" + definition.Content
 	}
 	output, err := options.Fork(ctx, parent, definition)
 	if err != nil {

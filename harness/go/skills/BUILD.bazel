@@ -30,6 +30,7 @@ go_test(
         "arguments_test.go",
         "catalog_test.go",
         "compaction_test.go",
+        "fork_test.go",
         "invocation_claude_test.go",
         "invocation_test.go",
         "models_test.go",
