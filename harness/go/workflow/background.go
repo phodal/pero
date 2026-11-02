@@ -22,7 +22,7 @@ type taskIntent struct {
 	ID      string             `json:"task_id"`
 	Owner   harness.SessionID  `json:"owner"`
 	CallID  harness.ToolCallID `json:"call_id"`
-	Turn    int                `json:"turn"`
+	Turn    int                `json:"turn,omitempty"`
 	Call    Call               `json:"call"`
 }
 type taskTerminal struct {
@@ -34,14 +34,15 @@ type taskTerminal struct {
 	Diagnostic string            `json:"diagnostic,omitempty"`
 }
 type backgroundTask struct {
-	parent         *harness.Agent
-	intent         taskIntent
-	cancel         context.CancelFunc
-	done           chan struct{}
-	mu             sync.Mutex
-	terminal       *taskTerminal
-	suppressNotice atomic.Bool
-	noticeError    string
+	parent            *harness.Agent
+	intent            taskIntent
+	cancel            context.CancelFunc
+	done              chan struct{}
+	mu                sync.Mutex
+	terminal          *taskTerminal
+	suppressNotice    atomic.Bool
+	noticeError       string
+	terminalPersisted bool
 }
 
 func (task *backgroundTask) snapshot(retrieval harness.TaskRetrieval) harness.ToolResult {
@@ -201,6 +202,7 @@ func (app *App) StartBackground(ctx context.Context, request harness.ToolRequest
 		}
 		task.mu.Lock()
 		task.terminal = &terminal
+		task.terminalPersisted = persistErr == nil
 		task.mu.Unlock()
 		if persistErr == nil {
 			app.notifyBackground(operation, task, terminal)
@@ -211,8 +213,9 @@ func (app *App) StartBackground(ctx context.Context, request harness.ToolRequest
 }
 
 type backgroundHistory struct {
-	intent   taskIntent
-	terminal *taskTerminal
+	startedSeq, settledSeq uint64
+	intent                 taskIntent
+	terminal               *taskTerminal
 }
 
 func foldBackground(events []harness.Event, owner harness.SessionID) (map[string]backgroundHistory, error) {
@@ -230,7 +233,7 @@ func foldBackground(events []harness.Event, owner harness.SessionID) (map[string
 			if _, exists := result[intent.ID]; exists {
 				return nil, errors.New("workflow: duplicate durable task identity")
 			}
-			result[intent.ID] = backgroundHistory{intent: intent}
+			result[intent.ID] = backgroundHistory{intent: intent, startedSeq: event.Seq}
 		case taskEnded:
 			var terminal taskTerminal
 			if decodeWire(event.Data, &terminal) != nil || terminal.Version != 1 || terminal.Owner == "" {
@@ -252,6 +255,7 @@ func foldBackground(events []harness.Event, owner harness.SessionID) (map[string
 				return nil, errors.New("workflow: completed task lacks execution result")
 			}
 			entry.terminal = &terminal
+			entry.settledSeq = event.Seq
 			result[terminal.ID] = entry
 		}
 	}
@@ -268,7 +272,7 @@ func (app *App) restoreLocked(ctx context.Context, parent *harness.Agent, id str
 			return nil, err
 		}
 	}
-	task := &backgroundTask{parent: parent, intent: history.intent, terminal: terminal, done: make(chan struct{})}
+	task := &backgroundTask{parent: parent, intent: history.intent, terminal: terminal, terminalPersisted: true, done: make(chan struct{})}
 	close(task.done)
 	app.background[id] = task
 	return task, nil

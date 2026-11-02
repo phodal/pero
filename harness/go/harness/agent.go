@@ -153,30 +153,33 @@ type AgentHooks struct {
 	// Deactivated fires after the exact Agent is no longer visible and its
 	// scoped runtime has stopped. Lifecycle services use it to release leases
 	// that may have been acquired during Activated.
-	Deactivated    *point.Signal[*Agent]
-	InboxInserted  *point.Signal[InboxInsertedInput]
-	InboxClaimed   *point.Signal[InboxClaimedInput]
-	InboxDiscarded *point.Signal[InboxDiscardedInput]
+	Deactivated *point.Signal[*Agent]
+	// BeforeInboxResume stages recoverable notices after persistence/controller readiness.
+	BeforeInboxResume *point.Signal[*Agent]
+	InboxInserted     *point.Signal[InboxInsertedInput]
+	InboxClaimed      *point.Signal[InboxClaimedInput]
+	InboxDiscarded    *point.Signal[InboxDiscardedInput]
 }
 
 func NewAgentHooks(runtime *point.Runtime) *AgentHooks {
 	return &AgentHooks{
-		MainRequest:    point.NewSignal[MainRequestInput](runtime, "harness/agent/main-request"),
-		PreStep:        point.NewPipeline[StepInput](runtime, "harness/agent/pre-step"),
-		Request:        point.NewPipeline[GenerateRequest](runtime, "harness/agent/request"),
-		RequestError:   point.NewPipeline[RequestErrorInput](runtime, "harness/agent/request-error"),
-		TurnStopping:   point.NewSignal[TurnStoppingInput](runtime, "harness/agent/turn-stopping"),
-		PreCompact:     point.NewPipeline[CompactionHookInput](runtime, "harness/agent/pre-compact"),
-		PostCompact:    point.NewPipeline[CompactionHookInput](runtime, "harness/agent/post-compact"),
-		Error:          point.NewSignal[AgentErrorInput](runtime, "harness/agent/error"),
-		Status:         point.NewSignal[AgentStatusInput](runtime, "harness/agent/status"),
-		Published:      point.NewSignal[*Agent](runtime, "harness/agent/published"),
-		Activated:      point.NewSignal[*Agent](runtime, "harness/agent/activated"),
-		Retiring:       point.NewSignal[*Agent](runtime, "harness/agent/retiring"),
-		Deactivated:    point.NewSignal[*Agent](runtime, "harness/agent/deactivated"),
-		InboxInserted:  point.NewSignal[InboxInsertedInput](runtime, "harness/agent/inbox-inserted"),
-		InboxClaimed:   point.NewSignal[InboxClaimedInput](runtime, "harness/agent/inbox-claimed"),
-		InboxDiscarded: point.NewSignal[InboxDiscardedInput](runtime, "harness/agent/inbox-discarded"),
+		MainRequest:       point.NewSignal[MainRequestInput](runtime, "harness/agent/main-request"),
+		PreStep:           point.NewPipeline[StepInput](runtime, "harness/agent/pre-step"),
+		Request:           point.NewPipeline[GenerateRequest](runtime, "harness/agent/request"),
+		RequestError:      point.NewPipeline[RequestErrorInput](runtime, "harness/agent/request-error"),
+		TurnStopping:      point.NewSignal[TurnStoppingInput](runtime, "harness/agent/turn-stopping"),
+		PreCompact:        point.NewPipeline[CompactionHookInput](runtime, "harness/agent/pre-compact"),
+		PostCompact:       point.NewPipeline[CompactionHookInput](runtime, "harness/agent/post-compact"),
+		Error:             point.NewSignal[AgentErrorInput](runtime, "harness/agent/error"),
+		Status:            point.NewSignal[AgentStatusInput](runtime, "harness/agent/status"),
+		Published:         point.NewSignal[*Agent](runtime, "harness/agent/published"),
+		Activated:         point.NewSignal[*Agent](runtime, "harness/agent/activated"),
+		Retiring:          point.NewSignal[*Agent](runtime, "harness/agent/retiring"),
+		Deactivated:       point.NewSignal[*Agent](runtime, "harness/agent/deactivated"),
+		BeforeInboxResume: point.NewSignal[*Agent](runtime, "harness/agent/before-inbox-resume"),
+		InboxInserted:     point.NewSignal[InboxInsertedInput](runtime, "harness/agent/inbox-inserted"),
+		InboxClaimed:      point.NewSignal[InboxClaimedInput](runtime, "harness/agent/inbox-claimed"),
+		InboxDiscarded:    point.NewSignal[InboxDiscardedInput](runtime, "harness/agent/inbox-discarded"),
 	}
 }
 

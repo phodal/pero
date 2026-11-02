@@ -107,6 +107,9 @@ func Mount(ctx context.Context, h *harness.Harness, packages []plugins.Package, 
 	}()
 	definition := point.Define(point.Descriptor{ID: "harness/selected-workflows", Requires: []point.Requirement{point.Require(harness.ToolRegistryKey), point.Require(harness.AgentHooksKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
 		app.owner = run.Context
+		if err := app.registerNoticeRecovery(run); err != nil {
+			return nil, err
+		}
 		if err := app.registerBackground(run); err != nil {
 			return nil, err
 		}

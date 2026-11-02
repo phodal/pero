@@ -59,32 +59,44 @@ func (a *Agent) Deliver(message Message, wake bool) error {
 // become model-visible. Wakeup messages own FIFO turns; quiet messages wait at
 // the next-step boundary. A resumed Agent replays the same pending queues.
 func (a *Agent) DeliverDurable(ctx context.Context, message Message, wake bool) error {
-	return a.deliverInboxNotice(ctx, message, wake, true)
+	target := InboxNextStep
+	if wake {
+		target = InboxNextTurn
+	}
+	return a.deliverInboxNotice(ctx, message, inboxDelivery{target: target, wake: wake, requirePersistence: true})
 }
 
 // DeliverBackgroundNotice commits a source-identified completion notice to the
 // existing inbox before scheduling it. It never clears the user interrupt latch.
 func (a *Agent) DeliverBackgroundNotice(ctx context.Context, message Message) error {
-	return a.deliverInboxNotice(ctx, message, true, false)
+	return a.deliverInboxNotice(ctx, message, inboxDelivery{target: InboxNextTurn, wake: true})
 }
 
 // deliverInboxNotice retains stable source identities in the existing inbox.
 // The internal wake respects interruption; unlike explicit WakeDurable it does
 // not unpark work that the user stopped. In-memory Sessions remain in-memory.
-func (a *Agent) deliverInboxNotice(ctx context.Context, message Message, wake, requirePersistence bool) error {
+type inboxDelivery struct {
+	target                   InboxTarget
+	wake, requirePersistence bool
+}
+
+// StageBackgroundNotice persists an idempotent next-turn notice without waking
+// the worker. Recovery stages a batch before ResumeDurableInbox schedules it.
+func (a *Agent) StageBackgroundNotice(ctx context.Context, message Message) error {
+	return a.deliverInboxNotice(ctx, message, inboxDelivery{target: InboxNextTurn, requirePersistence: true})
+}
+
+func (a *Agent) deliverInboxNotice(ctx context.Context, message Message, delivery inboxDelivery) error {
 	if err := a.mutationAdmissionError(); err != nil {
 		return err
 	}
 	if a == nil || a.durableInbox == nil {
 		return errors.New("harness: Agent inbox is unavailable")
 	}
-	if requirePersistence && !a.session.DurabilityAttached() {
+	if delivery.requirePersistence && !a.session.DurabilityAttached() {
 		return errors.New("harness: durable Agent delivery requires attached session persistence")
 	}
-	target := InboxNextStep
-	if wake {
-		target = InboxNextTurn
-	}
+	target := delivery.target
 	a.inboxClaimMu.Lock()
 	if err := a.mutationAdmissionError(); err != nil {
 		a.inboxClaimMu.Unlock()
@@ -105,7 +117,7 @@ func (a *Agent) deliverInboxNotice(ctx context.Context, message Message, wake, r
 	if inserted {
 		a.publishInboxInserted(message, target, false)
 	}
-	if wake {
+	if delivery.wake {
 		a.requestDurableWake()
 	}
 	return nil
@@ -160,7 +172,15 @@ func (a *Agent) ResumeDurableInbox() error {
 	if err := a.mutationAdmissionError(); err != nil {
 		return err
 	}
-	if a == nil || a.durableInbox == nil || !a.durableInbox.HasNextTurn() {
+	if a == nil || a.durableInbox == nil {
+		return nil
+	}
+	if a.session.DurabilityAttached() {
+		if err := a.hooks.BeforeInboxResume.Emit(context.Background(), a); err != nil {
+			return err
+		}
+	}
+	if !a.durableInbox.HasNextTurn() {
 		return nil
 	}
 	if !a.session.DurabilityAttached() {
