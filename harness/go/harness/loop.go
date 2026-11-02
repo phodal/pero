@@ -527,7 +527,8 @@ func (a *Agent) generateStepWithRuntime(ctx context.Context, turn, step int, pre
 		header := RequestHeaderEvent{
 			AdapterDefaults: prepared.AdapterDefaults,
 			Turn:            turn, Step: step, Provider: request.Provider, Model: request.Model, ReasoningEffort: request.ReasoningEffort,
-			Temperature: request.Temperature, MaxTokens: request.MaxTokens, Stop: append([]string(nil), request.Stop...),
+			TransientModel: request.TransientModel,
+			Temperature:    request.Temperature, MaxTokens: request.MaxTokens, Stop: append([]string(nil), request.Stop...),
 			Tools: request.Tools, StartsSeries: attemptStartsSeries,
 		}
 		if !a.requestHeaderLogged {

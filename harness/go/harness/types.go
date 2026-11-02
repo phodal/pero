@@ -69,17 +69,20 @@ type GenerateRequest struct {
 	// Only trusted adapter dispatch code may mark an already projected boundary.
 	// This provenance is process-local and cannot be supplied over JSON.
 	toolHistoryProjected bool
-	Provider             string          `json:"provider,omitempty"`
-	Model                string          `json:"model,omitempty"`
-	ReasoningEffort      ReasoningEffort `json:"reasoningEffort,omitempty"`
-	Temperature          *float64        `json:"temperature,omitempty"`
-	System               string          `json:"system,omitempty"`
-	Messages             []Message       `json:"messages"`
-	Tools                []ToolSchema    `json:"tools,omitempty"`
-	ToolHistory          *ToolHistory    `json:"toolHistory,omitempty"`
-	MaxTokens            int             `json:"maxTokens,omitempty"`
-	Stop                 []string        `json:"stop,omitempty"`
-	Purpose              string          `json:"purpose,omitempty"`
+	Provider             string `json:"provider,omitempty"`
+	Model                string `json:"model,omitempty"`
+	// TransientModel records the dispatched route without replacing the
+	// conversation's durable model selection, for example a turn-local skill.
+	TransientModel  bool            `json:"-"`
+	ReasoningEffort ReasoningEffort `json:"reasoningEffort,omitempty"`
+	Temperature     *float64        `json:"temperature,omitempty"`
+	System          string          `json:"system,omitempty"`
+	Messages        []Message       `json:"messages"`
+	Tools           []ToolSchema    `json:"tools,omitempty"`
+	ToolHistory     *ToolHistory    `json:"toolHistory,omitempty"`
+	MaxTokens       int             `json:"maxTokens,omitempty"`
+	Stop            []string        `json:"stop,omitempty"`
+	Purpose         string          `json:"purpose,omitempty"`
 	// Turn and Step are operation-local coordinates for request lifecycle
 	// middleware. They are not part of the provider payload.
 	Turn int `json:"-"`

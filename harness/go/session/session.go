@@ -732,6 +732,7 @@ type RequestHeaderEvent struct {
 	Step            int                                     `json:"step"`
 	Provider        string                                  `json:"provider,omitempty"`
 	Model           string                                  `json:"model,omitempty"`
+	TransientModel  bool                                    `json:"transientModel,omitempty"`
 	ReasoningEffort ReasoningEffort                         `json:"reasoningEffort,omitempty"`
 	Temperature     *float64                                `json:"temperature,omitempty"`
 	MaxTokens       int                                     `json:"maxTokens,omitempty"`

@@ -71,6 +71,9 @@ func (state *ModelSelectionHistory) Apply(event Event) error {
 		if err := json.Unmarshal(event.Data, &header); err != nil {
 			return err
 		}
+		if header.TransientModel {
+			return nil
+		}
 		if header.Provider == "" || header.Model == "" {
 			return nil
 		}
