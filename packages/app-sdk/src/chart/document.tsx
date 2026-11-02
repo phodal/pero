@@ -2,7 +2,7 @@
  * `DocumentChart`: render a declarative chart document inside an App panel.
  *
  * Same `@pero/data-chart` document as Canvas / inline answers; App panels draw
- * a bounded SVG subset (see APP_DOCUMENT_CHART_TYPES) with Point tokens. Does
+ * a bounded SVG subset (see APP_DOCUMENT_CHART_TYPES) with Pero tokens. Does
  * not execute content, fetch, or substitute an unsupported family.
  */
 import React, { useMemo } from "react";

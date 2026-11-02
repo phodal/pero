@@ -7,10 +7,10 @@
  * wildly different ranges; a shared y axis would flatten one of them, and
  * normalising each would put incomparable numbers on the same pixel row.
  *
- * Drawn with the one vendored uPlot (../../vendor/uplot), styled with the
- * native Point chart palette (palette.mjs), so an App chart looks like every
- * other chart in Point. Declarative categorical charts (bar/line/area over at
- * most 2000 rows) use `DocumentChart` in this package (same `@pero/data-chart`
+ * Drawn with the pinned uPlot npm dependency, styled with the
+ * native Pero chart palette (palette.mjs), so an App chart looks like every
+ * other chart in Pero. Declarative categorical charts (bar/line/area over at
+ * most 2000 rows) use `DocumentChart` in this package (shared chart
  * document as Canvas); this module is for the sample counts and live refresh
  * rates that an SVG chart cannot keep up with.
  *
@@ -22,7 +22,7 @@
 // @ts-ignore -- the .esm.js build ships no sibling .d.ts; types come from uPlot.d.ts.
 import uPlot from "uplot";
 import { UPLOT_CSS } from "./uplot-css.mjs";
-import { dashArray, pointChartTheme, seriesStyle } from "./palette.mjs";
+import { dashArray, appChartTheme, seriesStyle } from "./palette.mjs";
 
 export { uPlot };
 
@@ -121,7 +121,7 @@ export class LaneChart {
     this.observer?.observe(root);
   }
 
-  theme() { return pointChartTheme(this.dark); }
+  theme() { return appChartTheme(this.dark); }
 
   applyTheme() {
     const theme = this.theme();

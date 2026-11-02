@@ -1,10 +1,10 @@
 /*
- * `@pero/app-sdk/chart`: the native Point chart for App panels.
+ * `@pero/app-sdk/chart`: the native Pero chart for App panels.
  *
- * The host registers this module in `globalThis.__point_modules` next to React
+ * The host registers this module in `globalThis.__pero_modules` next to React
  * and `@pero/app-sdk` (see ../client.tsx), and the App builder resolves the
  * specifier to that registry entry, so every App panel draws with the same
- * chart — one uPlot, the Point palette, the host's light/dark mode — instead
+ * chart — one uPlot, the Pero palette, the host's light/dark mode — instead
  * of vendoring its own.
  *
  * Two shapes share this module:
@@ -15,7 +15,7 @@
 import React, { useEffect, useRef } from "react";
 import { useTheme } from "../index";
 import { LaneChart as LaneChartImpl, alignLane, countRuns, ensureChartStyles } from "./lanes.mjs";
-import { POINT_CHART_SERIES, POINT_CHART_SERIES_DARK, dashArray, pointChartTheme, seriesStyle } from "./palette.mjs";
+import { PERO_CHART_SERIES, PERO_CHART_SERIES_DARK, dashArray, appChartTheme, seriesStyle } from "./palette.mjs";
 import {
   APP_DOCUMENT_CHART_TYPES,
   DocumentChart,
@@ -24,7 +24,7 @@ import {
 } from "./document";
 
 export {
-  alignLane, countRuns, ensureChartStyles, POINT_CHART_SERIES, POINT_CHART_SERIES_DARK, dashArray, pointChartTheme, seriesStyle,
+  alignLane, countRuns, ensureChartStyles, PERO_CHART_SERIES, PERO_CHART_SERIES_DARK, dashArray, appChartTheme, seriesStyle,
   APP_DOCUMENT_CHART_TYPES, DocumentChart, ensureDocumentChartStyles, projectAppChartDocument,
 };
 export type { DocumentChartProps } from "./document";

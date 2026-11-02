@@ -1,20 +1,6 @@
-// pero-color-literal-file: uPlot draws on canvas, so series colours are concrete; they mirror chart-1..6 of pero-light/pero-dark and chart.test.mjs fails on drift.
-/*
- * The native Point chart look, for App panels.
- *
- * These are the Canvas `Chart`'s own series styles and host palette
- * (browser/packages/canvas/canvas-runtime-web/src/chart.tsx SERIES_STYLES and
- * sdk.ts palette), restated here because the App SDK cannot import the Canvas
- * runtime (it carries Recharts). test/chart.test.mjs reads both sources and
- * fails if they drift, so a chart in an App panel and a chart in a Canvas or
- * an answer stay the same chart.
- *
- * The default order follows Pero/PPT Accent 1–6: navy, mint, red, orange, amber, violet.
- * Colour is never the only difference between series: each one also has its
- * own dash pattern, which the legend names.
- */
-
-export const POINT_CHART_SERIES = Object.freeze([
+// Scientific series preserve the App SDK palette; dash patterns also distinguish series.
+// Canvas-based renderers read active theme tokens and use these values without a DOM.
+export const PERO_CHART_SERIES = Object.freeze([
   Object.freeze({ stroke: "#3B6FD8", dash: "0", dashName: "实线" }),
   Object.freeze({ stroke: "#D9535F", dash: "7 4", dashName: "长虚线" }),
   Object.freeze({ stroke: "#2F9564", dash: "2 3", dashName: "点线" }),
@@ -30,7 +16,7 @@ export function dashArray(dash) {
 }
 
 /** The same six series on a dark chart surface (design tokens chart-1..6, dark). */
-export const POINT_CHART_SERIES_DARK = Object.freeze(POINT_CHART_SERIES.map((style, index) =>
+export const PERO_CHART_SERIES_DARK = Object.freeze(PERO_CHART_SERIES.map((style, index) =>
   Object.freeze({ ...style, stroke: ["#3B6FD8", "#D9535F", "#2F9564", "#845EC2", "#EB9234", "#F2C94C"][index] })));
 
 /**
@@ -47,7 +33,7 @@ export function themeToken(name, fallback) {
 }
 
 export function seriesStyle(index, dark = false) {
-  const table = dark ? POINT_CHART_SERIES_DARK : POINT_CHART_SERIES;
+  const table = dark ? PERO_CHART_SERIES_DARK : PERO_CHART_SERIES;
   const i = ((index % table.length) + table.length) % table.length;
   const stroke = themeToken(`chart-${i + 1}`, table[i].stroke);
   return stroke === table[i].stroke ? table[i] : Object.freeze({ ...table[i], stroke });
@@ -58,7 +44,7 @@ export function seriesStyle(index, dark = false) {
  * that a categorical chart does not: event markers, shaded gaps, the shared
  * cursor and a drag selection.
  */
-export function pointChartTheme(dark) {
+export function appChartTheme(dark) {
   return Object.freeze({
     dark: !!dark,
     bg: { elevated: themeToken("chart-surface", dark ? "#1d2e43" : "#ffffff") },
