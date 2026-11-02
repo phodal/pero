@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/shell"
@@ -18,12 +19,25 @@ func (s *shellTasks) waitForeground(ctx context.Context, parent *harness.Agent, 
 	if task == nil || task.parent != parent {
 		return harness.ToolResult{}, errors.New("foreground shell owner is unavailable")
 	}
+	select {
+	case <-handle.Done:
+		return renderForegroundTask(task)
+	default:
+	}
+	task.mu.Lock()
+	alreadyPromoted := task.promotion != nil
+	task.mu.Unlock()
+	if alreadyPromoted {
+		return task.snapshot(harness.TaskNotReady), nil
+	}
 	stop := context.AfterFunc(ctx, func() {
 		if task.cancel != nil {
 			task.cancel(ctx.Err())
 		}
 	})
 	defer stop()
+	timer := time.NewTimer(task.timing.wait)
+	defer timer.Stop()
 	select {
 	case <-handle.Done:
 	case <-ctx.Done():
@@ -31,7 +45,32 @@ func (s *shellTasks) waitForeground(ctx context.Context, parent *harness.Agent, 
 			task.cancel(ctx.Err())
 		}
 		<-handle.Done
+	case <-timer.C:
+		canPromote := task.timing.promote
+		select {
+		case <-task.started:
+		default:
+			canPromote = false
+		}
+		if canPromote {
+			promoted, err := s.promote(ctx, task)
+			if err != nil {
+				task.cancel(err)
+				<-handle.Done
+				return harness.ToolResult{}, err
+			}
+			if promoted {
+				return task.snapshot(harness.TaskNotReady), nil
+			}
+		} else {
+			task.cancel(shell.ErrTimeout)
+		}
+		<-handle.Done
 	}
+	return renderForegroundTask(task)
+}
+
+func renderForegroundTask(task *shellTask) (harness.ToolResult, error) {
 	task.mu.Lock()
 	terminal := *task.terminal
 	task.mu.Unlock()

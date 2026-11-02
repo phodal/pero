@@ -22,6 +22,7 @@ const (
 	maximumBackgroundShells = 16
 	shellTaskStarted        = "shell-task/started"
 	shellTaskEnded          = "shell-task/ended"
+	shellTaskPromoted       = "shell-task/promoted"
 )
 
 var errShellTaskStopped = errors.New("shell task stopped by TaskStop")
@@ -48,6 +49,8 @@ type shellTaskIntent struct {
 	TimeoutMS   int64              `json:"timeout_ms"`
 	Background  bool               `json:"background"`
 	OutputFile  string             `json:"output_file,omitempty"`
+	HostMode    BashHostMode       `json:"host_mode,omitempty"`
+	NoDeadline  bool               `json:"no_deadline,omitempty"`
 }
 
 type shellTaskTerminal struct {
@@ -63,17 +66,23 @@ type shellTaskTerminal struct {
 }
 
 type shellTask struct {
-	parent    *harness.Agent
-	intent    shellTaskIntent
-	cancel    context.CancelCauseFunc
-	done      chan struct{}
-	mu        sync.Mutex
-	terminal  *shellTaskTerminal
-	output    []byte
-	lossy     bool
-	capture   *shell.FileCapture
-	executor  *shell.LocalExecutor
-	fileReady bool
+	parent      *harness.Agent
+	intent      shellTaskIntent
+	cancel      context.CancelCauseFunc
+	done        chan struct{}
+	mu          sync.Mutex
+	terminal    *shellTaskTerminal
+	output      []byte
+	lossy       bool
+	capture     *shell.FileCapture
+	executor    *shell.LocalExecutor
+	fileReady   bool
+	timing      bashTimingSelection
+	started     chan struct{}
+	processDone chan struct{}
+	lifecycle   sync.Mutex
+	deadline    *time.Timer
+	promotion   *shellTaskPromotion
 }
 
 func (t *shellTask) Write(data []byte) (int, error) {
@@ -107,6 +116,7 @@ func (t *shellTask) snapshot(retrieval harness.TaskRetrieval) harness.ToolResult
 	var presentation *bashPresentation
 	var result *shell.RunResult
 	var output *shell.CollectedOutput
+	promotion := t.promotion
 	if t.terminal != nil {
 		status, diagnostic, result = t.terminal.Status, t.terminal.Diagnostic, t.terminal.Result
 		workingLog, workingLogPartial = t.terminal.OutputFile, t.terminal.OutputFilePartial
@@ -123,6 +133,15 @@ func (t *shellTask) snapshot(retrieval harness.TaskRetrieval) harness.ToolResult
 		}
 	}
 	t.mu.Unlock()
+	message := ""
+	backgroundTimeout, noDeadline := int64(0), t.intent.NoDeadline
+	if t.intent.Background {
+		backgroundTimeout = t.intent.TimeoutMS
+	}
+	if promotion != nil {
+		message = fmt.Sprintf("Command did not complete within its %gs timeout and was moved to the background", float64(t.intent.TimeoutMS)/1000)
+		backgroundTimeout, noDeadline = promotion.TimeoutMS, promotion.NoDeadline
+	}
 	var presentedResult *bashPresentedResult
 	if result != nil {
 		copy := presentedBashResult(*result, presentation)
@@ -140,7 +159,11 @@ func (t *shellTask) snapshot(retrieval harness.TaskRetrieval) harness.ToolResult
 		OutputFilePartial bool                   `json:"output_file_partial,omitempty"`
 		WorkingLogFile    string                 `json:"working_log_file,omitempty"`
 		WorkingLogPartial bool                   `json:"working_log_partial,omitempty"`
-	}{t.intent.ID, harness.TaskKindShell, status, retrieval, boundedText(diagnostic, 1024), output, presentedResult, outputFile, partial, workingLog, workingLogPartial})
+		Promoted          bool                   `json:"promoted,omitempty"`
+		Message           string                 `json:"message,omitempty"`
+		BackgroundTimeout int64                  `json:"background_timeout_ms,omitempty"`
+		NoDeadline        bool                   `json:"no_deadline,omitempty"`
+	}{t.intent.ID, harness.TaskKindShell, status, retrieval, boundedText(diagnostic, 1024), output, presentedResult, outputFile, partial, workingLog, workingLogPartial, promotion != nil, message, backgroundTimeout, noDeadline})
 	return harness.ToolResult{IsError: status == shellTaskFailed || status == shellTaskInterrupted || diagnostic != "", Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(raw)}}}
 }
 
@@ -166,6 +189,7 @@ type shellTasks struct {
 	options      shell.LocalOptions
 	foreground   shell.LocalOptions
 	outputPolicy bashOutputPolicy
+	timingPolicy bashTimingPolicy
 	mu           sync.Mutex
 	closed       bool
 	fenced       map[*harness.Agent]bool
@@ -174,10 +198,10 @@ type shellTasks struct {
 	admission    sync.Mutex
 }
 
-func mountShellTasks(ctx context.Context, h *harness.Harness, options shell.LocalOptions, policy bashOutputPolicy) (*shellTasks, error) {
+func mountShellTasks(ctx context.Context, h *harness.Harness, options shell.LocalOptions, policy bashOutputPolicy, timing bashTimingPolicy) (*shellTasks, error) {
 	foreground := options
-	options.Timeout, options.MaxTimeout = backgroundShellDefault, backgroundShellMaximum
-	owner := &shellTasks{options: options, foreground: foreground, outputPolicy: policy, tasks: make(map[string]*shellTask), fenced: make(map[*harness.Agent]bool)}
+	options.Timeout, options.MaxTimeout = timing.backgroundDefault, timing.backgroundMaximum
+	owner := &shellTasks{options: options, foreground: foreground, outputPolicy: policy, timingPolicy: timing, tasks: make(map[string]*shellTask), fenced: make(map[*harness.Agent]bool)}
 	definition := point.Define(point.Descriptor{ID: "harness/contribution/background-shell", Requires: []point.Requirement{point.Require(harness.AgentHooksKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
 		owner.run = run
 		if _, err := h.Hooks().Activated.On(run, func(ctx context.Context, agent *harness.Agent) error {
@@ -253,19 +277,23 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 	if err := ctx.Err(); err != nil {
 		return harness.ToolResult{}, err
 	}
-	task := &shellTask{parent: request.Agent, done: make(chan struct{}), capture: &shell.FileCapture{}}
+	selection, err := s.timingPolicy.selectTimeout(input.Command, input.TimeoutMS, input.RunInBackground)
+	if err != nil {
+		return harness.ToolResult{}, err
+	}
+	task := &shellTask{parent: request.Agent, done: make(chan struct{}), capture: &shell.FileCapture{}, timing: selection, started: make(chan struct{}), processDone: make(chan struct{})}
 	options := s.options
 	if !input.RunInBackground {
 		options = s.foreground
 	}
 	options.OutputSink = task
+	options.ProcessStarted = func() { close(task.started) }
 	executor, err := shell.NewLocalExecutor(options)
 	if err != nil {
 		return harness.ToolResult{}, err
 	}
 	task.executor = executor
-	timeout := time.Duration(min(input.TimeoutMS, int(options.MaxTimeout.Milliseconds()))) * time.Millisecond
-	spec, err := executor.Resolve(shell.ExecRequest{Command: input.Command, Workdir: request.Agent.Session().WorkingDirectory(), Timeout: timeout})
+	spec, err := executor.Resolve(shell.ExecRequest{Command: input.Command, Workdir: request.Agent.Session().WorkingDirectory(), Timeout: selection.resolveTimeout, OnExpiry: shell.ExpiryNone})
 	if err != nil {
 		return harness.ToolResult{}, err
 	}
@@ -277,11 +305,15 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 	if err != nil {
 		return harness.ToolResult{}, err
 	}
+	intentTimeout := selection.wait
+	if input.RunInBackground {
+		intentTimeout = selection.runtime
+	}
 	for id, previous := range history {
 		if request.CallID == "" || previous.intent.CallID != request.CallID || previous.intent.Turn != turn {
 			continue
 		}
-		if previous.intent.Command != spec.Command || previous.intent.Workdir != spec.Workdir || previous.intent.TimeoutMS != spec.Timeout.Milliseconds() || previous.intent.Background != input.RunInBackground {
+		if previous.intent.Command != spec.Command || previous.intent.Workdir != spec.Workdir || previous.intent.TimeoutMS != intentTimeout.Milliseconds() || previous.intent.Background != input.RunInBackground {
 			return harness.ToolResult{}, errors.New("background shell call identity already has a different durable intent; do not replay it")
 		}
 		handle, _, err := s.lookup(ctx, request.Agent, id)
@@ -294,7 +326,7 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 		}
 		return handle.Snapshot(harness.TaskNotReady), nil
 	}
-	task.intent = shellTaskIntent{Version: 1, ID: "bash-" + rand.Text(), Owner: request.Agent.ID(), CallID: request.CallID, Turn: turn, Command: spec.Command, Workdir: spec.Workdir, Description: input.Description, TimeoutMS: spec.Timeout.Milliseconds(), Background: input.RunInBackground}
+	task.intent = shellTaskIntent{Version: 1, ID: "bash-" + rand.Text(), Owner: request.Agent.ID(), CallID: request.CallID, Turn: turn, Command: spec.Command, Workdir: spec.Workdir, Description: input.Description, TimeoutMS: intentTimeout.Milliseconds(), Background: input.RunInBackground, HostMode: s.timingPolicy.mode, NoDeadline: selection.noDeadline}
 	plan, err := shell.PlanOutputFile(options.CWD, ".pero/bash-output", task.intent.ID+".log", 0)
 	if err != nil {
 		return harness.ToolResult{}, err
@@ -345,16 +377,32 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 	task.mu.Lock()
 	task.fileReady = true
 	task.mu.Unlock()
+	if input.RunInBackground && selection.runtime > 0 {
+		task.deadline = time.AfterFunc(selection.runtime, func() { cancel(shell.ErrTimeout) })
+	}
 	if err := s.run.Go("background-shell/"+task.intent.ID, func(runCtx context.Context) error {
 		defer cancel(nil)
 		stop := context.AfterFunc(runCtx, func() { cancel(context.Canceled) })
 		defer stop()
 		result, runErr := executor.Run(taskCtx, spec)
+		close(task.processDone)
 		status := shellTaskCompleted
 		if errors.Is(context.Cause(taskCtx), errShellTaskStopped) {
 			status, runErr = shellTaskStopped, nil
 		} else if runErr != nil {
 			status = shellTaskFailed
+			if errors.Is(runErr, shell.ErrTimeout) {
+				task.mu.Lock()
+				background := task.intent.Background || task.promotion != nil
+				task.mu.Unlock()
+				if background {
+					description := task.intent.Description
+					if description == "" {
+						description = task.intent.ID
+					}
+					runErr = fmt.Errorf("Background command %q was stopped after reaching its background time limit: %w", description, runErr)
+				}
+			}
 		} else if !shell.ClaudeCommandSucceeded(spec.Command, result.ExitCode) {
 			status = shellTaskFailed
 			if result.ExitCode == nil {
@@ -378,6 +426,11 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 }
 
 func (s *shellTasks) finish(task *shellTask, result *shell.RunResult, operationErr error, status shellTaskStatus) {
+	task.lifecycle.Lock()
+	defer task.lifecycle.Unlock()
+	if task.deadline != nil {
+		task.deadline.Stop()
+	}
 	terminal := shellTaskTerminal{Version: 1, ID: task.intent.ID, Owner: task.intent.Owner, Status: status, Result: result}
 	var failurePresentation *bashPresentation
 	if task.capture != nil && task.capture.Path() != "" {

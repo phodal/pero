@@ -13,8 +13,9 @@ import (
 )
 
 type shellTaskHistory struct {
-	intent   shellTaskIntent
-	terminal *shellTaskTerminal
+	intent    shellTaskIntent
+	terminal  *shellTaskTerminal
+	promotion *shellTaskPromotion
 }
 
 func foldShellTasks(events []harness.Event, owner harness.SessionID) (map[string]shellTaskHistory, error) {
@@ -28,8 +29,11 @@ func foldShellTasks(events []harness.Event, owner harness.SessionID) (map[string
 			if err := decoder.Decode(&intent); err != nil {
 				return nil, fmt.Errorf("shell task intent at sequence %d: %w", event.Seq, err)
 			}
-			if intent.Version != 1 || !strings.HasPrefix(intent.ID, "bash-") || intent.Owner == "" || intent.Command == "" || intent.Workdir == "" || intent.TimeoutMS <= 0 {
+			if intent.Version != 1 || !strings.HasPrefix(intent.ID, "bash-") || intent.Owner == "" || intent.Command == "" || intent.Workdir == "" || intent.TimeoutMS < 0 || intent.TimeoutMS == 0 && !intent.NoDeadline {
 				return nil, errors.New("shell task journal contains an invalid intent")
+			}
+			if intent.HostMode != "" && intent.HostMode != BashUnattended && intent.HostMode != BashInteractive || intent.NoDeadline && (!intent.Background || intent.HostMode != BashInteractive || intent.TimeoutMS != 0) {
+				return nil, errors.New("shell task journal contains an invalid host deadline policy")
 			}
 			if intent.Owner != owner {
 				continue
@@ -38,6 +42,25 @@ func foldShellTasks(events []harness.Event, owner harness.SessionID) (map[string
 				return nil, errors.New("shell task journal repeats a task identity")
 			}
 			tasks[intent.ID] = shellTaskHistory{intent: intent}
+		case shellTaskPromoted:
+			var promotion shellTaskPromotion
+			decoder := json.NewDecoder(bytes.NewReader(event.Data))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(&promotion); err != nil {
+				return nil, fmt.Errorf("shell task promotion at sequence %d: %w", event.Seq, err)
+			}
+			if promotion.Version != 1 || promotion.Owner == "" || promotion.TimeoutMS < 0 || promotion.TimeoutMS == 0 && !promotion.NoDeadline || promotion.NoDeadline && promotion.TimeoutMS != 0 {
+				return nil, errors.New("shell task journal contains an invalid promotion")
+			}
+			if promotion.Owner != owner {
+				continue
+			}
+			previous, exists := tasks[promotion.ID]
+			if !exists || previous.intent.Background || previous.terminal != nil || previous.promotion != nil || promotion.NoDeadline && previous.intent.HostMode != BashInteractive {
+				return nil, errors.New("shell task promotion lacks one unfinished foreground intent")
+			}
+			previous.promotion = &promotion
+			tasks[promotion.ID] = previous
 		case shellTaskEnded:
 			var terminal shellTaskTerminal
 			decoder := json.NewDecoder(bytes.NewReader(event.Data))
@@ -151,7 +174,7 @@ func (s *shellTasks) lookup(ctx context.Context, parent *harness.Agent, id strin
 			stored.terminal = &copy
 		}
 	}
-	task = &shellTask{parent: parent, intent: stored.intent, terminal: stored.terminal, done: make(chan struct{})}
+	task = &shellTask{parent: parent, intent: stored.intent, terminal: stored.terminal, promotion: stored.promotion, done: make(chan struct{})}
 	close(task.done)
 	s.mu.Lock()
 	s.tasks[id] = task

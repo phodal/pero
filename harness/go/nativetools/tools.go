@@ -28,6 +28,7 @@ type Options struct {
 	ReadOnlyResource    func(context.Context, string) (fstools.ScopedText, error)
 	PluginEnvironment   []string
 	BashOutput          BashOutputOptions
+	BashTiming          BashTimingOptions
 }
 type App struct {
 	files      *fstools.Workspace
@@ -151,11 +152,16 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 		if opts.ClaudeTools {
 			shellOptions.Timeout, shellOptions.MaxTimeout = 120*time.Second, 600*time.Second
 			if opts.EnableShell {
+				timing, timingErr := resolveBashTimingPolicy(opts.BashTiming, opts.PluginEnvironment)
+				if timingErr != nil {
+					return nil, timingErr
+				}
+				shellOptions.Timeout, shellOptions.MaxTimeout = timing.foregroundDefault, timing.foregroundMaximum
 				policy, policyErr := resolveBashOutputPolicy(opts.BashOutput, opts.PluginEnvironment)
 				if policyErr != nil {
 					return nil, policyErr
 				}
-				app.background, err = mountShellTasks(ctx, h, shellOptions, policy)
+				app.background, err = mountShellTasks(ctx, h, shellOptions, policy, timing)
 				if err != nil {
 					return nil, err
 				}
@@ -185,6 +191,14 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 						return nil, err
 					}
 					admissionExecutor := executor
+					selectedTimeout := time.Duration(a.TimeoutMS) * time.Millisecond
+					if opts.ClaudeTools && app.background != nil {
+						selection, timingErr := app.background.timingPolicy.selectTimeout(a.Command, a.TimeoutMS, a.RunInBackground)
+						if timingErr != nil {
+							return nil, timingErr
+						}
+						selectedTimeout = selection.resolveTimeout
+					}
 					if a.RunInBackground && app.background != nil {
 						backgroundOptions := app.background.options
 						admissionExecutor, err = shell.NewLocalExecutor(backgroundOptions)
@@ -192,7 +206,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 							return nil, err
 						}
 					}
-					if _, err := admissionExecutor.Resolve(shell.ExecRequest{Command: a.Command, Workdir: workspace, Timeout: time.Duration(a.TimeoutMS) * time.Millisecond}); err != nil {
+					if _, err := admissionExecutor.Resolve(shell.ExecRequest{Command: a.Command, Workdir: workspace, Timeout: selectedTimeout}); err != nil {
 						return nil, err
 					}
 					if err := admissionExecutor.CheckConfinement(c); err != nil {
@@ -248,7 +262,9 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 		schema := json.RawMessage(fmt.Sprintf(`{"type":"object","additionalProperties":false,"properties":{%s},"required":[%s]}`, d.properties, d.required))
 		toolTimeout := 125 * time.Second
 		if opts.ClaudeTools && d.name == "Bash" {
-			toolTimeout = 605 * time.Second
+			// The owned execution separates foreground waiting from background
+			// deadlines; an outer fixed timer would truncate trusted host limits.
+			toolTimeout = 0
 		}
 		_, err = h.RegisterTool(ctx, "native/"+d.name, harness.Tool{Schema: harness.ToolSchema{Name: d.name, Description: d.description, InputSchema: schema}, RequiresApproval: d.approval, ApprovalDescriptor: admission, Timeout: toolTimeout, ExecutionMode: harness.ExecutionSerial, ExecuteRequest: func(c context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
 			if request.Agent == nil {

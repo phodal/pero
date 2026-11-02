@@ -9,6 +9,7 @@ go_library(
         "claude_search.go",
         "foreground.go",
         "presenter.go",
+        "promotion.go",
         "research_clone.go",
         "timing.go",
         "tools.go",

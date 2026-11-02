@@ -50,13 +50,6 @@ func decodeNativeArguments(raw json.RawMessage, workspace string, claude, allowR
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return arguments{}, err
 	}
-	maximumTimeoutMS := 600000
-	if value.RunInBackground {
-		maximumTimeoutMS = int(backgroundShellMaximum.Milliseconds())
-	}
-	if value.Timeout > maximumTimeoutMS {
-		value.Timeout = maximumTimeoutMS
-	}
 	selectedPath := value.Path
 	resourcePath := ""
 	if value.FilePath != "" {
@@ -178,7 +171,7 @@ func claudeToolDefinition(definition toolDefinition, files *fstools.Workspace, r
 		}
 	case "shell":
 		definition.name = "Bash"
-		definition.description = "Run an approved shell command. Foreground timeout defaults to 120000ms and is capped at 600000ms. run_in_background returns a durable task_id for TaskOutput/TaskStop; background timeout defaults to 1800000ms and is capped at 7200000ms. Timeout values above the selected cap are reduced. Parent cancellation and retirement stop owned jobs; cold recovery never replays commands. The configured sandbox and existing approval policy apply to both forms."
+		definition.description = "Run an approved shell command. Foreground timeout defaults to 120000ms; host timeout configuration sets the default and cap. A live command reaching its foreground timeout moves to the background, except sleep commands or when background execution is disabled. run_in_background starts detached immediately. Both return a durable task_id for TaskOutput/TaskStop. Unattended background runs default to 1800000ms and cap at 7200000ms, measured from entering the background; trusted host configuration may raise them. Interactive background runs have no deadline. Parent cancellation and retirement stop owned jobs; cold recovery never replays commands. The configured sandbox and existing approval policy apply to both forms."
 		definition.description += " Output merges stdout/stderr: valid results inline up to 30000 characters by default, then output_file names a capped 64 MiB artifact with a 2000-character preview. Failure output is a bounded head/tail excerpt. TaskOutput separately exposes working_log_file for the original background log."
 		definition.properties = `"command":{"type":"string","minLength":1,"maxLength":16384},"timeout":{"type":"integer","minimum":1},"description":{"type":"string"},"run_in_background":{"type":"boolean"}`
 		definition.required = `"command"`
