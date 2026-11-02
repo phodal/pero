@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button, EmptyState, Feedback, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { FormSelect } from './form-select';
 import { availabilityLabel, formatBytes, formatInt, type Asset, type Dataset, type Inspection, type SavedView, type ViewSpec } from './model';
 
 type Props = {
@@ -61,7 +62,7 @@ export function Preview(props: Props) {
             const filterField = String(values.get('field'));
             props.onView({ ...view, filterField, contains: filterField ? String(values.get('contains')) : '' });
           }}>
-            <Select name="field" label="Filter field" defaultValue={view.filterField} disabled={busy} onChange={() => {}}
+            <FormSelect name="field" label="Filter field" defaultValue={view.filterField} disabled={busy}
               options={[{ value: '', label: 'No filter' }, ...inspected.report.fields.map(field => ({ value: field.name, label: field.name }))]} />
             <Input name="contains" aria-label="Contains" placeholder="Contains" defaultValue={view.contains} maxLength={300} disabled={busy} />
             <Button type="submit" disabled={busy || loading}>Apply</Button>

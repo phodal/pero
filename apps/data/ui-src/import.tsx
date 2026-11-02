@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Feedback, FilePicker, Input, Select } from '@pero/app-sdk/ui';
+import { Button, Feedback, FilePicker, Input } from '@pero/app-sdk/ui';
+import { FormSelect } from './form-select';
 import { formatBytes, type CatalogState, type Dataset } from './model';
 
 export type ImportDetails = { kind: 'dataset' | 'model'; source: string; license: string; projectRef: string };
@@ -23,7 +24,7 @@ export function ImportDialog({ state, target, busy, error, onClose, onImport, on
     }}>
       <FilePicker label="Choose file" emptyLabel="No file chosen" accept="" disabled={busy} onFile={setFile} />
       <p>Files up to {formatBytes(state.limits.importBytes)}. CSV, TSV, JSON and JSONL support preview; other formats remain opaque.</p>
-      {!target ? <label>Type<Select name="kind" label="Type" defaultValue="dataset" disabled={busy} onChange={() => {}}
+      {!target ? <label>Type<FormSelect name="kind" label="Type" defaultValue="dataset" disabled={busy}
         options={[{ value: 'dataset', label: 'Dataset' }, { value: 'model', label: 'Model' }]} /></label> : null}
       <label>Source<Input name="source" defaultValue="Local files" maxLength={300} disabled={busy} /></label>
       <label>License<Input name="license" defaultValue="Unknown" maxLength={300} disabled={busy} /></label>
