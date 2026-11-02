@@ -11,6 +11,8 @@ mod tenure;
 use tenure::{StoreError, Tenure, TenureAsk, permit};
 mod python;
 mod preparation;
+mod environment;
+pub use environment::{EnvironmentInspection, ScientificMethod};
 mod session_plugins;
 pub use session_plugins::AppSessionPlugins;
 pub use preparation::AppPreparation;
@@ -502,16 +504,14 @@ impl AppStore {
             self.processes.remove(name);
         }
         if app.definition.backend.is_some() && !self.processes.contains_key(name) {
-            let managed = PythonEnvironment::try_from(self.root.parent().ok_or("App root needs a parent")?.join("environment/pero-python312"))?;
-            let python = self.python.select(name).or_else(||
-                app.definition.backend.as_ref().filter(|b| !b.dependencies.is_empty()).map(|_| &managed));
+            let python = self.selected_python(name)?;
             self.processes.insert(
                 name.clone(),
                 AppProcess::start(
                     &app.definition,
                     &root,
                     &self.data.join(name.as_str()),
-                    python,
+                    python.as_ref(),
                 )?,
             );
         }

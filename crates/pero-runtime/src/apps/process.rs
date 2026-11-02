@@ -80,7 +80,7 @@ impl AppProcess {
                 (executable.into_os_string(), "Python")
             }
             (BackendKind::Python, None) => (
-                std::env::var_os("PERO_APP_PYTHON").unwrap_or_else(|| "python3".into()),
+                super::python::default_executable(),
                 "Python",
             ),
             (BackendKind::Node, _) => (
@@ -104,22 +104,7 @@ impl AppProcess {
             }
         }
         if let (BackendKind::Python, Some(environment)) = (&backend.kind, python) {
-            let executable = environment.executable();
-            let mut paths = vec![
-                executable
-                    .parent()
-                    .expect("venv executable directory")
-                    .to_path_buf(),
-            ];
-            if let Some(path) = std::env::var_os("PATH") {
-                paths.extend(std::env::split_paths(&path));
-            }
-            command.env("VIRTUAL_ENV", environment.root()).env(
-                "PATH",
-                std::env::join_paths(paths).map_err(|error| {
-                    format!("Cannot configure App Python environment PATH: {error}")
-                })?,
-            );
+            environment.configure_command(&mut command)?;
         }
         if let Some(deployment) = reproduction {
             command.env("PERO_PAPER_PCGYM_CHECKOUT", deployment.checkout)
