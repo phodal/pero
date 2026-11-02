@@ -35,7 +35,12 @@ type Definition struct {
 	Resources    []string `json:"resources,omitempty"`
 	AllowedTools []string `json:"allowedTools,omitempty"`
 	Model        string   `json:"model,omitempty"`
+	Context      string   `json:"context,omitempty"`
+	Agent        string   `json:"agent,omitempty"`
+	Background   *bool    `json:"background,omitempty"`
 	Claude       bool     `json:"-"`
+	// Rendered marks trusted invocation output, never model-supplied content.
+	Rendered bool `json:"-"`
 }
 type entry struct {
 	definition                    Definition
@@ -259,6 +264,10 @@ func (c *Catalog) definition(ctx context.Context, e entry) (Definition, error) {
 	definition := e.definition
 	definition.Resources = append([]string(nil), definition.Resources...)
 	definition.AllowedTools = append([]string(nil), definition.AllowedTools...)
+	if definition.Background != nil {
+		background := *definition.Background
+		definition.Background = &background
+	}
 	return definition, nil
 }
 func (c *Catalog) Close() error {

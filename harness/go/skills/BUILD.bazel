@@ -3,8 +3,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "skills",
     srcs = [
+        "arguments.go",
         "catalog.go",
         "invocation.go",
+        "permissions.go",
         "selected.go",
         "tool.go",
     ],
@@ -21,9 +23,11 @@ go_library(
 go_test(
     name = "skills_test",
     srcs = [
+        "arguments_test.go",
         "catalog_test.go",
         "compaction_test.go",
         "invocation_test.go",
+        "permissions_test.go",
         "selected_test.go",
     ],
     embed = [":skills"],

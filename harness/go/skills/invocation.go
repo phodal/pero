@@ -10,10 +10,16 @@ import (
 // skillInvocation attributes loaded instructions without granting user authorship
 // or tool permissions. The digest identifies the approved launch-time content.
 type skillInvocation struct {
-	Kind   string `json:"kind"`
-	Form   string `json:"form"`
-	Name   string `json:"name"`
-	Digest string `json:"digest"`
+	Kind      string                 `json:"kind"`
+	Form      string                 `json:"form"`
+	Name      string                 `json:"name"`
+	Digest    string                 `json:"digest"`
+	Arguments string                 `json:"arguments,omitempty"`
+	Turn      int                    `json:"turn,omitempty"`
+	ID        string                 `json:"id,omitempty"`
+	Context   string                 `json:"context,omitempty"`
+	ChildID   harness.SessionID      `json:"childId,omitempty"`
+	Status    harness.SubagentStatus `json:"status,omitempty"`
 }
 
 // invokedSkills selects only whole whitespace-bounded tokens in this step's

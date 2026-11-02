@@ -92,6 +92,10 @@ func OpenSelected(ctx context.Context, roots []string, selected []FileSelection)
 			return nil, errors.New("skills: selected content changed since compilation; restart to select again")
 		}
 		definition := selection.Definition
+		if definition.Background != nil {
+			background := *definition.Background
+			definition.Background = &background
+		}
 		definition.AllowedTools = append([]string(nil), definition.AllowedTools...)
 		definition.Claude = true
 		definition.ResourceBase = selection.Root
