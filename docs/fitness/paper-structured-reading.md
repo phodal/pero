@@ -183,14 +183,14 @@ public final-head results, not fresh Desktop execution in this reconciliation.
 
 | Issue #76 acceptance | Established evidence / remaining boundary |
 | --- | --- |
-| A: domain and native source | Immutable IR, raw bytes/digest, fixed response identity, manifests and conservative failure/partial states are covered by the product and deterministic tests. Live fixed-v2 parsing remains the D5 gate below. |
+| A: domain and native source | Immutable IR, raw bytes/digest, fixed response identity, manifests and conservative failure/partial states are covered by the product and deterministic tests. Live fixed-v2 parsing passed the D5 gate on the PR #102 candidate described below; that candidate is not yet merged. |
 | B: product integration | Existing saved-paper Read/PDF, scoped original reveal, state/restart and shared store/Host paths are covered by the final-head Desktop record; no new UI is introduced here. |
 | C: Agent/evidence | Typed windows, exact raw windows, scoped observations/reports and unchanged PDF quote boundaries are covered by the final-head record and tests. Figure metadata is not image observation; no scientific validation is inferred. |
 | D1–D2: deterministic structure/fidelity | [Scientific document tests](../../apps/paper-agent/test/test_scientific_document.py) cover authored structure, exact cell strings, spans, units, reference targets, raw digest and hostile/limited input. Their real-looking arXiv URL is fixture identity, not evidence of a live paper run. |
 | D3: existing suite/build/regressions | Final implementation-head CI is linked above. New helper verification is separately recorded below; it does not inherit a new-head full-CI pass. |
 | D4: actual Desktop | Final-head authored-corpus L1 evidence supersedes earlier pending GUI statements; no L3 signed-package or all-platform claim. |
-| D5: real `2606.03979v2` | **Open: acquisition could not complete in this executor.** Official HTML is available via the separate web reader; it must not be declared unavailable merely because this executor cannot acquire it. No source digest or real parse manifest has been produced. |
-| D6: evidence boundaries | Local command/environment/results below distinguish fixture L0, prior Desktop L1 and incomplete live-service L2. The entire issue is not declared complete. |
+| D5: real `2606.03979v2` | **Passed on PR #102 candidate `346d0498` (not yet merged).** Actions run 41415609085 acquired the exact official response, froze its SHA/manifest, retained all six required kinds, and traversed bounded typed reads with zero missing items. The final result and explicit partial-parse limitations are recorded below. Earlier executor/network and identity failures remain historical evidence, not the current D5 result. |
+| D6: evidence boundaries | Local L0, prior Desktop L1 and successful candidate live-service L2 are distinguished below. The live parser result is not new Desktop, App consent/ledger, model, PDF alignment or scientific acceptance. PR #102 merge/integration remains pending. |
 
 ### Explicit opt-in corpus probe
 
@@ -417,3 +417,101 @@ tests passed; full offline Paper discovery passed 242 tests in 67.613 seconds
 confirmed the article-containment search cannot cross template/noscript/object/form
 or other dropped content. These are L0 results; the candidate's live gate remains
 pending its next explicit Actions execution.
+
+## Successful fixed-corpus acceptance (2026-11-02, PR not yet merged)
+
+[Actions run 41415609085](https://github.com/phodal/pero/actions/runs/41415609085)
+completed all three explicitly authorized live HTML jobs successfully against
+[PR #102](https://github.com/phodal/pero/pull/102) head
+`346d0498f52ed65e42672a3968e40ecace1afe53` (Actions merge checkout
+`51a7d0956340d1b592fa54cb1f97466940a9f7c3`). The PR is **not yet merged** at this
+recording. This establishes D5's real fixed-v2 acquisition/parser/read gate on
+that candidate, not its presence on `master` or a new whole-product Desktop run.
+The opt-in label was removed after this bounded run; no further HTML request was
+needed to inspect its results.
+
+All three ZIP downloads matched the SHA-256 values supplied by GitHub artifact
+metadata; only their named metadata JSON files were inspected:
+
+| Case / job | Artifact | Verified artifact ZIP SHA-256 |
+| --- | --- | --- |
+| [d5 / 125178583693](https://github.com/phodal/pero/actions/runs/41415609085/job/125178583693) | [13127930217](https://github.com/phodal/pero/actions/runs/41415609085/artifacts/13127930217) | `2960a8e51249b3ba33c806e863e8639ccafca0cf1483da4819547e089f90b214` |
+| [pc-gym / 125178584276](https://github.com/phodal/pero/actions/runs/41415609085/job/125178584276) | [13127297272](https://github.com/phodal/pero/actions/runs/41415609085/artifacts/13127297272) | `b6544f4c780f372ac8ac85ff9e647aae1ba2d61d6ec3bad406b7c23ed301584c` |
+| [controlgym / 125178584155](https://github.com/phodal/pero/actions/runs/41415609085/job/125178584155) | [13127367074](https://github.com/phodal/pero/actions/runs/41415609085/artifacts/13127367074) | `51aea3dd7da428e2b1c2e2f24c8ced94a73c1f100824f555dde2ff138eb3ea4c` |
+
+### Exact source and immutable parse identities
+
+Observed on Linux x86_64 / Python 3.12.15, at `08:47:41.113219` UTC (d5),
+`08:47:56.363855` (pc-gym), and `08:47:59.002192` (controlgym). Request and response
+URLs match each exact fixed official HTML URL listed in the corpus table; MIME
+is `text/html`. Transport diagnostic digest/size equals the parsed source digest/size
+for each case.
+
+| Case | Source bytes | Source SHA-256 | Immutable document ID |
+| --- | ---: | --- | --- |
+| d5 / `2606.03979v2` | 446216 | `a9b4c6274c7eda8fbfb4602e0884c5fb613e056bb6193c9176eb5c36c113e769` | `87891aa4f4cba8d318dc1d065949c5ff58ae44014fe8c040ff09fab79ec59d1a` |
+| pc-gym / `2410.22093v4` | 382406 | `e28dad00c579e480ba0b68b3cd6d1c66bf390c1c9b07b60d72aaefe6dc267c1e` | `3a93ea60160744b4d5d967ad600f38dbc238020436f140a0d0a143c7b57add02` |
+| controlgym / `2311.18736v2` | 403129 | `f0a9a2c3004cbc345f91a65663093538bfbe54dd3e186e103493559307a7ee77` | `6cfb5bdc5cb77094a5f38942075dd1557845eab82dd37eb5c358ebba4d1100b6` |
+
+Controlgym's source bytes/digest match diagnostic run 41411522519 exactly. D5 and
+PC-Gym's full response bytes/digests **changed** between runs; the summaries do not
+establish why. All three extracted watermark text hashes match the previous run.
+Do not describe those two changed snapshots as same-byte regression comparisons
+or use their new bytes to repair historical evidence. Each successful probe did
+independently pass same-input repeat parsing and immutable JSON roundtrip for its
+own acquired snapshot.
+
+All manifests record parser `pero.arxiv-latexml.v3`, options
+`whitespace=preserve-decoded-text` and `math=allowlisted-mathml`, with limits:
+8,388,608 bytes; 100,000 nodes; depth 100; 20,000 blocks; 2,000,000 text characters;
+100,000 table slots. All record `source_identity=response-explicit-version` and
+`identity_evidence=[[scaffold:watermark-tr, <exact fixed arXiv ID>]]`.
+The new diagnostics independently show one marker under actual
+`div#infobox.infobox > div#watermark-tr` outside the article for each response,
+not merely a compatible unnamed-div path. The unchanged production owner admitted
+that marker only after the full scaffold/license/article-position checks. Diagnostic
+candidates themselves remain `diagnostic-only`, not a second identity authority.
+
+### Structural and bounded-read results
+
+All cases returned `outcome=passed`; all original six required kinds are present.
+No expected kind was removed or relaxed after seeing the result.
+
+| Case | Headings | Paragraphs | Equations | Tables | Figures | References | Table cells | Typed windows | Windows with `complete=false` |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| d5 | 34 | 77 | 7 | 1 | 10 | 144 | 24 | 311 | 37 |
+| pc-gym | 40 | 507 | 32 | 6 | 12 | 52 | 152 | 670 | 31 |
+| controlgym | 24 | 72 | 26 | 3 | 16 | 85 | 281 | 260 | 50 |
+
+All report `missingItems=0`. The probe followed each block's `nextStart` to its end,
+checked strictly progressing continuations and a maximum 32,768-byte encoded read,
+and retained `evidenceAdmission=not-observed-in-study`. A window's `complete=false`
+can reflect pagination, a nonzero starting offset or truncated context; it is not
+an assertion that every window is a complete representation. Zero missing items
+does not erase parser limitations or certify scientific fidelity. Source locators
+number 291 / 254 / 225 and source-anchor citation targets 469 / 112 / 194 for
+d5 / pc-gym / controlgym respectively; these are structural counts, not semantic
+citation validation.
+
+### Retained limitations and evidence level
+
+Every document remains `parseStatus=partial`, with these explicit warnings:
+
+- **d5:** `active-content-omitted`, `image-bytes-not-acquired`,
+  `theorem-structure-unavailable`.
+- **pc-gym:** `image-bytes-not-acquired`, `inline-note-as-text`,
+  `original-element-window-unavailable`, `unclassified-text-preserved`,
+  `unsafe-link-omitted`, `unsupported-math-element`.
+- **controlgym:** `image-bytes-not-acquired`, `original-element-window-unavailable`,
+  `unclassified-text-preserved`, `unsafe-link-omitted`, `unsupported-math-element`.
+
+This is successful **L2 product HTML transport/parser/bounded typed-read acceptance**,
+including D5, with conservative partial structure. It does not establish complete
+formula/theorem semantics, full raw-source reveal coverage, App consent or ledger
+observation, report reopen, new Desktop behavior, a model run or scientific result.
+All summaries explicitly retain `scientificAcceptance=unverified`,
+`pdfAlignment=unavailable`, `imageObservation=not-observed`, and
+`sourceBytesExported=false`. No original HTML, full IR, PDF, image or model output
+was published in these artifacts or this record. Existing authored-corpus evidence
+continues to own the separate App/ledger/Desktop checks; this live gate does not
+retroactively upgrade them.
