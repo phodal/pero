@@ -651,26 +651,29 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 
 ## 16 运行时实现与真实验收
 
-2026-11-02，CLI 已新增可重复的 `--plugin-dir`，将已检查的本地插件或 marketplace 通过现有 harness composition root 装配。运行时不再停留于配置检查。插件正文、资源和权限规则来自同一份已解析定义；没有另建 agent loop、MCP client 或任务数据库。
+2026-11-02，CLI 已新增可重复的 `--plugin-dir`，将已检查的本地插件或 marketplace 通过现有 harness composition root 装配。运行时不再停留于配置检查。插件正文、资源和权限规则来自同一份已解析定义；没有另建 agent loop、MCP client 或任务数据库。本轮已完成全部 **15/15 插件的配置迁移与运行态编译**，接通 Host/Runtime/Desktop 结构化问答、同步 Workflow 和前后台 Bash 的真实执行与输出文件。配置编译、开发版 UI、loopback 模型及真实服务验收仍分别记录；这些结果不表示 15 个插件的全部流程已经通过，也不表示与 Claude Code 完全同等。
 
 | 能力 | 当前实现 | 验证与边界 |
 | --- | --- | --- |
 | 插件装配 | 默认/显式组件、namespace、同名 skill 覆盖 command、安装目录与工作目录分离 | 临时目录与真实 CLI fixture；无远程安装/更新入口 |
 | 调用可见性 | 用户与模型入口分别枚举；用户专用 slash 能加载，模型 Skill 无法绕过 | 首个真实 provider 请求检查正文、参数与隐藏目录 |
 | 参数与资源 | 完整/位置参数、路径和 session 变量；Read 能读取所选包模板；Write 创建工作区父目录 | digest 固定、包路径拒写、父目录/symlink 测试 |
-| 动态上下文 | 原始正文只扫描一次，执行已声明命令，通过既有 shell executor 与审批策略；stdout 不再次解释为模板 | 无交互权限检查、拒绝/取消/持久化失败测试；成功输出超过 64 KiB 写私有文件并给首尾预览；64 MiB 硬上限失败清理 |
+| 动态上下文 | 原始正文只扫描一次，执行已声明命令，通过既有 shell executor 与审批策略；stdout 不再次解释为模板 | 无交互权限检查、拒绝/取消/持久化失败测试；成功输出超过 64 KiB 保留私有文件并给首尾预览；与 Bash 复用文件捕获和 5 GB 输出上限，呈现策略仍有差异 |
 | 工具预批准 | allowed-tools 在调用 turn 生效，下一直接用户输入清除；hook ask 与部署拒绝优先 | 普通工具名、限定 server 的 MCP wildcard、简单 Bash pattern；复杂 shell syntax 不自动批准 |
 | 原生工具 | Read/Write/Edit/Glob/Grep/Bash 的 Claude 名称和参数 | 真实工作区效果；Grep 用 RE2，图片/PDF/NotebookEdit、完整 ripgrep 行为仍待补 |
+| 后台 Bash | `run_in_background`、真实 task_id、TaskOutput 等待/轮询、TaskStop、超时及进程回收 | 启动前持久化 intent；同一调用者拥有任务；JSONL 冷恢复保留终态，未知运行标记 interrupted，不重放副作用 |
+| 命令输出文件 | 前后台 Bash 与技能动态命令共用文件捕获；Bash 回执提供 output_file/partial，动态命令成功大输出提供文件引用，Read 可回读 | Bash 取消保留实际部分日志，动态命令失败/取消清理临时输出；私有目录/文件、symlink、意图持久化失败与工作区变化测试 |
 | 子代理 | 自定义 Agent、模型 alias、工具交集、父审批、实际后台 ID/等待/停止 | loopback 子代理真实读写和取消；冷恢复后台任务尚未完成 |
 | 内置子代理 | general-purpose、Explore、Plan | Explore/Plan 采用较窄的只读交集，暂不提供官方只读 Bash 与任意 MCP |
 | 隔离技能 | context:fork、内置/自定义 agent、参数/资源前缀、子模型与子 turn 授权 | 真实 CLI 证明父历史隔离、子读模板/写文件、父仍需审批；ACP 同步等待，恢复不重跑 |
-| 结构化问答 | AskUserQuestion、问题/选项校验、Other、多选、取消及恢复后的新 broker | 独立 ACP 扩展需双方协商；未协商不注册工具；当前 Desktop UI 尚未接入 |
+| 结构化问答 | AskUserQuestion、问题/选项校验、Other、多选、取消及恢复后的新 broker；Host/Runtime/Desktop 共用有类型请求与回答 | ACP 扩展需双方协商；未协商不注册工具；实际 Electron 验证单多选、Other、未填阻止、取消、FIFO、turn 取消、Enter、明暗主题与窄窗 |
 | 任务状态 | TaskCreate/Update/List/Get、依赖图、metadata、CAS、JSONL 恢复 | 完成前置任务后解除阻塞；不把 Agent 后台 ID 当 Task ID |
 | Command hooks | 标准 stdin、argv/shell、超时/取消、exit 2、JSON 决策、updatedInput 重验 | SessionStart、UserPromptSubmit、Pre/PostToolUse、PostToolUseFailure、Pre/PostCompact、Stop、SessionEnd |
 | Hook 会话归属 | 主会话生命周期不对子代理重复触发；子工具事件使用主 session/transcript 并携真实 agent_id/type | 真实子代理回归；Stop 默认连续续跑 8 次、工具调用后重置、达到上限正常结束 |
 | 压缩生命周期 | PreCompact 可阻止；PostCompact 后 SessionStart(source=compact) 上下文进入紧接的请求 | manual 与真实 context-overflow retry fixture；不延迟到下一个 tool step |
 | 压缩后的技能 | 最近一次已渲染正文与参数从原始日志恢复，单项 5000、合计 25000 估算 token | Unicode 安全截断；不重新读安装文件、不重跑命令、不恢复过期授权，不恢复 fork 正文到父会话 |
 | MCP | stdio/streamable HTTP、环境替换、namespace、root-agent 连接生命周期 | 真实 loopback server discover/call/dispose；SSE/OAuth/每工具迁移仍待补 |
+| 同步 Workflow | 原始 scriptPath、export const meta、args、嵌套 workflow、agent/parallel/pipeline/phase/log；RPC 复用 ClaudeContribution.Invoke | 原始 3 个审查脚本实际运行；9 次 agent()、10 次 loopback HTTP、峰值并发 3；后台 Workflow 明确拒绝，详见 16.4 |
 
 ### 16.1 真实模型结果
 
@@ -686,36 +689,58 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 
 ### 16.2 继续实现的出口
 
-完整目标仍未达成。接下来按第 11 节验收出口推进，尤其包括：Desktop 的 AskUserQuestion UI、后台 Bash 与冷恢复、Workflow DSL、SDK trial 的 Harness runner，以及 Web/LSP、外部依赖和实际服务连接。SubagentStart/SubagentStop、任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力；动态输出 64 MiB 失败上限也不同于官方大输出策略。存在无效配置的插件需按第 13 节修复或明确迁移，不能通过静默忽略让其看似可用。
+完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的后台执行与可恢复任务句柄；Bash 的官方输出呈现、前台超时自动转后台、交互/非交互超时区别；后台子代理的 turn/run 区分及命令完成通知；SDK trial 的 Harness runner；Web/LSP、外部依赖和实际服务连接。SubagentStart/SubagentStop、任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。第 13 节发现的配置问题已经显式迁移；外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。
 
-官方行为依据：[技能动态命令和权限](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)、[Bash pattern 和 compound command](https://code.claude.com/docs/en/permissions#bash)、[工具输出与 exit 1 例外](https://code.claude.com/docs/en/tools-reference#output-limits)、[内置子代理](https://code.claude.com/docs/en/sub-agents#built-in-subagents)、[CLI 运行限制](https://code.claude.com/docs/en/cli-reference)。
+任务归属也需区分目标契约：当前任务查询限定创建者，子代理退出时取消并等待其命令，这与 pinned DSH 的 owner 隔离及 disposal 语义相符。Claude 官方要求前台子代理结束时停止命令，但允许后台子代理在当前 turn 结束后继续持有后台命令，并接收完成通知；run 真正退出时才停止。现有 one-shot 子代理在结果返回后回收，尚未实现后一种驻留。不能把它写成所有子代理命令都应无限存活，或已经支持根会话接管所有子任务。当前 Claude 文档还注明 TaskOutput 自 v2.1.277 移除、改为 Read 输出文件；本批插件所用旧 TaskOutput 接口作为显式兼容接口保留。
+
+官方行为依据：[技能动态命令和权限](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)、[Bash pattern 和 compound command](https://code.claude.com/docs/en/permissions#bash)、[工具输出与 exit 1 例外](https://code.claude.com/docs/en/tools-reference#output-limits)、[后台命令停止条件](https://code.claude.com/docs/en/tools-reference#when-a-background-command-stops)、[后台子代理的工具与结果](https://code.claude.com/docs/en/sub-agents#tools-permissions-and-results-of-background-subagents)、[工具可用性与 TaskOutput 版本变化](https://code.claude.com/docs/en/tools-reference#available-tools)、[CLI 运行限制](https://code.claude.com/docs/en/cli-reference)。
 
 ### 16.3 逐插件运行态复核
 
-对当前克隆内容逐项调用 `plugins.LoadPackages`：**10 个可编译，5 个有明确结构性阻塞**。10 个可编译插件一起加载也成功，得到 69 个 skill、13 个 agent、1 个 command、436 个文本资源、6 个 hook 与 7 个 MCP 配置。该复核没有执行 hook、脚本、MCP 或模型请求；“可编译”不表示外部依赖或全部工作流已经验收。
+本轮对插件配置完成显式迁移后，逐项调用 `plugins.LoadPackages`，**15/15 均可编译**。迁移包括 agent 正式元数据与路径、hook 包装/执行形态、版本与 MCP timeout/名称、历史字段及环境变量使用；认证信息改为外部绑定。运行时没有通过吞掉结构错误取得此结果。
+
+第 15 节记录的原始检查问题，以及此前“10 个可编译、5 个结构阻塞”的结果，保留为迁移前证据。当时 10 个插件合并加载得到 69 个 skill、13 个 agent、1 个 command、436 个文本资源、6 个 hook 与 7 个 MCP 配置；这些历史计数不代表迁移后的全部集合。
+
+LoadPackages 复核不执行 hook、脚本、MCP 或模型请求。“可编译”只证明当前配置可装配，下面继续保留各插件的实际闭环要求。
 
 | 插件 | 当前编译结果 | 剩余闭环与下一步 |
 | --- | --- | --- |
-| ask-buddy | 阻塞：UNKNOWN_HOOK_FIELD，顶层缺 hooks 包装 | 修守护脚本读取 tool_input.file_path；实测代码只读与记忆可写；配置外部服务认证 |
-| biz-interview | 阻塞：MISSING_AGENT_NAME | 修 agent 元数据；接 WebSearch/WebFetch、opus 路由和实际问答客户端 |
-| coder | 可编译 | 必经审查仍缺 Workflow(scriptPath,args) 与嵌套 workflow；验证 worktree authority、review gate 和后台冷恢复 |
+| ask-buddy | 迁移后可编译 | 实测代码只读与记忆可写；配置外部服务认证 |
+| biz-interview | 迁移后可编译 | WebSearch/WebFetch、opus 路由与实际访谈闭环；客户端问答 UI 已接通 |
+| coder | 可编译；原始审查 Workflow 已验证 | 同步审查的 spec gate、质量 fan-out 与聚合已跑通；仍需实际工程的 worktree、完整 review gate、后台代理驻留与恢复验收 |
 | issue-fixer | 可编译 | 装配 LSP、显式模型路由与 GitHub MCP；验证分支、测试、审查及 PR 实际回执 |
 | knowledge-analyst | 可编译 | 提供并验证强制依赖 deep-research；普通搜索不能替代该契约 |
 | meeting-summary | 可编译 | Python、飞书 CLI、登录与目标配置；真实下载、轮询取消、文档创建及通知验收 |
-| model-reasoning-distillation | 可编译 | Pero journal 到 canonical trace 的实际适配；重型路径缺 Workflow，需 sonnet 路由 |
-| new_code | 阻塞：INVALID_AGENT_PATH | manifest 选择具体 agent 文件；修 session 变量；多仓 worktree、恢复绑定、发布及解绑状态机 |
+| model-reasoning-distillation | 可编译；同步 Workflow runtime 已装配 | Pero journal 到 canonical trace 的实际适配、重型优化脚本与 sonnet 路由；coder 审查 fixture 不证明该插件的优化流程已验收 |
+| new_code | 迁移后可编译 | 多仓 worktree、恢复绑定、发布及解绑状态机的实际验收 |
 | plugin-tuner | 可编译 | trial 脚本仍绑定 Claude SDK，需 HarnessTrialRunner、统一试验回执与取消清理 |
-| private-buddy | 阻塞：HOOK_COMMAND_WITH_ARGS | 三处 command/args 形态需修正；本地 Python MCP、搜索、认证、记忆与压缩流程实测 |
-| product-manager | 可编译；真实模型已验证 | 材料充分的中文 PRD 生成/保存/读回可运行；需澄清路径仍依赖客户端问答 UI |
+| private-buddy | 迁移后可编译 | 本地 Python MCP、搜索、认证、记忆与压缩流程实测 |
+| product-manager | 可编译；真实模型已验证 | 材料充分的中文 PRD 生成/保存/读回可运行；问答 UI 已接通，仍需真实需求澄清的完整任务验收 |
 | repo-admin | 可编译 | 凭据外移；图谱服务工具契约与认证连通；只读 hook 的真实修改阻止测试 |
-| req-agent | 阻塞：MISSING_AGENT_DESCRIPTION | 8 个 agent 缺正式 name/description；迁移 agentType；准备知识材料、图片能力和 Atlassian 发布验收 |
+| req-agent | 迁移后可编译 | 准备知识材料、图片能力和 Atlassian 发布验收 |
 | sad | 可编译 | draw.io CLI/export、项目材料与 opus 路由；跑确定性校验和失败返修闭环 |
-| test-agent | 可编译 | 修 MCP 名称漂移和 timeout 单位；测试台/固件/Python/Docker 环境；真实刷写、取消及日志回执 |
+| test-agent | 迁移后可编译 | 测试台/固件/Python/Docker 环境；真实刷写、取消及日志回执 |
 
-Workflow 工具调用的明确阻塞集中在 coder 与 MRD 的重型路径。sad、test-agent 正文中的普通“workflow/流程”标题不能当作缺失该 DSL 的证据。完整验收应继续按第 12 节逐个执行；配置缺陷、实现缺口与外部环境缺失分别保留。
+此前集中在 coder 与 MRD 重型路径的同步 Workflow runtime 缺口已经补齐，其中只有 coder 原始三脚本有本轮端到端证据。sad、test-agent 正文中的普通“workflow/流程”标题不能当作使用该 DSL 的证据。完整验收继续按第 12 节逐个执行；配置迁移、实现缺口与外部环境缺失分别保留。
 
-### 16.4 本阶段验证记录
+### 16.4 本轮关键路径与验收证据
 
-在 `harness/go` 完成 `go test -race ./...`、`go vet ./...`、`bazel test //...`（30 个测试 target 全部通过）与相关目录 Gazelle `-mode=diff` 检查。`git diff --check` 通过。文档身份信息检查通过；运行时凭据未写入文档、测试 fixture 或提交。
+结构化问答经过实际 Desktop/GPUI → Host → Runtime/ACP → Agent 的请求与回答路径。`node tests/e2e/user-questions.mjs` 使用真实 Electron 与脚本化 ACP fixture，无真实模型或外部服务；[result.json](../../test-results/user-questions/result.json) 记录 `passed:true`、`errors:[]` 和 10 项检查。实际渲染图为 [浅色](../../test-results/user-questions/answered-light.png)、[深色](../../test-results/user-questions/answered-dark.png)、[窄窗](../../test-results/user-questions/answered-narrow.png)。这属于开发版 L1 证据，不扩大为所有操作系统或签名安装包验收。
+
+同步 Workflow 只执行所选插件资源清单中的 `workflows/*.js`/`.mjs`，要求绝对 scriptPath 和未变化的文件 digest。CLI 仅在选中这些脚本时解析 Node，默认从 PATH 查找 `node`，可用 `--workflow-node` 指定；当前进程回收支持 macOS/Linux。脚本保留 `export const meta` 和原始 args，支持嵌套 workflow 及 agent、parallel、pipeline、phase、log。agent() 经 RPC 复用 `ClaudeContribution.Invoke`，模型路由、结构化输出、工具限制、审批、取消和会话记录均进入现有 Harness；脚本不取得 provider 凭据。Node VM 不构成 OS sandbox，所选脚本仍属于可信安装代码。
+
+[原始审查脚本测试](../../harness/go/workflow/review_test.go) 实际执行未改写的 `coder-review.js`、`review-cr-phase.js`、`review-aggregate-assessment-phase.js`：批准路径执行 **9 次 agent()、10 次 loopback HTTP 请求、峰值并发 3**，包含真实子代理 Write、schema 回执、四个质量维度、两个 skeptic 与最终聚合；结果为 fixture 设定的 `needs_rework`。拒绝写入路径触发一次审批、spec hard gate 返回 `spec_failed`，只执行 1 个代理和 2 次 HTTP，不创建被拒绝文件，也不继续质量审查。该证据覆盖编排和工具副作用，不评估真实模型审查质量。
+
+Workflow 并发默认 3、总 agent() 调用预算默认 64，嵌套脚本共享同一预算；它们统计脚本 helper 调用，不宣称覆盖模型自行委派的整棵代理树，后者继续受现有 agent 策略与全局 provider 请求预算约束。与 pinned DSH 相同，脚本 return 后保留返回值并取消未等待的成员，等待实际回收后工具才返回；`stopReason=completed` 表示程序返回，不表示每个成员都成功。真实未 await fixture 验证 `approved:true` 保留，同时持久记录未完成成员为 cancelled/aborted，agent-end 早于 workflow/end，且仅剩根代理。取消、runtime disposal 和异步 CPU 循环 fixture 也确认 Node 与子代理均被回收。[生命周期测试](../../harness/go/workflow/lifecycle_test.go)、[DSH host 固定源码](https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/workflow/workflow-ptc/src/host.ts#L286)
+
+前台 Bash、后台 Bash 和动态命令共用 `shell.FileCapture`，输出流写入受工作区授权约束的私有目录，文件权限 0600、目录 0700，并拒绝 symlink 替换。Bash 回执保留 output_file、字节数与 partial 标记；动态命令只保留成功的大输出文件，失败或取消清理临时文件。真实进程 fixture 验证超过 70 KB 的前后台 Bash 输出可完整回读，Bash 取消后保留实际日志；输出上限使用有界小阈值测试验证，不产生 5 GB 测试文件。后台任务还覆盖等待超时不终止进程、失败退出码、TaskStop、owner 中断/回收、重复调用不重放，以及 JSONL 恢复的 completed/interrupted 与文件引用。当前冷恢复恢复的是事实和输出，不会重新启动已失去 owner 的进程。[输出文件测试](../../harness/go/nativetools/output_file_test.go)、[任务恢复测试](../../harness/go/nativetools/background_restart_test.go)
+
+实现契约、来源和许可见 [Workflow README](../../harness/go/workflow/README.md) 与 [SOURCE.json](../../harness/go/workflow/SOURCE.json)。
+
+### 16.5 验证检查点
+
+此前检查点在 `harness/go` 完成 `go test -race ./...`、`go vet ./...`、`bazel test //...`（当时 30 个测试 target 全部通过）与相关目录 Gazelle `-mode=diff` 检查，`git diff --check` 通过。该数量保留为历史记录，不作为新增 Workflow/Bash 代码的验收数量。
+
+本轮基线重新完成 Go 全量 race、vet 和 Bazel **31/31**；Rust ACP 35 个测试通过，Host/worker/native chat 检查通过，`npm run check` 的 879 个双语词条及相关检查通过，实际 Electron 问答检查通过。后续输出呈现和 CLI 集成补测以最终检查记录为准，不把尚未完成的补测写为通过。文档身份信息检查通过；运行时凭据不写入文档、测试 fixture 或提交。
 
 真实模型与 Claude Code 对照是显式单次运行，没有加入默认测试网络依赖。后续可继续使用无外网 loopback fixture 验证协议和生命周期，再对每个插件准备对应环境验收。
