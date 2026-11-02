@@ -49,7 +49,7 @@ def capabilities():
     for name, module in (("python-control", "control"),):
         present = False
         version = None
-        error = "Restart Pero to retry installing the locked Python 3.12 requirements. ngspice must be on PATH and is not downloaded."
+        error = "Choose Prepare environment in Pero to install the locked Python 3.12 requirements. ngspice must be on PATH and is not downloaded."
         if util.find_spec(module) is not None:
             try:
                 imported = __import__(module)
@@ -58,7 +58,7 @@ def capabilities():
                 version = getattr(imported, "__version__", None)
             except (ImportError, OSError) as exc:
                 detail = str(exc).splitlines()[0][:300]
-                error = f"Locked Python packages did not load: {detail}. Enable Control Lab again to retry. ngspice is not downloaded."
+                error = f"Locked Python packages did not load: {detail}. Prepare Control Lab's environment in Pero, then reopen it. ngspice is not downloaded."
         if present and not version:
             try:
                 version = metadata.version(module)

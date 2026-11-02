@@ -101,7 +101,7 @@ pub(super) fn prepare(
                 report(PreparationPhase::Installing, line)
             })?;
             if !check()? {
-                return Err("Installed Python dependencies could not be verified. Enable the App again to retry the locked requirements. ngspice is not downloaded.".into());
+                return Err("Installed Python dependencies could not be verified. Choose Prepare environment to retry the locked requirements. ngspice is not downloaded.".into());
             }
         }
         Ok(target)
@@ -199,7 +199,7 @@ fn locked_packages_ready(
             detail
         };
         return Err(format!(
-            "{detail} Enable the App again to retry the locked requirements. ngspice is not downloaded."
+            "{detail} Choose Prepare environment to retry the locked requirements. ngspice is not downloaded."
         ));
     }
     Ok(false)
