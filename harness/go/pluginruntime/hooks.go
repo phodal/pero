@@ -16,11 +16,11 @@ import (
 	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/plugins"
 	point "github.com/phodal/pero/harness/go/runtime"
+	"github.com/phodal/pero/harness/go/subagents"
 )
 
 var (
-	ErrStopBlockBudget = errors.New("plugin-runtime: Stop hook continuation budget exhausted")
-	ErrHookStopped     = errors.New("plugin-runtime: hook stopped processing")
+	ErrHookStopped = errors.New("plugin-runtime: hook stopped processing")
 )
 
 type HookOptions struct {
@@ -132,7 +132,10 @@ func (app *HookApp) register(run *point.Run) error {
 		return err
 	}
 	if _, err := tools.Before.Use(run, func(ctx context.Context, request harness.ToolRequest, next point.Next[harness.ToolRequest]) (harness.ToolRequest, error) {
-		err := app.withAgent(ctx, request.Agent, func(ctx context.Context, state *hookAgentState) error { return app.beforeTool(ctx, &request) })
+		err := app.withAgent(ctx, request.Agent, func(ctx context.Context, state *hookAgentState) error {
+			state.stopBlocks = 0
+			return app.beforeTool(ctx, &request)
+		})
 		if err != nil {
 			return request, err
 		}
@@ -171,7 +174,11 @@ func (app *HookApp) register(run *point.Run) error {
 	}
 	if _, err := hooks.PostCompact.Use(run, func(ctx context.Context, input harness.CompactionHookInput, next point.Next[harness.CompactionHookInput]) (harness.CompactionHookInput, error) {
 		err := app.withAgent(ctx, input.Agent, func(ctx context.Context, state *hookAgentState) error {
-			for _, event := range []claudehooks.Input{{Event: "PostCompact", Trigger: input.Trigger}, {Event: "SessionStart", Source: "compact"}} {
+			events := []claudehooks.Input{{Event: "PostCompact", Trigger: input.Trigger}}
+			if input.Agent.Parent() == nil {
+				events = append(events, claudehooks.Input{Event: "SessionStart", Source: "compact"})
+			}
+			for _, event := range events {
 				decision, err := app.event(ctx, input.Agent, event)
 				if err != nil {
 					return err
@@ -195,10 +202,13 @@ func (app *HookApp) register(run *point.Run) error {
 	_, err := hooks.Deactivated.On(run, func(ctx context.Context, agent *harness.Agent) error {
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		err := app.withAgent(cleanup, agent, func(ctx context.Context, state *hookAgentState) error {
-			_, err := app.event(ctx, agent, claudehooks.Input{Event: "SessionEnd", Reason: "other"})
-			return err
-		})
+		var err error
+		if agent.Parent() == nil {
+			err = app.withAgent(cleanup, agent, func(ctx context.Context, state *hookAgentState) error {
+				_, err := app.event(ctx, agent, claudehooks.Input{Event: "SessionEnd", Reason: "other"})
+				return err
+			})
+		}
 		app.mu.Lock()
 		delete(app.states, agent)
 		app.mu.Unlock()
@@ -236,6 +246,9 @@ func (app *HookApp) withAgent(ctx context.Context, agent *harness.Agent, effect 
 }
 
 func (app *HookApp) prepare(ctx context.Context, input *harness.StepInput, state *hookAgentState) error {
+	if input.Agent.Parent() != nil {
+		return nil
+	}
 	if state.turn != input.Turn {
 		state.turn, state.stopBlocks = input.Turn, 0
 	}
@@ -349,6 +362,9 @@ func (app *HookApp) afterTool(ctx context.Context, outcome *harness.ToolOutcome)
 }
 
 func (app *HookApp) stopping(ctx context.Context, agent *harness.Agent, state *hookAgentState) error {
+	if agent.Parent() != nil {
+		return nil
+	}
 	messages, err := agent.Session().DeriveMessages()
 	if err != nil {
 		return err
@@ -367,11 +383,11 @@ func (app *HookApp) stopping(ctx context.Context, agent *harness.Agent, state *h
 	if decision.Stop {
 		return fmt.Errorf("%w: %s", ErrHookStopped, decision.Reason)
 	}
-	if !decision.Block {
+	if !decision.Block && decision.AdditionalContext == "" {
 		return nil
 	}
 	if state.stopBlocks >= app.options.MaxStopBlocks {
-		return fmt.Errorf("%w: %s", ErrStopBlockBudget, decision.Reason)
+		return nil
 	}
 	state.stopBlocks++
 	text := strings.TrimSpace(decision.Reason + "\n" + decision.AdditionalContext)
@@ -383,7 +399,12 @@ func (app *HookApp) stopping(ctx context.Context, agent *harness.Agent, state *h
 
 func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claudehooks.Input) (claudehooks.Decision, error) {
 	var decisions []claudehooks.Decision
-	input.SessionID, input.CWD = string(agent.ID()), agent.Session().WorkingDirectory()
+	identity, err := subagents.HookAttribution(agent)
+	if err != nil {
+		return claudehooks.Decision{}, err
+	}
+	input.SessionID, input.CWD = string(identity.Session.ID()), agent.Session().WorkingDirectory()
+	input.AgentID, input.AgentType = string(identity.AgentID), identity.AgentType
 	for _, pkg := range app.packages {
 		for _, hook := range pkg.Hooks {
 			if hook.Event != input.Event {
@@ -412,12 +433,12 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 			}
 			if input.TranscriptPath == "" {
 				var err error
-				input.TranscriptPath, err = app.writeTranscript(agent)
+				input.TranscriptPath, err = app.writeTranscript(identity.Session)
 				if err != nil {
 					return claudehooks.Decision{}, err
 				}
 			}
-			project := agent.Session().Header().CWD
+			project := identity.Session.Session().Header().CWD
 			if project == "" {
 				project = input.CWD
 			}

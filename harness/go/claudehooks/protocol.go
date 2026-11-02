@@ -30,6 +30,8 @@ type Input struct {
 	ToolInput            json.RawMessage `json:"tool_input,omitempty"`
 	ToolResponse         json.RawMessage `json:"tool_response,omitempty"`
 	TranscriptPath       string          `json:"transcript_path,omitempty"`
+	AgentID              string          `json:"agent_id,omitempty"`
+	AgentType            string          `json:"agent_type,omitempty"`
 	StopHookActive       bool            `json:"stop_hook_active"`
 	Source               string          `json:"source,omitempty"`
 	Trigger              string          `json:"trigger,omitempty"`

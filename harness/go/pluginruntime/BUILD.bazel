@@ -21,6 +21,7 @@ go_library(
         "//sandbox",
         "//shell",
         "//skills",
+        "//subagents",
     ],
 )
 
@@ -30,9 +31,11 @@ go_test(
         "command_output_test.go",
         "command_status_test.go",
         "compaction_test.go",
+        "hooks_subagents_test.go",
         "hooks_test.go",
         "mcp_test.go",
         "preprocess_test.go",
+        "stop_cap_test.go",
     ],
     embed = [":pluginruntime"],
     deps = [
@@ -45,24 +48,28 @@ go_test(
             "//nativetools",
             "//runtime",
             "//skills",
+            "//subagents",
         ],
         "@rules_go//go/platform:darwin": [
             "//claudehooks",
             "//nativetools",
             "//runtime",
             "//skills",
+            "//subagents",
         ],
         "@rules_go//go/platform:ios": [
             "//claudehooks",
             "//nativetools",
             "//runtime",
             "//skills",
+            "//subagents",
         ],
         "@rules_go//go/platform:linux": [
             "//claudehooks",
             "//nativetools",
             "//runtime",
             "//skills",
+            "//subagents",
         ],
         "//conditions:default": [],
     }),

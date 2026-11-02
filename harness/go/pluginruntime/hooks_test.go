@@ -235,7 +235,7 @@ func TestStopHookContinuationAndBudget(t *testing.T) {
 			}
 			err = prompt(t, agent, "start")
 			if bounded {
-				if !errors.Is(err, ErrStopBlockBudget) || calls.Load() != 3 {
+				if err != nil || calls.Load() != 3 {
 					t.Fatalf("budget was not enforced: calls=%d error=%v", calls.Load(), err)
 				}
 			} else if err != nil || calls.Load() != 2 {
