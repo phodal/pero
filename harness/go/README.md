@@ -20,7 +20,10 @@ endpoints must be HTTPS (loopback HTTP is permitted for local protocol tests).
 In the default agent mode stdout is ACP NDJSON only; diagnostics use stderr.
 The separate `plugins inspect` / `plugins validate` commands emit a JSON
 configuration report without provider credentials. See
-[plugin inspection](plugins/README.md). Do not publish raw sessions.
+[plugin configuration and execution](plugins/README.md). Repeated `--plugin-dir`
+flags enable the explicit Claude plugin profile in ACP sessions, including
+qualified skills, package resources, hooks, MCP, agents and task tools.
+Do not publish raw sessions.
 
 An [isolated Bazel build](BAZEL.md) is available from `harness/go`. Its build
 graph is separate from the root server pilot; the server Go version and
@@ -136,7 +139,7 @@ committed output. Durable load replays only committed messages; ACP cannot retra
 a failed provisional prefix.
 
 Absent: Point Projects/Hub/Pages, web/desktop UI, accountsync, product prompts,
-telemetry, workflows/jobs/schedules, external subagent providers, plugin/default
+telemetry, workflows/jobs/schedules, external subagent providers, default
 product coding assembly, implicit/product skill discovery, automatic file upload, and Point memory/context policies.
 The explicit native file/shell composition is independent of those product profiles.
 Generic generation-owner and compaction seams remain because the reused tool

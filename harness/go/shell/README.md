@@ -18,12 +18,17 @@ approval before execution and use external isolation for untrusted commands.
 Default timeout is 30 seconds, hard maximum 120 seconds. Commands are limited to
 16 KiB. Retained output is bounded to at most 64 KiB independently for stdout and
 stderr; excess output is discarded while the pipes continue draining. The source
-tail algorithm retains the last bytes and reports truncation. No spill files,
-background job ownership, persistent shell, model environment overrides, product
+tail algorithm retains the last bytes and reports truncation. Trusted composition
+can supply `LocalOptions.OutputSink` to retain the complete combined stream;
+writes are serialized and a sink failure cancels the owned process group. The
+executor does not create spill files itself. No background job ownership,
+persistent shell, model environment overrides, product
 sandbox service or managed runtime is included.
 
-Only explicit PATH/LANG/LC_ALL/TZ values may be supplied in BaseEnv; no process
-environment is inherited. Fixed noninteractive presentation values are added.
+By default only explicit PATH/LANG/LC_ALL/TZ values may be supplied in BaseEnv;
+no process environment is inherited. Trusted plugin composition can opt into
+`TrustedBaseEnvironment` with an explicit launch snapshot. Neither setting is a
+model argument. Fixed noninteractive presentation values are added.
 Bash startup files are disabled. Cancellation/timeout terminate then kill the
 owned process group even if the leader exits first. Pipe drain time is bounded.
 Ordinary descendants are cleaned up on completion; deliberate process-group or

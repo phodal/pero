@@ -4,7 +4,7 @@
 
 结论：应在现有 Go Harness 上增加 **Claude 插件格式与执行语义适配层**，复用现有会话、工具注册、审批、MCP、子代理和持久化。仅扫描 `skills/`、替换工具名或装配 DSH 的现有模块，都不足以完整运行这批插件。插件宿主、Claude 执行语义和插件自身问题需要分别处理。
 
-本方案覆盖当前仓库全部 **15 个插件目录**：14 个 marketplace 条目，加上未注册的 `new_code`。清点结果为 **102 个 SKILL.md、23 个 agents/*.md、6 个 commands/*.md**；其中 8 个 agent 文件缺少 frontmatter，因此 23 是文件数，不是有效注册数量。完整逐文件记录见 [配置清单](claude-code-plugin-inventory.json)，其中 frontmatter 为静态字段与原始 YAML 记录，不是 typed schema 验证结果。现已开始配置检查阶段，实现状态见第 15 节；运行兼容性仍按各阶段验收。
+本方案覆盖当前仓库全部 **15 个插件目录**：14 个 marketplace 条目，加上未注册的 `new_code`。清点结果为 **102 个 SKILL.md、23 个 agents/*.md、6 个 commands/*.md**；其中 8 个 agent 文件缺少 frontmatter，因此 23 是文件数，不是有效注册数量。完整逐文件记录见 [配置清单](claude-code-plugin-inventory.json)，其中 frontmatter 为静态字段与原始 YAML 记录，不是 typed schema 验证结果。第 2–14 节保留实施前基线与设计依据，第 15 节记录配置检查；**当前运行时实现、真实模型证据与逐插件剩余项见第 16 节**，完整目标仍在推进。
 
 ## 1 分析基线与项目准备
 
@@ -39,7 +39,7 @@
 
 coder 的独立上游克隆返回 `Repository not found`，不能确认是私有、改名还是删除。分析使用集合内的 `coder/` 副本，不将其冒充独立上游克隆。文档中仅作为设计参考的图谱工具、优化方法项目没有批量克隆。
 
-克隆未安装依赖，未启动插件 hooks、MCP、模型、飞书、GitHub 写操作或测试台。依赖仓库 HEAD 只是源码快照，不代表插件实际声明的包版本；例如 private-buddy 固定 `one-search-mcp@1.2.2`，必须另锁其发行包。
+源码准备阶段仅克隆，没有安装依赖或执行插件；后续本地执行与模型验收见第 16 节。依赖仓库 HEAD 只是源码快照，不代表插件实际声明的包版本；例如 private-buddy 固定 `one-search-mcp@1.2.2`，必须另锁其发行包。
 
 ### 1.3 完整支持的验收层级
 
@@ -52,7 +52,7 @@ coder 的独立上游克隆返回 `Repository not found`，不能确认是私有
 
 不能用“JSON 解析成功”代替工作流支持。需要修插件的地方标为 `plugin-fix-required`；缺外部能力标为 `dependency-missing`；有意保留 Pero 策略差异的地方标为 `policy-different`。
 
-## 2 Pero 与官方 DSH 的能力对应
+## 2 Pero 与官方 DSH 的能力对应（实施前基线）
 
 下表的 DSH 路径相对于已克隆的 `deepseek-harness`；未带仓库前缀的 Go 包路径相对于 `harness/go`。DSH 可用表示有实现可借鉴，不表示可直接导入 Go，也不表示已经完成运行等价测试。
 
@@ -643,8 +643,79 @@ go -C harness/go run ./cmd/pero-agent-acp plugins validate /absolute/path/to/mar
 
 报告固定 `inspectionOnly:true`。inspect 会保留错误诊断并返回报告；validate 在存在 error 时返回非零。两者都不需要模型凭据，不启动 hook/MCP，也不进入 ACP 会话。metadata 类型错误、缺失 agent 元数据、错误路径和未知能力有明确诊断。插件安装名与 manifest 名分别保存；不将二者不同判为非法。
 
-当前不实现远程获取、marketplace entry 组件合并、运行时插件挂载、子代理配置、hook 执行、MCP 自动连接或 Workflow。entry 上出现尚未处理的组件声明时给出明确错误，不静默忽略。下一阶段继续扩展现有 skills catalog、参数展开和只读资源能力，再接运行时。
+P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflow。entry 上出现尚未处理的组件声明时给出明确错误，不静默忽略。后续运行时实现见下节；检查报告的 `inspectionOnly` 不表示运行时入口被禁用。
 
 详细使用与输出边界见 [配置检查说明](../../harness/go/plugins/README.md)。验证使用临时配置、真实 CLI 分派、未执行 sentinel 和既有 ACP 测试，不把格式检查通过表示成插件工作流已经可运行。
 
 本阶段验证通过 `go test -race ./...`、`go vet ./...`、相关 Bazel 测试及 Gazelle 一致性检查。实际检查了全部 15 个插件，识别 102 个 skill、6 个 command 和 22 个 agent 定义文件；另 1 个 agent 因 manifest 指向非法目录而没有加载，诊断已明确指出。检查器也复现了 9 处缺失 agent name、8 处缺失 agent description、3 处 hook argv 形态错误、6 处版本漂移和 4 处 MCP timeout 单位问题。validate 对这些配置返回非零是预期结果。
+
+## 16 运行时实现与真实验收
+
+2026-11-02，CLI 已新增可重复的 `--plugin-dir`，将已检查的本地插件或 marketplace 通过现有 harness composition root 装配。运行时不再停留于配置检查。插件正文、资源和权限规则来自同一份已解析定义；没有另建 agent loop、MCP client 或任务数据库。
+
+| 能力 | 当前实现 | 验证与边界 |
+| --- | --- | --- |
+| 插件装配 | 默认/显式组件、namespace、同名 skill 覆盖 command、安装目录与工作目录分离 | 临时目录与真实 CLI fixture；无远程安装/更新入口 |
+| 调用可见性 | 用户与模型入口分别枚举；用户专用 slash 能加载，模型 Skill 无法绕过 | 首个真实 provider 请求检查正文、参数与隐藏目录 |
+| 参数与资源 | 完整/位置参数、路径和 session 变量；Read 能读取所选包模板；Write 创建工作区父目录 | digest 固定、包路径拒写、父目录/symlink 测试 |
+| 动态上下文 | 原始正文只扫描一次，执行已声明命令，通过既有 shell executor 与审批策略；stdout 不再次解释为模板 | 无交互权限检查、拒绝/取消/持久化失败测试；成功输出超过 64 KiB 写私有文件并给首尾预览；64 MiB 硬上限失败清理 |
+| 工具预批准 | allowed-tools 在调用 turn 生效，下一直接用户输入清除；hook ask 与部署拒绝优先 | 普通工具名、限定 server 的 MCP wildcard、简单 Bash pattern；复杂 shell syntax 不自动批准 |
+| 原生工具 | Read/Write/Edit/Glob/Grep/Bash 的 Claude 名称和参数 | 真实工作区效果；Grep 用 RE2，图片/PDF/NotebookEdit、完整 ripgrep 行为仍待补 |
+| 子代理 | 自定义 Agent、模型 alias、工具交集、父审批、实际后台 ID/等待/停止 | loopback 子代理真实读写和取消；冷恢复后台任务尚未完成 |
+| 内置子代理 | general-purpose、Explore、Plan | Explore/Plan 采用较窄的只读交集，暂不提供官方只读 Bash 与任意 MCP |
+| 隔离技能 | context:fork、内置/自定义 agent、参数/资源前缀、子模型与子 turn 授权 | 真实 CLI 证明父历史隔离、子读模板/写文件、父仍需审批；ACP 同步等待，恢复不重跑 |
+| 结构化问答 | AskUserQuestion、问题/选项校验、Other、多选、取消及恢复后的新 broker | 独立 ACP 扩展需双方协商；未协商不注册工具；当前 Desktop UI 尚未接入 |
+| 任务状态 | TaskCreate/Update/List/Get、依赖图、metadata、CAS、JSONL 恢复 | 完成前置任务后解除阻塞；不把 Agent 后台 ID 当 Task ID |
+| Command hooks | 标准 stdin、argv/shell、超时/取消、exit 2、JSON 决策、updatedInput 重验 | SessionStart、UserPromptSubmit、Pre/PostToolUse、PostToolUseFailure、Pre/PostCompact、Stop、SessionEnd |
+| Hook 会话归属 | 主会话生命周期不对子代理重复触发；子工具事件使用主 session/transcript 并携真实 agent_id/type | 真实子代理回归；Stop 默认连续续跑 8 次、工具调用后重置、达到上限正常结束 |
+| 压缩生命周期 | PreCompact 可阻止；PostCompact 后 SessionStart(source=compact) 上下文进入紧接的请求 | manual 与真实 context-overflow retry fixture；不延迟到下一个 tool step |
+| 压缩后的技能 | 最近一次已渲染正文与参数从原始日志恢复，单项 5000、合计 25000 估算 token | Unicode 安全截断；不重新读安装文件、不重跑命令、不恢复过期授权，不恢复 fork 正文到父会话 |
+| MCP | stdio/streamable HTTP、环境替换、namespace、root-agent 连接生命周期 | 真实 loopback server discover/call/dispose；SSE/OAuth/每工具迁移仍待补 |
+
+### 16.1 真实模型结果
+
+使用项目 `.env` 中的 `DEEPSEEK_API_KEY`，显式选择 `deepseek-flash`、关闭 thinking、单次输出上限 4096 token、总请求上限 6、重试 0。实际消耗 **4 次 HTTP 请求**，`session/prompt` 返回 `end_turn`。
+
+验收输入为订单 CSV 导出需求，指定输出 `reports/export-prd.md`。日志确认真实调用顺序：并行 Read 插件 PRD 模板与自检清单 → Write 工作区文件 → Read 保存后的文件 → 结束。生成文件 6988 字节，包含验收条件、角色权限、1000 条上限及 CSV 转义要求。首个请求已经含展开后的 `/product-manager:pa` 正文与用户参数。
+
+该次 ACP 会话使用既有默认 auto-review，未弹写入审批；不能用此结果证明交互审批。独立 CLI fixture 显式选择 workspace-write，验证一次真实 ACP 写入审批，并在 session/load 后再次请求，确认旧技能只加载一次、参数与来源仍保留，实际文件不被重放改写。
+
+本次真实验收证明 product-manager 的本地 PRD 路径可运行，不能扩展成“15 个插件全部通过”或“全部 Claude 行为相同”。输出内容仍是模型生成结果；文件落盘和工具链验证不代替逐条需求审查。
+
+同机 Claude Code 2.1.309 通过 DeepSeek 的 Anthropic 兼容入口运行相同插件与输入，也正常结束并保存 4290 字节的 PRD，包含验收标准与 1000 条约束。对照关闭了用户/项目 settings 和额外 MCP，保留 Read/Write，设置 `--max-turns 6`。首次运行被 Claude 本地美元费用估算上限中止，未保存文件；提高该估算上限后的重跑成功，结果报告 `num_turns:7`。此字段不等于 Pero 的 HTTP attempt 计数，未作为等量用量对比；Claude 对自定义模型的本地费用估算也未作为 DeepSeek 实际账单。两边输出并非逐字一致，本次只对比插件加载、资源使用与可落盘交付。
+
+### 16.2 继续实现的出口
+
+完整目标仍未达成。接下来按第 11 节验收出口推进，尤其包括：Desktop 的 AskUserQuestion UI、后台 Bash 与冷恢复、Workflow DSL、SDK trial 的 Harness runner，以及 Web/LSP、外部依赖和实际服务连接。SubagentStart/SubagentStop、任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力；动态输出 64 MiB 失败上限也不同于官方大输出策略。存在无效配置的插件需按第 13 节修复或明确迁移，不能通过静默忽略让其看似可用。
+
+官方行为依据：[技能动态命令和权限](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)、[Bash pattern 和 compound command](https://code.claude.com/docs/en/permissions#bash)、[工具输出与 exit 1 例外](https://code.claude.com/docs/en/tools-reference#output-limits)、[内置子代理](https://code.claude.com/docs/en/sub-agents#built-in-subagents)、[CLI 运行限制](https://code.claude.com/docs/en/cli-reference)。
+
+### 16.3 逐插件运行态复核
+
+对当前克隆内容逐项调用 `plugins.LoadPackages`：**10 个可编译，5 个有明确结构性阻塞**。10 个可编译插件一起加载也成功，得到 69 个 skill、13 个 agent、1 个 command、436 个文本资源、6 个 hook 与 7 个 MCP 配置。该复核没有执行 hook、脚本、MCP 或模型请求；“可编译”不表示外部依赖或全部工作流已经验收。
+
+| 插件 | 当前编译结果 | 剩余闭环与下一步 |
+| --- | --- | --- |
+| ask-buddy | 阻塞：UNKNOWN_HOOK_FIELD，顶层缺 hooks 包装 | 修守护脚本读取 tool_input.file_path；实测代码只读与记忆可写；配置外部服务认证 |
+| biz-interview | 阻塞：MISSING_AGENT_NAME | 修 agent 元数据；接 WebSearch/WebFetch、opus 路由和实际问答客户端 |
+| coder | 可编译 | 必经审查仍缺 Workflow(scriptPath,args) 与嵌套 workflow；验证 worktree authority、review gate 和后台冷恢复 |
+| issue-fixer | 可编译 | 装配 LSP、显式模型路由与 GitHub MCP；验证分支、测试、审查及 PR 实际回执 |
+| knowledge-analyst | 可编译 | 提供并验证强制依赖 deep-research；普通搜索不能替代该契约 |
+| meeting-summary | 可编译 | Python、飞书 CLI、登录与目标配置；真实下载、轮询取消、文档创建及通知验收 |
+| model-reasoning-distillation | 可编译 | Pero journal 到 canonical trace 的实际适配；重型路径缺 Workflow，需 sonnet 路由 |
+| new_code | 阻塞：INVALID_AGENT_PATH | manifest 选择具体 agent 文件；修 session 变量；多仓 worktree、恢复绑定、发布及解绑状态机 |
+| plugin-tuner | 可编译 | trial 脚本仍绑定 Claude SDK，需 HarnessTrialRunner、统一试验回执与取消清理 |
+| private-buddy | 阻塞：HOOK_COMMAND_WITH_ARGS | 三处 command/args 形态需修正；本地 Python MCP、搜索、认证、记忆与压缩流程实测 |
+| product-manager | 可编译；真实模型已验证 | 材料充分的中文 PRD 生成/保存/读回可运行；需澄清路径仍依赖客户端问答 UI |
+| repo-admin | 可编译 | 凭据外移；图谱服务工具契约与认证连通；只读 hook 的真实修改阻止测试 |
+| req-agent | 阻塞：MISSING_AGENT_DESCRIPTION | 8 个 agent 缺正式 name/description；迁移 agentType；准备知识材料、图片能力和 Atlassian 发布验收 |
+| sad | 可编译 | draw.io CLI/export、项目材料与 opus 路由；跑确定性校验和失败返修闭环 |
+| test-agent | 可编译 | 修 MCP 名称漂移和 timeout 单位；测试台/固件/Python/Docker 环境；真实刷写、取消及日志回执 |
+
+Workflow 工具调用的明确阻塞集中在 coder 与 MRD 的重型路径。sad、test-agent 正文中的普通“workflow/流程”标题不能当作缺失该 DSL 的证据。完整验收应继续按第 12 节逐个执行；配置缺陷、实现缺口与外部环境缺失分别保留。
+
+### 16.4 本阶段验证记录
+
+在 `harness/go` 完成 `go test -race ./...`、`go vet ./...`、`bazel test //...`（30 个测试 target 全部通过）与相关目录 Gazelle `-mode=diff` 检查。`git diff --check` 通过。文档身份信息检查通过；运行时凭据未写入文档、测试 fixture 或提交。
+
+真实模型与 Claude Code 对照是显式单次运行，没有加入默认测试网络依赖。后续可继续使用无外网 loopback fixture 验证协议和生命周期，再对每个插件准备对应环境验收。
