@@ -222,3 +222,41 @@ TypeScript and approval bundle checks. A fresh full local Desktop build remains
 blocked by absent connector `fflate` and `pdfjs-dist` dependencies in the existing
 scratch installation; no externalization or dependency bypass was used. CI's
 locked connector installation is still required before the normal build.
+
+## Consolidated PR #106: themed owned native acceptance
+
+2026-11-02. [Run 41434159265](https://github.com/phodal/pero/actions/runs/41434159265),
+[job 125239757020](https://github.com/phodal/pero/actions/runs/41434159265/job/125239757020),
+passed for branch head `a95d6bbd8f434d66b526e8bebbb1ec3a96099bab`.
+Checkout logs and screenshot metadata identify the tested PR merge checkout as
+`a97bc77e98615e76db6afbbdcf056c8fe64755aa` (that head merged into
+`b44f9ce41395eab8dfef6dc4085f65257d968dd8`), not an untested later local head.
+
+Downloaded artifact `13135926825` (`paper-host-approval-native`, 48,254 bytes)
+was independently hashed; ZIP SHA-256 matches GitHub's recorded digest:
+`7781e35ff98ae9d93c151b8a2bded9a82060dde2c53610942c8b9ea4f6676196`.
+The named runner receipt reports passed, exit 0, no timeout, duration 4,781 ms.
+Abort, owner close and owner destroy each observed owner disablement and settled
+false. Native semantic Cancel settled false; native semantic Run once settled
+true. Both action receipts report `executed` with route `semantic`; request,
+observation and exact target identities match their saved complete native trees
+and image metadata. Each tree contains the authored no-compute nonce and the
+selected native `button` with `click` capability inside the named dialog.
+Both ownership records identify PID 6748, one primary dialog and zero matches
+when that exact owner is excluded. No pixel, key or renderer-input fallback is
+claimed by these receipts.
+
+Both 640×430 native X11 JPEGs independently hash to
+`17d623144a62f5d2a7b9aafa43079d532864b9e959901e2a5e7efa616996f2ed`.
+Visual inspection shows the light themed surface, fully visible heading and
+synthetic no-job summary, Cancel/Run once controls and teal Cancel focus ring.
+These are native driver observations, not diagnostic renderer captures.
+The CI log also records the passing light/dark shared-token behavioral test
+within 21 passing focused approval tests. Actual screenshots establish the light
+surface only: this run does not establish a dark-mode screenshot, live theme
+switching, or full Desktop/Product settings interaction acceptance.
+
+Scope remains the authorized owned Linux **no-computation** fixture. No scientific
+worker, model/API credential or real reproduction job was used. This is neither
+a repaired GTK accessibility bridge nor macOS/Windows or signed-release acceptance.
+Artifact inspection launched no GUI, sent no input and started no additional CI.
