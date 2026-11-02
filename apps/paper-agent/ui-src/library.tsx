@@ -56,7 +56,7 @@ export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImpor
   }
   return <section className="pa-import" ref={panel} aria-label={t('add')}>
     <Tabs value={tab} onValueChange={setTab}>
-      <TabsList aria-label={t('add')}><TabsTrigger value="search">{t('search')}</TabsTrigger><TabsTrigger value="pdf">PDF</TabsTrigger><TabsTrigger value="import">{t('import')}</TabsTrigger><TabsTrigger value="research">Research URL</TabsTrigger></TabsList>
+      <TabsList aria-label={t('add')}><TabsTrigger value="search">{t('search')}</TabsTrigger><TabsTrigger value="pdf">PDF</TabsTrigger><TabsTrigger value="import">{t('import')}</TabsTrigger><TabsTrigger value="research">{t('researchUrl')}</TabsTrigger></TabsList>
       <TabsContent value="search" forceMount>
         <div className="pa-search-form" role="search" onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing && event.target instanceof HTMLInputElement) { event.preventDefault(); void search(); } }}>
           <Field label={t('findLabel')}>{props => <Input {...props} value={query} onChange={event => setQuery(event.target.value)} placeholder={t('searchPlaceholder')} maxLength={500}/>}</Field>

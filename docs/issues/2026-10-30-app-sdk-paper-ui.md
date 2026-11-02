@@ -69,3 +69,23 @@ the developer checkout's write lock. No lock was removed or bypassed.
 
 This changes source and development App bundles. Packaged Desktop installation
 and existing installed App copies have not been updated or accepted.
+
+## Follow-up: Research URL resource selection (2026-11-02)
+
+The Research URL screen repeated provenance tags and multi-sentence download
+instructions below every title, making resource selection read like a report.
+It now uses flat resource rows: identity, version and original link on the left;
+file choices on the right. Narrow windows stack each row. Source details open
+on demand; unresolved-source warnings and acquisition limits remain visible.
+The URL field shares a row with its action, and the save footer retains the
+explicit confirmation and disabled state. The Chinese tab is 链接导入.
+
+App TypeScript, build and repository checks pass. Chromium's existing import
+journey passes seven checks with zero browser errors, including selection,
+reference-only saves, explicit download confirmation, cancellation, failure and
+retry, persisted drafts, folded details, column layout and Chinese narrow mode.
+These use synthetic HTTP Paper/Host seams; real Python/Host acquisition and
+restart behavior are checked separately by the Electron structured-reading
+journey. Screenshots were inspected at 1,280px light and 489px dark.
+Evidence: `test-results/research-import/` and
+`test-results/paper-source-fixes/research-import-{wide,narrow-dark}.jpg`.

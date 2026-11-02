@@ -53,6 +53,10 @@ try {
   await expect(review().getByRole('checkbox')).toHaveCount(6);
   for (const checkbox of await review().locator('.pa-resource-title input').all()) await expect(checkbox).toBeChecked();
   await expect(review().getByRole('checkbox', { name: /^Download / })).not.toBeChecked();
+  const downloadRow = review().locator('.pa-resource-list>li').filter({ has: page.getByRole('checkbox', { name: /^Download / }) });
+  const identityBox = await downloadRow.locator('.pa-resource-identity').boundingBox(), filesBox = await downloadRow.locator('.pa-resource-files').boundingBox();
+  expect(filesBox.x).toBeGreaterThanOrEqual(identityBox.x + identityBox.width);
+  await expect(review().locator('.pa-resource-actions details[open]')).toHaveCount(0);
   for (const checkbox of await review().locator('.pa-resource-title input').all()) await checkbox.uncheck();
   await expect(page.getByRole('button', { name: 'Save references only', exact: true })).toBeDisabled();
   await expect(review().getByRole('checkbox', { name: /^Download / })).toBeDisabled();
@@ -165,6 +169,14 @@ try {
   await page.reload(); await openImport(); await page.getByText(/^Resume an inspection/).click();
   await page.getByRole('button', { name: 'https://example.org/new', exact: true }).click(); await expect(review()).toBeVisible();
   checks.push('No-forms App sandbox with pointer/Enter inspection, no duplicate pending starts; error/retry/cancel, stale response rejection and persisted draft resume');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'zh-CN', dark: true, active: true } }, '*'));
+  await expect(page.getByRole('tab', { name: '链接导入', exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: '研究链接', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '仅保存引用', exact: true })).toBeVisible();
+  await expect.poll(() => page.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await capture('review-zh-dark-narrow');
+  checks.push('Resource identity and file choices use separate columns, details start folded, and Chinese narrow mode keeps the save action and URL control usable');
   expect(errors).toEqual([]);
   const hashes = Object.fromEntries(await Promise.all(['js', 'css'].map(async extension => [extension, createHash('sha256').update(await readFile(resolve(dist, `index.${extension}`))).digest('hex')])));
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ checks, errors, hashes, scope: 'Chromium real Paper UI with synthetic HTTP Paper and Host seams. No Electron/native Host, real network, LLM, or actual asset download.' }, null, 2));
