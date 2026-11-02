@@ -1,3 +1,4 @@
+import { exerciseImageOnly, reopenImageOnly } from './paper-image-only-flow.mjs';
 import { paperBackendFixture } from './paper-backend-fixture.mjs';
 import { chatState, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
 import { clickAppShortcut } from './sidebar-controls.mjs';
@@ -27,6 +28,7 @@ fixture=runpy.run_path(sys.argv[1])
 real=bool(sys.argv[3])
 data=Path(sys.argv[3]).read_bytes() if real else fixture['pdf_fixture']()
 Path(sys.argv[2]).write_bytes(data)
+Path(sys.argv[2]).with_name('image-only.pdf').write_bytes(fixture['image_pdf_fixture']())
 with closing(pdfium.PdfDocument(data)) as pdf, closing(pdf[0]) as page, closing(page.get_textpage()) as text:
  quote='Attention Is All You Need' if real else 'Exact original evidence.'
  with closing(text.search(quote)) as search:
@@ -313,6 +315,7 @@ try {
     await setAppearance(page,'light');
     checks.push('dark theme, Chinese locale and narrow Agent overlay');
   }
+  const savedImageOnly = await exerciseImageOnly({frame,page,profile,out});
   const savedPdf = await exercisePdf({frame,page,app,out,fixture:pdfFixture,profile});
   checks.push('reading-only default at 1440x900, retained viewer/zoom/selection across Ask, selected-text question context');
   checks.push('PDF pointer highlight, contextual crop, native image copy, inline manual matrix, source navigation and PDF failure recovery');
@@ -330,6 +333,8 @@ try {
   expect((await fixtureTurns()).length).toBe(beforeRestart);
   checks.push('research records, reports, PDF bytes, annotations, matrices and exact citations survive Desktop restart without Agent replay');
   await page.screenshot({path:resolve(out,'conversation-reopened.png')});
+  await reopenImageOnly({frame,page,profile,out,saved:savedImageOnly});
+  checks.push('Authored raster-only PDF explicitly saved/exported and rendered after restart; zero PDF text/OCR, metadata rejected as full text; no-PDF Save disabled and cached no-URL Save available');
   const other=await openPaper(page, 'virtual-cell');
   const denied=await other.locator('body').evaluate(async()=>{const response=await fetch('/host/agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'info'})});return{status:response.status,text:await response.text()};});
   expect(denied.status).toBeGreaterThanOrEqual(400);expect(denied.text).toMatch(/permission|grant|Agent|agent/i);

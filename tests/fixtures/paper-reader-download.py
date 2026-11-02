@@ -9,6 +9,7 @@ from paper_agent.pdf_downloads import PdfDownloads
 
 PDF_URL = 'https://arxiv.org/pdf/1706.03762v1'
 RETRY_URL = 'https://reader.example.org/retry.pdf'
+IMAGE_URL = 'https://reader.example.org/image-only.pdf'
 
 
 def metadata(url, **_options):
@@ -27,11 +28,15 @@ class Connection:
 
     def request(self, method, path, **_options):
         self.url = 'https://' + self.host + path
-        if method != 'GET' or self.url not in (PDF_URL, RETRY_URL):
+        if method != 'GET' or self.url not in (PDF_URL, RETRY_URL, IMAGE_URL):
             raise AssertionError('Unknown reader fixture request: ' + path)
 
     def getresponse(self):
         data, mime = Path(os.environ['PERO_READER_FIXTURE_PDF']).read_bytes(), 'application/pdf'
+        if self.url == IMAGE_URL:
+            data = Path(os.environ['PERO_READER_FIXTURE_PDF']).with_name('image-only.pdf').read_bytes()
+            with (Path(os.environ['PERO_APP_DATA']) / 'reader-image-only-attempts.jsonl').open('a') as stream:
+                stream.write(json.dumps({'url': self.url}) + '\n')
         if self.url == RETRY_URL:
             # A dedicated persisted counter: primary PDF reads and process
             # restarts cannot consume or reset this one authored failure.
