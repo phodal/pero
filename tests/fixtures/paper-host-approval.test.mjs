@@ -7,8 +7,8 @@ const fixture = () => ({ id: 'observation', target, truncated: false, elements: 
   { id: 'document', role: 'document web', label: approvalTitle, depth: 1 },
   { id: 'dialog', role: 'dialog', label: approvalTitle, depth: 2 },
   { id: 'summary', role: 'static', label: 'authored-nonce', depth: 3 },
-  { id: 'cancel', role: 'push button', label: 'Cancel', depth: 3, state: { enabled: true, secure: false }, actions: ['click'] },
-  { id: 'allow', role: 'push button', label: 'Run once', depth: 3, state: { enabled: true, secure: false }, actions: ['click'] },
+  { id: 'cancel', role: 'button', label: 'Cancel', depth: 3, actions: ['click'] },
+  { id: 'allow', role: 'button', label: 'Run once', depth: 3, actions: ['click'] },
 ] });
 test('new Host window requires exact unique native target', () => {
   const entry = { kind: 'window', title: approvalTitle, reference: target };
@@ -16,7 +16,7 @@ test('new Host window requires exact unique native target', () => {
   assert.throws(() => approvalTarget([]));
   assert.throws(() => approvalTarget([entry, entry]));
 });
-test('semantic action binds complete named frame, dialog, nonce and exact button', () => {
+test('canonical Linux button without optional state still requires complete tree and exact native click capability', () => {
   for (const label of ['Cancel', 'Run once']) {
     const action = approvalAction(fixture(), target, 'authored-nonce', label, `request-${label}`);
     assert.equal(action.delivery, 'background');
@@ -30,8 +30,11 @@ test('semantic action binds complete named frame, dialog, nonce and exact button
     o => { o.elements[2].label = 'foreign dialog'; },
     o => { o.elements[3].label = 'wrong nonce'; },
     o => { o.elements[3].depth = 2; },
-    o => { o.elements[5].state.enabled = false; },
-    o => { o.elements[5].state.secure = true; },
+    o => { o.elements[5].role = 'push button'; },
+    o => { o.elements[5].role = 'link'; },
+    o => { o.elements[5].depth = 2; },
+    o => { o.elements[5].state = { enabled: false, secure: false }; },
+    o => { o.elements[5].state = { enabled: true, secure: true }; },
     o => { o.elements[5].actions = []; },
     o => { o.elements.push({ ...o.elements[5], id: 'duplicate' }); },
   ]) {

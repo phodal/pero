@@ -151,3 +151,41 @@ not native approval evidence. Original native-driver screenshot/identity/tree
 requirements still precede every semantic click; all existing deadlines remain.
 Root controls publication and the next single opt-in CI verification. No local
 GUI launch, worker, computation or OS security change was performed.
+
+
+## Bootstrap retry reached semantic observation, then fixture-contract mismatch
+
+Run [41423141414](https://github.com/phodal/pero/actions/runs/41423141414), job
+`125203262733`, head `3c0458445284f9bbf21ad422cc2c2897639f23f3`, progressed beyond
+startup: abort, owner-close and forced owner-destroy all observed the modal's
+owner disablement and independently settled deny. Before the first Cancel input,
+the exact-owned native screenshot and complete tree were saved. The screenshot
+SHA-256 is `edee82e4e6eb273d9b1d0cd38006ee936040afb60b904558e910ab8417559ff8`.
+
+The tree contains the named frame, named dialog at depth 8, authored nonce and
+both buttons inside that dialog at depth 10. Their actual native role is
+**`button`**, each with `actions=["click"]`; there is **no state field**.
+The helper erroneously expected GTK's `push button` plus mandatory state, and
+stopped before submitting any action. This is a fixture-contract mismatch, not
+missing buttons or a successful positive approval.
+
+The minimal correction uses this new HTML surface's exact canonical `button`
+role, not a broad role-name heuristic. `ObservedControl::into_element` currently
+sets `state=None` and emits actions only when enabled and non-secure. Linux
+`NodeFacts::control` supplies invocability only for a real AT-SPI click/press and
+an actionable state; `Accessibility::check` revalidates exact PID, rendered and
+actionable state immediately before execution. Therefore the helper requires
+the existing native `click` capability without fabricating state. If optional
+state is supplied, contradictory disabled/secure facts still fail closed.
+
+Negative tests retain wrong/duplicate/out-of-dialog button, missing native click,
+wrong nonce, foreign target and incomplete-tree refusals. No driver, PID,
+geometry, semantic receipt, owner binding or complete-tree gate changes. A future
+semantic click must still yield a matching native receipt **and** the independent
+main-process decision. No positive click occurred in this failed run.
+
+
+Contract source references at the unchanged base:
+- [`ObservedControl::into_element`, lines 26–50](https://github.com/phodal/pero/blob/78881615e37790b0a0b4635a197e18f974ea6867/use/computer/crates/computer-core/src/accessibility.rs#L26-L50): enabled/non-secure action projection and omitted state.
+- [`NodeFacts::control`, lines 62–78](https://github.com/phodal/pero/blob/78881615e37790b0a0b4635a197e18f974ea6867/use/computer/crates/computer-linux/src/accessibility/model.rs#L62-L78): original AT-SPI role spelling and actionable invoking action.
+- [`Accessibility::check`, lines 266–280](https://github.com/phodal/pero/blob/78881615e37790b0a0b4635a197e18f974ea6867/use/computer/crates/computer-linux/src/accessibility/bus.rs#L266-L280): execution-time exact process/state/visibility revalidation.

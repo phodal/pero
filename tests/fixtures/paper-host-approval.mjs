@@ -26,11 +26,17 @@ export function approvalAction(observation, target, nonce, label, requestId) {
   const contents = boundary < 0 ? after : after.slice(0, boundary);
   assert.ok(typeof nonce === 'string' && nonce.length > 0 &&
     contents.some(element => element.label.includes(nonce)), 'Authored nonce must occur within the dialog');
-  const buttons = contents.filter(element => element.role === 'push button' && element.label === label);
+  const buttons = contents.filter(element => element.role === 'button' && element.label === label);
   assert.equal(buttons.length, 1, 'One exact semantic button in the trusted dialog required');
   const button = buttons[0];
-  assert.equal(button.state?.enabled, true);
-  assert.equal(button.state?.secure, false);
+  // The native public projection intentionally omits state. For Linux 'button',
+  // click is emitted only for actionable, non-secure controls with an invoking
+  // AT-SPI action; the driver revalidates PID/visibility/state before DoAction.
+  // Do not fabricate optional state or substitute role-only/pixel input.
+  if (button.state != null) {
+    assert.equal(button.state.enabled, true);
+    assert.equal(button.state.secure, false);
+  }
   assert.ok(button.actions.includes('click'));
   return { request_id: requestId, target, observation_id: observation.id,
     delivery: 'background', input: { kind: 'click', anchor: { kind: 'element', element_id: button.id }, button: 'left', count: 1 } };
