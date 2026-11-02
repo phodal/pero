@@ -25,6 +25,7 @@ go_library(
 go_test(
     name = "lsp_test",
     srcs = [
+        "after_edit_test.go",
         "client_test.go",
         "diagnostics_client_test.go",
         "diagnostics_test.go",

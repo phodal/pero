@@ -7,6 +7,7 @@ mode = os.environ.get("LSP_FIXTURE_MODE", "normal")
 log_path = os.environ["LSP_FIXTURE_LOG"]
 uri = ""
 version = 0
+text = ""
 pending = None
 span = {"start": {"line": 1, "character": 5}, "end": {"line": 1, "character": 10}}
 
@@ -56,6 +57,8 @@ while True:
                         "definitionProvider": True, "referencesProvider": True, "implementationProvider": True,
                         "hoverProvider": mode != "missing-capability", "documentSymbolProvider": True,
                         "workspaceSymbolProvider": True, "callHierarchyProvider": True}
+        if mode.startswith("after-edit"):
+            capabilities["textDocumentSync"]["save"] = {"includeText": True}
         answer(message, {"capabilities": capabilities})
     elif method == "initialized":
         send({"jsonrpc": "2.0", "id": "configuration-fixture", "method": "workspace/configuration",
@@ -65,6 +68,17 @@ while True:
     elif method == "textDocument/didOpen":
         uri = params["textDocument"]["uri"]
         version = params["textDocument"]["version"]
+        text = params["textDocument"]["text"]
+    elif method == "textDocument/didSave":
+        if mode == "after-edit-crash":
+            os._exit(7)
+        if mode == "after-edit-hang":
+            continue
+        if mode.startswith("after-edit"):
+            assert params["text"] == text
+            send({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",
+                  "params": {"uri": uri, "version": version,
+                             "diagnostics": [{"range": span, "severity": 1, "message": "saved file type error"}] if "BROKEN" in text else []}})
     elif method in ("textDocument/definition", "textDocument/implementation"):
         answer(message, [{"targetUri": uri, "targetRange": span, "targetSelectionRange": span}])
     elif method == "textDocument/references":
