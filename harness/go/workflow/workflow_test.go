@@ -85,7 +85,8 @@ func newWorkflowFixture(t *testing.T, root, workspace string, packages []plugins
 	t.Cleanup(func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := h.Dispose(cleanup); err != nil {
+		// Dispose may report accepted asynchronous shutdown; Drain must still join it.
+		if err := h.Dispose(cleanup); err != nil && !errors.Is(err, harness.ErrHarnessDisposalInProgress) {
 			t.Error(err)
 		}
 		if err := h.Drain(cleanup); err != nil {

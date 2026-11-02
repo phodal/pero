@@ -114,6 +114,9 @@ func TestBackgroundWorkflowUsesOwnedExecutorAndTaskTools(t *testing.T) {
 			ends++
 		}
 	}
+	if err := f.parent.WhenIdle(f.ctx); err != nil {
+		t.Fatal(err)
+	}
 	if starts != 1 || ends != 1 {
 		t.Fatalf("duplicate durable facts: start=%d end=%d", starts, ends)
 	}
