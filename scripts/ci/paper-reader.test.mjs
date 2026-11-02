@@ -110,13 +110,16 @@ test('closing Paper question mode focuses a native App control before one Escape
   for (const [question, records, pdf] of [[false, false, true], [true, false, true], [true, true, false]]) {
     let questioning = question, recordsOpen = records, focused = false, focusChecks = 0;
     const actions = [];
+    const nativeButton = { tagName: 'BUTTON', textContent: pdf ? 'PDF' : '‹' };
+    nativeButton.ownerDocument = { activeElement: nativeButton, hasFocus: () => ++focusChecks > 1 };
     const target = {
       isVisible: async () => pdf,
       focus: async () => { actions.push(pdf ? 'focus PDF' : 'focus Back'); focused = true; },
-      evaluate: async () => {
+      evaluate: async predicate => {
         assert.equal(focused, true);
-        // First observation still belongs to Host; no key may be sent yet.
-        return ++focusChecks > 1;
+        // Execute the helper's real predicate: activeElement alone is not enough
+        // while the first document.hasFocus observation still belongs to Host.
+        return predicate(nativeButton);
       },
       press: async key => {
         assert.equal(key, 'Escape'); assert.equal(recordsOpen, false); assert.equal(focused, true);
