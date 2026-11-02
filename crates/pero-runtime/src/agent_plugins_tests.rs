@@ -134,6 +134,7 @@ fn dependency_installation_preserves_explicit_choices_and_frozen_values() {
             continue;
         }
         let snapshot = result.unwrap();
+        assert_eq!(snapshot.skills[0].path, managed.join("paper-tools/skills/read/SKILL.md"));
         assert_eq!(
             snapshot.skills[0].content,
             "# Paper reading\nRead the exact frozen source."

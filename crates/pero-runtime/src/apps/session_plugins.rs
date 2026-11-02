@@ -63,7 +63,7 @@ impl AppStore {
             instructions.push_str(&format!(
                 "\n\nPlugin {} Skill {}:\n{}",
                 skill.plugin.as_str(),
-                skill.path,
+                skill.path.display(),
                 skill.content
             ));
         }

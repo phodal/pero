@@ -186,7 +186,8 @@ pub struct AgentPluginSummary {
 #[derive(Clone, Debug)]
 pub struct AgentPluginSkill {
     pub plugin: AppName,
-    pub path: String,
+    /// The durable installed source makes relative Skill resources resolvable.
+    pub path: PathBuf,
     pub content: String,
 }
 
@@ -456,7 +457,7 @@ fn load_snapshot(
         }
         snapshot.skills.push(AgentPluginSkill {
             plugin: definition.name.clone(),
-            path,
+            path: runtime_root.join(path),
             content,
         });
     }
