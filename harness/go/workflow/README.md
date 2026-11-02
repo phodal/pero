@@ -161,8 +161,38 @@ deduplication, checkpoint-failure-before-wake, and interruption without wake.
 Model responses use the existing local adapter seam. These tests do not prove
 external model quality or replace the earlier ACP stream visibility check.
 
-Persisted pending inbox messages use existing resume behavior. The crash window
-between terminal persistence and inbox insertion still needs automatic outbox
-reconciliation; a terminal-only task is not yet guaranteed a notice after
-restart. That gap does not rerun workflow effects. Execution continuation also
-remains unsupported.
+Persisted pending inbox messages use existing resume behavior. The terminal-to-
+inbox crash window is reconciled at the resume boundary described below.
+Execution continuation remains unsupported.
+
+## Recovery reconciliation
+
+BeforeInboxResume runs after a controller has attached Session persistence and
+published its event subscription. The Workflow owner restores terminal tasks
+from the original journal, marks lost process owners interrupted without
+executing them, and stages completion notices in recorded terminal order. The
+staging API flushes each stable message identity but never starts a model. The
+normal ResumeDurableInbox driver schedules work only after staging finishes.
+The existing inbox deduplicates both pending and already consumed messages.
+
+The common current-turn interruption rule suppresses recovery for a controller
+whose last turn was aborted or failed. A later admitted turn advances that
+correlation; PreStep then reconciles missing notices. Live tasks from the same
+generation retain their original owner and are never mistaken for lost ones.
+Recovery has a five-second budget and never converts an unconfirmed terminal
+persistence failure from the live owner into a notification.
+
+A JSONL regression executes a real child Write and one approval, omits notice
+insertion at the real terminal boundary, and reloads the persisted file using
+fresh runtime and persistence objects. It observes the original completion
+without a new Node run, child model call or file effect. A second fresh reload
+produces no duplicate model request. This is fault injection at the crash
+boundary; the test does not claim it killed the original OS process.
+Additional disk fixtures cover interrupted-controller deferral, lost-owner
+interruption, and terminal-order staging without model startup.
+
+The headless API now omits absent turn correlation instead of writing turn:0,
+which Session resume correctly rejects. See the
+[JSONL incident](../../../docs/issues/2026-11-03-workflow-zero-turn-journal.md).
+Missing terminal data is still reported as interruption. Recovery cannot
+continue an in-flight JavaScript stack or revive a lost model process.

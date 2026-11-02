@@ -695,7 +695,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 
 ### 16.2 继续实现的出口
 
-完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的执行续跑与崩溃窗口通知补发；动态模板的精确呈现；后台子代理的驻留、cold-resume、turn/run 区分及命令完成通知/自动唤醒；LSP 连续异步 diagnostics 与动态能力注册；研究技能的真实模型/真实语料质量；外部依赖和实际服务连接。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。Trial 的最终产物复核、关闭失败和进程退出处理已完成独立回归，真实优化效果仍需另行验收。
+完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的执行续跑；动态模板的精确呈现；后台子代理的驻留、cold-resume、turn/run 区分及命令完成通知/自动唤醒；LSP 连续异步 diagnostics 与动态能力注册；研究技能的真实模型/真实语料质量；外部依赖和实际服务连接。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。Trial 的最终产物复核、关闭失败和进程退出处理已完成独立回归，真实优化效果仍需另行验收。
 
 任务归属也需区分目标契约：当前任务查询限定创建者，子代理退出时取消并等待其命令，这与 pinned DSH 的 owner 隔离及 disposal 语义相符。Claude 官方要求前台子代理结束时停止命令，但允许后台子代理在当前 turn 结束后继续持有后台命令，并接收完成通知；run 真正退出时才停止。现有 one-shot 子代理在结果返回后回收，尚未实现后一种驻留。不能把它写成所有子代理命令都应无限存活，或已经支持根会话接管所有子任务。当前 Claude 文档还注明 TaskOutput 自 v2.1.277 移除、改为 Read 输出文件；本批插件所用旧 TaskOutput 接口作为显式兼容接口保留。
 
@@ -825,6 +825,17 @@ Workflow 的 run_in_background:true 已接入同一个 Node/Claude 子代理执�
 
 运行测试从真实父 Prompt 启动后台流程，父轮先结束，子代理实际 Write（一次审批）后，主会话无需第二次用户输入或 TaskOutput 就开启后续轮，取得实际执行结果。验证两次父 turn、三次父模型调用、两次子模型调用、一次 notice 入账与稳定 ID 去重。另验证失败脚本通知携带真实错误、活跃父会话中断后无补发唤醒、持久化失败不越过 wake barrier。模型仍为本地 adapter seam，不冒充真实服务研究质量或新 ACP stdio 验收。[运行测试](../../harness/go/workflow/notifications_test.go)、[inbox 边界测试](../../harness/go/harness/background_notice_test.go)
 
-取消、退役、替代父实例、运行时关闭或不确定终态持久化不主动唤醒父会话。通知交付未确认时，在线 TaskOutput 的 notification_error 保留说明，真实任务状态不会被改写。已经持久化的 inbox 使用原有恢复通道；终态提交后、inbox 插入前崩溃的窗口尚缺自动 outbox 对账，不能把在线通知写成所有冷恢复通知已保证。工作流执行续跑仍未实现。
+取消、退役、替代父实例、运行时关闭或不确定终态持久化不主动唤醒父会话。通知交付未确认时，在线 TaskOutput 的 notification_error 保留说明，真实任务状态不会被改写。已经持久化的 inbox 使用原有恢复通道；该在线检查点的终态到 inbox 崩溃窗口当时尚缺对账；16.12 已补齐 journal/inbox 对账，仍不承诺恢复丢失的执行栈。工作流执行续跑仍未实现。
 
 本步骤验证：Go 全量 race/vet 通过，harness/workflow 边界回归通过；Workflow race 连续五次通过（含通知、取消和真实退役），最后 Bazel harness、workflow、完整 ACP CLI 三个目标通过。
+
+
+### 16.12 Workflow 通知恢复对账
+
+新增 BeforeInboxResume 边界，在控制器已 Attach 持久化、发布会话与事件订阅后才运行。Workflow 把所属日志中的终态当作 outbox，以稳定 task/message ID 与原 inbox 对账，按终态日志顺序先 staging、Flush，完成后由原 ResumeDurableInbox 启动消费。已入队或已经消费的身份都去重，不另造消息确认数据库。未结束且丢失所有者的 intent 只落 interrupted 与说明，不重跑 Node、子模型或文件操作。[恢复契约](../../harness/go/workflow/README.md#recovery-reconciliation)
+
+控制轮最后为 aborted/error 时不自动唤醒；后续有效轮次的 PreStep 会对账遗漏通知。仍在当前进程运行的任务保持原所有者，不误判 interrupted；在线未确认终态持久化也不伪造通知。恢复预算五秒。实际 JSONL 测试运行真实 child Write 与一次审批，在终态边界故障注入遗漏通知，丢弃原运行时后用全新 runtime/persistence 加载文件，验证仅补通知、没有第二次 workflow/start、没有子模型/文件副作用重放；第二次全新加载无模型重复调用。另有停止控制轮延迟、丢失所有者与 FIFO staging 测试。此处为边界故障注入，未伪称实际 SIGKILL 压测。[磁盘恢复测试](../../harness/go/workflow/recovery_test.go)
+
+磁盘验收同时修复了 headless 启动时 intent 写入 turn:0、导致新 Agent 无法恢复的问题：没有活动轮时省略该可选字段，保留 Session 对正数 turn 的原验证。[问题记录](../issues/2026-11-03-workflow-zero-turn-journal.md)。这些结果证明通知对账和不重放，不证明能恢复 JavaScript 执行栈或驻留后台 Agent；完整目标继续保留这些剩余项。
+
+本步骤通过 Go 全量 race/vet；最终 Workflow race 连续两次通过，Bazel harness、workflow、ACP、完整 CLI 四个测试目标通过。未调用付费模型。
