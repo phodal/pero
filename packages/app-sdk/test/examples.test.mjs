@@ -24,7 +24,7 @@ test('explicit retry keeps request identity; abort fences stale selection withou
 });
 test('snapshot digest, file digest, schema and payload ceiling are enforced',async()=>{
  const hash=value=>createHash('sha256').update(value).digest('hex');
- const doc={schema:'point.app.example.v1',id:'iris',files:[{name:'iris.csv',mediaType:'text/csv',content:'x\n1',sha256:hash('x\n1')}]};
+ const doc={schema:'pero.app.example.v1',id:'iris',files:[{name:'iris.csv',mediaType:'text/csv',content:'x\n1',sha256:hash('x\n1')}]};
  const read=value=>{const bytes=JSON.stringify(value);return readAppExample(new Response(bytes),{id:'iris',sha256:hash(bytes)},webcrypto);};
  assert.deepEqual(await read(doc),doc);
  await assert.rejects(read({...doc,schema:'other'}),/Invalid example/);

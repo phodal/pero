@@ -76,7 +76,7 @@ export async function readAppExample(response, entry, cryptoProvider = globalThi
   const hash = async value => [...new Uint8Array(await cryptoProvider.subtle.digest('SHA-256', value))].map(b => b.toString(16).padStart(2, '0')).join('');
   if (await hash(bytes) !== entry.sha256) throw new Error('Example digest differs');
   const document = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-  if (document.schema !== 'point.app.example.v1' || document.id !== entry.id || !Array.isArray(document.files) || !document.files.length || document.files.length > 16) throw new Error('Invalid example document');
+  if (document.schema !== 'pero.app.example.v1' || document.id !== entry.id || !Array.isArray(document.files) || !document.files.length || document.files.length > 16) throw new Error('Invalid example document');
   const object = value => value && typeof value === 'object' && !Array.isArray(value);
   if (document.parameters !== undefined && !object(document.parameters)) throw new Error('Invalid example parameters');
   if (document.source !== undefined) {

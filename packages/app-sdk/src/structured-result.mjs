@@ -1,5 +1,5 @@
 /*
- * point.structured-result v1 (contracts/structured-result-v1.json).
+ * pero.structured-result v1 (contracts/structured-result-v1.json).
  * Pure validation for bounded Table / Chart results. No DOM, no network.
  * Limits follow the shape used by OpenIntelligentUI's table catalog (MIT,
  * CopilotKit/OpenIntelligentUI apps/app/src/components/generative-ui/table-catalog.tsx);
