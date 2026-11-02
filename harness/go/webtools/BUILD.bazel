@@ -18,6 +18,8 @@ go_library(
 go_test(
     name = "webtools_test",
     srcs = [
+        "deepseek_test.go",
+        "tools_test.go",
         "web_test.go",
     ],
     embed = [":webtools"],
