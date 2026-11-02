@@ -13,7 +13,7 @@ export class AppWriteRoutes {
     const records=await this.request<AppRecord[]>('list');
     const routes: AppWriteDefinition[] = [];
     for (const record of records.filter(record => record.enabled)) {
-      routes.push(...(record.writes || []).map(route => ({ app: record.name, panel: record.panels[0].id, version: record.version, ...route })));
+      routes.push(...(record.writes || []).map(route => ({ app: record.name, panel: record.panels[0].id, version: record.version, revision: record.revision, ...route })));
     }
     return routes;
   }
