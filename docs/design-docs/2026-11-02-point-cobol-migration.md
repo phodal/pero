@@ -83,3 +83,28 @@ node --test scripts/build/app-bundle.test.mjs
 工具结果在对应 `*-tools.json`。报告包含源码版本、测试/Host/Harness/MCP 摘要、
 冻结的会话声明、依赖 revision、完整分析结果及实际保存记录。未使用外部网络的
 默认执行与真实模型执行分别记录；这些本地产物不提交仓库。
+
+## 后续：Point 侧第一阶段重构已实现
+
+Point 已将 MCP facade 中的源码检查移入 `cobol-engine/src/source-analysis.mjs`，
+原 COBOL 插件与独立 App 共用该实现。`packages/modernization/cobol-app` 提供
+SourceAnalysis、持久化回执、共享 HTTP shell、Point/Pero 鉴权入口和不依赖宿主 SDK
+的 React 领域视图。Pero SDK 只在 frame 适配器中出现。
+
+Point 的 `scripts/build-cobol-analysis-app.mjs` 现在导出真实 `cobol-analysis`
+App bundle；配套 `point-cobol-analysis` 插件仅暴露一个只读源码分析工具。
+原 22 工具插件、Point 现代化工作台和执行授权保持各自边界。
+
+Pero 验证脚本新增 `--bundle=/path/to/owner-built-app`，安装并运行真正的 App backend，
+先捕获不可变源码，再检查 Agent 批准后的实际领域回执。浏览器夹具通过真实 backend
+验证源码上传、分析、定位、关系表、回执、中文和亮暗主题，截图位于
+`test-results/point-cobol-app/browser`。这不是完整 Desktop 工作台或新一次人工审批点击验证。
+
+真实 `deepseek-flash` 允许路径保存 1 条领域回执；拒绝路径保存 0 条。一次独立运行的
+模型参数格式错误尚未定位，另见 [失败记录](../issues/2026-11-02-cobol-plugin-provider-malformed-tool-call.md)；
+后续成功运行不代表该问题已修复。浏览器环境还发出 MutationObserver 初始化错误；
+构建 App JS 中没有该 API，未将其归因为 App，亦不声明浏览器零控制台错误。
+
+Point 原插件相关回归 14 项、新领域/双鉴权持久化测试 2 项通过。完整 Prepared Method、
+BMS、Java/C# 编译对照和主机操作尚未迁移。本次交付是源码分析切片的正式 owner-built
+入口，不是完整 COBOL App 的跨宿主完成声明。
