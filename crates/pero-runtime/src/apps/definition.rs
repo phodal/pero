@@ -162,7 +162,7 @@ impl AppDefinition {
         if bytes.len() > 64 * 1024 {
             return Err("App manifest exceeds 64 KiB".into());
         }
-        let value: Self = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+        let mut value: Self = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
         if value.schema_version != 1 {
             return Err("Unsupported App schemaVersion; expected 1".into());
         }
@@ -276,6 +276,11 @@ mod tests {
             ("name", serde_json::json!("../escape"), false),
             ("name", serde_json::json!("-cell"), false),
             ("displayName", serde_json::json!(" "), false),
+            ("permissions", serde_json::json!({"api":["/api/data"],"events":["app:written"]}), true),
+            ("permissions", serde_json::json!({"api":["https://example.invalid/api"]}), false),
+            ("permissions", serde_json::json!({"api":["/api/../private"]}), false),
+            ("permissions", serde_json::json!({"api":["/api/data?token=x"]}), false),
+            ("permissions", serde_json::json!({"events":[""]}), false),
             ("permissions", serde_json::json!({"host":["shell"]}), false),
             ("permissions", serde_json::json!({"host":["agent"]}), true),
             ("permissions", serde_json::json!({"host":["insights"]}), true),
