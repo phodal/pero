@@ -16,6 +16,7 @@ from .pdf_files import PdfFiles
 from .paper_documents import PaperDocuments
 from .scientific_document import DocumentError
 from .library_files import LibraryFiles, locate_passage
+from .paper_reading import reading_command
 from .retrieval import SearchQuery
 from .local_pdf import LocalPdf, MAX_PDF_BYTES
 from .source_text import SourceText
@@ -268,6 +269,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     files_match = re.fullmatch(r'/api/papers/([a-f0-9]{64})/files', path)
                     if files_match:
                         return self.reply(200, LibraryFiles(store).command(store.paper(files_match[1]), data, now()))
+                    reading_match = re.fullmatch(r'/api/papers/([a-f0-9]{64})/reading', path)
+                    if reading_match:
+                        return self.reply(200, reading_command(store, store.paper(reading_match[1]), data, now()))
                     if path == "/api/papers":
                         paper = PaperSnapshot.from_reading(literature.read(data), now())
                         return self.reply(201, store.save_paper(paper).to_dict())

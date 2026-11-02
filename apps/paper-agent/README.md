@@ -358,6 +358,15 @@ The paper verdict remains `INCONCLUSIVE`; no new scientific run accompanies this
 
 ## Structured Read
 
+For a saved arXiv/alphaXiv search result, **Prepare formatted reading** reviews
+the current paper's fixed arXiv version without leaving the reader. **Download
+and format** grants that official HTML representation and prepares Read; the
+optional TeX checkbox acquires the same version's inert source archive. A failed
+review can refresh metadata, and failed HTML preparation can retry while PDF
+remains available. Official HTML supplies the layout; local TeX compilation is
+not provided. Unversioned search text remains immutable, and HTML never supplies
+page coordinates for the saved PDF.
+
 For an explicitly selected arXiv vN, review **Allow official HTML for Read**
 separately from PDF permission, then choose **Prepare Read** in the saved paper.
 Tables, equations and figure metadata retain source structure; **Reveal original**

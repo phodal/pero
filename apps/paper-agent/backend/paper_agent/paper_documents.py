@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 from .acquisition_worker import acquire_bounded
 from .arxiv_html import parse_arxiv_html
 from .model import ID, Invalid, canonical, digest
-from .research_resources import OfficialHtml, ResearchBundle
+from .research_resources import ArxivPaper, OfficialHtml, ResearchBundle
 from .resource_fetch import PublicMetadata
 from .scientific_document import DocumentError, PARSER, ScientificDocument
 
@@ -40,7 +40,14 @@ class PaperDocuments:
     def __init__(self, store, transport=None):
         self.store, self.transport = store, transport or PublicMetadata()
 
-    def _paper_for_resource(self, bundle_id, resource):
+    def _paper_for_resource(self, bundle_id, resource, paper_id=None):
+        if paper_id and resource.kind == 'paper':
+            paper = self.store.paper(paper_id)
+            try:
+                if ArxivPaper.from_snapshot(paper).accepts(OfficialHtml.from_resource(resource)):
+                    return paper.id
+            except Invalid:
+                pass
         if resource.paperId:
             return self.store.paper(resource.paperId).id
         # Imported PDFs are byte identities, not inferred arXiv identities. Only
@@ -64,7 +71,7 @@ class PaperDocuments:
             for resource in bundle.resources:
                 try:
                     source = OfficialHtml.from_resource(resource)
-                    if self._paper_for_resource(bundle.id, resource) != paper_id:
+                    if self._paper_for_resource(bundle.id, resource, paper_id) != paper_id:
                         continue
                 except Invalid:
                     continue
@@ -115,7 +122,7 @@ class PaperDocuments:
         approved = current.approved_html(resource.id)
         if (digest(current.to_dict()) != digest(bundle.to_dict())
                 or OfficialHtml.from_resource(approved).url != document.source.url
-                or self._paper_for_resource(bundle.id, approved) != document.paper_id):
+                or self._paper_for_resource(bundle.id, approved, document.paper_id) != document.paper_id):
             raise Invalid('HTML authorization changed during preparation; review the source again', 409)
         revision = digest(bundle.to_dict())
         identity = digest(dict(documentId=document.id, bundleRevision=revision, resourceId=resource.id))
@@ -152,7 +159,11 @@ class PaperDocuments:
                 bundleId=ResearchBundle.from_record(self.store._read('bundle-revisions', receipt['bundleRevision'])).id,
                 resourceId=receipt['resourceId'], scopes=self._scopes(identity)))
         revisions.sort(key=lambda item: (item['createdAt'], item['id']), reverse=True)
-        return dict(paperId=paper_id, revisions=revisions, sources=self.sources(paper_id))
+        try:
+            review_url = 'https://arxiv.org/abs/' + ArxivPaper.from_snapshot(self.store.paper(paper_id)).identifier
+        except Invalid:
+            review_url = None
+        return dict(paperId=paper_id, revisions=revisions, sources=self.sources(paper_id), reviewUrl=review_url)
 
     def prepare(self, value, now):
         if set(value) - {'operation', 'paperId', 'bundleId', 'resourceId', 'refresh'} or type(value.get('refresh', False)) is not bool:
@@ -160,7 +171,7 @@ class PaperDocuments:
         paper = self.store.paper(value.get('paperId'))
         bundle = self.store.imports.bundle(value.get('bundleId'))
         resource = bundle.approved_html(value.get('resourceId'))
-        if self._paper_for_resource(value['bundleId'], resource) != paper.id:
+        if self._paper_for_resource(value['bundleId'], resource, paper.id) != paper.id:
             raise Invalid('This approved HTML resource is not associated with the saved paper', 409)
         source = OfficialHtml.from_resource(resource)
         if not value.get('refresh', False):
