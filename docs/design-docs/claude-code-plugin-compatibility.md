@@ -4,7 +4,7 @@
 
 结论：应在现有 Go Harness 上增加 **Claude 插件格式与执行语义适配层**，复用现有会话、工具注册、审批、MCP、子代理和持久化。仅扫描 `skills/`、替换工具名或装配 DSH 的现有模块，都不足以完整运行这批插件。插件宿主、Claude 执行语义和插件自身问题需要分别处理。
 
-本方案覆盖当前仓库全部 **15 个插件目录**：14 个 marketplace 条目，加上未注册的 `new_code`。清点结果为 **102 个 SKILL.md、23 个 agents/*.md、6 个 commands/*.md**；其中 8 个 agent 文件缺少 frontmatter，因此 23 是文件数，不是有效注册数量。完整逐文件记录见 [配置清单](claude-code-plugin-inventory.json)，其中 frontmatter 为静态字段与原始 YAML 记录，不是 typed schema 验证结果。本次交付为源码分析与实施设计，尚未实现或认证运行兼容性。
+本方案覆盖当前仓库全部 **15 个插件目录**：14 个 marketplace 条目，加上未注册的 `new_code`。清点结果为 **102 个 SKILL.md、23 个 agents/*.md、6 个 commands/*.md**；其中 8 个 agent 文件缺少 frontmatter，因此 23 是文件数，不是有效注册数量。完整逐文件记录见 [配置清单](claude-code-plugin-inventory.json)，其中 frontmatter 为静态字段与原始 YAML 记录，不是 typed schema 验证结果。现已开始配置检查阶段，实现状态见第 15 节；运行兼容性仍按各阶段验收。
 
 ## 1 分析基线与项目准备
 
@@ -546,15 +546,15 @@ type HookDecision struct {
 
 建议能力报告逐项使用 `supported`、`policy-different`、`plugin-fix-required`、`dependency-missing`、`unsupported`，附 plugin、component、source location、reason、remedy。报告来源于同一已解析定义，避免另写一套文本扫描器重复解释配置。
 
-下列是**拟议接口**，当前 CLI 没有这些命令/flag：
+已实现前两项配置检查接口；`--profile` 和用于运行时启用插件的 `--plugin-dir` 仍为拟议功能：
 
 ```text
 pero-agent-acp plugins inspect /path/to/plugin-suite
-pero-agent-acp plugins validate --profile claude-plugins-v1
+pero-agent-acp plugins validate /path/to/plugin-suite
 pero-agent-acp --plugin-dir /path/to/product-manager
 ```
 
-第一步可先增加只读 inspect/validate；启用插件执行沿用既有 operator 显式装配，不能因目录被发现就启动 hook/MCP。
+inspect/validate 仅检查配置；启用插件执行沿用既有 operator 显式装配，不能因目录被发现就启动 hook/MCP。
 
 ## 11 分阶段实施顺序
 
@@ -597,7 +597,7 @@ P5 的依赖核查可与早期实现并行，但需要真实环境的验证不�
 
 先执行第 9 节每插件的本地代表任务，再做服务环境验收。Desktop 命令发现、问答、审批、后台状态、失败恢复至少完成 L1；真实模型、MCP、飞书、测试台分别记 L2；安装包支持另记 L3。既有 [质量门禁](../fitness/README.md) 的层级继续适用。
 
-完成 P0–P4 的必要检查包括对应 Go 包的 `go test`/`go test -race`、变更目标 `go vet`，以及实际 CLI/ACP 的首请求、审批拒绝、父取消、子进程退出、会话恢复。无实现改动的本分析不以跑一遍既有测试来宣称新功能通过。
+完成 P0–P4 的必要检查包括对应 Go 包的 `go test`/`go test -race`、变更目标 `go vet`，以及实际 CLI/ACP 的首请求、审批拒绝、父取消、子进程退出、会话恢复。第 15 节只记录配置检查器的已验收范围，不能以既有测试通过代替后续运行时功能的验收。
 
 ## 13 应先修复的插件问题
 
@@ -629,3 +629,22 @@ P5 的依赖核查可与早期实现并行，但需要真实环境的验证不�
 - 目标插件逐文件配置与源码相对位置见 [本地清单](claude-code-plugin-inventory.json)。
 - [DSH 固定源码](https://github.com/deepseek-ai/deepseek-harness/tree/ce7073d51254c26cd63b22a60835b8f948deb447)，关键入口是 `packages/experimental/hooks-claude-code`、`hook-protocol`、`packages/skill`、`packages/subagent`、`packages/workflow`、`packages/web`。
 - Pero 当前实现：[skills](../../harness/go/skills/README.md)、[subagents](../../harness/go/subagents/README.md)、[agentinstructions](../../harness/go/agentinstructions/README.md)、[native tools](../../harness/go/nativetools/README.md)、[MCP 与工具链路](../fitness/mcp-tools-resources.md)、[行为对照](../fitness/harness-behavior-parity.md)。
+
+## 15 配置检查阶段的实现状态
+
+2026-11-02：新增 `harness/go/plugins` 和实际 CLI 入口：
+
+```sh
+go -C harness/go run ./cmd/pero-agent-acp plugins inspect /absolute/path/to/plugin
+go -C harness/go run ./cmd/pero-agent-acp plugins validate /absolute/path/to/marketplace
+```
+
+已实现本地插件/marketplace 读取、typed frontmatter、组件 namespace、独立调用可见性、默认/显式路径规则、版本漂移、hook 格式与执行形式诊断，以及 MCP 配置归一和摘要脱敏。MCP 默认配置先读，显式定义后读，同名 server 由后者覆盖；路径与 inline 混合数组按顺序处理。
+
+报告固定 `inspectionOnly:true`。inspect 会保留错误诊断并返回报告；validate 在存在 error 时返回非零。两者都不需要模型凭据，不启动 hook/MCP，也不进入 ACP 会话。metadata 类型错误、缺失 agent 元数据、错误路径和未知能力有明确诊断。插件安装名与 manifest 名分别保存；不将二者不同判为非法。
+
+当前不实现远程获取、marketplace entry 组件合并、运行时插件挂载、子代理配置、hook 执行、MCP 自动连接或 Workflow。entry 上出现尚未处理的组件声明时给出明确错误，不静默忽略。下一阶段继续扩展现有 skills catalog、参数展开和只读资源能力，再接运行时。
+
+详细使用与输出边界见 [配置检查说明](../../harness/go/plugins/README.md)。验证使用临时配置、真实 CLI 分派、未执行 sentinel 和既有 ACP 测试，不把格式检查通过表示成插件工作流已经可运行。
+
+本阶段验证通过 `go test -race ./...`、`go vet ./...`、相关 Bazel 测试及 Gazelle 一致性检查。实际检查了全部 15 个插件，识别 102 个 skill、6 个 command 和 22 个 agent 定义文件；另 1 个 agent 因 manifest 指向非法目录而没有加载，诊断已明确指出。检查器也复现了 9 处缺失 agent name、8 处缺失 agent description、3 处 hook argv 形态错误、6 处版本漂移和 4 处 MCP timeout 单位问题。validate 对这些配置返回非零是预期结果。

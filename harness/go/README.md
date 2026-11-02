@@ -17,7 +17,10 @@ go build -o pero-agent-acp ./cmd/pero-agent-acp
 Live provider use requires separate configuration and authorization. No endpoint,
 model or credential is discovered from Point settings or accounts. Provider
 endpoints must be HTTPS (loopback HTTP is permitted for local protocol tests).
-Stdout is ACP NDJSON only; diagnostics use stderr. Do not publish raw sessions.
+In the default agent mode stdout is ACP NDJSON only; diagnostics use stderr.
+The separate `plugins inspect` / `plugins validate` commands emit a JSON
+configuration report without provider credentials. See
+[plugin inspection](plugins/README.md). Do not publish raw sessions.
 
 An [isolated Bazel build](BAZEL.md) is available from `harness/go`. Its build
 graph is separate from the root server pilot; the server Go version and
