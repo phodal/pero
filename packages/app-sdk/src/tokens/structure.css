@@ -22,7 +22,7 @@
   --pero-space-10: 20px;
   --pero-space-12: 24px;
   --pero-font-size-2xs: 10px;
-  --pero-font-size-xs: 11px;
+  --pero-font-size-xs: 12px;
   --pero-font-size-xs-plus: 11.5px;
   --pero-font-size-sm: 12px;
   --pero-font-size-sm-plus: 12.5px;
@@ -224,7 +224,7 @@ body[data-style="pero-default"],
   --pero-space-10: 20px;
   --pero-space-12: 24px;
   --pero-font-size-2xs: 10px;
-  --pero-font-size-xs: 11px;
+  --pero-font-size-xs: 12px;
   --pero-font-size-xs-plus: 11.5px;
   --pero-font-size-sm: 12px;
   --pero-font-size-sm-plus: 12.5px;

@@ -27,14 +27,14 @@ import { dashArray, appChartTheme, seriesStyle } from "./palette.mjs";
 export { uPlot };
 
 const STYLE_ELEMENT_ID = "pero-app-chart-styles";
-const FONT = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+const FONT = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
 const LANE_CSS = `
 [data-pero-lanes]{--pero-lane-text:var(--pero-text,#24354b);--pero-lane-muted:var(--pero-text-secondary,#5f6e80);--pero-lane-accent:var(--pero-chart-1,#24354b);--pero-lane-select:var(--pero-domain-app-sdk-pero-lane-select, rgba(88,211,192,.12));color:var(--pero-lane-text);font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
 [data-pero-lanes] .pero-lane{margin-bottom:var(--pero-space-3, 6px)}
 [data-pero-lanes] .pero-lane__head{display:flex;gap:var(--pero-space-5, 10px);align-items:baseline;flex-wrap:wrap;min-height:18px}
 [data-pero-lanes] .pero-lane__title{font-weight:var(--pero-font-weight-semibold, 600)}
 [data-pero-lanes] .pero-lane[data-primary=true] .pero-lane__title{color:var(--pero-lane-accent)}
-[data-pero-lanes] .pero-lane__readout{margin-left:auto;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--pero-lane-muted);font-variant-numeric:tabular-nums}
+[data-pero-lanes] .pero-lane__readout{margin-left:auto;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--pero-lane-muted);font-variant-numeric:tabular-nums}
 [data-pero-lanes] .pero-lane__note{font-size:var(--pero-font-size-xs, 11px);color:var(--pero-lane-muted)}
 [data-pero-lanes] .pero-lane[data-error=true] .pero-lane__note{color:var(--pero-danger,#a62f41)}
 [data-pero-lanes] .uplot{font-family:inherit}
