@@ -1,0 +1,26 @@
+{
+  "implementation": "Original Go implementation of documented API contracts; no TypeScript source is copied.",
+  "reference_repository": "deepseek-ai/deepseek-harness",
+  "reference_commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+  "reference_paths": [
+    "packages/web/tool-web/src/search.ts",
+    "packages/web/tool-web/src/fetch.ts",
+    "packages/web/web-deepseek-api/src/search.ts",
+    "packages/web/web-deepseek-api/src/fetch.ts",
+    "packages/web/web-deepseek-api/src/transport.ts"
+  ],
+  "reference_license": "MIT; DEEPSEEK_LICENSE.txt retains the upstream notice",
+  "protocol_references": [
+    "https://api-docs.deepseek.com/guides/search/",
+    "https://api-docs.deepseek.com/api/search/",
+    "https://api-docs.deepseek.com/api/fetch/",
+    "https://code.claude.com/docs/en/tools-reference",
+    "https://code.claude.com/docs/en/agent-sdk/typescript"
+  ],
+  "differences": [
+    "Claude tool names and query/domain filters replace the DSH multi-query model schema.",
+    "Provider Markdown is processed by an existing tool-free child activation to honor the Claude WebFetch extraction prompt.",
+    "Explicit shared HTTP-attempt budget, no provider retries or redirects, sanitized errors, and bounded Unicode excerpts.",
+    "No fetch cache, provider-independent redirect handoff or Anthropic hosted search backend."
+  ]
+}
