@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "workflow",
     srcs = [
+        "background.go",
         "catalog.go",
         "process_unix.go",
         "process_unsupported.go",

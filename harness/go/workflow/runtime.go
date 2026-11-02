@@ -100,12 +100,23 @@ func (app *App) Execute(ctx context.Context, parent *harness.Agent, call Call) (
 		return Result{}, errors.New("workflow: a calling agent is required")
 	}
 	if call.RunInBackground {
-		return Result{}, errors.New("workflow: run_in_background is not implemented; use synchronous execution")
+		return Result{}, errors.New("workflow: background execution requires StartBackground with a tool call identity")
 	}
+	return app.execute(ctx, parent, call, rand.Text())
+}
+
+func (app *App) validate(ctx context.Context, call Call) error {
 	if len(call.Args) > 1<<20 || len(call.Args) != 0 && !json.Valid(call.Args) {
-		return Result{}, errors.New("workflow: args must be bounded JSON")
+		return errors.New("workflow: args must be bounded JSON")
 	}
 	if _, _, err := app.catalog.read(ctx, call.ScriptPath); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (app *App) execute(ctx context.Context, parent *harness.Agent, call Call, runID string) (Result, error) {
+	if err := app.validate(ctx, call); err != nil {
 		return Result{}, err
 	}
 	app.mu.Lock()
@@ -119,7 +130,7 @@ func (app *App) Execute(ctx context.Context, parent *harness.Agent, call Call) (
 	operation, cancel := context.WithCancel(ctx)
 	stop := context.AfterFunc(app.owner, cancel)
 	defer func() { stop(); cancel() }()
-	run := &execution{app: app, parent: parent, ctx: operation, runID: rand.Text(), slots: make(chan struct{}, app.options.MaxConcurrentAgents), loaded: make(map[string]selectedScript)}
+	run := &execution{app: app, parent: parent, ctx: operation, runID: runID, slots: make(chan struct{}, app.options.MaxConcurrentAgents), loaded: make(map[string]selectedScript)}
 	if err := run.record("start", progress{ScriptPath: call.ScriptPath}); err != nil {
 		return Result{}, err
 	}

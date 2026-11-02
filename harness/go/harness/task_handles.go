@@ -10,8 +10,9 @@ import (
 type TaskKind string
 
 const (
-	TaskKindAgent TaskKind = "agent"
-	TaskKindShell TaskKind = "shell"
+	TaskKindAgent    TaskKind = "agent"
+	TaskKindShell    TaskKind = "shell"
+	TaskKindWorkflow TaskKind = "workflow"
 )
 
 type TaskRetrieval string
@@ -46,7 +47,7 @@ func lookupTaskHandle(ctx context.Context, request ToolRequest, id string, looku
 	if !found {
 		return TaskHandle{}, errors.New("tasks: task is unavailable to this exact parent")
 	}
-	if task.ID != id || task.Done == nil || task.Snapshot == nil || task.Stop == nil || task.Kind != TaskKindAgent && task.Kind != TaskKindShell {
+	if task.ID != id || task.Done == nil || task.Snapshot == nil || task.Stop == nil || task.Kind != TaskKindAgent && task.Kind != TaskKindShell && task.Kind != TaskKindWorkflow {
 		return TaskHandle{}, errors.New("tasks: provider returned an invalid task handle")
 	}
 	return task, nil
@@ -55,7 +56,7 @@ func lookupTaskHandle(ctx context.Context, request ToolRequest, id string, looku
 // TaskOutputTool shares dispatch across task providers without owning their
 // lifecycle. A read timeout never cancels a background task.
 func TaskOutputTool(lookup TaskLookup) Tool {
-	return Tool{Schema: ToolSchema{Name: "TaskOutput", Description: "Read a running or completed agent or shell task owned by this exact parent. block defaults to true; timeout is milliseconds, default 30000, maximum 600000. A read timeout leaves the task running.", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"task_id":{"type":"string","minLength":1},"block":{"type":"boolean"},"timeout":{"type":"integer","minimum":0,"maximum":600000}},"required":["task_id"]}`)}, Timeout: 605 * time.Second, IsConcurrencySafe: func(context.Context, ToolRequest) bool { return true }, ExecuteRequest: func(ctx context.Context, request ToolRequest) (ToolResult, error) {
+	return Tool{Schema: ToolSchema{Name: "TaskOutput", Description: "Read a running or completed agent, shell or workflow task owned by this exact parent. block defaults to true; timeout is milliseconds, default 30000, maximum 600000. A read timeout leaves the task running.", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"task_id":{"type":"string","minLength":1},"block":{"type":"boolean"},"timeout":{"type":"integer","minimum":0,"maximum":600000}},"required":["task_id"]}`)}, Timeout: 605 * time.Second, IsConcurrencySafe: func(context.Context, ToolRequest) bool { return true }, ExecuteRequest: func(ctx context.Context, request ToolRequest) (ToolResult, error) {
 		var input struct {
 			ID      string `json:"task_id"`
 			Block   *bool  `json:"block"`
@@ -94,7 +95,7 @@ func TaskOutputTool(lookup TaskLookup) Tool {
 }
 
 func TaskStopTool(lookup TaskLookup) Tool {
-	return Tool{Schema: ToolSchema{Name: "TaskStop", Description: "Cancel an agent or shell task owned by this exact parent and join its cleanup. Completed tasks retain their terminal result.", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"task_id":{"type":"string","minLength":1}},"required":["task_id"]}`)}, IsConcurrencySafe: func(context.Context, ToolRequest) bool { return true }, ExecuteRequest: func(ctx context.Context, request ToolRequest) (ToolResult, error) {
+	return Tool{Schema: ToolSchema{Name: "TaskStop", Description: "Cancel an agent, shell or workflow task owned by this exact parent and join its cleanup. Completed tasks retain their terminal result.", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"task_id":{"type":"string","minLength":1}},"required":["task_id"]}`)}, IsConcurrencySafe: func(context.Context, ToolRequest) bool { return true }, ExecuteRequest: func(ctx context.Context, request ToolRequest) (ToolResult, error) {
 		var input struct {
 			ID string `json:"task_id"`
 		}

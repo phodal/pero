@@ -61,14 +61,16 @@ type Result struct {
 }
 
 type App struct {
-	h        *harness.Harness
-	options  Options
-	catalog  *scriptCatalog
-	instance *point.Instance
-	owner    context.Context
-	mu       sync.Mutex
-	closed   bool
-	calls    sync.WaitGroup
+	h          *harness.Harness
+	options    Options
+	catalog    *scriptCatalog
+	instance   *point.Instance
+	owner      context.Context
+	mu         sync.Mutex
+	closed     bool
+	calls      sync.WaitGroup
+	background map[string]*backgroundTask
+	fenced     map[*harness.Agent]bool
 }
 
 // Mount registers Workflow through the normal ToolRegistry. The caller closes
@@ -103,15 +105,21 @@ func Mount(ctx context.Context, h *harness.Harness, packages []plugins.Package, 
 			_ = catalog.close()
 		}
 	}()
-	definition := point.Define(point.Descriptor{ID: "harness/selected-workflows", Requires: []point.Requirement{point.Require(harness.ToolRegistryKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
+	definition := point.Define(point.Descriptor{ID: "harness/selected-workflows", Requires: []point.Requirement{point.Require(harness.ToolRegistryKey), point.Require(harness.AgentHooksKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
 		app.owner = run.Context
+		if err := app.registerBackground(run); err != nil {
+			return nil, err
+		}
 		if err := run.BeforeCleanup("workflow/drain", app.drain); err != nil {
 			return nil, err
 		}
-		_, _, err := h.Tools().RegisterWithIdentity(run, harness.Tool{Schema: harness.ToolSchema{Name: "Workflow", Description: "Run an original JavaScript workflow from an explicitly selected plugin workflows directory. Pass its absolute scriptPath and JSON args (or a JSON string when the script expects one). Its export const meta is authoritative. agent(prompt,{label,phase,model,schema}) delegates through the existing agent service; parallel and pipeline preserve input order. phase/log record progress. The concurrency and total call limits count script agent() calls across this run and nested workflow({scriptPath},args) calls; descendant delegation uses existing agent and provider policies. completed means the script returned; unfinished member agents are cancelled, recorded and joined before the tool returns. Runs are synchronous; run_in_background=true is not implemented. Scripts are trusted package code: the Node VM is not an OS sandbox.", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"required":["scriptPath"],"properties":{"scriptPath":{"type":"string","minLength":1},"meta":{"type":"object","additionalProperties":false,"required":["name","description"],"properties":{"name":{"type":"string"},"description":{"type":"string"},"whenToUse":{"type":"string"},"phases":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["title"],"properties":{"title":{"type":"string"},"detail":{"type":"string"},"provider":{"type":"string"},"model":{"type":"string"}}}}}},"args":{},"run_in_background":{"type":"boolean"}}}`)}, ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
+		_, _, err := h.Tools().RegisterWithIdentity(run, harness.Tool{Schema: harness.ToolSchema{Name: "Workflow", Description: "Run an original JavaScript workflow from an explicitly selected plugin workflows directory. Pass its absolute scriptPath and JSON args (or a JSON string when the script expects one). Its export const meta is authoritative. agent(prompt,{label,phase,model,schema}) delegates through the existing agent service; parallel and pipeline preserve input order. phase/log record progress. The concurrency and total call limits count script agent() calls across this run and nested workflow({scriptPath},args) calls; descendant delegation uses existing agent and provider policies. completed means the script returned; unfinished member agents are cancelled, recorded and joined before execution settles. run_in_background=true returns a durable task_id immediately; TaskOutput/TaskStop query or cancel and join this exact parent's workflow. Parent interruption or retirement cancels accepted work. Lost process ownership becomes interrupted after restart, never replayed. Scripts are trusted package code: the Node VM is not an OS sandbox.", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"required":["scriptPath"],"properties":{"scriptPath":{"type":"string","minLength":1},"meta":{"type":"object","additionalProperties":false,"required":["name","description"],"properties":{"name":{"type":"string"},"description":{"type":"string"},"whenToUse":{"type":"string"},"phases":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["title"],"properties":{"title":{"type":"string"},"detail":{"type":"string"},"provider":{"type":"string"},"model":{"type":"string"}}}}}},"args":{},"run_in_background":{"type":"boolean"}}}`)}, ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
 			var call Call
 			if err := decodeWire(request.Arguments, &call); err != nil {
 				return harness.ToolResult{}, err
+			}
+			if call.RunInBackground {
+				return app.StartBackground(ctx, request, call)
 			}
 			result, err := app.Execute(ctx, request.Agent, call)
 			if err != nil {
@@ -139,6 +147,9 @@ func (app *App) drain(ctx context.Context) error {
 	app.mu.Lock()
 	app.closed = true
 	app.mu.Unlock()
+	if err := app.stopBackground(ctx, nil, false); err != nil {
+		return err
+	}
 	done := make(chan struct{})
 	go func() { app.calls.Wait(); close(done) }()
 	select {

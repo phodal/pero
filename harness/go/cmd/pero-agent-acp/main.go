@@ -239,7 +239,12 @@ func run() (resultErr error) {
 		if _, err := tasks.Mount(ctx, h); err != nil {
 			return err
 		}
-		pluginAgents, err = subagents.MountClaude(ctx, h, agentDefinitions, subagents.ClaudeOptions{TaskLookup: native.LookupTask, InvocationOrigin: skills.ActivePlugin, ModelRoutes: pluginConfig.Models, MaxDepth: 4, MaxActive: delegation.MaxActive, Persistence: persistence, Compaction: compactionConfig, LegacyTaskAlias: profile != nil, BackgroundNotifications: profile != nil})
+		pluginAgents, err = subagents.MountClaude(ctx, h, agentDefinitions, subagents.ClaudeOptions{TaskLookup: func(ctx context.Context, parent *harness.Agent, id string) (harness.TaskHandle, bool, error) {
+			if task, found, err := native.LookupTask(ctx, parent, id); found || err != nil {
+				return task, found, err
+			}
+			return pluginWorkflows.LookupTask(ctx, parent, id)
+		}, InvocationOrigin: skills.ActivePlugin, ModelRoutes: pluginConfig.Models, MaxDepth: 4, MaxActive: delegation.MaxActive, Persistence: persistence, Compaction: compactionConfig, LegacyTaskAlias: profile != nil, BackgroundNotifications: profile != nil})
 		if err != nil {
 			return err
 		}
