@@ -15,3 +15,16 @@ d95f9118e291819a99fa62595a73c375f7bb64cf (Apache-2.0). Pure App SDK source is
 ported into Pero with its own theme namespace and Host composition. This does
 not include Point's runtime. Radix, React Aria, TanStack Table and Lucide remain
 pinned npm dependencies under their respective licenses.
+
+# Third-party notice
+
+This package adapts portions of the public API design and protocol behavior from:
+
+- KiroCrew, `website/src/app-sdk`
+- https://github.com/kirodotdev/KiroCrew
+- source revision `65b08d3f963cb5b81b5ea7c06047e4dca763c602`
+- licensed under the Apache License, Version 2.0
+
+The upstream checkout, its build cache and its runtime dependencies are not
+vendored or distributed by Point. The accompanying license text is in
+`LICENSE-KIROCREW`.
