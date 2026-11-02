@@ -2,6 +2,7 @@ package subagents
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -17,6 +18,7 @@ import (
 // provider's workspace, route, budget, depth or inherited approval checks.
 type ClaudeInvocation struct {
 	Definition, Prompt, Description, Model, Origin string
+	OutputSchema                                   json.RawMessage
 	ConfigureChild                                 func(context.Context, *point.Run, *harness.Agent) error
 }
 
@@ -75,7 +77,7 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 	if strings.TrimSpace(input.Description) == "" {
 		input.Description = definition.Description
 	}
-	child := harness.SubagentRequest{Parent: parent, Prompt: input.Prompt, Label: input.Description, Persona: definition.Instructions, MaxDepth: s.maxDepth}
+	child := harness.SubagentRequest{Parent: parent, Prompt: input.Prompt, Label: input.Description, Persona: definition.Instructions, MaxDepth: s.maxDepth, OutputSchema: input.OutputSchema}
 	if definition.Tools != nil {
 		child.ToolFilter = &harness.ToolRestriction{Allow: append([]string{}, definition.Tools...)}
 	}
