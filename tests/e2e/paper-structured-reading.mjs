@@ -1,3 +1,4 @@
+import { installPaperFetchObserver } from './paper-fetch-observer.mjs';
 import { paperDocumentBackendFixture } from './paper-backend-fixture.mjs';
 // Offline authored corpus through actual Desktop/Host/approved Paper APIs/PDFium.
 // No mocked API responses, remote provider or scientific acceptance claim.
@@ -34,7 +35,10 @@ const checks = [], errors = [], remoteRequests = [];
 let app, page, frame;
 const launch = () => electron.launch({ args: [resolve(root, 'desktop')], cwd: root, env });
 async function ready() {
-  page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message));
+  page = await app.firstWindow();
+  await page.addInitScript(installPaperFetchObserver);
+  await expect(page.locator('iframe[title="paper-agent"]')).toHaveCount(0);
+  page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (/^https:\/\//.test(request.url())) remoteRequests.push(request.url()); });
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await expect.poll(() => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(app => app.name === 'paper-agent') ?? false)).toBe(true);
@@ -279,10 +283,10 @@ try {
   // Hold only the real refreshed overview after B preparation. The old overview
   // still contains A; no original read may silently fall back to that scope.
   await frame.locator('body').evaluate(() => {
-    const original = window.fetch; let release;
+    const original = window.paperNativeFetch; let release;
     const held = new Promise(resolve => { release = resolve; });
-    window.paperScopeOverviewGate = { arrived: false, error: '', release, restore() { window.fetch = original; release(); } };
-    window.fetch = async (...args) => {
+    window.paperScopeOverviewGate = { arrived: false, error: '', release, restore() { delete window.paperFetchObserver; release(); } };
+    window.paperFetchObserver = async (...args) => {
       const response = await original.apply(window, args);
       if (new URL(typeof args[0] === 'string' ? args[0] : args[0].url, location.href).pathname === '/api/paper-documents') {
         if (!response.ok) window.paperScopeOverviewGate.error = `Overview failed: ${response.status}`;

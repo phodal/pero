@@ -1,3 +1,4 @@
+import { installPaperFetchObserver } from '../../tests/e2e/paper-fetch-observer.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { savePaperClipboard, backToLibrary, saveLibraryCopies } from '../../tests/e2e/paper-pdf-flow.mjs';
@@ -91,6 +92,7 @@ test('App fetch gate holds the real locate response, forwards requests and resto
   const other = new Response('library');
   const original = async (...args) => { calls.push(args); return args[0] === '/api/pdf/locate' ? response : other; };
   globalThis.window = { fetch: original, location: { href: 'pero-app://paper-agent/dist/index.html' } };
+  installPaperFetchObserver();
   try {
     deferPdfLocate();
     const options = { method: 'POST', body: '{"page":2}', headers: { 'X-Pero-App-Token': 'fixture' } };
@@ -105,7 +107,8 @@ test('App fetch gate holds the real locate response, forwards requests and resto
     assert.equal(window.paperLocateGate.delivered, true);
     assert.deepEqual(await response.json(), { id: 'real-anchor', rects: [{ x: 0.1 }] });
     window.paperLocateGate.restore();
-    assert.equal(window.fetch, original);
+    assert.equal(window.paperFetchObserver, undefined);
+    assert.equal(window.paperNativeFetch, original);
   } finally { if (previous === undefined) delete globalThis.window; else globalThis.window = previous; }
 });
 
@@ -113,6 +116,7 @@ test('App fetch gate exposes backend failures instead of waiting indefinitely', 
   const previous = globalThis.window;
   for (const original of [async () => new Response('unavailable', { status: 409 }), async () => { throw Error('transport failed'); }]) {
     globalThis.window = { fetch: original, location: { href: 'pero-app://paper-agent/dist/index.html' } };
+    installPaperFetchObserver();
     try {
       deferPdfLocate();
       const failure = assert.rejects(window.fetch('/api/pdf/locate'), /409|transport failed/);
@@ -121,7 +125,8 @@ test('App fetch gate exposes backend failures instead of waiting indefinitely', 
       assert.equal(window.paperLocateGate.arrived, false);
       await failure;
       window.paperLocateGate.restore();
-      assert.equal(window.fetch, original);
+      assert.equal(window.paperFetchObserver, undefined);
+      assert.equal(window.paperNativeFetch, original);
     } finally { if (previous === undefined) delete globalThis.window; else globalThis.window = previous; }
   }
 });
