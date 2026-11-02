@@ -31,3 +31,15 @@ impl Permissions {
 impl AppStore {
     pub fn require_api(&self,name:&AppName,path:&str)->Result<(),String> { self.sdk_context(name)?.permissions.require_api(path) }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn declared_api_prefix() {
+        let permissions=Permissions{api:vec!["/api/data".into()],events:vec![],host:vec![]};
+        for (path,allowed) in [("/api/data",true),("/api/data/item",true),("/api/data-other",false),("/api/private",false),("https://example.invalid/api/data",false)] {
+            assert_eq!(permissions.require_api(path).is_ok(),allowed,"{path}");
+        }
+    }
+}
