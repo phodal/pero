@@ -37,6 +37,32 @@ These are source/protocol and loopback acceptance. Real-provider behavior,
 packaged Desktop distribution, Windows/Linux and remote Worker App sessions
 have not been accepted by these checks. No UI surface was added.
 
+## Real built-in Harness integration
+
+`tests/runtime/app-plugin-harness.mjs` runs the production Go `pero-agent-acp`,
+Rust Host, shared `DesktopAppUse`/`AppWriteRoutes`, an installed Node App backend
+and an installed dependency's HTTP MCP connection. A scripted loopback model
+provider drives actual Harness tool calls; no real credential or paid inference
+is used. The test checks that App instructions and the dependency Skill reach
+the provider, a hidden route is refused, one declared write reaches the backend,
+a second generic write shares the alias's exhausted budget, and the dependency
+MCP returns its observed citation. Ordinary-session isolation and dependency
+disable/failed remount are also checked.
+
+```sh
+npm run build:harness
+npm run build:host
+node tests/runtime/app-plugin-harness.mjs
+```
+
+Observed on 2026-11-02/macOS arm64: passed, six provider requests, one backend
+write and one dependency MCP call. The report at
+`test-results/app-plugin-harness/result.json` includes source/test/binary hashes.
+The ACP session defaults to `auto-review`: zero permission requests were observed
+despite `--approval ask`. This test does not certify manual approval behavior,
+real-model decision quality, or packaged UI acceptance. It exercises the shared
+headless shell adapter and real Harness execution.
+
 Observed results: Host/runtime/worker Rust suites passed 152 cases; App Use/SDK
 passed 30 cases. An exported committed source snapshot including code through `5e54df15` passed
 `npm run check`, the 30 App Use/SDK cases and the plugin Host/ACP wiring test
