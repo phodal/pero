@@ -1,4 +1,4 @@
-import { exerciseImageOnly, reopenImageOnly } from './paper-image-only-flow.mjs';
+import { exerciseImageOnly, reopenImageOnly, isImageOnlyStudyRejectionConsole } from './paper-image-only-flow.mjs';
 import { paperBackendFixture } from './paper-backend-fixture.mjs';
 import { chatState, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
 import { clickAppShortcut } from './sidebar-controls.mjs';
@@ -61,7 +61,8 @@ const observe = page => {
   page.on('console', message => {
     if (message.type() !== 'error') return;
     const url = message.location().url;
-    if ((/\b(?:400|403|503)\b/.test(message.text()) && /\/(?:api\/(?:reports|discover|pdf|library\/search)|host\/agent)$/.test(url)) ||
+    if (isImageOnlyStudyRejectionConsole(url, message.text())) expectedConsole.push({ kind: 'image-only-study-rejection', url, text: message.text() });
+    else if ((/\b(?:400|403|503)\b/.test(message.text()) && /\/(?:api\/(?:reports|discover|pdf|library\/search)|host\/agent)$/.test(url)) ||
         (/\b502\b/.test(message.text()) && /\/api\/paper-thumbnails\/2603\.28053\.png$/.test(url))) expectedConsole.push({ url, text: message.text() });
     else errors.push({ url, text: message.text() });
   });
@@ -341,6 +342,7 @@ try {
   checks.push('real Host Agent grant boundary remains enforced');
   await expect.poll(() => Object.keys(payloads).length).toBe(2);
   for (const extension of ['js', 'css']) expect(payloads[extension]).toBe(createHash('sha256').update(await readFile(resolve(root, `apps/paper-agent/dist/index.${extension}`))).digest('hex'));
+  expect(expectedConsole.filter(item => item.kind === 'image-only-study-rejection')).toHaveLength(1);
   expect(errors).toEqual([]);
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ fixtureOnly: !pdfFixture.realPdf, realPdf: pdfFixture.realPdf, realModel: false, payloads, checks, errors, expectedConsole }, null, 2));
   console.log(JSON.stringify({ fixtureOnly: !pdfFixture.realPdf, realPdf: pdfFixture.realPdf, realModel: false, payloads, checks, errors, expectedConsole }));

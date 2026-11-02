@@ -2,6 +2,21 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { savePaperClipboard, backToLibrary, saveLibraryCopies } from '../../tests/e2e/paper-pdf-flow.mjs';
 
+import { imageOnlyStudyRejectionUrl, isImageOnlyStudyRejectionConsole } from '../../tests/e2e/paper-image-only-flow.mjs';
+
+test('only the explicitly marked image-only Study HTTP 400 is expected console output', () => {
+  const text = 'Failed to load resource: the server responded with a status of 400 (Bad Request)';
+  assert.equal(isImageOnlyStudyRejectionConsole(imageOnlyStudyRejectionUrl, text), true);
+  for (const url of ['pero-app://paper-agent/api/studies', imageOnlyStudyRejectionUrl + '&other=1',
+    imageOnlyStudyRejectionUrl.replace('image-only-study-rejection', 'another-study'),
+    imageOnlyStudyRejectionUrl.replace('paper-agent', 'another-app')]) {
+    assert.equal(isImageOnlyStudyRejectionConsole(url, text), false, url);
+  }
+  for (const other of [text.replace('400', '403'), text.replace('400', '500'), 'Unexpected Study error 400']) {
+    assert.equal(isImageOnlyStudyRejectionConsole(imageOnlyStudyRejectionUrl, other), false, other);
+  }
+});
+
 test('Library Save targets the exact title instead of a substring-related paper', async () => {
   const title = 'image-only', exactTitle = {}, stop = new Error('selected exact row');
   const frame = {

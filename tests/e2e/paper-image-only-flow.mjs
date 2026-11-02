@@ -6,6 +6,10 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { backToLibrary, saveLibraryCopies } from './paper-pdf-flow.mjs';
 
+export const imageOnlyStudyRejectionUrl = 'pero-app://paper-agent/api/studies?fixture=image-only-study-rejection';
+export const isImageOnlyStudyRejectionConsole = (url, text) => url === imageOnlyStudyRejectionUrl &&
+  /^Failed to load resource: the server responded with a status of 400(?: \([^)]*\))?$/.test(text);
+
 async function api(frame, path, body) {
   return frame.locator('body').evaluate(async (_element, { path, body }) => {
     const response = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -47,11 +51,11 @@ export async function exerciseImageOnly({ frame, page, profile, out }) {
   expect(copies).toEqual(bytes);
   // This is a real negative App API call, not an Agent/model request. The
   // metadata abstract cannot be substituted for the empty extracted PDF pages.
-  const denied = await frame.locator('body').evaluate(async (_element, id) => {
-    const response = await fetch('/api/studies', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+  const denied = await frame.locator('body').evaluate(async (_element, { id, url }) => {
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requestId: 'image-only-desktop', question: 'Read full text', paperIds: [id], fullText: true }) });
     return { status: response.status, body: await response.json() };
-  }, paper.id);
+  }, { id: paper.id, url: imageOnlyStudyRejectionUrl });
   expect(denied.status).toBe(400); expect(denied.body.detail).toContain('no selectable text');
   expect((await status(frame, saved)).readPages).toEqual([]);
   await page.screenshot({ path: resolve(out, 'image-only-receipt.png') });
