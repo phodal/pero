@@ -159,8 +159,26 @@ func (w *Workspace) Read(ctx context.Context, name string) (ScopedText, error) {
 }
 
 func (w *Workspace) Write(ctx context.Context, name, text string) (ScopedTextReceipt, error) {
+	return w.write(ctx, name, text, false)
+}
+
+// WriteCreatingParents is the Claude Write contract. Directory creation is part
+// of the already-approved file write and remains under the same workspace root.
+func (w *Workspace) WriteCreatingParents(ctx context.Context, name, text string) (ScopedTextReceipt, error) {
+	return w.write(ctx, name, text, true)
+}
+
+func (w *Workspace) write(ctx context.Context, name, text string, createParents bool) (ScopedTextReceipt, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if createParents {
+		if len(text) > MaxFileBytes || !validText([]byte(text)) {
+			return ScopedTextReceipt{}, errors.New("content must be UTF-8 text of at most 1 MiB without NUL")
+		}
+		if err := w.createParents(ctx, name); err != nil {
+			return ScopedTextReceipt{}, err
+		}
+	}
 	name, err := w.checked(name, false)
 	if err != nil {
 		return ScopedTextReceipt{}, err
@@ -202,6 +220,40 @@ func (w *Workspace) Write(ctx context.Context, name, text string) (ScopedTextRec
 		return ScopedTextReceipt{}, err
 	}
 	return w.writeNew(ctx, name, text)
+}
+
+func (w *Workspace) createParents(ctx context.Context, name string) error {
+	if err := w.check(); err != nil {
+		return err
+	}
+	name, err := relative(name, false)
+	if err != nil {
+		return err
+	}
+	parts := strings.Split(path.Dir(name), "/")
+	for i := range parts {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		parent := strings.Join(parts[:i+1], "/")
+		if parent == "." {
+			continue
+		}
+		info, err := w.root.Lstat(parent)
+		if errors.Is(err, os.ErrNotExist) {
+			if err = w.root.Mkdir(parent, 0700); err != nil && !errors.Is(err, os.ErrExist) {
+				return err
+			}
+			info, err = w.root.Lstat(parent)
+		}
+		if err != nil {
+			return err
+		}
+		if scopedLink(info) || !info.IsDir() {
+			return errors.New("write parent must be a directory without symlinks")
+		}
+	}
+	return w.check()
 }
 
 func (w *Workspace) Edit(ctx context.Context, name, oldText, newText string, all bool) (ScopedTextReceipt, error) {
