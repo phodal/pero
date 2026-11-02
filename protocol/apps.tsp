@@ -42,6 +42,12 @@ model EnableAgentPlugin { action: "pluginenable"; name: AppName; enabled: boolea
 model AgentScope { workspaceId:string; ...AppClosed; }
 model AgentRunBinding {scope:AgentScope;requestId:string;harnessId:string;panel:string;runtimeDigest:string;appRevision?:string;createdAt:string;context?:AppDocumentSchema;...AppClosed}
 model AgentRunAttempt {requestId:string;text:string;attempt:uint32;updatedAt:string;...AppClosed}
+model AgentRunPrepare {operation:"prepare";scope:AgentScope;input:AppDocumentSchema;...AppClosed}
+model AgentPreparedContext {context:AppDocumentSchema;...AppClosed}
+model AgentRunTerminal {operation:"terminal";scope:AgentScope;runId:string;terminalId?:string;offset?:uint32;count?:uint32;...AppClosed}
+model AgentTerminalStatus {kind:string;exitCode?:int32;signal?:string;...AppClosed}
+model AgentTerminal {sessionId:string;name?:string;type:string;status:AgentTerminalStatus;...AppClosed}
+model AgentTerminalList {terminals:AgentTerminal[];...AppClosed}
 model AgentRunStart {operation:"start";scope:AgentScope;requestId:string;text:string;harnessId?:string;context?:AppDocumentSchema;...AppClosed}
 model AgentRunLookup {operation:"lookup";scope:AgentScope;requestId:string;...AppClosed}
 model AgentRunStatus {operation:"status";scope:AgentScope;runId:string;...AppClosed}
@@ -49,7 +55,7 @@ model AgentRunEvents {operation:"events";scope:AgentScope;runId:string;after?:ui
 model AgentRunCancel {operation:"cancel";scope:AgentScope;runId:string;...AppClosed}
 model AgentRunRetry {operation:"retry";scope:AgentScope;runId:string;requestId:string;text?:string;...AppClosed}
 model AgentRunOpen {operation:"open";sessionId:string;...AppClosed}
-@oneOf union AgentRunRequest {AgentRunStart,AgentRunLookup,AgentRunStatus,AgentRunEvents,AgentRunCancel,AgentRunRetry,AgentRunOpen}
+@oneOf union AgentRunRequest {AgentRunPrepare,AgentRunTerminal,AgentRunStart,AgentRunLookup,AgentRunStatus,AgentRunEvents,AgentRunCancel,AgentRunRetry,AgentRunOpen}
 model AgentRunCommand {action:"agentrun";name:AppName;request:AgentRunRequest;...RequestBase}
 model AgentCatalogCommand {action:"agentcatalog";name:AppName;path:"/api/workspaces"|"/api/harnesses";...RequestBase}
 model AgentRun {id:string;sessionId:string;scope:AgentScope;status:"running"|"needs_input"|"cancelling"|"completed"|"failed"|"cancelled"|"interrupted";attempt:uint32;requestId:string;updatedAt:string;error?:string;stopReason?:string;...AppClosed}
@@ -105,7 +111,7 @@ model AutomationApp {action:"automation";name:AppName;request:AutomationApiReque
 model AutomationApiReply {status:uint16;body:unknown;...AppClosed}
 @oneOf union AppRequest { AppApiAccess, AppSdkRequest, ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, AgentRunCommand, AgentCatalogCommand, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
 model AppGrant { permitted: true; ...AppClosed; }
-model AppSuccess { ok: true; value: AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
+model AppSuccess { ok: true; value: AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }
 

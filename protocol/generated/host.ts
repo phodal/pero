@@ -114,7 +114,15 @@ export type AppRequest =
 export type AppName = string;
 export type RequestId = string;
 export type AgentRunRequest =
-  AgentRunStart | AgentRunLookup | AgentRunStatus | AgentRunEvents | AgentRunCancel | AgentRunRetry | AgentRunOpen;
+  | AgentRunPrepare
+  | AgentRunTerminal
+  | AgentRunStart
+  | AgentRunLookup
+  | AgentRunStatus
+  | AgentRunEvents
+  | AgentRunCancel
+  | AgentRunRetry
+  | AgentRunOpen;
 export type AgentRequest = AgentInfoRequest | AgentStartRequest | AgentEventsRequest | AgentCancelRequest;
 export type ResearchAssetsRequest = ResearchAssetStart | ResearchAssetLookup;
 /**
@@ -1020,13 +1028,10 @@ export interface AgentRunCommand {
   method: "apps";
   id: RequestId;
 }
-export interface AgentRunStart {
-  operation: "start";
+export interface AgentRunPrepare {
+  operation: "prepare";
   scope: AgentScope;
-  requestId: string;
-  text: string;
-  harnessId?: string;
-  context?: AppDocumentSchema;
+  input: AppDocumentSchema;
 }
 export interface AgentScope {
   workspaceId: string;
@@ -1036,6 +1041,22 @@ export interface AgentScope {
  */
 export interface AppDocumentSchema {
   [k: string]: unknown | undefined;
+}
+export interface AgentRunTerminal {
+  operation: "terminal";
+  scope: AgentScope;
+  runId: string;
+  terminalId?: string;
+  offset?: number;
+  count?: number;
+}
+export interface AgentRunStart {
+  operation: "start";
+  scope: AgentScope;
+  requestId: string;
+  text: string;
+  harnessId?: string;
+  context?: AppDocumentSchema;
 }
 export interface AgentRunLookup {
   operation: "lookup";
@@ -2296,6 +2317,8 @@ export interface AppsResultEvent {
 export interface AppSuccess {
   ok: true;
   value:
+    | AgentPreparedContext
+    | AgentTerminalList
     | AppSdkContext
     | AgentRun
     | AgentRunTranscript
@@ -2315,6 +2338,23 @@ export interface AppSuccess {
     | AppGrant
     | ResearchAssetReply
     | ResearchBundleReply;
+}
+export interface AgentPreparedContext {
+  context: AppDocumentSchema;
+}
+export interface AgentTerminalList {
+  terminals: AgentTerminal[];
+}
+export interface AgentTerminal {
+  sessionId: string;
+  name?: string;
+  type: string;
+  status: AgentTerminalStatus;
+}
+export interface AgentTerminalStatus {
+  kind: string;
+  exitCode?: number;
+  signal?: string;
 }
 export interface AppSdkContext {
   name: AppName;

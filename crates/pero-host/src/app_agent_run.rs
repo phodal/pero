@@ -44,7 +44,7 @@ impl Manager {
         let agent=self.agents.iter().find(|agent|agent.id==agent_id).ok_or("The original Harness is no longer configured")?;
         Ok(format!("{:x}",Sha256::digest(serde_json::to_vec(agent).map_err(|e|e.to_string())?)))
     }
-    fn run_scope(&self, scope:&Scope)->Result<(),String> {
+    pub(crate) fn run_scope(&self, scope:&Scope)->Result<(),String> {
         let root=self.workspace.canonicalize().map_err(|e|e.to_string())?;
         if scope.workspace_id!=agent_run::workspace_id(&root){return Err("The selected Pero workspace changed or is unavailable".into());}Ok(())
     }
@@ -110,10 +110,15 @@ impl Manager {
                 crate::emit(event).map_err(|e|e.to_string())?;Ok(json!({"sessionId":session_id}))
             }
             request => {
-                let (scope,id)=match &request {Request::Status{scope,run_id}|Request::Events{scope,run_id,..}|Request::Cancel{scope,run_id}|Request::Retry{scope,run_id,..}=>(scope,run_id.clone()),_=>unreachable!()};
+                let (scope,id)=match &request {Request::Status{scope,run_id}|Request::Events{scope,run_id,..}|Request::Cancel{scope,run_id}|Request::Retry{scope,run_id,..}|Request::Terminal{scope,run_id,..}=>(scope,run_id.clone()),_=>unreachable!()};
                 let binding=self.run_binding(&app,&id,Some(scope),&revision)?;let run_binding=binding.run.as_ref().unwrap();
                 let view=self.run_transcript(&id,run_binding,0).run;
                 match request {
+                    Request::Terminal{terminal_id,offset,count,..}=>{
+                        let _=(offset,count);
+                        if terminal_id.is_some() {return Err("This Run has no Host-lent terminal".into());}
+                        Ok(json!({"terminals":[]}))
+                    }
                     Request::Status{..}=>serde_json::to_value(view).map_err(|e|e.to_string()),
                     Request::Events{after,..}=>serde_json::to_value(self.run_transcript(&id,run_binding,after)).map_err(|e|e.to_string()),
                     Request::Cancel{..}=>{

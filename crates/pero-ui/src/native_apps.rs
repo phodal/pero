@@ -265,6 +265,7 @@ impl NativeApps {
                 "Invalid App Host request"
             );
             let operation: Value = serde_json::from_slice(body)?;
+            let preparing = path == "/host/app-agent" && operation["operation"] == "prepare";
             let (action, fields) = if path == "/host/app-agent" {
                 ("agentrun", json!({"name":name,"request":operation}))
             } else if path == "/host/agent" {
@@ -276,7 +277,8 @@ impl NativeApps {
                 }
                 ("insights", fields)
             };
-            let value: Value = self.request(action, fields)?;
+            let mut value: Value = self.request(action, fields)?;
+            if preparing {value=value["context"].take();}
             (
                 200,
                 "application/json".to_string(),

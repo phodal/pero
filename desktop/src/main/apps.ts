@@ -285,7 +285,9 @@ export class DesktopApps {
         if (request.method !== 'POST') return new Response('Method refused', {status:405});
         const body = await request.text();
         if (Buffer.byteLength(body) > 256_000) return new Response('Pero Agent request too large', {status:413});
-        return Response.json(await this.request('agentrun', {name:url.hostname,request:JSON.parse(body)}), {headers:{'Cache-Control':'no-store'}});
+        const operation = JSON.parse(body);
+        const value = await this.request<{context?: unknown}>('agentrun', {name:url.hostname,request:operation});
+        return Response.json(operation.operation === 'prepare' ? value.context : value, {headers:{'Cache-Control':'no-store'}});
       }
       if (url.pathname === '/host/agent') {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });

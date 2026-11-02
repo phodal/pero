@@ -25,6 +25,8 @@ pub struct Binding {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", rename_all_fields = "camelCase", deny_unknown_fields)]
 pub enum Request {
+    Prepare { scope: Scope, input: serde_json::Value },
+    Terminal { scope: Scope, run_id: String, #[serde(default)] terminal_id: Option<String>, #[serde(default)] offset: Option<u32>, #[serde(default)] count: Option<u32> },
     Start { scope: Scope, request_id: String, text: String, #[serde(default)] harness_id: Option<String>, #[serde(default)] context: Option<serde_json::Value> },
     Lookup { scope: Scope, request_id: String },
     Status { scope: Scope, run_id: String },

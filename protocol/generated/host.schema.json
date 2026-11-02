@@ -291,6 +291,19 @@
         ]
       }
     },
+    "AgentPreparedContext": {
+      "title": "AgentPreparedContext",
+      "type": "object",
+      "properties": {
+        "context": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "context"
+      ],
+      "additionalProperties": false
+    },
     "AgentRequest": {
       "title": "AgentRequest",
       "oneOf": [
@@ -622,9 +635,37 @@
       ],
       "additionalProperties": false
     },
+    "AgentRunPrepare": {
+      "title": "AgentRunPrepare",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "prepare"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentScope"
+        },
+        "input": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "input"
+      ],
+      "additionalProperties": false
+    },
     "AgentRunRequest": {
       "title": "AgentRunRequest",
       "oneOf": [
+        {
+          "$ref": "#/$defs/AgentRunPrepare"
+        },
+        {
+          "$ref": "#/$defs/AgentRunTerminal"
+        },
         {
           "$ref": "#/$defs/AgentRunStart"
         },
@@ -722,6 +763,41 @@
         },
         "runId": {
           "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "runId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunTerminal": {
+      "title": "AgentRunTerminal",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "terminal"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentScope"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "terminalId": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
         }
       },
       "required": [
@@ -874,6 +950,67 @@
         "available",
         "command",
         "model"
+      ],
+      "additionalProperties": false
+    },
+    "AgentTerminal": {
+      "title": "AgentTerminal",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/AgentTerminalStatus"
+        }
+      },
+      "required": [
+        "sessionId",
+        "type",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "AgentTerminalList": {
+      "title": "AgentTerminalList",
+      "type": "object",
+      "properties": {
+        "terminals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentTerminal"
+          }
+        }
+      },
+      "required": [
+        "terminals"
+      ],
+      "additionalProperties": false
+    },
+    "AgentTerminalStatus": {
+      "title": "AgentTerminalStatus",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "exitCode": {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        "signal": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
       ],
       "additionalProperties": false
     },
@@ -1924,6 +2061,12 @@
         },
         "value": {
           "anyOf": [
+            {
+              "$ref": "#/$defs/AgentPreparedContext"
+            },
+            {
+              "$ref": "#/$defs/AgentTerminalList"
+            },
             {
               "$ref": "#/$defs/AppSdkContext"
             },

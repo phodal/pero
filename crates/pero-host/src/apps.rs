@@ -229,8 +229,14 @@ impl Apps {
                     serde_json::to_value(store.install(&path)?)
                 }
                 Request::Agentrun { method,id,name,request } => {
-                    let _=(method,id);let panel=store.agent_panel(&name)?;
+                    let _=(method,id);
+                    if let pero_runtime::apps::agent_run::Request::Prepare {scope,input} = request {
+                        agents.as_deref_mut().expect("Host manager").run_scope(&scope)?;
+                        return Ok(serde_json::json!({"context":store.prepare_agent_context(&name,input)?}));
+                    }
+                    let panel=store.agent_panel(&name)?;
                     let revision=store.agent_declaration_revision(&name)?;
+                    if let pero_runtime::apps::agent_run::Request::Start {ref context,..} = request {store.validate_agent_context(&name,context.as_ref())?;}
                     drop(guard);
                     return agents.as_deref_mut().expect("Host manager").agent_run_request(name,panel,revision,request);
                 }
