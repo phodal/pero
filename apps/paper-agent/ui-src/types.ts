@@ -55,7 +55,7 @@ export type SavedDiscovery = { id: string; batchId: string; seedId: string; seed
 
 export type LocalSearchHit = { id: string; content: string; start: number; end: number; heading: string; page: number | null; score: number;
   source: { id: string; paperId: string; title: string; url: string; contentKind: Paper['contentKind']; contentDigest: string; fileDigest: string | null; documentId: string | null; fetchedAt: string } };
-export type LocalSearchResult = { items: LocalSearchHit[]; totalMatches: number; returned: number; truncated: boolean; queryTruncated: boolean };
+export type LocalSearchResult = { items: LocalSearchHit[]; totalMatches: number; returned: number; truncated: boolean; queryTruncated: boolean; queryTerms?: string[] };
 
 /** Frozen App selection passed into the Host draft; it grants no execution permission. */
 export type PaperResearchSelection = { paperIds: string[]; fullText: boolean; contextId?: string; parentIntentId?: string; studyId?: string };

@@ -15,6 +15,7 @@ from .pdf import PdfAnnotation
 from .pdf_files import PdfFiles
 from .paper_documents import PaperDocuments
 from .scientific_document import DocumentError
+from .library_files import locate_passage, publish
 from .retrieval import SearchQuery
 from .local_pdf import LocalPdf, MAX_PDF_BYTES
 from .source_text import SourceText
@@ -262,6 +263,11 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         return self.reply(200, literature.search(data))
                     if path == '/api/library/search':
                         return self.reply(200, store.search(SearchQuery.parse(data)).to_dict())
+                    if path == '/api/library/locate':
+                        return self.reply(200, locate_passage(store, pdf_files, data))
+                    files_match = re.fullmatch(r'/api/papers/([a-f0-9]{64})/files', path)
+                    if files_match:
+                        return self.reply(200, publish(store, pdf_files, store.paper(files_match[1]), now()))
                     if path == "/api/papers":
                         paper = PaperSnapshot.from_reading(literature.read(data), now())
                         return self.reply(201, store.save_paper(paper).to_dict())

@@ -3,16 +3,27 @@ from contextlib import closing
 import io
 import threading
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 from urllib.request import Request, build_opener
 
 from .literature import ARXIV, _NoRedirect
 from .model import Invalid, PaperSnapshot, digest
 from .pdf import PdfAnchor, PdfDocument, PdfPage, PdfRect
+from .source_archive import MAX_ARCHIVE
 
 from .local_pdf import LocalPdf, MAX_PDF_BYTES
 # PDFium prohibits simultaneous calls even for different documents.
 PDFIUM_LOCK = threading.Lock()
+
+
+def arxiv_identifier(paper):
+    values = [paper.source_id] if paper.source in ('alphaxiv', 'arxiv') else []
+    values.extend(value for value in (paper.pdf_url, paper.url) if isinstance(value, str) and 'arxiv.org' in value)
+    for value in values:
+        found = ARXIV.search(value)
+        if found:
+            return found.group(0)
+    return None
 
 
 class PdfFiles:
@@ -39,6 +50,47 @@ class PdfFiles:
         if not data.startswith(b'%PDF-'):
             raise Invalid('The source did not return a PDF', 502)
         return data
+
+    def download_source(self, paper):
+        """arXiv TeX archive, or None when this paper has no source bundle."""
+        identifier = arxiv_identifier(paper)
+        if not identifier:
+            return None
+        data = self._read_arxiv('https://arxiv.org/e-print/' + identifier, MAX_ARCHIVE)
+        if data.startswith(b'%PDF-'):
+            return None
+        if not data.startswith(b'\x1f\x8b') and data[257:262] != b'ustar':
+            raise Invalid('arXiv did not return a TeX source archive', 502)
+        return data
+
+    def _read_arxiv(self, url, limit):
+        current = url
+        for _ in range(4):
+            parsed = urlsplit(current)
+            if (parsed.scheme != 'https' or parsed.username or parsed.password or parsed.port
+                    or parsed.hostname not in ('arxiv.org', 'export.arxiv.org')):
+                raise Invalid('Unsupported TeX source URL')
+            request = Request(current, headers={'User-Agent': 'Pero-Paper-Agent/0.1', 'Accept': 'application/gzip, application/pdf'})
+            try:
+                with closing(self.fetch(request, timeout=30)) as response:
+                    data = response.read(limit + 1)
+            except HTTPError as error:
+                try:
+                    if error.code not in (301, 302, 303, 307, 308):
+                        raise Invalid('Cannot download the TeX source. Retry or open the original source.', 502) from error
+                    location = error.headers.get('Location') if error.headers else None
+                    if not location:
+                        raise Invalid('TeX source redirect has no destination', 502) from error
+                    current = urljoin(current, location)
+                finally:
+                    error.close()
+                continue
+            except (URLError, TimeoutError) as error:
+                raise Invalid('Cannot download the TeX source. Retry or open the original source.', 502) from error
+            if len(data) > limit:
+                raise Invalid('TeX source exceeds 16 MiB', 413)
+            return data
+        raise Invalid('Too many TeX source redirects')
 
     def inspect(self, paper, data, now):
         return PdfDocument.create(paper.id, digest(data), paper.pdf_url or paper.url, self.pages(data), now)

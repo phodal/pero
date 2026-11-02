@@ -18,7 +18,7 @@ import type { Translator } from './i18n';
 import { Reproduction, reproductionPolicy } from './reproduction';
 import { loadReaderState, saveReaderState, type PdfReaderState } from './reader-state';
 
-export type ReaderChrome = { toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void };
+export type ReaderChrome = { toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void; back?: () => void };
 
 export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome, readLabel }: {
   paper: Paper; api: Api; focus?: PdfFocus | null; lockText?: boolean; t: Translator; children: React.ReactNode; chrome: ReaderChrome; readLabel?: string;
@@ -56,6 +56,7 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     {!lockText && !busy && (paper.pdfUrl || reading.document) && <Toolbar><Button variant="ghost" aria-pressed={view === 'text'} onClick={() => { setMode('text'); setError(''); }}>{textLabel}</Button><Button variant="ghost" aria-pressed={view === 'pdf'} disabled={busy} onClick={() => void open()}>PDF</Button></Toolbar>}
     {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => void open()} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
     {busy && <p className="pa-loading" role="status">{t('pdfDownloading')}</p>}
+    {view !== 'pdf' && chrome.back && <div className="pa-pdf-inline-toolbar"><Button variant="ghost" aria-label={t('backToLibrary')} onClick={chrome.back}>‹</Button></div>}
     <div className="pa-reader-views" style={{ display: 'grid', flex: 1, minHeight: 0 }}>
       {reading.document && <div className="pa-pdf-view-slot" aria-hidden={view !== 'pdf'} inert={view !== 'pdf'} style={{ gridArea: '1 / 1', display: 'flex', minHeight: 0, visibility: view === 'pdf' ? 'visible' : 'hidden' }}>
         <PdfViewer chrome={{ ...chrome, toolbar: view === 'pdf' ? chrome.toolbar : null }} active={view === 'pdf'} readLabel={textLabel} onText={() => setMode('text')} key={`${reading.document.id}:${reading.document.fileDigest}`} document={reading.document} annotations={reading.annotations} api={api} focus={focus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/>
@@ -95,6 +96,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   const { provides: selection } = useSelectionCapability(), { provides: capture, state: captureState } = useCapture(documentId);
   const selectionState = useStoreState()?.plugins.selection as SelectionState | undefined;
   const [hasSelection, setHasSelection] = useState(false), [note, setNote] = useState(''), [busy, setBusy] = useState(false);
+  const selectedText = useRef('');
   const [error, setError] = useState(''), [status, setStatus] = useState(''), [notes, setNotes] = useState(false), [target, setTarget] = useState('');
   const [menu, setMenu] = useState<{x: number; y: number} | null>(null), [pageText, setPageText] = useState(false);
   const layoutReady = useRef(false);
@@ -151,7 +153,23 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   }, [scroll, zoom, selection, scrollCapability, documentId, document.id, document.fileDigest]);
   useEffect(() => { persistView.current(); }, [active]);
 
-  useEffect(() => selection?.forDocument(documentId).onSelectionChange(value => setHasSelection(!!value)), [selection, documentId]);
+  useEffect(() => selection?.forDocument(documentId).onSelectionChange(value => {
+    setHasSelection(!!value);
+    if (!value) { selectedText.current = ''; return; }
+    void selection.forDocument(documentId).getSelectedText().toPromise().then(parts => { selectedText.current = parts.join('\n'); }).catch(() => { selectedText.current = ''; });
+  }), [selection, documentId]);
+  useEffect(() => {
+    const copy = (event: ClipboardEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) return;
+      const text = selectedText.current.trim();
+      if (!text || window.getSelection()?.toString()) return;
+      event.preventDefault();
+      event.clipboardData?.setData('text/plain', text);
+    };
+    window.document.addEventListener('copy', copy);
+    return () => window.document.removeEventListener('copy', copy);
+  }, []);
   useEffect(() => {
     if (!scrollCapability || !focus || focus.documentId !== document.id) return;
     const apply = () => {
@@ -202,13 +220,15 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
     catch (e) { fail(e); }
     finally { setBusy(false); }
   }
-  return <section className="pa-pdf-viewer" aria-label={t('pdfReader')} tabIndex={0} onContextMenu={event => { event.preventDefault(); const box = event.currentTarget.getBoundingClientRect(); setMenu({ x: Math.max(0, Math.min(event.clientX - box.left, box.width - 200)), y: Math.max(0, Math.min(event.clientY - box.top, box.height - 190)) }); }} onKeyDown={event => { if (event.key === 'F10' && event.shiftKey) { event.preventDefault(); setMenu({ x: 16, y: 16 }); } }}>
-    {chrome.toolbar && createPortal(<Toolbar>
+  const pager = <Toolbar>
+      {chrome.back && <Button variant="ghost" aria-label={t('backToLibrary')} onClick={chrome.back}>‹</Button>}
       <Button variant="ghost" aria-label={t('pdfPrevious')} disabled={!scroll || scrollState.currentPage <= 1} onClick={() => scroll?.scrollToPreviousPage('instant')}>‹</Button>
       <label className="pa-pdf-page-input"><span className="pa-sr-only">{t('pdfPage')}</span><input aria-label={t('pdfPage')} type="number" min={1} max={document.pages.length} value={scrollState.currentPage || 1} onChange={event => { const pageNumber = Number(event.target.value); if (pageNumber >= 1 && pageNumber <= document.pages.length) scroll?.scrollToPage({ pageNumber, behavior: 'instant' }); }}/><span>/ {document.pages.length}</span></label>
       <Button variant="ghost" aria-label={t('pdfNext')} disabled={!scroll || scrollState.currentPage >= document.pages.length} onClick={() => scroll?.scrollToNextPage('instant')}>›</Button>
       <Button variant="ghost" aria-label={t('pdfZoomOut')} onClick={() => zoom?.zoomOut()}>−</Button><Button variant="ghost" aria-label={t('pdfFitPage')} onClick={() => zoom?.requestZoom(ZoomMode.FitPage)}>{Math.round((zoomState.currentZoomLevel || 1) * 100)}%</Button><Button variant="ghost" aria-label={t('pdfZoomIn')} onClick={() => zoom?.zoomIn()}>+</Button>
-    </Toolbar>, chrome.toolbar)}
+    </Toolbar>;
+  return <section className="pa-pdf-viewer" aria-label={t('pdfReader')} tabIndex={0} onContextMenu={event => { event.preventDefault(); const box = event.currentTarget.getBoundingClientRect(); setMenu({ x: Math.max(0, Math.min(event.clientX - box.left, box.width - 200)), y: Math.max(0, Math.min(event.clientY - box.top, box.height - 190)) }); }} onKeyDown={event => { if (event.key === 'F10' && event.shiftKey) { event.preventDefault(); setMenu({ x: 16, y: 16 }); } }}>
+    {chrome.toolbar ? createPortal(pager, chrome.toolbar) : <div className="pa-pdf-inline-toolbar">{pager}</div>}
     {captureState.isMarqueeCaptureActive && <div className="pa-pdf-context-action"><Button onClick={() => capture?.disableMarqueeCapture()}>{t('pdfCancelCapture')}</Button></div>}
     {menu && <div className="pa-pdf-menu" role="menu" aria-label={t('pdfActions')} ref={menuRef} style={{left: menu.x, top: menu.y}} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setMenu(null); }} onKeyDown={event => {
       if (event.key === 'Escape') { event.stopPropagation(); setMenu(null); event.currentTarget.closest('section')?.focus(); }
@@ -218,6 +238,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       <Button role="menuitem" onClick={() => { setNotes(value => !value); setMenu(null); }}>{t('pdfNotes')} {annotations.length}</Button>
       <Button role="menuitem" onClick={() => { setPageText(value => !value); setMenu(null); }}>{t('pdfPageText')}</Button>
       <a role="menuitem" href={`/api/pdf/${document.id}/file`} download="paper.pdf">{t('originalPdf')}</a>
+      <Button role="menuitem" onClick={() => { setMenu(null); void api.post<{ tex?: string }>(`/api/papers/${document.paperId}/files`, {}).then(saved => setStatus(saved.tex ? t('paperSavedWithTex') : t('paperSaved'))).catch(fail); }}>{t('downloadPaper')}</Button>
       <Button role="menuitem" onClick={() => { setMenu(null); onText(); }}>{readLabel}</Button>
     </div>}
     {hasSelection && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') selection?.forDocument(documentId).clear(); }}><Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/><Button disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button>{onDiscuss && <Button disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button variant="ghost" onClick={() => selection?.forDocument(documentId).clear()}>{t('close')}</Button></div>}

@@ -7,6 +7,15 @@ import type { Translator } from './i18n';
 const webSources = ['huggingface', 'alphaxiv', 'openalex', 'biorxiv', 'pubmed'];
 type Scope = 'local' | 'web';
 
+function markedPassage(text: string, terms: string[]) {
+  const useful = [...terms].filter(term => term.length >= 2).sort((left, right) => right.length - left.length);
+  if (!useful.length) return text;
+  const pattern = new RegExp(useful.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'gi');
+  const parts = text.split(pattern);
+  const matches = text.match(pattern) ?? [];
+  return parts.map((part, index) => <React.Fragment key={index}>{part}{matches[index] ? <mark>{matches[index]}</mark> : null}</React.Fragment>);
+}
+
 export function LibrarySearch({ api, t, onOpen, onAdded, activeHitId, children }: {
   api: Api; t: Translator; onOpen(hit: LocalSearchHit): Promise<void>; onAdded(paper: Paper, focus: boolean): Promise<void>; activeHitId?: string | null; children: React.ReactNode;
 }) {
@@ -92,7 +101,7 @@ export function LibrarySearch({ api, t, onOpen, onAdded, activeHitId, children }
       <ol className="pa-local-results">{result.items.map(hit => <li key={hit.id} data-search-hit={hit.id} data-search-page={hit.page ?? undefined} data-current={activeHitId === hit.id ? 'true' : undefined}>
         <Button variant="ghost" aria-current={activeHitId === hit.id ? 'true' : undefined} onClick={() => void onOpen(hit)}>{hit.source.title}{hit.page ? ` · ${t('pdfPage')} ${hit.page}` : ''}</Button>
         <small>{hit.page ? 'PDF' : t(hit.source.contentKind === 'abstract' ? 'abstract' : hit.source.contentKind === 'report' ? 'sourceReport' : 'fullText')}{hit.heading ? ` · ${hit.heading}` : ''}</small>
-        <p className="pa-local-preview">{hit.content}</p>
+        <p className="pa-local-preview">{markedPassage(hit.content, result.queryTerms ?? [])}</p>
         <details><summary>{t('sourceDetails')}</summary><p>{hit.content}</p><small>{hit.source.url}</small><code>{hit.source.fileDigest ?? hit.source.contentDigest}</code></details>
       </li>)}</ol>
       <small>{t('localScope')}</small>
