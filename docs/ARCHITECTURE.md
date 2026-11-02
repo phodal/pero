@@ -339,6 +339,15 @@ Cloud 的 Run 保存协调状态及执行绑定，Host 的 managed 保存会话�
 
 Python 方法环境按 recipe 和依赖版本准备，科学数据按获准引用绑定。环境 Ready、方法运行成功、独立验证通过和研究结论接受分别记录，不默认把实验室数据上传到 Cloud。
 
+[ADR 0029](adr/0029-ai4s-environments.md) 定义 AI4S 环境领域模型：可复用软件
+Profile 与实际资源分开，Template/Requirements 声明条件，Binding/Snapshot 保存实际
+观察，Use 关联已有科学 attempt 或受管验证。同一研究可引用多个 Use；App 服务、
+Agent 与科学计算环境分别绑定。环境不拥有科学参数、预算、工作流调度或接受决定。
+P1 已实现纯模型、匹配与软件元数据观察，live Use、独立计算解释器和远程接线尚待实现。
+[P1 验证](fitness/ai4s-environments.md)、[设计与接口](design-docs/ai4s-environments.md)、
+[Control Lab / PC-Gym 源码映射](design-docs/ai4s-environments-scenarios.md) 和
+[分阶段计划](exec-plans/2026-11-02-ai4s-environments.md) 区分当前事实与后续验收。
+
 ## 执行不变量
 
 这些规则约束所有实现，不随里程碑变化。实现和验证它们的任务写在 [ROADMAP](../ROADMAP.md)。

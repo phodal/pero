@@ -1,5 +1,8 @@
 # Quality gates
 
+AI4S environment values, matching and read-only Control Lab / PC-Gym observations;
+managed execution admission remains planned: [Environments P1](ai4s-environments.md).
+
 ReFrame benchmark library, local numerical references and separate Slurm/OpenFOAM
 acceptance: [HPC Benchmarks](hpc.md).
 
