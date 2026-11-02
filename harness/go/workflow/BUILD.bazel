@@ -25,6 +25,7 @@ go_library(
 go_test(
     name = "workflow_test",
     srcs = [
+        "background_test.go",
         "lifecycle_test.go",
         "review_test.go",
         "workflow_test.go",

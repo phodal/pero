@@ -96,7 +96,9 @@ func newWorkflowFixture(t *testing.T, root, workspace string, packages []plugins
 		}
 		_ = native.Close()
 	})
-	agents, err := subagents.MountClaude(ctx, h, nil, subagents.ClaudeOptions{MaxActive: 3, MaxDepth: 4, ModelRoutes: []subagents.ModelRoute{{Alias: "opus", Provider: "fixture", Model: "senior-model"}, {Alias: "sonnet", Provider: "fixture", Model: "fast-model"}}})
+	agents, err := subagents.MountClaude(ctx, h, nil, subagents.ClaudeOptions{TaskLookup: func(ctx context.Context, parent *harness.Agent, id string) (harness.TaskHandle, bool, error) {
+		return f.app.LookupTask(ctx, parent, id)
+	}, MaxActive: 3, MaxDepth: 4, ModelRoutes: []subagents.ModelRoute{{Alias: "opus", Provider: "fixture", Model: "senior-model"}, {Alias: "sonnet", Provider: "fixture", Model: "fast-model"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
