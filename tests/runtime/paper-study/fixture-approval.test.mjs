@@ -89,3 +89,40 @@ test('ID-only Go permission updates retain subject; supplied updates must match 
     assert.equal(p.respond(r, 'owned').option_id, 'deny');
   }
 });
+
+test('documented synthetic scenes grant only their authored phase capabilities', () => {
+  for (const [scene, source, pdf, vision] of [
+    ['source', true, true, false], ['vision', true, false, true],
+    ['nonstandard', false, false, false], ['nonstandard-read', true, false, false],
+  ]) {
+    const p = new FixtureApproval(scene); p.beginTurn(0);
+    const selection = { draftId: 'draft', resourceIds: ['source'] };
+    assert.equal(p.permits(name('commit-research-bundle'), selection), true, scene);
+    for (const extra of [{ confirmedDownloads: true }, { sourceIds: ['source'] }, { pdfIds: ['pdf'] }])
+      assert.equal(p.permits(name('commit-research-bundle'), { ...selection, ...extra }), false, scene);
+    for (const tool of ['research-source', 'research-pdf', 'research-source-read', 'prepare-research'])
+      assert.equal(p.permits(name(tool), { operation: 'start' }), false, scene);
+    p.expect('call', name('commit-research-bundle'), selection);
+    p.observe(call(name('commit-research-bundle'), selection), 'owned');
+    assert.equal(p.respond(request(), 'owned').option_id, 'allow', scene);
+    p.finishTurn(); p.beginTurn(1);
+    for (const [tool, input, allowed] of [
+      ['research-source', { operation: 'start' }, source],
+      ['research-source', { operation: 'status' }, source],
+      ['research-source-read', { operation: 'read' }, source],
+      ['research-source-read', { operation: 'list' }, source],
+      ['research-source-read', { operation: 'compare' }, pdf],
+      ['research-source-read', { operation: 'image' }, vision],
+      ['research-pdf', { operation: 'start' }, pdf],
+      ['prepare-research', {}, pdf], ['research-step', { action: 'finalize' }, pdf],
+      ['research-step', { action: 'execute' }, false],
+      ['research-assets', { operation: 'start' }, false],
+      ['research-source', { operation: 'cancel' }, false],
+    ]) assert.equal(Boolean(p.permits(name(tool), input)), allowed, `${scene}: ${tool} ${JSON.stringify(input)}`);
+    for (const tool of ['shell', 'mcp__pero-app-use__app__data__download', 'mcp__pero-app-use__app_write'])
+      assert.equal(p.permits(tool, {}), false, scene);
+    assert.equal(p.respond(request(), 'owned').option_id, 'deny', 'Prior phase cannot replay');
+  }
+  for (const scene of ['public-results', 'unknown', 'toString'])
+    assert.throws(() => new FixtureApproval(scene), /No synthetic approval policy/);
+});

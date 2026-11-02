@@ -64,10 +64,10 @@ export function* plan(scene, digest) {
   if (!spec.inspectOnly) yield { answer: 'Synthetic protocol stopped at references. Exact source/PDF acquisition still requires next user confirmation.' };
   const source = draft.resources.find(resource => resource.kind === 'source_archive' && (!spec.sourceURL || resource.originalUrl === spec.sourceURL));
   const pdf = draft.resources.find(resource => resource.kind === 'pdf_candidate');
-  if (scene === 'standard') {
-    assert.equal(source?.originalUrl, `https://arxiv.org/src/${spec.version}`);
-    assert.equal(pdf?.originalUrl, `https://arxiv.org/pdf/${spec.version}`);
-    selection.resourceIds = [source.id, pdf.id];
+  if (!spec.publicRecording) {
+    assert.equal(source?.originalUrl, spec.sourceURL || `https://arxiv.org/src/${spec.version}`);
+    if (spec.pdf) assert.equal(pdf?.originalUrl, `https://arxiv.org/pdf/${spec.version}`);
+    selection.resourceIds = [source.id, ...(spec.pdf ? [pdf.id] : [])];
   }
   bundle = yield* write('commit-research-bundle', { ...selection, sourceIds: [source.id], pdfIds: spec.pdf ? [pdf.id] : [], confirmedDownloads: true });
   const base = { bundleId: bundle.id, resourceId: source.id };

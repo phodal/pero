@@ -1,11 +1,13 @@
-// Test-only controller for four authored synthetic trajectories. Never a product grant.
+// Test-only controller for authored synthetic trajectories. Never a product grant.
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';
+import { scenes } from './scenarios.mjs';
 
 const prefix = 'mcp__pero-app-use__app__paper-agent__';
 export class FixtureApproval {
   constructor(scene) {
-    assert(['standard', 'nonstandard-decline', 'ambiguity', 'injection'].includes(scene), 'No synthetic approval policy for this scene');
+    assert(Object.hasOwn(scenes, scene) && !scenes[scene].publicRecording,
+      'No synthetic approval policy for this scene; authentic-material replay requires separately reviewed permissions');
     this.scene = scene; this.phase = -1; this.decisions = []; this.errors = [];
     this.seen = new Set(); this.calls = new Map(); this.expected = new Map();
   }
@@ -15,20 +17,26 @@ export class FixtureApproval {
   }
   finishTurn() {
     assert.equal(this.expected.size, 0, 'Every scripted Paper call must consume an actual permission request');
-    if (this.phase === 0 || this.scene === 'standard')
+    if (this.phase === 0 || scenes[this.scene].source)
       assert(this.decisions.some(decision => decision.phase === this.phase && decision.allowed), 'No actual bounded permission decision in this phase');
     assert.deepEqual(this.errors, [], 'Unexpected permission requests');
   }
   permits(name, args) {
     if (!name.startsWith(prefix)) return false;
     const tool = name.slice(prefix.length);
+    const spec = scenes[this.scene];
     if (this.phase === 0) return tool === 'inspect-research-link' ||
-      (this.scene !== 'standard' && tool === 'research-analysis' && ['context', 'propose'].includes(args.operation));
-    if (this.phase !== 1 || this.scene !== 'standard') return false;
-    return tool === 'commit-research-bundle' || tool === 'prepare-research' ||
-      (['research-source', 'research-pdf'].includes(tool) && ['start', 'status'].includes(args.operation)) ||
-      (tool === 'research-source-read' && ['list', 'read', 'compare'].includes(args.operation)) ||
-      (tool === 'research-step' && ['read', 'finalize'].includes(args.action));
+      (spec.analysis && tool === 'research-analysis' && ['context', 'propose'].includes(args.operation)) ||
+      (!spec.inspectOnly && tool === 'commit-research-bundle' &&
+        Object.keys(args).every(key => ['draftId', 'resourceIds'].includes(key)));
+    if (this.phase !== 1 || !spec.source || spec.decline) return false;
+    return tool === 'commit-research-bundle' ||
+      (tool === 'research-source' && ['start', 'status'].includes(args.operation)) ||
+      (tool === 'research-source-read' && (['list', 'read'].includes(args.operation) ||
+        (spec.pdf && args.operation === 'compare') || (spec.vision && args.operation === 'image'))) ||
+      (spec.pdf && (tool === 'prepare-research' ||
+        (tool === 'research-pdf' && ['start', 'status'].includes(args.operation)) ||
+        (tool === 'research-step' && ['read', 'finalize'].includes(args.action))));
   }
   // Only the authored in-process fixture plan calls this, before emitting its call.
   expect(id, name, args) {

@@ -46,6 +46,13 @@ PAPER_STUDY_PYTHON_ENV=/absolute/isolated-venv \
 ```
 
 Replace `source` with `vision`, `nonstandard` or `nonstandard-read` for deterministic cases.
+The bounded synthetic controller also supports `standard`, `nonstandard-decline`,
+`ambiguity` and `injection`. Original reference-saving cases may commit references
+in turn one, but cannot authorize downloads then; inspection-only cases cannot
+commit. Turn two permits only the authored source/PDF selection and matching
+read operations; image input is limited to `vision`. Decline turns grant nothing.
+Every grant still requires the exact scripted pending call on the owned session
+and a single-use Host permission response; unknown tools and other Apps fail closed.
 These commands make no real model calls. Real inference is a separately authorized
 validation activity, not a prerequisite for running the fixture suite.
 Do not publish original research documents, raw sessions or credentials.
@@ -66,7 +73,14 @@ from an automated campaign pass.
 after a real source index/read succeeds; the recorded byte SHA is not an inferred
 paper version. Other attachments and the code repository remain references.
 
-`public-results` is an explicit authentic-material replay case. It requires the
+`public-results` describes the historical authentic-material replay case, not a
+currently supported `--fixture` invocation: the synthetic controller intentionally
+rejects authentic-material grants. Restoring it requires separately reviewed
+permissions; providing an archive path does not authorize it. `--real` likewise
+stops before credential input or provider construction until an explicit human
+ACP responder is wired (use the existing product permission UI instead).
+
+The historical `public-results` replay requires the
 already authorized public arXiv `2610.33195v1` archive, with fixed size/SHA
 checked before serving bytes. Set `PAPER_STUDY_SOURCE_ARCHIVE` to that authorized
 archive's absolute local path; missing/relative paths or mismatched bytes are
