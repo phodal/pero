@@ -70,7 +70,9 @@ async function openComparison() {
   await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'app', value: { name: 'virtual-cell', panel: 'main' } });
   frame = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(frame.getByLabel('Data view', { exact: true })).toBeVisible({ timeout: 20000 });
-  await frame.getByLabel('Data view', { exact: true }).selectOption('comparison');
+  await frame.getByRole('button', { name: 'Data view', exact: true }).click();
+  await frame.getByRole('listbox', { name: 'Data view', exact: true }).getByRole('option', { name: 'Baseline comparison', exact: true }).click();
+  await expect(frame.getByRole('button', { name: 'Data view', exact: true })).toHaveAttribute('data-value', 'comparison');
   await expect(frame.getByRole('region', { name: 'Baseline comparison', exact: true })).toBeVisible();
   await expect(frame.getByText('Non-blind. Condition means. Isolation unverified. Not reviewed.', { exact: true })).toBeVisible();
   await expect.poll(async () => (await read('/api/comparisons')).availability.available).toBe(true);
@@ -84,7 +86,7 @@ async function importSample(name) {
   const response = await reply;
   expect(response.status()).toBe(201);
   const input = await response.json();
-  await expect(frame.getByLabel('Input revision', { exact: true })).toHaveValue(input.id);
+  await expect(frame.getByRole('button', { name: 'Input revision', exact: true })).toHaveAttribute('data-value', input.id);
   await expect(frame.getByText(sampleText, { exact: true }).first()).toBeVisible();
   await expect(frame.getByRole('button', { name: 'Start comparison', exact: true })).toBeEnabled();
   expect(input.source).toEqual(manifest.files[name].source);
@@ -301,7 +303,9 @@ try {
   expect(external.denominator).toEqual({ attempted: testIds.length, evaluated: testIds.length - 1, failed: 1 });
   expect(external.conditions).toHaveLength(testIds.length);
   await expect(frame.getByText('Some predictions failed. The full denominator is retained; see condition results for reasons.', { exact: true })).toBeVisible();
-  await frame.getByLabel('Model', { exact: true }).selectOption('sample-external');
+  await frame.getByRole('button', { name: 'Model', exact: true }).click();
+  await frame.getByRole('listbox', { name: 'Model', exact: true }).getByRole('option', { name: 'sample-external', exact: true }).click();
+  await expect(frame.getByRole('button', { name: 'Model', exact: true })).toHaveAttribute('data-value', 'sample-external');
   await expect(frame.locator('.vc-comparison-conditions tbody tr')).toHaveCount(testIds.length);
   await expect(frame.getByText('prediction_missing', { exact: true })).toBeVisible();
   await screenshot('sample-failed-condition.png');
