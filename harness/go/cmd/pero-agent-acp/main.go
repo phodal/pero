@@ -18,6 +18,7 @@ import (
 	"github.com/phodal/pero/harness/go/agentinstructions"
 	"github.com/phodal/pero/harness/go/charts"
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/lsp"
 	"github.com/phodal/pero/harness/go/nativetools"
 	"github.com/phodal/pero/harness/go/pluginruntime"
 	"github.com/phodal/pero/harness/go/plugins"
@@ -64,6 +65,7 @@ func run() (resultErr error) {
 	coding := bindCodingOptions(flag.CommandLine)
 	delegation := bindSubagents(flag.CommandLine)
 	web := bindWebOptions(flag.CommandLine)
+	lspConfig := bindLSPOptions(flag.CommandLine)
 	flag.Parse()
 	if flag.NArg() != 0 || strings.TrimSpace(*model) == "" || strings.TrimSpace(*sessions) == "" {
 		return errors.New("--model and --session-dir are required; positional arguments are unsupported")
@@ -151,10 +153,11 @@ func run() (resultErr error) {
 	var pluginAgents *subagents.ClaudeContribution
 	var pluginWorkflows *workflow.App
 	var webApp *webtools.App
+	var lspApp *lsp.App
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		resultErr = errors.Join(resultErr, h.Dispose(cleanup), h.Drain(cleanup), native.Close(), pluginWorkflows.Close(), webApp.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
+		resultErr = errors.Join(resultErr, h.Dispose(cleanup), h.Drain(cleanup), native.Close(), pluginWorkflows.Close(), webApp.Close(), lspApp.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
 	}()
 	skillCatalog, err = skills.OpenSelected(ctx, *skillRoots, selections)
 	if err != nil {
@@ -245,6 +248,10 @@ func run() (resultErr error) {
 		}
 	}
 	webApp, err = mountWeb(ctx, h, webProvider, pluginAgents)
+	if err != nil {
+		return err
+	}
+	lspApp, err = mountLSP(ctx, h, *workspace, packages, pluginEnvironment, *lspConfig)
 	if err != nil {
 		return err
 	}
