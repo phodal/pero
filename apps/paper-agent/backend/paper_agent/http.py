@@ -209,10 +209,7 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                                    if path.endswith('/followup') else ResearchRequest.parse(data))
                         if request.full_text:
                             for identity in request.paper_ids:
-                                paper = store.paper(identity)
-                                if store.paper_pdf(identity) is None:
-                                    content = pdf_files.download(paper)
-                                    store.save_pdf(pdf_files.inspect(paper, content, now()), content)
+                                LibraryFiles(store).reading_pdf(store.paper(identity))
                             return self.reply(201, dict(mode='study', **store.create_study(request, now()).to_dict()))
                         return self.reply(201, dict(mode='answer', **store.prepare(request, now()).to_dict()))
                     if path == '/api/contexts/read':
@@ -236,10 +233,7 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         return self.reply(201, store.add_reading_cell(data.get('annotationId'), data.get('column'), now()).to_dict())
                     if path == '/api/pdf':
                         paper = store.paper(data.get('paperId'))
-                        document = store.paper_pdf(paper.id)
-                        if document is None:
-                            content = pdf_files.download(paper)
-                            document = store.save_pdf(pdf_files.inspect(paper, content, now()), content)
+                        document = LibraryFiles(store).reading_pdf(paper)
                         return self.reply(200, dict(document=document.to_dict(), annotations=[item.to_dict() for item in store.annotations(document.id)]))
                     if path == '/api/pdf/locate':
                         document = store.pdf(data.get('documentId'))

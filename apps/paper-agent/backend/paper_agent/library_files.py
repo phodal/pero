@@ -192,6 +192,14 @@ class LibraryFiles:
             raise Invalid('Saved PDF original failed integrity checks.' + recovery, 409)
         return content
 
+    def reading_pdf(self, paper):
+        """Reading reuses a saved original; acquisition belongs to PdfDownloads."""
+        document = self.store.paper_pdf(paper.id)
+        if document is None:
+            raise Invalid('Save this paper PDF through the source review before full-text reading.', 409)
+        self.original_pdf(document)
+        return document
+
     def prepare(self, paper, value, now):
         document, seed = self._context(paper)
         original = self.original_pdf(document) if document else None

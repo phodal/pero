@@ -16,6 +16,8 @@ import './styles.css';
 type WorkspaceScreen = 'library' | 'reading';
 type LibraryScreen = 'papers' | 'import' | 'discovery' | 'bundle';
 
+type ResearchDraft = { selection: Partial<PaperResearchSelection>; message: string };
+
 function SearchFrame({ preview, resizeLabel, children }: { preview: boolean; resizeLabel: string; children: React.ReactNode }) {
   const [library, reading] = React.Children.toArray(children);
   return <Split storageKey="paper-agent.search-split" collapseBelow={preview ? 640 : 0} className="pa-search-split" data-preview={preview ? '' : undefined}>
@@ -34,7 +36,8 @@ export default function PaperAgent() {
   const [showResearch, setShowResearch] = useState(false), [questionMode, setQuestionMode] = useState(false);
   const [recordOpening, setRecordOpening] = useState<{ studyId: string; intentId: string | null; token: number } | null>(null);
   const [savingPaper, setSavingPaper] = useState<Paper | null>(null), [saveRevision, setSaveRevision] = useState(0);
-  const [chatRequest, setChatRequest] = useState<{selection:Partial<PaperResearchSelection>;message:string} | null>(null);
+  const [chatRequest, setChatRequest] = useState<ResearchDraft | null>(null);
+  const pendingAsk = useRef<ResearchDraft | null>(null);
   const [discoveryOpening, setDiscoveryOpening] = useState<DiscoveryOpening | null>(null), [matrixOpen, setMatrixOpen] = useState(false);
   const [pdfFocus, setPdfFocus] = useState<PdfFocus | null>(null), [pdfToolbar, setPdfToolbar] = useState<HTMLDivElement | null>(null);
   const [hitPreview, setHitPreview] = useState(false), [openHit, setOpenHit] = useState<LocalSearchHit | null>(null), [locateToken, setLocateToken] = useState(0);
@@ -63,8 +66,20 @@ export default function PaperAgent() {
     const media = window.matchMedia('(max-width: 760px)'), change = () => setNarrow(media.matches);
     media.addEventListener('change', change); return () => media.removeEventListener('change', change);
   }, []);
-  function ask(selection: Partial<PaperResearchSelection> = {}, message = '') {
-    preserveView.current?.(); setShowResearch(false); setQuestionMode(true); setChatRequest({selection,message});
+  async function ask(selection: Partial<PaperResearchSelection> = {}, message = '') {
+    const selected = { paperIds: reading ? [reading.id] : [], fullText: !!reading && (!!reading.pdfUrl || reading.source === 'local-pdf'), ...selection };
+    try {
+      if (selected.fullText) {
+        for (const id of selected.paperIds) {
+          const saved = await api.get<import('./types').PdfReading>(`/api/pdf?paperId=${id}`);
+          if (!saved.document) {
+            const paper = library.papers.find(paper => paper.id === id) ?? await api.get<Paper>(`/api/papers/${id}`);
+            pendingAsk.current = { selection: selected, message }; setSavingPaper(paper); return;
+          }
+        }
+      }
+      preserveView.current?.(); setShowResearch(false); setQuestionMode(true); setChatRequest({ selection: selected, message });
+    } catch (error) { onError(error); }
   }
   function closeRecords() { preserveView.current?.(); setShowResearch(false); requestAnimationFrame(() => askButton.current?.querySelector('button')?.focus({ preventScroll: true })); }
   function back() { preserveView.current?.(); setQuestionMode(false); setScreen('library'); setLibraryScreen('papers'); setShowResearch(false); setCitation(null); setHitPreview(false); setOpenHit(null); }
@@ -267,7 +282,7 @@ export default function PaperAgent() {
   return <div onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }} onDrop={event => { if (!event.dataTransfer.files.length) return; event.preventDefault(); void importPdf(event.dataTransfer.files[0]); }} className="pa-workbench pa-reading-first" data-screen={screen} data-research={showResearch} {...appObjectProps('paper-agent')}>
     {importingPdf && <p className="pa-loading" role="status">{t('pdfImporting')}</p>}
     {error && <div className="pa-global-error"><Feedback kind="error"><span>{error}</span><Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback></div>}
-    {savingPaper && <LibrarySave key={savingPaper.id} api={api} paper={savingPaper} t={t} onError={onError} onRead={id => { setSavingPaper(null); void api.get<Paper>(`/api/papers/${id}`).then(paper => read(paper)).catch(onError); }} onClose={() => setSavingPaper(null)} onSaved={async () => { setSaveRevision(value => value + 1); await refresh().catch(error => onError(`${t('savedRefreshFailed')} ${error instanceof Error ? error.message : String(error)}`)); }}/>}
+    {savingPaper && <LibrarySave key={savingPaper.id} api={api} paper={savingPaper} t={t} onError={onError} onRead={id => { pendingAsk.current = null; setSavingPaper(null); void api.get<Paper>(`/api/papers/${id}`).then(paper => read(paper)).catch(onError); }} onClose={() => { pendingAsk.current = null; setSavingPaper(null); }} onSaved={async () => { setSaveRevision(value => value + 1); await refresh().catch(error => onError(`${t('savedRefreshFailed')} ${error instanceof Error ? error.message : String(error)}`)); const queued = pendingAsk.current; pendingAsk.current = null; if (queued) { setSavingPaper(null); await ask(queued.selection, queued.message); } }}/>}
     <div className="pa-workspace" data-hit-preview={hitPreview && screen === 'reading' ? 'true' : undefined} data-question={questionMode && screen === 'reading' ? 'true' : undefined}>
     <SearchFrame preview={hitPreview && screen === 'reading'} resizeLabel={t('resizeSearch')}>
     <section className="pa-library-screen" hidden={screen !== 'library' && !hitPreview} aria-label={t('papers')}>

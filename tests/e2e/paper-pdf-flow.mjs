@@ -91,11 +91,31 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   }, { path, body });
   await backToLibrary(frame);
   const paper = await post('/api/papers/import', { title: fixture.realPdf ? 'Attention Is All You Need · PDF' : 'Synthetic PDF reading', sourceId: '1706.03762v1',
-    url: 'https://arxiv.org/abs/1706.03762v1', fullTextUrl: 'https://arxiv.org/html/1706.03762v1', pdfUrl: 'https://arxiv.org/pdf/1706.03762v1', authors: [], contentKind: 'full-text', content: fixture.text });
+    url: 'https://arxiv.org/abs/1706.03762v1', fullTextUrl: 'https://arxiv.org/html/1706.03762v1', pdfUrl: 'https://reader.example.org/approved.pdf', authors: [], contentKind: 'full-text', content: fixture.text });
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
-  const save = await saveLibraryCopies(frame, paper.title);
-  await save.getByRole('button', { name: 'Close', exact: true }).click();
+  const acquisitions = async () => {
+    try { return (await readFile(resolve(profile, 'desktop/app-data/paper-agent/reader-approved-attempts.jsonl'), 'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse); }
+    catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+  };
   await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
+  await frame.getByRole('button', { name: 'Ask', exact: true }).click();
+  const save = frame.getByRole('dialog', { name: 'Save copies', exact: true });
+  await expect(save).toBeVisible();
+  await expect(save.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
+  expect(await acquisitions()).toEqual([]);
+  expect((await chatState(page)).appChatOpen).toBe(false);
+  await page.screenshot({ path: resolve(out, 'pdf-research-source-review.png') });
+  await save.getByRole('button', { name: 'Close', exact: true }).click();
+  expect(await acquisitions()).toEqual([]);
+  await frame.getByRole('button', { name: 'Ask', exact: true }).click();
+  await expect(save.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
+  await save.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(save.getByRole('button', { name: 'Export copies', exact: true })).toBeEnabled();
+  await save.getByRole('button', { name: 'Export copies', exact: true }).click();
+  await expect.poll(async () => (await chatState(page)).appChatOpen).toBe(true);
+  await expect(save).not.toBeVisible();
+  expect(await acquisitions()).toHaveLength(1);
+  await closePaperChat(page, frame);
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true }), nav = frame.locator('.pa-reading-main');
   await expect(viewer).toBeVisible({ timeout: 30000 });
   await expect(frame.getByRole('complementary', { name: 'Ask', exact: true })).toHaveCount(0);
@@ -281,6 +301,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await page.keyboard.press('Enter');
   await expect.poll(async () => frame.locator('body').evaluate(async () => (await (await fetch('/api/library')).json()).reports.some(report => report.title === 'PDF answer fixture')), { timeout: 30000 }).toBe(true);
   const saved = await frame.locator('body').evaluate(async () => (await (await fetch('/api/library')).json()).reports.find(report => report.title === 'PDF answer fixture'));
+  expect(await acquisitions()).toHaveLength(1);
   await showPaperReport(frame, page, saved.intentId);
   await expect(frame.getByRole('heading', { name: 'PDF answer fixture', exact: true })).toBeVisible({ timeout: 30000 });
   await expect(frame.locator('.pa-turn-history .pa-citations button').first()).toContainText(/Page [0-9]+/);

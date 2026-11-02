@@ -145,3 +145,15 @@ stay omitted for old immutable identities. Focused discovery/literature tests,
 App typecheck/build and the six-group Electron PDF journey pass; the UI original
 link points at the saved full-text URL. No new XML parser or medRxiv adapter is
 part of this increment.
+
+Unified acquisition verified: full-text research and the legacy PDF command now
+read integrity-checked saved originals only. Missing originals return a source
+review recovery path; they cannot bypass PdfDownloads with a second downloader.
+Ask first opens the existing Library review for missing PDFs, keeps the intended
+research draft on confirmation, and resumes after the approved copy is saved.
+Cancellation starts neither a download nor a Chat request. A synthetic generic
+publisher PDF completes the actual Electron approval/acquisition/research flow:
+zero fetches before confirmation and one total fetch after study finalization.
+All 248 Python tests pass (one platform skip); three recorded-transport boundary
+tests and the six-group PDF Electron journey pass. The obsolete direct PDF
+network adapter and its injected fixture path are removed.
