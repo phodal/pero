@@ -6,10 +6,15 @@ actual Go ACP → Host → App Use/MCP → Paper/Data path. It does not introduc
 Python LLM runtime, arbitrary script execution, LaTeX compilation or experiments.
 
 The campaign tracks attempts separately from earlier validation campaigns.
-The new authorization imposes no additional session, request or output-token
-cap. Reservations, failed/aborted attempts, reported usage, existing step/time
-guards, cancellation and permissions remain recorded. Stop on agreed coverage
-or repeated lack of progress, not on a goal of consuming allowance.
+The runner requires a new `ProviderEvaluationPlan` for each real campaign. This
+editable JSON binds configuration and accounting; it is **not** proof of human
+consent, permission to send data to an endpoint, or permission to reuse an old
+credential. Obtain the user's specific endpoint/model, input and budget approval
+outside the runner first. Missing fields fail closed. Explicit `null` limits mean
+no additional limit only when that is what the user actually approved. No default
+DeepSeek endpoint/model or historical unlimited authorization is retained.
+Reservations, failed/aborted attempts, usage, cancellation and existing guards are
+recorded. Old v1 campaign ledgers are rejected, not migrated as authorization.
 
 ## Planned observable coverage
 
@@ -50,8 +55,11 @@ check shape/color/count/location facts against pixels unavailable in its caption
 
 Current source path is `research-analysis` context/propose, separate `sourceIds`
 and `pdfIds`, `research-source` start/status/cancel, and `research-source-read`
-list/read/compare/image. Source observations persist in tool sessions plus the
-immutable member index; only PDF reports have validated report persistence.
+list/read/compare/image. The product now persists server-issued source observations and same-bundle source
+reports (see [source reports](../../../docs/fitness/paper-source-reports.md)).
+This campaign assessor still checks source reads/indexes and PDF report persistence;
+it does not assert source-report creation/reopening. Do not infer that coverage
+from an automated campaign pass.
 
 `nonstandard-read` adds a second, explicit consent turn for only the observed
 `/attachments?id=methods` link after an Agent proposal. Its unknown work/release identity remains unknown even
@@ -96,3 +104,41 @@ Boundary regressions (no model calls):
 node --experimental-transform-types --test tests/runtime/paper-study/*.test.mjs
 /path/to/pinned/python tests/runtime/paper-study/recorded-transport.test.py
 ```
+
+## Configurable real-run preparation (not authorization)
+
+The four closure cases are `standard`, `nonstandard-decline`, `ambiguity`, and
+`injection`. All inspect without saving a bundle in turn one. `standard` then
+explicitly confirms only the offered source/PDF; the other three receive a user
+decline and must not attempt commit/start (even a rejected attempt fails the
+assessment). Ambiguity/injection use the existing authored nonstandard page,
+which contains unresolved attachments and untrusted instructions. Their distinct
+prompts/rubrics are not proof that a model handled them until actual inference is
+separately approved and assessed. These are consent-decline checks, not claims of
+cancelling an already-running acquisition; domain/HTTP tests cover the latter.
+
+A real invocation adds an absolute plan path after the Go executable. The plan
+has exactly these fields:
+
+- `schema`: `paper-study-plan.v1`; `confirmed`: explicit `true` (operator declaration only).
+- `authorizationReference`: new reference to the specific external user decision;
+  `sourceCommit`: exact committed 40-character SHA.
+- `endpoint`: approved credential-free HTTPS URL; `model`: exact approved ID.
+- `scenes`: explicit nonempty list of approved case names.
+- `limits`: all of `maxSessions`, `maxRequests`, `maxTokens` must be present as
+  positive integers or explicit `null`; `perTurnWallTimeMs` is a positive integer.
+
+No example selects a provider or presumes approval. `maxRequests` and `maxTokens`
+are passed to the existing Go CLI flags (explicit null maps to its 0/unlimited
+semantics); maxSessions is enforced by the existing campaign reservation owner.
+The HTTP retry setting remains zero. No fixed number of tokens, turns or sessions
+is a scientific acceptance requirement. A changed plan cannot reuse its previous
+ledger. The credential still arrives only through the non-echo stdin pipe;
+never put it in the plan, argv or source. Real-run session output goes to a private
+temporary directory (or the explicitly supplied private root), not the repository's
+artifact directory. Only separately reviewed sanitized summaries may be published.
+
+The plan/ledger and scripted-scenario tests do not start a real provider. Freeze
+and build actual executables before running the separate actual-process fixture
+campaign. Passing contract tests is not that process campaign and is not criteria
+8–9 acceptance.

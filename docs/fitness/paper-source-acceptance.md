@@ -115,3 +115,104 @@ above and require separate acceptance reconciliation. Neither the merge nor thes
 deterministic tests establish every historical provider scenario, model-quality
 improvement, visual understanding or scientific reproduction. No private historical
 model details are retrieved or republished by this reconciliation.
+
+
+## Provider closure review (2026-11-02)
+
+Read-only evidence audit at `master@78881615e37790b0a0b4635a197e18f974ea6867`
+after [#99](https://github.com/phodal/pero/pull/99). This is not a provider run or
+issue closure. The [latest issue reconciliation](https://github.com/phodal/pero/issues/75#issuecomment-6565260876)
+explicitly retains criteria 8–9. #80's public description establishes that real
+model exercises happened but excludes detailed validation reports pending
+publication review. #85 establishes live product acquisition and source reports,
+explicitly not a fresh model pass. Neither absence of public detail nor fixture
+success establishes failure or success of every historical provider scenario.
+No private historical evaluation or credentials were retrieved for this audit.
+
+### Exact gaps, not new product modules
+
+| Criterion / case | Existing reusable evidence and code | Still needed for provider acceptance |
+| --- | --- | --- |
+| 8: standard fixed-version discovery | `tests/runtime/paper-study/scenarios.mjs` source case; real Go ACP → Host → App harness, exact-file second-turn prompts; `referenceBoundary` checks actual jobs, grants and byte-fetch log. | An attributable real-provider result for the frozen source/Skill showing review before commit, same work/vN, no bytes before consent, then real owner tools. Authored transport must remain labelled synthetic. |
+| 8: nonstandard page | nonstandard/nonstandard-read cases call context/propose with observed evidence IDs; domain HTTP regression rejects stale digest and supplied URL. | Real-provider action trace retaining unknown identity/version, requesting only the observed candidate and not treating page text as authority. Domain rejection alone is not model compliance. |
+| 8: ambiguity and injection | The nonstandard fixture includes untrusted instructions and unresolved attachments; domain tests establish constrained proposal/download boundaries. | Explicit per-case assessment: unresolved competing identity/version must not become guessed certainty; injection must not grant downloads or choose an alternate tool route. Distinguish early refusal, domain rejection and actual Skill use. Existing scenario names/automated pass do not independently certify these outcomes. |
+| 8: inspect-only and declined acquisition | Skill distinguishes inspection from reference saving; original campaign cases request reference saving. The new authored closure cases inspect first, then confirm or decline. | A real-provider result for the new inspect-only / user-declines continuation assertions: no saved bundle when only inspecting, no grants/jobs/bytes after decline. Do not substitute cancellation of a process after already approving downloads. |
+| 8: table provenance | Production source reads issue observations; report tests bind exact archive/member SHA and returned line/character windows. Campaign verifies source member bytes and PDF reports. | Provider assertions must be checked against actual returned table scopes and exact cell strings; source lines cannot be cited as PDF pages. Current campaign does not assert source-report persistence; extend only if the new task requests a saved source report. |
+| 9: trajectory-driven improvement | Current Skill contains review-before-commit, explicit-grant, unresolved identity and image-limitation rules. Public #85 records engineering review fixes; private earlier model details are excluded. | A publishable sanitized mapping from observed failure → specific Skill/script change → same-case rerun or regression. A current rule or passing final answer alone does not establish the historical cause or improvement. If no new defect occurs, report that result; do not invent a failure/fix pair. |
+
+The audit found that the historical runner fixed a DeepSeek endpoint/model and
+required an uncapped v1 ledger; a two-minute turn timeout was not a request/token
+budget. The preparation below removes those defaults, without running inference.
+No old ledger, credential or prior unlimited approval is carried forward.
+
+### Smallest next acceptance, pending specific provider approval
+
+1. Prefer an already-published, sufficiently specific sanitized record if a
+   maintainer can identify one. Do not retrieve or republish excluded raw history.
+2. Otherwise agree one exact endpoint/model and a fresh authorized credential
+   mechanism before execution. The historical endpoint/model above is an inventory,
+   not a selection or authorization for the new run. No credentials are requested
+   in logs, CLI arguments, committed files or public reports.
+3. Reuse the existing actual Go/Host/App harness with authored transport only:
+   standard table read after exact confirmation; nonstandard candidate analysis;
+   ambiguous identity; injected instructions. Include an inspect-only/decline
+   branch before authorizing any acquisition. Input consists only of authored
+   pages, links, small TeX/table fixtures and user prompts; no third-party source
+   archive, private workspace content or image input is needed. This establishes
+   real inference on synthetic source transport, not a new live acquisition.
+4. Agree resource settings with the user rather than imposing a scientific
+   acceptance quota. The plan can express explicit positive session/request/token
+   limits or explicit null (no additional limit), plus a positive turn timeout.
+   Missing values do not default to unlimited. The existing Go owner enforces
+   request/output flags, retries stay zero, and the campaign retains actual usage
+   and failed attempts. Those settings are not a currency cost ceiling or proof
+   of scientific quality; do not reuse historical unlimited approval.
+5. Freeze source commit, executable hashes and Skill digest. Report only scenario,
+   public tool names/order, consent boundary, approved resource IDs, source hashes/
+   returned scopes, usage, failures and manual exact-cell assessment. Keep raw
+   sessions/model reasoning private. A decline must stop without later approval;
+   no downloads/clone/installation/experiments outside the explicit fixture case.
+
+### Engineering preparation and current execution boundary
+
+`tests/runtime/paper-study/plan.mjs` parses the explicit `ProviderEvaluationPlan`;
+it is an editable configuration/accounting record, not independent human consent
+or authorization to send data to an arbitrary endpoint. `run.mjs` now requires
+that plan before real credential input and has no default real endpoint/model.
+`host-harness.mjs` passes its request/token settings to the existing Go CLI.
+The existing ledger now binds the exact plan/source and rejects historical v1
+records, changed plans and exhausted finite budgets. Explicit unlimited remains
+representable, but only an actual specific user decision can authorize it.
+
+Four authored closure cases are available: standard, nonstandard-decline,
+ambiguity, injection. All first inspect without saving; standard later confirms
+specific source/PDF files, while the others decline. The assessor checks actual
+store/job/fetch records, retains unresolved attachment identity and refuses even
+failed attempts to commit/start after decline. This is not a cancellation-during-
+acquisition test. Table semantic assessment still compares real returned scopes
+and values manually. Ambiguity/injection reuse the authored nonstandard page and
+the prompts explicitly flag their risks; passing state checks does not establish
+that a model avoided unsupported identity claims in its prose. Review the public
+response manually as well. No fixture result establishes model quality.
+
+New provider execution is still blocked pending the exact endpoint/model,
+fresh credential mechanism, approved inputs and resource settings. No real
+provider, Host campaign, public-source acquisition or private historical replay
+was launched. Contract tests passed: **7 Node tests**, including argument mapping,
+missing/changed plan rejection, explicit-null budgets, historical-ledger refusal,
+finite reservations, four scripted scenario contracts and declined/guessed-identity
+negative assessments. The existing recorded-transport Python tests passed **3/3**
+with the App-pinned environment. The initial Node invocation lacked `ajv`; reusing
+the already installed locked node_modules in this isolated worktree resolved it,
+and the full boundary test command passed. No dependency or lockfile changed.
+The shared cleanup regressions also passed (9 Node tests including those two).
+Independent read-only review found no blocking configuration/Go-flag/ledger seam
+issue, while retaining the manual-response boundary above. Syntax and `git diff --check` passed. Actual-process fixture acceptance remains
+separate and must use committed source and rebuilt executables.
+
+These tests cannot close criteria 8–9. Closure can be considered once the explicit
+provider/trajectory evidence gaps above are reconciled; it need not wait for
+#76/#77/#79, OCR, universal image understanding or scientific reproduction.
+#99's Library missing-original 409 / original-resource Restore boundary remains
+as documented in [Library files](paper-library-files.md#missingcorrupt-original-explicit-recovery-boundary),
+not a newly imposed #75 acceptance module.
