@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { build } from 'esbuild';
+import { Product } from '../../packages/product/product.ts';
 
 const bundled = await build({
   entryPoints: ['desktop/src/product/shell.ts'], bundle: true, write: false, format: 'iife',
@@ -22,7 +23,7 @@ const bundled = await build({
 });
 
 async function shell(connected = false) {
-  const commands = [], events = [], contexts = [], elements = [];
+  const commands = [], events = [], contexts = [], elements = [], opens = [];
   const ports = {
     surface: { surface() {}, openLocation() {}, event(value) { events.push(value); } },
     chat: { context(value) { contexts.push(value); }, event(value) { events.push(value); }, selectedDraft: async () => undefined },
@@ -32,7 +33,7 @@ async function shell(connected = false) {
   const product = {
     onEvent(callback) { ports.receive = callback; }, onContext() {},
     connect: async () => ({ connected, dark: false, locale: 'en', product: { name: 'Fixture', chat: true, apps: ['fixture', 'other'], entry: { app: 'fixture', panel: 'main' } } }),
-    open: async () => {}, sessionCommand: async command => { commands.push(command); },
+    open: async (name, panel) => { opens.push({ name, panel }); }, sessionCommand: async command => { commands.push(command); },
   };
   runInNewContext(bundled.outputFiles[0].text, {
     ports, window: { product, addEventListener() {} }, document: { createElement: element, body: element(), documentElement: element() },
@@ -41,7 +42,7 @@ async function shell(connected = false) {
   // Await the bridge.connect continuation, not wall-clock arrival.
   await Promise.resolve();
   const event = (kind, data) => ports.receive({ version: 1, kind, data, text: '', request_id: null });
-  return { ports, commands, events, contexts, event, selector: elements.find(element => element.tag === 'select') };
+  return { ports, commands, events, contexts, event, opens, selector: elements.find(element => element.tag === 'select') };
 }
 
 for (const order of [ ['ready', 'chat', 'app'], ['ready', 'app', 'chat'], ['chat', 'app', 'ready'], ['chat', 'ready', 'app'], ['app', 'ready', 'chat'], ['app', 'chat', 'ready'] ]) {
@@ -103,5 +104,39 @@ for (const navigation of ['selector', 'app-link', 'panel-link']) {
     fixture.event('apps_opened', { name: target.app, panel: target.panel });
     assert.equal(fixture.commands.length, 2, 'matching completion initializes Chat');
     assert.deepEqual(JSON.parse(JSON.stringify(fixture.contexts.at(-1).scope)), target);
+  });
+}
+
+
+// Resolve the request actually sent by the shell, rather than inventing the
+// requested completion: Product owns defaults; DesktopApps checks the manifest.
+for (const panel of ['main', 'detail']) {
+  test(`App link opens its requested panel through the Product bridge: ${panel}`, async () => {
+    const fixture = await shell(true);
+    const product = Product.parse({ schemaVersion: 1, id: 'com.pero.fixture', name: 'Fixture', version: '1.0.0', shell: 'app', apps: ['fixture', 'other'], entry: { app: 'fixture', panel: 'main' }, python: 'system' });
+    const preload = await build({ entryPoints: ['desktop/src/product/preload.ts'], bundle: true, write: false, format: 'cjs', external: ['electron'] });
+    let bridge;
+    runInNewContext(preload.outputFiles[0].text, { require: () => ({
+      contextBridge: { exposeInMainWorld: (_, value) => { bridge = value; } },
+      ipcRenderer: { invoke: async (channel, name, panel) => {
+        assert.equal(channel, 'product:open');
+        const entry = product.selectApp(name, panel);
+        return { name: entry.app, panel: entry.panel || 'main' };
+      } },
+    }) });
+    const complete = async () => {
+      const request = fixture.opens.at(-1);
+      fixture.event('apps_opened', await bridge.open(request.name, request.panel));
+    };
+    // Omitted panel still opens the configured entry.
+    assert.deepEqual(await bridge.open('fixture'), { name: 'fixture', panel: 'main' });
+    assert.deepEqual(await bridge.open('other'), { name: 'other', panel: 'main' });
+    await assert.rejects(bridge.open('excluded', panel));
+    await fixture.ports.chatOptions.command({ action: 'app_location', app: 'fixture', panel, location: 'object:1' });
+    fixture.ports.chatOptions.ready();
+    assert.equal(fixture.commands.length, 0);
+    await complete();
+    assert.equal(fixture.commands.length, 2, 'the actual opened panel releases Chat initialization');
+    assert.deepEqual(JSON.parse(JSON.stringify(fixture.contexts.at(-1).scope)), { app: 'fixture', panel });
   });
 }

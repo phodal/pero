@@ -34,6 +34,10 @@ test('Product selects only its included Apps', () => {
   const product = Product.parse({ ...base, apps: ['virtual-cell', 'reaction-lab'] });
   assert.deepEqual(product.selectApp(), { app: 'virtual-cell', panel: 'main' });
   assert.deepEqual(product.selectApp('reaction-lab'), { app: 'reaction-lab' });
+  assert.deepEqual(product.selectApp('virtual-cell', 'detail'), { app: 'virtual-cell', panel: 'detail' });
+  assert.deepEqual(product.selectApp('reaction-lab', 'detail'), { app: 'reaction-lab', panel: 'detail' });
+  assert.throws(() => product.selectApp('other', 'detail'));
+  for (const panel of ['', '../detail', {}, null]) assert.throws(() => product.selectApp('virtual-cell', panel));
   assert.throws(() => product.selectApp('other'));
   assert.throws(() => product.selectApp({ app: 'virtual-cell' }));
 });

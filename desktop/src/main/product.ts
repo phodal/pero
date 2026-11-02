@@ -196,9 +196,9 @@ app.whenReady().then(async () => {
     appUse?.command(value as {action?:string;thread_id?:string});
     host.stdin!.write(JSON.stringify(value) + '\n');
   });
-  ipcMain.handle('product:open', async (event, name: unknown) => {
+  ipcMain.handle('product:open', async (event, name: unknown, panel: unknown) => {
     trusted(event);
-    const entry = product.selectApp(name);
+    const entry = product.selectApp(name, panel);
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       await Promise.race([hostReady, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Runtime startup timed out. Restart the application.')), 10000); })]);

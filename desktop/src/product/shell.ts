@@ -14,7 +14,7 @@ let appearance: AppearanceSnapshot | undefined;
 type Context = { product: ProductFields; locale: string; dark: boolean; connected: boolean };
 const bridge = (window as unknown as { product: {
   readContent(request:ConversationReadParameters):Promise<ContentChunk>;
-  connect(): Promise<Context>; open(name?: string): Promise<void>;
+  connect(): Promise<Context>; open(name?: string, panel?: string): Promise<void>;
   sessionCommand(command: object): Promise<void>;
   appUseCommand(command: object): Promise<unknown>;
   openExternal(url: string): Promise<void>;
@@ -43,7 +43,7 @@ const launchAppChat=appChatLauncher({
   },
   deliver:(thread_id,contexts,text,replace)=>chat?.event({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}}),
 });
-const surface = mountAppSurfaces(async () => bridge.open(selected.app).catch(report),launchAppChat,openReading,undefined,async slot=>{
+const surface = mountAppSurfaces(async () => bridge.open(selected.app, selected.panel).catch(report),launchAppChat,openReading,undefined,async slot=>{
   const accepted = !!slot && !!context?.product.chat && !!chat && !reader && selected?.app === slot.scope.app && (selected.panel || 'main') === slot.scope.panel;
   const next = accepted ? slot : null;
   if (JSON.stringify(chatSlot) !== JSON.stringify(next)) { chatSlot = next; chatSlotReady = false; queueMicrotask(update); }
@@ -183,7 +183,7 @@ selector.onchange = () => {
   selectedThread = undefined;
   update();
   refreshChatNotice();
-  void bridge.open(selected.app).catch(report);
+  void bridge.open(selected.app, selected.panel).catch(report);
 };
 bridge.onEvent(event => {
   if (event.kind === 'ready') { runtimeConnected = true; if (context) context.connected = true; initializeChat(); }
@@ -221,7 +221,7 @@ bridge.connect().then(value => {
     context: { dark: value.dark, locale: value.locale, active: chatOpen, scope: { app: selected.app, panel: selected.panel || 'main' } },
     command:command=>{
       const intent=command as {action?:string;thread_id?:string};
-      if(intent.action==='app_location'){const address=command as {app:string;panel:string;location:string};if(context.product.apps.includes(address.app)){selected={app:address.app,panel:address.panel};openedScope=undefined;update();surface.openLocation(address.app,address.panel,address.location);return bridge.open(address.app);}return Promise.resolve();}
+      if(intent.action==='app_location'){const address=command as {app:string;panel:string;location:string};if(context.product.apps.includes(address.app)){selected={app:address.app,panel:address.panel};openedScope=undefined;update();surface.openLocation(address.app,address.panel,address.location);return bridge.open(address.app,address.panel);}return Promise.resolve();}
       if(intent.action==='chat_expand') { if(chatOpen && !chatSlot) { chatExpanded = true; update(); } return Promise.resolve(); }
       if(intent.action==='prompt' && chatOpen && !chatSlot) { chatExpanded = true; update(); }
       if(intent.action==='app_use_selection')return bridge.appUseCommand({action:'select',thread_id:intent.thread_id}).then(()=>{});
@@ -238,5 +238,5 @@ bridge.connect().then(value => {
   for (const name of value.product.apps) selector.add(new Option(name, name));
   selector.value = selected.app;
   update();
-  return bridge.open(selected.app);
+  return bridge.open(selected.app, selected.panel);
 }).catch(report);
