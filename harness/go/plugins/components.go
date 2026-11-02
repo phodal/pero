@@ -39,6 +39,9 @@ type Component struct {
 	AllowedTools  []string             `json:"allowedTools,omitempty"`
 	Tools         []string             `json:"tools,omitempty"`
 	Model         string               `json:"model,omitempty"`
+	Context       string               `json:"context,omitempty"`
+	Agent         string               `json:"agent,omitempty"`
+	Background    *bool                `json:"background,omitempty"`
 }
 
 type componentHeader struct {
@@ -48,11 +51,28 @@ type componentHeader struct {
 	AllowedTools           componentTools `yaml:"allowed-tools"`
 	Tools                  componentTools `yaml:"tools"`
 	Model                  componentText  `yaml:"model"`
+	Context                componentText  `yaml:"context"`
+	Agent                  componentText  `yaml:"agent"`
+	Background             *componentBool `yaml:"background"`
 	UserInvocable          *bool          `yaml:"user-invocable"`
 	DisableModelInvocation *bool          `yaml:"disable-model-invocation"`
 }
 
 type componentText string
+
+type componentBool bool
+
+func (value *componentBool) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind != yaml.ScalarNode || node.Tag != "!!bool" {
+		return fmt.Errorf("expected a boolean at line %d", node.Line)
+	}
+	var parsed bool
+	if err := node.Decode(&parsed); err != nil {
+		return err
+	}
+	*value = componentBool(parsed)
+	return nil
+}
 
 func (s *componentText) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind != yaml.ScalarNode || node.Tag != "!!str" {
@@ -192,6 +212,26 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 	component.AllowedTools = []string(header.AllowedTools)
 	component.Tools = []string(header.Tools)
 	component.Model = strings.TrimSpace(string(header.Model))
+	component.Context = strings.TrimSpace(string(header.Context))
+	component.Agent = strings.TrimSpace(string(header.Agent))
+	if header.Background != nil {
+		value := bool(*header.Background)
+		component.Background = &value
+	}
+	if kind != ComponentAgent {
+		if component.Context != "" && component.Context != "fork" {
+			add(SeverityError, "INVALID_SKILL_CONTEXT", "context", "Skill context must be fork or omitted.")
+		}
+		if component.Context != "fork" && component.Agent != "" {
+			add(SeverityWarning, "IGNORED_SKILL_FORK_FIELD", "agent", "The agent field applies only to a skill with context: fork.")
+		}
+		if component.Context != "fork" && component.Background != nil {
+			add(SeverityWarning, "IGNORED_SKILL_FORK_FIELD", "background", "The background field applies only to a skill with context: fork.")
+		}
+		if component.Context == "fork" && component.Agent != "" && !validForkAgent(component.Agent) {
+			add(SeverityError, "INVALID_FORK_AGENT", "agent", "Fork agent must be a built-in or plugin-qualified agent name.")
+		}
+	}
 	component.Name = strings.TrimSpace(string(header.Name))
 	if kind == ComponentCommand {
 		component.Name = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
@@ -260,7 +300,7 @@ func knownComponentField(kind ComponentKind, key string) bool {
 	switch key {
 	case "name", "description", "model", "version", "license", "compatibility", "metadata", "homepage", "platforms":
 		return true
-	case "argument-hint", "allowed-tools", "user-invocable", "disable-model-invocation":
+	case "argument-hint", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent", "background":
 		return kind != ComponentAgent
 	case "tools", "color":
 		return kind == ComponentAgent
@@ -274,4 +314,17 @@ func validAgentColor(color string) bool {
 		return true
 	}
 	return false
+}
+
+func validForkAgent(name string) bool {
+	if len(name) > 129 {
+		return false
+	}
+	for _, char := range name {
+		if char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' || char == '-' || char == '_' || char == ':' {
+			continue
+		}
+		return false
+	}
+	return true
 }

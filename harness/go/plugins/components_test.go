@@ -34,7 +34,7 @@ func TestComponentDefinitions(t *testing.T) {
 		{name: "agent ignored permission field", kind: ComponentAgent, path: "agents/review.md", content: "---\nname: review\ndescription: Analyze.\npermissionMode: bypassPermissions\n---\nPrompt.", wantName: "review", wantDescription: "Analyze.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt.", wantCodes: []string{"IGNORED_PLUGIN_AGENT_FIELD"}},
 		{name: "agent display fallback", kind: ComponentAgent, path: "agents/review.md", content: "---\nname: review\ndescription: Analyze.\ncolor: magenta\n---\nPrompt.", wantName: "review", wantDescription: "Analyze.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt.", wantCodes: []string{"INVALID_AGENT_COLOR"}},
 		{name: "skill visibility does not configure agent", kind: ComponentAgent, path: "agents/review.md", content: "---\nname: review\ndescription: Analyze.\nuser-invocable: false\n---\nPrompt.", wantName: "review", wantDescription: "Analyze.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt.", wantCodes: []string{"UNSUPPORTED_COMPONENT_FIELD"}},
-		{name: "unsupported behavior diagnosed", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\ncontext: fork\n---\nInspect.", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantBody: "Inspect.", wantCodes: []string{"UNSUPPORTED_COMPONENT_FIELD"}},
+		{name: "unsupported behavior diagnosed", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\neffort: high\n---\nInspect.", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantBody: "Inspect.", wantCodes: []string{"UNSUPPORTED_COMPONENT_FIELD"}},
 		{name: "invalid logical name", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\nname: bad:name\n---\nInspect.", wantName: "bad:name", wantVisibility: InvocationVisibility{true, true}, wantBody: "Inspect.", wantCodes: []string{"INVALID_COMPONENT_NAME"}},
 		{name: "unclosed frontmatter", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\nname: review\nInspect.", wantVisibility: InvocationVisibility{true, true}, wantCodes: []string{"INVALID_FRONTMATTER"}},
 		{name: "frontmatter must be mapping", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\n- review\n---\nInspect.", wantVisibility: InvocationVisibility{true, true}, wantCodes: []string{"INVALID_FRONTMATTER"}},
@@ -69,6 +69,44 @@ func TestComponentDefinitions(t *testing.T) {
 		})
 	}
 }
+
+func TestForkComponentFields(t *testing.T) {
+	for _, test := range []struct {
+		name, frontmatter, context, agent string
+		kind                              ComponentKind
+		background                        *bool
+		codes                             []string
+	}{
+		{name: "default fork", kind: ComponentSkill, frontmatter: "context: fork\n", context: "fork"},
+		{name: "builtin synchronous", kind: ComponentSkill, frontmatter: "context: fork\nagent: Explore\nbackground: false\n", context: "fork", agent: "Explore", background: boolPointer(false)},
+		{name: "plugin agent", kind: ComponentCommand, frontmatter: "context: fork\nagent: sample:reviewer\nbackground: true\n", context: "fork", agent: "sample:reviewer", background: boolPointer(true)},
+		{name: "invalid context", kind: ComponentSkill, frontmatter: "context: shared\n", context: "shared", codes: []string{"INVALID_SKILL_CONTEXT"}},
+		{name: "nonstring context", kind: ComponentSkill, frontmatter: "context: false\n", codes: []string{"INVALID_COMPONENT_FIELD"}},
+		{name: "strict background", kind: ComponentSkill, frontmatter: "context: fork\nbackground: 'false'\n", codes: []string{"INVALID_COMPONENT_FIELD"}},
+		{name: "agent must be a name", kind: ComponentSkill, frontmatter: "context: fork\nagent: ../outside\n", context: "fork", agent: "../outside", codes: []string{"INVALID_FORK_AGENT"}},
+		{name: "fork fields ignored inline", kind: ComponentSkill, frontmatter: "agent: Explore\nbackground: false\n", agent: "Explore", background: boolPointer(false), codes: []string{"IGNORED_SKILL_FORK_FIELD", "IGNORED_SKILL_FORK_FIELD"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := "skills/review/SKILL.md"
+			if test.kind == ComponentCommand {
+				path = "commands/review.md"
+			}
+			component, diagnostics := ParseComponent("sample", test.kind, path, []byte("---\n"+test.frontmatter+"---\nRun the task."))
+			if component.Context != test.context || component.Agent != test.agent || !reflect.DeepEqual(component.Background, test.background) {
+				t.Fatalf("fork metadata: %+v", component)
+			}
+			var codes []string
+			for _, diagnostic := range diagnostics {
+				codes = append(codes, diagnostic.Code)
+			}
+			if !reflect.DeepEqual(codes, test.codes) {
+				t.Fatalf("diagnostics=%v want=%v", codes, test.codes)
+			}
+		})
+	}
+}
+
+func boolPointer(value bool) *bool { return &value }
 
 func TestComponentDiagnosticsDoNotEchoValues(t *testing.T) {
 	secret := "secret-canary-value"

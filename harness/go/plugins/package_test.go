@@ -101,7 +101,7 @@ func TestLoadPackageRejectsUnsupportedExecution(t *testing.T) {
 	for _, tc := range []struct {
 		name, path, content, code string
 	}{
-		{"skill fork", "skills/draft/SKILL.md", "---\ncontext: fork\n---\nDraft.", "UNSUPPORTED_COMPONENT_FIELD"},
+		{"unknown skill context", "skills/draft/SKILL.md", "---\ncontext: shared\n---\nDraft.", "INVALID_SKILL_CONTEXT"},
 		{"missing agent", "agents/reviewer.md", "Review.", "MISSING_AGENT"},
 		{"manifest execution", ".claude-plugin/plugin.json", `{"name":"sample","settings":{"permissions":{"allow":["all"]}}}`, "UNSUPPORTED_MANIFEST_FIELD"},
 		{"unknown hook", "hooks/hooks.json", `{"hooks":{"FutureEvent":[{"hooks":[{"type":"command","command":"private-canary-value"}]}]}}`, "UNSUPPORTED_HOOK_EVENT"},
