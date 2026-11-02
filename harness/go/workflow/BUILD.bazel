@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "background.go",
         "catalog.go",
+        "notifications.go",
         "process_unix.go",
         "process_unsupported.go",
         "runtime.go",

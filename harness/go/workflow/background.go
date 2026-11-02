@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
@@ -33,12 +34,14 @@ type taskTerminal struct {
 	Diagnostic string            `json:"diagnostic,omitempty"`
 }
 type backgroundTask struct {
-	parent   *harness.Agent
-	intent   taskIntent
-	cancel   context.CancelFunc
-	done     chan struct{}
-	mu       sync.Mutex
-	terminal *taskTerminal
+	parent         *harness.Agent
+	intent         taskIntent
+	cancel         context.CancelFunc
+	done           chan struct{}
+	mu             sync.Mutex
+	terminal       *taskTerminal
+	suppressNotice atomic.Bool
+	noticeError    string
 }
 
 func (task *backgroundTask) snapshot(retrieval harness.TaskRetrieval) harness.ToolResult {
@@ -50,12 +53,13 @@ func (task *backgroundTask) snapshot(retrieval harness.TaskRetrieval) harness.To
 		retrieval = harness.TaskRetrieved
 	}
 	raw, _ := json.Marshal(struct {
-		ID        string                `json:"task_id"`
-		Kind      harness.TaskKind      `json:"kind"`
-		Status    string                `json:"status"`
-		Retrieval harness.TaskRetrieval `json:"retrieval_status"`
-		Terminal  *taskTerminal         `json:"terminal,omitempty"`
-	}{task.intent.ID, harness.TaskKindWorkflow, status, retrieval, task.terminal})
+		ID          string                `json:"task_id"`
+		Kind        harness.TaskKind      `json:"kind"`
+		Status      string                `json:"status"`
+		Retrieval   harness.TaskRetrieval `json:"retrieval_status"`
+		Terminal    *taskTerminal         `json:"terminal,omitempty"`
+		NoticeError string                `json:"notification_error,omitempty"`
+	}{task.intent.ID, harness.TaskKindWorkflow, status, retrieval, task.terminal, task.noticeError})
 	return harness.ToolResult{IsError: status == "failed" || status == "interrupted", Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(raw)}}}
 }
 func (task *backgroundTask) handle() harness.TaskHandle {
@@ -100,6 +104,7 @@ func (app *App) stopBackground(ctx context.Context, parent *harness.Agent, fence
 	tasks := []*backgroundTask{}
 	for _, task := range app.background {
 		if parent == nil || task.parent == parent {
+			task.suppressNotice.Store(true)
 			tasks = append(tasks, task)
 			if task.cancel != nil {
 				task.cancel()
@@ -197,6 +202,9 @@ func (app *App) StartBackground(ctx context.Context, request harness.ToolRequest
 		task.mu.Lock()
 		task.terminal = &terminal
 		task.mu.Unlock()
+		if persistErr == nil {
+			app.notifyBackground(operation, task, terminal)
+		}
 		close(task.done)
 	}()
 	return task.snapshot(harness.TaskNotReady), nil
