@@ -42,7 +42,7 @@ function Contents({ tokens, onTarget }: { tokens: Inline[]; onTarget(target: str
 function readSetting(key: string) { try { return localStorage.getItem(key); } catch { return null; } }
 function saveSetting(key: string, value: string) { try { localStorage.setItem(key, value); } catch { /* Reading works without storage. */ } }
 
-export function StructuredReading({ api, paperId, openToken, onReady, onPrepared, onReview, showText, toolbar, children }: { api: Api; paperId: string; openToken: number; showText?: boolean; toolbar?: HTMLElement | null; onReady(ready: boolean): void; onPrepared?(): void; onReview(): void; children: React.ReactNode }) {
+export function StructuredReading({ api, paperId, openToken, onReady, onPrepared, onReview, showText, toolbar, children, onSourceUrl }: { api: Api; paperId: string; openToken: number; showText?: boolean; toolbar?: HTMLElement | null; onSourceUrl?(url: string): void; onReady(ready: boolean): void; onPrepared?(): void; onReview(): void; children: React.ReactNode }) {
   const { t } = useAppI18n({ prepareReading: { zh: '排版阅读', en: 'Format' }, preparing: { zh: '排版中…', en: 'Formatting…' }, failed: { zh: '阅读失败', en: 'Reading failed' } });
   const [reviewing, setReviewing] = useState(false);
   const [overview, setOverview] = useState<Overview>({ revisions: [], sources: [] }), [document, setDocument] = useState<Document | null>(null);
@@ -60,7 +60,7 @@ export function StructuredReading({ api, paperId, openToken, onReady, onPrepared
     if (version !== epoch.current) return;
     if (scope) chooseScope(identity, { bundleId: scope.bundleId, resourceId: scope.resourceId });
     else { try { setEvidenceScope(JSON.parse(readSetting(`paper-read-scope:${identity}`) ?? 'null')); } catch { setEvidenceScope(null); } }
-    originalEpoch.current++; setRecordedScope(null); setDocument(value); setOriginal(null); setOriginalBlock(''); setCandidates([]); setTargetError(''); onReady(true);
+    originalEpoch.current++; setRecordedScope(null); setDocument(value); onSourceUrl?.(value.source.url); setOriginal(null); setOriginalBlock(''); setCandidates([]); setTargetError(''); onReady(true);
     saveSetting(`paper-read-revision:${paperId}`, identity);
     return value;
   }
@@ -155,14 +155,15 @@ export function StructuredReading({ api, paperId, openToken, onReady, onPrepared
     } catch (error) { if (version === originalEpoch.current) setError({ message: error instanceof Error ? error.message : String(error) }); }
   }
   if (showText) return <>{children}</>;
-  const controls = <div className="pa-reader-format-controls">
+  const controls = <div className="pa-reader-format-controls pa-reader-read-controls">
     {!document && <><Button variant="ghost" disabled={busy} aria-expanded={reviewing} onClick={() => overview.reviewUrl ? setReviewing(value => !value) : onReview()}>{overview.reviewUrl ? t('prepareReading') : 'Review HTML sources'}</Button>{overview.sources.filter(s => s.authorized).map(s => <Button key={`${s.bundleId}:${s.resourceId}`} busy={busy} onClick={() => void prepare(s)}>Prepare Read · {s.revision}</Button>)}</>}
-    {reviewing && <ArxivReading api={api} paperId={paperId} onPrepare={prepare}/>}
+    {reviewing && <ArxivReading api={api} paperId={paperId} onClose={() => setReviewing(false)} onPrepare={async source => { await prepare(source); setReviewing(false); }}/>}
     {busy && <span role="status">{t('preparing')}</span>}
-    {error && <details className="pa-reading-source-menu" open><summary>{t('failed')}</summary><div className="pa-reading-source-options"><Feedback kind="error">{error.message}<Button onClick={() => setError(null)}>Dismiss</Button>{error.source && <Button disabled={busy} onClick={() => void prepare(error.source!, true)}>Retry {error.source.revision}</Button>}</Feedback></div></details>}
+
   </div>;
   return <div ref={root} className="pa-structured-reading" data-document-id={document?.id}>
     {toolbar ? createPortal(controls, toolbar) : controls}
+    {error && <Feedback kind="error">{error.message}<Button onClick={() => setError(null)}>Dismiss</Button>{error.source && <Button disabled={busy} onClick={() => void prepare(error.source!, true)}>Retry {error.source.revision}</Button>}</Feedback>}
     {!document && !overview.reviewUrl && overview.sources.length === 0 && <p className="pa-document-meta">Read needs an explicitly approved, fixed-version official HTML source. Existing text and PDF remain available.</p>}
     {!document && overview.sources.some(s => !s.authorized) && <p className="pa-document-meta">HTML acquisition is not authorized. Review sources before downloading; PDF permission does not include HTML.</p>}
     {!document ? children : <>
