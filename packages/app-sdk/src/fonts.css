@@ -3,7 +3,7 @@
 @import '@fontsource/jetbrains-mono/latin-500.css';
 @import '@fontsource/jetbrains-mono/latin-700.css';
 
-/* Shared Point font tokens: one source for every surface that bundles the SDK. */
+/* Shared Pero font tokens: one source for every surface that bundles the SDK. */
 /* Roboto Variable leads the text stack and JetBrains Mono the code stack; CJK
  * glyphs fall through to the system fonts. html:root outranks the upstream :root defaults. */
 html:root {
@@ -14,3 +14,10 @@ html:root {
 }
 
 body { --dsw-font-mono: var(--ds-font-family-code); }
+
+/* Font opt-in is self-contained in a Pero App document. */
+html:root {
+  --pero-font-family-sans: var(--dsh-font-family-text-default);
+  --pero-font-family-mono: var(--dsh-font-family-code-default);
+  --ds-font-family-code: var(--dsh-font-family-code-default);
+}

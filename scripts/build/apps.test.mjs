@@ -27,6 +27,8 @@ for (const ancestorReact of [false, true]) {
       }
       symlinkSync(resolve(root, 'node_modules/esbuild'), join(checkout, 'node_modules/esbuild'), 'junction');
       cpSync(join(root, 'scripts'), join(checkout, 'scripts'), { recursive: true });
+      writeFileSync(join(sdk, '../package.json'), JSON.stringify({exports:{'.':'./src/index.tsx','./core':'./src/core.mjs'}}));
+      writeFileSync(join(sdk, 'core.mjs'), 'export const supported = true;');
       writeFileSync(join(app, 'app.json'), JSON.stringify({ displayName: 'React fixture' }));
       writeFileSync(join(reader, 'index.html'), 'reader fixture');
       const imports = `import React from 'react';
@@ -43,6 +45,8 @@ export function Shared() { const [value] = React.useState('mounted'); return <sp
 import { renderToString } from 'react-dom/server';
 import ownedReact from '../node_modules/react/index.js';
 import { runtime, Shared } from '@pero/app-sdk';
+import { supported } from '@pero/app-sdk/core';
+if (!supported) throw new Error('SDK subpath resolution failed');
 const local = { React, jsxRuntime, jsxDevRuntime, flushSync, createRoot };
 globalThis.result = Object.fromEntries(Object.entries(local).map(([name, value]) => [name, value === runtime[name]]));
 globalThis.appOwned = React === ownedReact;
