@@ -113,6 +113,8 @@ go_library(
         "tools_source_handoff.go",
         "tools_terminal_notification.go",
         "types.go",
+        "user_question.go",
+        "user_question_tool.go",
         "workspace_admission.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/harness",
@@ -136,6 +138,7 @@ go_library(
 go_test(
     name = "harness_test",
     srcs = [
+        "approval_preapproved_test.go",
         "approval_test.go",
         "extraction_test.go",
         "harness_test.go",
@@ -170,6 +173,7 @@ go_test(
         "tools_identity_test.go",
         "tools_retirement_test.go",
         "tools_test.go",
+        "user_question_test.go",
     ],
     embed = [":harness"],
     deps = [
