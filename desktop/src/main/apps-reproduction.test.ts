@@ -24,9 +24,22 @@ function deferred<T>() {
 
 function harness(confirm?: Confirm, respond?: (request: HostRequest) => unknown | Promise<unknown>) {
   const commands: HostRequest[] = [];
+  const apiAdmissions: string[] = [];
   let outcome: unknown;
   const apps = new DesktopApps(command => {
-    const raw = command as { id: string; action: string; name: string; request: HostRequest };
+    const raw = command as { id: string; action: string; name: string; path?: string; request: HostRequest };
+    if (raw.action === 'apiaccess') {
+      // Paper's backend declares the default /api grant. Keep the real Host
+      // admission hop separate from private reproduction execution requests.
+      assert.equal(raw.name, 'paper-agent');
+      if (typeof raw.path !== 'string') throw new Error('API admission requires a path');
+      assert.ok(raw.path.startsWith('/api/'));
+      assert.equal(raw.request, undefined);
+      apiAdmissions.push(raw.path);
+      apps.accept({ version: 1, kind: 'apps_result', request_id: raw.id,
+        text: '', data: { ok: true, value: null } });
+      return;
+    }
     assert.equal(raw.action, 'reproduction'); assert.equal(raw.name, 'paper-agent');
     commands.push(raw.request);
     Promise.resolve().then(() => respond ? respond(raw.request) : (() => {
@@ -41,7 +54,7 @@ function harness(confirm?: Confirm, respond?: (request: HostRequest) => unknown 
   const post = (operation = 'request', extra: Record<string, unknown> = {}) => apps.serve(new Request('pero-app://paper-agent/host/reproduction', {
     method: 'POST', headers: { Origin: 'pero-app://paper-agent' }, body: JSON.stringify({ operation, ...ids, ...extra }),
   }));
-  return { apps, commands, post };
+  return { apps, commands, apiAdmissions, post };
 }
 
 test('direct numerical approval needs no Agent and preserves private ticket and frozen decision', async () => {
@@ -143,6 +156,7 @@ test('unknown remains a status and caller approval or execution fields cannot cr
     for (const path of ['/api/reproduction/start', '/api/reproduction/host', '/api/reproduction/%68ost', '/api/reproduction/a/../start']) {
       assert.equal((await h.apps.serve(new Request(`pero-app://paper-agent${path}`, { method: 'POST', body: '{}' }))).status, 403);
     }
+    assert.deepEqual(h.apiAdmissions, ['/api/reproduction/start', '/api/reproduction/host', '/api/reproduction/%68ost', '/api/reproduction/start']);
     assert.equal((await h.apps.serve(new Request('pero-app://other/host/reproduction', { method: 'POST', body: '{}' }))).status, 403);
     assert.equal((await h.apps.serve(new Request('pero-app://paper-agent/host/reproduction'))).status, 405);
     assert.equal((await h.apps.serve(new Request('pero-app://paper-agent/host/reproduction', {
