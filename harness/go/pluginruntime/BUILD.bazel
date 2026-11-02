@@ -23,6 +23,8 @@ go_library(
 go_test(
     name = "pluginruntime_test",
     srcs = [
+        "compaction_test.go",
+        "hooks_test.go",
     ],
     embed = [":pluginruntime"],
     deps = [
