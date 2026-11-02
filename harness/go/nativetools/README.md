@@ -54,3 +54,34 @@ File-tool reads/creates remain workspace-handle-confined regardless of the shell
 unconfined-read/network limitations. Session cwd must match the configured
 workspace and its original identity.
 No Windows shell is enabled without the explicit partial sandbox selection.
+
+## Claude plugin Bash
+
+Selecting `--plugin-dir` adds the Claude tool names and parameters. Explicit
+`--enable-shell` enables `Bash`, including `run_in_background`. These commands
+retain the existing approval and process ownership paths. `TaskOutput` waits or
+reads without cancelling on a read timeout; `TaskStop` cancels and joins the
+exact owner's task. Completed output survives session reload. A previously
+running process is recorded as interrupted on recovery and is never replayed.
+
+Successful native Bash output defaults to 30,000 Unicode characters inline.
+Larger output returns a private artifact of at most 64 MiB and a preview of up
+to 2,000 characters. Failed output returns at most 10,000 characters from the
+head and tail of the readback window. Success artifacts use `output_file`;
+background working logs use `working_log_file` with a separate partial flag.
+The working log has a 5 GB ceiling. The artifact writer checks the original
+workspace identity; a replaced workspace causes a presentation error while
+retaining the actual command result and log, without rerunning the command.
+
+`BASH_MAX_OUTPUT_LENGTH` controls readback, default 30,000 and maximum 150,000.
+`--bash-output-max-chars N` overrides both inline and readback limits, up to
+128,000, and takes precedence over that environment variable. Library callers
+can supply the same typed `Options.BashOutput` policy. New execution records
+retain their presentation for cold recovery; older records retain their saved
+bounded result and working log. Dynamic skill command expansion retains its
+separate output projection.
+
+Foreground plugin Bash defaults to 120 seconds, maximum 600 seconds. Background
+commands use the unattended 30-minute default and 2-hour maximum. Automatic
+foreground-to-background promotion, interactive sessions without a deadline,
+and background subagent residency/command-completion wakeups are not yet wired.
