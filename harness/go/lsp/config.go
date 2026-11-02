@@ -43,6 +43,7 @@ type Config struct {
 	StartupTimeout, ShutdownTimeout, RequestTimeout time.Duration
 	RestartOnCrash                                  bool
 	MaxRestarts                                     int
+	Diagnostics                                     bool
 }
 type Server struct {
 	Name   string
@@ -50,7 +51,7 @@ type Server struct {
 }
 
 // DecodeServers accepts the official server-name map, not an extra wrapper.
-// Unimplemented transport and post-edit diagnostics are rejected explicitly.
+// Unimplemented transports are rejected explicitly.
 func DecodeServers(content []byte) ([]Server, error) {
 	var entries map[string]json.RawMessage
 	if json.Unmarshal(content, &entries) != nil || entries == nil || len(entries) > 32 {
@@ -105,13 +106,13 @@ func DecodeServers(content []byte) ([]Server, error) {
 		if wire.Transport != "" && wire.Transport != "stdio" {
 			return nil, errors.New("lsp: only stdio transport is implemented")
 		}
-		if wire.Diagnostics != nil && *wire.Diagnostics {
-			return nil, errors.New("lsp: post-edit diagnostics injection is not implemented; diagnostics must be false when declared")
-		}
 		if len(wire.Extensions) == 0 {
 			return nil, errors.New("lsp: extensionToLanguage requires at least one mapping")
 		}
-		config := Config{Command: wire.Command, Args: append([]string(nil), wire.Args...), InitializationOptions: frozen(wire.InitializationOptions), Settings: frozen(wire.Settings), WorkspaceFolder: wire.WorkspaceFolder, StartupTimeout: 10 * time.Second, ShutdownTimeout: 5 * time.Second, RequestTimeout: 60 * time.Second, RestartOnCrash: true, MaxRestarts: 3}
+		config := Config{Command: wire.Command, Args: append([]string(nil), wire.Args...), InitializationOptions: frozen(wire.InitializationOptions), Settings: frozen(wire.Settings), WorkspaceFolder: wire.WorkspaceFolder, StartupTimeout: 10 * time.Second, ShutdownTimeout: 5 * time.Second, RequestTimeout: 60 * time.Second, RestartOnCrash: true, MaxRestarts: 3, Diagnostics: true}
+		if wire.Diagnostics != nil {
+			config.Diagnostics = *wire.Diagnostics
+		}
 		for _, arg := range config.Args {
 			if strings.ContainsRune(arg, 0) {
 				return nil, errors.New("lsp: args must not contain null bytes")

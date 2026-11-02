@@ -1,6 +1,10 @@
 package lsp
 
-import "encoding/json"
+import (
+	"context"
+	"encoding/json"
+	"errors"
+)
 
 // Diagnostic is evidence from a selected server, not an instruction or an edit.
 type Diagnostic struct {
@@ -25,6 +29,7 @@ type documentDiagnostics struct {
 	uri     string
 	version int
 	report  *DiagnosticReport
+	ready   chan struct{}
 }
 
 func (document *documentDiagnostics) publish(raw json.RawMessage) {
@@ -54,12 +59,15 @@ func (document *documentDiagnostics) publish(raw json.RawMessage) {
 			report.Truncated = true
 		}
 	}
+	if document.report == nil && document.ready != nil {
+		close(document.ready)
+	}
 	document.report = report // A publication replaces the previous set, even empty.
 }
 
 func (c *connection) openDiagnostics(uri string, version int) {
 	c.mu.Lock()
-	c.diagnostics = &documentDiagnostics{uri: uri, version: version}
+	c.diagnostics = &documentDiagnostics{uri: uri, version: version, ready: make(chan struct{})}
 	c.mu.Unlock()
 }
 
@@ -72,4 +80,18 @@ func (c *connection) takeDiagnostics() *DiagnosticReport {
 		c.diagnostics = nil
 	}
 	return report
+}
+
+func (c *connection) awaitDiagnostics(ctx context.Context) error {
+	c.mu.Lock()
+	ready := c.diagnostics.ready
+	c.mu.Unlock()
+	select {
+	case <-ready:
+		return nil
+	case <-c.closed:
+		return errors.New("lsp: language server exited before publishing diagnostics")
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

@@ -56,6 +56,9 @@ func Mount(ctx context.Context, h *harness.Harness, options Options) (*App, erro
 		if err := run.Defer("lsp/servers", func(context.Context) error { return app.shutdown() }); err != nil {
 			return nil, err
 		}
+		if err := app.registerDiagnostics(run, h); err != nil {
+			return nil, err
+		}
 		_, err := h.Tools().Register(run, harness.Tool{Schema: harness.ToolSchema{Name: "LSP", Description: "Query a selected, initialized language server. operation: goToDefinition, findReferences, hover, documentSymbol, workspaceSymbol, goToImplementation, prepareCallHierarchy, incomingCalls, outgoingCalls. filePath is a workspace file; line and character are positive one-based UTF-16 cursor coordinates. workspaceSymbol searches the identifier at that cursor. Call hierarchy queries prepare the item at the cursor before querying edges. findReferences includes the declaration. Unsupported server capabilities return errors. This tool does not edit files or execute server commands.", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"operation":{"type":"string","enum":["goToDefinition","findReferences","hover","documentSymbol","workspaceSymbol","goToImplementation","prepareCallHierarchy","incomingCalls","outgoingCalls"]},"filePath":{"type":"string","minLength":1},"line":{"type":"integer","minimum":1},"character":{"type":"integer","minimum":1}},"required":["operation","filePath","line","character"]}`)}, IsConcurrencySafe: func(context.Context, harness.ToolRequest) bool { return true }, ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
 			var input Query
 			if err := json.Unmarshal(request.Arguments, &input); err != nil {

@@ -44,7 +44,7 @@ func TestPluginLSPMergeAndInspectionStayPrivate(t *testing.T) {
 func TestPluginLSPRejectsInvalidDeclarationsWithoutExecuting(t *testing.T) {
 	for _, config := range []string{
 		`{"go":{"command":"not-run","extensionToLanguage":{".go":"go"},"transport":"socket"}}`,
-		`{"go":{"command":"not-run","extensionToLanguage":{".go":"go"},"diagnostics":true}}`,
+		`{"go":{"command":"not-run","extensionToLanguage":{".go":"go"},"diagnostics":"invalid"}}`,
 		`{"go":{"command":"not-run","extensionToLanguage":{".go":"go"},"unknownExecutionField":"private-canary"}}`,
 	} {
 		root := t.TempDir()

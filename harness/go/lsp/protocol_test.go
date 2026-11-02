@@ -49,7 +49,7 @@ func TestFramingRejectsMalformedAndOversizedMessages(t *testing.T) {
 }
 
 func TestConfigStrictnessDoesNotExposeValues(t *testing.T) {
-	for _, suffix := range []string{`,"unknown":"private-canary"`, `,"transport":"socket"`, `,"diagnostics":true`, `,"requestTimeout":0`, `,"maxRestarts":-1`, `,"args":null`, `,"restartOnCrash":null`} {
+	for _, suffix := range []string{`,"unknown":"private-canary"`, `,"transport":"socket"`, `,"requestTimeout":0`, `,"maxRestarts":-1`, `,"args":null`, `,"restartOnCrash":null`} {
 		raw := `{"go":{"command":"private-canary","extensionToLanguage":{".go":"go"}` + suffix + `}}`
 		if _, err := DecodeServers([]byte(raw)); err == nil || strings.Contains(err.Error(), "private-canary") {
 			t.Fatalf("configuration invalidity or privacy was lost: %v", err)

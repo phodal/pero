@@ -66,7 +66,7 @@ type Result struct {
 }
 
 func (q Query) position(text string) (Position, string, error) {
-	known := false
+	known := q.Operation == collectDiagnostics
 	for _, operation := range operations {
 		known = known || q.Operation == operation
 	}
@@ -346,7 +346,7 @@ func (result Result) Format() (string, bool) {
 			appendLine(fmt.Sprintf("  call site: %s:%d:%d", call.SiteURI, span.Start.Line+1, span.Start.Character+1))
 		}
 	}
-	if len(lines) == 0 {
+	if len(lines) == 0 && result.Operation != collectDiagnostics {
 		lines = append(lines, "No results returned by the initialized language server for this query.")
 	}
 	if report := result.Diagnostics; report != nil {

@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "lsp",
     srcs = [
+        "after_edit.go",
         "client.go",
         "config.go",
         "connection.go",
@@ -34,15 +35,23 @@ go_test(
     deps = select({
         "@rules_go//go/platform:android": [
             "//harness",
+            "//nativetools",
+            "//runtime",
         ],
         "@rules_go//go/platform:darwin": [
             "//harness",
+            "//nativetools",
+            "//runtime",
         ],
         "@rules_go//go/platform:ios": [
             "//harness",
+            "//nativetools",
+            "//runtime",
         ],
         "@rules_go//go/platform:linux": [
             "//harness",
+            "//nativetools",
+            "//runtime",
         ],
         "//conditions:default": [],
     }),

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/phodal/pero/harness/go/fstools"
 	"github.com/phodal/pero/harness/go/harness"
@@ -32,13 +33,14 @@ type workspaceFolder struct {
 	Name string `json:"name"`
 }
 type instance struct {
-	gate         chan struct{}
-	selected     Selection
-	cwd          string
-	conn         *connection
-	capabilities capabilities
-	launches     int
-	version      int
+	gate           chan struct{}
+	selected       Selection
+	cwd            string
+	conn           *connection
+	capabilities   capabilities
+	launches       int
+	version        int
+	save, saveText bool
 }
 type App struct {
 	mu            sync.Mutex
@@ -60,6 +62,8 @@ func capability(raw json.RawMessage) bool {
 }
 func (caps capabilities) supports(operation Operation) bool {
 	switch operation {
+	case collectDiagnostics:
+		return true
 	case Definition:
 		return caps.definition
 	case References:
@@ -222,16 +226,7 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 		app.mu.Unlock()
 		return Result{}, errors.New("lsp: contribution is closed")
 	}
-	var selected *Selection
-	for i := range app.selections {
-		for _, mapping := range app.selections[i].Server.Config.ExtensionToLanguage {
-			if strings.HasSuffix(file, mapping.Extension) {
-				if selected == nil || len(mapping.Extension) > longestExtension(*selected, file) {
-					selected = &app.selections[i]
-				}
-			}
-		}
-	}
+	selected := app.selectionFor(file)
 	if selected == nil {
 		app.mu.Unlock()
 		return Result{}, errors.New("lsp: no selected language server maps this source extension")
@@ -301,6 +296,18 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 		}
 	}()
 	requestCancel()
+	if query.Operation == collectDiagnostics && session.save {
+		params := struct {
+			Document textDocument `json:"textDocument"`
+			Text     *string      `json:"text,omitempty"`
+		}{Document: textDocument{URI: uri}}
+		if session.saveText {
+			params.Text = &source.Text
+		}
+		if err := session.conn.notify(ctx, "textDocument/didSave", params); err != nil {
+			return Result{}, err
+		}
+	}
 	result, err := session.query(ctx, query.Operation, uri, position, symbol)
 	result.Diagnostics = session.conn.takeDiagnostics()
 	return result, err
@@ -346,6 +353,9 @@ func (instance *instance) ensure(ctx context.Context, environment []string) erro
 		InitializationOptions JSONValue         `json:"initializationOptions"`
 		Capabilities          struct {
 			TextDocument struct {
+				Synchronization struct {
+					DidSave bool `json:"didSave"`
+				} `json:"synchronization"`
 				PublishDiagnostics struct {
 					VersionSupport bool `json:"versionSupport"`
 				} `json:"publishDiagnostics"`
@@ -361,6 +371,7 @@ func (instance *instance) ensure(ctx context.Context, environment []string) erro
 	}{ProcessID: os.Getpid(), RootURI: uri, Folders: []workspaceFolder{{URI: uri, Name: filepath.Base(instance.cwd)}}, InitializationOptions: config.InitializationOptions}
 	params.Capabilities.General.PositionEncodings = []string{"utf-16"}
 	params.Capabilities.TextDocument.PublishDiagnostics.VersionSupport = true
+	params.Capabilities.TextDocument.Synchronization.DidSave = true
 	params.Capabilities.Workspace.Configuration = true
 	params.Capabilities.Workspace.WorkspaceFolders = true
 	raw, err := conn.request(startup, "initialize", params)
@@ -392,12 +403,21 @@ func (instance *instance) ensure(ctx context.Context, environment []string) erro
 	}
 	var syncKind int
 	var syncOptions struct {
-		OpenClose bool `json:"openClose"`
+		OpenClose bool            `json:"openClose"`
+		Save      json.RawMessage `json:"save"`
 	}
 	if !(json.Unmarshal(caps.Sync, &syncKind) == nil && (syncKind == 1 || syncKind == 2)) && !(json.Unmarshal(caps.Sync, &syncOptions) == nil && syncOptions.OpenClose) {
 		conn.close(config.ShutdownTimeout)
 		return errors.New("lsp: server does not support transient didOpen/didClose documents")
 	}
+	// Numeric sync kinds describe change handling; save options are object-only.
+	_ = json.Unmarshal(caps.Sync, &syncOptions)
+	instance.save = capability(syncOptions.Save)
+	var saveOptions struct {
+		IncludeText bool `json:"includeText"`
+	}
+	_ = json.Unmarshal(syncOptions.Save, &saveOptions)
+	instance.saveText = saveOptions.IncludeText
 	instance.capabilities = capabilities{capability(caps.Definition), capability(caps.References), capability(caps.Implementation), capability(caps.Hover), capability(caps.DocumentSymbol), capability(caps.WorkspaceSymbol), capability(caps.CallHierarchy)}
 	if err := conn.notify(startup, "initialized", struct{}{}); err != nil {
 		conn.close(config.ShutdownTimeout)
@@ -428,6 +448,11 @@ type positionParams struct {
 
 func (instance *instance) query(ctx context.Context, operation Operation, uri string, position Position, symbol string) (Result, error) {
 	result := Result{Operation: operation}
+	if operation == collectDiagnostics {
+		wait, cancel := context.WithTimeout(ctx, min(instance.selected.Server.Config.RequestTimeout, 2*time.Second))
+		defer cancel()
+		return result, instance.conn.awaitDiagnostics(wait)
+	}
 	params := positionParams{Document: textDocument{URI: uri}, Position: position}
 	method := ""
 	switch operation {
