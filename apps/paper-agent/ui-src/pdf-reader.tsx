@@ -20,24 +20,40 @@ import { loadReaderState, saveReaderState, type PdfReaderState } from './reader-
 
 export type ReaderChrome = { toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void; onSave(): void; back?: () => void };
 
-export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome, readLabel }: {
-  paper: Paper; api: Api; focus?: PdfFocus | null; lockText?: boolean; t: Translator; children: React.ReactNode; chrome: ReaderChrome; readLabel?: string;
+export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome, readLabel, pdfReloadToken = 0 }: {
+  paper: Paper; api: Api; focus?: PdfFocus | null; lockText?: boolean; t: Translator; children: React.ReactNode; chrome: ReaderChrome; readLabel?: string; pdfReloadToken?: number;
   onDiscuss?(text: string, source?: PdfSource): void;
   onMatrixAdded(): Promise<void>;
 }) {
   const [reading, setReading] = useState<PdfReading>({ document: null, annotations: [] });
+  const pdfLoadEpoch = useRef(0);
   const [mode, setMode] = useState<'text' | 'pdf'>('text'), [busy, setBusy] = useState(false), [error, setError] = useState('');
   useEffect(() => {
     if (lockText) return;
     if (focus && reading.document?.id === focus.documentId) return;
-    let alive = true;
+    let alive = true; const version = ++pdfLoadEpoch.current;
     setReading({ document: null, annotations: [] }); setMode('text'); setError('');
     setBusy(!!paper.pdfUrl);
     api.get<PdfReading>(focus ? `/api/pdf/${focus.documentId}` : `/api/pdf?paperId=${paper.id}`).then(value => {
-      if (alive) { setReading(value); if (value.document) setMode(focus ? 'pdf' : loadReaderState(value.document)?.mode ?? 'pdf'); }
-    }).catch(e => { if (alive) setError(String(e.message ?? e)); }).finally(() => { if (alive) setBusy(false); });
+      if (alive && version === pdfLoadEpoch.current) { setReading(value); if (value.document) setMode(focus ? 'pdf' : loadReaderState(value.document)?.mode ?? 'pdf'); }
+    }).catch(e => { if (alive && version === pdfLoadEpoch.current) setError(String(e.message ?? e)); }).finally(() => { if (alive && version === pdfLoadEpoch.current) setBusy(false); });
     return () => { alive = false; };
   }, [api, paper.id, focus?.documentId, lockText]);
+  // Export may attach a PDF to a metadata paper. Refresh that missing document
+  // only; existing PDF/Read views and annotations keep their mounted owners.
+  const seenPdfReload = useRef(pdfReloadToken);
+  useEffect(() => {
+    if (lockText || seenPdfReload.current === pdfReloadToken) return;
+    seenPdfReload.current = pdfReloadToken;
+    if (focus || reading.document) return;
+    let alive = true; const version = ++pdfLoadEpoch.current;
+    api.get<PdfReading>(`/api/pdf?paperId=${paper.id}`).then(value => {
+      if (!alive || version !== pdfLoadEpoch.current || !value.document) return;
+      setReading(value); setMode(loadReaderState(value.document)?.mode ?? 'pdf');
+    }).catch(error => { if (alive && version === pdfLoadEpoch.current) setError(error instanceof Error ? error.message : String(error)); })
+      .finally(() => { if (alive && version === pdfLoadEpoch.current) setBusy(false); });
+    return () => { alive = false; };
+  }, [api, paper.id, pdfReloadToken, lockText, reading.document, focus?.documentId]);
   useEffect(() => { if (lockText) setMode('text'); else if (focus) setMode('pdf'); }, [focus, lockText]);
   const view = lockText ? 'text' : mode;
   const textLabel = readLabel ?? t('pdfText');
