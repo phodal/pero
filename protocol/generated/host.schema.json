@@ -152,6 +152,61 @@
       ],
       "additionalProperties": false
     },
+    "AgentPluginRevision": {
+      "title": "AgentPluginRevision",
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "version": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "AgentPluginSummary": {
+      "title": "AgentPluginSummary",
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "version": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "revision",
+        "enabled"
+      ],
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "not": {}
+          },
+          {
+            "not": {}
+          }
+        ]
+      }
+    },
     "AgentRequest": {
       "title": "AgentRequest",
       "oneOf": [
@@ -589,6 +644,40 @@
       ],
       "additionalProperties": false
     },
+    "AppPluginAssembly": {
+      "title": "AppPluginAssembly",
+      "type": "object",
+      "properties": {
+        "app": {
+          "$ref": "#/$defs/AppName"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppWriteRoute"
+          }
+        },
+        "maxCalls": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "app",
+        "revision",
+        "instructions",
+        "tools",
+        "maxCalls"
+      ],
+      "additionalProperties": false
+    },
     "AppPreparation": {
       "title": "AppPreparation",
       "type": "object",
@@ -642,6 +731,9 @@
         "version": {
           "type": "string"
         },
+        "revision": {
+          "type": "string"
+        },
         "displayName": {
           "type": "string"
         },
@@ -679,6 +771,7 @@
       "required": [
         "name",
         "version",
+        "revision",
         "displayName",
         "description",
         "enabled",
@@ -695,6 +788,15 @@
         },
         {
           "$ref": "#/$defs/InstallApp"
+        },
+        {
+          "$ref": "#/$defs/ListAgentPlugins"
+        },
+        {
+          "$ref": "#/$defs/InstallAgentPlugin"
+        },
+        {
+          "$ref": "#/$defs/EnableAgentPlugin"
         },
         {
           "$ref": "#/$defs/PointAgent"
@@ -990,6 +1092,15 @@
               "items": {
                 "$ref": "#/$defs/AppRecord"
               }
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AgentPluginSummary"
+              }
+            },
+            {
+              "$ref": "#/$defs/AgentPluginSummary"
             },
             {
               "$ref": "#/$defs/AppAccess"
@@ -4679,6 +4790,37 @@
       "additionalProperties": false,
       "description": "Bootstrap transport probe."
     },
+    "EnableAgentPlugin": {
+      "title": "EnableAgentPlugin",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "pluginenable"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "enabled",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "EnableApp": {
       "title": "EnableApp",
       "type": "object",
@@ -5825,6 +5967,33 @@
       "additionalProperties": false,
       "description": "Derived session analysis. Not written into the session journal."
     },
+    "InstallAgentPlugin": {
+      "title": "InstallAgentPlugin",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "plugininstall"
+        },
+        "path": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "path",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "InstallApp": {
       "title": "InstallApp",
       "type": "object",
@@ -5900,6 +6069,29 @@
           "default": 260
         }
       },
+      "additionalProperties": false
+    },
+    "ListAgentPlugins": {
+      "title": "ListAgentPlugins",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "pluginlist"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "method",
+        "id"
+      ],
       "additionalProperties": false
     },
     "ListAgentsCommand": {
@@ -9768,6 +9960,15 @@
         },
         "appBinding": {
           "$ref": "#/$defs/AppSessionBinding"
+        },
+        "appPlugin": {
+          "$ref": "#/$defs/AppPluginAssembly"
+        },
+        "agentPlugins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentPluginRevision"
+          }
         }
       },
       "required": [

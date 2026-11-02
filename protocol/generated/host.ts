@@ -94,6 +94,9 @@ export type ContextContent = TextContextContent | ImageContextContent;
 export type AppRequest =
   | ListApps
   | InstallApp
+  | ListAgentPlugins
+  | InstallAgentPlugin
+  | EnableAgentPlugin
   | PointAgent
   | PointCatalog
   | EnableApp
@@ -954,6 +957,24 @@ export interface InstallApp {
   method: "apps";
   id: RequestId;
 }
+export interface ListAgentPlugins {
+  action: "pluginlist";
+  method: "apps";
+  id: RequestId;
+}
+export interface InstallAgentPlugin {
+  action: "plugininstall";
+  path: string;
+  method: "apps";
+  id: RequestId;
+}
+export interface EnableAgentPlugin {
+  action: "pluginenable";
+  name: AppName;
+  enabled: boolean;
+  method: "apps";
+  id: RequestId;
+}
 export interface PointAgent {
   action: "pointagent";
   name: AppName;
@@ -1734,6 +1755,8 @@ export interface SessionCreatedData {
   workspace: string;
   scope?: AppChatScope;
   appBinding?: AppSessionBinding;
+  appPlugin?: AppPluginAssembly;
+  agentPlugins?: AgentPluginRevision[];
 }
 export interface AppSessionBinding {
   app: AppName;
@@ -1751,6 +1774,24 @@ export interface PointBinding {
   appRevision?: string;
   createdAt: string;
   context?: AppDocumentSchema;
+}
+export interface AppPluginAssembly {
+  app: AppName;
+  revision: string;
+  instructions: string;
+  tools: AppWriteRoute[];
+  maxCalls: number;
+}
+export interface AppWriteRoute {
+  name: AppName;
+  description: string;
+  path: string;
+  schema: AppDocumentSchema;
+}
+export interface AgentPluginRevision {
+  name: AppName;
+  version: string;
+  revision: string;
 }
 export interface UserMessageEvent {
   kind: "user_message";
@@ -2212,6 +2253,8 @@ export interface AppSuccess {
     | PointCatalogReply
     | AutomationApiReply
     | AppRecord[]
+    | AgentPluginSummary[]
+    | AgentPluginSummary
     | AppAccess
     | AppAgentInfo
     | AppAgentStarted
@@ -2269,6 +2312,7 @@ export interface AutomationApiReply {
 export interface AppRecord {
   name: AppName;
   version: string;
+  revision: string;
   displayName: string;
   description: string;
   enabled: boolean;
@@ -2281,11 +2325,18 @@ export interface AppPanel {
   title: string;
   entry: string;
 }
-export interface AppWriteRoute {
+export interface AgentPluginSummary {
   name: AppName;
-  description: string;
-  path: string;
-  schema: AppDocumentSchema;
+  version: string;
+  revision: string;
+  enabled: boolean;
+  [k: string]:
+    | {
+        [k: string]: unknown | undefined;
+      }
+    | AppName
+    | boolean
+    | undefined;
 }
 export interface AppAccess {
   root: string;

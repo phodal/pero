@@ -11,9 +11,13 @@ model AppPanel { id: AppName; title: string; entry: string; ...AppClosed; }
 /** Public catalog: no local paths or backend credentials. */
 model AppDocumentSchema is Record<unknown>;
 model AppWriteRoute { name: AppName; description: string; path: string; schema: AppDocumentSchema; ...AppClosed; }
+model AppPluginAssembly { app: AppName; revision: string; instructions: string; tools: AppWriteRoute[]; maxCalls: uint32; ...AppClosed; }
+model AgentPluginRevision { name: AppName; version: string; revision: string; ...AppClosed; }
+model AgentPluginSummary { ...AgentPluginRevision; enabled: boolean; ...AppClosed; }
 model AppRecord {
   name: AppName;
   version: string;
+  revision: string;
   displayName: string;
   description: string;
   enabled: boolean;
@@ -28,6 +32,9 @@ model AppAccess { root: string; entry: string; backend?: BackendAccess; ...AppCl
 model RequestBase { method: "apps"; id: RequestId; ...AppClosed; }
 model ListApps { action: "list"; ...RequestBase; }
 model InstallApp { action: "install"; path: string; ...RequestBase; }
+model ListAgentPlugins { action: "pluginlist"; ...RequestBase; }
+model InstallAgentPlugin { action: "plugininstall"; path: string; ...RequestBase; }
+model EnableAgentPlugin { action: "pluginenable"; name: AppName; enabled: boolean; ...RequestBase; }
 model PointScope { workspaceId:string; ...AppClosed; }
 model PointBinding {scope:PointScope;requestId:string;harnessId:string;panel:string;runtimeDigest:string;appRevision?:string;createdAt:string;context?:AppDocumentSchema;...AppClosed}
 model PointAttempt {requestId:string;text:string;attempt:uint32;updatedAt:string;...AppClosed}
@@ -86,9 +93,9 @@ model AppSessionBinding { app: AppName; requestId: string; agentId: string; prom
 model AutomationApiRequest {method:"GET"|"POST"|"PUT"|"DELETE";path:string;body?:unknown;...AppClosed}
 model AutomationApp {action:"automation";name:AppName;request:AutomationApiRequest;...RequestBase}
 model AutomationApiReply {status:uint16;body:unknown;...AppClosed}
-@oneOf union AppRequest { ListApps, InstallApp, PointAgent, PointCatalog, EnableApp, DisableApp, UninstallApp, ResolveApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
+@oneOf union AppRequest { ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, PointAgent, PointCatalog, EnableApp, DisableApp, UninstallApp, ResolveApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
 model AppGrant { permitted: true; ...AppClosed; }
-model AppSuccess { ok: true; value: PointRun | PointTranscript | PointLookupReply | PointOpenReply | PointCatalogReply | AutomationApiReply | AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
+model AppSuccess { ok: true; value: PointRun | PointTranscript | PointLookupReply | PointOpenReply | PointCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }
 

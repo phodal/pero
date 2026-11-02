@@ -391,7 +391,7 @@ model PointAttemptData {attempt:Pero.Apps.PointAttempt;pointTime?:string;...Clos
 model PointAttemptEvent {kind:"app_agent_attempt";...ThreadEventBase;data:PointAttemptData}
 model PointCancelData {pointTime?:string;...Closed}
 model PointCancelEvent {kind:"app_agent_cancel";...ThreadEventBase;data:PointCancelData}
-model SessionCreatedData { agent: string; workspace: string; scope?: AppChatScope; appBinding?: Pero.Apps.AppSessionBinding; ...Closed }
+model SessionCreatedData { agent: string; workspace: string; scope?: AppChatScope; appBinding?: Pero.Apps.AppSessionBinding; appPlugin?: Pero.Apps.AppPluginAssembly; agentPlugins?: Pero.Apps.AgentPluginRevision[]; ...Closed }
 model SessionCreatedEvent { kind: "session_created"; ...ThreadEventBase; data: SessionCreatedData }
 model UserMessageContext {contexts: ContextReference[]; ...Closed}
 model UserMessageEvent { kind: "user_message"; ...ThreadEventBase; data?: UserMessageContext }
