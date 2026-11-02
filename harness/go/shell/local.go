@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/phodal/pero/harness/go/sandbox"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,6 +38,9 @@ type LocalOptions struct {
 	// TrustedBaseEnvironment accepts an operator-supplied launch snapshot, such
 	// as an explicitly enabled plugin profile. Model requests cannot set it.
 	TrustedBaseEnvironment bool
+	// OutputSink is an optional trusted foreground capture for both streams.
+	// The caller owns its size limit and lifetime; a write failure stops execution.
+	OutputSink io.Writer
 }
 
 type LocalExecutor struct {
@@ -47,6 +51,7 @@ type LocalExecutor struct {
 	timeout, maxTimeout, grace time.Duration
 	maxOutputBytes             int
 	baseEnv                    []string
+	outputSink                 io.Writer
 }
 
 func NewLocalExecutor(options LocalOptions) (*LocalExecutor, error) {
@@ -102,7 +107,7 @@ func NewLocalExecutor(options LocalOptions) (*LocalExecutor, error) {
 			return nil, err
 		}
 	}
-	return &LocalExecutor{sandbox: confined, windowsACL: windowsACL, shell: shell, cwd: cwd, workspaceIdentity: info, timeout: options.Timeout, maxTimeout: options.MaxTimeout, maxOutputBytes: options.MaxOutputBytes, grace: options.Grace, baseEnv: env}, nil
+	return &LocalExecutor{sandbox: confined, windowsACL: windowsACL, shell: shell, cwd: cwd, workspaceIdentity: info, timeout: options.Timeout, maxTimeout: options.MaxTimeout, maxOutputBytes: options.MaxOutputBytes, grace: options.Grace, baseEnv: env, outputSink: options.OutputSink}, nil
 }
 
 func explicitEnvironment(entries []string) ([]string, error) {
@@ -263,6 +268,10 @@ func (e *LocalExecutor) Run(ctx context.Context, spec ExecSpec) (RunResult, erro
 	}
 	stdout, stderr := newTailWriter(spec.StdoutMaxBytes), newTailWriter(e.maxOutputBytes)
 	command.Stdout, command.Stderr = stdout, stderr
+	if e.outputSink != nil {
+		sink := &foregroundOutputSink{writer: e.outputSink, cancel: cancel}
+		command.Stdout, command.Stderr = io.MultiWriter(stdout, sink), io.MultiWriter(stderr, sink)
+	}
 	command.WaitDelay = e.grace
 	configureProcess(command)
 	if err := e.verifyWorkspace(); err != nil {
