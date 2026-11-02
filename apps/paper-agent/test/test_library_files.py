@@ -13,7 +13,7 @@ from http.server import ThreadingHTTPServer
 
 from test_pdf import NOW, pdf_fixture, image_pdf_fixture
 from test_research import reading
-from test_pdf_downloads import finish
+from test_pdf_downloads import finish, save_bundle
 from test_source_downloads import SourceTransport
 from test_source_archives import TEX, archive_bytes
 from paper_agent.http import handler
@@ -198,6 +198,39 @@ class LibraryFilesTest(unittest.TestCase):
         self.store = ResearchStore(self.root)
         self.files = LibraryFiles(self.store, self.copies)
         self.assertEqual(self.export(plan), saved)
+
+    def test_identical_bytes_keep_acquisition_provenance_separate_from_library_association(self):
+        # The source-study fixture serves these two URLs as the same PDF bytes.
+        prior = save_bundle(self.store, 'https://arxiv.org/pdf/2610.00001v1')
+        self.store.pdf_downloads.request(dict(operation='start', **prior))
+        first = finish(self.store.pdf_downloads, prior)
+        self.assertEqual(first['status'], 'completed', first)
+        document = self.store.pdf(first['receipt']['documentId'])
+        before = (document.to_dict(), self.store.pdf_downloads.original_url(document))
+        self.assertEqual(before[1], first['receipt']['requestUrl'])
+        self.paper = self.store.save_paper(PaperSnapshot.from_reading(reading(
+            sourceId='2610.00004v1', url='https://arxiv.org/abs/2610.00004v1',
+            pdfUrl='https://arxiv.org/pdf/2610.00004v1'), NOW))
+        plan = self.confirm(tex=False)
+        second = self.acquire(plan, 'pdf')
+        self.assertEqual(second['status'], 'completed', second)
+        self.assertNotEqual(first['receipt']['requestUrl'], second['receipt']['requestUrl'])
+        self.assertEqual(second['receipt']['documentId'], document.id)
+        self.assertEqual(second['receipt']['fileDigest'], document.file_digest)
+        self.export(plan)
+        linked = self.store.paper_pdf(self.paper.id)
+        self.assertNotEqual(linked.id, document.id)
+        self.assertEqual(linked.file_digest, document.file_digest)
+        self.assertIsNone(self.store.pdf_downloads.original_url(linked))
+        for store in (self.store, ResearchStore(self.root)):
+            acquired = store.pdf(document.id)
+            self.assertEqual((acquired.to_dict(), store.pdf_downloads.original_url(acquired)), before)
+            self.assertEqual(store.pdf_bytes(acquired), pdf_fixture())
+            self.assertEqual(store.paper_pdf(self.paper.id), linked)
+            self.assertIsNone(store.pdf_downloads.original_url(linked))
+            self.assertEqual(store.pdf_downloads.request(dict(operation='status', **prior))['receipt'], first['receipt'])
+            current = dict(bundleId=plan['bundleId'], resourceId=plan['pdfResourceId'])
+            self.assertEqual(store.pdf_downloads.request(dict(operation='status', **current))['receipt'], second['receipt'])
 
     def test_no_confirmation_references_only_and_legacy_body_never_download(self):
         review = self.review()

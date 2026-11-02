@@ -21,7 +21,8 @@ async function unchangedResearchOwners(profile) {
   return Promise.all(paths.map(async path => [path, createHash('sha256').update(await readFile(resolve(root, path))).digest('hex')]));
 }
 
-export async function exerciseLibrarySave({ frame, page, api, requests, out, profile, restart }) {
+export async function exerciseLibrarySave({ frame, page, api, requests, out, profile, priorDocumentId, restart }) {
+  const priorPdf = await api(`/api/pdf/${priorDocumentId}`);
   await backToLibrary(frame);
   const paper = await api('/api/papers/import', { title: 'Authored Library source copies', sourceId: '2610.00004v1',
     url: 'https://arxiv.org/abs/2610.00004v1', pdfUrl: 'https://arxiv.org/pdf/2610.00004v1',
@@ -58,7 +59,10 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   // The Library association preserves bytes, not the receipt's document identity.
   expect(reading.document.id).not.toBe(pdf.receipt.documentId);
   expect(reading.originalUrl).toBeNull();
-  expect((await api(`/api/pdf/${pdf.receipt.documentId}`)).originalUrl).toBe(pdf.receipt.requestUrl);
+  // Both authored URLs return identical bytes: keep the existing acquisition
+  // identity/provenance, rather than assuming the newest receipt owns its URL.
+  expect(pdf.receipt.documentId).toBe(priorDocumentId);
+  expect(await api(`/api/pdf/${priorDocumentId}`)).toEqual(priorPdf);
   expect((await api(`/api/papers/${paper.id}`))).toEqual(paper);
   const digest = bytes => createHash('sha256').update(bytes).digest('hex');
   const exported = resolve(profile, 'desktop/app-data/paper-agent/library-export-fixture');
@@ -130,6 +134,7 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   expect(await api('/api/research/record', { operation: 'read', recordId: first.id })).toEqual({ ...first, selections: [] });
   expect(await api(`/api/papers/${paper.id}`)).toEqual(paper);
   expect(await api(`/api/pdf?paperId=${paper.id}`)).toEqual({ document: reading.document, originalUrl: null, annotations: [annotation] });
+  expect(await api(`/api/pdf/${priorDocumentId}`)).toEqual(priorPdf);
   expect(await observations()).toEqual(observedBeforeRecords);
   expect(await unchangedResearchOwners(profile)).toEqual(ownersBeforeRecords);
   expect(await acquisitions()).toEqual(acquired);
