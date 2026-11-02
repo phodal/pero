@@ -104,7 +104,8 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   text, multiple questions and cancellation without using permission dialogs.
   The Desktop client negotiates this extension and renders its own question form.
 - Selected JavaScript Workflow scripts run through the existing child-agent
-  service, including nested scripts and structured results. Execution supports synchronous results and owned background task handles; see the [Workflow contract](../workflow/README.md).
+  service, including nested scripts and structured results. Execution supports synchronous results, owned background task handles and
+  automatic online completion notices; see the [Workflow contract](../workflow/README.md).
 - Native plugin Bash supports background tasks, durable output logs and success
   artifacts. Foreground timeouts promote the same live process after a durable
   transition; sleep/disable/bare exceptions still stop it. Explicit

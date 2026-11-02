@@ -695,7 +695,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 
 ### 16.2 继续实现的出口
 
-完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的执行续跑与完成通知；动态模板的精确呈现；后台子代理的驻留、cold-resume、turn/run 区分及命令完成通知/自动唤醒；LSP 连续异步 diagnostics 与动态能力注册；研究技能的真实模型/真实语料质量；外部依赖和实际服务连接。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。Trial 的最终产物复核、关闭失败和进程退出处理已完成独立回归，真实优化效果仍需另行验收。
+完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的执行续跑与崩溃窗口通知补发；动态模板的精确呈现；后台子代理的驻留、cold-resume、turn/run 区分及命令完成通知/自动唤醒；LSP 连续异步 diagnostics 与动态能力注册；研究技能的真实模型/真实语料质量；外部依赖和实际服务连接。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。Trial 的最终产物复核、关闭失败和进程退出处理已完成独立回归，真实优化效果仍需另行验收。
 
 任务归属也需区分目标契约：当前任务查询限定创建者，子代理退出时取消并等待其命令，这与 pinned DSH 的 owner 隔离及 disposal 语义相符。Claude 官方要求前台子代理结束时停止命令，但允许后台子代理在当前 turn 结束后继续持有后台命令，并接收完成通知；run 真正退出时才停止。现有 one-shot 子代理在结果返回后回收，尚未实现后一种驻留。不能把它写成所有子代理命令都应无限存活，或已经支持根会话接管所有子任务。当前 Claude 文档还注明 TaskOutput 自 v2.1.277 移除、改为 Read 输出文件；本批插件所用旧 TaskOutput 接口作为显式兼容接口保留。
 
@@ -814,6 +814,17 @@ Workflow 的 run_in_background:true 已接入同一个 Node/Claude 子代理执�
 
 测试真实运行两个 member 阶段，在父轮结束后进行一次 Write 和一次审批，取得最终结果；覆盖其他父会话拒绝、查询等待、TaskStop、应用退出、父会话实际退役。退出测试发现并修复了 Workflow 等待子代理而子代理回执等待父退役的生命周期死锁。退役钩子只 fence/cancel；原 AgentManager 完成子树回收，Workflow owner drain 再等待账务收尾。[问题与修复](../issues/2026-11-03-workflow-retirement-wait.md)、[运行回归](../../harness/go/workflow/background_test.go)
 
-任务查询可从所属 Session 日志恢复终态；无活跃进程的未结束 intent 只标记 interrupted，绝不重新启动 Node、模型或文件副作用。测试验证终态恢复与一次 interrupted 落账；这不是恢复工作流执行进度，也不代替真实进程崩溃后的逐插件业务验收。自动完成通知和可续跑的后台执行仍待补，当前通过 TaskOutput 取得结果。Session 的外部持久化仍使用现有配置，不将内存 fixture 写成磁盘恢复验收。
+任务查询可从所属 Session 日志恢复终态；无活跃进程的未结束 intent 只标记 interrupted，绝不重新启动 Node、模型或文件副作用。测试验证终态恢复与一次 interrupted 落账；这不是恢复工作流执行进度，也不代替真实进程崩溃后的逐插件业务验收。此检查点通过 TaskOutput 取得结果；16.11 已接入在线完成通知，可续跑后台执行仍待补。Session 的外部持久化仍使用现有配置，不将内存 fixture 写成磁盘恢复验收。
 
 本批验证：Go 全量 race/vet 通过（34 个有测试的包）；新增持久化失败与真实父 Prompt 结束场景另做 workflow race 回归。Bazel harness、subagents、workflow、完整 ACP CLI 四个目标通过。未调用付费模型。
+
+
+### 16.11 后台 Workflow 在线完成通知
+
+真实流程结束并 Flush 终态后，completed/failed Workflow 会把实际 result 投递到原父会话 inbox，source 为 workflow-settled。工作流不是子会话，不冒用 subagent-settled。通知使用任务派生的稳定 message ID；现有 inbox 记住已接受/消费身份，重复投递不增加模型请求。有持久化配置时先 Flush inbox 再唤醒；内存 Session 仍只有内存日志。新的 DeliverBackgroundNotice 复用 Agent worker，不会像显式用户恢复一样清除 interrupt latch。[通知契约](../../harness/go/workflow/README.md#completion-notifications)
+
+运行测试从真实父 Prompt 启动后台流程，父轮先结束，子代理实际 Write（一次审批）后，主会话无需第二次用户输入或 TaskOutput 就开启后续轮，取得实际执行结果。验证两次父 turn、三次父模型调用、两次子模型调用、一次 notice 入账与稳定 ID 去重。另验证失败脚本通知携带真实错误、活跃父会话中断后无补发唤醒、持久化失败不越过 wake barrier。模型仍为本地 adapter seam，不冒充真实服务研究质量或新 ACP stdio 验收。[运行测试](../../harness/go/workflow/notifications_test.go)、[inbox 边界测试](../../harness/go/harness/background_notice_test.go)
+
+取消、退役、替代父实例、运行时关闭或不确定终态持久化不主动唤醒父会话。通知交付未确认时，在线 TaskOutput 的 notification_error 保留说明，真实任务状态不会被改写。已经持久化的 inbox 使用原有恢复通道；终态提交后、inbox 插入前崩溃的窗口尚缺自动 outbox 对账，不能把在线通知写成所有冷恢复通知已保证。工作流执行续跑仍未实现。
+
+本步骤验证：Go 全量 race/vet 通过，harness/workflow 边界回归通过；Workflow race 连续五次通过（含通知、取消和真实退役），最后 Bazel harness、workflow、完整 ACP CLI 三个目标通过。

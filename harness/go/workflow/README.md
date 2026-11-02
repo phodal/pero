@@ -130,5 +130,39 @@ Real integration tests exercise two background stages, a member Write and its
 approval after the parent turn ends, shared polling/waiting/stopping, exact
 parent isolation, cancellation, disposal, actual parent retirement, terminal
 restoration and lost-owner interruption without replay. The actual model seam
-is a fixture. Automatic parent completion notices and resumable workflow
-continuations remain separate work; callers retrieve results through TaskOutput.
+is a fixture. Online parent completion notices are described below. Resumable workflow
+continuations remain separate work; TaskOutput remains available for retrieval.
+
+## Completion notifications
+
+After real Node/member cleanup and a successfully flushed terminal receipt,
+completed and failed background workflows post their actual result to the
+controlling parent. Source kind is workflow-settled, not subagent-settled: a
+workflow task is not a child session. The task supplies a deterministic message
+ID. The existing inbox retains source identities, so a repeated notification
+cannot create another model request, including after that message was consumed.
+
+DeliverBackgroundNotice uses that inbox and its normal serialized Agent worker.
+With attached Session persistence, insertion is flushed before wake scheduling;
+without it, the Session remains memory-only. The notice owns a follow-up turn
+and does not require another user prompt or TaskOutput polling. A failure to
+confirm delivery is visible as notification_error on the live task receipt;
+it does not change the actual workflow completion status.
+
+TaskStop and owner cancellation do not publish stopped-task notifications.
+Retiring, closed, replaced or interrupted parents are not woken. The inbox
+wake also preserves the interrupt latch if interruption races insertion: work
+can stay parked for a later explicit user admission. No notice is sent when
+the workflow terminal persistence barrier failed.
+
+Tests prove a completed controlling Prompt followed by an automatic second
+turn, actual child Write and approval, actual failure delivery, source identity
+deduplication, checkpoint-failure-before-wake, and interruption without wake.
+Model responses use the existing local adapter seam. These tests do not prove
+external model quality or replace the earlier ACP stream visibility check.
+
+Persisted pending inbox messages use existing resume behavior. The crash window
+between terminal persistence and inbox insertion still needs automatic outbox
+reconciliation; a terminal-only task is not yet guaranteed a notice after
+restart. That gap does not rerun workflow effects. Execution continuation also
+remains unsupported.
