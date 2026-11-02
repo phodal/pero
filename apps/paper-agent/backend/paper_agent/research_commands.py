@@ -3,10 +3,11 @@ from datetime import datetime, timezone
 from .model import Invalid
 
 
-def execute(store, action, request):
+def execute(store, action, request, *, now=None):
     if not isinstance(request, dict):
         raise Invalid('Command input must be an object')
-    now = datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
+    if now is None:
+        now = datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
     if action == 'record':
         from .research_record_commands import record_command
         return record_command(store, request, now)

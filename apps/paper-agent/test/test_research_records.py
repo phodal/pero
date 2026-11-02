@@ -181,7 +181,7 @@ class ResearchRecords(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             store = ResearchStore(root)
             paper = store.save_paper(PaperSnapshot.from_reading(reading(), NOW))
-            server = ThreadingHTTPServer(('127.0.0.1', 0), handler(store, 'test-token'))
+            server = ThreadingHTTPServer(('127.0.0.1', 0), handler(store, 'test-token', now=lambda: NOW))
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             def post(value, token='test-token'):
@@ -197,6 +197,11 @@ class ResearchRecords(unittest.TestCase):
                 self.assertEqual(execute(store, 'record', dict(operation='list'))['records'], [])
                 status, record = post(draft([paper]))
                 self.assertEqual(status, 200)
+                self.assertEqual(record['createdAt'], NOW)
+                status, selection = post(dict(operation='select', recordId=record['id'], paperIds=[paper.id]))
+                self.assertEqual(status, 200)
+                self.assertEqual(selection['createdAt'], NOW)
+                self.assertEqual(selection, record_command(store, dict(operation='select', recordId=record['id'], paperIds=[paper.id]), NOW))
                 reopened = execute(ResearchStore(root), 'record', dict(operation='read', recordId=record['id']))
                 self.assertEqual(reopened['id'], record['id'])
             finally:
