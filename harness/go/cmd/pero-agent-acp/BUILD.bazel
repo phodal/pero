@@ -12,6 +12,7 @@ go_library(
         "plugins.go",
         "sandbox_options.go",
         "subagents.go",
+        "web.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/cmd/pero-agent-acp",
     visibility = ["//visibility:private"],
@@ -32,6 +33,7 @@ go_library(
         "//subagents",
         "//tasks",
         "//todos",
+        "//webtools",
         "//workflow",
     ],
 )

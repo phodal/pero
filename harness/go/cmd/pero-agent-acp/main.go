@@ -26,6 +26,7 @@ import (
 	"github.com/phodal/pero/harness/go/skills"
 	"github.com/phodal/pero/harness/go/subagents"
 	"github.com/phodal/pero/harness/go/tasks"
+	"github.com/phodal/pero/harness/go/webtools"
 	"github.com/phodal/pero/harness/go/workflow"
 )
 
@@ -61,6 +62,7 @@ func run() (resultErr error) {
 	selectable := bindSelectableModels(flag.CommandLine)
 	coding := bindCodingOptions(flag.CommandLine)
 	delegation := bindSubagents(flag.CommandLine)
+	web := bindWebOptions(flag.CommandLine)
 	flag.Parse()
 	if flag.NArg() != 0 || strings.TrimSpace(*model) == "" || strings.TrimSpace(*sessions) == "" {
 		return errors.New("--model and --session-dir are required; positional arguments are unsupported")
@@ -97,6 +99,13 @@ func run() (resultErr error) {
 	if err != nil {
 		return err
 	}
+	webProvider, err := configuredWeb(*web, *keyEnv, credential)
+	if err != nil {
+		return err
+	}
+	if webProvider != nil {
+		defer webProvider.Close()
+	}
 	pluginEnvironment := os.Environ()
 	providerConfig, err := configuredProvider(*endpoint, *model, credential, *budget)
 	if err != nil {
@@ -127,7 +136,7 @@ func run() (resultErr error) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: delegation.Enabled || len(packages) > 0, Adapter: adapter, AdapterProviders: []string{"configured"}, ModelInfo: adapter, ApprovalPolicy: harness.ApprovalPolicy(*approval)})
+	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: delegation.Enabled || len(packages) > 0 || web.enabled(), Adapter: adapter, AdapterProviders: []string{"configured"}, ModelInfo: adapter, ApprovalPolicy: harness.ApprovalPolicy(*approval)})
 	if err != nil {
 		return err
 	}
@@ -137,10 +146,11 @@ func run() (resultErr error) {
 	var pluginHooks *pluginruntime.HookApp
 	var pluginAgents *subagents.ClaudeContribution
 	var pluginWorkflows *workflow.App
+	var webApp *webtools.App
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		resultErr = errors.Join(resultErr, h.Dispose(cleanup), h.Drain(cleanup), native.Close(), pluginWorkflows.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
+		resultErr = errors.Join(resultErr, h.Dispose(cleanup), h.Drain(cleanup), native.Close(), pluginWorkflows.Close(), webApp.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
 	}()
 	skillCatalog, err = skills.OpenSelected(ctx, *skillRoots, selections)
 	if err != nil {
@@ -188,7 +198,7 @@ func run() (resultErr error) {
 	if err := mountSubagents(ctx, h, persistence, *delegation, compactionConfig); err != nil {
 		return err
 	}
-	if len(packages) > 0 {
+	if len(packages) > 0 || web.enabled() {
 		stateRoot, err := filepath.Abs(filepath.Join(*sessions, "plugin-hooks"))
 		if err != nil {
 			return err
@@ -228,6 +238,10 @@ func run() (resultErr error) {
 				return err
 			}
 		}
+	}
+	webApp, err = mountWeb(ctx, h, webProvider, pluginAgents)
+	if err != nil {
+		return err
 	}
 	serverOptions := acp.Options{UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, Name: "pero-agent-acp", Version: "0.1"}
 	if native != nil {
