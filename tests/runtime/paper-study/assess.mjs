@@ -117,10 +117,15 @@ export async function assess({ host, scene, directory, digest, credential }) {
   else { assert.deepEqual(sourceJobs, []); assert(checks.analysisContext && checks.analysisPropose); }
   if (spec.analysis) {
     assert(checks.analysisContext && checks.analysisPropose);
-    const resources = spec.inspectOnly && spec.decline ? (await records(directory, 'import-drafts')).flatMap(draft => draft.resources || []) : library.bundles.flatMap(bundle => bundle.resources);
+    const drafts = spec.inspectOnly && spec.decline ? await records(directory, 'import-drafts') : [];
+    const resources = spec.inspectOnly && spec.decline ? drafts.flatMap(draft => draft.resources || []) : library.bundles.flatMap(bundle => bundle.resources);
     if (spec.decline) {
-      const attachment = resources.find(resource => resource.originalUrl === 'https://research.example.org/attachments?id=methods');
-      assert(attachment && attachment.workIdentity === null && attachment.revision === null, 'Ambiguous attachment identity/version must remain unresolved');
+      const url = 'https://research.example.org/attachments?id=methods';
+      assert(drafts.some(draft => draft.pages?.some(page => page.links?.some(link => link.href === url))),
+        'Ambiguous attachment must remain a frozen observed link');
+      // Not proposing a type is a valid conservative response to an ambiguous link.
+      assert(resources.filter(resource => resource.originalUrl === url).every(resource =>
+        resource.workIdentity === null && resource.revision === null), 'Ambiguous attachment identity/version must remain unresolved');
     }
     const code = resources.find(resource => resource.originalUrl === 'https://github.com/example/synthetic-research');
     checks.observedCodeLicensePreserved = code?.license === 'MIT';

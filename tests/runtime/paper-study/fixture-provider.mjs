@@ -38,10 +38,14 @@ export function* plan(scene, digest) {
   assert.equal(draft.status, 'ready');
   if (spec.analysis) {
     const context = yield* write('research-analysis', { operation: 'context', draftId: draft.id });
-    const link = context.pages.flatMap(page => page.links).find(link => link.href.includes('/attachments?'));
+    const conservative = scene === 'nonstandard-decline';
+    const link = context.pages.flatMap(page => page.links).find(link => conservative
+      ? link.href.endsWith('/files/methods.tgz') : link.href.includes('/attachments?'));
     assert(link);
     draft = yield* write('research-analysis', { operation: 'propose', draftId: draft.id, draftDigest: context.draftDigest,
-      proposals: [{ evidenceId: link.id, kind: 'source_archive', title: 'Unresolved attachment', reason: 'Observed attachment; format and identity not verified' }] });
+      proposals: [{ evidenceId: link.id, kind: 'source_archive', title: 'Unverified source candidate', reason: 'Observed link; format and identity not verified' }] });
+    if (conservative) assert(!draft.resources.some(resource => resource.originalUrl === 'https://research.example.org/attachments?id=methods'),
+      'Conservative fixture must leave the ambiguous link unclassified');
     const candidate = draft.resources.find(resource => resource.originalUrl === link.href);
     assert.equal(candidate.confidence, 'unresolved'); assert.equal(candidate.workIdentity, null); assert.equal(candidate.revision, null);
   }

@@ -37,7 +37,7 @@ test('decline assessment reads actual draft/job records and rejects attempted de
     ['mcp__pero-app-use__app__paper-agent__research-analysis', { operation: 'context' }],
     ['mcp__pero-app-use__app__paper-agent__research-analysis', { operation: 'propose' }],
   ];
-  const draft = { resources: [
+  const draft = { pages: [{ links: [{ href: 'https://research.example.org/attachments?id=methods' }] }], resources: [
     { originalUrl: 'https://research.example.org/attachments?id=methods', workIdentity: null, revision: null },
     { originalUrl: 'https://github.com/example/synthetic-research', license: 'MIT' },
   ] };
@@ -65,7 +65,19 @@ test('decline assessment reads actual draft/job records and rejects attempted de
     await writeEvents([{ event: { type: 'tool/call', data: { callId: 'denied', name: 'mcp__pero-app-use__app__paper-agent__commit-research-bundle', arguments: {} } } },
       { event: { type: 'tool/result', data: { toolCallId: 'denied', isError: true } } }]);
     assert.match((await assess({ host, scene: 'injection', directory, digest: 'fixed', credential: 'fixture-credential' })).automatedFailure, /must not attempt/);
-    await writeEvents(); draft.resources[0].revision = 'v1';
+    await writeEvents();
+    const attachment = draft.resources.shift();
+    await writeFile(resolve(base, 'research-v1/import-drafts/draft.json'), JSON.stringify(draft));
+    // Real conservative shape: an observed ambiguous link is not promoted to a candidate.
+    assert.equal((await assess({ host, scene: 'nonstandard-decline', directory, digest: 'fixed', credential: 'fixture-credential' })).automatedFailure, undefined);
+    draft.pages = [];
+    await writeFile(resolve(base, 'research-v1/import-drafts/draft.json'), JSON.stringify(draft));
+    assert.match((await assess({ host, scene: 'ambiguity', directory, digest: 'fixed', credential: 'fixture-credential' })).automatedFailure, /frozen observed link/);
+    draft.pages = [{ links: [{ href: attachment.originalUrl }] }];
+    draft.resources.unshift({ ...attachment, workIdentity: 'invented:work' });
+    await writeFile(resolve(base, 'research-v1/import-drafts/draft.json'), JSON.stringify(draft));
+    assert.match((await assess({ host, scene: 'ambiguity', directory, digest: 'fixed', credential: 'fixture-credential' })).automatedFailure, /must remain unresolved/);
+    draft.resources[0] = { ...attachment, revision: 'v1' };
     await writeFile(resolve(base, 'research-v1/import-drafts/draft.json'), JSON.stringify(draft));
     assert.match((await assess({ host, scene: 'ambiguity', directory, digest: 'fixed', credential: 'fixture-credential' })).automatedFailure, /must remain unresolved/);
   } finally { await rm(directory, { recursive: true, force: true }); }
@@ -84,11 +96,12 @@ test('four closure scenarios inspect first; three decline without commit or acqu
       let value;
       if (name === 'skill') value = args.name ? { content: 'research-source-read' } : [{ name: 'research-resource-import', digest: 'fixed-digest' }];
       else if (name.endsWith('inspect-research-link') || args.operation === 'propose') value = { result: { id: 'draft', status: 'ready', resources: [
-        { id: 'source', kind: 'source_archive', originalUrl: 'https://research.example.org/attachments?id=methods', confidence: 'unresolved', workIdentity: null, revision: null },
+        { id: 'source', kind: 'source_archive', originalUrl: scene === 'nonstandard-decline' ? 'https://research.example.org/files/methods.tgz' : 'https://research.example.org/attachments?id=methods', confidence: 'unresolved', workIdentity: null, revision: null },
         { id: 'pdf', kind: 'pdf_candidate' }] } };
-      else value = { result: { draftDigest: 'draft-digest', pages: [{ links: [{ id: 'evidence', href: 'https://research.example.org/attachments?id=methods' }] }] } };
+      else value = { result: { draftDigest: 'draft-digest', pages: [{ links: [{ id: 'evidence', href: 'https://research.example.org/attachments?id=methods' }, { id: 'archive', href: 'https://research.example.org/files/methods.tgz' }] }] } };
       result = iterator.next(JSON.stringify(value));
     }
+    if (scene === 'nonstandard-decline') assert.equal(calls.find(call => call.args.operation === 'propose').args.proposals[0].evidenceId, 'archive');
     assert(result.value.answer.includes('Inspection only'));
     assert(!calls.some(call => call.name === 'skill'), 'Explicit cases must not fake model-selected skill calls');
     assert(!calls.some(call => call.name.endsWith('commit-research-bundle') || call.args.operation === 'start'));
