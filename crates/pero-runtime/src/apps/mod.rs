@@ -3,7 +3,7 @@ mod agent_access;
 mod sdk;
 pub mod agent;
 pub mod agent_plugin;
-pub mod point_agent;
+pub mod agent_run;
 mod builtins;
 use builtins::BuiltinDiscovery;
 mod definition;

@@ -258,14 +258,14 @@ impl NativeApps {
                 _ => response(503, json!({"ok":false,"code":"MCP_HOST_UNAVAILABLE"})),
             });
         }
-        let (status, content_type, data) = if matches!(path, "/host/agent" | "/host/point-agent" | "/host/insights") {
+        let (status, content_type, data) = if matches!(path, "/host/agent" | "/host/app-agent" | "/host/insights") {
             anyhow::ensure!(
                 method == "POST" && body.len() <= 256_000,
                 "Invalid App Host request"
             );
             let operation: Value = serde_json::from_slice(body)?;
-            let (action, fields) = if path == "/host/point-agent" {
-                ("pointagent", json!({"name":name,"request":operation}))
+            let (action, fields) = if path == "/host/app-agent" {
+                ("agentrun", json!({"name":name,"request":operation}))
             } else if path == "/host/agent" {
                 ("agent", json!({"name":name,"request":operation}))
             } else {
@@ -285,7 +285,7 @@ impl NativeApps {
             let access: Access = self.request("resolve", json!({"name":name}))?;
             if matches!(path,"/api/workspaces"|"/api/harnesses") {
                 anyhow::ensure!(method == "GET" && uri.query().is_none(),"Method refused");
-                let value:Value=self.request("pointcatalog",json!({"name":name,"path":path}))?;
+                let value:Value=self.request("agentcatalog",json!({"name":name,"path":path}))?;
                 return Ok(Response::builder().status(200).header("Content-Type","application/json").header("Cache-Control","no-store").body(serde_json::to_vec(&value)?)?);
             }
             if path.starts_with("/api/") {

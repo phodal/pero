@@ -194,7 +194,7 @@ mod surface {
                 "app_examples" => {
                     if let Ok(scope)=serde_json::from_value::<pero_contracts::AppChatScope>(event.data["scope"].clone()){self.receive_app_examples(scope,event.data["state"].clone(),cx);}
                 }
-                "point_app_session_open" => {
+                "app_agent_session_open" => {
                     if let (Ok(scope),Some(id))=(serde_json::from_value::<pero_contracts::AppChatScope>(event.data["scope"].clone()),event.data["sessionId"].as_str()) {
                         if self.apps.contains_panel(&scope.app,&scope.panel) {
                             let index=self.chat.read(cx).chats.iter().position(|chat|chat.id==id && chat.scope.as_ref()==Some(&scope));

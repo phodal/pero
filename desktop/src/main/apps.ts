@@ -220,7 +220,7 @@ export class DesktopApps {
         const body = await request.text();
         if (Buffer.byteLength(body) > 256000) return new Response('Host request too large', {status:413});
         const {capability, operation, input} = JSON.parse(body);
-        const routes: Record<string,string> = {agent:'point-agent',insights:'insights',connectors:'connectors',automation:'automation','research-assets':'research-assets'};
+        const routes: Record<string,string> = {agent:'app-agent',insights:'insights',connectors:'connectors',automation:'automation','research-assets':'research-assets'};
         if (!Object.hasOwn(routes, capability) || typeof operation !== 'string' || !input || typeof input !== 'object' || Array.isArray(input)) return new Response('Host capability unavailable', {status:403});
         const target = new URL(`/host/${routes[capability]}`, request.url);
         return this.serve(new Request(target, {method:'POST',headers:request.headers,body:JSON.stringify({...input,operation})}));
@@ -280,11 +280,11 @@ export class DesktopApps {
         if (operation.threadId) fields.threadId = operation.threadId;
         return Response.json(await this.request('insights', fields), { headers: { 'Cache-Control': 'no-store' } });
       }
-      if (url.pathname === '/host/point-agent') {
+      if (url.pathname === '/host/app-agent') {
         if (request.method !== 'POST') return new Response('Method refused', {status:405});
         const body = await request.text();
-        if (Buffer.byteLength(body) > 256_000) return new Response('Point Agent request too large', {status:413});
-        return Response.json(await this.request('pointagent', {name:url.hostname,request:JSON.parse(body)}), {headers:{'Cache-Control':'no-store'}});
+        if (Buffer.byteLength(body) > 256_000) return new Response('Pero Agent request too large', {status:413});
+        return Response.json(await this.request('agentrun', {name:url.hostname,request:JSON.parse(body)}), {headers:{'Cache-Control':'no-store'}});
       }
       if (url.pathname === '/host/agent') {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
@@ -299,7 +299,7 @@ export class DesktopApps {
       const access = await this.request<AppAccess>('resolve', { name: url.hostname });
       if (['/api/workspaces','/api/harnesses'].includes(url.pathname)) {
         if (request.method !== 'GET' || url.search) return new Response('Method refused', {status:405});
-        return Response.json(await this.request('pointcatalog', {name:url.hostname,path:url.pathname}), {headers:{'Cache-Control':'no-store'}});
+        return Response.json(await this.request('agentcatalog', {name:url.hostname,path:url.pathname}), {headers:{'Cache-Control':'no-store'}});
       }
       if (url.pathname.startsWith('/api/')) {
         if (!access.backend) return new Response('This App has no backend', { status: 503 });

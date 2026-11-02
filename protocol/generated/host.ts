@@ -98,8 +98,8 @@ export type AppRequest =
   | ListAgentPlugins
   | InstallAgentPlugin
   | EnableAgentPlugin
-  | PointAgent
-  | PointCatalog
+  | AgentRunCommand
+  | AgentCatalogCommand
   | PrepareApp
   | EnableApp
   | DisableApp
@@ -112,8 +112,8 @@ export type AppRequest =
   | ResearchAssetsApp;
 export type AppName = string;
 export type RequestId = string;
-export type PointAgentRequest =
-  PointStart | PointLookup | PointStatus | PointEvents | PointCancel | PointRetry | PointOpen;
+export type AgentRunRequest =
+  AgentRunStart | AgentRunLookup | AgentRunStatus | AgentRunEvents | AgentRunCancel | AgentRunRetry | AgentRunOpen;
 export type AgentRequest = AgentInfoRequest | AgentStartRequest | AgentEventsRequest | AgentCancelRequest;
 export type ResearchAssetsRequest = ResearchAssetStart | ResearchAssetLookup;
 /**
@@ -207,9 +207,9 @@ export type MessageKey = string;
  */
 export type ThreadEvent =
   | TurnStartedEvent
-  | PointSessionOpenEvent
-  | PointAttemptEvent
-  | PointCancelEvent
+  | AppAgentSessionOpenEvent
+  | AppAgentAttemptEvent
+  | AppAgentCancelEvent
   | SessionCreatedEvent
   | UserMessageEvent
   | SessionUpdateEvent
@@ -1005,22 +1005,22 @@ export interface EnableAgentPlugin {
   method: "apps";
   id: RequestId;
 }
-export interface PointAgent {
-  action: "pointagent";
+export interface AgentRunCommand {
+  action: "agentrun";
   name: AppName;
-  request: PointAgentRequest;
+  request: AgentRunRequest;
   method: "apps";
   id: RequestId;
 }
-export interface PointStart {
+export interface AgentRunStart {
   operation: "start";
-  scope: PointScope;
+  scope: AgentScope;
   requestId: string;
   text: string;
   harnessId?: string;
   context?: AppDocumentSchema;
 }
-export interface PointScope {
+export interface AgentScope {
   workspaceId: string;
 }
 /**
@@ -1029,40 +1029,40 @@ export interface PointScope {
 export interface AppDocumentSchema {
   [k: string]: unknown | undefined;
 }
-export interface PointLookup {
+export interface AgentRunLookup {
   operation: "lookup";
-  scope: PointScope;
+  scope: AgentScope;
   requestId: string;
 }
-export interface PointStatus {
+export interface AgentRunStatus {
   operation: "status";
-  scope: PointScope;
+  scope: AgentScope;
   runId: string;
 }
-export interface PointEvents {
+export interface AgentRunEvents {
   operation: "events";
-  scope: PointScope;
+  scope: AgentScope;
   runId: string;
   after?: string;
 }
-export interface PointCancel {
+export interface AgentRunCancel {
   operation: "cancel";
-  scope: PointScope;
+  scope: AgentScope;
   runId: string;
 }
-export interface PointRetry {
+export interface AgentRunRetry {
   operation: "retry";
-  scope: PointScope;
+  scope: AgentScope;
   runId: string;
   requestId: string;
   text?: string;
 }
-export interface PointOpen {
+export interface AgentRunOpen {
   operation: "open";
   sessionId: string;
 }
-export interface PointCatalog {
-  action: "pointcatalog";
+export interface AgentCatalogCommand {
+  action: "agentcatalog";
   name: AppName;
   path: "/api/workspaces" | "/api/harnesses";
   method: "apps";
@@ -1744,45 +1744,45 @@ export interface TurnStartedEvent {
   text: string;
   thread_id: string;
 }
-export interface PointSessionOpenEvent {
-  kind: "point_app_session_open";
+export interface AppAgentSessionOpenEvent {
+  kind: "app_agent_session_open";
   version: 1;
   request_id: string | null;
   text: string;
-  data: PointSessionOpenData;
+  data: AppAgentSessionOpenData;
 }
-export interface PointSessionOpenData {
+export interface AppAgentSessionOpenData {
   scope: AppChatScope;
   sessionId: string;
 }
-export interface PointAttemptEvent {
+export interface AppAgentAttemptEvent {
   kind: "app_agent_attempt";
   version: 1;
   request_id: string | null;
   text: string;
   thread_id: string;
-  data: PointAttemptData;
+  data: AppAgentAttemptData;
 }
-export interface PointAttemptData {
-  attempt: PointAttempt;
-  pointTime?: string;
+export interface AppAgentAttemptData {
+  attempt: AgentRunAttempt;
+  runTime?: string;
 }
-export interface PointAttempt {
+export interface AgentRunAttempt {
   requestId: string;
   text: string;
   attempt: number;
   updatedAt: string;
 }
-export interface PointCancelEvent {
+export interface AppAgentCancelEvent {
   kind: "app_agent_cancel";
   version: 1;
   request_id: string | null;
   text: string;
   thread_id: string;
-  data: PointCancelData;
+  data: AppAgentCancelData;
 }
-export interface PointCancelData {
-  pointTime?: string;
+export interface AppAgentCancelData {
+  runTime?: string;
 }
 export interface SessionCreatedEvent {
   kind: "session_created";
@@ -1805,10 +1805,10 @@ export interface AppSessionBinding {
   requestId: string;
   agentId: string;
   prompt: string;
-  point?: PointBinding;
+  run?: AgentRunBinding;
 }
-export interface PointBinding {
-  scope: PointScope;
+export interface AgentRunBinding {
+  scope: AgentScope;
   requestId: string;
   harnessId: string;
   panel: string;
@@ -2289,11 +2289,11 @@ export interface AppSuccess {
   ok: true;
   value:
     | AppSdkContext
-    | PointRun
-    | PointTranscript
-    | PointLookupReply
-    | PointOpenReply
-    | PointCatalogReply
+    | AgentRun
+    | AgentRunTranscript
+    | AgentRunLookupReply
+    | AgentRunOpenReply
+    | AgentCatalogReply
     | AutomationApiReply
     | AppRecord[]
     | AgentPluginSummary[]
@@ -2318,10 +2318,10 @@ export interface AppSdkPermissions {
   events: string[];
   host: string[];
 }
-export interface PointRun {
+export interface AgentRun {
   id: string;
   sessionId: string;
-  scope: PointScope;
+  scope: AgentScope;
   status: "running" | "needs_input" | "cancelling" | "completed" | "failed" | "cancelled" | "interrupted";
   attempt: number;
   requestId: string;
@@ -2329,32 +2329,32 @@ export interface PointRun {
   error?: string;
   stopReason?: string;
 }
-export interface PointTranscript {
-  run: PointRun;
-  events: PointProjectedEvent[];
+export interface AgentRunTranscript {
+  run: AgentRun;
+  events: AgentRunEvent[];
   cursor: string;
 }
-export interface PointProjectedEvent {
+export interface AgentRunEvent {
   seq: string;
   type: string;
   data: unknown;
 }
-export interface PointLookupReply {
+export interface AgentRunLookupReply {
   requestId: string;
-  run: PointRun | null;
+  run: AgentRun | null;
 }
-export interface PointOpenReply {
+export interface AgentRunOpenReply {
   sessionId: string;
 }
-export interface PointCatalogReply {
-  items: (PointWorkspace | PointHarness)[];
+export interface AgentCatalogReply {
+  items: (AgentWorkspace | AgentHarness)[];
 }
-export interface PointWorkspace {
+export interface AgentWorkspace {
   workspaceId: string;
   title: string;
   path: string;
 }
-export interface PointHarness {
+export interface AgentHarness {
   id: string;
   name: string;
   available: boolean;

@@ -106,7 +106,7 @@ impl Manager {
             event.data["appBinding"] =
                 serde_json::to_value(binding).map_err(|error| error.to_string())?;
         }
-        if binding.is_some_and(|binding|binding.point.is_some()) { self.point_journal.append(&self.tx,event)?; } else { let _ = self.tx.send(event); }
+        if binding.is_some_and(|binding|binding.run.is_some()) { self.run_journal.append(&self.tx,event)?; } else { let _ = self.tx.send(event); }
         if let Some(plugins) = plugins { self.app_plugins.insert(thread_id.clone(), plugins); }
         self.sessions.insert(
             thread_id.clone(),
@@ -238,7 +238,7 @@ impl Manager {
     fn app_binding(&self, app: &AppName, session_id: &str) -> Result<&AppSessionBinding, String> {
         self.app_bindings
             .get(session_id)
-            .filter(|binding| &binding.app == app && binding.point.is_none())
+            .filter(|binding| &binding.app == app && binding.run.is_none())
             .ok_or_else(|| "This session does not belong to the requesting App".into())
     }
 
