@@ -1,4 +1,4 @@
-// Adapted from Point App SDK d95f9118e (Apache-2.0).
+// Upstream attribution and license: packages/app-sdk/NOTICE.md.
 import React from 'react';
 import { DateInput, DateSegment, I18nProvider, Label, TimeField as AriaTimeField } from 'react-aria-components';
 import { Time } from '@internationalized/date';

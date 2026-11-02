@@ -1,4 +1,4 @@
-// Adapted from Point App SDK d95f9118e (Apache-2.0).
+// Upstream attribution and license: packages/app-sdk/NOTICE.md.
 import { ensureDesignTokens } from '../tokens/ensure-tokens.mjs';
 export const selectStyles = `
 .pero-select{display:inline-flex;min-width:0;max-width:100%;vertical-align:middle}

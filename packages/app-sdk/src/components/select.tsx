@@ -1,5 +1,5 @@
-// Adapted from Point App SDK d95f9118e (Apache-2.0).
-import { EmptyState as PointEmptyState } from './empty-state';
+// Upstream attribution and license: packages/app-sdk/NOTICE.md.
+import { EmptyState as SelectEmptyState } from './empty-state';
 import React, { forwardRef, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './icon';
@@ -182,7 +182,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
             {o.value === value && <Icon name="check" size={14} strokeWidth={2} />}
           </div>)}
         </div>)}
-        {!shown.length && <PointEmptyState as="p" unstyled className="pero-select-empty" role="status">{emptyLabel}</PointEmptyState>}
+        {!shown.length && <SelectEmptyState as="p" unstyled className="pero-select-empty" role="status">{emptyLabel}</SelectEmptyState>}
       </div>
       {footer ? <div className="pero-select-footer">{footer}</div> : null}
     </div>, portal)}
