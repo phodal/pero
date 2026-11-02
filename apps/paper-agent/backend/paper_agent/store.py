@@ -5,6 +5,7 @@ Behavior ported from Point Paper Agent (Apache-2.0, Point contributors).
 from dataclasses import dataclass, replace
 import json
 import os
+import stat
 from pathlib import Path
 import tempfile
 import threading
@@ -239,7 +240,22 @@ class ResearchStore:
         return result
 
     def library(self):
-        papers = [self.paper(identity).to_dict(False) for identity in self._list("papers")]
+        # A cheap Save affordance, not an integrity or evidence verdict. Keep
+        # original-byte hashing at the actual acquisition/export boundary.
+        documents = sorted((self.pdf(i) for i in self._list('pdfs')), key=lambda doc: (doc.created_at, doc.id))
+        latest = {document.paper_id: document for document in documents}
+        cached = set()
+        directory = self.root / 'pdf-files'
+        if not directory.is_symlink():
+            for paper_id, document in latest.items():
+                try:
+                    info = (directory / (document.file_digest + '.pdf')).lstat()
+                except OSError:
+                    continue
+                if stat.S_ISREG(info.st_mode) and info.st_size > 0:
+                    cached.add(paper_id)
+        papers = [dict(self.paper(identity).to_dict(False), hasCachedPdf=identity in cached)
+                  for identity in self._list("papers")]
         intents = []
         for identity in self._list("intents"):
             intent = self.intent(identity)

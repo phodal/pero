@@ -15,10 +15,10 @@ type PdfDownload = {
 };
 
 /** Project saved consent and Paper's PDF lifecycle; never infer consent from a link. */
-export function ResearchPdfDownloads({ api, bundle, startPdfIds, onRead, waitForSources = false }: {
-  api: Api; bundle: ResearchBundle; startPdfIds: string[]; waitForSources?: boolean; onRead(id: string): void;
+export function ResearchPdfDownloads({ api, bundle, startPdfIds, onRead, waitForSources = false, onAvailable, scopedIds }: {
+  api: Api; bundle: ResearchBundle; startPdfIds: string[]; scopedIds?: string[]; waitForSources?: boolean; onAvailable?(available: boolean): void; onRead(id: string): void;
 }) {
-  const resources = bundle.resources.filter(resource => resource.kind === 'pdf_candidate' && bundle.pdfDownloadIds?.includes(resource.id));
+  const resources = bundle.resources.filter(resource => resource.kind === 'pdf_candidate' && bundle.pdfDownloadIds?.includes(resource.id) && (scopedIds === undefined || scopedIds.includes(resource.id)));
   const [values, setValues] = useState<Record<string, PdfDownload>>({});
   const [queue, setQueue] = useState(() => startPdfIds.filter(id => resources.some(resource => resource.id === id)));
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -78,6 +78,9 @@ export function ResearchPdfDownloads({ api, bundle, startPdfIds, onRead, waitFor
     });
     if (next) void operate('start', next); else setQueue([]);
   }, [waitForSources, loading, busy, running?.id, error, queue, values]);
+  useEffect(() => {
+    if (resources.length) onAvailable?.(!loading && !busy && !error && resources.every(resource => values[resource.id]?.status === 'completed' && values[resource.id]?.localAvailable !== false));
+  }, [loading, busy, error, values, onAvailable]);
   if (!resources.length) return null;
   return <section className="pa-research-downloads" aria-label="PDF reading sources">
     <h2>PDF reading sources</h2>
@@ -91,7 +94,7 @@ export function ResearchPdfDownloads({ api, bundle, startPdfIds, onRead, waitFor
       const unavailable = value?.status === 'unavailable' || (!!receipt && value?.localAvailable === false);
       return <li key={resource.id}>
         <h3>{resource.title}</h3>
-        <p role="status">{unavailable && value?.status !== 'running' ? 'Original PDF unavailable' : value?.status === 'completed' ? 'PDF downloaded; text extraction available' : value?.status === 'running' ? receipt ? 'Restoring original PDF…' : value.stage === 'parsing' ? 'PDF downloaded; checking page text…' : 'Downloading PDF…' : value?.status === 'failed' ? 'PDF download failed' : value?.status === 'cancelled' ? 'PDF download cancelled' : value?.status === 'interrupted' ? 'PDF download interrupted by restart' : 'Link discovered; PDF not downloaded'}</p>
+        <p role="status">{unavailable && value?.status !== 'running' ? 'Original PDF unavailable' : value?.status === 'completed' ? receipt && receipt.textPages > 0 ? 'PDF downloaded; text extraction available' : 'PDF saved; no selectable text. OCR unavailable.' : value?.status === 'running' ? receipt ? 'Restoring original PDF…' : value.stage === 'parsing' ? 'PDF downloaded; checking page text…' : 'Downloading PDF…' : value?.status === 'failed' ? 'PDF download failed' : value?.status === 'cancelled' ? 'PDF download cancelled' : value?.status === 'interrupted' ? 'PDF download interrupted by restart' : 'Link discovered; PDF not downloaded'}</p>
         {value?.error && <Feedback kind="error">{value.error}</Feedback>}
         {receipt && <>
           <p>{assetSize(receipt.size)} / {receipt.pageCount} pages / text on {receipt.textPages} pages</p>

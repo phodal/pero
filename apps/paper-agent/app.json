@@ -799,7 +799,7 @@
       {
         "name": "research-pdf",
         "path": "/api/research/pdf",
-        "description": "Start/status/cancel one explicitly approved PDF candidate in a saved research bundle. No arbitrary URL. Use its saved resourceId and bundleId; unknown outcome means status first. Completed means downloaded and text-readable, not fully read. The receipt binds source URLs, original bytes hash and PDF pages; unresolved paper identity stays unresolved. Then prepare-research with receipt.paperId and fullText=true and research-step to actually read pages, returning version-bound citations. Never clone or execute linked code.",
+        "description": "Start/status/cancel one explicitly approved PDF candidate in a saved research bundle. No arbitrary URL. Use its saved resourceId and bundleId; unknown outcome means status first. Completed means downloaded and displayable, not text-readable or fully read. Check receipt.textPages and extractionWarnings; OCR is unavailable. The receipt binds source URLs, original bytes hash and PDF pages; unresolved paper identity stays unresolved. When selectable text is available, use prepare-research with receipt.paperId and fullText=true and research-step to actually read pages, returning version-bound citations. Never clone or execute linked code.",
         "schema": {
           "type": "object",
           "properties": {

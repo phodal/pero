@@ -82,7 +82,10 @@ class PaperSnapshot:
     def from_reading(cls, value, fetched_at):
         value = mapping(value, "paper reading")
         content = value.get("content")
-        if not isinstance(content, str) or not content.strip() or len(content) > MAX_PAPER_TEXT:
+        # Only the existing byte-addressed PDF representation can have no text.
+        # Its sourceId/urn is checked below; the importing store owns the bytes.
+        empty_pdf = content == '' and value.get('source') == 'local-pdf' and value.get('contentKind') == 'full-text'
+        if not isinstance(content, str) or (not content.strip() and not empty_pdf) or len(content) > MAX_PAPER_TEXT:
             raise Invalid("No readable paper text is available, or text exceeds 1,000,000 characters")
         kind = value.get("contentKind")
         if kind not in ("abstract", "report", "full-text"):

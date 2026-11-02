@@ -38,6 +38,27 @@ def pdf_fixture(repeated=False, phrase="Exact original evidence."):
     return bytes(data)
 
 
+def image_pdf_fixture():
+    """One actual raster-only page, self-authored pixels and no text operators."""
+    pixels = b'\xff\x00\x00\x00\xff\x00\x00\x00\xff\xff\xff\x00'
+    commands = b'q 400 0 0 600 0 0 cm /Im0 Do Q'
+    objects = [b'<< /Type /Catalog /Pages 2 0 R >>',
+        b'<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+        b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 600] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>',
+        b'<< /Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Length 12 >>\nstream\n' + pixels + b'\nendstream',
+        b'<< /Length ' + str(len(commands)).encode() + b' >>\nstream\n' + commands + b'\nendstream']
+    data, offsets = bytearray(b'%PDF-1.4\n'), [0]
+    for index, item in enumerate(objects, 1):
+        offsets.append(len(data))
+        data.extend(f'{index} 0 obj\n'.encode() + item + b'\nendobj\n')
+    offset = len(data)
+    data.extend(f'xref\n0 {len(offsets)}\n0000000000 65535 f \n'.encode())
+    for item in offsets[1:]:
+        data.extend(f'{item:010d} 00000 n \n'.encode())
+    data.extend(f'trailer\n<< /Size {len(offsets)} /Root 1 0 R >>\nstartxref\n{offset}\n%%EOF\n'.encode())
+    return bytes(data)
+
+
 class PdfTest(unittest.TestCase):
     def test_source_anchor_rules(self):
         doc = PdfDocument.create('a' * 64, 'b' * 64, 'https://arxiv.org/pdf/1706.03762',

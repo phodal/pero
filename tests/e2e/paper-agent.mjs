@@ -1,3 +1,4 @@
+import { exerciseImageOnly, reopenImageOnly, isImageOnlyStudyRejectionConsole } from './paper-image-only-flow.mjs';
 import { paperBackendFixture } from './paper-backend-fixture.mjs';
 import { chatState, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
 import { clickAppShortcut } from './sidebar-controls.mjs';
@@ -27,6 +28,7 @@ fixture=runpy.run_path(sys.argv[1])
 real=bool(sys.argv[3])
 data=Path(sys.argv[3]).read_bytes() if real else fixture['pdf_fixture']()
 Path(sys.argv[2]).write_bytes(data)
+Path(sys.argv[2]).with_name('image-only.pdf').write_bytes(fixture['image_pdf_fixture']())
 with closing(pdfium.PdfDocument(data)) as pdf, closing(pdf[0]) as page, closing(page.get_textpage()) as text:
  quote='Attention Is All You Need' if real else 'Exact original evidence.'
  with closing(text.search(quote)) as search:
@@ -59,7 +61,8 @@ const observe = page => {
   page.on('console', message => {
     if (message.type() !== 'error') return;
     const url = message.location().url;
-    if ((/\b(?:400|403|503)\b/.test(message.text()) && /\/(?:api\/(?:reports|discover|pdf|library\/search)|host\/agent)$/.test(url)) ||
+    if (isImageOnlyStudyRejectionConsole(url, message.text())) expectedConsole.push({ kind: 'image-only-study-rejection', url, text: message.text() });
+    else if ((/\b(?:400|403|503)\b/.test(message.text()) && /\/(?:api\/(?:reports|discover|pdf|library\/search)|host\/agent)$/.test(url)) ||
         (/\b502\b/.test(message.text()) && /\/api\/paper-thumbnails\/2603\.28053\.png$/.test(url))) expectedConsole.push({ url, text: message.text() });
     else errors.push({ url, text: message.text() });
   });
@@ -98,6 +101,7 @@ try {
   await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(item => item.name === 'paper-agent'));
   const installedBackend = resolve(profile, 'desktop/apps/paper-agent/backend');
   await writeFile(resolve(installedBackend, 'discovery_fixture.py'), await readFile(resolve(root, 'tests/fixtures/paper-discovery.py')));
+  await writeFile(resolve(installedBackend, 'reader_download_fixture.py'), await readFile(resolve(root, 'tests/fixtures/paper-reader-download.py')));
   const serverPath = resolve(installedBackend, 'server.py');
   await writeFile(serverPath, paperBackendFixture(await readFile(serverPath, 'utf8'), pdfPath));
   let frame = await openPaper(page);
@@ -275,7 +279,7 @@ try {
     expect(await savedCount(frame)).toBe(1);
     await expect(frame.locator('#paper-question')).toHaveCount(0);
     checks.push('invalid quotation is rejected by Paper through the shared MCP tool; no duplicate report parser or composer');
-    await closePaperChat(page);
+    await closePaperChat(page, frame);
     await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Research record', exact: true }).click();
     // Opening Chat closed the records drawer; reopen the selected saved answer.
     const exportTurn = await showPaperReport(frame, page, firstReport.intentId);
@@ -299,7 +303,7 @@ try {
     await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
     await expect.poll(async () => { const s = await chatState(page); return s.chats[s.activeChat].state; }).toBe('idle');
     expect(await savedCount(frame)).toBe(1);
-    await closePaperChat(page);
+    await closePaperChat(page, frame);
     await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Research record', exact: true }).click();
     checks.push('cancellation uses the shared Host Chat stop control');
     await setAppearance(page,'dark');
@@ -312,7 +316,8 @@ try {
     await setAppearance(page,'light');
     checks.push('dark theme, Chinese locale and narrow Agent overlay');
   }
-  const savedPdf = await exercisePdf({frame,page,app,out,fixture:pdfFixture});
+  const savedImageOnly = await exerciseImageOnly({frame,page,profile,out});
+  const savedPdf = await exercisePdf({frame,page,app,out,fixture:pdfFixture,profile});
   checks.push('reading-only default at 1440x900, retained viewer/zoom/selection across Ask, selected-text question context');
   checks.push('PDF pointer highlight, contextual crop, native image copy, inline manual matrix, source navigation and PDF failure recovery');
   checks.push('full-text retrieval -> Host ACP answer -> exact PDF quotation highlight');
@@ -329,12 +334,15 @@ try {
   expect((await fixtureTurns()).length).toBe(beforeRestart);
   checks.push('research records, reports, PDF bytes, annotations, matrices and exact citations survive Desktop restart without Agent replay');
   await page.screenshot({path:resolve(out,'conversation-reopened.png')});
+  await reopenImageOnly({frame,page,profile,out,saved:savedImageOnly});
+  checks.push('Authored raster-only PDF explicitly saved/exported and rendered after restart; zero PDF text/OCR, metadata rejected as full text; no-PDF Save disabled and cached no-URL Save available');
   const other=await openPaper(page, 'virtual-cell');
   const denied=await other.locator('body').evaluate(async()=>{const response=await fetch('/host/agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'info'})});return{status:response.status,text:await response.text()};});
   expect(denied.status).toBeGreaterThanOrEqual(400);expect(denied.text).toMatch(/permission|grant|Agent|agent/i);
   checks.push('real Host Agent grant boundary remains enforced');
   await expect.poll(() => Object.keys(payloads).length).toBe(2);
   for (const extension of ['js', 'css']) expect(payloads[extension]).toBe(createHash('sha256').update(await readFile(resolve(root, `apps/paper-agent/dist/index.${extension}`))).digest('hex'));
+  expect(expectedConsole.filter(item => item.kind === 'image-only-study-rejection')).toHaveLength(1);
   expect(errors).toEqual([]);
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ fixtureOnly: !pdfFixture.realPdf, realPdf: pdfFixture.realPdf, realModel: false, payloads, checks, errors, expectedConsole }, null, 2));
   console.log(JSON.stringify({ fixtureOnly: !pdfFixture.realPdf, realPdf: pdfFixture.realPdf, realModel: false, payloads, checks, errors, expectedConsole }));

@@ -194,7 +194,13 @@ class Connection:
         pass
 
 
+def legacy_pdf_fetch(*_args, **_options):
+    raise AssertionError('Source study must acquire only through the approved download owner')
+
+
 def install(store):
+    # Disposable fixture exports must never touch the runner's real ~/.pero.
+    os.environ['PERO_PAPER_DIR'] = str(Path(os.environ['PERO_APP_DATA']) / 'library-export-fixture')
     from paper_agent.pdf_downloads import PdfDownloads
     from paper_agent.source_downloads import SourceDownloads
     from paper_agent.resource_fetch import PublicMetadata
@@ -203,3 +209,5 @@ def install(store):
     store.imports.inspector = ResourceInspector(metadata)
     store.pdf_downloads = PdfDownloads(store, transport)
     store.source_downloads = SourceDownloads(store, transport)
+    from paper_agent.pdf_files import PdfFiles
+    return PdfFiles(legacy_pdf_fetch)

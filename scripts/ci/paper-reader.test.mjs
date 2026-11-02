@@ -1,6 +1,64 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { savePaperClipboard } from '../../tests/e2e/paper-pdf-flow.mjs';
+import { savePaperClipboard, backToLibrary, saveLibraryCopies } from '../../tests/e2e/paper-pdf-flow.mjs';
+
+import { imageOnlyStudyRejectionUrl, isImageOnlyStudyRejectionConsole } from '../../tests/e2e/paper-image-only-flow.mjs';
+
+test('only the explicitly marked image-only Study HTTP 400 is expected console output', () => {
+  const text = 'Failed to load resource: the server responded with a status of 400 (Bad Request)';
+  assert.equal(isImageOnlyStudyRejectionConsole(imageOnlyStudyRejectionUrl, text), true);
+  for (const url of ['pero-app://paper-agent/api/studies', imageOnlyStudyRejectionUrl + '&other=1',
+    imageOnlyStudyRejectionUrl.replace('image-only-study-rejection', 'another-study'),
+    imageOnlyStudyRejectionUrl.replace('paper-agent', 'another-app')]) {
+    assert.equal(isImageOnlyStudyRejectionConsole(url, text), false, url);
+  }
+  for (const other of [text.replace('400', '403'), text.replace('400', '500'), 'Unexpected Study error 400']) {
+    assert.equal(isImageOnlyStudyRejectionConsole(imageOnlyStudyRejectionUrl, other), false, other);
+  }
+});
+
+test('Library Save targets the exact title instead of a substring-related paper', async () => {
+  const title = 'image-only', exactTitle = {}, stop = new Error('selected exact row');
+  const frame = {
+    getByRole: () => ({ isVisible: async () => false }),
+    getByText: (value, options) => { assert.equal(value, title); assert.deepEqual(options, { exact: true }); return exactTitle; },
+    locator: selector => {
+      assert.equal(selector, '.pa-library-list > li');
+      return { filter: options => {
+        assert.deepEqual(options, { has: exactTitle });
+        return { getByRole: (role, options) => {
+          assert.equal(role, 'button'); assert.deepEqual(options, { name: 'Save', exact: true });
+          return { click: async () => { throw stop; } };
+        } };
+      } };
+    },
+  };
+  await assert.rejects(saveLibraryCopies(frame, title), error => error === stop);
+});
+
+test('return to Library handles reader and Library sub-screens without skipping the actual list', async () => {
+  for (const initial of ['reader', 'bundle', 'import', 'papers']) {
+    let screen = initial;
+    const clicks = [];
+    const frame = {
+      locator: selector => {
+        if (selector === '.pa-workspace') return { getAttribute: async () => null };
+        assert.ok(['.pa-reading-bar', '.pa-library-screen'].includes(selector));
+        return { getByRole: (role, { name }) => {
+          assert.equal(role, 'button');
+          if (name === 'Refresh') return { isVisible: async () => screen === 'papers' };
+          assert.equal(name, 'Back to library');
+          const isVisible = () => selector === '.pa-reading-bar' ? screen === 'reader' : ['bundle', 'import'].includes(screen);
+          return { isVisible: async () => isVisible(), click: async () => { assert.ok(isVisible()); clicks.push(screen); screen = 'papers'; } };
+        } };
+      },
+      getByRole: (role, { name }) => { assert.equal(role, 'button'); assert.equal(name, 'Close research records'); return { isVisible: async () => false }; },
+    };
+    await backToLibrary(frame);
+    assert.equal(screen, 'papers');
+    assert.deepEqual(clicks, initial === 'papers' ? [] : [initial]);
+  }
+});
 
 test('reader fixture preserves advertised clipboard data but accepts an empty native item', async () => {
   class ClipboardItem {
@@ -104,6 +162,44 @@ test('Paper Chat retries initially missing or moving bounds before one real poin
   assert.deepEqual(clicks, [[1410, 742]]);
   await closePaperChat(page);
   assert.equal(clicks.length, 1);
+});
+
+test('closing Paper question mode focuses a native App control before one Escape, even with Host closed', async () => {
+  for (const [question, records, pdf] of [[false, false, true], [true, false, true], [true, true, false]]) {
+    let questioning = question, recordsOpen = records, focused = false, focusChecks = 0;
+    const actions = [];
+    const nativeButton = { tagName: 'BUTTON', textContent: pdf ? 'PDF' : '‹' };
+    nativeButton.ownerDocument = { activeElement: nativeButton, hasFocus: () => ++focusChecks > 1 };
+    const target = {
+      isVisible: async () => pdf,
+      focus: async () => { actions.push(pdf ? 'focus PDF' : 'focus Back'); focused = true; },
+      evaluate: async predicate => {
+        assert.equal(focused, true);
+        // Execute the helper's real predicate: activeElement alone is not enough
+        // while the first document.hasFocus observation still belongs to Host.
+        return predicate(nativeButton);
+      },
+      press: async key => {
+        assert.equal(key, 'Escape'); assert.equal(recordsOpen, false); assert.equal(focused, true);
+        assert.ok(focusChecks > 1); actions.push('App Escape'); questioning = false;
+      },
+    };
+    const frame = {
+      locator: selector => {
+        if (selector === '.pa-workspace') return { getAttribute: async name => { assert.equal(name, 'data-question'); return questioning ? 'true' : null; } };
+        assert.ok(['.pa-pdf-reading > .pero-ui-toolbar', '.pa-pdf-inline-toolbar'].includes(selector));
+        return { getByRole: (role, options) => { assert.equal(role, 'button'); assert.equal(options.name, selector.includes('inline') ? 'Back to library' : 'PDF'); return target; } };
+      },
+      getByRole: (role, options) => {
+        assert.equal(role, 'button'); assert.equal(options.name, 'Close research records');
+        return { isVisible: async () => recordsOpen, click: async () => { actions.push('close records'); recordsOpen = false; } };
+      },
+    };
+    const page = { evaluate: async () => ({ appChatOpen: false }) };
+    await closePaperChat(page, frame);
+    assert.deepEqual(actions, question ? [...(records ? ['close records'] : []), pdf ? 'focus PDF' : 'focus Back', 'App Escape'] : []);
+    assert.equal(questioning, false);
+  }
 });
 
 test('Paper Chat never clicks when painted bounds remain unavailable', async () => {

@@ -89,29 +89,56 @@ export async function paintedPaperChatCloseTarget() {
   return after && ['x', 'y', 'width', 'height'].every(key => before[key] === after[key]) ? after : false;
 }
 
-export async function closePaperChat(page) {
+// Host Chat and the App's distraction-free question view are separate owners.
+// Escape in the actual App exits the latter without reopening/remounting its PDF.
+export async function exitPaperQuestionMode(frame) {
+  const workspace = frame.locator('.pa-workspace');
+  if (await workspace.getAttribute('data-question') !== 'true') return;
+  const records = frame.getByRole('button', { name: 'Close research records', exact: true });
+  if (await records.isVisible()) await records.click();
+  // Locator.press calls HTMLElement.focus before sending a page-level key.
+  // Body is not focusable: after the Host close click it can leave the actual
+  // keyboard target on the Host canvas. Focus an existing native App control,
+  // without clicking it (which would change PDF/Read mode or selection).
+  const pdf = frame.locator('.pa-pdf-reading > .pero-ui-toolbar').getByRole('button', { name: 'PDF', exact: true });
+  const target = await pdf.isVisible() ? pdf : frame.locator('.pa-pdf-inline-toolbar').getByRole('button', { name: 'Back to library', exact: true });
+  await target.focus();
+  await expect.poll(() => target.evaluate(element => element.ownerDocument.activeElement === element && element.ownerDocument.hasFocus()), {
+    message: 'Escape target owns actual App iframe keyboard focus, not the Host canvas',
+  }).toBe(true);
+  console.info('Paper question Escape focus', await target.evaluate(element => ({ tag: element.tagName, text: element.textContent,
+    appDocumentFocused: element.ownerDocument.hasFocus(), targetFocused: element.ownerDocument.activeElement === element })));
+  await target.press('Escape');
+  await expect.poll(() => workspace.getAttribute('data-question'), {
+    message: 'App Escape exits question view without navigating away from the reader',
+  }).not.toBe('true');
+}
+
+export async function closePaperChat(page, frame) {
   const state = await chatState(page);
-  if (!state.appChatOpen) return;
-  expect(state.floatingChat).toBe(true);
-  const setup = page.getByRole('region', { name: 'App environment', exact: true });
-  if (await setup.isVisible()) await setup.getByRole('button', { name: 'Hide', exact: true }).click();
-  let bounds;
-  await expect.poll(async () => {
-    bounds = await page.evaluate(paintedPaperChatCloseTarget);
-    return !!bounds;
-  }, { timeout: 5000, message: 'Paper Chat close has a stable painted Host hit target' }).toBe(true);
-  console.info('Paper Chat close target', JSON.stringify({ bounds, x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, hostCanvasHit: true }));
-  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-  try {
-    await expect.poll(async () => (await chatState(page)).appChatOpen).toBe(false);
-  } finally {
-    const after = await chatState(page);
-    console.info('Paper Chat close result', JSON.stringify({ appChatOpen: after.appChatOpen, bounds: after.chatCloseButtonBounds }));
+  if (state.appChatOpen) {
+    expect(state.floatingChat).toBe(true);
+    const setup = page.getByRole('region', { name: 'App environment', exact: true });
+    if (await setup.isVisible()) await setup.getByRole('button', { name: 'Hide', exact: true }).click();
+    let bounds;
+    await expect.poll(async () => {
+      bounds = await page.evaluate(paintedPaperChatCloseTarget);
+      return !!bounds;
+    }, { timeout: 5000, message: 'Paper Chat close has a stable painted Host hit target' }).toBe(true);
+    console.info('Paper Chat close target', JSON.stringify({ bounds, x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, hostCanvasHit: true }));
+    await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    try {
+      await expect.poll(async () => (await chatState(page)).appChatOpen).toBe(false);
+    } finally {
+      const after = await chatState(page);
+      console.info('Paper Chat close result', JSON.stringify({ appChatOpen: after.appChatOpen, bounds: after.chatCloseButtonBounds }));
+    }
+    await expect.poll(async () => (await chatState(page)).chatCloseButtonBounds).toBeNull();
   }
-  await expect.poll(async () => (await chatState(page)).chatCloseButtonBounds).toBeNull();
+  if (frame) await exitPaperQuestionMode(frame);
 }
 export async function showPaperReport(frame, page, intentId) {
-  await closePaperChat(page);
+  await closePaperChat(page, frame);
   const records = frame.getByRole('complementary', { name: 'Research record', exact: true });
   if (!await records.isVisible()) await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Research record', exact: true }).click();
   const turn = frame.locator(`[data-turn-id="${intentId}"]`);

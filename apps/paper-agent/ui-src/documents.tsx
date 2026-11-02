@@ -18,8 +18,8 @@ function SourceLines({ content, focus, label }: { content: string; focus: TextFo
     <pre className="pa-search-source">{content.slice(0, from)}<mark ref={mark} data-search-line={line}>{content.slice(from, to)}</mark>{content.slice(to)}</pre>
   </>;
 }
-export function Reader({ paper, busy, openToken, api, pdfFocus, textFocus, onFull, onDiscuss, onMatrixAdded, onReview, chrome, t }: {
-  paper: Paper; busy: boolean; openToken: number; api: Api; pdfFocus?: PdfFocus | null; textFocus?: TextFocus | null; onFull(): void;
+export function Reader({ paper, busy, openToken, pdfReloadToken, api, pdfFocus, textFocus, onFull, onDiscuss, onMatrixAdded, onReview, chrome, t }: {
+  paper: Paper; busy: boolean; openToken: number; pdfReloadToken?: number; api: Api; pdfFocus?: PdfFocus | null; textFocus?: TextFocus | null; onFull(): void;
   onDiscuss(text: string, source?: PdfSource): void; onMatrixAdded(): Promise<void>; onReview(): void; chrome: ReaderChrome; t: Translator;
 }) {
   const source = useRef<HTMLDivElement>(null);
@@ -32,12 +32,12 @@ export function Reader({ paper, busy, openToken, api, pdfFocus, textFocus, onFul
     setExcerpt(value);
   }
   return <article className="pa-document pa-reading-document" data-paper-id={paper.id} aria-label={paper.title}>
-    <PdfReader key={paper.id} chrome={chrome} paper={paper} api={api} focus={textFocus ? null : pdfFocus} lockText={!!textFocus} readLabel={structured && !textFocus ? 'Read' : undefined} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}>
+    <PdfReader key={paper.id} pdfReloadToken={pdfReloadToken} chrome={chrome} paper={paper} api={api} focus={textFocus ? null : pdfFocus} lockText={!!textFocus} readLabel={structured && !textFocus ? 'Read' : undefined} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}>
       <div className="pa-text-reading pero-reader-body"><div className="pero-reader-content">
         <StructuredReading openToken={openToken} showText={!!textFocus} api={api} paperId={paper.id} onReady={setStructured} onReview={onReview}>
         {paper.contentKind !== 'full-text' && !textFocus && <p className="pa-document-meta">{paper.resourceKind === 'web_article' ? 'Article excerpt' : t(paper.contentKind === 'abstract' ? 'abstract' : 'sourceReport')}</p>}
-        {paper.resourceKind && paper.limitation && <p className="pa-document-meta">{paper.limitation}</p>}
-        <div className="pa-source-text" ref={source} onMouseUp={capture} onKeyUp={capture}>{paper.content ? textFocus ? <SourceLines content={paper.content} focus={textFocus} label={t('sourceLine')}/> : paper.resourceKind ? <p className="pa-resource-excerpt">{paper.content}</p> : <ScientificContent content={paper.content}/> : t('loading')}</div>
+        {paper.limitation && <p className="pa-document-meta">{paper.limitation}</p>}
+        <div className="pa-source-text" ref={source} onMouseUp={capture} onKeyUp={capture}>{paper.content != null ? textFocus ? <SourceLines content={paper.content} focus={textFocus} label={t('sourceLine')}/> : paper.resourceKind ? <p className="pa-resource-excerpt">{paper.content}</p> : <ScientificContent content={paper.content}/> : t('loading')}</div>
         {!!excerpt && <div className="pa-reader-actions"><Button onClick={() => onDiscuss(excerpt)}>{t('discussSelection')}</Button></div>}
         <Disclosure summary={t('sourceDetails')}>
           {paper.source !== 'local-pdf' && <a href={paper.url} target="_blank" rel="noreferrer">{t('original')}</a>}

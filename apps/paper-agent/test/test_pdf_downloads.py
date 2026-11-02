@@ -15,7 +15,7 @@ from paper_agent.pdf_downloads import PdfDownloads
 from paper_agent.research_resources import ImportDraft, ResearchResource
 from paper_agent.resource_fetch import PdfResponse, PublicMetadata
 from paper_agent.store import ResearchStore
-from test_pdf import pdf_fixture
+from test_pdf import pdf_fixture, image_pdf_fixture
 
 NOW = '2026-11-01T00:00:00Z'
 SEED = 'https://research.example/blog'
@@ -55,6 +55,84 @@ def finish(downloads, selection):
 
 
 class PdfAcquisitionTest(unittest.TestCase):
+    def test_image_only_pdf_is_saved_renderable_and_never_text_evidence(self):
+        from PIL import Image
+        from paper_agent.pdf import PdfAnnotation
+        from paper_agent.pdf_files import PdfFiles
+        with tempfile.TemporaryDirectory() as root:
+            store = ResearchStore(root)
+            selection = save_bundle(store)
+            data = image_pdf_fixture()
+            downloads = PdfDownloads(store, PdfTransport(data))
+            downloads.request(dict(operation='start', **selection))
+            result = finish(downloads, selection)
+            self.assertEqual(result['status'], 'completed', result)
+            receipt = result['receipt']
+            self.assertEqual((receipt['pageCount'], receipt['textPages'], receipt['textCharacters']), (1, 0, 0))
+            self.assertIn('OCR is not available', ' '.join(receipt['extractionWarnings']))
+            self.assertEqual(result['readPages'], [])
+            document = store.pdf(receipt['documentId'])
+            self.assertEqual(document.page(1).text, '')
+            self.assertEqual(store.pdf_bytes(document), data)
+            paper = store.paper(receipt['paperId'])
+            self.assertEqual(paper.content, '')
+            self.assertIn('OCR is not available', paper.limitation)
+            region = PdfAnnotation.create(dict(page=1, kind='figure', rects=[dict(x=0, y=0, width=1, height=1)]), document, NOW)
+            rendered = PdfFiles().crop(data, region)
+            with Image.open(io.BytesIO(rendered)) as image:
+                self.assertGreater(image.width, 0)
+                self.assertNotEqual(image.getpixel((10, 10)), image.getpixel((image.width - 10, image.height - 10)))
+            request = ResearchRequest.parse(dict(requestId='image-only', question='Read full text', paperIds=[paper.id], fullText=True))
+            with self.assertRaisesRegex(Invalid, 'no selectable text'):
+                store.create_study(request, NOW)
+            self.assertEqual(store._list('studies'), [])
+            with self.assertRaises(Invalid):
+                PdfAnnotation.create(dict(page=1, kind='highlight', quote='Fabricated text', rects=[dict(x=0, y=0, width=.5, height=.5)]), document, NOW)
+            reopened = ResearchStore(root)
+            self.assertEqual(reopened.pdf_downloads.request(dict(operation='status', **selection)), result)
+            self.assertEqual(reopened.paper(paper.id).content, '')
+
+    def test_local_image_pdf_import_keeps_empty_lines_and_source_contract_narrow(self):
+        from paper_agent.local_pdf import LocalPdf
+        from paper_agent.pdf_files import PdfFiles
+        from test_research import reading
+        with tempfile.TemporaryDirectory() as root:
+            store = ResearchStore(root)
+            data = image_pdf_fixture()
+            upload = LocalPdf.parse(data, 'image.pdf')
+            paper = store.import_pdf(upload, PdfFiles(), NOW)
+            self.assertEqual(paper.content, '')
+            self.assertEqual(store._read('papers', paper.id)['lines'], [])
+            self.assertEqual(ResearchStore(root).paper(paper.id), paper)
+            with self.assertRaisesRegex(Invalid, 'at least one page'):
+                PdfFiles.from_pages(upload, (), NOW)
+            for source, kind in (('import', 'full-text'), ('alphaxiv', 'full-text'), ('local-pdf', 'abstract'), ('local-pdf', 'report')):
+                with self.subTest(source=source, kind=kind), self.assertRaises(Invalid):
+                    PaperSnapshot.from_reading({**paper.to_dict(), 'source': source, 'contentKind': kind}, NOW)
+            with self.assertRaises(Invalid):
+                PaperSnapshot.from_reading(reading(content='', source='local-pdf', sourceId='not-a-digest', url='https://example.org'), NOW)
+
+    def test_metadata_abstract_cannot_replace_image_only_pdf_text_in_study(self):
+        from paper_agent.pdf_files import PdfFiles
+        with tempfile.TemporaryDirectory() as root:
+            store = ResearchStore(root)
+            paper = store.save_paper(PaperSnapshot.from_reading(dict(title='Scan metadata', sourceId='scan',
+                url='https://example.org/scan', contentKind='abstract', content='A real metadata abstract.'), NOW))
+            data = image_pdf_fixture()
+            store.save_pdf(PdfFiles().inspect(paper, data, NOW), data)
+            request = ResearchRequest.parse(dict(requestId='scan-metadata', question='Read full text', paperIds=[paper.id], fullText=True))
+            with self.assertRaisesRegex(Invalid, 'no selectable text'):
+                store.create_study(request, NOW)
+            self.assertEqual(store._list('studies'), [])
+            readable = store.save_paper(PaperSnapshot.from_reading(dict(title='Readable paper', sourceId='text',
+                url='https://example.org/text', contentKind='abstract', content='Another metadata abstract.'), NOW))
+            text_bytes = pdf_fixture()
+            store.save_pdf(PdfFiles().inspect(readable, text_bytes, NOW), text_bytes)
+            mixed = ResearchRequest.parse(dict(requestId='mixed-scan', question='Read both', paperIds=[readable.id, paper.id], fullText=True))
+            with self.assertRaisesRegex(Invalid, 'no selectable text'):
+                store.create_study(mixed, NOW)
+            self.assertEqual(store._list('studies'), [])
+
     def test_authorization_versions_restart_and_observed_pages(self):
         with tempfile.TemporaryDirectory() as root:
             store = ResearchStore(root)
@@ -138,14 +216,12 @@ class PdfAcquisitionTest(unittest.TestCase):
 
     def test_cancel_timeout_parse_failure_and_retry_do_not_publish(self):
         ctx = multiprocessing.get_context('spawn')
-        for mode in ('cancel', 'timeout', 'damaged', 'scan'):
+        for mode in ('cancel', 'timeout', 'damaged'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as root:
                 store = ResearchStore(root)
                 selection = save_bundle(store)
                 entered, release = ctx.Event(), ctx.Event()
                 data = b'%PDF-broken' if mode == 'damaged' else pdf_fixture()
-                if mode == 'scan':
-                    data = data.replace(b'Tj', b'  ')
                 transport = PdfTransport(data, entered, release if mode in ('cancel', 'timeout') else None)
                 downloads = PdfDownloads(store, transport, seconds=0.7 if mode == 'timeout' else 10)
                 downloads.request(dict(operation='start', **selection))

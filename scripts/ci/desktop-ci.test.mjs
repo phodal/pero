@@ -76,6 +76,8 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   assert.ok(core.includes("python -m unittest discover -s apps/paper-agent/test -p 'test_*.py' -v"));
   assert.ok(core.includes('python tests/e2e/paper-pdf-http.py --output'));
   assert.ok(core.includes('npm run typecheck --prefix apps/paper-agent'));
+  assert.ok(core.includes('node --test tests/e2e/paper-library-availability.test.mjs'));
+  assert.ok(core.indexOf('npm ci --prefix apps/paper-agent --ignore-scripts') < core.indexOf('node --test tests/e2e/paper-library-availability.test.mjs'));
   assert.doesNotMatch(core, /npm run build|xvfb-run|build:wasm|scripts\/build\/(?:apps|wasm|reader|automation-app|scientific-viewer)\.mjs/);
   for (const command of ['ec89cfc36404667b7947aeb3d40b1c2859d729dd', 'https://github.com/longbridge/gpui-kit.git',
     'npm ci --prefix apps/automations --ignore-scripts', 'npm ci --prefix apps/scientific-viewer --ignore-scripts',
@@ -94,7 +96,7 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
 test('independent Paper aggregates cover every offline journey once and restore scoped PDF mode', () => {
   const temp = mkdtempSync(resolve(tmpdir(), 'pero-paper-wiring-'));
   const groups = {
-    'paper-research-import': ['paper-research-import', 'paper-research-import-host', 'paper-pdf-study', 'paper-source-study', 'paper-reproduction-component', 'paper-reproduction-native'],
+    'paper-research-import': ['paper-research-import', 'paper-research-import-host', 'paper-pdf-study', 'paper-source-study', 'paper-library-save', 'paper-reproduction-component', 'paper-reproduction-native'],
     'paper-reading': ['paper-structured-reading', 'paper-agent'],
   };
   const entries = Object.values(groups).flat();
@@ -141,6 +143,7 @@ test('independent Paper aggregates cover every offline journey once and restore 
     assert.equal(python.if, "matrix.suite == 'paper-research-import' || matrix.suite == 'paper-reading'");
     const browser = steps.find(step => step.name === 'Browser for explicitly mocked App UI seams');
     assert.equal(browser.if, "matrix.suite == 'automations-ui' || matrix.suite == 'paper-research-import' || matrix.suite == 'paper-reading'");
+    assert.equal(browser.run, 'npx playwright install --with-deps chromium');
   } finally { rmSync(temp, { recursive: true, force: true }); }
 });
 
