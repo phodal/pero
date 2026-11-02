@@ -20,6 +20,8 @@ go_library(
 go_test(
     name = "subagents_test",
     srcs = [
+        "builtins_test.go",
+        "claude_test.go",
         "inprocess_test.go",
         "mcp_scope_review_test.go",
         "restart_test.go",
