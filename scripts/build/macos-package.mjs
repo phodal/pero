@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { stageWorkbench } from './workbench-payload.mjs';
 import { Product } from '../../packages/product/product.ts';
 import { writeIcns } from '../lib/macos-icon.mjs';
+import { createMacOSDmg } from '../lib/macos-dmg.mjs';
 const root = resolve(import.meta.dirname, '../..');
 if (process.platform !== 'darwin') throw new Error('macOS packaging requires macOS.');
 const staged = process.env.PERO_PRODUCT_PAYLOAD;
@@ -52,7 +53,7 @@ execFileSync('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', output], 
 execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', output], { stdio: 'pipe' });
 const image = join(destination, `${product.artifactStem()}-macos-${process.arch}.dmg`);
 rmSync(image, { force: true });
-execFileSync('/usr/bin/hdiutil', ['create', '-volname', product.name, '-srcfolder', output, '-format', 'ULMO', image], { stdio: 'inherit' });
+createMacOSDmg(output, product.name, image);
 function bytes(path) {
   const stat = statSync(path);
   return stat.isDirectory() ? readdirSync(path, { withFileTypes: true }).reduce((total, entry) => total + (entry.isSymbolicLink() ? 0 : bytes(join(path, entry.name))), 0) : stat.size;
