@@ -40,7 +40,8 @@
     "@radix-ui/react-toggle-group": "1.2.1",
     "@tanstack/react-table": "8.21.3",
     "lucide-react": "1.59.0",
-    "react-aria-components": "1.22.1"
+    "react-aria-components": "1.22.1",
+    "uplot": "1.6.32"
   },
   "devDependencies": {
     "@types/react": "19.3.0",
