@@ -187,8 +187,18 @@ test('closing Paper question mode focuses a native App control before one Escape
     const frame = {
       locator: selector => {
         if (selector === '.pa-workspace') return { getAttribute: async name => { assert.equal(name, 'data-question'); return questioning ? 'true' : null; } };
-        assert.ok(['.pa-pdf-reading > .pero-ui-toolbar', '.pa-pdf-inline-toolbar'].includes(selector));
-        return { getByRole: (role, options) => { assert.equal(role, 'button'); assert.equal(options.name, selector.includes('inline') ? 'Back to library' : 'PDF'); return target; } };
+        // The helper owns toolbar layout; this seam models native controls by
+        // accessible name, so moving a toolbar does not change keyboard behavior.
+        return { getByRole: (role, options) => {
+          assert.equal(role, 'button');
+          assert.ok(['PDF', 'Back to library'].includes(options.name));
+          assert.equal(options.exact, true);
+          if (options.name === 'Back to library') assert.equal(pdf, false);
+          return { ...target, focus: async () => {
+            assert.equal(options.name, pdf ? 'PDF' : 'Back to library', 'only a visible native control can own focus');
+            await target.focus();
+          } };
+        } };
       },
       getByRole: (role, options) => {
         assert.equal(role, 'button'); assert.equal(options.name, 'Close research records');
@@ -307,8 +317,37 @@ assert len(calls) == 1
 print(json.dumps({keyword.arg: ast.unparse(keyword.value) for keyword in calls[0].keywords}))
 `], { input: transformed, encoding: 'utf8' }));
   assert.equal(keywords.literature, 'LiteratureClient(fetch)');
-  assert.match(keywords.pdf_files, /^PdfFiles\(lambda .*BytesIO\(FixturePath\(/);
-  assert.ok(keywords.pdf_files.includes('.read_bytes()'));
+  // Exercise the real reviewed-download fixture with stdlib only. No server,
+  // worker, parser or model is started; an audit hook forbids real networking.
+  execFileSync(process.env.PERO_APP_PYTHON || 'python3', ['-S', '-c', `
+import os, runpy, sys, tempfile
+from pathlib import Path
+from types import SimpleNamespace
+
+def offline(event, args):
+    if event.startswith('socket.'):
+        raise AssertionError('Real networking forbidden: ' + event)
+sys.addaudithook(offline)
+sys.path.insert(0, 'apps/paper-agent/backend')
+fixture = runpy.run_path('tests/fixtures/paper-reader-download.py')
+with tempfile.TemporaryDirectory() as directory:
+    os.environ['PERO_APP_DATA'] = directory
+    path = Path(directory) / 'fixture "quoted" source.pdf'
+    authored = b'%PDF-1.7 authored offline reader bytes'
+    path.write_bytes(authored)
+    store = SimpleNamespace(imports=SimpleNamespace(), _list=lambda collection: [])
+    fixture['install'](store, path)
+    for url in (fixture['PDF_URL'], fixture['PUBLISHER_URL']):
+        response = store.pdf_downloads.transport.fetch_pdf(url)
+        assert response.data == authored
+        assert response.url == url
+    try:
+        store.imports.inspector.fetch('https://reader.example.org/metadata')
+    except AssertionError as error:
+        assert 'Fixed reader fixture must not fetch metadata' in str(error)
+    else:
+        raise AssertionError('Reader metadata must remain fail-closed')
+`], { cwd: new URL('../../', import.meta.url) });
   assert.equal(keywords.thumbnails, 'PaperThumbnails(thumbnail_fetch)');
   assert.equal(keywords.compute_secret, 'compute_secret');
 });
