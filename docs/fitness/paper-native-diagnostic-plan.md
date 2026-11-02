@@ -1,8 +1,7 @@
 # Paper #77: read-only diagnosis and remaining execution gate
 
-2026-11-02; base `78881615`. One read-only native run completed; native approval
-and scientific execution remain unverified. The descendant increment below has
-only synthetic coverage and has not run live.
+2026-11-02; base `78881615`. Two read-only native diagnostic runs completed; native approval and scientific
+execution remain unverified. Neither diagnostic submitted an input action.
 
 Two retained #97 attempts (`41363881233`, `41365460393`) verified exact
 Electron PID exclusion and captured the authored dialog, but returned empty,
@@ -61,9 +60,57 @@ node within the inspected owned subtree, without changing the production binder.
 An incomplete walk cannot establish absence. Old #97 positive attempts stay
 stopped; no input/worker/science acceptance follows from this diagnostic.
 
+### Second live read-only result (bounded descendants)
+
+Run [41413322861](https://github.com/phodal/pero/actions/runs/41413322861), job
+`125171140091`, artifact `13126109311`, head
+`9b466282c3c2bab9fe66ed3bf141eafca0f47877`, tested merge
+`552ea71e50d82c6d970f803a86087d8bee990bff` onto `78881615`.
+GitHub commit parents confirm the screenshot's merge revision matches this head.
+The runner completed in 5.274 seconds; opt-in label was removed afterward.
+
+- Runtime versions/accessibility environment unchanged from the first run.
+- Exact Electron PID **6960**, X11 `0x400007`, dialog **(0, 0, 596, 129)**.
+- One owned registry app; the same two nonmatching frame rectangles as before.
+- Exactly **2 nodes, both depth 1**, whose `GetChildren` returned no descendants.
+  **15 RPCs**, `errors=[]`, `truncated=false`, `budgetReasons=[]`,
+  `skippedForeignPid=0`, `unresolvedPid=0`.
+- `matchingFrames=0`, `matchingNodes=0`, `matchingNestedNodes=0`,
+  `matchingDialogCandidates=0`;
+  `classification=no-exact-geometry-node-in-owned-subtree`.
+- ZIP SHA-256 matches GitHub:
+  `a3a79d4fe3a07ed5484ee34de40d762eb9c7793af43edd9a8b557651c22d2704`.
+- Screenshot SHA-256 matches its receipt:
+  `361b0d73670dd0bb238992408e7f34988e7b72cf7ed699725c9318ae348df330`.
+  Pixels show the authored no-compute warning and Cancel/Run once buttons.
+- Production observation remains empty/truncated. No action/approval/worker
+  receipt is established by either green diagnostic job.
+
+The complete available traversal establishes **no matching geometry node in this
+exact-PID exported subtree at this snapshot**; it did not run out of depth, nodes,
+RPCs or time. Thus a deeper-node omission in the production binder is not the
+observed cause. This is not proof of absence at every instant or on every runtime.
+The evidence supports an Electron GTK/Chromium accessibility exposure issue:
+[pinned Electron creates a GTK message dialog](https://github.com/electron/electron/blob/v45.1.0/shell/browser/ui/message_box_gtk.cc),
+while [pinned Chromium replaces the ATK root with its application tree](https://github.com/chromium/chromium/blob/156.0.8078.49/ui/accessibility/platform/atk_util_auralinux.cc).
+This is a source-supported hypothesis, not a tested upstream root-cause fix.
+
+**Stop here rather than repeat the same probe.** No production driver change is
+justified by these results; do not widen geometry, match a BrowserWindow instead,
+traverse another PID, or use keyboard/pixels. Preserve #97's stopped state.
+Minimal next engineering choices need a separately reviewed scope: either fix
+upstream/native bridge exposure, or implement an explicitly authorized accessible
+Host-owned approval UI while retaining exact per-run binding/private-token,
+cancel/destroy and no-replay semantics. An alternative UI is not evidence that
+the original GTK dialog works. Read-only source investigation needs no new input
+permission; a new live test, positive semantic approval test, real worker launch,
+scientific environment/dependency setup and actual computation are separate
+stages and must each remain within their explicit authorization. Neither of these
+diagnostic runs grants those stages.
+
 Implemented separate entry point: `tests/e2e/paper-native-diagnostic.mjs`. It is
 not registered in the normal positive suite. The first immediate-frame version
-ran as recorded above; the descendant increment is wired but not yet run.
+and descendant versions ran as recorded here.
 `.github/workflows/computer-use.yml` now wires it only for Linux PRs explicitly
 labelled `ci:paper-native-diagnostic` or manual dispatch with boolean
 `paper_native_diagnostic=true` (default false). Ordinary push/PR/scheduled runs
@@ -100,8 +147,8 @@ before the one-shot run:
    Preserve native semantic/nonce/complete-tree gates for any separately reviewed
    future positive attempt. No keyboard/pixel fallback or OS security changes.
 
-The descendant collector is wired into that separate entry point but has not yet
-been run against a live native dialog.
+The descendant collector completed one live read-only run as recorded below;
+that is not native approval acceptance.
 Its deterministic fake-transport tests are not accessibility evidence. This
 instrument does not alone resolve Host→worker or forced-destroy acceptance.
 
