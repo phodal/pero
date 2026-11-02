@@ -1,11 +1,11 @@
 /**
- * Point-owned declarative chart document contract (Desktop side).
+ * Pero-owned declarative chart document contract (Desktop side).
  *
  * It lives next to the Canvas broker because it belongs to the Electron Node
  * side: the browser runtime package owns the Chart component, this module owns
  * the document that drives it. It is plain ESM JavaScript with no dependencies,
  * so tests can import it directly. It is the only place that reads a
- * declarative chart document: the projected input is then handed to the Point
+ * declarative chart document: the projected input is then handed to the Pero
  * Canvas Chart component as a safe JSON literal. Nothing from the document is
  * ever inserted as source.
  *
@@ -226,7 +226,7 @@ function assertObjectSize(raw) {
   } catch {
     reject("chart document input must be JSON data");
   }
-  if (Buffer.byteLength(text ?? "", "utf8") > CHART_MAX_INPUT_BYTES) {
+  if (new TextEncoder().encode(text ?? "").length > CHART_MAX_INPUT_BYTES) {
     reject(`chart document input exceeds ${CHART_MAX_INPUT_BYTES} bytes`);
   }
 }
@@ -235,7 +235,7 @@ function assertObjectSize(raw) {
 function fromJsonText(text) {
   if (typeof text !== "string") reject("chart document input must be a JSON string or an object");
   if (text.length === 0) reject("chart document input is empty");
-  if (Buffer.byteLength(text, "utf8") > CHART_MAX_INPUT_BYTES) {
+  if (new TextEncoder().encode(text).length > CHART_MAX_INPUT_BYTES) {
     reject(`chart document input exceeds ${CHART_MAX_INPUT_BYTES} bytes`);
   }
   let decoded;

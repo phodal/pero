@@ -61,3 +61,13 @@ test("histogram observations are binned; missing y stays out of the counts", () 
 test("APP_DOCUMENT_CHART_TYPES is the closed App render set", () => {
   assert.deepEqual([...APP_DOCUMENT_CHART_TYPES], ["bar", "horizontalBar", "line", "area", "histogram"]);
 });
+
+test('chart input validation works without Node globals and bounds UTF-8 bytes', () => {
+  const previous = globalThis.Buffer;
+  try {
+    globalThis.Buffer = undefined;
+    for (const input of [barDocument(), JSON.stringify(barDocument())]) assert.equal(projectAppChartDocument(input).ok, true);
+    assert.equal(projectAppChartDocument(JSON.stringify(barDocument()) + ' '.repeat(2 * 1024 * 1024)).ok, false);
+    assert.equal(projectAppChartDocument(barDocument({ description: '字'.repeat(800000) })).ok, false);
+  } finally { globalThis.Buffer = previous; }
+});
