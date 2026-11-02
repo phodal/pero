@@ -4,6 +4,7 @@ go_library(
     name = "shell",
     srcs = [
         "claude_status.go",
+        "file_capture.go",
         "local.go",
         "output.go",
         "process_unix.go",
@@ -19,6 +20,7 @@ go_test(
     name = "shell_test",
     srcs = [
         "claude_status_test.go",
+        "file_capture_test.go",
         "local_test.go",
         "output_sink_test.go",
         "process_linux_test.go",

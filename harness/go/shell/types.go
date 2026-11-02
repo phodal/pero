@@ -28,17 +28,20 @@ type ExecSpec struct {
 }
 
 type RunResult struct {
-	Enforcement      sandbox.Enforcement `json:"enforcement,omitempty"`
-	ReadIsolated     bool                `json:"readIsolated"`
-	NetworkIsolated  bool                `json:"networkIsolated"`
-	CleanupUncertain bool                `json:"cleanupUncertain,omitempty"`
-	ExitCode         *int                `json:"exitCode"`
-	Signal           string              `json:"signal,omitempty"`
-	TimedOut         bool                `json:"timedOut"`
-	Aborted          bool                `json:"aborted"`
-	Timeout          time.Duration       `json:"-"`
-	Stdout           CollectedOutput     `json:"stdout"`
-	Stderr           CollectedOutput     `json:"stderr"`
+	Enforcement       sandbox.Enforcement `json:"enforcement,omitempty"`
+	ReadIsolated      bool                `json:"readIsolated"`
+	NetworkIsolated   bool                `json:"networkIsolated"`
+	CleanupUncertain  bool                `json:"cleanupUncertain,omitempty"`
+	ExitCode          *int                `json:"exitCode"`
+	Signal            string              `json:"signal,omitempty"`
+	TimedOut          bool                `json:"timedOut"`
+	Aborted           bool                `json:"aborted"`
+	Timeout           time.Duration       `json:"-"`
+	Stdout            CollectedOutput     `json:"stdout"`
+	Stderr            CollectedOutput     `json:"stderr"`
+	OutputFile        string              `json:"output_file,omitempty"`
+	OutputBytes       int64               `json:"output_bytes,omitempty"`
+	OutputFilePartial bool                `json:"output_file_partial,omitempty"`
 }
 
 type Executor interface {

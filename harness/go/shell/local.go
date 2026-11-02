@@ -18,6 +18,7 @@ import (
 const (
 	defaultTimeout     = 30 * time.Second
 	maximumTimeout     = 120 * time.Second
+	absoluteMaxTimeout = 2 * time.Hour
 	maximumOutputBytes = 64 * 1024
 	defaultGrace       = 250 * time.Millisecond
 )
@@ -90,7 +91,7 @@ func NewLocalExecutor(options LocalOptions) (*LocalExecutor, error) {
 	if options.Grace == 0 {
 		options.Grace = defaultGrace
 	}
-	if options.Timeout < 0 || options.MaxTimeout <= 0 || options.MaxTimeout > maximumTimeout || options.Timeout > options.MaxTimeout || options.MaxOutputBytes < 1 || options.MaxOutputBytes > maximumOutputBytes || options.Grace < 0 || options.Grace > time.Second {
+	if options.Timeout < 0 || options.MaxTimeout <= 0 || options.MaxTimeout > absoluteMaxTimeout || options.Timeout > options.MaxTimeout || options.MaxOutputBytes < 1 || options.MaxOutputBytes > maximumOutputBytes || options.Grace < 0 || options.Grace > time.Second {
 		return nil, errors.New("shell: limits exceed supported bounds")
 	}
 	env, err := explicitEnvironment(options.BaseEnv)

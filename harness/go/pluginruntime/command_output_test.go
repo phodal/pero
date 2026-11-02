@@ -57,19 +57,17 @@ func TestLongSkillOutputPreservesCompleteReadableFile(t *testing.T) {
 	}
 }
 
-func TestSkillOutputLimitAndLaterFailureDiscardCaptures(t *testing.T) {
+func TestLaterSkillCommandFailureDiscardsCaptures(t *testing.T) {
 	for _, test := range []struct {
 		name, content string
-		wantLimit     bool
 	}{
-		{"capture hard limit", "!`head -c 67108865 /dev/zero`", true},
-		{"later command fails", "!`head -c 70000 /dev/zero` !`exit 7`", false},
+		{"later command fails", "!`head -c 70000 /dev/zero` !`exit 7`"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			h, agent, definition, options, _ := expansionFixture(t)
 			definition.Content = test.content
 			got, err := ExpandSkill(t.Context(), h, agent, definition, "", options)
-			if err == nil || got.Content != "" || test.wantLimit && !errors.Is(err, ErrSkillCommandOutputLimit) {
+			if err == nil || got.Content != "" {
 				t.Fatalf("incomplete output was accepted: %q %v", got.Content, err)
 			}
 			assertNoSkillOutputs(t, agent.Session().Header().CWD)
