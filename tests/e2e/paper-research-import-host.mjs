@@ -5,7 +5,7 @@ import { electron } from './electron.mjs';
 import { chatState, focusPaperChat } from './paper-chat-controls.mjs';
 import { clickAppShortcut, clickSessionRow, setAppearance } from './sidebar-controls.mjs';
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -19,7 +19,11 @@ const profile = await realpath(await mkdtemp(resolve(tmpdir(), 'pero-research-ho
 const settings = resolve(profile, 'settings.json'), agents = resolve(profile, 'agents.json');
 const cloneFixture = process.platform === 'linux' ? await prepareCloneFixture(profile) : null;
 const cloneOptions = {}, provider = cloneFixture ? await startFixtureProvider('clone', '', cloneOptions) : null;
-await writeFile(settings, JSON.stringify(cloneFixture ? { chat_agent: 'clone-fixture' } : {}));
+await writeFile(settings, JSON.stringify({
+  ...(cloneFixture ? { chat_agent: 'clone-fixture' } : {}),
+  // Bind the explicitly provisioned CI venv; opening an App never installs it.
+  ...(process.env.PERO_APP_PYTHON ? { app_python: { apps: { 'paper-agent': dirname(dirname(process.env.PERO_APP_PYTHON)) } } } : {}),
+}));
 await writeFile(agents, JSON.stringify(['pero', 'codex', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({ id, name: id, command: resolve(profile, `unavailable-${id}`) }))));
 if (cloneFixture) {
   const disabled = JSON.parse(await readFile(agents, 'utf8'));
