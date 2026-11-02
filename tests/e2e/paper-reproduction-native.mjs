@@ -19,7 +19,9 @@ if (process.platform !== 'linux') {
   // Only this fixture's children share this disposable bus; never use or change
   // the user's accessibility session. The enclosing suite retains its deadline.
   const child = spawnSync('dbus-run-session', ['--', process.execPath, import.meta.filename], {
-    stdio: 'inherit', env: { ...process.env, PERO_PAPER_NATIVE_DBUS: '1', GTK_A11Y: 'atspi', NO_AT_BRIDGE: '' },
+    // Chromium's pinned AuraLinux bridge uses ACCESSIBILITY_ENABLED, not the
+    // GTK-only hint. This enables discovery, never answers the native dialog.
+    stdio: 'inherit', env: { ...process.env, PERO_PAPER_NATIVE_DBUS: '1', ACCESSIBILITY_ENABLED: '1', GTK_A11Y: 'atspi', NO_AT_BRIDGE: '' },
   });
   if (child.error) throw child.error;
   assert.equal(child.status, 0, `Native approval child failed (${child.signal || child.status})`);
@@ -58,6 +60,7 @@ if (process.platform !== 'linux') {
   }
   let application;
   try {
+    await mkdir(out, { recursive: true });
     await build({
       stdin: { contents: `
         import { app, BrowserWindow } from 'electron';
@@ -86,6 +89,12 @@ if (process.platform !== 'linux') {
     });
     application = await electron.launch({ requiresNativeWindow: true, args: [join(temporary, 'main.cjs')], cwd: root });
     await expect.poll(() => application.evaluate(() => Boolean(globalThis.paperNative)), { timeout: 10000 }).toBe(true);
+    await writeFile(join(out, 'runtime.json'), JSON.stringify(await application.evaluate(() => ({
+      electron: process.versions.electron, chromium: process.versions.chrome, node: process.versions.node,
+      requestedAccessibility: process.env.ACCESSIBILITY_ENABLED,
+      observedNoAtBridge: process.env.NO_AT_BRIDGE ?? null,
+      scope: 'Owned fixture environment only; bridge activation does not prove native GTK dialog exposure',
+    })), null, 2));
     application.process().on('exit', (code, signal) => console.log('Paper native fixture process exit', JSON.stringify({ code, signal })));
     const checks = [];
     for (const mode of ['abort', 'owner-close']) {

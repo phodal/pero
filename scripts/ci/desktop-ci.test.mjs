@@ -235,4 +235,21 @@ test('native Paper approval reuses scoped Desktop prerequisites and retains the 
   assert.match(source, /spawnSync\('dbus-run-session'/);
   assert.match(source, /PERO_PAPER_NATIVE_DBUS: '1'/);
   assert.match(source, /GTK_A11Y: 'atspi', NO_AT_BRIDGE: ''/);
+  // Execute the real scoped launch options without starting a bus or Electron.
+  // Inherited disabled accessibility must not defeat this authored fixture, and
+  // the parent environment must remain untouched.
+  const start = source.indexOf("  const child = spawnSync('dbus-run-session'");
+  const end = source.indexOf('\n} else {', start);
+  assert.ok(start >= 0 && end > start);
+  const inherited = { ACCESSIBILITY_ENABLED: '0', NO_AT_BRIDGE: '1', KEEP_PARENT: 'yes' };
+  let invocation;
+  new Function('spawnSync', 'process', 'assert', source.slice(start, end)
+    .replaceAll('import.meta.filename', JSON.stringify('native-fixture.mjs')))(
+    (...args) => { invocation = args; return { status: 0 }; },
+    { env: inherited, execPath: 'node' }, assert);
+  assert.deepEqual(invocation.slice(0, 2), ['dbus-run-session', ['--', 'node', 'native-fixture.mjs']]);
+  assert.equal(invocation[2].env.ACCESSIBILITY_ENABLED, '1');
+  assert.equal(invocation[2].env.PERO_PAPER_NATIVE_DBUS, '1');
+  assert.equal(invocation[2].env.KEEP_PARENT, 'yes');
+  assert.deepEqual(inherited, { ACCESSIBILITY_ENABLED: '0', NO_AT_BRIDGE: '1', KEEP_PARENT: 'yes' });
 });
