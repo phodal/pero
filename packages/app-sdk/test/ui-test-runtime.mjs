@@ -12,7 +12,7 @@ export async function createUiRuntime(t, component) {
   const { JSDOM } = require('jsdom');
   const temporary = await mkdtemp(resolve(tmpdir(), 'pero-ui-components-'));
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/', pretendToBeVisual: true });
-  const keys = ['CSS', 'window', 'Window', 'document', 'HTMLElement', 'HTMLInputElement', 'HTMLFormElement', 'HTMLButtonElement', 'HTMLTextAreaElement', 'HTMLSelectElement', 'SVGElement', 'Element', 'Node', 'NodeFilter', 'MutationObserver', 'Event', 'CustomEvent', 'ResizeObserver', 'devicePixelRatio', 'matchMedia', 'getComputedStyle', 'requestAnimationFrame', 'cancelAnimationFrame', 'IS_REACT_ACT_ENVIRONMENT', '__point_modules'];
+  const keys = ['CSS', 'window', 'Window', 'document', 'HTMLElement', 'HTMLInputElement', 'HTMLFormElement', 'HTMLButtonElement', 'HTMLTextAreaElement', 'HTMLSelectElement', 'SVGElement', 'Element', 'Node', 'NodeFilter', 'MutationObserver', 'Event', 'CustomEvent', 'ResizeObserver', 'devicePixelRatio', 'matchMedia', 'getComputedStyle', 'requestAnimationFrame', 'cancelAnimationFrame', 'IS_REACT_ACT_ENVIRONMENT', '__pero_modules'];
   const previous = Object.fromEntries(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   for (const key of keys) if (key in dom.window) Object.defineProperty(globalThis, key, { configurable: true, writable: true, value: dom.window[key] });
   // CodeMirror reads the constructor via the global Window name, not only window.Window.
@@ -58,7 +58,7 @@ export async function createUiRuntime(t, component) {
   const { build } = require('esbuild');
   const outfile = resolve(temporary, 'ui.mjs');
   const contents = typeof component === 'object' ? component.contents : component ? `export * from './components/${component}';` : "export * from './ui'; export * as UI from './ui';";
-  await build({ stdin: { contents, resolveDir: typeof component === 'object' ? component.resolveDir : resolve(import.meta.dirname, '../src'), loader: 'tsx' }, outfile, banner: { js: "import { createRequire as pointTestCreateRequire } from 'node:module'; const require = pointTestCreateRequire(import.meta.url);" }, bundle: true, jsx: 'automatic', platform: 'node', format: 'esm', mainFields: ['module', 'main'], loader: { '.css': typeof component === 'object' && component.cssText ? 'text' : 'empty' }, plugins: [{ name: 'host-react', setup(b) {
+  await build({ stdin: { contents, resolveDir: typeof component === 'object' ? component.resolveDir : resolve(import.meta.dirname, '../src'), loader: 'tsx' }, outfile, banner: { js: "import { createRequire as sdkTestCreateRequire } from 'node:module'; const require = sdkTestCreateRequire(import.meta.url);" }, bundle: true, jsx: 'automatic', platform: 'node', format: 'esm', mainFields: ['module', 'main'], loader: { '.css': typeof component === 'object' && component.cssText ? 'text' : 'empty' }, plugins: [{ name: 'host-react', setup(b) {
     for (const [name, root] of Object.entries(typeof component === 'object' ? component.modules ?? {} : {})) b.onResolve({ filter: new RegExp(`^${name}$`) }, () => ({ path: require.resolve(name, { paths: [root] }) }));
     b.onResolve({ filter: /^@pero\/app-sdk$/ }, () => ({ path: resolve(import.meta.dirname, '../src/index.tsx') }));
     b.onResolve({ filter: /^@pero\/app-sdk\/ui$/ }, () => ({ path: resolve(import.meta.dirname, '../src/ui.tsx') }));
