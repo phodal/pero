@@ -12,6 +12,10 @@ from unittest.mock import patch
 from manual.scientific_html import CORPUS, URL, coverage, main
 from paper_agent.arxiv_html import parse_arxiv_html
 
+from scientific_html_diagnostics import response_summary
+from paper_agent.resource_fetch import PublicMetadata, SourceResponse
+from paper_agent.model import Invalid
+
 SOURCE = (Path(__file__).parent / 'fixtures/scientific-document.html').read_bytes()
 
 
@@ -84,6 +88,64 @@ class ScientificHtmlAcceptanceTests(unittest.TestCase):
             self.assertEqual(list(Path(directory).iterdir()), [output])
         self.assertTrue(temporary_roots)
         self.assertTrue(all(not root.exists() for root in temporary_roots))
+
+    def test_response_diagnostic_does_not_admit_banner_or_publish_source_text(self):
+        raw = SOURCE.replace(b'<meta name="citation_arxiv_id" content="2606.03979v2">', b'')
+        raw = raw.replace(b'</head>', b'<meta property="og:url" content="https://arxiv.org/html/2606.03979v2"></head>')
+        raw = raw.replace(b'<body>', b'<body><div class="arxiv-identifier">arXiv:2606.03979v2 PRIVATE HEADER</div>'
+                          b'<script>arXiv:9999.00001v1 PRIVATE SCRIPT</script>')
+        response = SourceResponse(URL, raw, 'text/html')
+        summary = response_summary(response)
+        self.assertEqual(summary['identityMetadata'][0]['field'], 'og:url')
+        self.assertEqual(summary['identityMetadata'][0]['ids'], ['2606.03979v2'])
+        self.assertEqual(summary['outsideArticleMarkerCount'], 1)
+        self.assertEqual(summary['outsideArticleMarkers'][0]['path'][-1],
+                         {'tag': 'div', 'classes': ['arxiv-identifier']})
+        self.assertEqual(summary['identityAdmission'], 'diagnostic-only')
+        for private in ('PRIVATE', 'Synthetic', 'Baseline', '9999.00001', '<article'):
+            self.assertNotIn(private, json.dumps(summary))
+
+        def acquired(owner, arguments, *_rest):
+            with patch.object(PublicMetadata, 'fetch_html', return_value=response) as fetch:
+                with self.assertRaises(Invalid) as error:
+                    owner(type('Output', (), {'send': lambda self, value: None})(), *arguments)
+                self.assertEqual(fetch.call_count, 1)
+                self.assertIn('does not establish', error.exception.detail)
+                return ('failed', error.exception.detail)
+
+        with tempfile.TemporaryDirectory() as directory, patch(
+                'manual.scientific_html.acquire_bounded', side_effect=acquired), contextlib.redirect_stdout(io.StringIO()):
+            output = Path(directory) / 'result.json'
+            self.assertEqual(main(['--allow-official-html', '--output', str(output)]), 1)
+            report = json.loads(output.read_text())
+            self.assertEqual(report['outcome'], 'acquisition-not-completed')
+            self.assertEqual(report['acquisitionDiagnostic'], summary)
+            self.assertNotIn('documentId', report)
+
+    def test_response_diagnostics_have_fixed_output_bounds_and_exclude_article_identity(self):
+        raw = (b'<html><head>' + b'<meta name="citation_arxiv_id" content="2606.03979v2">' * 40
+               + b'</head><body>' + b'<div class="arxiv-identifier">arXiv:2606.03979v2</div>' * 40
+               + b'<article class="ltx_document"><p>arXiv:9999.00001v1 PRIVATE</p></article>'
+               + b'<div>arXiv:2606.03979v' + b'2' * 1000 + b'</div></body></html>')
+        summary = response_summary(SourceResponse(URL, raw, 'text/html'))
+        self.assertEqual(summary['identityMetadataCount'], 40)
+        self.assertEqual(len(summary['identityMetadata']), 32)
+        self.assertEqual(summary['outsideArticleMarkerCount'], 40)
+        self.assertEqual(len(summary['outsideArticleMarkers']), 32)
+        self.assertLess(len(json.dumps(summary)), 32768)
+        self.assertNotIn('9999.00001', json.dumps(summary))
+        self.assertNotIn('PRIVATE', json.dumps(summary))
+
+    def test_identity_diagnostics_retain_only_known_page_furniture_classes(self):
+        for known in ('ltx_page_header', 'ltx_page_footer', 'ltx_header'):
+            with self.subTest(known=known):
+                raw = (f'<div class="{known} author_private ltx_unknown">arXiv:2606.03979v2</div>'
+                       '<article class="ltx_document"><div class="ltx_page_header">arXiv:9999.00001v1</div></article>').encode()
+                summary = response_summary(SourceResponse(URL, raw, 'text/html'))
+                self.assertEqual(summary['outsideArticleMarkerCount'], 1)
+                self.assertEqual(summary['outsideArticleMarkers'][0]['path'][-1]['classes'], [known])
+                for excluded in ('author_private', 'ltx_unknown', '9999.00001'):
+                    self.assertNotIn(excluded, json.dumps(summary))
 
     def test_arbitrary_case_is_rejected_before_acquisition(self):
         with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(io.StringIO()):

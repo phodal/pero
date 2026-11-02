@@ -16,10 +16,11 @@ import tempfile
 import threading
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'backend'))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from paper_agent.acquisition_worker import acquire_bounded
 from paper_agent.arxiv_html import parse_arxiv_html
 from paper_agent.paper_documents import prepare_html
-from paper_agent.resource_fetch import PublicMetadata
+from scientific_html_diagnostics import DiagnosticMetadata
 from paper_agent.scientific_document import ScientificDocument, encoded
 
 
@@ -113,8 +114,11 @@ def main(argv=None):
                   outcome='not-run', sourceBytesExported=False)
     # Original HTML and IR never leave a private, automatically removed directory.
     with tempfile.TemporaryDirectory(prefix='pero-html-acceptance-') as directory:
-        result = acquire_bounded(prepare_html, (directory, case.url, '', PublicMetadata()),
+        result = acquire_bounded(prepare_html, (directory, case.url, '', DiagnosticMetadata(directory)),
                                  threading.Event(), 45, lambda _stage: None)
+        diagnostic = Path(directory) / 'response-summary.json'
+        if diagnostic.exists():
+            report['acquisitionDiagnostic'] = json.loads(diagnostic.read_text())
         if result[0] != 'complete':
             report.update(outcome='acquisition-not-completed', acquisitionStatus=result[0], reason=result[1])
         else:

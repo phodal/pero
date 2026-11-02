@@ -325,3 +325,40 @@ all six Desktop-CI contract tests passed. Full offline Paper regression complete
 237 tests in 76.719 seconds (236 passed, one existing platform skip).
 `git diff --check` passed. These remain L0 checks, not results of the future
 Actions live run.
+
+### First Actions corpus result and bounded identity diagnosis
+
+[Run 41410116061](https://github.com/phodal/pero/actions/runs/41410116061),
+PR #102 head `d20a5eb8e4e1f4eb3235d40f431a54b71d12b434`, reached the actual
+product transport/parser for all three cases. Each returned
+`acquisition-not-completed` / `failed` with
+`HTML response does not establish this explicit paper version; keep using PDF`.
+This is **not** the earlier executor DNS failure. The existing parser recognized
+an article but none of its accepted response identity signals established the
+requested version. None of these results passes D5 or supplementary acceptance.
+
+The probe now adds metadata-only diagnosis around the existing `PublicMetadata`
+transport: exactly one `super.fetch_html` response is returned unchanged to the
+existing `prepare_html` owner. No production identity rule changes. Before that
+owner can reject it, the private temporary directory records response URL, MIME,
+byte length and SHA-256; allowlisted head identity field names with value hashes
+and syntactic arXiv IDs; and article-external `arXiv:` marker IDs with bounded
+structural paths and text hashes. It does not export text, title, original HTML,
+full attribute values, arbitrary URLs, cookies or HTTP headers. Scripts and article
+content are excluded from marker diagnosis. Counts retain totals while each list
+exports at most 32 entries, with at most eight IDs per entry and eight path nodes;
+tags are allowlisted, classes are at most four restricted arXiv CSS tokens or the known LaTeXML
+`ltx_page_header`, `ltx_page_footer`, `ltx_header` furniture tokens per node, and ID version suffixes are bounded to six digits. These are diagnostic
+candidates, **not admitted identity evidence**.
+
+Only that summary is merged into the existing named JSON artifact. No extra
+network call, source artifact or acceptance fallback is introduced; the original
+version gate and six-kind corpus checks remain unchanged. Absent, unversioned and
+conflicting identity retain the existing fail-closed behavior. A diagnostic failure
+cannot yield a successful product result. The next authorized Actions run is to
+observe the actual response shape, not to assume that a visible web-reader version
+has already been accepted by the product parser.
+
+Offline verification: 25 scientific/probe tests passed, including metadata-only
+projection, marker/body/script exclusion, count/length bounds, a single mocked transport
+seam invocation, and continued `prepare_html` rejection of a diagnostic-only banner.
