@@ -6,8 +6,11 @@ execution flags apply to this adapter only. Read it when auditing that case.
 This implementation combines a **fixed-case CLI execution workflow** with a
 persisted Paper `reproduction-step` audit route. The App audit binds the saved v4
 Paper, PDF passage and optional annotation; `freeze` additionally requires a
-trusted fixed checkout. The shipped server has no such configuration and cannot
-start computation; the explicitly authorized CLI remains the execution path.
+trusted fixed checkout. Computation is disabled by default. The Host now has
+opt-in trusted-checkout deployment and private compute-token wiring; configured
+Desktop execution still requires its native per-run approval. That implemented
+path has not established native Run once/Host-to-worker acceptance. The explicitly
+authorized CLI is a separate supported path, not evidence that Desktop passed.
 Do not invent `app__paper-agent__run-experiment` or write experimental outcomes
 into a reading-only `research-step` report (its `experiments` remains empty).
 If the Host does not expose an authorized shell and the selected Python environment,

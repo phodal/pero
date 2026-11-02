@@ -262,10 +262,12 @@ accepts only specification/attempt identities and returns at most 64 KiB from
 the saved log, with an explicit truncation flag. Runtime log monitoring retains
 its existing polling threshold; it is not an OS-enforced file-size cap.
 
-Execution remains disabled in the shipped composition. No Host approval was
-added by this domain increment; the existing HTTP confirmation string is not
-Host authority. Trusted checkout/interpreter configuration, per-run Host
-approval, actual PDF selection/UI feedback, cancellation integration and actual
-new scientific execution are still required. Deterministic fixture/loopback
+Execution remains disabled without explicit trusted deployment configuration.
+No Host approval was added by this domain increment; later master wiring now
+resolves the trusted checkout, creates a private compute token and routes native
+per-run approval through Desktop. The HTTP confirmation string alone is still
+not Host authority. Implemented wiring is not validated execution: actual native
+Run once, Host-to-worker, forced-destroy and new scientific acceptance remain
+open, alongside end-to-end selected-result verification. Deterministic fixture/loopback
 tests validate these contracts only. No new training, download, paid model or
 claim of completing all six #77 acceptance items accompanies this change.
