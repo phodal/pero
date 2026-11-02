@@ -17,10 +17,11 @@ worst-case JSON escaping) and process-group cancellation.
 **Shell is not sandboxed**: approved commands can access outside workspace and
 network, and deliberately detached processes can escape process groups. Use
 external OS/container isolation when running untrusted commands. The workspace
-is a launch cwd, not a shell filesystem security boundary. No background job,
-persistent shell, package installation automation or default broad approval.
+is a launch cwd, not a shell filesystem security boundary. This legacy `shell`
+profile has no background jobs or persistent shell. It adds no package
+installation automation or default broad approval.
 
-Encoded output is capped at 64 KiB. File effects retain structured receipts on
+Legacy encoded output is capped at 64 KiB. File effects retain structured receipts on
 failure; `unknown` means inspect/reconcile, not automatically retry. Shell errors
 retain output/exit/timeout flags. The runtime may additionally redact a result
 when the owning session is cancelled or retired, as its existing safety contract.
@@ -81,7 +82,82 @@ retain their presentation for cold recovery; older records retain their saved
 bounded result and working log. Dynamic skill command expansion retains its
 separate output projection.
 
-Foreground plugin Bash defaults to 120 seconds, maximum 600 seconds. Background
-commands use the unattended 30-minute default and 2-hour maximum. Automatic
-foreground-to-background promotion, interactive sessions without a deadline,
-and background subagent residency/command-completion wakeups are not yet wired.
+Foreground plugin Bash defaults to 120 seconds, with a 600-second ceiling.
+A live command that reaches its foreground wait limit continues as the **same
+process** in the background. The response includes task_id, promoted, a timeout
+message and working_log_file. The original intent remains unchanged; a separate
+shell-task/promoted fact is appended and flushed before returning the handle.
+If promotion cannot be persisted, the process is cancelled and joined. Commands
+that have not actually started are never reported as promoted.
+
+`--bash-host-mode unattended` is the default. Background commands get a
+30-minute default and 2-hour ceiling; an explicit background call's timeout
+selects its running limit within that ceiling. A promoted command's background
+limit starts when promotion is committed. `--bash-host-mode interactive` is an
+explicit host selection: background commands have no execution deadline,
+including after promotion. The runtime never guesses this mode from a TTY.
+Owner interruption, TaskStop and runtime shutdown still cancel and join jobs.
+
+`BASH_DEFAULT_TIMEOUT_MS` raises the foreground and background defaults;
+`BASH_MAX_TIMEOUT_MS` raises their ceilings. Lower nonnegative values keep the
+defaults, and each ceiling is at least its default. A default above two hours
+also raises the background ceiling. Values must fit a Go duration without
+overflow. Model timeouts cannot increase a host ceiling. These settings are
+read from the explicitly supplied launch environment.
+
+Commands beginning with `sleep` stop at the foreground limit instead of being
+promoted. `--disable-bash-background` or
+`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` disables both explicit background starts
+and automatic promotion; foreground commands then stop at their limit. Library
+hosts can select the same behavior with Options.BashTiming, including its Bare
+option. The CLI does not expose a separate general-purpose bare mode.
+
+The Claude Bash tool adds no outer fixed tool timer: its owned execution
+controls waiting and deadlines while retaining the caller's cancellation. The
+legacy shell keeps its existing limits and 125-second outer timer. This ACP
+runtime does not implement Claude's separate plain-text `-p` waiting policy.
+
+Real-process tests verify one PID and one set of effects across promotion,
+durable handoff, cancellation after a returned tool call, promotion flush
+failure, background deadlines, explicit interactive mode, sleep/disable/bare
+exceptions, TaskStop, owner retirement and cold interrupted recovery. Resident
+background subagents and command-completion notifications/automatic wakeups
+remain separate work; exact-owner task lookup is unchanged.
+
+## Selected language servers
+
+`LSP` is available through explicit `--lsp-config /absolute/servers.json` or
+language-server declarations bundled with a selected plugin. Bundled servers
+are selected by default; `--disable-plugin-lsp` disables those declarations
+while preserving separately selected operator files. Server executables must
+already be available. Selection resolves the executable; the process starts
+lazily for a matching query and must advertise the requested capability.
+
+The nine query operations use one-based UTF-16 cursor positions and the existing
+workspace reader. The host never applies server edits or commands. Language
+servers are trusted local processes, with cancellation, restart limits and
+shutdown ownership; they are not an OS sandbox. Automatic post-edit diagnostics
+and dynamic capability registration remain unsupported. Actual `/usr/bin/clangd`
+hover and both operator/bundled CLI fixture paths have passed. See the
+[LSP contract](../lsp/README.md) for configuration, supported operations and
+remaining platform limits.
+
+## Explicit research dependency
+
+`--research-source` and `--research-python`, together with explicit
+`--plugin-model opus=MODEL`, `--enable-shell` and a Web provider, compose the
+selected original Chinese research chain. Python/PyYAML must already be
+available. Preparation publishes a content-addressed package view without
+changing the source checkout or global skill directories. The root session
+retains the original human questions; background item researchers use the same
+Agent, Web, approved file/Bash tools and owner lifecycle. See the
+[research profile contract](../researchprofile/README.md).
+
+The real CLI loopback chain passed on 2026-11-03 with six ACP question
+interactions, two background agents, ten searches, two fetches, two tool-free
+extractions and sixteen tool approvals. The original validator and generated
+report script ran; Read then approved cp/cmp preserved report.md byte for byte
+as raw research before ledger/final/summary generation. The fixture client
+answered the gates; actual human approval and real-world research quality are
+separate. Provider and Web data were loopback fixtures. This does not add
+background-agent residency after parent exit or restart recovery.

@@ -1,8 +1,8 @@
 # Claude plugin configuration and execution
 
 `plugins.Inspect(ctx, directory)` reads an explicitly selected local plugin or
-marketplace. It returns typed skill, command and agent definitions, plus hook
-and MCP configuration summaries and source-relative diagnostics. It does not
+marketplace. It returns typed skill, command and agent definitions, plus hook,
+MCP and LSP configuration summaries and source-relative diagnostics. It does not
 execute instructions, hooks, commands, package installers or MCP servers.
 
 From `harness/go`:
@@ -35,11 +35,14 @@ Supported inspection behavior:
   Default MCP servers load first; later same-name declarations replace them.
 - Hook wrapper/argv checks, unsupported execution fields, MCP transport,
   credential presence and millisecond timeout diagnostics.
+- Default `.lsp.json` and manifest `lspServers` declarations, extension mappings,
+  strict stdio configuration and explicit unsupported-capability diagnostics.
 - Paths contained in the selected plugin, bounded regular configuration files,
   stable component order and deduplication of repeated component files.
 
 Reports omit instruction bodies, hook command/argument values, MCP URLs,
-environment values and header values. They retain definition descriptions,
+environment values and header values. LSP summaries omit executable/argument
+values and initialization/settings JSON. They retain definition descriptions,
 component names, tool expressions and binding key names, so they are inspection
 artifacts rather than automatically public documents.
 
@@ -79,38 +82,96 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   opens an interactive permission prompt; commands without existing permission
   abort the invocation. Skill tool grants expire at the next direct user input.
   Successful output over 64 KiB is saved under `.pero/plugin-output` with a
-  bounded preview. Capture over 64 MiB fails and removes incomplete files.
+  bounded preview. Capture uses the shared 5 GB working-output ceiling;
+  failed/cancelled expansion removes its temporary file. Its projection remains
+  separate from native Bash output presentation.
 - Skill model overrides last for their invocation turn. `context: fork` runs
   through the existing isolated Agent executor and returns its actual result;
   ACP waits synchronously. Instructions and tool grants remain in the child.
 - Command hooks run with Claude JSON stdin and parse actual decisions. The
   supported lifecycle includes startup/resume, user input, before/after tools,
-  compaction, Stop continuation and SessionEnd.
+  compaction, Stop continuation, SessionEnd and SubagentStart/SubagentStop.
   Main-session lifecycle events stay on the root agent; child tool events carry
   the main session identity and the actual child identity. Stop defaults to
-  eight consecutive continuations and resets that count after a tool call.
-- MCP stdio and streamable HTTP connections belong to root-agent lifetimes.
+  eight consecutive continuations and resets after ordinary tool work.
+  Structured answer submissions also pass the stop gate and can be revised.
+- MCP stdio, streamable HTTP and legacy SSE connections belong to root-agent lifetimes.
   Each package gets a server namespace; children inherit the parent connection.
 - Agent, TaskOutput and TaskStop run and cancel actual harness children.
   TaskCreate, TaskUpdate, TaskList and TaskGet persist state in the session log.
 - AskUserQuestion is available when an ACP client negotiates the
   [structured question extension](../acp/USER_QUESTIONS.md). It supports free
   text, multiple questions and cancellation without using permission dialogs.
+  The Desktop client negotiates this extension and renders its own question form.
+- Selected JavaScript Workflow scripts run through the existing child-agent
+  service, including nested scripts and structured results. Execution is
+  synchronous; see the [Workflow contract](../workflow/README.md).
+- Native plugin Bash supports background tasks, durable output logs and success
+  artifacts. Foreground timeouts promote the same live process after a durable
+  transition; sleep/disable/bare exceptions still stop it. Explicit
+  `--bash-host-mode interactive` removes background deadlines; unattended is
+  the default. `--disable-bash-background` disables starts and promotion. See
+  [Bash output and timing](../nativetools/README.md#claude-plugin-bash).
+- Selected `.lsp.json` / manifest `lspServers` declarations mount the `LSP`
+  query tool by default. `--disable-plugin-lsp` suppresses bundled servers;
+  explicit repeatable `--lsp-config` files remain available independently.
+  Selection grants execution of trusted local stdio servers; it does not
+  install missing executables. Nine capability-checked queries, cancellation,
+  restart limits and shutdown are implemented; automatic diagnostics and
+  dynamic registration are not. See the [LSP contract](../lsp/README.md).
+- Explicit `--web-provider deepseek-api` enables WebSearch/WebFetch, using the
+  existing approval channel and a tool-free child for page extraction. See
+  [Web provider configuration](../webtools/README.md).
+- The optional [ACP trial adapter](../../tools/trial/README.md) supplies Harness
+  trial execution while preserving the original SDK runner as a separate choice.
+  It uses the real agent binary, explicit provider/model/environment binding,
+  same-session continuations and existing tool approvals. Every requested
+  session and final artifact pattern must succeed. Cancellation, close errors
+  or nonzero process exit cannot become success because an artifact exists.
+  Provider usage is recorded when reported; unknown usage/cost is not estimated.
+  Positive USD budgets and automatic prompt retries are explicitly unsupported.
 
 Explicit plugin execution receives the launch environment after the selected
 provider credential has been removed. Hook/MCP configuration values remain out
 of inspection output. Unknown execution fields and invalid declarations stop
 runtime loading instead of silently changing their meaning.
 
-This profile is still incomplete. In particular, conditional Bash grants and
-exit-1 interpretation for compound syntax, background Bash,
-Workflow scripts, Web/LSP and several additional Claude hook/configuration
-features remain open. Hooks do not yet use the sandbox backend; selecting both
-command hooks and a sandbox currently returns an error. SSE transport is not
-substituted with streamable HTTP. Explore/Plan use a narrower read-only tool set.
-The current Desktop client does not negotiate structured questions yet.
+This profile is still incomplete. Conditional Bash grants and exit-1
+interpretation for compound syntax, asynchronous Workflow execution, resident
+background agents, cold agent resumption and several additional hook/configuration features remain
+open. Hooks do not yet use the sandbox backend; selecting both command hooks
+and a sandbox currently returns an error. Explore/Plan use a narrower read-only
+tool set. Full external-service and per-plugin business workflows still require
+their own acceptance.
 See the design's implementation matrix for the remaining work.
+
+The user-selected
+[Deep-Research-skills source](https://github.com/Weizhena/Deep-Research-skills/tree/6ce38f60e3f8b22502c29873f96503a4e0c5addb)
+now supplies an explicitly selected research dependency. Provide
+`--research-source`, `--research-python`, `--plugin-model opus=MODEL`,
+`--enable-shell` and an explicit Web provider. Python/PyYAML must already be
+available; no global installation or source checkout edit is performed. A
+content-addressed package view adds `deep-research:deep-research` to compose the
+original Chinese research, research-deep and research-report stages in the root
+session. Outline/item/field, per-batch and report-field confirmations remain
+human gates. See the [research profile contract](../researchprofile/README.md).
+
+The original chain passed real CLI loopback acceptance on 2026-11-03: six ACP
+question interactions, two background researchers, ten searches, two fetches,
+two tool-free extractions and sixteen tool approvals. The original validator
+ran, report.md was read back, and approved cp/cmp preserved its actual bytes in
+raw research before the caller wrote its ledger, final report and summary.
+Fixture clients answered questions/approvals; this proves the gate positions,
+not human review. Model and Web data were fixtures, so real-world research
+quality remains unverified. Parent-exit residency and cold background-agent
+resumption are not promised.
 
 Verification uses temporary plugin directories and the actual CLI dispatch.
 Hook/MCP sentinel programs are never executed by inspection. See the
 [implementation design](../../../docs/design-docs/claude-code-plugin-compatibility.md).
+The installed clangd hover and both LSP CLI selection paths have passed; the ACP
+trial suite passes 15 local tests, including final-artifact and shutdown failure
+regressions. These results do not establish every plugin's business workflow or
+every external service connection. Final frozen-source Go race/vet passed and
+Bazel passed 34/34 targets. The existing real-provider evidence remains the PRD
+flow and one Search/Fetch request each; the full research chain was loopback.

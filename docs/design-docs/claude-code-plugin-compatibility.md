@@ -651,7 +651,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 
 ## 16 运行时实现与真实验收
 
-2026-11-02，CLI 已新增可重复的 `--plugin-dir`，将已检查的本地插件或 marketplace 通过现有 harness composition root 装配。运行时不再停留于配置检查。插件正文、资源和权限规则来自同一份已解析定义；没有另建 agent loop、MCP client 或任务数据库。本轮已完成全部 **15/15 插件的配置迁移与运行态编译**，接通 Host/Runtime/Desktop 结构化问答、同步 Workflow 和前后台 Bash 的真实执行与输出文件。配置编译、开发版 UI、loopback 模型及真实服务验收仍分别记录；这些结果不表示 15 个插件的全部流程已经通过，也不表示与 Claude Code 完全同等。
+2026-11-02，CLI 已新增可重复的 `--plugin-dir`，将已检查的本地插件或 marketplace 通过现有 harness composition root 装配。运行时不再停留于配置检查。插件正文、资源和权限规则来自同一份已解析定义；没有另建 agent loop、MCP client 或任务数据库。本轮已完成全部 **15/15 插件的配置迁移与运行态编译**，接通 Host/Runtime/Desktop 结构化问答、同步 Workflow、前后台 Bash 输出与超时转后台、所选 LSP，以及独立 ACP Trial runner。配置编译、开发版 UI、loopback 模型及真实服务验收仍分别记录；这些结果不表示 15 个插件的全部流程已经通过，也不表示与 Claude Code 完全同等。
 
 | 能力 | 当前实现 | 验证与边界 |
 | --- | --- | --- |
@@ -662,6 +662,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 | 工具预批准 | allowed-tools 在调用 turn 生效，下一直接用户输入清除；hook ask 与部署拒绝优先 | 普通工具名、限定 server 的 MCP wildcard、简单 Bash pattern；复杂 shell syntax 不自动批准 |
 | 原生工具 | Read/Write/Edit/Glob/Grep/Bash 的 Claude 名称和参数 | 真实工作区效果；Grep 用 RE2，图片/PDF/NotebookEdit、完整 ripgrep 行为仍待补 |
 | 后台 Bash | `run_in_background`、真实 task_id、TaskOutput 等待/轮询、TaskStop、超时及进程回收 | 启动前持久化 intent；同一调用者拥有任务；JSONL 冷恢复保留终态，未知运行标记 interrupted，不重放副作用 |
+| Bash 超时与转后台 | 前台等待与进程期限分离，超时后同一已启动进程延续；sleep/disable/bare 例外；显式 unattended/interactive host mode | promotion 单独 Append/Flush；失败取消并 join；真实同 PID、一次副作用、环境上限、交互无后台期限与失主恢复验证 |
 | 命令输出文件 | 共用文件捕获；原生 Bash 成功默认 30000 字符 inline，超出返回最多 64 MiB artifact 与 2000 字符预览，失败最多 10000 字符头尾 | 工作日志使用独立 working_log_file；取消保留实际日志；Unicode、冷恢复、一次执行/审批和原工作区身份检查均有真实进程测试；动态模板仍采用独立呈现 |
 | 子代理 | 自定义 Agent、模型 alias、工具交集、父审批、实际后台 ID/等待/停止 | loopback 子代理真实读写和取消；冷恢复后台任务尚未完成 |
 | 内置子代理 | general-purpose、Explore、Plan | Explore/Plan 采用较窄的只读交集，暂不提供官方只读 Bash 与任意 MCP |
@@ -674,8 +675,11 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 | 压缩生命周期 | PreCompact 可阻止；PostCompact 后 SessionStart(source=compact) 上下文进入紧接的请求 | manual 与真实 context-overflow retry fixture；不延迟到下一个 tool step |
 | 压缩后的技能 | 最近一次已渲染正文与参数从原始日志恢复，单项 5000、合计 25000 估算 token | Unicode 安全截断；不重新读安装文件、不重跑命令、不恢复过期授权，不恢复 fork 正文到父会话 |
 | MCP | stdio/streamable HTTP/旧版 SSE、环境替换、namespace、root-agent 连接生命周期 | SSE 实际发现、调用、取消与退役回收；拒绝向外部 origin 转发配置凭据；OAuth/每工具迁移仍待补 |
+| LSP | `--lsp-config`、所选插件 `.lsp.json`/manifest 声明默认装配；9 类 query、UTF-16 坐标、能力协商、取消与进程生命周期 | 实际 `/usr/bin/clangd` hover、operator/bundled 两种真实 CLI 路径通过；不安装服务器，不应用编辑；自动 diagnostics 与动态注册仍缺 |
 | WebSearch/WebFetch | 显式 DeepSeek Search/Fetch provider；域名过滤、引用、offset 分片及无工具子代理提取 | CLI loopback 验证审批、共享预算、取消和拒绝写文件；真实 API 两次请求通过；缓存与跨域 redirect handoff 尚未实现，搜索后端不同 |
 | 同步 Workflow | 原始 scriptPath、export const meta、args、嵌套 workflow、agent/parallel/pipeline/phase/log；RPC 复用 ClaudeContribution.Invoke | 原始 3 个审查脚本实际运行；9 次 agent()、10 次 loopback HTTP、峰值并发 3；后台 Workflow 明确拒绝，详见 16.4 |
+| Trial runner | 显式选择 Harness ACP 或原 Claude runner；工作区/session/续跑/问答策略/审批/真实 usage/进程回收 | 15 项本地测试通过；所有 session 与最终产物复核，取消/关闭失败/非零退出不伪成功；不估算 USD，不重试已提交 prompt |
+| 显式研究依赖 | 选定固定来源后生成内容寻址 package view；原 research → research-deep → research-report 留在 root，保留人工 gate | 原链 CLI loopback 已通过：6 次问答、2 个后台研究代理、10 Search、2 Fetch、2 次无工具提取、16 次审批、原 validator 和 raw 字节归档；不宣称真实研究质量 |
 
 ### 16.1 真实模型结果
 
@@ -691,7 +695,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 
 ### 16.2 继续实现的出口
 
-完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的后台执行与可恢复任务句柄；Bash 前台超时自动转后台、交互/非交互超时区别与动态模板的精确呈现；后台子代理的 turn/run 区分及命令完成通知；LSP、外部依赖和实际服务连接。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。试验 runner 的最终产物复核和关闭失败处理正在追加独立回归，最终验收后另记结果。
+完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的后台执行与可恢复任务句柄；动态模板的精确呈现；后台子代理的驻留、cold-resume、turn/run 区分及命令完成通知/自动唤醒；LSP 自动 diagnostics 与动态能力注册；研究技能的真实模型/真实语料质量；外部依赖和实际服务连接。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。Trial 的最终产物复核、关闭失败和进程退出处理已完成独立回归，真实优化效果仍需另行验收。
 
 任务归属也需区分目标契约：当前任务查询限定创建者，子代理退出时取消并等待其命令，这与 pinned DSH 的 owner 隔离及 disposal 语义相符。Claude 官方要求前台子代理结束时停止命令，但允许后台子代理在当前 turn 结束后继续持有后台命令，并接收完成通知；run 真正退出时才停止。现有 one-shot 子代理在结果返回后回收，尚未实现后一种驻留。不能把它写成所有子代理命令都应无限存活，或已经支持根会话接管所有子任务。当前 Claude 文档还注明 TaskOutput 自 v2.1.277 移除、改为 Read 输出文件；本批插件所用旧 TaskOutput 接口作为显式兼容接口保留。
 
@@ -710,12 +714,12 @@ LoadPackages 复核不执行 hook、脚本、MCP 或模型请求。“可编译�
 | ask-buddy | 迁移后可编译 | 实测代码只读与记忆可写；配置外部服务认证 |
 | biz-interview | 迁移后可编译；Web 工具已装配 | 显式选择 Web provider、配置 opus 路由并验收实际访谈闭环；客户端问答 UI 已接通 |
 | coder | 可编译；原始审查 Workflow 已验证 | 同步审查的 spec gate、质量 fan-out 与聚合已跑通；仍需实际工程的 worktree、完整 review gate、后台代理驻留与恢复验收 |
-| issue-fixer | 可编译 | 装配 LSP、显式模型路由与 GitHub MCP；验证分支、测试、审查及 PR 实际回执 |
-| knowledge-analyst | 可编译 | 提供并验证强制依赖 deep-research；普通搜索不能替代该契约 |
+| issue-fixer | 可编译；LSP runtime 已提供 | 选择可用的项目语言服务器、显式模型路由与 GitHub MCP；验证分支、测试、审查及 PR 实际回执 |
+| knowledge-analyst | 可编译；显式研究依赖原链已通过 CLI loopback | 原三阶段与人工 gate、validator、report 回读/原样 raw 归档、来源台账和最终报告已验证；真实模型/网页研究质量与实际任务仍需验收 |
 | meeting-summary | 可编译 | Python、飞书 CLI、登录与目标配置；真实下载、轮询取消、文档创建及通知验收 |
 | model-reasoning-distillation | 可编译；同步 Workflow runtime 已装配 | Pero journal 到 canonical trace 的实际适配、重型优化脚本与 sonnet 路由；coder 审查 fixture 不证明该插件的优化流程已验收 |
 | new_code | 迁移后可编译 | 多仓 worktree、恢复绑定、发布及解绑状态机的实际验收 |
-| plugin-tuner | 可编译；ACP Harness runner 已实现 | 保留 Claude runner、显式选择运行时；最终产物/关闭失败的独立复核补测进行中，仍需真实优化试验验收 |
+| plugin-tuner | 可编译；ACP Harness runner 的 15 项本地回归通过 | 保留 Claude runner、显式选择运行时；最终产物、关闭失败和非零退出已验证，仍需真实优化试验验收 |
 | private-buddy | 迁移后可编译 | 本地 Python MCP、搜索、认证、记忆与压缩流程实测 |
 | product-manager | 可编译；真实模型已验证 | 材料充分的中文 PRD 生成/保存/读回可运行；问答 UI 已接通，仍需真实需求澄清的完整任务验收 |
 | repo-admin | 可编译 | 凭据外移；图谱服务工具契约与认证连通；只读 hook 的真实修改阻止测试 |
@@ -743,7 +747,9 @@ Workflow 并发默认 3、总 agent() 调用预算默认 64，嵌套脚本共享
 
 此前检查点在 `harness/go` 完成 `go test -race ./...`、`go vet ./...`、`bazel test //...`（当时 30 个测试 target 全部通过）与相关目录 Gazelle `-mode=diff` 检查，`git diff --check` 通过。该数量保留为历史记录，不作为新增 Workflow/Bash 代码的验收数量。
 
-本轮基线重新完成 Go 全量 race、vet 和 Bazel **31/31**；Rust ACP 35 个测试通过，Host/worker/native chat 检查通过，`npm run check` 的 879 个双语词条及相关检查通过，实际 Electron 问答检查通过。后续输出呈现和 CLI 集成补测以最终检查记录为准，不把尚未完成的补测写为通过。文档身份信息检查通过；运行时凭据不写入文档、测试 fixture 或提交。
+上一批基线重新完成 Go 全量 race、vet 和 Bazel **31/31**；Rust ACP 35 个测试通过，Host/worker/native chat 检查通过，`npm run check` 的 879 个双语词条及相关检查通过，实际 Electron 问答检查通过。该数量保留为历史检查点，不覆盖后来增加的全部 LSP/Bash timing/Trial/研究依赖变更。
+
+2026-11-03，新源码冻结后重新完成 `go test -race ./...`、`go vet ./...`，Bazel `//...` **34/34 通过**（19 个执行、15 个缓存命中）。Trial 最终重跑 **15/15 通过**，`npm run check` 通过，含 879 个双语词条和 76 个图标检查。研究依赖另以显式本地 source/Python 条件完成 `go test -race ./researchprofile ./plugins ./cmd/pero-agent-acp -count=1 -timeout=180s` 与相关 vet；原三阶段 CLI opt-in 测试实际执行并通过。这些结果不扩大为真实模型研究质量或所有插件业务流程验收。文档身份信息检查通过；运行时凭据不写入文档、测试 fixture 或提交。
 
 真实模型与 Claude Code 对照是显式单次运行，没有加入默认测试网络依赖。后续可继续使用无外网 loopback fixture 验证协议和生命周期，再对每个插件准备对应环境验收。
 
@@ -757,4 +763,26 @@ Workflow 并发默认 3、总 agent() 调用预算默认 64，嵌套脚本共享
 
 原生 Bash 的读回默认 30000 字符，`BASH_MAX_OUTPUT_LENGTH` 上限 150000；`--bash-output-max-chars` 可显式覆盖 inline/readback，最大 128000，优先于环境变量。工作日志与成功 artifact 分开，失败不给成功 artifact 引用。新回执保存呈现并支持冷恢复；旧回执保留原有有界结果与日志。实际命令替换工作区的回归证明 artifact 写入会失败，替换目标不会被额外写入，命令和审批各执行一次，原日志与实际退出码仍保留。[Bash 契约](../../harness/go/nativetools/README.md)
 
-该批后续验证通过相关 Go race/vet、完整 CLI 包回归和真实 SSE 连接生命周期测试；新增 LSP 与前台自动后台化仍在实现，最终全量检查记录会在这些变更冻结后更新。
+该批后续验证通过相关 Go race/vet、完整 CLI 包回归和真实 SSE 连接生命周期测试。后来增加的 LSP、Bash timing、Trial 与研究依赖状态如下，最终全量检查见 16.5。
+
+### 16.7 LSP、Bash timing、Trial 与研究技能接入
+
+LSP 通过可重复的 `--lsp-config /absolute/servers.json` 选择 operator 配置；所选插件的 `.lsp.json` 与 manifest `lspServers` 默认进入装配，`--disable-plugin-lsp` 仅关闭 bundled 声明。配置在边界严格校验，执行文件需预先可用，匹配 query 才启动真实 stdio 服务器。query 使用既有工作区读权限及 one-based UTF-16 坐标，九类操作逐项检查服务器 capability；宿主不执行服务器返回的编辑或命令。取消发 `$/cancelRequest`，不应答时强制回收；失败 query 不自动重试，后续 query 按配置的重启次数决定是否重连。当前仅支持 macOS/Linux 进程管理；自动 post-edit diagnostics 和动态 capability 注册未实现，显式 `diagnostics:true` 会拒绝启用。[LSP 契约](../../harness/go/lsp/README.md)
+
+实际 `/usr/bin/clangd` 在临时 C++ 工作区完成 hover。独立 CLI fixture 分别走 operator `--lsp-config` 与 bundled plugin `.lsp.json`，都经真实 LSP 工具把代码位置送回 loopback 模型，并检查配置值不进入模型回执。协议 fixture 另外验证设置交换、取消与退出。这证明已装配和协议交互，不表示任意服务器可用或 issue-fixer 的真实修复/PR 工作流已通过。[真实服务器测试](../../harness/go/lsp/client_test.go)、[CLI 两路径测试](../../harness/go/cmd/pero-agent-acp/lsp_cli_test.go)
+
+Bash 前台默认等待 120 秒、初始上限 600 秒；达到期限时，仅已启动的命令会作为同一进程转后台。独立的 `shell-task/promoted` 事实 Append/Flush 成功后才返回真实 task_id 与 working_log_file；持久化失败取消并 join，不重放命令。`sleep` 开头、`--disable-bash-background`、`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` 或 library host 的 Bare 策略都会保留到期停止行为。`--bash-host-mode unattended` 默认后台 30 分钟、上限 2 小时；promoted 期限从转后台提交后算。显式 `--bash-host-mode interactive` 不给后台进程期限，不依据 TTY 猜测；owner 中断、TaskStop 和运行时退出仍会回收。`BASH_DEFAULT_TIMEOUT_MS`/`BASH_MAX_TIMEOUT_MS` 可提高默认/上限，低值不缩短基线，默认值可抬高上限，溢出拒绝；模型不能提高 host cap。原生 Bash 不再被旧固定外层 timer 截断；legacy shell 的限时行为保留，ACP 不冒充 Claude plain-text `-p` 的 10 分钟等待策略。[Bash timing](../../harness/go/nativetools/README.md#claude-plugin-bash)
+
+真实进程回归确认同一 PID、一次副作用与一次审批，返回后取消原 tool context 不会误杀已交接的任务；Flush 失败、TaskStop 与 owner retirement 都等待实际回收。交互模式超过无人值守测试期限仍保持 running，cold recovery 保留原 foreground intent 与 promotion 事实，并把失去 owner 的运行标记为 interrupted，绝不重启进程。此结果没有补齐后台子代理驻留或完成通知/自动唤醒。[转后台生命周期测试](../../harness/go/nativetools/promotion_test.go)、[冷恢复测试](../../harness/go/nativetools/background_restart_test.go)
+
+Trial 以独立标准库 Python ACP 客户端复用真实 `pero-agent-acp`，显式选择 agent binary、endpoint、model/alias、credential 环境变量、工作区和 session 目录；原 Claude SDK runner 仍可选择。每个 session 自有 timeout/idle 限制，continuation 留在原 session；默认不自动回答，只有显式 first-option 试验策略才选择首项，并记录这不是人类确认。所有请求的 session、各 session 的产物和顶层最终 success_patterns 都要成功；pipeline 结束时重新检查全部产物，后续删除早先文件也会失败。session/close 失败、强制清理、非零或未确认的 agent 退出均不得因文件存在而成功，receipt 保留 agent_exit_code 与 cleanup_failures。仅有 stderr 不自动判失败。已提交 prompt 和 provider 请求不自动重试，未知 usage/总量/费用不估算，正数 USD budget 明确拒绝，使用 max_requests 控制实际尝试。[Trial 契约](../../harness/tools/trial/README.md)
+
+Trial 源码检查点为 `49135115`、`72ea0376`，15 项本地测试通过，包含真实 CLI、loopback SSE、问答、写入/续跑、最终全量产物复核、关闭 RPC 失败/退出码与后台进程回收。内容寻址迁移保留原 SDK 文件，支持 preflight 与幂等重放；未修改来源仓库，也未调用付费模型。本轮没有据此宣称优化质量已经达标。[运行回归](../../harness/tools/trial/test_runtime.py)、[迁移记录](../../harness/tools/trial/MIGRATION.json)
+
+用户另行指定的研究技能来源为 [Deep-Research-skills](https://github.com/Weizhena/Deep-Research-skills/tree/6ce38f60e3f8b22502c29873f96503a4e0c5addb)，固定版本 `6ce38f60e3f8b22502c29873f96503a4e0c5addb`，MIT。**2026-11-03，原中文三阶段链已接入并完成真实 CLI loopback 验收**。显式提供 `--research-source`、`--research-python`、`--plugin-model opus=MODEL`、`--enable-shell` 与 Web provider，才会准备只读来源的内容寻址 package view；Python/PyYAML 必须预先可用，不改来源 checkout 或全局技能目录。原来源没有名为 deep-research 的技能，适配入口 `deep-research:deep-research` 组合原 research → research-deep → research-report，调用方的唯一裸名依赖由此解析。[研究 profile 契约](../../harness/go/researchprofile/README.md)
+
+三阶段留在 root session，保留初始 items/fields、时间范围、outline/batch 配置、后续每批和报告摘要字段的人工 gate。实际 fixture 经过 **6 次 ACP 问答交互、2 个后台研究 Agent、10 次 WebSearch、2 次 WebFetch、2 次无工具摘要提取及 16 次 ACP 工具审批**；问答与审批由 fixture 客户端响应，用于验证 gate 和控制会话归属，不能说真人已经审阅研究内容。后台代理读原策略模块、写 item JSON，原 Python/PyYAML validator 实际通过；thin launcher 对缺 JSON、空选择或显式缺 schema 先拒绝，避免原 validator 未验证任何项目却返回成功。[大纲 gate](https://github.com/Weizhena/Deep-Research-skills/blob/6ce38f60e3f8b22502c29873f96503a4e0c5addb/skills/research-zh/research/SKILL.md)、[分批 gate](https://github.com/Weizhena/Deep-Research-skills/blob/6ce38f60e3f8b22502c29873f96503a4e0c5addb/skills/research-zh/research-deep/SKILL.md)、[报告 gate](https://github.com/Weizhena/Deep-Research-skills/blob/6ce38f60e3f8b22502c29873f96503a4e0c5addb/skills/research-zh/research-report/SKILL.md)
+
+原生成脚本真实产生 report.md，随后由 Read 回读，再经批准的 Bash `cp` 与 `cmp` 把 **492 字节**报告原样归档为 raw research，调用方继续创建 source ledger、final report 和 executive summary。测试校验 raw 与 report 字节相同且含引用，不把 Skill 的 instructions 响应当成研究正文。适配来源、许可、解释器/PyYAML 版本及逐文件前后 SHA-256 写入快照 provenance；同一选择可重用已验证 view，来源变化则拒绝套用旧迁移。[原链运行测试](../../harness/go/cmd/pero-agent-acp/research_cli_test.go)、[来源与 validator 测试](../../harness/go/researchprofile/source_test.go)
+
+本次研究验收的 **provider 与网页语料均为 loopback fixture**，证明真实工具链、人工 gate 的交互位置、校验与归档，不证明真实研究质量。实际 DeepSeek 验收仍限于 16.1 的 PRD 流程和 16.6 的各一次 Search/Fetch API 请求；未把它们当作真实完整研究链。后台研究 Agent 使用现有 live-session 生命周期，不承诺 parent 退出后驻留或进程重启后恢复。机器 first-option 试验策略不替代正常研究的人类确认，也不由这次验收推导全部插件业务完全等同。
