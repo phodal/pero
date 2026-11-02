@@ -15,9 +15,9 @@ import (
 
 func TestColdShellTaskRecoveryNeverReplaysEffects(t *testing.T) {
 	for _, test := range []struct {
-		name              string
-		running, artifact bool
-	}{{"terminal result", false, false}, {"uncertain running intent", true, false}, {"success artifact", false, true}} {
+		name                        string
+		running, artifact, promoted bool
+	}{{"terminal result", false, false, false}, {"uncertain running intent", true, false, false}, {"success artifact", false, true, false}, {"promoted running intent", true, false, true}} {
 		t.Run(test.name, func(t *testing.T) {
 			running := test.running
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -36,7 +36,13 @@ func TestColdShellTaskRecoveryNeverReplaysEffects(t *testing.T) {
 				command = "printf x >> effects; printf running-log; printf '%s' $$ > task.pid; sleep 30"
 				wantLog = "running-log"
 			}
-			task := startShell(t, old, command)
+			var task shellTaskReceipt
+			if test.promoted {
+				promotion := promoteBash(t, old, t.Context(), command)
+				task = shellTaskReceipt{ID: promotion.ID, WorkingLogFile: promotion.WorkingLog}
+			} else {
+				task = startShell(t, old, command)
+			}
 			savedArtifact := ""
 			if running {
 				waitShellPID(t, filepath.Join(old.root, "task.pid"))
@@ -152,6 +158,9 @@ func TestColdShellTaskRecoveryNeverReplaysEffects(t *testing.T) {
 			history, err := foldShellTasks(persisted.Events(), parent.ID())
 			if err != nil || history[task.ID].terminal == nil || history[task.ID].terminal.Status != want {
 				t.Fatalf("recovery fact was not durable: %+v %v", history, err)
+			}
+			if test.promoted && (history[task.ID].promotion == nil || history[task.ID].intent.Background) {
+				t.Fatal("cold recovery lost the real promotion or rewrote its original intent")
 			}
 			if err := fresh.Dispose(ctx); err != nil {
 				t.Fatal(err)

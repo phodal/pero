@@ -300,10 +300,13 @@ func TestClaudeShellTimeoutSelection(t *testing.T) {
 	for _, test := range []struct {
 		background      bool
 		requested, want int
-	}{{false, 0, 0}, {false, 700000, 600000}, {true, 600000, 600000}, {true, 999999999, 7200000}} {
+	}{{false, 0, 120000}, {false, 700000, 600000}, {true, 600000, 600000}, {true, 999999999, 7200000}} {
 		raw := json.RawMessage(fmt.Sprintf(`{"command":"printf fixture","timeout":%d,"run_in_background":%t}`, test.requested, test.background))
 		input, err := decodeNativeArguments(raw, t.TempDir(), true, false)
-		if err != nil || input.TimeoutMS != test.want {
+		policy, policyErr := resolveBashTimingPolicy(BashTimingOptions{}, nil)
+		selection, selectionErr := policy.selectTimeout(input.Command, input.TimeoutMS, input.RunInBackground)
+		got := selection.resolveTimeout.Milliseconds()
+		if err != nil || policyErr != nil || selectionErr != nil || got != int64(test.want) {
 			t.Fatalf("timeout selection: %+v %v", input, err)
 		}
 	}

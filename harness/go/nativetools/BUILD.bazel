@@ -35,6 +35,7 @@ go_test(
         "output_file_test.go",
         "presenter_integration_test.go",
         "presenter_test.go",
+        "promotion_test.go",
         "research_clone_test.go",
         "sandbox_test.go",
         "timing_test.go",
