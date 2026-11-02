@@ -22,13 +22,13 @@ const bundled = await build({
 });
 
 async function shell(connected = false) {
-  const commands = [], events = [], contexts = [];
+  const commands = [], events = [], contexts = [], elements = [];
   const ports = {
-    surface: { surface() {}, event(value) { events.push(value); } },
+    surface: { surface() {}, openLocation() {}, event(value) { events.push(value); } },
     chat: { context(value) { contexts.push(value); }, event(value) { events.push(value); }, selectedDraft: async () => undefined },
   };
-  const element = () => ({ style: { setProperty() {} }, dataset: {}, classList: { toggle() {} },
-    append() {}, setAttribute() {}, getBoundingClientRect: () => ({ height: 30 }), options: [], add(value) { this.options.push(value); } });
+  const element = (tag) => { const value = { tag, style: { setProperty() {} }, dataset: {}, classList: { toggle() {} },
+    append() {}, setAttribute() {}, getBoundingClientRect: () => ({ height: 30 }), options: [], add(value) { this.options.push(value); } }; elements.push(value); return value; };
   const product = {
     onEvent(callback) { ports.receive = callback; }, onContext() {},
     connect: async () => ({ connected, dark: false, locale: 'en', product: { name: 'Fixture', chat: true, apps: ['fixture', 'other'], entry: { app: 'fixture', panel: 'main' } } }),
@@ -41,7 +41,7 @@ async function shell(connected = false) {
   // Await the bridge.connect continuation, not wall-clock arrival.
   await Promise.resolve();
   const event = (kind, data) => ports.receive({ version: 1, kind, data, text: '', request_id: null });
-  return { ports, commands, events, contexts, event };
+  return { ports, commands, events, contexts, event, selector: elements.find(element => element.tag === 'select') };
 }
 
 for (const order of [ ['ready', 'chat', 'app'], ['ready', 'app', 'chat'], ['chat', 'app', 'ready'], ['chat', 'ready', 'app'], ['app', 'ready', 'chat'], ['app', 'chat', 'ready'] ]) {
@@ -82,3 +82,26 @@ test('App opening error remains visible and retry releases the original scope', 
   assert.equal(fixture.commands.length, 2);
   assert.ok(fixture.contexts.every(context => context.scope.app === 'fixture' && context.scope.panel === 'main'));
 });
+
+
+for (const navigation of ['selector', 'app-link', 'panel-link']) {
+  test(`App readiness belongs to the current selection: ${navigation}`, async () => {
+    const fixture = await shell(true);
+    fixture.event('apps_opened', { name: 'fixture', panel: 'main' });
+    assert.equal(fixture.commands.length, 0, 'Chat has not loaded yet');
+    const target = navigation === 'panel-link' ? { app: 'fixture', panel: 'detail' } : { app: 'other', panel: 'main' };
+    if (navigation === 'selector') {
+      fixture.selector.value = target.app;
+      fixture.selector.onchange();
+    } else {
+      await fixture.ports.chatOptions.command({ action: 'app_location', ...target, location: 'object:1' });
+    }
+    fixture.ports.chatOptions.ready();
+    assert.equal(fixture.commands.length, 0, 'previous App readiness cannot initialize a newly selected scope');
+    fixture.event('apps_opened', { name: 'fixture', panel: 'main' });
+    assert.equal(fixture.commands.length, 0, 'late previous completion cannot release the new scope');
+    fixture.event('apps_opened', { name: target.app, panel: target.panel });
+    assert.equal(fixture.commands.length, 2, 'matching completion initializes Chat');
+    assert.deepEqual(JSON.parse(JSON.stringify(fixture.contexts.at(-1).scope)), target);
+  });
+}

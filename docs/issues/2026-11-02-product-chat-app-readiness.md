@@ -40,3 +40,18 @@ ports: all six readiness orderings, wrong App/panel completion, already-ready
 Host, Chat reload and visible App error/retry. The original shell fails these
 checks; the corrected shell passes. The original Desktop identity assertion
 remains the end-to-end acceptance gate.
+
+## Selection changes during startup
+
+Review of the initial gate found that its App-ready boolean survived a selector
+or App-link navigation. If App A resolved before Chat loaded, selecting App B
+and then completing Chat initialization could consume A's readiness while B
+was still opening. Readiness now records the resolved App/panel and is cleared
+by both selection paths before publishing the new Chat context. A late response
+for the previous App/panel cannot initialize the current selection.
+
+The actual-shell non-GUI regression covers App A ready → select B → Chat ready
+→ late A response → matching B response for the selector, App links, and a
+same-App different-panel link. All three fail on the original boolean gate and
+pass with scope-bound readiness. This changes no Host locks, queues or draft
+identity rules.
