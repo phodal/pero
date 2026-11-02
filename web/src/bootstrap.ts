@@ -103,7 +103,7 @@ try {
       }
     }
     return false;
-  });
+  },receive_host_event);
   window.peroAppUseRevoke = async(thread,scope) => {await window.pero!.appUseCommand({action:'revoke',thread_id:thread,scope});};
   window.peroOpenAppLocation = input => {const value=JSON.parse(input);apps.openLocation(value.app,value.panel,value.location);};
   window.peroAppSurface = json => apps.surface(JSON.parse(json) as AppSurface|AppSurfaceBatch);
