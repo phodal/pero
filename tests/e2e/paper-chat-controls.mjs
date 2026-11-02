@@ -96,7 +96,19 @@ export async function exitPaperQuestionMode(frame) {
   if (await workspace.getAttribute('data-question') !== 'true') return;
   const records = frame.getByRole('button', { name: 'Close research records', exact: true });
   if (await records.isVisible()) await records.click();
-  await frame.locator('body').press('Escape');
+  // Locator.press calls HTMLElement.focus before sending a page-level key.
+  // Body is not focusable: after the Host close click it can leave the actual
+  // keyboard target on the Host canvas. Focus an existing native App control,
+  // without clicking it (which would change PDF/Read mode or selection).
+  const pdf = frame.locator('.pa-pdf-reading > .pero-ui-toolbar').getByRole('button', { name: 'PDF', exact: true });
+  const target = await pdf.isVisible() ? pdf : frame.locator('.pa-pdf-inline-toolbar').getByRole('button', { name: 'Back to library', exact: true });
+  await target.focus();
+  await expect.poll(() => target.evaluate(element => element.ownerDocument.activeElement === element && element.ownerDocument.hasFocus()), {
+    message: 'Escape target owns actual App iframe keyboard focus, not the Host canvas',
+  }).toBe(true);
+  console.info('Paper question Escape focus', await target.evaluate(element => ({ tag: element.tagName, text: element.textContent,
+    appDocumentFocused: element.ownerDocument.hasFocus(), targetFocused: element.ownerDocument.activeElement === element })));
+  await target.press('Escape');
   await expect.poll(() => workspace.getAttribute('data-question'), {
     message: 'App Escape exits question view without navigating away from the reader',
   }).not.toBe('true');

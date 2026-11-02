@@ -106,14 +106,29 @@ test('Paper Chat retries initially missing or moving bounds before one real poin
   assert.equal(clicks.length, 1);
 });
 
-test('closing Paper question mode uses App Escape even when Host Chat is already closed', async () => {
-  for (const [question, records] of [[false, false], [true, false], [true, true]]) {
-    let questioning = question, recordsOpen = records;
+test('closing Paper question mode focuses a native App control before one Escape, even with Host closed', async () => {
+  for (const [question, records, pdf] of [[false, false, true], [true, false, true], [true, true, false]]) {
+    let questioning = question, recordsOpen = records, focused = false, focusChecks = 0;
     const actions = [];
+    const target = {
+      isVisible: async () => pdf,
+      focus: async () => { actions.push(pdf ? 'focus PDF' : 'focus Back'); focused = true; },
+      evaluate: async () => {
+        assert.equal(focused, true);
+        // First observation still belongs to Host; no key may be sent yet.
+        return ++focusChecks > 1;
+      },
+      press: async key => {
+        assert.equal(key, 'Escape'); assert.equal(recordsOpen, false); assert.equal(focused, true);
+        assert.ok(focusChecks > 1); actions.push('App Escape'); questioning = false;
+      },
+    };
     const frame = {
-      locator: selector => selector === '.pa-workspace'
-        ? { getAttribute: async name => { assert.equal(name, 'data-question'); return questioning ? 'true' : null; } }
-        : { press: async key => { assert.equal(selector, 'body'); assert.equal(key, 'Escape'); assert.equal(recordsOpen, false); actions.push('App Escape'); questioning = false; } },
+      locator: selector => {
+        if (selector === '.pa-workspace') return { getAttribute: async name => { assert.equal(name, 'data-question'); return questioning ? 'true' : null; } };
+        assert.ok(['.pa-pdf-reading > .pero-ui-toolbar', '.pa-pdf-inline-toolbar'].includes(selector));
+        return { getByRole: (role, options) => { assert.equal(role, 'button'); assert.equal(options.name, selector.includes('inline') ? 'Back to library' : 'PDF'); return target; } };
+      },
       getByRole: (role, options) => {
         assert.equal(role, 'button'); assert.equal(options.name, 'Close research records');
         return { isVisible: async () => recordsOpen, click: async () => { actions.push('close records'); recordsOpen = false; } };
@@ -121,7 +136,7 @@ test('closing Paper question mode uses App Escape even when Host Chat is already
     };
     const page = { evaluate: async () => ({ appChatOpen: false }) };
     await closePaperChat(page, frame);
-    assert.deepEqual(actions, question ? [...(records ? ['close records'] : []), 'App Escape'] : []);
+    assert.deepEqual(actions, question ? [...(records ? ['close records'] : []), pdf ? 'focus PDF' : 'focus Back', 'App Escape'] : []);
     assert.equal(questioning, false);
   }
 });
