@@ -325,10 +325,12 @@ class ResourceInspector:
                 response.status, response.headers = 200, {'Content-Type': page.content_type}
                 return response
             reading_url = ('https://arxiv.org/abs/' + resource.workIdentity.removeprefix('arxiv:') + resource.revision
-                           if resource.workIdentity and resource.workIdentity.startswith('arxiv:') and resource.revision else resource.originalUrl if resource.revision else resource.url)
+                           if resource.workIdentity and resource.workIdentity.startswith('arxiv:') and resource.revision else resource.originalUrl)
             value = LiteratureClient(fetch=literature_fetch).read({'id': reading_url, 'full': False})
             aliases = tuple('doi:' + value['doi'].lower().removeprefix('https://doi.org/') for _ in [0] if value.get('doi'))
             resource = replace(resource, title=value['title'][:1000], authors=tuple(value.get('authors', []))[:100],
+                               url=value['url'] if value['source'] == 'biorxiv' else resource.url,
+                               revision=value.get('sourceRevision', resource.revision),
                                excerpt=value.get('content', '')[:8000], contentKind=value.get('contentKind', 'abstract'), aliases=aliases,
                                confidence='unresolved' if resource.identity.startswith('arxiv:') and not resource.revision else 'metadata', evidence=(*resource.evidence, Evidence(value.get('metadataUrl', resource.url), 'Literature metadata; cited work, not necessarily this release')))
         return resource, links

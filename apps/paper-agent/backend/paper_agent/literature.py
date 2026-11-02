@@ -87,6 +87,7 @@ class PaperIdentity:
     source: str
     id: str
     full: bool = False
+    revision: str | None = None
 
     @classmethod
     def parse(cls, value):
@@ -115,7 +116,6 @@ class PaperIdentity:
                     source = 'huggingface'
             elif url.hostname in ("doi.org", "www.biorxiv.org", "biorxiv.org"):
                 paper_id = re.sub(r"^/(?:content/)?", "", url.path)
-                paper_id = re.sub(r"v\d+(?:\.full(?:\.pdf)?)?$", "", paper_id)
             elif url.hostname in ("openalex.org", "pubmed.ncbi.nlm.nih.gov"):
                 paper_id = url.path.strip("/")
             else:
@@ -127,6 +127,13 @@ class PaperIdentity:
             source = ("pubmed" if re.fullmatch(r"\d{1,9}", paper_id) else
                       "biorxiv" if paper_id.startswith("10.1101/") else
                       "openalex" if re.match(r"^(?:W\d+|10\.\d{4,9}/)", paper_id, re.I) else "alphaxiv")
+        revision = None
+        if source == 'biorxiv':
+            versioned = re.fullmatch(r'(.+?)(v\d+)(?:\.full(?:\.pdf)?)?', paper_id, re.I)
+            if versioned:
+                paper_id, revision = versioned[1], versioned[2].lower()
+                if not re.fullmatch(r'v[1-9]\d*', revision):
+                    raise Invalid('Choose a positive bioRxiv version')
         patterns = {"alphaxiv": ARXIV, "pubmed": re.compile(r"\d{1,9}"),
                     "biorxiv": re.compile(r"10\.1101/[a-z0-9][a-z0-9._()-]*", re.I),
                     "openalex": re.compile(r"(?:W\d+|10\.\d{4,9}/[a-z0-9][a-z0-9._();:/-]*)", re.I)}
@@ -134,7 +141,37 @@ class PaperIdentity:
             raise Invalid("Unsupported literature source")
         if not patterns[source].fullmatch(paper_id) or any(part in (".", "..") for part in paper_id.split("/")):
             raise Invalid("Invalid paper ID")
-        return cls(source, paper_id, full)
+        return cls(source, paper_id, full, revision)
+
+
+@dataclass(frozen=True)
+class BioRxivVersion:
+    number: int
+    title: str
+    authors: tuple[str, ...]
+    abstract: str
+    date: str | None
+
+    @classmethod
+    def parse(cls, record):
+        if not isinstance(record, dict) or not re.fullmatch(r'[1-9]\d*', str(record.get('version', ''))):
+            raise Invalid('bioRxiv metadata did not supply a valid version')
+        return cls(int(record['version']), _clean(record.get('title')),
+                   tuple(name.strip() for name in _text(record.get('authors')).split(';') if name.strip()),
+                   _clean(record.get('abstract')), _text(record.get('date')) or None)
+
+    @property
+    def revision(self):
+        return 'v' + str(self.number)
+
+    @staticmethod
+    def select(versions, revision):
+        if revision is None:
+            return max(versions, key=lambda version: version.number)
+        selected = next((version for version in versions if version.revision == revision), None)
+        if selected is None:
+            raise Invalid(f'bioRxiv version {revision} is unavailable; choose an available version explicitly', 404)
+        return selected
 
 
 def _scalars(value):
@@ -534,12 +571,13 @@ class LiteratureClient:
             records = data.get("collection")
             if not isinstance(records, list) or not records:
                 raise Invalid("bioRxiv record not found")
-            work = max(records, key=lambda item: int(item.get("version", 0)))
-            version = _text(work.get("version"))
-            metadata = {"title": _clean(work.get("title")), "authors": [name.strip() for name in _text(work.get("authors")).split(";") if name.strip()],
-                        "publicationDate": work.get("date"), "doi": paper_id, "url": f"https://doi.org/{paper_id}",
-                        "fullTextUrl": f"https://www.biorxiv.org/content/{paper_id}v{version if version.isdigit() else '1'}.full"}
-            content, kind = _clean(work.get("abstract")), "abstract"
+            versions = tuple(BioRxivVersion.parse(record) for record in records)
+            work = BioRxivVersion.select(versions, identity.revision)
+            url = f'https://www.biorxiv.org/content/{paper_id}{work.revision}'
+            metadata = {"title": work.title, "authors": list(work.authors),
+                        "publicationDate": work.date, "doi": paper_id, "url": url,
+                        "fullTextUrl": url + '.full', "sourceRevision": work.revision}
+            content, kind = work.abstract, "abstract"
         else:
             selector = paper_id if re.fullmatch(r"W\d+", paper_id, re.I) else "doi:" + paper_id
             metadata = _openalex(self._request("https://api.openalex.org/works/" + quote(selector, safe="")), source)

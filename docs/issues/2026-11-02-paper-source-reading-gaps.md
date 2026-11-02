@@ -33,6 +33,14 @@ these findings concern how the right bytes and versions reach that reader.
 
 ## Proposed order
 
+Implementation started 2026-11-02 for the first two priorities only. The bioRxiv
+repair now retains an explicitly requested revision, selects that exact metadata
+record, and freezes its revision in the saved snapshot, including Research URL
+inspection and commit. A missing requested revision fails rather than using a
+later version. Hugging Face/arXiv fallback
+will retain usable alphaXiv text, or save official metadata as abstract-only when
+that text is unavailable. Other representation and medRxiv work remains open.
+
 1. Preserve explicit bioRxiv versions and distinguish bioRxiv/medRxiv identity.
    Keep work identity, requested revision and returned revision together; never
    replace a requested revision with `max(version)`.
@@ -68,3 +76,22 @@ these findings concern how the right bytes and versions reach that reader.
 No provider policy, download authorization, network-address rule, local TeX
 compiler, generic publisher crawler or new agent runtime was changed by this
 review. Fixes remain proposed pending implementation.
+
+## bioRxiv version repair verification
+
+2026-11-02: explicit v1/v2 requests, unversioned latest selection, unavailable
+v3 and invalid v0/response versions are covered by the version-selection table.
+Saved snapshots retain their revision across store reopen. Research URL
+inspection uses the original versioned link and commits its selected revision.
+The existing full Python suite passed 244 tests (243 passed, one Windows skip)
+before the final inspection handoff change; the corrected handoff then passed
+the literature and Research URL suites. Metadata and PDF byte receipts are
+still distinct; no PDF is downloaded by this repair.
+
+Live production-adapter reads of `10.1101/339747` established that explicit v1
+keeps the original title and v1 URL, while an unversioned request selects the
+officially returned v4 title/URL. Both have the same abstract digest in this
+actual response, so the selected revision must remain part of snapshot identity.
+Receipts: `test-results/paper-source-fixes/biorxiv-live-result.json` and the
+Python logs in the same directory. Existing immutable snapshots are unchanged.
+The PubMed/OpenAlex/medRxiv and structured XML proposals above remain open.

@@ -3,6 +3,8 @@ from io import BytesIO
 import json
 from pathlib import Path
 import sys
+import tempfile
+import threading
 import unittest
 from urllib.parse import parse_qs, urlsplit
 
@@ -10,6 +12,10 @@ sys.path.insert(0, str(Path(__file__).parents[1] / "backend"))
 
 from paper_agent.literature import LiteratureClient, PaperIdentity, SearchQuery, deduplicate
 from paper_agent.model import Invalid, PaperSnapshot, canonical
+from paper_agent.store import ResearchStore
+from paper_agent.resource_fetch import WebDocument
+from paper_agent.resource_inspection import ResourceInspector
+from paper_agent.research_resources import ImportDraft
 
 
 class Response(BytesIO):
@@ -194,6 +200,54 @@ class LiteratureTest(unittest.TestCase):
         hits = client.search({"query": "biology", "sources": ["biorxiv", "pubmed"]})
         self.assertEqual([hit["source"] for hit in hits["items"]], ["biorxiv", "pubmed"])
         self.assertEqual(hits["items"][0]["id"], "10.1101/2026.01.01.1")
+
+    def test_biorxiv_requested_versions_survive_saved_snapshots(self):
+        doi = '10.1101/2026.01.01.1'
+        records = [{'title': 'Versioned preprint', 'abstract': 'Original evidence.', 'version': '1'},
+                   {'title': 'Versioned preprint', 'abstract': 'Revised evidence.', 'version': '2'}]
+        def fetch(url, **_options):
+            self.assertEqual(url, f'https://api.biorxiv.org/details/biorxiv/{doi}/na/json')
+            return Response({'collection': records})
+        cases = [(doi, 'v2', 'Revised evidence.'),
+                 (doi + 'v1', 'v1', 'Original evidence.'),
+                 (f'https://doi.org/{doi}v1', 'v1', 'Original evidence.'),
+                 (f'https://www.biorxiv.org/content/{doi}v1', 'v1', 'Original evidence.'),
+                 (f'https://www.biorxiv.org/content/{doi}v1.full', 'v1', 'Original evidence.'),
+                 (f'https://www.biorxiv.org/content/{doi}v1.full.pdf', 'v1', 'Original evidence.'),
+                 (doi + 'v3', None, None), (doi + 'v0', None, None)]
+        with tempfile.TemporaryDirectory() as directory:
+            store = ResearchStore(directory)
+            saved = {}
+            for identifier, revision, content in cases:
+                with self.subTest(identifier=identifier):
+                    if revision is None:
+                        with self.assertRaises(Invalid):
+                            LiteratureClient(fetch).read(dict(id=identifier, full=True))
+                        continue
+                    reading = LiteratureClient(fetch).read(dict(id=identifier, full=True))
+                    paper = store.save_paper(PaperSnapshot.from_reading(reading, NOW))
+                    self.assertEqual(paper.content, content)
+                    self.assertEqual(paper.source_revision, revision)
+                    self.assertEqual(paper.url, f'https://www.biorxiv.org/content/{doi}{revision}')
+                    saved[revision] = paper
+            reopened = ResearchStore(directory)
+            self.assertNotEqual(saved['v1'].id, saved['v2'].id)
+            for paper in saved.values():
+                self.assertEqual(reopened.paper(paper.id), paper)
+            # URL inspection must read the requested URL before canonical DOI
+            # aliases can erase its version, then keep the version on commit.
+            inspector = ResourceInspector(lambda url, **kw: WebDocument(url, 'application/json', json.dumps({'collection': records})))
+            for identifier, revision, content in cases[:5]:
+                if not identifier.startswith('https://'):
+                    continue
+                draft = inspector.inspect(ImportDraft.create(identifier, NOW), threading.Event())
+                store.imports._replace('import-drafts', draft.id, draft.to_dict())
+                bundle = store.imports.commit(dict(draftId=draft.id, resourceIds=[draft.resources[0].id]), NOW)
+                inspected = store.paper(bundle.resources[0].paperId)
+                self.assertEqual((inspected.source_revision, inspected.content), (revision, content))
+        for version in ('unknown', '0', None, True):
+            with self.subTest(version=version), self.assertRaises(Invalid):
+                LiteratureClient(lambda *_a, **_k: Response({'collection': [{**records[0], 'version': version}]})).read(dict(id=doi))
 
     def test_external_response_bounds_and_redirect_refusal_are_visible(self):
         for response in (Response("bad", headers={"Content-Length": "1048577"}),
