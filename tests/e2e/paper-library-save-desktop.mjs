@@ -1,10 +1,25 @@
 // Called only by the authored source-study Desktop journey. API reads inspect
 // actual receipts; all consent and export mutations go through the real App UI.
 import { expect } from '@playwright/test';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { backToLibrary, saveLibraryCopies } from './paper-pdf-flow.mjs';
+
+// Existing Desktop/profile only: mutations use the visible App, reads inspect
+// the actual owner. This helper never launches/restarts a process or starts jobs.
+async function manualRecordPanel(frame) {
+  await frame.getByRole('button', { name: 'Research record', exact: true }).click();
+  const panel = frame.locator('.pa-manual-records');
+  await panel.getByText('Question and scope', { exact: true }).click();
+  return panel;
+}
+async function unchangedResearchOwners(profile) {
+  const root = resolve(profile, 'desktop/app-data/paper-agent/research-v1');
+  const entries = await readdir(root, { recursive: true });
+  const paths = entries.filter(path => /^(?:papers|annotations|source-observations|pdf-downloads|source-downloads|studies|study-steps|intents|pcgym-[^/]+)\//.test(path) && path.endsWith('.json')).sort();
+  return Promise.all(paths.map(async path => [path, createHash('sha256').update(await readFile(resolve(root, path))).digest('hex')]));
+}
 
 export async function exerciseLibrarySave({ frame, page, api, requests, out, profile, restart }) {
   await backToLibrary(frame);
@@ -60,6 +75,36 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   expect((await observations()).observations.map(item => item.kind)).toEqual(['source_text']);
   const acquired = await acquisitions();
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  const ownersBeforeRecords = await unchangedResearchOwners(profile), observedBeforeRecords = await observations();
+  await row().locator('.pero-list-open').click();
+  const panel = await manualRecordPanel(frame);
+  await panel.getByRole('button', { name: 'New record', exact: true }).click();
+  await panel.getByLabel('Question', { exact: true }).fill('Authored record question');
+  await panel.getByLabel('Scope', { exact: true }).fill('Authored source only');
+  await panel.getByLabel('Inclusion criteria', { exact: true }).fill('Saved authored material');
+  await panel.getByLabel('Exclusion criteria', { exact: true }).fill('Unobserved external claims');
+  await panel.getByLabel('Reason', { exact: true }).fill('Retain this original source for review');
+  await panel.getByRole('button', { name: 'Save revision', exact: true }).click();
+  await expect(panel.getByText('Revision saved. Earlier records are unchanged.', { exact: true })).toBeVisible();
+  const first = (await api('/api/research/record', { operation: 'list' })).records.find(item => item.question === 'Authored record question');
+  expect(first.paperIds).toEqual([paper.id]);
+  await panel.getByRole('button', { name: 'Revise', exact: true }).click();
+  await panel.getByLabel('Question', { exact: true }).fill('Authored revised question');
+  await panel.getByLabel('Scope', { exact: true }).fill('Revised scope without inherited acceptance');
+  await panel.getByRole('button', { name: 'Save revision', exact: true }).click();
+  await expect(panel.getByRole('article', { name: 'Saved research record' })).toContainText('Revised scope without inherited acceptance');
+  const revised = (await api('/api/research/record', { operation: 'list' })).records.find(item => item.question === 'Authored revised question');
+  expect(revised.parentId).toBe(first.id); expect(revised.verification).toBe('not_run');
+  await panel.getByRole('button', { name: 'Check saved source updates', exact: true }).click();
+  await panel.getByRole('checkbox', { name: paper.title + ' — unchanged', exact: true }).check();
+  await panel.getByRole('button', { name: 'Save reread selection', exact: true }).click();
+  await expect(panel.getByText('Reread selection saved. No reading or computation has started.', { exact: true })).toBeVisible();
+  const revisionWithSelection = await api('/api/research/record', { operation: 'read', recordId: revised.id });
+  expect(revisionWithSelection.selections).toHaveLength(1);
+  expect(revisionWithSelection.selections[0]).toMatchObject({ paperIds: [paper.id], execution: 'not_requested', verification: 'not_run' });
+  expect(await unchangedResearchOwners(profile)).toEqual(ownersBeforeRecords);
+  expect(await acquisitions()).toEqual(acquired);
+  await page.screenshot({ path: resolve(out, 'manual-record-created.png') });
   ({ frame, page } = await restart());
   await row().locator('.pero-list-open').click();
   await expect(frame.getByRole('region', { name: 'PDF reader', exact: true }).locator('img,canvas').first()).toBeVisible({ timeout: 30000 });
@@ -68,6 +113,26 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   expect((await api('/api/research/source', sourceRequest)).receipt).toEqual(source.receipt);
   expect(await acquisitions()).toEqual(acquired);
   await page.screenshot({ path: resolve(out, 'library-save-restarted.png') });
+  const reopenedPanel = await manualRecordPanel(frame);
+  await reopenedPanel.getByRole('button', { name: 'Authored revised question', exact: true }).click();
+  await expect(reopenedPanel.getByRole('article', { name: 'Saved research record' })).toContainText('Revised scope without inherited acceptance');
+  await reopenedPanel.getByText('Saved reread selections', { exact: true }).click();
+  await expect(reopenedPanel.getByText('Recorded only; no execution requested.', { exact: true })).toBeVisible();
+  expect(await api('/api/research/record', { operation: 'read', recordId: revised.id })).toEqual(revisionWithSelection);
+  await reopenedPanel.getByRole('button', { name: 'Authored record question', exact: true }).click();
+  await expect(reopenedPanel.getByRole('article', { name: 'Saved research record' })).toContainText('Authored source only');
+  expect(await api('/api/research/record', { operation: 'read', recordId: first.id })).toEqual({ ...first, selections: [] });
+  expect(await api(`/api/papers/${paper.id}`)).toEqual(paper);
+  expect(await api(`/api/pdf?paperId=${paper.id}`)).toEqual({ document: reading.document, annotations: [annotation] });
+  expect(await observations()).toEqual(observedBeforeRecords);
+  expect(await unchangedResearchOwners(profile)).toEqual(ownersBeforeRecords);
+  expect(await acquisitions()).toEqual(acquired);
+  await page.screenshot({ path: resolve(out, 'manual-record-restarted.png') });
+  await writeFile(resolve(out, 'manual-record-result.json'), JSON.stringify({ recordId: first.id, revisionId: revised.id,
+    selectionId: revisionWithSelection.selections[0].id,
+    scope: 'Real Desktop/Host/Paper persistence with authored offline fixtures, not scientific acceptance.',
+    checks: ['UI creates and revises required scope/screening', 'explicit reread choice requests no execution',
+      'existing single Desktop restart retains both revisions and choice', 'original paper, annotations, observations and job records unchanged'] }, null, 2));
   await writeFile(resolve(out, 'library-save-result.json'), JSON.stringify({ paperId: paper.id, documentId: reading.document.id,
     pdfReceipt: pdf.receipt, sourceReceipt: source.receipt, annotationId: annotation.id,
     scope: 'Real Desktop → Rust Host → Paper owners; authored offline bytes only. No live-provider acceptance.',
