@@ -11,6 +11,7 @@ export { Feedback } from './components/feedback';
 export { Field, type FieldProps, type FieldControlProps } from './components/field';
 export { AppBar, AppFrame, Toolbar, PageHeader } from './components/layout';
 export { Split, SplitPane, type SplitPaneProps } from './components/split';
+export {CodeViewer, CodeEditor, CodeCompare, CommandLine, type CommandLineProps, type CodeViewerProps, type CodeViewerLineMark, type CodeEditorProps, type CodeCompareProps, type CodeCompareSide, type CodeCompareBlock, type CodeCompareComment} from './components/code';
 export { ActionButton, Badge, ChatMarkdown, Composer, EmptyState, Kbd, LibraryHeader, ListRow, OutlineBadge, ReaderFrame, SearchField, SettingsGroup, SettingsRow, SidebarRow } from '../../pero-design/src/components';
 
 export type { IconName } from './icons.generated';

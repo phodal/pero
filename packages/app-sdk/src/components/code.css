@@ -1,0 +1,9 @@
+.pero-ui-code-viewer,.pero-ui-code-viewer>.pero-source-pane,.pero-ui-code-editor,.pero-ui-code-editor>.pero-source-pane,.pero-ui-code-compare-shell,.pero-ui-code-compare-shell>.pero-ui-code-compare,.pero-ui-code-compare-shell .cm-mergeView{height:100%;min-height:150px;min-width:0;overflow:hidden}
+.pero-ui-code-compare-shell .cm-mergeView{overflow:auto}
+.pero-ui-code-editor .cm-mermaid-keyword,.pero-ui-code-editor .cm-mermaid-operator{color:var(--pero-source-accent,var(--pero-action))}
+.pero-ui-code-editor .cm-mermaid-comment{color:var(--pero-source-muted,var(--pero-text-muted))}
+.pero-ui-code-editor .cm-mermaid-literal,.pero-ui-code-editor .cm-mermaid-type{color:var(--pero-source-literal,var(--pero-success))}
+.pero-ui-code-compare-shell button{font:inherit;color:inherit}
+.pero-ui-code-compare>.pero-ui-split,.pero-code-compare-pane{height:100%;min-height:150px;min-width:0;overflow:hidden}
+.pero-code-compare-pane{border-inline-end:1px solid var(--pero-border)}
+.pero-ui-command-line{min-width:0;overflow:hidden;border:1px solid var(--pero-border);border-radius:4px;background:var(--pero-surface)}
