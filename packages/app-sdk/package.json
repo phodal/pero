@@ -13,7 +13,11 @@
     "./chart": "./src/chart.ts",
     "./tokens.css": "./src/tokens/tokens.css",
     "./tokens-css": "./src/tokens/tokens-css.mjs",
-    "./themes": "./src/tokens/themes.mjs"
+    "./themes": "./src/tokens/themes.mjs",
+    "./client": "./src/client.tsx",
+    "./core": "./src/core.mjs",
+    "./surface": "./src/surface.mjs",
+    "./fonts.css": "./src/fonts.css"
   },
   "peerDependencies": {
     "react": ">=19",
@@ -41,7 +45,9 @@
     "@tanstack/react-table": "8.21.3",
     "lucide-react": "1.59.0",
     "react-aria-components": "1.22.1",
-    "uplot": "1.6.32"
+    "uplot": "1.6.32",
+    "@fontsource-variable/roboto": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0"
   },
   "devDependencies": {
     "@types/react": "19.3.0",

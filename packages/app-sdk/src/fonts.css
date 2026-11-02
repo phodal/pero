@@ -1,0 +1,16 @@
+@import '@fontsource-variable/roboto/wght.css';
+@import '@fontsource/jetbrains-mono/latin-400.css';
+@import '@fontsource/jetbrains-mono/latin-500.css';
+@import '@fontsource/jetbrains-mono/latin-700.css';
+
+/* Shared Point font tokens: one source for every surface that bundles the SDK. */
+/* Roboto Variable leads the text stack and JetBrains Mono the code stack; CJK
+ * glyphs fall through to the system fonts. html:root outranks the upstream :root defaults. */
+html:root {
+  --dsh-font-family-text-default: 'Roboto Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --dsh-font-family-code-default: 'JetBrains Mono', 'SF Mono', 'Fira Code', Consolas,
+    'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
+}
+
+body { --dsw-font-mono: var(--ds-font-family-code); }
