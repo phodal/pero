@@ -55,6 +55,10 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   const reading = await api(`/api/pdf?paperId=${paper.id}`);
   expect(reading.document.paperId).toBe(paper.id);
   expect(reading.document.fileDigest).toBe(pdf.receipt.fileDigest);
+  // The Library association preserves bytes, not the receipt's document identity.
+  expect(reading.document.id).not.toBe(pdf.receipt.documentId);
+  expect(reading.originalUrl).toBeNull();
+  expect((await api(`/api/pdf/${pdf.receipt.documentId}`)).originalUrl).toBe(pdf.receipt.requestUrl);
   expect((await api(`/api/papers/${paper.id}`))).toEqual(paper);
   const digest = bytes => createHash('sha256').update(bytes).digest('hex');
   const exported = resolve(profile, 'desktop/app-data/paper-agent/library-export-fixture');
@@ -125,7 +129,7 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   await expect(reopenedPanel.getByRole('article', { name: 'Saved research record' })).toContainText('Authored source only');
   expect(await api('/api/research/record', { operation: 'read', recordId: first.id })).toEqual({ ...first, selections: [] });
   expect(await api(`/api/papers/${paper.id}`)).toEqual(paper);
-  expect(await api(`/api/pdf?paperId=${paper.id}`)).toEqual({ document: reading.document, annotations: [annotation] });
+  expect(await api(`/api/pdf?paperId=${paper.id}`)).toEqual({ document: reading.document, originalUrl: null, annotations: [annotation] });
   expect(await observations()).toEqual(observedBeforeRecords);
   expect(await unchangedResearchOwners(profile)).toEqual(ownersBeforeRecords);
   expect(await acquisitions()).toEqual(acquired);
