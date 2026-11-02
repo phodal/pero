@@ -1,5 +1,5 @@
 //! Host-owned Python preparation, shared by every Desktop shell.
-use super::{AppName, PythonEnvironment, definition::PythonDependency};
+use super::{definition::PythonDependency, python::PythonPreparation, AppName, PythonEnvironment};
 use serde::Serialize;
 use std::{
     io::{BufRead, BufReader},
@@ -27,10 +27,11 @@ pub struct AppPreparation {
 
 pub(super) fn prepare(
     name: &AppName,
-    environment: &PythonEnvironment,
+    selected: Option<&PythonEnvironment>,
+    managed: PythonEnvironment,
     dependencies: &[PythonDependency],
     progress: &mut impl FnMut(AppPreparation),
-) -> Result<(), String> {
+) -> Result<PythonPreparation, String> {
     let mut report = |phase, message: String| {
         progress(AppPreparation {
             name: name.clone(),
@@ -42,7 +43,30 @@ pub(super) fn prepare(
         PreparationPhase::Checking,
         "Checking Python dependencies".into(),
     );
-    let result: Result<(), String> = (|| {
+    let result: Result<PythonPreparation, String> = (|| {
+        let config = selected
+            .map(|environment| {
+                let path = environment.root().join("pyvenv.cfg");
+                match std::fs::read_to_string(&path) {
+                    Ok(config) => Ok(Some(config)),
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                    Err(error) => Err(format!(
+                        "Cannot read Python environment {}: {error}",
+                        path.display()
+                    )),
+                }
+            })
+            .transpose()?
+            .flatten();
+        let target = PythonPreparation::for_app(
+            name,
+            selected,
+            managed,
+            config.as_deref(),
+            selected.is_some_and(|environment| environment.executable().is_file()),
+            !dependencies.is_empty(),
+        )?;
+        let environment = target.environment();
         if !environment.executable().is_file() {
             report(
                 PreparationPhase::Creating,
@@ -70,9 +94,11 @@ pub(super) fn prepare(
                 report(PreparationPhase::Creating, line)
             })?;
         }
-        let config = std::fs::read_to_string(environment.root().join("pyvenv.cfg"))
-            .map_err(|e| e.to_string())?;
-        environment.validate_config(&config)?;
+        if matches!(target, PythonPreparation::Managed(_)) {
+            let config = std::fs::read_to_string(environment.root().join("pyvenv.cfg"))
+                .map_err(|e| e.to_string())?;
+            environment.validate_config(&config)?;
+        }
         let requirements: Vec<&str> = dependencies.iter().map(PythonDependency::as_str).collect();
         // Check installed distribution versions, rather than trusting a receipt
         // left behind before an environment was edited or removed.
@@ -98,10 +124,10 @@ pub(super) fn prepare(
                 return Err("Installed Python dependencies could not be verified. Enable the App again to retry the locked requirements. ngspice is not downloaded.".into());
             }
         }
-        Ok(())
+        Ok(target)
     })();
     match &result {
-        Ok(()) => report(
+        Ok(_) => report(
             PreparationPhase::Ready,
             "Python environment is ready".into(),
         ),

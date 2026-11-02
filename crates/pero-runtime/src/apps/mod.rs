@@ -449,9 +449,8 @@ impl AppStore {
         Ok(self.list())
     }
 
-    /// Prepare before enable/open. A satisfied 3.12 environment is not reinstalled.
-    /// An older selected environment, including the existing 3.14 default, is left
-    /// on disk and is not the target.
+    /// Prepare before enable/open, preserving explicit environments. Control Lab
+    /// alone binds the bundled minor when its valid selection is incompatible.
     pub fn prepare(&mut self, name: &AppName, progress: &mut impl FnMut(AppPreparation)) -> Result<(), String> {
         self.prepare_agent_plugins(name)?;
         let app = self.installed.get(name).ok_or("App is not installed")?;
@@ -461,20 +460,17 @@ impl AppStore {
         let managed = self.root.parent().ok_or("App root needs a parent")?.join("environment/pero-python312");
         if backend.dependencies.is_empty() && self.python.select(name).is_none_or(|env| env.root() != managed) { return Ok(()); }
         let dependencies = backend.dependencies.clone();
-        let selected_matches = self.python.select(name).is_some_and(|env| python::environment_matches_bundle(env.root()));
-        let selected = if dependencies.is_empty() || selected_matches {
-            self.python.select(name).cloned().unwrap_or(PythonEnvironment::try_from(managed)?)
-        } else {
-            // Keep the previously selected directory. Bind the bundled minor instead.
-            self.python.bind(name.clone(), managed.clone())?;
+        let target = preparation::prepare(name, self.python.select(name),
+            PythonEnvironment::try_from(managed)?, &dependencies, progress)?;
+        if let python::PythonPreparation::Managed(environment) = target {
+            self.python.bind(name.clone(), environment.root().to_path_buf())?;
             if let Some(path) = &self.settings {
-                if let Err(error) = crate::settings::save_app_python_binding(path, name.as_str(), &managed) {
+                if let Err(error) = crate::settings::save_app_python_binding(path, name.as_str(), environment.root()) {
                     eprintln!("warning: Could not record the {} Python environment: {error}", name.as_str());
                 }
             }
-            PythonEnvironment::try_from(managed)?
-        };
-        preparation::prepare(name, &selected, &dependencies, progress)
+        }
+        Ok(())
     }
 
     /// Access an existing enabled backend without preparation, installation or restart.

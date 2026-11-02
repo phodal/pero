@@ -41,44 +41,58 @@ pub fn configured_python_version(config: &str) -> Option<&str> {
     read("version").or_else(|| read("version_info"))
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EnvironmentEvent {
-    Install,
-    Enable,
-    Startup,
-    Open,
+/// Existing selections have passed isolation and availability checks. Only a
+/// managed target may be acquired, and only its successful preparation may bind it.
+#[derive(Clone, Debug)]
+pub(super) enum PythonPreparation {
+    Existing(PythonEnvironment),
+    Managed(PythonEnvironment),
 }
 
-/// What Control Lab should do with its Python environment.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ControlLabPython {
-    Skip,
-    /// The selected interpreter is already CPython 3.12 and the lockfile is not satisfied.
-    UseSelected,
-    /// Keep the selected directory. Bind a new 3.12 environment and install the lockfile.
-    BindBundledInterpreter,
-}
-
-pub fn control_lab_python(
-    app: &str,
-    event: EnvironmentEvent,
-    selected_is_bundled: bool,
-    requirements_present: bool,
-    satisfied: bool,
-) -> ControlLabPython {
-    if app != "control-lab" || !requirements_present {
-        return ControlLabPython::Skip;
-    }
-    match event {
-        EnvironmentEvent::Open => ControlLabPython::Skip,
-        EnvironmentEvent::Install | EnvironmentEvent::Enable | EnvironmentEvent::Startup => {
-            if !selected_is_bundled {
-                ControlLabPython::BindBundledInterpreter
-            } else if satisfied {
-                ControlLabPython::Skip
-            } else {
-                ControlLabPython::UseSelected
+impl PythonPreparation {
+    pub(super) fn for_app(
+        app: &AppName,
+        selected: Option<&PythonEnvironment>,
+        managed: PythonEnvironment,
+        config: Option<&str>,
+        executable_exists: bool,
+        requirements_present: bool,
+    ) -> Result<Self, String> {
+        let Some(selected) = selected else {
+            return Ok(Self::Managed(managed));
+        };
+        if selected.root() == managed.root() && !executable_exists && config.is_none() {
+            return Ok(Self::Managed(managed));
+        }
+        let config = config.ok_or_else(|| format!(
+            "Python environment {} is unavailable: pyvenv.cfg is missing; repair the selected venv or update app_python",
+            selected.root().display()
+        ))?;
+        selected.validate_config(config)?;
+        if !executable_exists {
+            if selected.root() == managed.root() {
+                return Ok(Self::Managed(managed));
             }
+            return Err(format!(
+                "Python interpreter {} is missing; repair the selected venv or update app_python",
+                selected.executable().display()
+            ));
+        }
+        if app.as_str() == "control-lab" && requirements_present {
+            let version = configured_python_version(config).ok_or_else(|| format!(
+                "Python environment {} does not declare its version in pyvenv.cfg; repair the selected venv",
+                selected.root().display()
+            ))?;
+            if !matches_bundled_python(version) {
+                return Ok(Self::Managed(managed));
+            }
+        }
+        Ok(Self::Existing(selected.clone()))
+    }
+
+    pub(super) fn environment(&self) -> &PythonEnvironment {
+        match self {
+            Self::Existing(environment) | Self::Managed(environment) => environment,
         }
     }
 }
@@ -153,19 +167,6 @@ impl PythonEnvironment {
     }
 }
 
-/// True when this venv is isolated CPython 3.12. Does not modify the directory.
-pub fn environment_matches_bundle(root: &Path) -> bool {
-    let Ok(text) = std::fs::read_to_string(root.join("pyvenv.cfg")) else {
-        return false;
-    };
-    configured_python_version(&text).is_some_and(matches_bundled_python)
-        && PythonEnvironment {
-            root: root.to_path_buf(),
-        }
-        .validate_config(&text)
-        .is_ok()
-}
-
 /// Real `python3.12` executable. Resolving the symlink keeps venv `home` on the
 /// interpreter prefix; a shim directory cannot start under `-E`.
 pub fn bundled_python_executable() -> Result<PathBuf, String> {
@@ -200,7 +201,12 @@ pub fn bundled_python_executable() -> Result<PathBuf, String> {
 
 fn probe_version(python: &Path) -> Result<String, String> {
     let output = Command::new(python)
-        .args(["-E", "-s", "-c", "import sys; print(sys.version.split()[0])"])
+        .args([
+            "-E",
+            "-s",
+            "-c",
+            "import sys; print(sys.version.split()[0])",
+        ])
         .output()
         .map_err(|error| format!("{} cannot start: {error}", python.display()))?;
     if !output.status.success() {
@@ -323,54 +329,173 @@ mod tests {
             assert_eq!(matches_bundled_python(version), accepted, "{version}");
         }
         assert_eq!(
-            configured_python_version("home = /python\nversion = 3.14.7\ninclude-system-site-packages = false\n"),
+            configured_python_version(
+                "home = /python\nversion = 3.14.7\ninclude-system-site-packages = false\n"
+            ),
             Some("3.14.7")
         );
         assert_eq!(
-            configured_python_version("home = /python\nversion_info = 3.12.11\ninclude-system-site-packages = false\n"),
+            configured_python_version(
+                "home = /python\nversion_info = 3.12.11\ninclude-system-site-packages = false\n"
+            ),
             Some("3.12.11")
         );
         assert_eq!(
             configured_python_version("version_info = 3.12.11\nversion = 3.12.16\n"),
             Some("3.12.16")
         );
-        let events = [
-            EnvironmentEvent::Install,
-            EnvironmentEvent::Enable,
-            EnvironmentEvent::Startup,
-        ];
-        for event in events {
-            assert_eq!(
-                control_lab_python("control-lab", event, false, true, false),
-                ControlLabPython::BindBundledInterpreter,
-                "{event:?}"
+    }
+
+    #[test]
+    fn preparation_keeps_explicit_environments_and_bounds_control_lab_migration() {
+        let external =
+            PythonEnvironment::try_from(std::env::temp_dir().join("pero-selected-python")).unwrap();
+        let managed =
+            PythonEnvironment::try_from(std::env::temp_dir().join("pero-managed-python312"))
+                .unwrap();
+        let compatible = "version = 3.12.16\ninclude-system-site-packages = false\n";
+        let other_minor = "version = 3.14.7\ninclude-system-site-packages = false\n";
+        let invalid = "version = 3.14.7\ninclude-system-site-packages = true\n";
+        for (app, selection, config, executable, requirements, expected) in [
+            (
+                "paper-agent",
+                "external",
+                Some(other_minor),
+                true,
+                true,
+                "existing",
+            ),
+            (
+                "paper-agent",
+                "external",
+                Some(compatible),
+                true,
+                true,
+                "existing",
+            ),
+            (
+                "paper-agent",
+                "external",
+                Some(invalid),
+                true,
+                true,
+                "system-site-packages",
+            ),
+            (
+                "paper-agent",
+                "external",
+                None,
+                false,
+                true,
+                "pyvenv.cfg is missing",
+            ),
+            (
+                "paper-agent",
+                "external",
+                Some(compatible),
+                false,
+                true,
+                "interpreter",
+            ),
+            ("paper-agent", "none", None, false, true, "managed"),
+            ("paper-agent", "managed", None, false, true, "managed"),
+            (
+                "paper-agent",
+                "managed",
+                Some(invalid),
+                false,
+                true,
+                "system-site-packages",
+            ),
+            (
+                "paper-agent",
+                "managed",
+                Some(invalid),
+                true,
+                true,
+                "system-site-packages",
+            ),
+            (
+                "control-lab",
+                "external",
+                Some(other_minor),
+                true,
+                true,
+                "managed",
+            ),
+            (
+                "control-lab",
+                "external",
+                Some(compatible),
+                true,
+                true,
+                "existing",
+            ),
+            (
+                "control-lab",
+                "external",
+                Some(invalid),
+                true,
+                true,
+                "system-site-packages",
+            ),
+            (
+                "control-lab",
+                "external",
+                Some(other_minor),
+                false,
+                true,
+                "interpreter",
+            ),
+            (
+                "control-lab",
+                "external",
+                Some(other_minor),
+                true,
+                false,
+                "existing",
+            ),
+            (
+                "control-lab",
+                "external",
+                Some("include-system-site-packages = false\n"),
+                true,
+                true,
+                "version",
+            ),
+        ] {
+            let selected = match selection {
+                "external" => Some(&external),
+                "managed" => Some(&managed),
+                _ => None,
+            };
+            let app_name = AppName::try_from(app.to_owned()).unwrap();
+            let result = PythonPreparation::for_app(
+                &app_name,
+                selected,
+                managed.clone(),
+                config,
+                executable,
+                requirements,
             );
-            assert_eq!(
-                control_lab_python("control-lab", event, true, true, false),
-                ControlLabPython::UseSelected,
-                "{event:?}"
-            );
-            assert_eq!(
-                control_lab_python("control-lab", event, true, true, true),
-                ControlLabPython::Skip,
-                "{event:?}"
-            );
+            match expected {
+                "existing" => assert!(
+                    matches!(result, Ok(PythonPreparation::Existing(_))),
+                    "{app}/{selection}: {result:?}"
+                ),
+                "managed" => assert!(
+                    matches!(result, Ok(PythonPreparation::Managed(_))),
+                    "{app}/{selection}: {result:?}"
+                ),
+                error => {
+                    let detail = result.unwrap_err();
+                    assert!(detail.contains(error), "{app}/{selection}: {detail}");
+                    assert!(
+                        detail.contains(&selected.unwrap().root().display().to_string()),
+                        "{detail}"
+                    );
+                }
+            }
         }
-        assert_eq!(
-            control_lab_python("control-lab", EnvironmentEvent::Open, false, true, false),
-            ControlLabPython::Skip
-        );
-        assert_eq!(
-            control_lab_python("control-lab", EnvironmentEvent::Open, true, true, false),
-            ControlLabPython::Skip
-        );
-        assert_eq!(
-            control_lab_python("paper-agent", EnvironmentEvent::Install, false, true, false),
-            ControlLabPython::Skip
-        );
-        assert_eq!(
-            control_lab_python("control-lab", EnvironmentEvent::Install, false, false, false),
-            ControlLabPython::Skip
-        );
     }
 }
