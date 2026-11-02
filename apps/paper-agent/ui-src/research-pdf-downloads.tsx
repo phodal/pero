@@ -94,7 +94,7 @@ export function ResearchPdfDownloads({ api, bundle, startPdfIds, onRead, waitFor
       const unavailable = value?.status === 'unavailable' || (!!receipt && value?.localAvailable === false);
       return <li key={resource.id}>
         <h3>{resource.title}</h3>
-        <p role="status">{unavailable && value?.status !== 'running' ? 'Original PDF unavailable' : value?.status === 'completed' ? 'PDF downloaded; text extraction available' : value?.status === 'running' ? receipt ? 'Restoring original PDF…' : value.stage === 'parsing' ? 'PDF downloaded; checking page text…' : 'Downloading PDF…' : value?.status === 'failed' ? 'PDF download failed' : value?.status === 'cancelled' ? 'PDF download cancelled' : value?.status === 'interrupted' ? 'PDF download interrupted by restart' : 'Link discovered; PDF not downloaded'}</p>
+        <p role="status">{unavailable && value?.status !== 'running' ? 'Original PDF unavailable' : value?.status === 'completed' ? receipt && receipt.textPages > 0 ? 'PDF downloaded; text extraction available' : 'PDF saved; no selectable text. OCR unavailable.' : value?.status === 'running' ? receipt ? 'Restoring original PDF…' : value.stage === 'parsing' ? 'PDF downloaded; checking page text…' : 'Downloading PDF…' : value?.status === 'failed' ? 'PDF download failed' : value?.status === 'cancelled' ? 'PDF download cancelled' : value?.status === 'interrupted' ? 'PDF download interrupted by restart' : 'Link discovered; PDF not downloaded'}</p>
         {value?.error && <Feedback kind="error">{value.error}</Feedback>}
         {receipt && <>
           <p>{assetSize(receipt.size)} / {receipt.pageCount} pages / text on {receipt.textPages} pages</p>

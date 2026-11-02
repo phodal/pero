@@ -36,8 +36,8 @@ export function Reader({ paper, busy, openToken, pdfReloadToken, api, pdfFocus, 
       <div className="pa-text-reading pero-reader-body"><div className="pero-reader-content">
         <StructuredReading openToken={openToken} showText={!!textFocus} api={api} paperId={paper.id} onReady={setStructured} onReview={onReview}>
         {paper.contentKind !== 'full-text' && !textFocus && <p className="pa-document-meta">{paper.resourceKind === 'web_article' ? 'Article excerpt' : t(paper.contentKind === 'abstract' ? 'abstract' : 'sourceReport')}</p>}
-        {paper.resourceKind && paper.limitation && <p className="pa-document-meta">{paper.limitation}</p>}
-        <div className="pa-source-text" ref={source} onMouseUp={capture} onKeyUp={capture}>{paper.content ? textFocus ? <SourceLines content={paper.content} focus={textFocus} label={t('sourceLine')}/> : paper.resourceKind ? <p className="pa-resource-excerpt">{paper.content}</p> : <ScientificContent content={paper.content}/> : t('loading')}</div>
+        {paper.limitation && <p className="pa-document-meta">{paper.limitation}</p>}
+        <div className="pa-source-text" ref={source} onMouseUp={capture} onKeyUp={capture}>{paper.content != null ? textFocus ? <SourceLines content={paper.content} focus={textFocus} label={t('sourceLine')}/> : paper.resourceKind ? <p className="pa-resource-excerpt">{paper.content}</p> : <ScientificContent content={paper.content}/> : t('loading')}</div>
         {!!excerpt && <div className="pa-reader-actions"><Button onClick={() => onDiscuss(excerpt)}>{t('discussSelection')}</Button></div>}
         <Disclosure summary={t('sourceDetails')}>
           {paper.source !== 'local-pdf' && <a href={paper.url} target="_blank" rel="noreferrer">{t('original')}</a>}

@@ -438,6 +438,7 @@ jobs:
           npm ci --prefix apps/automations --ignore-scripts
           npm ci --prefix apps/paper-agent --ignore-scripts
           npm run typecheck --prefix apps/paper-agent
+          node --test tests/e2e/paper-library-availability.test.mjs
           node --test scripts/build/apps.test.mjs
           npm ci --prefix apps/scientific-viewer --ignore-scripts
           npm test --prefix apps/automations
