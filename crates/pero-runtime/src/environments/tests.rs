@@ -178,6 +178,38 @@ fn matching_conditions() {
             .preferred_satisfied,
         0
     );
+    let mut with_numpy = profile().observation().clone();
+    with_numpy
+        .packages
+        .insert(id("numpy"), Some(version("2.2.6")));
+    let better = EnvironmentBinding {
+        incarnation: id("preferred"),
+        profile: SoftwareProfile::observed(with_numpy),
+        ..binding()
+    };
+    let candidates = [binding(), better.clone()];
+    assert_eq!(
+        select_profile(&preferred, &candidates, 110, 20)
+            .unwrap()
+            .incarnation,
+        better.incarnation
+    );
+    assert_eq!(
+        select_profile(&requirements(), &candidates, 110, 20)
+            .unwrap()
+            .incarnation,
+        candidates[0].incarnation
+    );
+    assert_eq!(
+        select_profile(&preferred, &candidates, 200, 20)
+            .unwrap_err()
+            .len(),
+        2
+    );
+    assert_eq!(
+        select_profile(&preferred, &[], 110, 20),
+        Err(vec![EnvironmentError::ObservationMissing])
+    );
     for (now, age, accepted) in [
         (99, 20, false),
         (120, 20, true),

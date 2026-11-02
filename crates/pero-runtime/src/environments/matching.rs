@@ -5,6 +5,35 @@ pub struct EnvironmentMatch {
     pub preferred_satisfied: usize,
 }
 
+/// Required conditions first, then preferences. Ties retain caller-supplied order.
+pub fn select_profile<'a>(
+    requirements: &EnvironmentRequirements,
+    candidates: &'a [EnvironmentBinding],
+    now_ms: u64,
+    max_age_ms: u64,
+) -> Result<&'a EnvironmentBinding, Vec<EnvironmentError>> {
+    let mut selected: Option<(&EnvironmentBinding, usize)> = None;
+    let mut failures = Vec::new();
+    for binding in candidates {
+        match match_profile(requirements, binding, now_ms, max_age_ms) {
+            Ok(matched)
+                if selected.is_none_or(|(_, score)| matched.preferred_satisfied > score) =>
+            {
+                selected = Some((binding, matched.preferred_satisfied));
+            }
+            Ok(_) => (),
+            Err(error) => failures.push(error),
+        }
+    }
+    selected.map(|(binding, _)| binding).ok_or_else(|| {
+        if failures.is_empty() {
+            vec![EnvironmentError::ObservationMissing]
+        } else {
+            failures
+        }
+    })
+}
+
 /// Match facts only. No resource acquisition, import, preparation or fallback.
 pub fn match_profile(
     requirements: &EnvironmentRequirements,
