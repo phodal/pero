@@ -3,6 +3,7 @@ import { downloadFile } from '@pero/app-sdk';
 import { Button, EmptyState, Feedback } from '@pero/app-sdk/ui';
 import { Experiments, ReportView, type Citation } from './documents';
 import { ReadingMatrix } from './reading-matrix';
+import { ManualRecords } from './manual-records';
 import type { Api, Intent, Library, Paper, PdfAnnotation, Report, ResearchStudy, StudySummary } from './types';
 import type { Translator } from './i18n';
 
@@ -76,6 +77,7 @@ export function ResearchRecords({ api, library, paper, onFollowUp, onContinue, o
   const history = library.intents.filter(intent => !paper || intent.paperIds?.includes(paper.id)).sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
   const unfinished = library.studies?.filter(study => !study.reportId && (!paper || study.paperIds.includes(paper.id))) ?? [];
   return <div className="pa-records-scroll" aria-label={t('researchProgress')}>
+    <ManualRecords key={paper?.id ?? 'all'} api={api} library={library} paper={paper}/>
     {!history.length && !unfinished.length && !library.matrixCount && <EmptyState heading={t('noResearchRecords')}/>}
     {unfinished.map(study => <SavedStudy key={study.id} entry={study} api={api} onContinue={() => onContinue(study)} t={t}/>)}
     {history.map(intent => <SavedTurn key={`${intent.id}:${library.reports.filter(report => report.intentId === intent.id).length}`} entry={intent} reports={library.reports.filter(report => report.intentId === intent.id)} api={api} onCite={onCite} onResume={onFollowUp} disabled={false} t={t}/>)}
