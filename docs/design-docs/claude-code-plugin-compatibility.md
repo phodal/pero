@@ -662,17 +662,19 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 | 工具预批准 | allowed-tools 在调用 turn 生效，下一直接用户输入清除；hook ask 与部署拒绝优先 | 普通工具名、限定 server 的 MCP wildcard、简单 Bash pattern；复杂 shell syntax 不自动批准 |
 | 原生工具 | Read/Write/Edit/Glob/Grep/Bash 的 Claude 名称和参数 | 真实工作区效果；Grep 用 RE2，图片/PDF/NotebookEdit、完整 ripgrep 行为仍待补 |
 | 后台 Bash | `run_in_background`、真实 task_id、TaskOutput 等待/轮询、TaskStop、超时及进程回收 | 启动前持久化 intent；同一调用者拥有任务；JSONL 冷恢复保留终态，未知运行标记 interrupted，不重放副作用 |
-| 命令输出文件 | 前后台 Bash 与技能动态命令共用文件捕获；Bash 回执提供 output_file/partial，动态命令成功大输出提供文件引用，Read 可回读 | Bash 取消保留实际部分日志，动态命令失败/取消清理临时输出；私有目录/文件、symlink、意图持久化失败与工作区变化测试 |
+| 命令输出文件 | 共用文件捕获；原生 Bash 成功默认 30000 字符 inline，超出返回最多 64 MiB artifact 与 2000 字符预览，失败最多 10000 字符头尾 | 工作日志使用独立 working_log_file；取消保留实际日志；Unicode、冷恢复、一次执行/审批和原工作区身份检查均有真实进程测试；动态模板仍采用独立呈现 |
 | 子代理 | 自定义 Agent、模型 alias、工具交集、父审批、实际后台 ID/等待/停止 | loopback 子代理真实读写和取消；冷恢复后台任务尚未完成 |
 | 内置子代理 | general-purpose、Explore、Plan | Explore/Plan 采用较窄的只读交集，暂不提供官方只读 Bash 与任意 MCP |
 | 隔离技能 | context:fork、内置/自定义 agent、参数/资源前缀、子模型与子 turn 授权 | 真实 CLI 证明父历史隔离、子读模板/写文件、父仍需审批；ACP 同步等待，恢复不重跑 |
 | 结构化问答 | AskUserQuestion、问题/选项校验、Other、多选、取消及恢复后的新 broker；Host/Runtime/Desktop 共用有类型请求与回答 | ACP 扩展需双方协商；未协商不注册工具；实际 Electron 验证单多选、Other、未填阻止、取消、FIFO、turn 取消、Enter、明暗主题与窄窗 |
 | 任务状态 | TaskCreate/Update/List/Get、依赖图、metadata、CAS、JSONL 恢复 | 完成前置任务后解除阻塞；不把 Agent 后台 ID 当 Task ID |
-| Command hooks | 标准 stdin、argv/shell、超时/取消、exit 2、JSON 决策、updatedInput 重验 | SessionStart、UserPromptSubmit、Pre/PostToolUse、PostToolUseFailure、Pre/PostCompact、Stop、SessionEnd |
+| Command hooks | 标准 stdin、argv/shell、超时/取消、exit 2、JSON 决策、updatedInput 重验 | SessionStart、UserPromptSubmit、Pre/PostToolUse、PostToolUseFailure、Pre/PostCompact、Stop、SessionEnd、SubagentStart/SubagentStop |
+| 子代理 hook | Start 在首请求前注入上下文，按 agent type 匹配；Stop 反馈可要求真实子代理续跑，独立子 transcript | 文本答案与 structured_output 都经过结束检查；被拒候选只在实际续跑时撤销，父只接收最终结构化结果；普通工具步骤重置连续反馈计数 |
 | Hook 会话归属 | 主会话生命周期不对子代理重复触发；子工具事件使用主 session/transcript 并携真实 agent_id/type | 真实子代理回归；Stop 默认连续续跑 8 次、工具调用后重置、达到上限正常结束 |
 | 压缩生命周期 | PreCompact 可阻止；PostCompact 后 SessionStart(source=compact) 上下文进入紧接的请求 | manual 与真实 context-overflow retry fixture；不延迟到下一个 tool step |
 | 压缩后的技能 | 最近一次已渲染正文与参数从原始日志恢复，单项 5000、合计 25000 估算 token | Unicode 安全截断；不重新读安装文件、不重跑命令、不恢复过期授权，不恢复 fork 正文到父会话 |
-| MCP | stdio/streamable HTTP、环境替换、namespace、root-agent 连接生命周期 | 真实 loopback server discover/call/dispose；SSE/OAuth/每工具迁移仍待补 |
+| MCP | stdio/streamable HTTP/旧版 SSE、环境替换、namespace、root-agent 连接生命周期 | SSE 实际发现、调用、取消与退役回收；拒绝向外部 origin 转发配置凭据；OAuth/每工具迁移仍待补 |
+| WebSearch/WebFetch | 显式 DeepSeek Search/Fetch provider；域名过滤、引用、offset 分片及无工具子代理提取 | CLI loopback 验证审批、共享预算、取消和拒绝写文件；真实 API 两次请求通过；缓存与跨域 redirect handoff 尚未实现，搜索后端不同 |
 | 同步 Workflow | 原始 scriptPath、export const meta、args、嵌套 workflow、agent/parallel/pipeline/phase/log；RPC 复用 ClaudeContribution.Invoke | 原始 3 个审查脚本实际运行；9 次 agent()、10 次 loopback HTTP、峰值并发 3；后台 Workflow 明确拒绝，详见 16.4 |
 
 ### 16.1 真实模型结果
@@ -689,7 +691,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 
 ### 16.2 继续实现的出口
 
-完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的后台执行与可恢复任务句柄；Bash 的官方输出呈现、前台超时自动转后台、交互/非交互超时区别；后台子代理的 turn/run 区分及命令完成通知；SDK trial 的 Harness runner；Web/LSP、外部依赖和实际服务连接。SubagentStart/SubagentStop、任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。第 13 节发现的配置问题已经显式迁移；外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。
+完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的后台执行与可恢复任务句柄；Bash 前台超时自动转后台、交互/非交互超时区别与动态模板的精确呈现；后台子代理的 turn/run 区分及命令完成通知；LSP、外部依赖和实际服务连接。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。试验 runner 的最终产物复核和关闭失败处理正在追加独立回归，最终验收后另记结果。
 
 任务归属也需区分目标契约：当前任务查询限定创建者，子代理退出时取消并等待其命令，这与 pinned DSH 的 owner 隔离及 disposal 语义相符。Claude 官方要求前台子代理结束时停止命令，但允许后台子代理在当前 turn 结束后继续持有后台命令，并接收完成通知；run 真正退出时才停止。现有 one-shot 子代理在结果返回后回收，尚未实现后一种驻留。不能把它写成所有子代理命令都应无限存活，或已经支持根会话接管所有子任务。当前 Claude 文档还注明 TaskOutput 自 v2.1.277 移除、改为 Read 输出文件；本批插件所用旧 TaskOutput 接口作为显式兼容接口保留。
 
@@ -697,7 +699,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 
 ### 16.3 逐插件运行态复核
 
-本轮对插件配置完成显式迁移后，逐项调用 `plugins.LoadPackages`，**15/15 均可编译**。迁移包括 agent 正式元数据与路径、hook 包装/执行形态、版本与 MCP timeout/名称、历史字段及环境变量使用；认证信息改为外部绑定。运行时没有通过吞掉结构错误取得此结果。
+本轮对插件配置完成 17 处显式修复后，逐项调用 `plugins.LoadPackages`，**15/15 均可编译**。迁移包括 agent 正式元数据与路径、hook 包装/执行形态、MCP timeout/名称、历史调用字段及技能会话变量。版本漂移和嵌入式认证仍需独立整改。运行时没有通过吞掉结构错误取得此结果。全部 15 包也通过真实 CLI 的无会话启动/EOF 退出检查，完成配置、资源与工具装配；该检查不连接外部 MCP、不执行 hook 或模型。
 
 第 15 节记录的原始检查问题，以及此前“10 个可编译、5 个结构阻塞”的结果，保留为迁移前证据。当时 10 个插件合并加载得到 69 个 skill、13 个 agent、1 个 command、436 个文本资源、6 个 hook 与 7 个 MCP 配置；这些历史计数不代表迁移后的全部集合。
 
@@ -706,14 +708,14 @@ LoadPackages 复核不执行 hook、脚本、MCP 或模型请求。“可编译�
 | 插件 | 当前编译结果 | 剩余闭环与下一步 |
 | --- | --- | --- |
 | ask-buddy | 迁移后可编译 | 实测代码只读与记忆可写；配置外部服务认证 |
-| biz-interview | 迁移后可编译 | WebSearch/WebFetch、opus 路由与实际访谈闭环；客户端问答 UI 已接通 |
+| biz-interview | 迁移后可编译；Web 工具已装配 | 显式选择 Web provider、配置 opus 路由并验收实际访谈闭环；客户端问答 UI 已接通 |
 | coder | 可编译；原始审查 Workflow 已验证 | 同步审查的 spec gate、质量 fan-out 与聚合已跑通；仍需实际工程的 worktree、完整 review gate、后台代理驻留与恢复验收 |
 | issue-fixer | 可编译 | 装配 LSP、显式模型路由与 GitHub MCP；验证分支、测试、审查及 PR 实际回执 |
 | knowledge-analyst | 可编译 | 提供并验证强制依赖 deep-research；普通搜索不能替代该契约 |
 | meeting-summary | 可编译 | Python、飞书 CLI、登录与目标配置；真实下载、轮询取消、文档创建及通知验收 |
 | model-reasoning-distillation | 可编译；同步 Workflow runtime 已装配 | Pero journal 到 canonical trace 的实际适配、重型优化脚本与 sonnet 路由；coder 审查 fixture 不证明该插件的优化流程已验收 |
 | new_code | 迁移后可编译 | 多仓 worktree、恢复绑定、发布及解绑状态机的实际验收 |
-| plugin-tuner | 可编译 | trial 脚本仍绑定 Claude SDK，需 HarnessTrialRunner、统一试验回执与取消清理 |
+| plugin-tuner | 可编译；ACP Harness runner 已实现 | 保留 Claude runner、显式选择运行时；最终产物/关闭失败的独立复核补测进行中，仍需真实优化试验验收 |
 | private-buddy | 迁移后可编译 | 本地 Python MCP、搜索、认证、记忆与压缩流程实测 |
 | product-manager | 可编译；真实模型已验证 | 材料充分的中文 PRD 生成/保存/读回可运行；问答 UI 已接通，仍需真实需求澄清的完整任务验收 |
 | repo-admin | 可编译 | 凭据外移；图谱服务工具契约与认证连通；只读 hook 的真实修改阻止测试 |
@@ -744,3 +746,15 @@ Workflow 并发默认 3、总 agent() 调用预算默认 64，嵌套脚本共享
 本轮基线重新完成 Go 全量 race、vet 和 Bazel **31/31**；Rust ACP 35 个测试通过，Host/worker/native chat 检查通过，`npm run check` 的 879 个双语词条及相关检查通过，实际 Electron 问答检查通过。后续输出呈现和 CLI 集成补测以最终检查记录为准，不把尚未完成的补测写为通过。文档身份信息检查通过；运行时凭据不写入文档、测试 fixture 或提交。
 
 真实模型与 Claude Code 对照是显式单次运行，没有加入默认测试网络依赖。后续可继续使用无外网 loopback fixture 验证协议和生命周期，再对每个插件准备对应环境验收。
+
+### 16.6 Web、子代理结束检查与输出呈现
+
+显式增加 `--web-provider deepseek-api --web-api-key-env DEEPSEEK_API_KEY` 才启用 Web 工具；同名模型凭据在移出子进程环境前供所选 Web provider 复用。`--web-max-requests` 限制网页 API 的总 HTTP 尝试，模型提取仍计入原 provider 请求预算。无插件也可显式启用 Web。实际 CLI fixture 验证 5 次模型请求、2 次网页请求与 2 次 ACP 审批；摘要子代理工具 allowlist 为空，构造的隐藏写文件调用被真实 registry 拒绝。父历史只接收摘要，子会话保留实际提取输入。[Web 契约与差异](../../harness/go/webtools/README.md)
+
+使用项目 `.env` 的现有凭据，独立调用真实 Search 与 Fetch API 各一次：域名过滤后返回 8 条官方文档来源，抓取 Search & Fetch 文档得到 9405 个 Unicode 字符。两次请求均成功，没有辅助模型请求。此结果证明所选检索服务可用，模型提取的生命周期另由 loopback CLI 证明；没有把两类验证混成真实访谈闭环。[API 文档](https://api-docs.deepseek.com/guides/search/)
+
+新增子代理 hook 回归发现并修复结论性工具跳过结束检查的问题。现在普通文本与 structured_output 共用同一个 Stop gate；反馈导致同 turn 实际进入下一步时，才撤销已提交的候选并释放其 capture admission。嵌套工具原有 exact-token 提交/回滚规则保留。配置一次续跑的真实子代理测试证明父只接收修订后的结构化答案。[修复与验证](../issues/2026-11-02-structured-completion-hooks.md)、[生命周期测试](../../harness/go/pluginruntime/hooks_subagent_lifecycle_test.go)
+
+原生 Bash 的读回默认 30000 字符，`BASH_MAX_OUTPUT_LENGTH` 上限 150000；`--bash-output-max-chars` 可显式覆盖 inline/readback，最大 128000，优先于环境变量。工作日志与成功 artifact 分开，失败不给成功 artifact 引用。新回执保存呈现并支持冷恢复；旧回执保留原有有界结果与日志。实际命令替换工作区的回归证明 artifact 写入会失败，替换目标不会被额外写入，命令和审批各执行一次，原日志与实际退出码仍保留。[Bash 契约](../../harness/go/nativetools/README.md)
+
+该批后续验证通过相关 Go race/vet、完整 CLI 包回归和真实 SSE 连接生命周期测试；新增 LSP 与前台自动后台化仍在实现，最终全量检查记录会在这些变更冻结后更新。
