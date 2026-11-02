@@ -78,3 +78,31 @@ The original draft identity, one-thread count, App scope and resulting fixture
 session assertions passed; the process exited successfully without timeout.
 This establishes the startup race fix, not the later nondefault-panel forwarding
 change. It is scripted App Use, not scientific execution or real-provider inference.
+
+## 2026-11-02: strict shutdown failure after completed acceptance
+
+Full run [41460888869](https://github.com/phodal/pero/actions/runs/41460888869),
+App Use job `125333787421`, failed the existing 30-second normal Electron close
+deadline. Artifact `13150206084` was SHA-256 verified as
+`c46ce175485e381ec83ebc914cf68d56e5c1b50c84788fa1433c26d4a558db4f`.
+It contains the completed result with all eleven checks, zero browser errors,
+an idle original conversation with no pending permission, and capture receipts.
+Thus this occurrence is a teardown failure, not an earlier assertion masked by
+cleanup. The previous current-head App Use run had passed.
+
+The successful test path deleted its runtime log before entering cleanup, so
+the artifact cannot distinguish a blocked Product quit callback, Electron exit,
+or Playwright waiting for process pipes to close. No production shutdown fix is
+yet supported by this evidence.
+
+The acceptance fixture now passively records Product/window quit events, Node
+resource types and uncaught-exception details, plus test-owned process exit vs
+close events and pipe status. It saves runtime/shutdown evidence before normal
+close and after cleanup. The existing deadline, private-process-group safety
+check, forced-cleanup failure and disposable-profile cleanup remain unchanged.
+An acceptance failure plus a normal-close failure is surfaced together rather
+than discarding the original failure. Diagnostic write failures cannot bypass
+normal close or disposable-profile removal, and remain visible alongside other
+failures. Existing owned-close behavioral tests and acceptance-script syntax
+checks pass; no GUI or model/scientific execution was performed for this diagnosis. A new CI run can localize the shutdown phase; it
+must not be described as a blind rerun or proof that shutdown is repaired.
