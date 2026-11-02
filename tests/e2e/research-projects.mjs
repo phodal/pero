@@ -139,6 +139,22 @@ try {
     if (name === 'paper-agent') expect((await api(frame, '/api/library')).papers.some(item => item.id === record.id)).toBe(true);
     else expect(await api(frame, `/api/experiments/${record.id}`)).toEqual(record);
     await capture(`03-open-${name}`);
+    if (name === 'control-lab') {
+      const separator = frame.getByRole('separator').first();
+      await expect(separator).toBeVisible();
+      const original = await frame.locator('#model').evaluate(element => element.getBoundingClientRect().width);
+      await separator.focus(); await separator.press('ArrowRight');
+      await expect.poll(() => frame.locator('#model').evaluate(element => element.getBoundingClientRect().width)).toBeGreaterThan(original);
+      await separator.dblclick();
+      await expect.poll(() => frame.locator('#model').evaluate(element => element.getBoundingClientRect().width)).toBe(original);
+    }
+    await setAppearance(page, 'dark'); await capture(`03-dark-${name}`);
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 760));
+    if (name === 'control-lab') await expect(frame.locator('.workbench')).toHaveAttribute('data-stacked', '');
+    await expect.poll(() => frame.locator('body').evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await capture(`03-narrow-${name}`);
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1488, 1000));
+    await setAppearance(page, 'light');
     await projectOverview();
   }
   checks.push('precise-app-record-navigation-without-experiment-mutation');
