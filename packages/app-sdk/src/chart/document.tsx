@@ -46,7 +46,7 @@ export function DocumentChart({ document: input, className, labelledBy, labels }
   const styled = (node: HTMLElement | null) => { if (node) ensureDocumentChartStyles(node.ownerDocument); };
   const cls = ["pero-doc-chart", className].filter(Boolean).join(" ");
 
-  if (!projected.ok) {
+  if (projected.ok === false) {
     return <div ref={styled} className={cls} data-pero-document-chart="" data-state="invalid" role="alert">
       <p className="pero-doc-chart__error" title={projected.error}>{l.invalid}</p>
     </div>;
