@@ -63,6 +63,47 @@ despite `--approval ask`. This test does not certify manual approval behavior,
 real-model decision quality, or packaged UI acceptance. It exercises the shared
 headless shell adapter and real Harness execution.
 
+### Real model and explicit approval (2026-11-02)
+
+The real `deepseek-flash` model passed both explicit `full-access` permission
+scenarios through the Go Harness, Rust Host and shared App Use adapter:
+
+| Decision | Agent permission requests | Backend writes | Dependency MCP calls |
+| --- | --- | --- | --- |
+| `allow_once` | 1 | 1 | 1 |
+| `reject_once` | 1 | 0 | 1 |
+
+The denied call finishes as a failed tool result. Both scenarios also check an
+ordinary session and reject a new App connection after disabling its dependency.
+Only synthetic evidence and temporary App data reach the real provider.
+
+```sh
+node tests/runtime/app-plugin-harness.mjs --decision=allow
+node tests/runtime/app-plugin-harness.mjs --decision=reject
+node tests/runtime/app-plugin-harness.mjs --real --decision=allow
+node tests/runtime/app-plugin-harness.mjs --real --decision=reject
+```
+
+Real runs use the official endpoint and load the credential from the inherited
+environment or the local `.env`; the credential is passed only through process
+environment, excluded from the installed package/configuration and report.
+Each ACP process has an eight-request ceiling, a 2048-output-token request cap
+and no provider retries. Reports are `real-allow.json` and `real-reject.json`
+under `test-results/app-plugin-harness/`, including executable and test hashes.
+
+Approval propagation fix: `f64a1181`. This exposed and fixed missing approval propagation: explicit mutating MCP
+annotations now become Harness `RequiresApproval` registrations. App data writes
+and their aliases declare mutation. Default `auto-review` still proceeds without
+a question; an explicit interactive permission mode uses the existing broker.
+Legacy unannotated MCP tools retain their existing behavior. An annotation is
+not an independent authorization grant or a guarantee about an untrusted server.
+
+Approval replies in these checks are supplied by the test driver acting as the
+operator. They exercise real Agent-originated requests and allow/reject responses;
+human button clicks, packaged Desktop and arbitrary third-party plugins are not
+certified. Go MCP/Harness/ACP race suites, TypeScript and the 30 App Use/SDK cases
+also passed.
+
 Observed results: Host/runtime/worker Rust suites passed 152 cases; App Use/SDK
 passed 30 cases. An exported committed source snapshot including code through `5e54df15` passed
 `npm run check`, the 30 App Use/SDK cases and the plugin Host/ACP wiring test
