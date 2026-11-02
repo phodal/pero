@@ -18,8 +18,10 @@ import (
 
 // Tool is an MCP contribution body; admission and execution remain in the owning registry.
 type Tool struct {
-	Schema  harnessmodel.ToolSchema
-	Execute func(context.Context, json.RawMessage) (harnesstool.Result, error)
+	Schema harnessmodel.ToolSchema
+	// Explicit mutating annotations participate in the caller's approval policy.
+	RequiresApproval bool
+	Execute          func(context.Context, json.RawMessage) (harnesstool.Result, error)
 }
 
 func ListTools(ctx context.Context, session *mcp.ClientSession) ([]*mcp.Tool, error) {
@@ -62,7 +64,8 @@ func buildMCPTools(session *mcp.ClientSession, serverName string, remotes []*mcp
 		}
 		publicNames[name] = remoteName
 		tool := Tool{
-			Schema: harnessmodel.ToolSchema{Name: name, Description: remote.Description, InputSchema: schema, OutputSchema: canonicalOutputSchema(name, remote.OutputSchema)},
+			RequiresApproval: remote.Annotations != nil && !remote.Annotations.ReadOnlyHint,
+			Schema:           harnessmodel.ToolSchema{Name: name, Description: remote.Description, InputSchema: schema, OutputSchema: canonicalOutputSchema(name, remote.OutputSchema)},
 			Execute: func(callCtx context.Context, raw json.RawMessage) (harnesstool.Result, error) {
 				arguments := any(map[string]any{})
 				if len(raw) > 0 {

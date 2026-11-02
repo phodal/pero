@@ -292,7 +292,7 @@ export class DesktopAppUse {
         else if (message.method === 'tools/list')
           result = {
             tools: [
-              ...(this.writes ? this.pluginWrites(thread, await this.writes.describe()).filter(d=>`app__${d.app}__${d.name}`.length<=64).map(d=>({name:`app__${d.app}__${d.name}`,description:d.description,inputSchema:d.schema})) : []),
+              ...(this.writes ? this.pluginWrites(thread, await this.writes.describe()).filter(d=>`app__${d.app}__${d.name}`.length<=64).map(d=>({name:`app__${d.app}__${d.name}`,annotations:{readOnlyHint:false},description:d.description,inputSchema:d.schema})) : []),
               ...(this.uiAvailable ? [TOOL] : []),
               ...(this.computer ? [COMPUTER_TOOL] : []),
               {
@@ -318,6 +318,7 @@ export class DesktopAppUse {
                     },
                     {
                       name: 'app_write',
+                      annotations: { readOnlyHint: false },
                       description:
                         'Write a document through an enabled App declared route, after the calling Agent session policy allows this tool call. Supply app, tool and document only. No URL, path, credentials, retry or rollback. The prepared document and installed route are fixed before execution.',
                       inputSchema: {

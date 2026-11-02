@@ -113,6 +113,7 @@ func mountMCPServer(ctx context.Context, run *point.Run, registry *ToolRegistry,
 		for i, definition := range definitions {
 			tools[i] = Tool{
 				Schema: definition.Schema, Execute: definition.Execute,
+				RequiresApproval:          definition.RequiresApproval,
 				PreserveInitialOutputPair: true,
 				RenderOutput: func(_ context.Context, _ ToolRequest, value json.RawMessage) (ToolOutputProjection, error) {
 					content, err := harnessmcp.RenderToolOutput(value)
