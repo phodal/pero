@@ -1,6 +1,8 @@
 package plugins
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -31,6 +33,7 @@ type Component struct {
 	Path          string               `json:"path"`
 	Description   string               `json:"description,omitempty"`
 	Content       string               `json:"-"`
+	Digest        string               `json:"digest"`
 	Visibility    InvocationVisibility `json:"visibility"`
 	ArgumentHint  string               `json:"argumentHint,omitempty"`
 	AllowedTools  []string             `json:"allowedTools,omitempty"`
@@ -133,6 +136,8 @@ func splitComponentTools(value string) ([]string, error) {
 // process access. Paths are supplied by the loader and retained for diagnostics.
 func ParseComponent(pluginName string, kind ComponentKind, path string, content []byte) (Component, []Diagnostic) {
 	component := Component{Kind: kind, Path: path, Visibility: InvocationVisibility{User: true, Model: true}}
+	digest := sha256.Sum256(content)
+	component.Digest = "sha256:" + hex.EncodeToString(digest[:])
 	var diagnostics []Diagnostic
 	add := func(severity Severity, code, field, message string) {
 		diagnostics = append(diagnostics, Diagnostic{Severity: severity, Code: code, Path: path, Field: field, Message: message})

@@ -8,11 +8,15 @@ go_library(
         "inspect.go",
         "integrations.go",
         "manifest.go",
+        "package.go",
         "types.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/plugins",
     visibility = ["//visibility:public"],
-    deps = ["@in_gopkg_yaml_v3//:yaml_v3"],
+    deps = [
+        "//claudehooks",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
 )
 
 go_test(
@@ -21,6 +25,7 @@ go_test(
         "components_test.go",
         "inspect_test.go",
         "integrations_test.go",
+        "package_test.go",
     ],
     embed = [":plugins"],
 )
