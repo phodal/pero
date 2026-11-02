@@ -71,14 +71,15 @@ try {
   ({ clickAppOpen, clickAppShortcut } = await import('./sidebar-controls.mjs'));
   ({ expect } = await import('@playwright/test')); ({ electron } = await import('./electron.mjs'));
   if (!['linux', 'darwin'].includes(process.platform)) throw new Error('The process-cleanup gate is Unix-only, not a skipped PASS');
-  await execute(process.env.PERO_APP_PYTHON || 'python3', ['-E', '-s', '-c', 'import control; print(control.__version__)'], { timeout: 30000 });
+  const { stdout: pythonRoot } = await execute(process.env.PERO_APP_PYTHON || 'python3', ['-E', '-s', '-c', 'import control,sys; print(sys.prefix)'], { encoding: 'utf8', timeout: 30000 });
   temp = await mkdtemp(resolve(tmpdir(), 'pero-control-lab-app-use-'));
   const agents = resolve(temp, 'agents.json'), settings = resolve(temp, 'settings.json');
   await writeFile(agents, JSON.stringify([
     ...['pero', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({ id, name: id, command: resolve(temp, `unavailable-${id}`) })),
     { id: 'codex', name: 'Control Lab scripted transport fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/control-lab-acp.mjs')] },
   ]));
-  await writeFile(settings, JSON.stringify({ chat_agent: 'codex' }));
+  // Bind the already-provisioned, validated engine without implicit installation.
+  await writeFile(settings, JSON.stringify({ chat_agent: 'codex', app_python: { apps: { 'control-lab': pythonRoot.trim() } } }));
   const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(temp, 'profile'), PERO_SETTINGS_PATH: settings,
     PERO_HISTORY_PATH: resolve(temp, 'history.jsonl'), PERO_AGENTS_FILE: agents, PERO_LOCALE: 'en' };
   delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT;

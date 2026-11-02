@@ -156,7 +156,8 @@ try {
   // must not silently convert this two-engine acceptance into a mocked/one-engine run.
   const python = process.env.PERO_APP_PYTHON || 'python3';
   const control = await execute(python, ['-E', '-s', '-c', 'import control; print(control.__version__)'], { encoding: 'utf8', timeout: 30000 });
-  const pythonPath = (await execute(python, ['-E', '-s', '-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' })).stdout.trim();
+  const pythonEnvironment = JSON.parse((await execute(python, ['-E', '-s', '-c', 'import json,sys; print(json.dumps({"executable":sys.executable,"root":sys.prefix}))'], { encoding: 'utf8' })).stdout);
+  const pythonPath = pythonEnvironment.executable;
   const spice = await execute('ngspice', ['--version'], { encoding: 'utf8', timeout: 30000 });
   await writeFile(resolve(out, 'engine-versions.json'), JSON.stringify({ pythonControl: control.stdout.trim(), ngspice: spice.stdout.trim() }, null, 2));
   temp = await mkdtemp(resolve(tmpdir(), 'pero-control-lab-e2e-'));
@@ -164,6 +165,8 @@ try {
   await writeFile(agents, JSON.stringify(['pero', 'codex', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({ id, name: id, command: resolve(temp, `unavailable-${id}`) }))));
   const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(temp, 'desktop'), PERO_LOCALE: 'en', PERO_AGENTS_FILE: agents,
     PERO_SETTINGS_PATH: resolve(temp, 'settings.json'), PERO_HISTORY_PATH: resolve(temp, 'history.jsonl') };
+  // The suite validates a provisioned engine; opening must not install another one.
+  await writeFile(env.PERO_SETTINGS_PATH, JSON.stringify({ app_python: { apps: { 'control-lab': pythonEnvironment.root } } }));
   delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT;
   const launch = async () => {
     app = await electron.launch({ args: [...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []), ...(process.env.PERO_CONTROL_LAB_HEADLESS === '1' ? ['--headless'] : []), resolve(root, 'desktop')], cwd: root, env });
