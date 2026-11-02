@@ -1,5 +1,6 @@
 //! Local App packages and the single owner of their installed state and backends.
 mod agent_access;
+mod sdk;
 pub mod agent;
 pub mod agent_plugin;
 pub mod point_agent;

@@ -92,6 +92,7 @@ export type ContextKind =
 export type ThreadId = string;
 export type ContextContent = TextContextContent | ImageContextContent;
 export type AppRequest =
+  | AppSdkRequest
   | ListApps
   | InstallApp
   | ListAgentPlugins
@@ -109,8 +110,8 @@ export type AppRequest =
   | ConnectorsApp
   | AutomationApp
   | ResearchAssetsApp;
-export type RequestId = string;
 export type AppName = string;
+export type RequestId = string;
 export type PointAgentRequest =
   PointStart | PointLookup | PointStatus | PointEvents | PointCancel | PointRetry | PointOpen;
 export type AgentRequest = AgentInfoRequest | AgentStartRequest | AgentEventsRequest | AgentCancelRequest;
@@ -968,6 +969,12 @@ export interface DeleteCommand {
 export interface InsightsCommand {
   action: "insights";
   thread_id: ThreadId;
+}
+export interface AppSdkRequest {
+  action: "sdkcontext";
+  name: AppName;
+  method: "apps";
+  id: RequestId;
 }
 export interface ListApps {
   action: "list";
@@ -2281,6 +2288,7 @@ export interface AppsResultEvent {
 export interface AppSuccess {
   ok: true;
   value:
+    | AppSdkContext
     | PointRun
     | PointTranscript
     | PointLookupReply
@@ -2299,6 +2307,16 @@ export interface AppSuccess {
     | AppGrant
     | ResearchAssetReply
     | ResearchBundleReply;
+}
+export interface AppSdkContext {
+  name: AppName;
+  version: string;
+  permissions: AppSdkPermissions;
+}
+export interface AppSdkPermissions {
+  api: string[];
+  events: string[];
+  host: string[];
 }
 export interface PointRun {
   id: string;

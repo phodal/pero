@@ -788,6 +788,9 @@
       "title": "AppRequest",
       "oneOf": [
         {
+          "$ref": "#/$defs/AppSdkRequest"
+        },
+        {
           "$ref": "#/$defs/ListApps"
         },
         {
@@ -889,6 +892,84 @@
         "request_id",
         "text",
         "data"
+      ],
+      "additionalProperties": false
+    },
+    "AppSdkContext": {
+      "title": "AppSdkContext",
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "version": {
+          "type": "string"
+        },
+        "permissions": {
+          "$ref": "#/$defs/AppSdkPermissions"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "permissions"
+      ],
+      "additionalProperties": false
+    },
+    "AppSdkPermissions": {
+      "title": "AppSdkPermissions",
+      "type": "object",
+      "properties": {
+        "api": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "host": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "api",
+        "events",
+        "host"
+      ],
+      "additionalProperties": false
+    },
+    "AppSdkRequest": {
+      "title": "AppSdkRequest",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "sdkcontext"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "method",
+        "id"
       ],
       "additionalProperties": false
     },
@@ -1079,6 +1160,9 @@
         },
         "value": {
           "anyOf": [
+            {
+              "$ref": "#/$defs/AppSdkContext"
+            },
             {
               "$ref": "#/$defs/PointRun"
             },

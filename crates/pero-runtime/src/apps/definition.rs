@@ -47,6 +47,10 @@ pub struct AppPanel {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AppPermissions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub events: Vec<String>,
     #[serde(default)]
     pub host: Vec<String>,
 }
@@ -177,6 +181,14 @@ impl AppDefinition {
                     "This Host supports only the App agent, agent-plugin, insights, connectors, automation and research-assets permissions".into(),
                 );
             }
+        }
+        if let Some(paths) = &value.permissions.api {
+            if paths.len() > 64 || paths.iter().any(|path| !path.starts_with("/api") || (path != "/api" && !path.starts_with("/api/")) || path.contains(['?', '#', '\\']) || !relative_entry(&path[1..])) {
+                return Err("App API permissions require at most 64 local /api prefixes".into());
+            }
+        }
+        if value.permissions.events.len() > 64 || value.permissions.events.iter().any(|event| event.is_empty() || event.len() > 128 || !event.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"_.:-*".contains(&byte))) {
+            return Err("App event permissions require at most 64 named events".into());
         }
         if value.contributes.panels.is_empty() || value.contributes.panels.len() > 8 {
             return Err("This Host supports one to eight App panels".into());

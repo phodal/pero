@@ -26,6 +26,7 @@ enum Request {
     Plugininstall { method: Method, id: String, path: PathBuf },
     Pluginenable { method: Method, id: String, name: AppName, enabled: bool },
     Pointagent { method: Method, id: String, name: AppName, request: pero_runtime::apps::point_agent::Request },
+    Sdkcontext { method: Method, id: String, name: AppName },
     Pointcatalog { method: Method, id: String, name: AppName, path: String },
     Prepare { method: Method, id: String, name: AppName },
     Enable {
@@ -208,6 +209,9 @@ impl Apps {
                     plugins.set_enabled(&name, enabled)?;
                     if !enabled { agents.as_deref_mut().expect("Host manager").stop_plugin_sessions(&name); }
                     serde_json::to_value(plugins.list())
+                }
+                Request::Sdkcontext { method, id, name } => {
+                    let _ = (method, id); serde_json::to_value(store.sdk_context(&name)?)
                 }
                 Request::List { method, id } => {
                     let _ = (method, id);

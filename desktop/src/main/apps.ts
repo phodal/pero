@@ -211,6 +211,24 @@ export class DesktopApps {
       if (caller && caller !== origin) return new Response('App origin refused', { status: 403 });
       if ((url.hostname === 'control-lab' || url.hostname === 'lab') && decodeURIComponent(url.pathname) === '/api/agent-step')
         return new Response('Agent route is reserved for the Host', { status: 403 });
+      if (url.pathname === '/host/sdk') {
+        if (request.method !== 'GET') return new Response('Method refused', {status:405});
+        return Response.json(await this.request('sdkcontext', {name:url.hostname}), {headers:{'Cache-Control':'no-store'}});
+      }
+      if (url.pathname === '/host/capability') {
+        if (request.method !== 'POST') return new Response('Method refused', {status:405});
+        const body = await request.text();
+        if (Buffer.byteLength(body) > 256000) return new Response('Host request too large', {status:413});
+        const {capability, operation, input} = JSON.parse(body);
+        const routes: Record<string,string> = {agent:'point-agent',insights:'insights',connectors:'connectors',automation:'automation','research-assets':'research-assets'};
+        if (!Object.hasOwn(routes, capability) || typeof operation !== 'string' || !input || typeof input !== 'object' || Array.isArray(input)) return new Response('Host capability unavailable', {status:403});
+        const target = new URL(`/host/${routes[capability]}`, request.url);
+        return this.serve(new Request(target, {method:'POST',headers:request.headers,body:JSON.stringify({...input,operation})}));
+      }
+      const sdkInputPrefix = `/api/apps/${url.hostname}/inputs/`;
+      if (url.pathname.startsWith(sdkInputPrefix)) {
+        return this.serve(new Request(new URL(`/host/inputs/${url.pathname.slice(sdkInputPrefix.length)}`, request.url), request));
+      }
       if(url.pathname.startsWith('/host/inputs/')){
         if(request.method!=='GET'||!this.input||!/^\/host\/inputs\/[a-f0-9]{64}$/.test(url.pathname))return new Response('App input unavailable',{status:404});
         const file=await this.input(url.hostname,url.pathname.split('/').at(-1)!);
