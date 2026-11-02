@@ -1,7 +1,6 @@
 import { translate } from '../../locales';
 import type { HostEvent } from './bootstrap';
-
-type Preparation = { name: string; phase: 'checking' | 'creating' | 'installing' | 'ready' | 'failed'; message: string };
+import type { AppPreparation as Preparation } from '../../protocol/generated/host';
 
 /** Installation has its own status, independent of the App iframe readiness timer. */
 export function mountAppPreparation(command: (value: object) => Promise<void>, chinese: () => boolean) {
@@ -16,7 +15,7 @@ export function mountAppPreparation(command: (value: object) => Promise<void>, c
     if (!record) return;
     const { value, log } = record;
     const t = (key: Parameters<typeof translate>[1]) => translate(chinese() ? 'zh-CN' : 'en', key);
-    const busy = value.phase !== 'ready' && value.phase !== 'failed';
+    const busy = !['required', 'ready', 'failed'].includes(value.phase);
     const expanded = region.querySelector('details')?.open ?? false;
     region.replaceChildren();
     const header = document.createElement('div'); header.className = 'app-preparation-header';
@@ -29,19 +28,20 @@ export function mountAppPreparation(command: (value: object) => Promise<void>, c
     if (busy) {
       const progress = document.createElement('progress'); progress.setAttribute('aria-label', status.textContent); region.append(progress);
     }
-    if (value.phase !== 'ready') { const message = document.createElement('p'); message.textContent = value.message; region.append(message); }
+    if (value.phase !== 'ready') { const message = document.createElement('p'); message.textContent = value.phase === 'required' ? t('apps.env_notice') : value.message; region.append(message); }
     const details = document.createElement('details'); details.open = expanded || value.phase === 'failed';
     const summary = document.createElement('summary'); summary.textContent = t('apps.env_log');
     const output = document.createElement('pre'); output.textContent = log.join('\n');
     details.append(summary, output); region.append(details);
-    if (value.phase === 'failed') {
-      const retry = document.createElement('button'); retry.textContent = t('apps.env_retry');
-      retry.onclick = () => { retry.disabled = true; void command({ action: 'apps_enable', name: value.name }); };
+    if (value.phase === 'failed' || value.phase === 'required') {
+      const retry = document.createElement('button'); retry.textContent = t(value.phase === 'required' ? 'apps.env_prepare' : 'apps.env_retry');
+      retry.onclick = () => { retry.disabled = true; void command({ action: 'apps_prepare', name: value.name }); };
       region.append(retry);
     }
   };
   return {
-    event(event: HostEvent) {
+    get(name?: string) { return name ? records.get(name)?.value : undefined; },
+    event(event: HostEvent, showRequired = true) {
       if (event.kind !== 'apps_preparation') return;
       const value = event.data as Preparation;
       const previous = records.get(value.name);
@@ -51,7 +51,7 @@ export function mountAppPreparation(command: (value: object) => Promise<void>, c
       records.set(value.name, { value, log }); selected = value.name;
       // A cached check does not flash a window on every App open. Show only
       // work that takes time, or a failure requiring the user's attention.
-      if (value.phase === 'creating' || value.phase === 'installing' && previous?.value.phase !== 'installing' || value.phase === 'failed') region.hidden = false;
+      if (value.phase === 'creating' || value.phase === 'installing' && previous?.value.phase !== 'installing' || value.phase === 'failed' || value.phase === 'required' && showRequired || value.phase === 'checking' && previous?.value.phase === 'required') region.hidden = false;
       render();
     },
   };

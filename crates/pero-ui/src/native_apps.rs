@@ -175,7 +175,7 @@ impl NativeApps {
                     let fields = match action {
                         "list" => json!({}),
                         "install" => json!({"path":value["path"]}),
-                        "enable" | "disable" | "uninstall" => json!({"name":value["name"]}),
+                        "prepare" | "enable" | "disable" | "uninstall" => json!({"name":value["name"]}),
                         _ => anyhow::bail!("Unsupported App action"),
                     };
                     event.data = this.request(action, fields)?;

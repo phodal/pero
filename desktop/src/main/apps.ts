@@ -167,7 +167,7 @@ export class DesktopApps {
     }
     try {
       const action = command?.action?.replace(/^apps_/, '');
-      if (!['list', 'install', 'enable', 'disable', 'uninstall', 'open'].includes(action || '')) throw new Error('Unsupported App action');
+      if (!['list', 'install', 'prepare', 'enable', 'disable', 'uninstall', 'open'].includes(action || '')) throw new Error('Unsupported App action');
       if (command.name !== undefined && (command.name.length > 64 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(command.name))) throw new Error('Invalid App name');
       if (action === 'open') {
         if (!command.name) throw new Error('Choose an App first');
