@@ -21,6 +21,7 @@ go_library(
 go_test(
     name = "nativetools_test",
     srcs = [
+        "claude_test.go",
         "research_clone_test.go",
         "sandbox_test.go",
         "tools_test.go",
