@@ -19,6 +19,12 @@ Task/Run 与远程 App 部署尚未与此机制连接。
 App 安装和执行仅依赖 Pero 自身的 App SDK、Host 与声明式后端协议；
 不需要外部 Point SDK checkout、兼容运行包或 Project 二进制。
 
+[ADR 0027](adr/0027-app-agent-plugins.md) 增加独立的 App Agent Plugin 声明、
+本地插件依赖与会话装配。App 声明领域指引、现有写入工具白名单和连接内调用预算；
+独立插件包提供 Skills 与 MCP。Rust Host 安装缺失的本地依赖、保留用户停用选择，
+并为 App 会话冻结指引与 MCP 配置。共享 App Use 适配器执行工具准入，ACP 继续
+拥有会话与 MCP 生命周期；不引入 Point runtime 或通用模块插件加载器。
+
 [ADR 0025](adr/0025-connectors-app.md) 将 Connectors 管理界面作为 Workbench App
 接入。App 声明 `connectors` 权限，Rust Host 校验其启用状态；Electron Main
 和 Native 壳装配同一个管理器、系统凭据与便携 MCP 驱动。Native 经私有 stdio

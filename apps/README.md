@@ -47,6 +47,87 @@ The Host supplies `PERO_APP_DATA` for durable domain data and owns the process.
 Do not print the token or put it in responses. Domain data is outside the package
 and survives uninstall. The Python backend remains trusted machine-local code.
 
+## Agent Plugins
+
+An App can declare instructions and a subset of its existing `contributes.writes`
+for its Host conversation:
+
+```json
+{
+  "permissions": { "host": ["agent", "agent-plugin"] },
+  "requiresAgentPlugins": ["literature"],
+  "contributes": {
+    "panels": [{ "id": "main", "title": "Research", "entry": "dist/index.html" }],
+    "writes": [{ "name": "save", "description": "Save findings", "path": "/api/findings", "schema": { "type": "object" } }],
+    "agentPlugin": {
+      "schema": "pero.app-agent-plugin.v1",
+      "instructions": "Read the selected sources, cite exact evidence, and save findings with the save tool.",
+      "tools": ["save"],
+      "maxCalls": 12
+    }
+  },
+  "backend": { "type": "python", "entry": "backend/server.py" }
+}
+```
+
+These fields extend the ordinary App identity/version manifest. Tool names refer
+to this App's declared writes; the Host owns routing and credentials. The budget
+counts dispatched App data writes for this ACP connection, including failed
+calls, across turns and cancellation. Existing writes remain available through
+normal App Use in ordinary conversations. App UI automation and separate MCP
+servers retain their existing policies.
+
+An independent plugin package contains a versioned `plugin.json`:
+
+```json
+{
+  "schemaVersion": 1,
+  "name": "literature",
+  "version": "1.0.0",
+  "instructions": "Preserve source identifiers when reporting evidence.",
+  "skills": ["skills/citations/SKILL.md"],
+  "mcpServers": [{
+    "name": "literature-search",
+    "command": "/absolute/path/to/node",
+    "args": ["{pluginRoot}/search.mjs"],
+    "env": []
+  }]
+}
+```
+
+`mcpServers` uses ACP's stdio, HTTP or SSE declarations. Stdio has no `type` field;
+HTTP/SSE declare `type`, `name`, `url` and `headers`. `{pluginRoot}` in stdio
+commands/arguments resolves to the durable installed package directory. Commands
+are absolute paths or `{pluginRoot}/…`. No package setup command runs. Only
+declared Skill files enter the prompt with their installed source paths so
+relative resources can be resolved. Adjacent resources stay in the installed
+package. Plugins are trusted local executable packages, like App backends.
+
+Bundle missing dependencies under your App's `agent-plugins/literature/`, or
+install independently through the trusted Host stdio API:
+
+```json
+{"method":"apps","id":"install-plugin","action":"plugininstall","path":"/absolute/path/to/literature"}
+{"method":"apps","id":"list-plugins","action":"pluginlist"}
+{"method":"apps","id":"disable-plugin","action":"pluginenable","name":"literature","enabled":false}
+```
+
+Enable/preparation installs only missing dependencies into the profile's
+`agent-plugins` directory. Existing packages and disabled choices are preserved;
+missing/disabled dependencies block enable or session creation with an explicit
+error. Re-enable with `pluginenable` and `enabled:true`, then start a new App
+conversation. Disabling an App or dependency closes dependent live connections.
+
+App conversations created through shared Chat or `useAppAgent` receive frozen
+instructions, Skill contents and MCP configuration. Ordinary conversations do
+not inherit them. A declared App plugin with tools requires Desktop's App Use
+endpoint and an Agent supporting MCP HTTP. Replay does not remount tools. Local
+package installation, dependency resolution and ACP assembly are Pero-owned;
+there is no Point runtime dependency or remote plugin marketplace.
+
+See [the decision](../docs/adr/0027-app-agent-plugins.md) and
+[verification](../docs/fitness/app-agent-plugins.md).
+
 ## Python environments
 
 The Host prepares Python environments before enabling or starting an App backend.
