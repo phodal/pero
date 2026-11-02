@@ -57,6 +57,7 @@ fn launch_with_access(
 ) -> (SessionHandle, mpsc::Receiver<HostEvent>, Workspace) {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let config = AgentConfig {
+        session_instructions: String::new(),
         managed_mcp: None,
         id: "fixture".into(),
         name: "Lifecycle fixture".into(),
