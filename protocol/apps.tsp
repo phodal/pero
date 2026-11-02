@@ -56,6 +56,7 @@ model PointOpenReply {sessionId:string;...AppClosed}
 model PointWorkspace {workspaceId:string;title:string;path:string;...AppClosed}
 model PointHarness {id:string;name:string;available:boolean;...AppClosed}
 model PointCatalogReply {items:(PointWorkspace|PointHarness)[];...AppClosed}
+model PrepareApp { action: "prepare"; name: AppName; ...RequestBase; }
 model EnableApp { action: "enable"; name: AppName; ...RequestBase; }
 model DisableApp { action: "disable"; name: AppName; ...RequestBase; }
 model UninstallApp { action: "uninstall"; name: AppName; ...RequestBase; }
@@ -98,11 +99,11 @@ model AppSessionBinding { app: AppName; requestId: string; agentId: string; prom
 model AutomationApiRequest {method:"GET"|"POST"|"PUT"|"DELETE";path:string;body?:unknown;...AppClosed}
 model AutomationApp {action:"automation";name:AppName;request:AutomationApiRequest;...RequestBase}
 model AutomationApiReply {status:uint16;body:unknown;...AppClosed}
-@oneOf union AppRequest { ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, PointAgent, PointCatalog, EnableApp, DisableApp, UninstallApp, ResolveApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
+@oneOf union AppRequest { ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, PointAgent, PointCatalog, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
 model AppGrant { permitted: true; ...AppClosed; }
 model AppSuccess { ok: true; value: PointRun | PointTranscript | PointLookupReply | PointOpenReply | PointCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }
 
 /** Dependency preparation is separate from backend startup. */
-model AppPreparation { name: AppName; phase: "checking" | "creating" | "installing" | "ready" | "failed"; message: string; ...AppClosed; }
+model AppPreparation { name: AppName; phase: "required" | "checking" | "creating" | "installing" | "ready" | "failed"; message: string; ...AppClosed; }
