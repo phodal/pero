@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "openfoam-poiseuille-v1",
+  "name": "OpenFOAM pipe flow on Slurm",
+  "version": "0.1.0",
+  "availability": "environment-unavailable",
+  "executionKind": "slurm-mpi",
+  "reason": "Requires an approved Slurm site, account/partition, compatible OpenFOAM and MPI environment, a versioned case and real-site acceptance. The current App does not submit this benchmark.",
+  "spec": {"reynoldsNumber": 100},
+  "thresholds": {"massImbalanceMax": 0.001, "pressureDropRelativeErrorMax": 0.02}
+}
