@@ -1,6 +1,8 @@
 // Real Rust Host/stdio, repository-owned synthetic manifests and ACP fixture.
 // No external SDK, private source or provider.
 import assert from 'node:assert/strict';
+import { build } from 'esbuild';
+import { createScopedApi } from '../../packages/app-sdk/src/core.mjs';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { mkdtemp,mkdir,writeFile,readFile,rm } from 'node:fs/promises';
@@ -12,12 +14,12 @@ const root=resolve(import.meta.dirname,'../..');
 const temp=await mkdtemp(resolve(tmpdir(),'pero-agent-runs-'));
 const capture=resolve(temp,'acp.jsonl'),registry=resolve(temp,'agents.json');
 await writeFile(registry,JSON.stringify([{id:'fixture',name:'Synthetic compatibility fixture',command:process.execPath,args:[resolve(root,'tests/fixtures/scientific-agent.mjs'),`--capture=${capture}`]}]));
-const processes=[];let host;
+const processes=[];let host,desktop;
 async function launch(){
  const child=spawn(process.env.PERO_HOST_EXECUTABLE??resolve(root,'target/debug/pero-host'),['--stdio'],{cwd:temp,env:{...process.env,PERO_APPS_ROOT:resolve(temp,'apps'),PERO_BUILTIN_APPS_ROOT:'',PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_AGENTS_FILE:registry,PERO_NODE_BINARY:process.execPath},stdio:['pipe','pipe','inherit']});processes.push(child);
  const pending=new Map(),events=[];const ended=new Promise(done=>child.once('exit',done));
- createInterface({input:child.stdout}).on('line',line=>{const event=JSON.parse(line);events.push(event);if(event.kind==='apps_result')pending.get(event.request_id)?.(event.data);});
- return {events,async request(action,fields={}) {const id=randomUUID();return new Promise((done,reject)=>{const timer=setTimeout(()=>{pending.delete(id);reject(new Error('Host timeout: '+action));},20000);pending.set(id,value=>{pending.delete(id);clearTimeout(timer);done(value);});child.stdin.write(JSON.stringify({method:'apps',action,id,...fields})+'\n');});},async close(){child.stdin.end();await ended;}};
+ createInterface({input:child.stdout}).on('line',line=>{const event=JSON.parse(line);events.push(event);desktop?.accept(event);if(event.kind==='apps_result')pending.get(event.request_id)?.(event.data);});
+ return {events,write:command=>child.stdin.write(JSON.stringify(command)+'\n'),async request(action,fields={}) {const id=randomUUID();return new Promise((done,reject)=>{const timer=setTimeout(()=>{pending.delete(id);reject(new Error('Host timeout: '+action));},20000);pending.set(id,value=>{pending.delete(id);clearTimeout(timer);done(value);});child.stdin.write(JSON.stringify({method:'apps',action,id,...fields})+'\n');});},async close(){child.stdin.end();await ended;}};
 }
 const until=async(observe,accept)=>{const deadline=Date.now()+15000;while(Date.now()<deadline){const value=await observe();if(accept(value))return value;await delay(20);}throw new Error('Pero Agent condition timed out');};
 const turns=async()=>{try{return(await readFile(capture,'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);}catch(error){if(error.code==='ENOENT')return[];throw error;}};
@@ -40,7 +42,7 @@ try{
 const server=createServer(async(req,res)=>{if(req.headers['x-pero-app-token']!==process.env.PERO_APP_TOKEN){res.writeHead(403).end();return;}let body='';for await(const chunk of req)body+=chunk;const input=JSON.parse(body);res.setHeader('Content-Type','application/json');res.end(JSON.stringify(input.target==='bad-output'?{wrong:true}:{source:input.target}));});server.listen(0,'127.0.0.1',()=>console.log(JSON.stringify({port:server.address().port})));`);
  const inputSchema={type:'object',properties:{target:{type:'string',minLength:1}},required:['target'],additionalProperties:false};
  const contextSchema={type:'object',properties:{source:{type:'string',minLength:1}},required:['source'],additionalProperties:false};
- await writeFile(resolve(preparedSource,'app.json'),JSON.stringify({schemaVersion:1,name:'prepared-agent',version:'1',displayName:'Prepared Agent',permissions:{host:['agent','agent-plugin'],api:['/api/prepare']},backend:{type:'node',entry:'server.mjs'},contributes:{panels:[{id:'main',title:'Prepared',entry:'dist/index.html'}],writes:[{name:'prepare',description:'Freeze source',path:'/api/prepare',schema:inputSchema},{name:'save',description:'Save result',path:'/api/save',schema:contextSchema}],agentPlugin:{schema:'pero.app-agent-plugin.v1',instructions:'Inspect frozen source',tools:['save'],maxCalls:3,prepareTool:'prepare',contextSchema}}}));
+ await writeFile(resolve(preparedSource,'app.json'),JSON.stringify({schemaVersion:1,name:'prepared-agent',version:'1',displayName:'Prepared Agent',permissions:{host:['agent','agent-plugin'],api:['/api/prepare','/api/apps/prepared-agent/inputs']},backend:{type:'node',entry:'server.mjs'},contributes:{panels:[{id:'main',title:'Prepared',entry:'dist/index.html'}],writes:[{name:'prepare',description:'Freeze source',path:'/api/prepare',schema:inputSchema},{name:'save',description:'Save result',path:'/api/save',schema:contextSchema}],agentPlugin:{schema:'pero.app-agent-plugin.v1',instructions:'Inspect frozen source',tools:['save'],maxCalls:3,prepareTool:'prepare',contextSchema}}}));
  const installedPrepared=await host.request('install',{path:preparedSource});assert.equal(installedPrepared.ok,true,installedPrepared.error);
  assert.equal((await host.request('enable',{name:'prepared-agent'})).ok,true);
  const prepare=async input=>host.request('agentrun',{name:'prepared-agent',request:{operation:'prepare',scope,input}});
@@ -51,6 +53,17 @@ const server=createServer(async(req,res)=>{if(req.headers['x-pero-app-token']!==
  const prepared=await prepare({target:'PAYMENT'});assert.equal(prepared.ok,true,prepared.error);assert.deepEqual(prepared.value.context,{source:'PAYMENT'});
  for(const input of [{target:''},{unexpected:true},{target:'bad-output'}]) assert.equal((await prepare(input)).ok,false);
  const foreignPrepare=await host.request('agentrun',{name:'prepared-agent',request:{operation:'prepare',scope:{workspaceId:'foreign'},input:{target:'PAYMENT'}}});assert.equal(foreignPrepare.ok,false);
+ await build({stdin:{contents:"export {DesktopApps} from './desktop/src/main/apps.ts';",resolveDir:root},bundle:true,platform:'node',format:'esm',outfile:resolve(temp,'desktop.mjs'),plugins:[{name:'app-network',setup(builder){builder.onResolve({filter:/^electron$/},()=>({path:'electron',namespace:'app-network'}));builder.onLoad({filter:/.*/,namespace:'app-network'},()=>({contents:'export const net = {fetch:globalThis.fetch};'}));}}]});
+ const {DesktopApps}=await import(resolve(temp,'desktop.mjs'));
+ desktop=new DesktopApps(command=>host.write(command),()=>{},async()=>undefined,async(app,token)=>{assert.equal(app,'prepared-agent');assert.equal(token,'a'.repeat(64));return{data:Buffer.from('frozen input'),name:'source.txt',mediaType:'text/plain'};});
+ const appFetch=(path,init)=>desktop.serve(new Request('pero-app://prepared-agent'+path,init));
+ const sdkInfo=await (await appFetch('/host/sdk')).json();assert.equal(sdkInfo.name,'prepared-agent');assert.deepEqual(sdkInfo.slots,['conversation']);assert(!JSON.stringify(sdkInfo).includes('token'));
+ const api=createScopedApi({appName:'prepared-agent',allowedApiPaths:sdkInfo.permissions.api,fetch:appFetch});
+ assert.deepEqual(await api.post('/api/prepare',{target:'ACCOUNTS'}),{source:'ACCOUNTS'});
+ const frozen=await api.readFile('/api/apps/prepared-agent/inputs/'+'a'.repeat(64));assert.equal(new TextDecoder().decode(frozen),'frozen input');
+ assert.equal((await appFetch('/api/private')).ok,false);
+ const capability=await appFetch('/host/capability',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({capability:'agent',operation:'prepare',input:{scope,input:{target:'SAVINGS'}}})});
+ assert.equal(capability.ok,true,await capability.clone().text());assert.deepEqual(await capability.json(),{source:'SAVINGS'});
  const noContext=await host.request('agentrun',{name:'prepared-agent',request:{operation:'start',scope,requestId:randomUUID(),harnessId:'fixture',text:'Inspect source'}});assert.equal(noContext.ok,false);assert.match(noContext.error,/Prepare App context/);
  const metadata=await host.request('sdkcontext',{name:'prepared-agent'});assert.equal(metadata.ok,true);assert.equal(metadata.value.name,'prepared-agent');assert.deepEqual(metadata.value.permissions.host,['agent','agent-plugin']);assert(!JSON.stringify(metadata.value).includes('token'));
  const start={operation:'start',scope,requestId:randomUUID(),harnessId:'fixture',text:'science-wait'};
@@ -108,5 +121,5 @@ const server=createServer(async(req,res)=>{if(req.headers['x-pero-app-token']!==
  assert.equal((await host.request('agentcatalog',{name:'scientific-viewer',path:'/api/workspaces'})).ok,false);
  for(const operation of boundOperations())assert.equal((await host.request('agentrun',{name:'scientific-viewer',request:operation})).ok,false,operation.operation);
  for(const operation of [{operation:'events',sessionId:run.sessionId,after:0},{operation:'cancel',sessionId:run.sessionId}])assert.equal((await host.request('agent',{name:'scientific-viewer',request:operation})).ok,false);
- console.log('Pero Agent: ownership, scopes, frozen requests, cancellation, retries, aggregate events, exact-session selection, journal recovery, explicit ACP load, declaration/grant binding and legacy-route isolation passed.');
-}finally{if(host)await host.close();for(const child of processes)if(child.exitCode===null)child.kill();await rm(temp,{recursive:true,force:true});}
+ console.log('Pero SDK transport, preparation, binary grants, API admission; Agent: ownership, scopes, frozen requests, cancellation, retries, aggregate events, exact-session selection, journal recovery, explicit ACP load, declaration/grant binding and legacy-route isolation passed.');
+}finally{desktop?.close();if(host)await host.close();for(const child of processes)if(child.exitCode===null)child.kill();await rm(temp,{recursive:true,force:true});}
