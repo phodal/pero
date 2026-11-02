@@ -226,6 +226,18 @@ test('native reproduction fixture dispatches cancellation modes outside Electron
 });
 
 
+test('ordinary core runs source campaign contracts after dependencies without provider or Host launch', () => {
+  const { steps } = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8')).jobs.core;
+  const install = steps.findIndex(step => step.run === 'npm ci');
+  const contracts = steps.findIndex(step => step.name === 'Permission, cancellation and fixture contracts');
+  assert(install >= 0 && contracts > install);
+  const command = 'node --experimental-transform-types --test tests/runtime/paper-study/*.test.mjs tests/runtime/research-import/cleanup.test.mjs';
+  assert(steps[contracts].run.split('\n').includes(command));
+  assert.equal(steps[contracts].if, undefined);
+  assert.equal(steps[contracts]['continue-on-error'], undefined);
+  assert(!steps[contracts].run.includes('paper-study/run.mjs'));
+});
+
 test('public HTML corpus requires its own opt-in and exports only per-case summaries', () => {
   const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
   assert.equal(workflow.on.workflow_dispatch.inputs.paper_html_live.default, false);
