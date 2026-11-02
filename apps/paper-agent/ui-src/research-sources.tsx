@@ -24,10 +24,10 @@ const sourceStatus: Record<SourceDownload['status'], string> = {
   denied: 'Source access denied', failed: 'Source acquisition failed', cancelled: 'Source acquisition cancelled', interrupted: 'Source acquisition interrupted by restart',
 };
 
-export function ResearchSources({ api, bundle, startSourceIds, onRead, onAutoQueueComplete, onState }: {
-  api: Api; bundle: ResearchBundle; startSourceIds: string[]; onState?(state: { settled: boolean; available: boolean }): void; onAutoQueueComplete?(): void; onRead(id: string, focus?: PdfFocus): void;
+export function ResearchSources({ api, bundle, startSourceIds, onRead, onAutoQueueComplete, onState, scopedIds }: {
+  api: Api; bundle: ResearchBundle; startSourceIds: string[]; scopedIds?: string[]; onState?(state: { settled: boolean; available: boolean }): void; onAutoQueueComplete?(): void; onRead(id: string, focus?: PdfFocus): void;
 }) {
-  const resources = bundle.resources.filter(r => r.kind === 'source_archive' && bundle.sourceDownloadIds?.includes(r.id));
+  const resources = bundle.resources.filter(r => r.kind === 'source_archive' && bundle.sourceDownloadIds?.includes(r.id) && (scopedIds === undefined || scopedIds.includes(r.id)));
   const [values, setValues] = useState<Record<string, SourceDownload>>({}), [open, setOpen] = useState<string | null>(null);
   const [queue, setQueue] = useState(() => startSourceIds.filter(id => resources.some(r => r.id === id)));
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState('');

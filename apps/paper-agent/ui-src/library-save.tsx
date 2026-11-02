@@ -97,8 +97,8 @@ export function LibrarySave({ api, paper, t, onClose, onSaved, onRead, onError }
     </>}
     {selection && <>
       {selection.bundle && <>
-        {sourceEnabled && selection.sourceResourceId && <ResearchSources api={api} bundle={selection.bundle} startSourceIds={selection.sourceResourceId ? [selection.sourceResourceId] : []} onState={sourceState} onRead={onRead}/>}
-        <ResearchPdfDownloads api={api} bundle={selection.bundle} startPdfIds={selection.pdfResourceId ? [selection.pdfResourceId] : []} onAvailable={pdfState} onRead={onRead}/>
+        {sourceEnabled && selection.sourceResourceId && <ResearchSources api={api} bundle={selection.bundle} startSourceIds={[selection.sourceResourceId]} scopedIds={[selection.sourceResourceId]} onState={sourceState} onRead={onRead}/>}
+        {selection.pdfResourceId && <ResearchPdfDownloads api={api} bundle={selection.bundle} startPdfIds={[selection.pdfResourceId]} scopedIds={[selection.pdfResourceId]} onAvailable={pdfState} onRead={onRead}/>}
       </>}
       {saved && <p role="status">{saved}</p>}
       <Button variant="primary" busy={busy} disabled={busy || !sourceSettled || !pdfReady} onClick={() => void exportCopies()}>{t(sourceReady ? 'saveExport' : 'saveExportPdf')}</Button>

@@ -19,8 +19,9 @@ await build({ stdin: { contents: source, loader: 'tsx', resolveDir: root }, outf
   format: 'esm', platform: 'browser', jsx: 'automatic', loader: { '.wasm': 'file' },
   alias: { react: resolve(app, 'node_modules/react'), 'react-dom': resolve(app, 'node_modules/react-dom'), '@pero/app-sdk/ui': resolve(root, 'packages/app-sdk/src/ui.tsx'), '@pero/app-sdk': resolve(root, 'packages/app-sdk/src/index.tsx') }, nodePaths: [resolve(app, 'node_modules')] });
 const operations = [], unexpectedRequests = []; let releaseOld, releaseInspection, sourceStatus='not_started', lookupFailures=1, sourceStarts=0, finishSource=false;
-const bundle={id:'retry-bundle',seedUrl:'https://example.org/retry.pdf',title:'Retry source',resources:[{id:'source',kind:'source_archive',title:'TeX source'}],sourceDownloadIds:['source'],pdfDownloadIds:[],downloadIds:[]};
-const scannedBundle={id:'scanned-bundle',seedUrl:'https://example.org/scanned.pdf',title:'Image-only PDF',resources:[{id:'pdf',kind:'pdf_candidate',title:'Image-only PDF'}],sourceDownloadIds:[],pdfDownloadIds:['pdf'],downloadIds:[]};
+const historical=[{id:'old-pdf',kind:'pdf_candidate',title:'Historical cancelled PDF'},{id:'old-source',kind:'source_archive',title:'Historical cancelled source'}];
+const bundle={id:'retry-bundle',seedUrl:'https://example.org/retry.pdf',title:'Retry source',resources:[...historical,{id:'source',kind:'source_archive',title:'TeX source'}],sourceDownloadIds:['old-source','source'],pdfDownloadIds:['old-pdf'],downloadIds:[]};
+const scannedBundle={id:'scanned-bundle',seedUrl:'https://example.org/scanned.pdf',title:'Image-only PDF',resources:[...historical,{id:'pdf',kind:'pdf_candidate',title:'Image-only PDF'}],sourceDownloadIds:['old-source'],pdfDownloadIds:['old-pdf','pdf'],downloadIds:[]};
 const ready = id => ({ status: 'ready', reviewId: id+'-review', paperId:id, documentId:id+'-doc', version:null,
   pdf:{available:true,cached:true,license:null,size:128},tex:{available:false,license:null,size:null,reason:'Version unknown; TeX cannot be paired.'},warnings:['Version unknown; TeX cannot be paired.'] });
 const server = createServer(async (req,res) => {
@@ -32,7 +33,9 @@ const server = createServer(async (req,res) => {
   }
   let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);operations.push({path:req.url,...body});
   const id=req.url.split('/')[3];let value;
-  if(req.url==='/api/research/pdf') {
+  if(['/api/research/pdf','/api/research/source'].includes(req.url)&&['old-pdf','old-source'].includes(body.resourceId)) {
+    assert.equal(body.operation,'status');value={id:body.resourceId,status:'cancelled',stage:'discovered',error:'',localAvailable:false,receipt:null};
+  } else if(req.url==='/api/research/pdf') {
     assert.equal(body.bundleId,'scanned-bundle');assert.equal(body.resourceId,'pdf');assert.equal(body.operation,'status');
     value={id:'pdf',bundleId:'scanned-bundle',resourceId:'pdf',status:'completed',stage:'readable',error:'',localAvailable:true,readPages:[],receipt:{sourcePageUrl:'https://example.org/scanned.pdf',requestUrl:'https://example.org/scanned.pdf',finalUrl:'https://example.org/scanned.pdf',fetchedAt:'fixture',fileDigest:'fixture',size:128,pageCount:1,documentId:'scanned-doc',paperId:'scanned-local',explicitVersion:'fixture',textPages:0,textCharacters:0,extractionWarnings:['This PDF has no selectable text. OCR is unavailable.'],workIdentity:null,identityStatus:'unresolved'}};
   } else if(req.url==='/api/research/source') {
@@ -91,6 +94,7 @@ try {
   await dialog.getByRole('button',{name:'Export copies',exact:true}).click();
   await expect(dialog.getByText('Saved the PDF and TeX source in ~/.pero/paper',{exact:true})).toBeVisible();
   assert.equal(operations.filter(value=>value.path==='/api/papers/retry/files'&&value.operation==='export').length,2);
+  await expect(dialog.getByText(/Historical cancelled/)).toHaveCount(0);
   await dialog.getByRole('button',{name:'Close',exact:true}).click();await page.evaluate(()=>window.openPaper('scanned'));
   await dialog.getByRole('button',{name:'Confirm',exact:true}).click();
   await expect(dialog.getByText('PDF saved; no selectable text. OCR unavailable.',{exact:true})).toBeVisible();
@@ -99,5 +103,7 @@ try {
   await expect(dialog.getByRole('button',{name:'Export copies',exact:true})).toBeEnabled();
   await dialog.getByRole('button',{name:'Export copies',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>window.savedPaper)).toBe('scanned');
+  await expect(dialog.getByText(/Historical cancelled/)).toHaveCount(0);
+  assert(!operations.some(value=>['old-pdf','old-source'].includes(value.resourceId)), 'current confirmation must not poll, start or cancel historical grants');
   assert.deepEqual(errors,[]);assert.deepEqual(unexpectedRequests,[]);console.log('Library save component: cancel/no implicit PDF fetch, stale review, original request identity, inspection cancel passed.');
 } finally {await browser?.close();await new Promise(resolve=>server.close(resolve));await rm(output,{recursive:true,force:true});}

@@ -15,10 +15,10 @@ type PdfDownload = {
 };
 
 /** Project saved consent and Paper's PDF lifecycle; never infer consent from a link. */
-export function ResearchPdfDownloads({ api, bundle, startPdfIds, onRead, waitForSources = false, onAvailable }: {
-  api: Api; bundle: ResearchBundle; startPdfIds: string[]; waitForSources?: boolean; onAvailable?(available: boolean): void; onRead(id: string): void;
+export function ResearchPdfDownloads({ api, bundle, startPdfIds, onRead, waitForSources = false, onAvailable, scopedIds }: {
+  api: Api; bundle: ResearchBundle; startPdfIds: string[]; scopedIds?: string[]; waitForSources?: boolean; onAvailable?(available: boolean): void; onRead(id: string): void;
 }) {
-  const resources = bundle.resources.filter(resource => resource.kind === 'pdf_candidate' && bundle.pdfDownloadIds?.includes(resource.id));
+  const resources = bundle.resources.filter(resource => resource.kind === 'pdf_candidate' && bundle.pdfDownloadIds?.includes(resource.id) && (scopedIds === undefined || scopedIds.includes(resource.id)));
   const [values, setValues] = useState<Record<string, PdfDownload>>({});
   const [queue, setQueue] = useState(() => startPdfIds.filter(id => resources.some(resource => resource.id === id)));
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState('');
