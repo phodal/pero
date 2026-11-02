@@ -14,7 +14,7 @@ import {
   SquareTerminal, Sun, Sunset, Table, Target, Terminal, TestTubes, TextQuote, Trash, TriangleAlert,
   Undo2, Upload, User, UserRound, Video, Webhook, Workflow, X,
   AppWindow, Car, FileCode, GraduationCap, LayoutTemplate, Smartphone,
-  Boxes, Cable, MapPin, Microscope, Palette, Wayperos,
+  Boxes, Cable, MapPin, Microscope, Palette, Waypoints,
   DraftingCompass, Tv, WandSparkles,
 } from 'lucide-react';
 
@@ -133,7 +133,7 @@ export const uiIcons = {
   research: GraduationCap,
   welcome: Sparkles,
   calendar: Calendar,
-  wayperos: Wayperos,
+  waypoints: Waypoints,
   microscope: Microscope,
   cable: Cable,
   palette: Palette,

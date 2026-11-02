@@ -1,12 +1,12 @@
 /* GENERATED from structure.json + themes/*.json by generate.mjs. Do not edit by hand. */
-/* Pero design tokens v3. Palette and semantic roles follow the Pero Color Tokens v2.0 six-color reference. */
+/* Point design tokens v3. Palette and semantic roles follow the Pero Color Tokens v2.0 six-color reference. */
 /* - Muted borders (border-subtle) are decorative; input outlines use border-control. */
 /* - Pero v2 has six core families in PPT order: navy, mint, red, orange, amber, violet. Blue/green and categorical-7/8 are compatibility aliases, not additional series. */
 /* - Charts draw on chart-surface with chart-1..6. */
 /* - Colour alone must not convey a series or a status: pair it with text, an icon or a pattern. */
 /* - Domain colours (--pero-domain-*) carry app meaning (map layers, signals, CAD, CPK); themes may override them, conventions should not be. */
 
-/* theme pero-light (light) — Pero Light */
+/* theme pero-light (light) — Point Light */
 :root,
 [data-theme="light"],
 [data-theme="pero-light"],
@@ -475,7 +475,7 @@
   --pero-domain-dsh-go-web-pero-connectors-guide-art-browser: #6090e0;
   --pero-domain-dsh-go-web-pero-connectors-guide-art-computer: #48a879;
   --pero-domain-dsh-go-web-pero-connectors-guide-art-mobile: #bd884a;
-  --pero-domain-dsh-go-web-pero-connectors-symbol-has-pero: #00000014;
+  --pero-domain-dsh-go-web-pero-connectors-symbol-has-point: #00000014;
   --pero-domain-dsh-go-web-pero-details-backdrop-bg: #0002;
   --pero-domain-dsh-go-web-pero-inbox-step-mark-text: white;
   --pero-domain-dsh-go-web-pero-navigation-pero-project-content: #0001;
@@ -493,7 +493,7 @@
   --pero-domain-dsh-go-web-pero-templates-mock-line-bg: #4a4b4e;
   --pero-domain-dsh-go-web-pero-templates-mock-title-bg: #f4b942;
   --pero-domain-dsh-go-web-pero-templates-tone-brand-bg: #173b63;
-  --pero-domain-dsh-go-web-pero-templates-tone-brand-pero: #5c86ac;
+  --pero-domain-dsh-go-web-pero-templates-tone-brand-point: #5c86ac;
   --pero-domain-dsh-go-web-pero-ui-menu-pero-ui-1: rgb(15 18 25 / .16);
   --pero-domain-dsh-go-web-pero-ui-menu-pero-ui-2: rgb(15 18 25 / .12);
   --pero-domain-dsh-go-web-pulse-ok: #2e7d4f;

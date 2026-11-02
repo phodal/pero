@@ -198,7 +198,7 @@ body[data-style="compact"],
   --pero-control-radius: var(--pero-radius-sm);
 }
 
-/* style pero-default — Pero */
+/* style pero-default — Point */
 [data-style="pero-default"],
 body[data-style="pero-default"],
 [data-style="pero-default"] body:where(:not([data-style])) {
@@ -274,7 +274,7 @@ body[data-style="pero-default"],
 }
 
 /* Deprecated aliases (public to apps; add, never remove). Declared on body so they
-   override the upstream DSH theme and resolve against the active Pero theme. */
+   override the upstream DSH theme and resolve against the active Point theme. */
 :root body,
 :root body[data-ds-dark-theme],
 [data-theme] {
