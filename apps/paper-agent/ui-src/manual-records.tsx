@@ -24,6 +24,7 @@ export function ManualRecords({ api, library, paper }: { api: Api; library: Libr
   const [decisions, setDecisions] = useState<Decision[]>([]), [evidence, setEvidence] = useState<Evidence[]>([]);
   const [opened, setOpened] = useState<RecordRevision | null>(null), [impact, setImpact] = useState<Impact | null>(null), [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
+  const form = useRef<HTMLFormElement>(null);
   const mounted = useRef(true), pending = useRef(false), epoch = useRef(0);
   const request = <T,>(body: object) => api.post<T>('/api/research/record', body);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; epoch.current++; }; }, []);
@@ -67,6 +68,10 @@ export function ManualRecords({ api, library, paper }: { api: Api; library: Libr
     if (!mounted.current) return;
     setRecords(items => [result, ...items.filter(item => item.id !== result.id)]); setEditing(false); await open(result); setMessage('Revision saved. Earlier records are unchanged.');
   }
+  function submit() {
+    // App frames deliberately omit allow-forms; validate without native submission.
+    if (valid && form.current?.reportValidity()) void act(save);
+  }
   const visible = records.filter(record => !paper || record.paperIds.includes(paper.id));
   const title = (id: string) => library.papers.find(item => item.id === id)?.title ?? 'Unavailable paper';
   const valid = question.trim() && scope.trim() && inclusion.trim() && exclusion.trim() && decisions.length && decisions.every(item => item.reason.trim());
@@ -77,7 +82,11 @@ export function ManualRecords({ api, library, paper }: { api: Api; library: Libr
     {message && <p role="status">{message}</p>}
     {!editing && <Button disabled={busy || loading || !library.papers.length} onClick={() => edit()}>New record</Button>}
     {!loading && !visible.length && <p>No records for this paper. Save a question and screening reasons to begin.</p>}
-    {editing && <form onSubmit={event => { event.preventDefault(); void act(save); }}>
+    {editing && <form ref={form} onSubmit={event => { event.preventDefault(); submit(); }} onKeyDown={event => {
+      if (event.key === 'Enter' && event.target instanceof HTMLInputElement && event.target.type === 'text') {
+        event.preventDefault(); if (!event.nativeEvent.isComposing) submit();
+      }
+    }}>
       <fieldset disabled={busy}><legend>{parentId ? 'Revise question and scope' : 'New question and scope'}</legend>
         <label>Question<Input required maxLength={2000} value={question} onChange={event => setQuestion(event.target.value)}/></label>
         <label>Scope<Textarea required maxLength={4000} rows={2} value={scope} onChange={event => setScope(event.target.value)}/></label>
@@ -119,7 +128,7 @@ export function ManualRecords({ api, library, paper }: { api: Api; library: Libr
           <label>Review decision<select value={review} onChange={event => setReview(event.target.value)}><option value="">No review recorded</option><option value="needs_review">Needs review</option><option value="accepted">Accepted by me</option><option value="rejected">Rejected by me</option></select></label>
           {review && <label>Review reason<Textarea required maxLength={2000} rows={2} value={reviewNote} onChange={event => setReviewNote(event.target.value)}/></label>}
         </details>
-        <div className="pa-actions"><Button type="submit" disabled={!valid}>{busy ? 'Saving…' : 'Save revision'}</Button><Button type="button" onClick={() => setEditing(false)}>Cancel</Button></div>
+        <div className="pa-actions"><Button type="button" disabled={!valid} onClick={submit}>{busy ? 'Saving…' : 'Save revision'}</Button><Button type="button" onClick={() => setEditing(false)}>Cancel</Button></div>
       </fieldset>
     </form>}
     {!!visible.length && <ul className="pa-manual-history">{visible.map(record => <li key={record.id}><Button variant="ghost" disabled={busy} aria-pressed={opened?.id === record.id} onClick={() => void act(() => open(record))}>{record.question}</Button><small>{record.createdAt}{record.parentId ? ' — revised' : ''}</small></li>)}</ul>}
