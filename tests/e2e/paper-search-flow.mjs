@@ -62,6 +62,12 @@ export async function exerciseLocalSearch({ frame, page, app, out }) {
   await search.locator('[data-search-hit]').first().getByRole('button').click();
   await expect(frame.getByRole('heading', { name: 'Synthetic reading · a reproducible citation example', exact: true })).toBeVisible();
   await frame.getByRole('button', { name: 'Back to library', exact: true }).click();
+  await exerciseSearchKeyboard({ frame, page, out });
+}
+
+export async function exerciseSearchKeyboard({ frame, page, out }) {
+  const search = frame.getByRole('region', { name: 'Search saved text', exact: true });
+  const input = search.getByRole('searchbox', { name: 'Search saved text', exact: true });
   let requests = 0;
   const observeSearch = request => { if (request.method() === 'POST' && request.url().endsWith('/api/library/search')) requests++; };
   page.on('request', observeSearch);

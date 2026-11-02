@@ -32,8 +32,8 @@ query and restore input focus. Enter inside the input still searches.
 
 The form-level Enter handler in `apps/paper-agent/ui-src/library-search.tsx`
 receives bubbled button key events, prevents default button activation, and
-calls `submit()`. The shared Button defaults to `type="button"`. The current
-`tests/e2e/paper-search-flow.mjs` covers mouse clearing but not keyboard clearing.
+calls `submit()`. The shared Button defaults to `type="button"`. Before this fix,
+`tests/e2e/paper-search-flow.mjs` covered mouse clearing but not keyboard clearing.
 
 ## Duplicate check
 
@@ -58,14 +58,34 @@ Acceptance:
 
 ## Verification boundary
 
-Paper TypeScript and App build pass. A macOS browser preview verifies Enter,
-Space and mouse clearing, restored input focus, and input Enter searching.
-The real Python backend's request logs show no extra search on clearing.
-The unused Reader asset is an explicit placeholder, and no model is called.
-Full Desktop regression and simulated composition acceptance are pending;
-no physical IME or cross-platform acceptance is claimed. Local screenshots
-live outside the source repository in `../evidence/paper-keyboard/`.
+Paper TypeScript, App build, and the core CI TypeScript/contracts/theme/design/
+locale checks pass. A macOS browser preview verifies Enter, Space and mouse
+clearing, restored input focus, and input Enter searching.
+
+The keyboard assertions in `tests/e2e/paper-search-flow.mjs` were also run in
+Electron with the App's iframe sandbox flags and the actual Python backend.
+They fail against the unchanged `78881615e37790b0a0b4635a197e18f974ea6867`
+bundle because Clear retains the query, and pass against the fixed bundle.
+They verify all three clear activations, focus/results, exact search request
+counts, and suppression of a simulated composing Enter. This focused shell
+does not include the Rust Host or the full Desktop journey.
+
+The full Paper Desktop journey completes all 17 checks with no unexpected
+page errors in a disposable profile, including import/search, PDF citations,
+and restart persistence. The local test entry prebinds an isolated CPython 3.12
+environment and waits for Host readiness before selecting the restart locale;
+the product assertions are unchanged. The unmodified test command is not
+claimed to pass: automatic environment preparation exceeds its opening timeout,
+and its restart locale selection can precede Host readiness.
+
+Host and Desktop are built locally. Unchanged Workbench/Reader assets come from
+the [successful upstream build](https://github.com/phodal/pero/actions/runs/41405598644)
+at the same `78881615` base; the Paper bundle is built locally with this fix.
+No physical IME, real model, or cross-platform acceptance is claimed. Local
+screenshots, the two-line setup patch, and logs live outside the source repository
+in `../evidence/paper-keyboard/`.
 
 Submitted as [Issue #101](https://github.com/phodal/pero/issues/101) on
 2026-11-02. The maintainer [invited a PR](https://github.com/phodal/pero/issues/101#issuecomment-6571697980).
+The fix is submitted as [PR #104](https://github.com/phodal/pero/pull/104).
 The GitHub issue remains open until the fix is accepted upstream.
