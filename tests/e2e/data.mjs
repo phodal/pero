@@ -1,10 +1,10 @@
-// Real Electron -> App SDK -> Host -> Data Python backend. Tiny local files only.
-// This is development workbench acceptance, not live source/model or installer acceptance.
+// Real Electron -> App SDK -> Host -> Data Python backend. Disposable local files only.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -18,7 +18,9 @@ const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(temp, 'desktop'), P
   PERO_AGENTS_FILE: agents, PERO_SETTINGS_PATH: resolve(temp, 'settings.json'), PERO_HISTORY_PATH: resolve(temp, 'history.jsonl') };
 delete env.ELECTRON_RUN_AS_NODE;
 delete env.PERO_APPS_ROOT;
-const csv = { name: 'measurements.csv', mimeType: 'text/csv', buffer: Buffer.from('time,voltage\n0,12.1\n1,12.2\n2,12.3\n') };
+const bytes = Buffer.from('id,value\n001,12.1\n002,\n001,12.1\n');
+const changed = Buffer.from('id,value\n' + Array.from({ length: 61 }, (_, i) => `${i + 10},${i + 20}`).join('\n') + '\n');
+const digest = value => createHash('sha256').update(value).digest('hex');
 const errors = [], requests = [], checks = [];
 let app, page, frame;
 const desktop = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
@@ -34,12 +36,10 @@ async function openData() {
     const canvas = document.querySelector('canvas');
     return canvas?.width === Math.round(innerWidth * devicePixelRatio) && canvas.height === Math.round(innerHeight * devicePixelRatio);
   });
-  // Data is a workspace-level sidebar entry, not a catalog App card.
   await clickAppShortcut(page, 'data');
   await expect.poll(async () => (await desktop()).activeContent).toEqual({ kind: 'app', value: { name: 'data', panel: 'main' } });
   frame = page.frameLocator('iframe[title="data"]');
-  await expect(frame.getByRole('button', { name: 'Add data', exact: true })).toBeVisible({ timeout: 20000 });
-  await expect.poll(async () => (await catalog()).sources.length).toBe(2);
+  await expect(frame.getByRole('button', { name: 'Add data', exact: true })).toBeEnabled({ timeout: 20000 });
 }
 async function launch() {
   app = await electron.launch({ args: [resolve(root, 'desktop')], cwd: root, env });
@@ -55,32 +55,97 @@ async function launch() {
 }
 async function close() {
   if (!app) return;
-  const current = app;
-  app = undefined;
+  const current = app; app = undefined;
   await current.close();
 }
 try {
   await launch();
   expect((await catalog()).assets).toEqual([]);
-  expect((await catalog()).download).toBeNull();
-  await expect(frame.getByRole('button', { name: 'servo-response.csv', exact: true })).toBeVisible();
-  await frame.getByRole('searchbox', { name: 'Search data' }).fill('motor');
-  await expect(frame.locator('tbody tr')).toHaveCount(1);
-  await expect(frame.locator('tbody')).toContainText('motor-telemetry.csv');
-  await frame.getByRole('button', { name: 'motor-telemetry.csv', exact: true }).click();
-  const preview = frame.getByRole('complementary', { name: 'Preview' });
-  await expect(preview).toContainText('motor-telemetry.csv');
-  await expect(preview).toContainText('72');
-  await expect(preview).toContainText('5');
-  await frame.getByRole('searchbox', { name: 'Search data' }).fill('');
+  await expect(frame.getByText('No data yet', { exact: true })).toBeVisible();
+  await expect(frame.getByRole('button', { name: 'servo-response.csv', exact: true })).toHaveCount(0);
   await frame.getByRole('button', { name: 'Add data', exact: true }).click();
   const dialog = frame.getByRole('dialog');
-  await dialog.locator('input[type="file"]').setInputFiles(csv);
+  await dialog.locator('input[type="file"]').setInputFiles({ name: 'measurements.csv', mimeType: 'text/csv', buffer: bytes });
+  await dialog.getByLabel('Project reference', { exact: true }).fill('control-lab');
+  await dialog.getByRole('button', { name: 'Import', exact: true }).press('Enter');
   await expect(dialog).toBeHidden();
-  await expect(frame.getByRole('button', { name: csv.name, exact: true })).toBeVisible();
-  expect((await catalog()).assets).toEqual([]);
-  expect((await catalog()).download).toBeNull();
-  checks.push('sample library, search, preview, and in-browser CSV add leave the catalog empty');
+  const first = await catalog(), v1 = first.assets[0], datasetId = first.datasets[0].id;
+  expect(first.assets).toHaveLength(1);
+  expect(v1.sha256).toBe(digest(bytes));
+  expect(relative(temp, v1.location)).not.toMatch(/^\.\./);
+  expect(await readFile(v1.location)).toEqual(bytes);
+  const preview = () => frame.getByRole('complementary', { name: 'Preview' });
+  await expect(preview().getByText('001', { exact: true })).toHaveCount(2);
+  await preview().getByRole('tab', { name: 'Fields', exact: true }).click();
+  await preview().getByLabel('Unit for value', { exact: true }).fill('V');
+  await preview().getByLabel('Unit for value', { exact: true }).press('Tab');
+  await expect(preview().getByLabel('Unit for value', { exact: true })).toHaveValue('V');
+  await preview().getByRole('tab', { name: 'Checks', exact: true }).click();
+  await expect(preview().locator('dt').filter({ hasText: /^Duplicate rows$/ }).locator('xpath=following-sibling::dd[1]')).toHaveText('1');
+  await expect(preview().locator('dt').filter({ hasText: /^Empty strings$/ }).locator('xpath=following-sibling::dd[1]')).toHaveText('1');
+  await preview().getByRole('tab', { name: 'Preview', exact: true }).click();
+  await preview().getByLabel('Filter field', { exact: true }).selectOption('id');
+  await preview().getByLabel('Contains', { exact: true }).fill('001');
+  await preview().getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect(preview().locator('.data-rows tbody tr')).toHaveCount(2);
+  await preview().getByLabel('View name', { exact: true }).fill('baseline');
+  await preview().getByRole('button', { name: 'Save view', exact: true }).click();
+  await expect.poll(async () => (await catalog()).views.length).toBe(1);
+  const saved = (await catalog()).views[0];
+  expect(saved).toMatchObject({ datasetId, assetId: v1.id, sha256: v1.sha256, view: { filterField: 'id', contains: '001', units: { value: 'V' } }, report: { rowCount: 3, duplicateRows: 1 } });
+  checks.push('explicit import persists exact bytes; literal IDs, field units, full-input checks and filtered saved view');
+
+  await preview().getByRole('button', { name: 'Add version', exact: true }).click();
+  await dialog.locator('input[type="file"]').setInputFiles({ name: 'measurements-v2.csv', mimeType: 'text/csv', buffer: changed });
+  await dialog.getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  const second = await catalog(), v2 = second.assets[0];
+  expect(second.datasets).toHaveLength(1);
+  expect(second.datasets[0]).toMatchObject({ id: datasetId, versions: [v1.id, v2.id], projectRef: 'control-lab' });
+  expect(v2.sha256).toBe(digest(changed));
+  expect(await readFile(v1.location)).toEqual(bytes);
+  await expect(preview().locator('.data-rows tbody tr')).toHaveCount(50);
+  await preview().getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(preview().locator('.data-rows tbody tr')).toHaveCount(11);
+  await expect(preview().locator('.data-rows tbody tr').first().locator('th')).toHaveText('51');
+  await preview().getByRole('tab', { name: 'History', exact: true }).click();
+  await preview().getByRole('button', { name: 'baseline', exact: true }).click();
+  await expect(preview().getByLabel('Version', { exact: true })).toHaveValue(v1.id);
+  await expect(preview().locator('.data-rows tbody tr')).toHaveCount(2);
+  await frame.getByLabel('Project filter', { exact: true }).selectOption('control-lab');
+  await frame.getByRole('searchbox', { name: 'Search data' }).fill('does-not-exist');
+  await expect(frame.getByText('No matches', { exact: true })).toBeVisible();
+  await frame.getByRole('searchbox', { name: 'Search data' }).fill('');
+  await expect(preview().getByLabel('Version', { exact: true })).toHaveValue(v1.id);
+  await preview().getByRole('tab', { name: 'History', exact: true }).click();
+  await preview().getByRole('button', { name: 'Archive dataset', exact: true }).click();
+  await preview().getByRole('button', { name: 'Confirm archive', exact: true }).click();
+  await expect.poll(async () => (await catalog()).datasets[0].archived).toBe(true);
+  await frame.getByRole('checkbox', { name: 'Archived', exact: true }).check();
+  await frame.getByRole('button', { name: 'measurements.csv', exact: true }).click();
+  await preview().getByRole('tab', { name: 'History', exact: true }).click();
+  await preview().getByRole('button', { name: 'Restore dataset', exact: true }).click();
+  await expect.poll(async () => (await catalog()).datasets[0].archived).toBe(false);
+  await frame.getByRole('checkbox', { name: 'Archived', exact: true }).uncheck();
+  checks.push('explicit v2 preserves v1; paginated records, pinned saved view, project filter and reversible archive');
+
+  await close();
+  await launch();
+  const reopened = await catalog();
+  expect(reopened.datasets[0]).toMatchObject({ id: datasetId, versions: [v1.id, v2.id], projectRef: 'control-lab' });
+  expect(reopened.views[0]).toEqual(saved);
+  await expect(frame.getByRole('button', { name: 'measurements.csv', exact: true })).toBeVisible();
+  await preview().getByRole('tab', { name: 'History', exact: true }).click();
+  await preview().getByRole('button', { name: 'baseline', exact: true }).click();
+  await expect(preview().locator('.data-rows tbody tr')).toHaveCount(2);
+  await writeFile(v1.location, Buffer.from(bytes.toString().replace('001', '009')));
+  await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect(preview().getByText('Original bytes no longer match the stored SHA-256', { exact: true })).toBeVisible();
+  await expect(preview().locator('.data-rows tbody tr')).toHaveCount(0);
+  expect((await catalog()).views[0]).toEqual(saved);
+  await writeFile(v1.location, bytes);
+  await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect(preview().locator('.data-rows tbody tr')).toHaveCount(2);
   await setAppearance(page, 'light');
   await expect.poll(() => frame.locator('html').evaluate(element => element.style.colorScheme)).toBe('light');
   await page.screenshot({ path: resolve(out, 'data-light.png') });
@@ -89,16 +154,10 @@ try {
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 700));
   expect(await frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await page.screenshot({ path: resolve(out, 'data-dark-narrow.png') });
-  checks.push('search, preview, light and dark narrow layout');
-  await close();
-  await launch();
-  expect((await catalog()).assets).toEqual([]);
-  expect((await catalog()).download).toBeNull();
-  await expect(frame.getByRole('button', { name: 'servo-response.csv', exact: true })).toBeVisible();
-  await expect(frame.getByRole('button', { name: csv.name, exact: true })).toHaveCount(0);
-  expect(requests.filter(request => request.method === 'POST')).toEqual([]);
+  expect(requests.filter(r => r.method === 'POST' && r.path === '/api/import')).toHaveLength(2);
+  expect(requests.filter(r => r.path.includes('download') && r.method === 'POST')).toEqual([]);
   expect(errors).toEqual([]);
-  checks.push('restart shows the sample library again; the page never posts an import or download');
+  checks.push('restart preserves identities and view; same-length corruption refuses current preview; light/dark narrow screenshots');
   await close();
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ scope: 'development-workbench-local-files', checks, requests, errors,
     exclusions: ['live upstream downloads', 'model execution', 'standalone bundled runtime or signed installer'] }, null, 2));
