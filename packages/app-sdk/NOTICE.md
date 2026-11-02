@@ -26,5 +26,5 @@ This package adapts portions of the public API design and protocol behavior from
 - licensed under the Apache License, Version 2.0
 
 The upstream checkout, its build cache and its runtime dependencies are not
-vendored or distributed by Point. The accompanying license text is in
+vendored or distributed by Pero. The accompanying license text is in
 `LICENSE-KIROCREW`.

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "typecheck": "tsc --ignoreConfig --noEmit --jsx react-jsx --moduleResolution bundler --module esnext --target es2022 --esModuleInterop --skipLibCheck --types node,vite/client src/index.tsx src/ui.tsx src/chart.ts",
+    "typecheck": "tsc --ignoreConfig --noEmit --jsx react-jsx --moduleResolution bundler --module esnext --target es2022 --esModuleInterop --skipLibCheck --types node,vite/client src/client.tsx src/ui.tsx src/chart.ts",
     "test": "node --test --test-concurrency=1 src/components/code-compare-blocks.test.mjs test/*.test.mjs"
   },
   "type": "module",
@@ -54,5 +54,6 @@
     "@types/react-dom": "19.3.0",
     "css.escape": "1.5.1",
     "jsdom": "29.1.1"
-  }
+  },
+  "description": "Pero App UI and permission-scoped Host SDK"
 }
