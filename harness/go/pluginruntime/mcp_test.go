@@ -53,7 +53,6 @@ func TestMCPServerBindings(t *testing.T) {
 		{"missing executable", plugins.MCPServerDefinition{Name: "memory", Command: "private-canary"}, nil, cwd},
 		{"ambient PATH is not used", plugins.MCPServerDefinition{Name: "memory", Command: "server"}, nil, cwd},
 		{"relative cwd", pkg.MCP[0], nil, "relative"},
-		{"SSE is distinct", plugins.MCPServerDefinition{Name: "memory", Transport: "sse", URL: "https://example.invalid/sse"}, nil, cwd},
 		{"malformed binding", plugins.MCPServerDefinition{Name: "memory", Transport: "http", URL: "${UNCLOSED"}, nil, cwd},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

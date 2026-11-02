@@ -146,6 +146,7 @@ go_test(
         "mcp_list_changed_test.go",
         "mcp_output_test.go",
         "mcp_security_test.go",
+        "mcp_sse_test.go",
         "permission_mode_test.go",
         "retry_test.go",
         "subagent_descriptor_test.go",

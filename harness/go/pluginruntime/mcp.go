@@ -214,8 +214,11 @@ func MCPServers(packages []plugins.Package, cwd string, environment []string) ([
 					}
 					config.Args = append(config.Args, expanded)
 				}
-			case "http", "streamable-http":
+			case "http", "streamable-http", "sse":
 				config.Transport = harness.MCPStreamableHTTP
+				if declaration.Transport == "sse" {
+					config.Transport = harness.MCPSSE
+				}
 				endpoint, err := expandMCPValue(declaration.URL, bindings)
 				if err != nil {
 					return nil, err
@@ -232,8 +235,6 @@ func MCPServers(packages []plugins.Package, cwd string, environment []string) ([
 					}
 					config.Headers[key] = expanded
 				}
-			case "sse":
-				return nil, errors.New("pluginruntime: SSE MCP transport is unsupported; it cannot be substituted with Streamable HTTP")
 			default:
 				return nil, errors.New("pluginruntime: unsupported MCP transport")
 			}

@@ -34,6 +34,7 @@ type mcpGeneration struct {
 	session   *mcp.ClientSession
 	waitDone  chan struct{}
 	waitErr   error
+	cancel    context.CancelFunc
 }
 
 type mcpDownEvent struct {
@@ -143,7 +144,12 @@ func (s *mcpConnectionSupervisor) connect(ctx context.Context) (retrySafe bool, 
 		return !errors.Is(err, ErrAuthentication), SafeError(fmt.Errorf("create transport: %w", err))
 	}
 	trackedTransport := &trackedMCPTransport{inner: transport}
-	generation := &mcpGeneration{id: s.nextGeneration, waitDone: make(chan struct{}), transport: transport}
+	connectionCtx, cancelConnection := context.WithCancel(s.ownerRun.Context)
+	// Startup cancellation can interrupt admission, but a successfully mounted
+	// SSE stream belongs to its runtime generation rather than that short scope.
+	stopStartup := context.AfterFunc(ctx, cancelConnection)
+	defer stopStartup()
+	generation := &mcpGeneration{id: s.nextGeneration, waitDone: make(chan struct{}), transport: transport, cancel: cancelConnection}
 	client := mcp.NewClient(&mcp.Implementation{Name: "point-harness", Version: "0.1.0"}, &mcp.ClientOptions{
 		ToolListChangedHandler: func(context.Context, *mcp.ToolListChangedRequest) {
 			if s.activeGeneration.Load() != generation.id {
@@ -155,8 +161,9 @@ func (s *mcpConnectionSupervisor) connect(ctx context.Context) (retrySafe bool, 
 			}
 		},
 	})
-	session, err := client.Connect(ctx, trackedTransport, nil)
+	session, err := client.Connect(connectionCtx, trackedTransport, nil)
 	if err != nil {
+		cancelConnection()
 		closeErr := trackedTransport.Close()
 		if errors.Is(closeErr, mcp.ErrConnectionClosed) {
 			closeErr = nil
@@ -363,7 +370,13 @@ func (s *mcpConnectionSupervisor) shutdown() error {
 }
 
 func closeMCPGeneration(generation *mcpGeneration) error {
-	if generation == nil || generation.session == nil {
+	if generation == nil {
+		return nil
+	}
+	if generation.cancel != nil {
+		defer generation.cancel()
+	}
+	if generation.session == nil {
 		return nil
 	}
 	deadline := time.NewTimer(mcpGenerationCloseTimeout)

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,6 +27,7 @@ type MCPTransport = harnessmcp.MCPTransport
 const (
 	MCPStdio          = harnessmcp.MCPStdio
 	MCPStreamableHTTP = harnessmcp.MCPStreamableHTTP
+	MCPSSE            = harnessmcp.MCPSSE
 )
 
 // MCPServerConfig is the transport-neutral server declaration accepted by
@@ -170,7 +172,7 @@ func validateMCPConfigs(servers []MCPServerConfig) ([]MCPServerConfig, error) {
 				if !filepath.IsAbs(server.Command) {
 					return nil, fmt.Errorf("harness: MCP server %q command must be absolute", server.Name)
 				}
-			case MCPStreamableHTTP:
+			case MCPStreamableHTTP, MCPSSE:
 				request, err := http.NewRequest(http.MethodPost, server.URL, nil)
 				if err != nil || (request.URL.Scheme != "http" && request.URL.Scheme != "https") {
 					return nil, fmt.Errorf("harness: MCP server %q URL must be absolute HTTP(S)", server.Name)
@@ -309,7 +311,7 @@ func mcpTransportFactory(config MCPServerConfig) (func() (mcp.Transport, error),
 		}, nil
 	}
 	switch config.Transport {
-	case MCPStdio, MCPStreamableHTTP:
+	case MCPStdio, MCPStreamableHTTP, MCPSSE:
 		return func() (mcp.Transport, error) { return newMCPTransport(config) }, nil
 	default:
 		return nil, fmt.Errorf("unsupported transport %q", config.Transport)
@@ -323,9 +325,17 @@ func newMCPTransport(config MCPServerConfig) (mcp.Transport, error) {
 		command.Env = mergedEnvironment(config.Env)
 		return &mcp.CommandTransport{Command: command}, nil
 	}
-	headers := &headerRoundTripper{base: http.DefaultTransport, headers: config.Headers}
+	endpoint, err := url.Parse(config.URL)
+	if err != nil {
+		return nil, errors.New("harness: invalid MCP endpoint")
+	}
+	headers := &headerRoundTripper{base: http.DefaultTransport, headers: config.Headers, origin: endpoint}
 	client := &http.Client{Transport: headers, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	return &authenticationTransport{StreamableClientTransport: &mcp.StreamableClientTransport{Endpoint: config.URL, HTTPClient: client}, headers: headers}, nil
+	var transport mcp.Transport = &mcp.StreamableClientTransport{Endpoint: config.URL, HTTPClient: client}
+	if config.Transport == MCPSSE {
+		transport = &mcp.SSEClientTransport{Endpoint: config.URL, HTTPClient: client}
+	}
+	return &authenticationTransport{Transport: transport, HTTPClient: client, headers: headers}, nil
 }
 
 func mergedEnvironment(overrides map[string]string) []string {
@@ -362,24 +372,45 @@ func scrubMCPEnvironmentName(name string) bool {
 // Retain authentication classification independently of SDK error wrapping and
 // discovery fallback. Each configured connection remains terminal until reloaded.
 type authenticationTransport struct {
-	*mcp.StreamableClientTransport
-	headers *headerRoundTripper
+	mcp.Transport
+	HTTPClient *http.Client
+	headers    *headerRoundTripper
 }
+
+func (t *authenticationTransport) SupportsProtocolVersion(version string) bool {
+	if supporter, ok := t.Transport.(mcp.ProtocolVersionSupporter); ok {
+		return supporter.SupportsProtocolVersion(version)
+	}
+	return true
+}
+
+var errMCPForeignEndpoint = errors.New("MCP message endpoint is outside the configured origin")
 
 func (t *authenticationTransport) TerminalError() error {
 	if t.headers.authenticationRejected.Load() {
 		return harnessmcp.ErrAuthentication
+	}
+	if t.headers.originRejected.Load() {
+		return errMCPForeignEndpoint
 	}
 	return nil
 }
 
 type headerRoundTripper struct {
 	authenticationRejected atomic.Bool
+	originRejected         atomic.Bool
 	base                   http.RoundTripper
 	headers                map[string]string
+	origin                 *url.URL
 }
 
 func (t *headerRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	// Legacy SSE announces a separate POST endpoint. The SDK may resolve an
+	// absolute URL; configured headers only authorize the selected origin.
+	if t.origin != nil && !sameMCPOrigin(t.origin, request.URL) {
+		t.originRejected.Store(true)
+		return nil, errMCPForeignEndpoint
+	}
 	if t.authenticationRejected.Load() {
 		return nil, harnessmcp.ErrAuthentication
 	}
@@ -399,4 +430,17 @@ func (t *headerRoundTripper) RoundTrip(request *http.Request) (*http.Response, e
 		return nil, harnessmcp.ErrAuthentication
 	}
 	return response, err
+}
+
+func sameMCPOrigin(left, right *url.URL) bool {
+	port := func(value *url.URL) string {
+		if value.Port() != "" {
+			return value.Port()
+		}
+		if value.Scheme == "https" {
+			return "443"
+		}
+		return "80"
+	}
+	return strings.EqualFold(left.Scheme, right.Scheme) && strings.EqualFold(left.Hostname(), right.Hostname()) && port(left) == port(right)
 }

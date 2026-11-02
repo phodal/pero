@@ -33,6 +33,7 @@ go_test(
         "hooks_subagent_lifecycle_test.go",
         "hooks_subagents_test.go",
         "hooks_test.go",
+        "mcp_sse_test.go",
         "mcp_test.go",
         "preprocess_test.go",
         "stop_cap_test.go",
@@ -41,6 +42,7 @@ go_test(
     deps = [
         "//harness",
         "//plugins",
+        "@com_github_modelcontextprotocol_go_sdk//jsonrpc",
         "@com_github_modelcontextprotocol_go_sdk//mcp",
     ] + select({
         "@rules_go//go/platform:android": [

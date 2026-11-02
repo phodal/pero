@@ -81,6 +81,7 @@ type MCPTransport string
 const (
 	MCPStdio          MCPTransport = "stdio"
 	MCPStreamableHTTP MCPTransport = "streamable-http"
+	MCPSSE            MCPTransport = "sse"
 )
 
 func NormalizeServerName(name string) string {
