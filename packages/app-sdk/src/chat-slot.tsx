@@ -1,16 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-/** Reserves an App region for the parent-owned conversation. */
-export function AppConversation({ active = true, className, fallback }: {
-  active?: boolean;
-  className?: string;
-  fallback?: React.ReactNode;
-}) {
-  const element = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    const slot = element.current;
-    if (!slot) return;
+/** Publish an actual App region; the parent retains conversation ownership. */
+export function mountAppConversation(slot: HTMLElement, { sessionId, onMounted = () => {} }: { sessionId?: string; onMounted?: (mounted: boolean) => void } = {}) {
+  const active = true;
     const id = crypto.randomUUID();
     let previous = '';
     let frame = 0;
@@ -31,15 +23,15 @@ export function AppConversation({ active = true, className, fallback }: {
       const value = JSON.stringify(rect);
       if (value !== previous) {
         previous = value;
-        if (!rect) setMounted(false);
-        window.parent.postMessage({ type: 'pero:app:chat-slot', id, rect }, '*');
+        if (!rect) onMounted(false);
+        window.parent.postMessage({ type: 'pero:app:chat-slot', id, rect, ...(sessionId ? {sessionId} : {}) }, '*');
       }
       // Layout shifts can move a slot without resizing it or scrolling.
       if (active) frame = requestAnimationFrame(publish);
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(publish); };
     const receive = (event: MessageEvent) => {
-      if (event.source === window.parent && event.data?.type === 'pero:app:chat-slot-result' && event.data.id === id && typeof event.data.active === 'boolean') setMounted(previous !== 'null' && event.data.active);
+      if (event.source === window.parent && event.data?.type === 'pero:app:chat-slot-result' && event.data.id === id && typeof event.data.active === 'boolean') onMounted(previous !== 'null' && event.data.active);
     };
     const resize = new ResizeObserver(schedule);
     resize.observe(slot);
@@ -57,6 +49,15 @@ export function AppConversation({ active = true, className, fallback }: {
       document.removeEventListener('visibilitychange', schedule);
       window.parent.postMessage({ type: 'pero:app:chat-slot', id, rect: null }, '*');
     };
+
+}
+
+export function AppConversation({ active = true, className, fallback }: { active?: boolean; className?: string; fallback?: React.ReactNode }) {
+  const element = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    if (!active || !element.current) { setMounted(false); return; }
+    return mountAppConversation(element.current, { onMounted: setMounted });
   }, [active]);
   return <div ref={element} className={className} data-pero-chat-slot="" data-mounted={mounted || undefined}>{!mounted && fallback}</div>;
 }
