@@ -15,16 +15,6 @@ from .local_pdf import LocalPdf, MAX_PDF_BYTES
 PDFIUM_LOCK = threading.Lock()
 
 
-def arxiv_identifier(paper):
-    values = [paper.source_id] if paper.source in ('alphaxiv', 'arxiv') else []
-    values.extend(value for value in (paper.pdf_url, paper.url) if isinstance(value, str) and 'arxiv.org' in value)
-    for value in values:
-        found = ARXIV.search(value)
-        if found:
-            return found.group(0)
-    return None
-
-
 class PdfFiles:
     def __init__(self, fetch=None):
         self.fetch = fetch or build_opener(_NoRedirect()).open

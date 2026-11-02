@@ -265,6 +265,39 @@ class ImportDraft:
 
 
 @dataclass(frozen=True)
+class ArxivPaper:
+    """A saved work identity; an unversioned snapshot cannot prove a PDF version."""
+    work: str
+    revision: str | None
+
+    @classmethod
+    def from_snapshot(cls, paper):
+        values = [paper.source_id] if paper.source in ('alphaxiv', 'arxiv') else []
+        for url in (paper.pdf_url, paper.url):
+            parsed = urlsplit(url or '')
+            if parsed.scheme == 'https' and parsed.hostname in ('arxiv.org', 'www.arxiv.org'):
+                values.append(parsed.path.removeprefix('/abs/').removeprefix('/pdf/').removesuffix('.pdf'))
+        matches = [re.fullmatch(r'(.+?)(v[1-9]\d*)?', value, re.I) for value in values
+                   if isinstance(value, str) and ARXIV.fullmatch(value)]
+        if not matches:
+            raise Invalid('This saved paper has no arXiv identity', 409)
+        works = {match[1].lower() for match in matches}
+        revisions = {match[2] for match in matches if match[2]}
+        if paper.source_revision:
+            revisions.add(paper.source_revision)
+        if len(works) != 1 or len(revisions) > 1 or any(not re.fullmatch(r'v[1-9]\d*', r) for r in revisions):
+            raise Invalid('Saved arXiv identities or versions conflict; review the original source', 409)
+        return cls(next(iter(works)), next(iter(revisions), None))
+
+    @property
+    def identifier(self):
+        return self.work + (self.revision or '')
+
+    def accepts(self, source):
+        return source.work == self.work and (not self.revision or self.revision == source.revision)
+
+
+@dataclass(frozen=True)
 class OfficialHtml:
     """An independently reviewed official HTML representation of a fixed work."""
     work: str
