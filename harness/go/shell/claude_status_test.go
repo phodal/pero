@@ -1,4 +1,4 @@
-package pluginruntime
+package shell
 
 import "testing"
 
@@ -70,8 +70,8 @@ func TestSkillCommandExitStatus(t *testing.T) {
 			if !test.missing {
 				status = &code
 			}
-			if got := skillCommandSucceeded(test.command, status); got != test.valid {
-				t.Fatalf("skillCommandSucceeded(%q, %v) = %v, want %v", test.command, status, got, test.valid)
+			if got := ClaudeCommandSucceeded(test.command, status); got != test.valid {
+				t.Fatalf("ClaudeCommandSucceeded(%q, %v) = %v, want %v", test.command, status, got, test.valid)
 			}
 		})
 	}

@@ -112,6 +112,9 @@ func ExpandSkill(ctx context.Context, h *harness.Harness, agent *harness.Agent, 
 		if err := ctx.Err(); err != nil {
 			return skills.Definition{}, err
 		}
+		if err := executor.CheckCWD(agent.Session().WorkingDirectory()); err != nil {
+			return skills.Definition{}, err
+		}
 		if err := output.open(project); err != nil {
 			return skills.Definition{}, err
 		}
@@ -120,7 +123,7 @@ func ExpandSkill(ctx context.Context, h *harness.Harness, agent *harness.Agent, 
 		if err != nil {
 			return skills.Definition{}, fmt.Errorf("plugin-runtime: skill command failed: %w", err)
 		}
-		success := skillCommandSucceeded(spec.Command, result.ExitCode)
+		success := shell.ClaudeCommandSucceeded(spec.Command, result.ExitCode)
 		text, err := output.projection(success)
 		if err != nil {
 			return skills.Definition{}, fmt.Errorf("plugin-runtime: read skill command output: %w", err)

@@ -1,15 +1,15 @@
-package pluginruntime
+package shell
 
 import (
 	"path/filepath"
 	"strings"
 )
 
-// skillCommandSucceeded applies the Bash tool's documented exit-1 exceptions
+// ClaudeCommandSucceeded applies the Bash tool's documented exit-1 exceptions
 // only when the command can be identified without evaluating shell syntax.
 // Compound commands, substitutions and redirections retain ordinary failure
 // semantics rather than attributing another command's status to a search.
-func skillCommandSucceeded(command string, exitCode *int) bool {
+func ClaudeCommandSucceeded(command string, exitCode *int) bool {
 	if exitCode == nil {
 		return false
 	}
