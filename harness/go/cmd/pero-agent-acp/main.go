@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/phodal/pero/harness/go/skills"
 	"github.com/phodal/pero/harness/go/subagents"
 	"github.com/phodal/pero/harness/go/tasks"
+	"github.com/phodal/pero/harness/go/workflow"
 )
 
 func main() {
@@ -41,6 +43,7 @@ func run() (resultErr error) {
 	endpoint := flag.String("endpoint", "", "explicit OpenAI-compatible HTTPS endpoint (loopback HTTP allowed)")
 	model := flag.String("model", "", "explicit provider model ID")
 	chartPython := flag.String("chart-python", "python3", "Python 3.9+ executable for shared chart/data core")
+	workflowNode := flag.String("workflow-node", "node", "Node executable for explicitly selected plugin workflows")
 	recoverTail := flag.Bool("recover-complete-session-tail", false, "opt in to lossless final JSONL delimiter recovery with a private backup")
 	sessions := flag.String("session-dir", "", "private directory for durable JSONL sessions (required)")
 	keyEnv := flag.String("api-key-env", "AGENT_PROVIDER_API_KEY", "environment variable containing the provider credential")
@@ -133,10 +136,11 @@ func run() (resultErr error) {
 	var instructions *agentinstructions.App
 	var pluginHooks *pluginruntime.HookApp
 	var pluginAgents *subagents.ClaudeContribution
+	var pluginWorkflows *workflow.App
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		resultErr = errors.Join(resultErr, h.Dispose(cleanup), h.Drain(cleanup), native.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
+		resultErr = errors.Join(resultErr, h.Dispose(cleanup), h.Drain(cleanup), native.Close(), pluginWorkflows.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
 	}()
 	skillCatalog, err = skills.OpenSelected(ctx, *skillRoots, selections)
 	if err != nil {
@@ -206,9 +210,23 @@ func run() (resultErr error) {
 		if _, err := tasks.Mount(ctx, h); err != nil {
 			return err
 		}
-		pluginAgents, err = subagents.MountClaude(ctx, h, agentDefinitions, subagents.ClaudeOptions{InvocationOrigin: skills.ActivePlugin, ModelRoutes: pluginConfig.Models, MaxDepth: 4, MaxActive: delegation.MaxActive, Persistence: persistence, Compaction: compactionConfig})
+		pluginAgents, err = subagents.MountClaude(ctx, h, agentDefinitions, subagents.ClaudeOptions{TaskLookup: native.LookupTask, InvocationOrigin: skills.ActivePlugin, ModelRoutes: pluginConfig.Models, MaxDepth: 4, MaxActive: delegation.MaxActive, Persistence: persistence, Compaction: compactionConfig})
 		if err != nil {
 			return err
+		}
+		if workflow.HasScripts(packages) {
+			node, err := exec.LookPath(*workflowNode)
+			if err != nil {
+				return errors.New("selected plugin workflows require Node; configure --workflow-node")
+			}
+			node, err = filepath.Abs(node)
+			if err != nil {
+				return err
+			}
+			pluginWorkflows, err = workflow.Mount(ctx, h, packages, workflow.Options{Node: node, Provider: "configured", Agents: pluginAgents, MaxConcurrentAgents: 3, MaxAgentCalls: 64})
+			if err != nil {
+				return err
+			}
 		}
 	}
 	serverOptions := acp.Options{UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, Name: "pero-agent-acp", Version: "0.1"}

@@ -32,6 +32,7 @@ go_library(
         "//subagents",
         "//tasks",
         "//todos",
+        "//workflow",
     ],
 )
 
