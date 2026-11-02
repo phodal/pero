@@ -77,13 +77,13 @@ export async function exercisePdfSearch({ frame, page, out, realPdf }) {
   const targetPage = await hit.getAttribute('data-search-page');
   await hit.getByRole('button').click();
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
-  await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue(targetPage);
+  await expect(frame.locator('.pa-reader-tools').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue(targetPage);
   await expect(viewer.locator(`[data-page-number="${targetPage}"] [data-citation-region="true"]`).first()).toBeVisible();
   await page.screenshot({ path: resolve(out, 'local-search-pdf.png') });
   // A real response is held until after a newer reader input, not delayed by a
   // timer. Await the real response body and render frames before checking that the
   // stale search did not change either the user's page or their Text view.
-  const nav = frame.locator('.pa-reading-bar');
+  const nav = frame.locator('.pa-reading-main');
   for (const action of ['page', 'text']) {
     await nav.getByRole('button', { name: 'Back to library', exact: true }).click();
     await frame.locator('body').evaluate(deferPdfLocate);
@@ -115,7 +115,7 @@ export async function exercisePdfSearch({ frame, page, out, realPdf }) {
       } else {
         await expect(viewer).toHaveCount(0);
         await expect(frame.locator('.pa-source-text')).toBeVisible();
-        await frame.locator('.pa-pdf-reading').getByRole('button', { name: 'PDF', exact: true }).click();
+        await frame.locator('.pa-reader-tools').getByRole('button', { name: 'PDF', exact: true }).click();
         await expect(viewer).toBeVisible();
       }
       await page.screenshot({ path: resolve(out, `local-search-deferred-${action}.png`) });

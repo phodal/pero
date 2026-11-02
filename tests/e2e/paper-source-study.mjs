@@ -217,7 +217,7 @@ try {
     await compare.getByRole('button', { name: 'Open matched PDF page 1', exact: true }).first().click();
     const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
     await expect(viewer.locator('[data-page-number="1"] img,[data-page-number="1"] canvas').first()).toBeVisible({ timeout: 30000 });
-    await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('1');
+    await expect(frame.locator('.pa-reader-tools').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('1');
     await page.screenshot({ path: resolve(out, 'source-caption-pdf-page.png') });
     checks.push('Separately approved PDF literal caption comparison resolves source lines and opens the matching version/page');
     await backToLibrary(frame); await inspect();

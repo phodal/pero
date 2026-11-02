@@ -96,7 +96,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   const save = await saveLibraryCopies(frame, paper.title);
   await save.getByRole('button', { name: 'Close', exact: true }).click();
   await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
-  const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true }), nav = frame.locator('.pa-reading-bar');
+  const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true }), nav = frame.locator('.pa-reading-main');
   await expect(viewer).toBeVisible({ timeout: 30000 });
   await expect(frame.getByRole('complementary', { name: 'Ask', exact: true })).toHaveCount(0);
   await expect(frame.locator('.pa-library-screen')).not.toBeVisible();
@@ -105,6 +105,11 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await expect(first.locator('img,canvas').first()).toBeVisible({ timeout: 30000 });
   await expect(first).toHaveAttribute('data-selection-ready', 'true', { timeout: 30000 });
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900));
+  const tools = frame.locator('.pa-reader-tools');
+  await expect(tools.getByRole('link', { name: 'Open original source', exact: true })).toHaveAttribute('href', 'https://arxiv.org/abs/1706.03762v1');
+  const toolBoxes = await Promise.all(['Text', 'PDF', 'Zoom out', 'Zoom in'].map(name => tools.getByRole('button', { name, exact: true }).boundingBox()));
+  expect(toolBoxes.every(box => box && Math.abs(box.y - toolBoxes[0].y) <= 4)).toBe(true);
+  expect(await frame.locator('.pa-reading-bar h1').evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeLessThanOrEqual(16);
   await nav.getByRole('button', { name: 'Fit page', exact: true }).click();
   await expect.poll(async () => { const pageBox = await first.boundingBox(), viewport = await viewer.locator('.pa-pdf-viewport').boundingBox(); return pageBox.height <= viewport.height + 1 && pageBox.width <= viewport.width + 1; }).toBe(true);
   await page.screenshot({ path: resolve(out, 'reading-first-1440.png') });
@@ -123,7 +128,8 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await expect.poll(async () => (await chatState(page)).appChatOpen).toBe(true);
   await expect(first.locator('img,canvas').first()).toHaveAttribute('data-reading-identity', 'retained');
   await expect(frame.locator('.pa-workspace')).toHaveAttribute('data-question', 'true');
-  await expect(nav).toHaveCount(0);
+  await expect(frame.locator('.pa-reading-bar')).toHaveCount(0);
+  await expect(nav.getByRole('button', { name: 'Zoom in', exact: true })).toBeVisible();
   await expect.poll(async () => `${Math.round((await storedView()).zoom * 100)}%`).toBe(zoom);
   await closePaperChat(page, frame);
   await expect(first.locator('img,canvas').first()).toHaveAttribute('data-reading-identity', 'retained');
@@ -136,13 +142,13 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   const viewport = viewer.locator('.pa-pdf-viewport');
   const beforeText = await scrollPdfAndRead(page, viewport, storedView, 60);
   await first.locator('img,canvas').first().evaluate(element => element.dataset.readingIdentity = 'retained');
-  await frame.locator('.pa-pdf-reading > .pero-ui-toolbar').getByRole('button', { name: 'Text', exact: true }).click();
+  await frame.locator('.pa-reader-tools').getByRole('button', { name: 'Text', exact: true }).click();
   await expect(viewer).toHaveCount(0);
   await expect(frame.locator('.pa-pdf-view-slot')).toHaveAttribute('inert', '');
   await expect(frame.locator('[data-reading-identity="retained"]')).toHaveCount(1);
   await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveCount(0);
   await expect.poll(async () => (await storedView()).mode).toBe('text');
-  await frame.locator('.pa-pdf-reading > .pero-ui-toolbar').getByRole('button', { name: 'PDF', exact: true }).click();
+  await frame.locator('.pa-reader-tools').getByRole('button', { name: 'PDF', exact: true }).click();
   await expect(viewer).toBeVisible();
   await expect(first.locator('[data-reading-identity="retained"]')).toHaveCount(1);
   await expect(nav.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(retainedZoom);
@@ -229,7 +235,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(unavailable.title, { exact: true }) }).click();
   // Opening metadata cannot initiate acquisition; the old implicit-download
   // error is now an explicit Save action, while its abstract stays readable.
-  await frame.locator('.pa-pdf-reading').getByRole('button', { name: 'PDF', exact: true }).click();
+  await frame.locator('.pa-reader-tools').getByRole('button', { name: 'PDF', exact: true }).click();
   const unavailableSave = frame.getByRole('dialog', { name: 'Save copies', exact: true });
   await expect(unavailableSave.getByText(unavailable.title, { exact: true })).toBeVisible();
   await expect(unavailableSave.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
@@ -299,8 +305,8 @@ export async function reopenPdf({ frame, saved, page }) {
   await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(saved.paper.title, { exact: true }) }).click();
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
   await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
-  await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue(String(saved.readerState.page));
-  await expect(frame.locator('.pa-reading-bar').getByRole('button', { name: 'Fit page', exact: true })).toHaveText(`${Math.round(saved.readerState.zoom * 100)}%`);
+  await expect(frame.locator('.pa-reader-tools').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue(String(saved.readerState.page));
+  await expect(frame.locator('.pa-reader-tools').getByRole('button', { name: 'Fit page', exact: true })).toHaveText(`${Math.round(saved.readerState.zoom * 100)}%`);
   const restored = await frame.locator('body').evaluate((_element, key) => JSON.parse(localStorage.getItem(key)), `pero.paper.pdf-view:${saved.readerState.documentId}:${saved.fileDigest}`);
   expect(restored.selection).toEqual(saved.readerState.selection);
   await askPaperChat(frame, page, frame.getByRole('button', { name: 'Ask', exact: true }));
@@ -310,7 +316,7 @@ export async function reopenPdf({ frame, saved, page }) {
   const cell = frame.locator(`[data-matrix-annotation="${saved.figure.id}"]`);
   await expect(cell).toBeVisible();
   await cell.getByRole('button', { name: `Page ${saved.targetPage} ↗`, exact: true }).click();
-  await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue(String(saved.targetPage));
+  await expect(frame.locator('.pa-reader-tools').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue(String(saved.targetPage));
   await expect(frame.locator(`[data-annotation-id="${saved.figure.id}"]`)).toBeVisible();
   const reading = await frame.locator('body').evaluate(async (_element, id) => (await fetch(`/api/pdf?paperId=${id}`)).json(), saved.paper.id);
   expect(reading.document.fileDigest).toBe(saved.fileDigest); expect(reading.annotations).toHaveLength(2);

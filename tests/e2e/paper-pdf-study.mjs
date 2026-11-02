@@ -130,7 +130,7 @@ try {
   const turn = await showPaperReport(frame, page, report.intentId);
   await turn.locator('.pa-inline-citation').first().click();
   await expect(viewer.locator('[data-citation-region="true"]').first()).toBeVisible();
-  await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('1');
+  await expect(frame.locator('.pa-reader-tools').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('1');
   if (!live) await page.screenshot({ path: resolve(out, 'study-citation.png') });
   checks.push('Scripted ACP uses actual Host MCP prepare/read/search/note/finalize; saved citation reveals the same PDF version/page');
   await closePaperChat(page, frame); await setPaperAppearance(page, 'dark');
