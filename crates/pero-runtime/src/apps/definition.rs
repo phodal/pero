@@ -66,6 +66,8 @@ pub struct AppContributions {
     pub panels: Vec<AppPanel>,
     #[serde(default,skip_serializing_if="Vec::is_empty")]
     pub writes: Vec<AppWriteRoute>,
+    #[serde(default, rename = "agentPlugin", skip_serializing_if = "Option::is_none")]
+    pub agent_plugin: Option<super::agent_plugin::AppAgentPlugin>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -122,6 +124,8 @@ pub struct AppDefinition {
     pub contributes: AppContributions,
     #[serde(default)]
     pub permissions: AppPermissions,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requires_agent_plugins: Vec<AppName>,
     pub backend: Option<AppBackend>,
 }
 
@@ -131,6 +135,7 @@ pub struct AppDefinition {
 pub struct AppSummary {
     pub name: AppName,
     pub version: String,
+    pub revision: String,
     pub display_name: String,
     pub description: String,
     pub enabled: bool,
@@ -167,9 +172,9 @@ impl AppDefinition {
         }
         let mut seen = std::collections::BTreeSet::new();
         for grant in &value.permissions.host {
-            if !matches!(grant.as_str(), "agent" | "insights" | "connectors" | "automation" | "research-assets") || !seen.insert(grant.as_str()) {
+            if !matches!(grant.as_str(), "agent" | "agent-plugin" | "insights" | "connectors" | "automation" | "research-assets") || !seen.insert(grant.as_str()) {
                 return Err(
-                    "This Host supports only the App agent, insights, connectors, automation and research-assets permissions".into(),
+                    "This Host supports only the App agent, agent-plugin, insights, connectors, automation and research-assets permissions".into(),
                 );
             }
         }
@@ -208,6 +213,7 @@ impl AppDefinition {
                 );
             }
         }
+        value.validate_agent_plugin()?;
         Ok(value)
     }
 
@@ -215,6 +221,7 @@ impl AppDefinition {
         AppSummary {
             name: self.name.clone(),
             version: self.version.clone(),
+            revision: self.revision(),
             display_name: self.display_name.clone(),
             description: self.description.clone(),
             enabled,

@@ -237,13 +237,14 @@ mod tests {
         Manager {
             workspace: PathBuf::from("/not-the-automation-workspace"),
             agents: vec![AgentConfig {
+                session_instructions: String::new(),
                 id: "fixture".into(), name: "Fixture".into(),
                 command: std::env::current_exe().unwrap().to_string_lossy().into_owned(),
                 args: vec![], env: [("SECRET".into(), "private-test-key".into())].into(),
                 model: Some("frozen-model".into()), mcp_servers: vec![], managed_mcp: None,
             }],
             sessions: Default::default(), tx, history: Default::default(),
-            app_bindings: Default::default(), point_journal: Default::default(), app_use: None, settings_path: None,
+            app_bindings: Default::default(), point_journal: Default::default(), app_use: None, apps: None, app_plugins: Default::default(), settings_path: None,
             connectors: None,
             history_path: PathBuf::new(), automation_threads: Default::default(),
             automation_tx, automation_rx: Some(automation_rx),

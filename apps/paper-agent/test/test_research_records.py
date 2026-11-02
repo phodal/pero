@@ -89,6 +89,36 @@ class ResearchRecords(unittest.TestCase):
             self.assertEqual(record_command(store, dict(operation='read', recordId=record['id']), NOW)['id'], record['id'])
             self.assertFalse((store.root / 'studies').exists())
 
+    def test_report_citations_across_sections_experiments_and_matrix(self):
+        with tempfile.TemporaryDirectory() as root:
+            store = ResearchStore(root)
+            paper = store.save_paper(PaperSnapshot.from_reading(reading(), NOW))
+            intent = store.prepare(request([paper]), NOW)
+            for location in ('section', 'experiment', 'matrix', 'labels-only'):
+                with self.subTest(location=location):
+                    value = report_value(intent)
+                    value['title'] = location
+                    evidence = value['sections'][0].pop('evidence')
+                    value['experiments'] = [dict(title='Not run', paperIds=[paper.id], evidence=[],
+                        status='not-run', files=[], commands=[], expected='Not run', observed='Not run', limitations='Synthetic')]
+                    value['matrix'] = dict(columns=[dict(id='finding', label='Finding')], cells=[
+                        dict(paperId=paper.id, columnId='finding', value='', status='missing', evidence=[])])
+                    if location == 'section':
+                        value['sections'][0]['evidence'] = evidence
+                    elif location == 'experiment':
+                        value['experiments'][0]['evidence'] = evidence
+                    elif location == 'matrix':
+                        value['matrix']['cells'][0].update(value='Exact original evidence.', status='supported', evidence=evidence)
+                    report = store.save_report(intent.id, json.dumps(value), NOW)
+                    command = draft([paper])
+                    command['evidence'] = [dict(paperId=paper.id, reportId=report.id, stance='support', note='Synthetic citation')]
+                    if location == 'labels-only':
+                        with self.assertRaisesRegex(Invalid, 'no cited evidence'):
+                            record_command(store, command, NOW)
+                    else:
+                        record = record_command(store, command, NOW)
+                        self.assertEqual(record['evidence'][0]['reportId'], report.id)
+
     def test_digest_changes_rejected(self):
         with tempfile.TemporaryDirectory() as root:
             store = ResearchStore(root)

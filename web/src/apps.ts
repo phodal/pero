@@ -20,9 +20,9 @@ export type AppChatSlot = { scope: { app: string; panel: string }; rect: { x: nu
 type SlotRequest = { frame: Frame; id: string; rect: AppChatSlot['rect'] };
 
 /** Retains App documents across navigation; GPUI owns selection and layout. */
-export function mountAppSurfaces(command: (value: object) => Promise<void>, onChat?: (context: { name: string; panel: string; text?: string;options?:unknown }) => void|Promise<unknown>, onDocument?:(value:ReturnType<AppDocuments['admit']>)=>void,onFocus?:(pane:number)=>void,onChatSlot?:(slot:AppChatSlot|null)=>boolean|Promise<boolean>) {
+export function mountAppSurfaces(command: (value: object) => Promise<void>, onChat?: (context: { name: string; panel: string; text?: string;options?:unknown }) => void|Promise<unknown>, onDocument?:(value:ReturnType<AppDocuments['admit']>)=>void,onFocus?:(pane:number)=>void,onChatSlot?:(slot:AppChatSlot|null)=>boolean|Promise<boolean>,onExamples?:(json:string)=>void) {
   const frames = new Map<string, Frame>();
-  const examples=mountAppExamples((scope,request)=>frames.get(`${scope.app}:${scope.panel}`)?.element.contentWindow?.postMessage(request,'*'));
+  const examples=mountAppExamples((scope,request)=>frames.get(`${scope.app}:${scope.panel}`)?.element.contentWindow?.postMessage(request,'*'),onExamples);
   const appUse = mountAppUseFrames();
   const presence = new Map<string, AppUsePresence & { thread: string }>();
   const mounts=new Map<string,Mount>();

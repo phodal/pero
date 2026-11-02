@@ -1,6 +1,5 @@
 //! Local execution setup carries public scope only; the shell owns credentials and processes.
 use crate::app::Workbench;
-use crate::workspace::WorkbenchPage;
 use gpui_kit::{
     component::{
         button::*,
@@ -60,7 +59,6 @@ pub(crate) struct LocalExecution {
     pub agent_id: String,
     pub editing: bool,
     pub pending: bool,
-    received_setup: bool,
     pending_configuration: Option<LocalWorkerSummary>,
     _subscriptions: Vec<Subscription>,
 }
@@ -88,7 +86,6 @@ impl LocalExecution {
             agent_id: String::new(),
             editing: false,
             pending: false,
-            received_setup: false,
             pending_configuration: None,
             _subscriptions: subscriptions,
         }
@@ -111,16 +108,10 @@ impl Workbench {
         self.command(json!({"action":"remote_login","url":url}), cx);
     }
 
-    pub(crate) fn show_local_execution_onboarding(&self) -> bool {
-        self.navigation.page() == WorkbenchPage::Projects
-            && self.local_execution.received_setup
-            && !self.local_execution.setup.onboarding_complete
-    }
-
     pub(crate) fn receive_local_execution(
         &mut self,
         event: &HostEvent,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
         match event.kind.as_str() {
@@ -132,24 +123,16 @@ impl Workbench {
                             && setup.configuration.is_some()
                             && setup.enabled
                             && !setup.failed();
-                        let finishing_welcome = self.show_local_execution_onboarding()
-                            && setup.onboarding_complete
-                            && setup.enabled
-                            && !setup.failed();
                         if self.local_execution.setup.configuration.is_none() {
                             self.local_execution.pending_configuration =
                                 setup.configuration.clone();
                         }
                         self.local_execution.setup = setup;
-                        self.local_execution.received_setup = true;
                         self.local_execution.pending = false;
                         if self.local_execution.setup.enabled
                             && !self.local_execution.setup.failed()
                         {
                             self.local_execution.editing = false;
-                        }
-                        if finishing_welcome {
-                            self.show_settings_page(WorkbenchPage::Workers, window, cx);
                         }
                         if newly_configured && self.remote.configured() {
                             self.command(json!({"action":"remote_refresh"}), cx);

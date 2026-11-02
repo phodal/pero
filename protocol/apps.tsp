@@ -11,9 +11,13 @@ model AppPanel { id: AppName; title: string; entry: string; ...AppClosed; }
 /** Public catalog: no local paths or backend credentials. */
 model AppDocumentSchema is Record<unknown>;
 model AppWriteRoute { name: AppName; description: string; path: string; schema: AppDocumentSchema; ...AppClosed; }
+model AppPluginAssembly { app: AppName; revision: string; instructions: string; tools: AppWriteRoute[]; maxCalls: uint32; ...AppClosed; }
+model AgentPluginRevision { name: AppName; version: string; revision: string; ...AppClosed; }
+model AgentPluginSummary { ...AgentPluginRevision; enabled: boolean; ...AppClosed; }
 model AppRecord {
   name: AppName;
   version: string;
+  revision: string;
   displayName: string;
   description: string;
   enabled: boolean;
@@ -28,6 +32,9 @@ model AppAccess { root: string; entry: string; backend?: BackendAccess; ...AppCl
 model RequestBase { method: "apps"; id: RequestId; ...AppClosed; }
 model ListApps { action: "list"; ...RequestBase; }
 model InstallApp { action: "install"; path: string; ...RequestBase; }
+model ListAgentPlugins { action: "pluginlist"; ...RequestBase; }
+model InstallAgentPlugin { action: "plugininstall"; path: string; ...RequestBase; }
+model EnableAgentPlugin { action: "pluginenable"; name: AppName; enabled: boolean; ...RequestBase; }
 model PointScope { workspaceId:string; ...AppClosed; }
 model PointBinding {scope:PointScope;requestId:string;harnessId:string;panel:string;runtimeDigest:string;appRevision?:string;createdAt:string;context?:AppDocumentSchema;...AppClosed}
 model PointAttempt {requestId:string;text:string;attempt:uint32;updatedAt:string;...AppClosed}
@@ -53,6 +60,11 @@ model EnableApp { action: "enable"; name: AppName; ...RequestBase; }
 model DisableApp { action: "disable"; name: AppName; ...RequestBase; }
 model UninstallApp { action: "uninstall"; name: AppName; ...RequestBase; }
 model ResolveApp { action: "resolve"; name: AppName; ...RequestBase; }
+model ProjectResourcesApp { action: "projectresources"; name: AppName; ...RequestBase; }
+/** An App catalog observation; revisions do not claim complete experimental provenance. */
+model ProjectResourceReference { app: string; kind: string; id: string; revision: string; ...AppClosed; }
+model ProjectResourceSummary { reference: ProjectResourceReference; title: string; summary: string; status: string; verification?: string | null; location: string; ...AppClosed; }
+model ProjectResourceCatalog { app: string; resources: ProjectResourceSummary[]; error?: string | null; ...AppClosed; }
 model ConnectorsApp { action: "connectors"; name: AppName; ...RequestBase; }
 /** Paper may request only saved research identities; Host owns the fixed Data target. */
 @minLength(64) @maxLength(64) @pattern("^[a-f0-9]{64}$") scalar ResearchId extends string;
@@ -86,9 +98,9 @@ model AppSessionBinding { app: AppName; requestId: string; agentId: string; prom
 model AutomationApiRequest {method:"GET"|"POST"|"PUT"|"DELETE";path:string;body?:unknown;...AppClosed}
 model AutomationApp {action:"automation";name:AppName;request:AutomationApiRequest;...RequestBase}
 model AutomationApiReply {status:uint16;body:unknown;...AppClosed}
-@oneOf union AppRequest { ListApps, InstallApp, PointAgent, PointCatalog, EnableApp, DisableApp, UninstallApp, ResolveApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
+@oneOf union AppRequest { ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, PointAgent, PointCatalog, EnableApp, DisableApp, UninstallApp, ResolveApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
 model AppGrant { permitted: true; ...AppClosed; }
-model AppSuccess { ok: true; value: PointRun | PointTranscript | PointLookupReply | PointOpenReply | PointCatalogReply | AutomationApiReply | AppRecord[] | AppAccess | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
+model AppSuccess { ok: true; value: PointRun | PointTranscript | PointLookupReply | PointOpenReply | PointCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }
 

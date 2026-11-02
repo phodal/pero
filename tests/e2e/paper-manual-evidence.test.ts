@@ -19,13 +19,21 @@ test('editing or removing one evidence row preserves other references for the sa
   assert.deepEqual(reviseEvidence(rows, 2, { reportId: 'report-3', stance: 'support' }).slice(0, 2), rows.slice(0, 2));
 });
 
-test('report choices require actual section evidence, not intent membership or section paper labels', () => {
+test('report choices require actual evidence in every report location, not intent membership or paper labels', () => {
   const base = { id: 'summary', intentId: 'multi-paper-intent', title: 'Summary', acceptance: 'unverified' as const };
   const reports: Report[] = [base,
     { ...base, id: 'labels-only', sections: [{ heading: '', content: '', paperIds: ['paper-a'], evidence: [{ paperId: 'paper-b', quote: 'B' }] }] },
     { ...base, id: 'cites-a', sections: [{ heading: '', content: '', paperIds: ['paper-a', 'paper-b'], evidence: [{ paperId: 'paper-a', quote: 'A' }] }] },
   ];
-  assert.deepEqual(reportsCitingPaper(reports, 'paper-a').map(report => report.id), ['cites-a']);
+  const experiment = { title: 'Not run', status: 'not-run' as const, files: [], commands: [], paperIds: ['paper-a'], expected: '', observed: '', limitations: '' };
+  const cell = { paperId: 'paper-a', columnId: 'finding', value: '', status: 'missing' as const, evidence: [] };
+  reports.push(
+    { ...base, id: 'experiment-label-only', experiments: [experiment] },
+    { ...base, id: 'matrix-label-only', matrix: { columns: [], cells: [cell] } },
+    { ...base, id: 'experiment-cites-a', experiments: [{ ...experiment, evidence: [{ paperId: 'paper-a', quote: 'A' }] }] },
+    { ...base, id: 'matrix-cites-a', matrix: { columns: [], cells: [{ ...cell, status: 'supported', value: 'A', evidence: [{ paperId: 'paper-a', quote: 'A' }] }] } },
+  );
+  assert.deepEqual(reportsCitingPaper(reports, 'paper-a').map(report => report.id), ['cites-a', 'experiment-cites-a', 'matrix-cites-a']);
   // Once a summary is hydrated by GET /api/reports/:id it can be selected only for its actual citations.
   const hydrated = { ...base, sections: [{ heading: '', content: '', paperIds: ['paper-a', 'paper-b'], evidence: [{ paperId: 'paper-b', quote: 'B' }] }] };
   assert.deepEqual(reportsCitingPaper([hydrated], 'paper-a'), []);

@@ -24,6 +24,7 @@ const validateResult = ajv.getSchema(`${schema.$id}#/$defs/AppsResultEvent`);
 const validatePreparation = ajv.getSchema(`${schema.$id}#/$defs/AppsPreparationEvent`);
 const validateRecord = ajv.getSchema(`${schema.$id}#/$defs/AppRecord`);
 const failures = [];
+const preparation = [];
 const preparePythonApp = async (name, dependency, sharedEnvironment) => {
   const environment = sharedEnvironment || resolve(temp, 'environments', name);
   if (!sharedEnvironment) {
@@ -73,7 +74,7 @@ server.serve_forever()
 const launch = async ({ builtins = '', installed = resolve(temp, 'installed') } = {}) => {
   const child = spawn(resolve(root, 'target/debug/pero-host'), ['--stdio'], {
     cwd: temp, stdio: ['pipe', 'pipe', 'inherit'],
-    env: { ...process.env, PERO_SETTINGS_PATH: resolve(temp, 'settings.json'),
+    env: { ...process.env, UV_OFFLINE: '1', PERO_SETTINGS_PATH: resolve(temp, 'settings.json'),
       PERO_APPS_ROOT: installed, PERO_BUILTIN_APPS_ROOT: builtins },
   });
   const exited = new Promise(done => child.once('exit', done));
@@ -84,6 +85,7 @@ const launch = async ({ builtins = '', installed = resolve(temp, 'installed') } 
     const event = JSON.parse(line);
     if (event.kind === 'ready') ready();
     if (event.kind === 'apps_preparation' && !validatePreparation(event)) failures.push(ajv.errorsText(validatePreparation.errors));
+    if (event.kind === 'apps_preparation') preparation.push(event.data);
     if (event.kind !== 'apps_result') return;
     if (!validateResult(event)) failures.push(ajv.errorsText(validateResult.errors));
     pending.get(event.request_id)?.(event.data);
@@ -220,16 +222,42 @@ try {
   await writeFile(resolve(temp, 'settings.json'), JSON.stringify({ app_python: { apps: { recoverable: recoverable.environment } } }));
   host = await launch();
   assert.equal((await host.request('install', { path: recoverable.app })).ok, true);
-  assert.equal((await host.request('enable', { name: 'recoverable' })).ok, false);
+  const failedRecovery = await host.request('enable', { name: 'recoverable' });
+  assert.equal(failedRecovery.ok, false);
+  assert.match(failedRecovery.error, /include-system-site-packages/i);
+  assert(failedRecovery.error.includes(recoverable.environment), failedRecovery.error);
   assert.equal((await host.request('list')).value.find(app => app.name === 'recoverable').enabled, false);
+  assert.equal(JSON.parse(await readFile(resolve(temp, 'settings.json'), 'utf8')).app_python.apps.recoverable, recoverable.environment);
+  assert.deepEqual(preparation.filter(event => event.name === 'recoverable').map(event => event.phase), ['checking', 'failed']);
   await writeFile(recoveryConfig, validConfig);
   const executable = resolve(recoverable.environment, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
   const packages = execFileSync(executable, ['-I', '-c', 'import sysconfig; print(sysconfig.get_path("purelib"))'], { encoding: 'utf8' }).trim();
   const metadata = resolve(packages, 'paper_dependency-1.0.dist-info');
   await mkdir(metadata);
   await writeFile(resolve(metadata, 'METADATA'), 'Metadata-Version: 2.1\nName: paper-dependency\nVersion: 1.0\n');
-  assert.equal((await host.request('enable', { name: 'recoverable' })).ok, true);
-  assert.equal((await host.request('resolve', { name: 'recoverable' })).ok, true);
+  await writeFile(resolve(metadata, 'top_level.txt'), 'paper_dependency\n');
+  const recovered = await host.request('enable', { name: 'recoverable' });
+  assert.equal(recovered.ok, true, recovered.error);
+  await host.close(); host = await launch();
+  const recoveredAccess = await host.request('resolve', { name: 'recoverable' });
+  assert.equal(recoveredAccess.ok, true, recoveredAccess.error);
+  const recoveredResponse = await fetch(`${recoveredAccess.value.backend.url}/api/environment`, {
+    headers: { 'X-Pero-App-Token': recoveredAccess.value.backend.token }, signal: AbortSignal.timeout(5000),
+  });
+  assert.equal(recoveredResponse.status, 200);
+  const recoveredEnvironment = await recoveredResponse.json();
+  assert.equal(await realpath(recoveredEnvironment.prefix), recoverable.environment);
+  assert.equal(recoveredEnvironment.dependency, 'prepared');
+  assert.equal(recoveredEnvironment.childDependency, 'prepared');
+  assert.equal((await host.request('disable', { name: 'recoverable' })).ok, true);
+  await rm(recoverable.environment, { recursive: true });
+  const missingEnvironment = await host.request('enable', { name: 'recoverable' });
+  assert.equal(missingEnvironment.ok, false);
+  assert(missingEnvironment.error.includes(recoverable.environment), missingEnvironment.error);
+  assert.equal(JSON.parse(await readFile(resolve(temp, 'settings.json'), 'utf8')).app_python.apps.recoverable, recoverable.environment);
+  assert.equal((await host.request('list')).value.find(app => app.name === 'recoverable').enabled, false);
+  await assert.rejects(realpath(recoverable.environment), { code: 'ENOENT' });
+  assert(!preparation.some(event => event.name === 'recoverable' && ['creating', 'installing'].includes(event.phase)));
   assert.deepEqual(failures, []);
   console.log('App stdio wiring, generated contract, Python environments, incremental builtin discovery and retained disable/removal passed.');
 } finally {

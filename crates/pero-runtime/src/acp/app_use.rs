@@ -5,6 +5,7 @@ use super::sdk::schema::v1::{HttpHeader, McpServer, McpServerHttp};
 pub struct AppUseEndpoint {
     url: String,
     token: String,
+    pub(super) required: bool,
 }
 impl AppUseEndpoint {
     pub fn from_environment() -> Option<Self> {
@@ -24,7 +25,7 @@ impl AppUseEndpoint {
         {
             return None;
         }
-        Some(Self { url, token })
+        Some(Self { url, token, required: false })
     }
 
     #[cfg(test)]
@@ -32,7 +33,13 @@ impl AppUseEndpoint {
         Self {
             url,
             token: "a".repeat(64),
+            required: false,
         }
+    }
+
+    pub fn require_http(mut self) -> Self {
+        self.required = true;
+        self
     }
 
     pub(super) fn server(&self, thread: &str) -> McpServer {

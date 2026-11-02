@@ -166,6 +166,9 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
         signal.signal(name, stop)
     try:
         (target / 'execution.log').touch()
+        from .environment import inspect_environment
+        receipt['environment_observation'] = {'observation': inspect_environment(),
+            'scope': 'parent-preflight-metadata'}
         local = read_json(root / 'local.json')
         if local.get('interpreter') != sys.executable:
             raise Invalid('interpreter_changed', 'Run with the interpreter used to prepare this specification')

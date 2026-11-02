@@ -15,6 +15,7 @@ import threading
 import time
 
 from .experiments import MAX_EVIDENCE_SAMPLES, sample_reservation
+from .environment import inspect_environment
 
 
 class EngineError(RuntimeError):
@@ -344,6 +345,10 @@ def execute(engine: str, model: str, parameters: dict[str, float], scenario: dic
             directory: Path, cancelled: threading.Event) -> dict:
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
+    if engine in ("python-control", "ngspice"):
+        # Evidence only: existing engine admission, budgets and cancellation own execution.
+        observation = inspect_environment(engine)
+        (directory / "environment-observation.json").write_text(json.dumps(observation, sort_keys=True), encoding="utf-8")
     if engine == "python-control":
         return _python_control(model, parameters, scenario, directory, cancelled)
     if engine == "ngspice":

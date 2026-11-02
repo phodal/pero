@@ -94,12 +94,16 @@ export type ContextContent = TextContextContent | ImageContextContent;
 export type AppRequest =
   | ListApps
   | InstallApp
+  | ListAgentPlugins
+  | InstallAgentPlugin
+  | EnableAgentPlugin
   | PointAgent
   | PointCatalog
   | EnableApp
   | DisableApp
   | UninstallApp
   | ResolveApp
+  | ProjectResourcesApp
   | AgentApp
   | ConnectorsApp
   | AutomationApp
@@ -177,6 +181,7 @@ export type HostEvent =
   | AppsResultEvent
   | AppsPreparationEvent
   | AppsCatalogEvent
+  | ProjectResourcesEvent
   | AppsErrorEvent
   | AppsOpenedEvent
   | ThreadEvent
@@ -826,6 +831,10 @@ export interface WorkbenchPreferences {
    * @maxItems 128
    */
   projects: ProjectBinding[];
+  /**
+   * @maxItems 128
+   */
+  research_projects?: ResearchProject[];
   layout?: LayoutPreferences;
 }
 export interface TypographyPreferences {
@@ -836,6 +845,22 @@ export interface TypographyPreferences {
 export interface ProjectBinding {
   workspace: string;
   project_id: string;
+}
+export interface ResearchProject {
+  id: string;
+  title: string;
+  goal: string;
+  workspace: string | null;
+  /**
+   * @maxItems 256
+   */
+  resources: ProjectResourceRef[];
+}
+export interface ProjectResourceRef {
+  app: "paper-agent" | "control-lab" | "lab";
+  kind: "paper" | "study" | "experiment";
+  id: string;
+  revision: string;
 }
 export interface LayoutPreferences {
   chat_width?: number;
@@ -954,6 +979,24 @@ export interface InstallApp {
   method: "apps";
   id: RequestId;
 }
+export interface ListAgentPlugins {
+  action: "pluginlist";
+  method: "apps";
+  id: RequestId;
+}
+export interface InstallAgentPlugin {
+  action: "plugininstall";
+  path: string;
+  method: "apps";
+  id: RequestId;
+}
+export interface EnableAgentPlugin {
+  action: "pluginenable";
+  name: AppName;
+  enabled: boolean;
+  method: "apps";
+  id: RequestId;
+}
 export interface PointAgent {
   action: "pointagent";
   name: AppName;
@@ -1037,6 +1080,12 @@ export interface UninstallApp {
 }
 export interface ResolveApp {
   action: "resolve";
+  name: AppName;
+  method: "apps";
+  id: RequestId;
+}
+export interface ProjectResourcesApp {
+  action: "projectresources";
   name: AppName;
   method: "apps";
   id: RequestId;
@@ -1734,6 +1783,8 @@ export interface SessionCreatedData {
   workspace: string;
   scope?: AppChatScope;
   appBinding?: AppSessionBinding;
+  appPlugin?: AppPluginAssembly;
+  agentPlugins?: AgentPluginRevision[];
 }
 export interface AppSessionBinding {
   app: AppName;
@@ -1751,6 +1802,24 @@ export interface PointBinding {
   appRevision?: string;
   createdAt: string;
   context?: AppDocumentSchema;
+}
+export interface AppPluginAssembly {
+  app: AppName;
+  revision: string;
+  instructions: string;
+  tools: AppWriteRoute[];
+  maxCalls: number;
+}
+export interface AppWriteRoute {
+  name: AppName;
+  description: string;
+  path: string;
+  schema: AppDocumentSchema;
+}
+export interface AgentPluginRevision {
+  name: AppName;
+  version: string;
+  revision: string;
 }
 export interface UserMessageEvent {
   kind: "user_message";
@@ -2212,7 +2281,10 @@ export interface AppSuccess {
     | PointCatalogReply
     | AutomationApiReply
     | AppRecord[]
+    | AgentPluginSummary[]
+    | AgentPluginSummary
     | AppAccess
+    | ProjectResourceCatalog
     | AppAgentInfo
     | AppAgentStarted
     | AppAgentTranscript
@@ -2269,6 +2341,7 @@ export interface AutomationApiReply {
 export interface AppRecord {
   name: AppName;
   version: string;
+  revision: string;
   displayName: string;
   description: string;
   enabled: boolean;
@@ -2281,11 +2354,18 @@ export interface AppPanel {
   title: string;
   entry: string;
 }
-export interface AppWriteRoute {
+export interface AgentPluginSummary {
   name: AppName;
-  description: string;
-  path: string;
-  schema: AppDocumentSchema;
+  version: string;
+  revision: string;
+  enabled: boolean;
+  [k: string]:
+    | {
+        [k: string]: unknown | undefined;
+      }
+    | AppName
+    | boolean
+    | undefined;
 }
 export interface AppAccess {
   root: string;
@@ -2298,6 +2378,28 @@ export interface AppAccess {
 export interface BackendAccess {
   url: string;
   token: string;
+}
+export interface ProjectResourceCatalog {
+  app: string;
+  resources: ProjectResourceSummary[];
+  error?: string | null;
+}
+export interface ProjectResourceSummary {
+  reference: ProjectResourceReference;
+  title: string;
+  summary: string;
+  status: string;
+  verification?: string | null;
+  location: string;
+}
+/**
+ * An App catalog observation; revisions do not claim complete experimental provenance.
+ */
+export interface ProjectResourceReference {
+  app: string;
+  kind: string;
+  id: string;
+  revision: string;
 }
 export interface AppAgentInfo {
   available: boolean;
@@ -2369,6 +2471,13 @@ export interface AppsCatalogEvent {
   request_id: string | null;
   text: string;
   data: AppRecord[];
+}
+export interface ProjectResourcesEvent {
+  kind: "project_resources";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: ProjectResourceCatalog;
 }
 export interface AppsErrorEvent {
   kind: "apps_error";

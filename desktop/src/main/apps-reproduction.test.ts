@@ -4,12 +4,12 @@ import { registerHooks, stripTypeScriptTypes } from 'node:module';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const electron = 'data:text/javascript,export const net = { fetch() { throw new Error("Unexpected backend proxy"); } }; export const dialog = { showMessageBox(...args) { return globalThis.__reproductionDialog(...args); } };';
+const electron = 'data:text/javascript,export const BrowserWindow = class {}; export const ipcMain = {}; export const nativeTheme = { shouldUseDarkColors: false }; export const session = {}; export const net = { fetch() { throw new Error("Unexpected backend proxy"); } }; export const dialog = { showMessageBox(...args) { return globalThis.__reproductionDialog(...args); } };';
 registerHooks({ resolve(specifier, context, nextResolve) {
   return specifier === 'electron' ? { url: electron, shortCircuit: true } : nextResolve(specifier, context);
 } });
 const { DesktopApps } = await import('./apps.ts');
-const { confirmReproduction } = await import('./reproduction-approval.ts');
+const { confirmNativeReproduction: confirmReproduction } = await import('./reproduction-approval.ts');
 const ids = { itemId: 'a'.repeat(64), specId: 'b'.repeat(64), requestId: 'run-1' };
 const ticket = 'c'.repeat(64), bindingDigest = 'd'.repeat(64);
 const prepared = { state: 'requires-approval', ticket, bindingDigest, summary: 'Fixed fixture; 2 seconds; CPU only. Not a paper reproduction.' };

@@ -7,8 +7,7 @@ import tempfile
 
 from .model import Invalid, digest
 from .pdf import PdfDocument
-from .research_resources import ImportDraft, PublicURL, ResearchResource
-from .pdf_files import arxiv_identifier
+from .research_resources import ArxivPaper, ImportDraft, PublicURL, ResearchResource
 
 
 def paper_directory(root=None):
@@ -28,7 +27,10 @@ def paper_directory(root=None):
 
 
 def file_stem(paper):
-    identifier = arxiv_identifier(paper)
+    try:
+        identifier = ArxivPaper.from_snapshot(paper).identifier
+    except Invalid:
+        identifier = None
     if identifier:
         raw = identifier
     else:

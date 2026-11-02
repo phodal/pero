@@ -19,6 +19,12 @@ Task/Run 与远程 App 部署尚未与此机制连接。
 App 安装和执行仅依赖 Pero 自身的 App SDK、Host 与声明式后端协议；
 不需要外部 Point SDK checkout、兼容运行包或 Project 二进制。
 
+[ADR 0027](adr/0027-app-agent-plugins.md) 增加独立的 App Agent Plugin 声明、
+本地插件依赖与会话装配。App 声明领域指引、现有写入工具白名单和连接内调用预算；
+独立插件包提供 Skills 与 MCP。Rust Host 安装缺失的本地依赖、保留用户停用选择，
+并为 App 会话冻结指引与 MCP 配置。共享 App Use 适配器执行工具准入，ACP 继续
+拥有会话与 MCP 生命周期；不引入 Point runtime 或通用模块插件加载器。
+
 [ADR 0025](adr/0025-connectors-app.md) 将 Connectors 管理界面作为 Workbench App
 接入。App 声明 `connectors` 权限，Rust Host 校验其启用状态；Electron Main
 和 Native 壳装配同一个管理器、系统凭据与便携 MCP 驱动。Native 经私有 stdio
@@ -28,7 +34,22 @@ App 安装和执行仅依赖 Pero 自身的 App SDK、Host 与声明式后端协
 继续保留为直接 ACP 授权。当前开发验收与账号、平台及安装包缺口见
 [Connectors 验证](fitness/connectors.md)。
 
+## 本地研究项目
+
+[ADR 0028](adr/0028-local-research-projects.md) 定义本地 `ResearchProject`：独立身份、
+研究目标、可选目录与 App 对象引用由 Host 的运行时设置持久化。工作台默认打开
+概览，汇总显式关联的 Paper 论文/研究记录和 Control Lab、Lab 实验；读取现有
+App 后端的公共摘要，再通过 App location 打开原记录。项目只保存对象与观察版本
+的引用，不复制科学数据，不建立第二套实验、验证或执行状态。目录在保存前沿用
+Host 的规范化回执；共享任务和远程 Worker 继续走已有控制面链路。已实现范围与
+运行证据见 [研究项目验证](fitness/research-projects.md)。
+
 ## 可组合应用与产品
+
+[ADR 0026](adr/0026-hpc-benchmark-library.md) 定义 HPC 基准库与 Compute 的分工：
+App 保存版本化方法、固定输入、独立检查和比较证据，ReFrame 执行已选择的基准。
+Compute/Host 继续拥有机器、授权和通用执行生命周期。首版使用本地 CPU 参考方法；
+Slurm、多 MPI ranks 与 OpenFOAM 的真实站点验收单独记录，不能由本地参考结果代替。
 
 产品装配以 [ADR 0008](adr/0008-product-distributions.md) 为准，区分三个概念：
 
@@ -317,6 +338,15 @@ Cloud 的 Run 保存协调状态及执行绑定，Host 的 managed 保存会话�
 工作区准备由 Host 的 Owner 适配器负责，再把批准后的路径交给受管执行。首版可从显式声明的 shared checkout 开始，每个工作区同时只允许一个写入回合，并保留已有修改。isolated worktree、容器或 VM 按任务需要再接入；worktree 本身不提供进程、网络或文件访问隔离。
 
 Python 方法环境按 recipe 和依赖版本准备，科学数据按获准引用绑定。环境 Ready、方法运行成功、独立验证通过和研究结论接受分别记录，不默认把实验室数据上传到 Cloud。
+
+[ADR 0029](adr/0029-ai4s-environments.md) 定义 AI4S 环境领域模型：可复用软件
+Profile 与实际资源分开，Template/Requirements 声明条件，Binding/Snapshot 保存实际
+观察，Use 关联已有科学 attempt 或受管验证。同一研究可引用多个 Use；App 服务、
+Agent 与科学计算环境分别绑定。环境不拥有科学参数、预算、工作流调度或接受决定。
+P1 已实现纯模型、匹配与软件元数据观察，live Use、独立计算解释器和远程接线尚待实现。
+[P1 验证](fitness/ai4s-environments.md)、[设计与接口](design-docs/ai4s-environments.md)、
+[Control Lab / PC-Gym 源码映射](design-docs/ai4s-environments-scenarios.md) 和
+[分阶段计划](exec-plans/2026-11-02-ai4s-environments.md) 区分当前事实与后续验收。
 
 ## 执行不变量
 

@@ -100,11 +100,9 @@ try{
   expect((await ui.state()).localExecution.setup).toMatchObject({onboarding_complete:false,enabled:false,has_connection:false});
   expect(requests.some(request=>request.path.includes('/auth/desktop'))).toBe(false);
   await ui.page.screenshot({path:resolve(output,'first-run.png')});
-  await ui.page.mouse.click(600,205);
-  await expect.poll(async()=>(await ui.state()).localExecution.setup.onboarding_complete).toBe(true);
   await close();
   ui=await launch('skip');
-  await expect.poll(async()=>(await ui.state()).localExecution.setup.onboarding_complete).toBe(true);
+  expect((await ui.state()).localExecution.setup.onboarding_complete).toBe(false);
   expect((await ui.state()).localExecution.setup.enabled).toBe(false);
   await ui.page.evaluate(({url,token})=>window.pero.remoteCommand({action:'remote_configure',url,mode:'client',token}),{url:base,token:clientToken});
   await expect.poll(async()=>(await ui.state()).remote.state.identity?.id).toBe('client-fixture');
@@ -233,7 +231,7 @@ try{
   await expect.poll(async()=>(await ui.state()).localExecution.status.status,{timeout:15000}).toBe('stopped');
   expect(enrollments).toHaveLength(1);expect(completed).toBe(1);
   expect(errors).toEqual([]);
-  await writeFile(resolve(output,'result.json'),JSON.stringify({checks:['localized-enrollment-errors-404-405-401-403-409-400-503-network-invalid-json','pending-enrollment-recovered-once','first-run-no-auto-login','skip-persisted','enable-later-from-workers','explicit-enable','granted-project-scope','real-worker-acp-turn','encrypted-credentials','restart-restoration','stop-preserves-configuration','resume-without-reenroll','logout-stops-worker','different-account-blocked','original-account-restores','dark-narrow-setup'],enrollments:enrollments.length,completed,events:events.length,state:await ui.state(),errors},null,2));
+  await writeFile(resolve(output,'result.json'),JSON.stringify({checks:['localized-enrollment-errors-404-405-401-403-409-400-503-network-invalid-json','pending-enrollment-recovered-once','first-run-no-auto-login','local-default-after-restart','enable-later-from-workers','explicit-enable','granted-project-scope','real-worker-acp-turn','encrypted-credentials','restart-restoration','stop-preserves-configuration','resume-without-reenroll','logout-stops-worker','different-account-blocked','original-account-restores','dark-narrow-setup'],enrollments:enrollments.length,completed,events:events.length,state:await ui.state(),errors},null,2));
   console.log(JSON.stringify({checks:'local execution',enrollments:enrollments.length,completed,events:events.length,errors}));
 }catch(error){
   if(app){const page=await app.firstWindow();console.error(await page.evaluate(()=>window.peroDiagnostics?.snapshot()).catch(()=>null));await page.screenshot({path:resolve(output,'failure.png')});}

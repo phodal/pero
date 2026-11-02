@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Split, SplitPane } from "@pero/app-sdk/ui";
 import type { Experiment, Report, Series, Template } from "./types";
 import {
   chartTarget,
@@ -192,8 +193,8 @@ export function Results({
 
   return (
     <>
-      <div className="workbench">
-        <section className="model-panel panel">
+      <Split className="workbench" storageKey="control-lab.results.panes" collapseBelow={980}>
+        <SplitPane as="section" id="model" className="model-panel panel" size={260} min={220} resizeLabel="Resize model setup">
           <h2>Model and setup</h2>
           <div className="model-expression">{model}</div>
           <p className="muted">{experiment.templateId === "active-filter" ? "Equal R/C, idealized op-amp" : "Continuous SISO, unit feedback"}</p>
@@ -227,15 +228,15 @@ export function Results({
             <dt>Final cases</dt><dd>{rows.length}</dd>
           </dl>
           <button type="button" onClick={() => setPolicyOpen(true)}>View verification policy</button>
-        </section>
-        <section className="response-panel panel">
+        </SplitPane>
+        <SplitPane as="section" id="response" className="response-panel panel" min={300}>
           <div className="panel-heading">
             <h2>Response analysis</h2>
             <select aria-label="Response scenario" value={scenario?.id ?? ""} onChange={(event) => setScenarioId(event.target.value)}>
               {scenarios.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
             </select>
           </div>
-          <p className="muted">{candidate?.label ?? "Initial parameters"}{dirty ? " · showing saved run" : ""}</p>
+          <p className="muted">{candidate?.label ?? "Initial parameters"}{dirty ? " (saved run)" : ""}</p>
           {series.length > 0 && <div className="signal-tabs" role="group" aria-label="Response signal">
             {series.map((item) => <button key={item.name} type="button" aria-pressed={signal?.name === item.name}
               onClick={() => setSignalName(item.name)}>{signalLabel(item.name)}</button>)}
@@ -251,8 +252,8 @@ export function Results({
           </div>
           {selected?.error && <p className="error" role="alert">{selected.error}</p>}
           {selected?.report && <details className="search-checks"><summary>Selected search checks: {selected.report.verdict}</summary><Checks report={selected.report} /></details>}
-        </section>
-        <section className="verification-panel panel">
+        </SplitPane>
+        <SplitPane as="section" id="verification" className="verification-panel panel" size={280} min={240} resizeLabel="Resize verification">
           <div className="panel-heading"><h2>Verification</h2><span className="muted">{verified ? "Final scenarios" : "Search evidence"}</span></div>
           <div className={`verdict-header status ${summary.title === "All checks passed" ? "PASS" : summary.title.includes("failed") ? "FAIL" : "INCONCLUSIVE"}`}>
             <strong>{summary.title}</strong>
@@ -283,13 +284,13 @@ export function Results({
             <p>{suggestion.message}</p>
             {suggestion.values && (
               <div className="suggestion-actions">
-                <span>{names.map((name) => `${name} ${numeric(suggestion.values?.[name])}`).join(" · ")}</span>
+                <span>{names.map((name) => `${name} ${numeric(suggestion.values?.[name])}`).join(", ")}</span>
                 <button type="button" onClick={() => suggestion.values && onDraft(suggestion.values)}>Use proposal</button>
               </div>
             )}
           </div>
-        </section>
-      </div>
+        </SplitPane>
+      </Split>
       <section className="candidate-panel panel">
         <div className="panel-heading">
           <h2>Candidates {experiment.candidates.length}</h2>

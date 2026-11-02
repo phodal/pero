@@ -9,17 +9,28 @@ import { createInterface } from 'node:readline';
 import { DesktopAppUse } from '../../../desktop/src/main/app-use-mcp.ts';
 import { AppWriteRoutes } from '../../../desktop/src/main/app-write-routes.ts';
 import { descendants, finishDescendants } from './cleanup.mjs';
+import { providerConnectionArgs } from '../paper-study/plan.mjs';
 
 export const root = resolve(import.meta.dirname, '../../..');
 export { skillName, seed } from './fixture-provider.mjs';
 
-export async function openHost({ directory, agent, endpoint, model, credential, audit, skills = true, useEnvironmentProxy = false, prepareApp, pythonEnvironment, imageInput = false, allowedPaperTools }) {
+// Disposable campaign manifest projection, not a product-wide model permission policy.
+export function paperWritesForSession(writes, allowedPaperTools, imageInput) {
+  const selected = allowedPaperTools ? writes.filter(write => allowedPaperTools.includes(write.name)) : writes;
+  return imageInput ? selected : selected.map(write => write.name !== 'research-source-read' ? write : ({
+    ...write, description: write.description + ' This text-only campaign cannot receive images; use list/read/compare and state that figures were not visually observed.',
+    schema: { ...write.schema, properties: { ...write.schema.properties,
+      operation: { ...write.schema.properties.operation, enum: ['list', 'read', 'compare'] } } },
+  }));
+}
+
+export async function openHost({ directory, agent, endpoint, model, credential, audit, skills = true, useEnvironmentProxy = false, prepareApp, pythonEnvironment, imageInput = false, allowedPaperTools, providerBudget }) {
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const sessions = resolve(directory, 'sessions');
   await mkdir(sessions, { mode: 0o700, recursive: true });
   const installedSkills = resolve(directory, 'paper-skills');
   await cp(resolve(root, 'apps/paper-agent/skills'), installedSkills, { recursive: true });
-  const args = ['--endpoint', endpoint, '--model', model, '--session-dir', sessions,
+  const args = [...providerConnectionArgs({ endpoint, model, providerBudget }), '--session-dir', sessions,
     '--api-key-env', 'RESEARCH_CAMPAIGN_KEY', '--approval', 'never', '--max-retries', '0',
     '--http-attempt-audit', audit, ...(skills ? ['--skills-root', installedSkills] : []),
     ...(useEnvironmentProxy ? ['--use-env-proxy'] : []), ...(imageInput ? ['--image-input'] : [])];
@@ -94,8 +105,7 @@ export async function openHost({ directory, agent, endpoint, model, credential, 
     if (name === 'paper-agent' && allowedPaperTools) assert(allowedPaperTools.every(tool => writes.some(write => write.name === tool)));
     await writeFile(resolve(source, 'app.json'), JSON.stringify({ schemaVersion: 1, name, version: 'fixture', displayName: name,
       permissions: { host: name === 'paper-agent' ? ['agent', 'research-assets'] : [] },
-      contributes: { panels: [{ id: 'main', title: name, entry: 'dist/index.html' }], writes: name === 'paper-agent' && allowedPaperTools
-        ? writes.filter(write => allowedPaperTools.includes(write.name)) : writes },
+      contributes: { panels: [{ id: 'main', title: name, entry: 'dist/index.html' }], writes: name === 'paper-agent' ? paperWritesForSession(writes, allowedPaperTools, imageInput) : writes },
       backend }));
     await request('install', { path: source }); await request('enable', { name });
   }

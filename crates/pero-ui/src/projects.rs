@@ -91,6 +91,21 @@ impl Project {
         projects
     }
 
+    pub fn with_research(mut catalog: Vec<Self>, research: &[pero_contracts::research_project::ResearchProject]) -> Vec<Self> {
+        let mut projects = Vec::new();
+        for saved in research {
+            let directory = saved.workspace.as_ref().and_then(|path| catalog.iter().find(|p| p.contains_workspace(path)));
+            projects.push(Self {
+                key: format!("research:{}", saved.id), name: saved.title.clone(),
+                workspace: saved.workspace.clone(), workspaces: directory.map(|project| project.workspaces.clone()).unwrap_or_else(|| saved.workspace.iter().cloned().collect()),
+                shared_id: directory.and_then(|p| p.shared_id.clone()),
+            });
+        }
+        catalog.retain(|project| !research.iter().any(|saved| saved.workspace.as_ref().is_some_and(|path| project.contains_workspace(path))));
+        projects.extend(catalog);
+        projects
+    }
+
     pub fn matches_key(&self, key: &str) -> bool {
         self.key == key
             || key
@@ -114,6 +129,7 @@ impl Project {
 #[serde(rename_all = "snake_case")]
 pub(crate) enum ProjectTab {
     #[default]
+    Overview,
     Tasks,
     Sources,
     Execution,
@@ -121,9 +137,10 @@ pub(crate) enum ProjectTab {
 }
 
 impl ProjectTab {
-    pub const ALL: [Self; 4] = [Self::Tasks, Self::Sources, Self::Execution, Self::Settings];
+    pub const ALL: [Self; 5] = [Self::Overview, Self::Tasks, Self::Sources, Self::Execution, Self::Settings];
     pub fn label_key(self) -> &'static str {
         match self {
+            Self::Overview => "project.overview",
             Self::Tasks => "nav.tasks",
             Self::Sources => "project.sources",
             Self::Execution => "project.execution",
@@ -201,6 +218,40 @@ mod tests {
             assert!(!projects[0].contains_task("point"));
         }
     }
+    #[test]
+    fn research_catalog_preserves_stable_identity_and_unrelated_workspaces() {
+        use pero_contracts::research_project::ResearchProject;
+        for (title, workspace, second_checkout, shared, legacy_keys) in [
+            ("Initial question", Some("/work/project"), false, Some("team"), vec!["workspace:/work/other"]),
+            ("Revised question", Some("/work/project"), false, Some("team"), vec!["workspace:/work/other"]),
+            ("Moved question", Some("/work/moved"), false, None, vec!["workspace:/work/project", "workspace:/work/other"]),
+            ("Literature question", None, false, None, vec!["workspace:/work/project", "workspace:/work/other"]),
+            ("Shared checkouts", Some("/work/project"), true, Some("team"), vec!["workspace:/work/other"]),
+        ] {
+            let mut workspaces = vec!["/work/project".to_string(), "/work/other".into()];
+            if second_checkout { workspaces.push("/work/project-two".into()); }
+            let bindings = ["/work/project", "/work/project-two"].map(|workspace| ProjectBinding {
+                workspace: workspace.into(), project_id: "team".into(),
+            });
+            let catalog = Project::catalog(&workspaces, &["team".into()], &bindings, &[], &[]);
+            let saved = ResearchProject::new("stable-research".into(), title.into(), String::new(), workspace.map(str::to_string)).unwrap();
+            let projects = Project::with_research(catalog, &[saved]);
+            assert_eq!(projects[0].key, "research:stable-research", "{title}");
+            assert_eq!(projects[0].name, title);
+            assert_eq!(projects[0].workspace.as_deref(), workspace);
+            assert_eq!(projects[0].shared_id.as_deref(), shared);
+            assert_eq!(projects[1..].iter().map(|project| project.key.as_str()).collect::<Vec<_>>(), legacy_keys);
+            if workspace == Some("/work/project") {
+                assert!(projects[0].matches_key("workspace:/work/project"));
+                assert!(projects[0].matches_key("shared:team"));
+            }
+            if second_checkout {
+                assert!(projects[0].contains_workspace("/work/project-two"));
+                assert!(projects[0].matches_key("workspace:/work/project-two"));
+            }
+        }
+    }
+
     #[test]
     fn task_filters_distinguish_results_from_attention() {
         use crate::cloud::Phase;

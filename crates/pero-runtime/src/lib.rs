@@ -1,8 +1,10 @@
 pub mod acp;
+pub mod agent_plugins;
 pub mod context;
 pub mod file_documents;
 pub mod roadmap;
 pub mod apps;
+pub mod environments;
 pub mod contribution;
 pub mod contribution_git;
 pub mod settings;

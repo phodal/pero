@@ -31,6 +31,24 @@ OpenBLAS. The verified managed-interpreter path avoids this by using Python 3.12
 and requiring binary wheels. Existing explicitly selected environments remain
 subject to their own interpreter compatibility and isolation checks.
 
+## 2026-11-02 explicit-environment recovery
+
+Source: `a1527117`, macOS arm64, system Python 3.14.7. The complete
+`npm run test:apps:contracts` passes with the rebuilt Host and fixture
+`UV_OFFLINE=1`. Its recovery scenario checks isolation failure before any create
+or install phase, unchanged persisted binding, repair in the same Host,
+dependency metadata plus real module import, restart and authenticated backend
+observation of the original interpreter and its child. Deleting that explicit
+venv fails visibly without recreating it or enabling the App.
+
+`node scripts/cargo.mjs test -p pero-runtime -p pero-host` passes (78 runtime,
+43 Host cases in the observed development worktree, including concurrent
+Project-resource work). `tests/runtime/app-agent-plugins.mjs`,
+`tests/contracts/app-agent.mjs` and `tests/contracts/point-agent.mjs` also pass.
+The pure selection table retains Control Lab's valid incompatible-minor migration
+and rejects invalid configuration before acquisition. This is local source and
+protocol acceptance; the real network installer was not rerun for this fix.
+
 ## Remaining boundaries
 
 The native installation view compiles but has not had the corresponding real-app

@@ -79,18 +79,20 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   await row().locator('.pero-list-open').click();
   const panel = await manualRecordPanel(frame);
   await panel.getByRole('button', { name: 'New record', exact: true }).click();
-  await panel.getByLabel('Question', { exact: true }).fill('Authored record question');
-  await panel.getByLabel('Scope', { exact: true }).fill('Authored source only');
-  await panel.getByLabel('Inclusion criteria', { exact: true }).fill('Saved authored material');
-  await panel.getByLabel('Exclusion criteria', { exact: true }).fill('Unobserved external claims');
-  await panel.getByLabel('Reason', { exact: true }).fill('Retain this original source for review');
+  await panel.getByRole('textbox', { name: 'Question', exact: true }).fill('Authored record question');
+  await panel.getByRole('textbox', { name: 'Scope', exact: true }).fill('Authored source only');
+  await panel.getByRole('textbox', { name: 'Inclusion criteria', exact: true }).fill('Saved authored material');
+  await panel.getByRole('textbox', { name: 'Exclusion criteria', exact: true }).fill('Unobserved external claims');
+  await panel.getByRole('textbox', { name: 'Reason', exact: true }).fill('Retain this original source for review');
   await panel.getByRole('button', { name: 'Save revision', exact: true }).click();
   await expect(panel.getByText('Revision saved. Earlier records are unchanged.', { exact: true })).toBeVisible();
   const first = (await api('/api/research/record', { operation: 'list' })).records.find(item => item.question === 'Authored record question');
   expect(first.paperIds).toEqual([paper.id]);
   await panel.getByRole('button', { name: 'Revise', exact: true }).click();
-  await panel.getByLabel('Question', { exact: true }).fill('Authored revised question');
-  await panel.getByLabel('Scope', { exact: true }).fill('Revised scope without inherited acceptance');
+  // Role names exclude a textarea's initial text; raw label text includes it after reopen.
+  await expect(panel.getByRole('textbox', { name: 'Scope', exact: true })).toHaveValue('Authored source only');
+  await panel.getByRole('textbox', { name: 'Question', exact: true }).fill('Authored revised question');
+  await panel.getByRole('textbox', { name: 'Scope', exact: true }).fill('Revised scope without inherited acceptance');
   await panel.getByRole('button', { name: 'Save revision', exact: true }).click();
   await expect(panel.getByRole('article', { name: 'Saved research record' })).toContainText('Revised scope without inherited acceptance');
   const revised = (await api('/api/research/record', { operation: 'list' })).records.find(item => item.question === 'Authored revised question');

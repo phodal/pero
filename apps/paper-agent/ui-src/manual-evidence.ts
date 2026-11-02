@@ -8,7 +8,8 @@ export function reviseEvidence(items: ManualEvidence[], index: number, patch: Pa
     : items.map((item, position) => position === index ? { ...item, ...patch } : item);
 }
 
-/** Intent membership and section labels do not establish a citation. */
+/** Intent membership and paper labels do not establish a citation. */
 export function reportsCitingPaper(reports: Report[], paperId: string): Report[] {
-  return reports.filter(report => report.sections?.some(section => section.evidence?.some(citation => citation.paperId === paperId)));
+  return reports.filter(report => [...(report.sections ?? []), ...(report.experiments ?? []), ...(report.matrix?.cells ?? [])]
+    .some(group => group.evidence?.some(citation => citation.paperId === paperId)));
 }

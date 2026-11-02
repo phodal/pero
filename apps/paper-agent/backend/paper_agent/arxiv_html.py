@@ -316,6 +316,55 @@ class Extractor:
                 self.walk(child, section, inherited_conversion_error=conversion_error)
 
 
+def _scaffold_identity(root, article):
+    """Read arXiv's server-rendered license watermark, not arbitrary body text."""
+    candidates = []
+
+    def contains_article(node):
+        if node.tag in DROP:
+            return False
+        return node is article or any(contains_article(child) for child in node.children if isinstance(child, Node))
+
+    def visit(node):
+        if node.tag == 'article' or node.tag in DROP:
+            return
+        children = [child for child in node.children if isinstance(child, Node)]
+        for index, child in enumerate(children):
+            if (child.tag == 'div' and child.attrs.get('id') == 'infobox' and child.has('infobox')
+                    and any(sibling.tag == 'div' and sibling.has('ltx_page_content')
+                            and contains_article(sibling)
+                            for sibling in children[index + 1:])):
+                candidates.append((child, children[index + 1]))
+            visit(child)
+
+    visit(root)
+    if len(candidates) > 1:
+        raise DocumentError('Ambiguous HTML identity watermark', 'source_version_mismatch')
+    if not candidates:
+        return ()
+    box, following = candidates[0]
+    if (not following.has('ltx_page_content')
+            or not contains_article(following)):
+        return ()
+    children = [child for child in box.children if isinstance(child, Node)]
+    watermarks = [child for child in children if child.tag == 'div' and child.attrs.get('id') == 'watermark-tr']
+    if len(watermarks) > 1:
+        raise DocumentError('Ambiguous HTML identity watermark', 'source_version_mismatch')
+    if len(children) != 2 or len(watermarks) != 1:
+        return ()
+    license_node, watermark = children
+    if (watermark is not watermarks[0] or license_node.tag != 'a'
+            or license_node.attrs.get('id') != 'license-tr'
+            or license_node.attrs.get('href') != 'https://info.arxiv.org/help/license/index.html#licenses-available'
+            or any(isinstance(child, Node) for child in watermark.children)):
+        return ()
+    match = re.fullmatch(
+        r'\s*arXiv:(\d{4}\.\d{4,5}v[1-9]\d*)\s+(?:\[[A-Za-z][A-Za-z0-9.-]*\]\s+)?'
+        r'\d{1,2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4}\s*',
+        ''.join(watermark.children))
+    return (('scaffold:watermark-tr', match[1]),) if match else ()
+
+
 def parse_arxiv_html(data: bytes, source_url: str, paper_id: str = '', *, limits=ParseLimits(), requested_url=None):
     if not isinstance(data, bytes) or len(data) > limits.max_bytes:
         raise DocumentError('HTML byte limit exceeded', 'document_limit', 413)
@@ -347,9 +396,11 @@ def parse_arxiv_html(data: bytes, source_url: str, paper_id: str = '', *, limits
             except ValueError:
                 pass
         if declared:
-            if declared not in (source.arxiv_id, re.sub(r'v\d+$', '', source.arxiv_id)):
-                raise DocumentError('HTML identity differs from the requested version', 'source_version_mismatch')
             identity_evidence.append((origin, declared))
+    identity_evidence.extend(_scaffold_identity(tree.root, articles[0]))
+    for _, declared in identity_evidence:
+        if declared not in (source.arxiv_id, re.sub(r'v\d+$', '', source.arxiv_id)):
+            raise DocumentError('HTML identity differs from the requested version', 'source_version_mismatch')
     explicit_response_version = any(declared == source.arxiv_id for _, declared in identity_evidence)
     base_url = source.url
     for node in tree.root.nodes():

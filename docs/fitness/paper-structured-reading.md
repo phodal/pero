@@ -183,14 +183,14 @@ public final-head results, not fresh Desktop execution in this reconciliation.
 
 | Issue #76 acceptance | Established evidence / remaining boundary |
 | --- | --- |
-| A: domain and native source | Immutable IR, raw bytes/digest, fixed response identity, manifests and conservative failure/partial states are covered by the product and deterministic tests. Live fixed-v2 parsing remains the D5 gate below. |
+| A: domain and native source | Immutable IR, raw bytes/digest, fixed response identity, manifests and conservative failure/partial states are covered by the product and deterministic tests. Live fixed-v2 parsing passed the D5 gate on the PR #102 candidate described below; that candidate is not yet merged. |
 | B: product integration | Existing saved-paper Read/PDF, scoped original reveal, state/restart and shared store/Host paths are covered by the final-head Desktop record; no new UI is introduced here. |
 | C: Agent/evidence | Typed windows, exact raw windows, scoped observations/reports and unchanged PDF quote boundaries are covered by the final-head record and tests. Figure metadata is not image observation; no scientific validation is inferred. |
 | D1–D2: deterministic structure/fidelity | [Scientific document tests](../../apps/paper-agent/test/test_scientific_document.py) cover authored structure, exact cell strings, spans, units, reference targets, raw digest and hostile/limited input. Their real-looking arXiv URL is fixture identity, not evidence of a live paper run. |
 | D3: existing suite/build/regressions | Final implementation-head CI is linked above. New helper verification is separately recorded below; it does not inherit a new-head full-CI pass. |
 | D4: actual Desktop | Final-head authored-corpus L1 evidence supersedes earlier pending GUI statements; no L3 signed-package or all-platform claim. |
-| D5: real `2606.03979v2` | **Open: acquisition could not complete in this executor.** Official HTML is available via the separate web reader; it must not be declared unavailable merely because this executor cannot acquire it. No source digest or real parse manifest has been produced. |
-| D6: evidence boundaries | Local command/environment/results below distinguish fixture L0, prior Desktop L1 and incomplete live-service L2. The entire issue is not declared complete. |
+| D5: real `2606.03979v2` | **Passed on PR #102 candidate `346d0498` (not yet merged).** Actions run 41415609085 acquired the exact official response, froze its SHA/manifest, retained all six required kinds, and traversed bounded typed reads with zero missing items. The final result and explicit partial-parse limitations are recorded below. Earlier executor/network and identity failures remain historical evidence, not the current D5 result. |
+| D6: evidence boundaries | Local L0, prior Desktop L1 and successful candidate live-service L2 are distinguished below. The live parser result is not new Desktop, App consent/ledger, model, PDF alignment or scientific acceptance. PR #102 merge/integration remains pending. |
 
 ### Explicit opt-in corpus probe
 
@@ -246,3 +246,317 @@ Final local full Paper regression on this increment:
 completed 210 tests in 58.320 seconds: 209 passed, one existing platform skip.
 Local documentation links and `git diff --check` passed. This is L0 evidence;
 it does not replace the still-blocked live acquisition or claim fresh Desktop CI.
+
+### Fixed-v2 acquisition recheck (2026-11-02)
+
+The existing opt-in probe was rerun unchanged against merged
+`master@78881615e37790b0a0b4635a197e18f974ea6867`, on Linux x86_64 / Python
+3.12.14 at `2026-11-02T07:47:27.094506+00:00`:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 apps/paper-agent/test/manual/scientific_html.py \
+  --allow-official-html \
+  --output /workspace/scratch/859e376748c6/pero76-d5-attempt-20261102.json
+```
+
+It exited 1 with `outcome=acquisition-not-completed`,
+`acquisitionStatus=failed`, and `reason=Metadata request failed: gaierror`.
+The product acquisition did not obtain original bytes; there is still no live
+source digest, parser manifest or bounded-read result. This is an executor
+DNS/acquisition failure, not evidence that the official paper is unavailable.
+No alternative downloader, browser-derived fixture, proxy, permission workaround,
+model call or repeated fetch was used. D5 remains open pending an authorized
+execution path with working official-site DNS/HTTPS.
+
+The unchanged deterministic scientific-document/probe suite passed all 19 tests
+in 0.577 seconds in the same checkout. This is L0 only and does not satisfy D5
+or imply fresh Desktop acceptance. The recheck changes no product code or parser
+boundaries and does not supersede the earlier authored-corpus Desktop evidence.
+
+### Explicit Actions HTML corpus opt-in
+
+The manual probe now accepts only `--case d5|pc-gym|controlgym`; omitting it
+retains the original `d5` case. Each case is a fixed official HTML version,
+verified through the official abstract/HTML pages on 2026-11-02 **before** the
+product run. Web inspection selects the corpus; it supplies neither original
+bytes nor parser evidence.
+
+| Case | Fixed official HTML | Predeclared structural check |
+| --- | --- | --- |
+| `d5` (mandatory D5) | [2606.03979v2](https://arxiv.org/html/2606.03979v2) | Heading, paragraph, equation, table, figure, reference; original six-kind gate unchanged. |
+| `pc-gym` | [2410.22093v4](https://arxiv.org/html/2410.22093v4) | Same six kinds. Official v4 contains display equations, figure captions, bibliography and Table 1 (multistage extraction parameters). |
+| `controlgym` | [2311.18736v2](https://arxiv.org/html/2311.18736v2) | Same six kinds. Official v2 contains display equations, figure captions, bibliography and Tables 1–2 (linear/PDE environments). |
+
+The official [PC-Gym abstract](https://arxiv.org/abs/2410.22093v4) and
+[Controlgym abstract](https://arxiv.org/abs/2311.18736v2) link those exact HTML
+versions. Additional cases supplement D5 and cannot replace it. These expectations
+are not adapted to the eventual parser output; an absent required kind fails.
+
+The existing `ci.yml` has an independent three-case `paper-html-live` job,
+activated only by boolean dispatch input `paper_html_live=true` or a PR carrying
+`ci:paper-html-live`. Ordinary PRs, pushes, daily schedules and `ci:full` alone do
+not activate it. For a lightweight PR run use only `ci:paper-html-live`, not
+`ci:full` or `ci:paper-pdf-live`. A manual dispatch still retains the workflow's
+existing full-platform behavior, but does not enable PDF/model journeys through
+this new input. The aggregate gate permits this job to be skipped only without
+its opt-in and propagates enabled acquisition/parser failures. Matrix fail-fast
+is disabled so one unavailable paper does not hide the other two results.
+
+Each case invokes the same product acquisition/parser owners once with the
+unchanged 45-second worker and 8 MiB response limits. No alternate URL, version,
+redirect-following fallback, retry, PDF, image, TeX, provider or secret is added.
+Original HTML/IR live only in a private temporary directory that is removed on
+normal completion/failure; CI uploads only the exact named per-case JSON summary,
+never a temporary directory or a wildcard source tree. The job has read-only
+contents permission and a five-minute ceiling. Artifact names bind the corpus
+case and checkout SHA, with seven-day retention. Summaries retain source digest,
+size, parser manifest, counts, limitations and bounded-read checks when parsing
+succeeds; acquisition failure records no invented digest.
+
+Local offline checks cover every fixed identity, the unchanged six required
+kinds, rejection of arbitrary case URLs, selected-case metadata-only output and
+temporary-original cleanup. CI wiring tests cover opt-in isolation, exact artifact
+paths and enabled failure/skip propagation. No new live product acquisition has
+run in this restricted executor; successful Actions artifacts remain required
+before D5 or the supplementary real-corpus checks can be claimed.
+
+Verification of this opt-in wiring: 22 scientific-document/probe tests passed;
+all six Desktop-CI contract tests passed. Full offline Paper regression completed
+237 tests in 76.719 seconds (236 passed, one existing platform skip).
+`git diff --check` passed. These remain L0 checks, not results of the future
+Actions live run.
+
+### First Actions corpus result and bounded identity diagnosis
+
+[Run 41410116061](https://github.com/phodal/pero/actions/runs/41410116061),
+PR #102 head `d20a5eb8e4e1f4eb3235d40f431a54b71d12b434`, reached the actual
+product transport/parser for all three cases. Each returned
+`acquisition-not-completed` / `failed` with
+`HTML response does not establish this explicit paper version; keep using PDF`.
+This is **not** the earlier executor DNS failure. The existing parser recognized
+an article but none of its accepted response identity signals established the
+requested version. None of these results passes D5 or supplementary acceptance.
+
+The probe now adds metadata-only diagnosis around the existing `PublicMetadata`
+transport: exactly one `super.fetch_html` response is returned unchanged to the
+existing `prepare_html` owner. No production identity rule changes. Before that
+owner can reject it, the private temporary directory records response URL, MIME,
+byte length and SHA-256; allowlisted head identity field names with value hashes
+and syntactic arXiv IDs; and article-external `arXiv:` marker IDs with bounded
+structural paths and text hashes. It does not export text, title, original HTML,
+full attribute values, arbitrary URLs, cookies or HTTP headers. Scripts and article
+content are excluded from marker diagnosis. Counts retain totals while each list
+exports at most 32 entries, with at most eight IDs per entry and eight path nodes;
+tags are allowlisted, classes are at most four restricted arXiv CSS tokens or the known LaTeXML
+`ltx_page_header`, `ltx_page_footer`, `ltx_header` furniture tokens per node, and ID version suffixes are bounded to six digits. These are diagnostic
+candidates, **not admitted identity evidence**.
+
+Only that summary is merged into the existing named JSON artifact. No extra
+network call, source artifact or acceptance fallback is introduced; the original
+version gate and six-kind corpus checks remain unchanged. Absent, unversioned and
+conflicting identity retain the existing fail-closed behavior. A diagnostic failure
+cannot yield a successful product result. The next authorized Actions run is to
+observe the actual response shape, not to assume that a visible web-reader version
+has already been accepted by the product parser.
+
+Offline verification: 25 scientific/probe tests passed, including metadata-only
+projection, marker/body/script exclusion, count/length bounds, a single mocked transport
+seam invocation, and continued `prepare_html` rejection of a diagnostic-only banner.
+
+### Official scaffold compatibility candidate
+
+The metadata artifacts of
+[diagnostic run 41411522519](https://github.com/phodal/pero/actions/runs/41411522519)
+(head `003636260a36f2acbfdf7c066d503c501c3024b2`) were downloaded and their ZIP
+SHA-256 values verified against GitHub's artifact metadata. Each response has zero
+recognized head identity fields and one article-external exact-version `arXiv:`
+marker at `html/body/div/div/div`. The restricted class arrays were empty. These
+paths are compatible with the official scaffold below, but this diagnostic did
+**not** record element IDs and therefore does not establish the actual infobox IDs.
+All three acquisition attempts still failed the unchanged identity gate.
+
+| Case | Artifact ID | Response bytes | Response SHA-256 |
+| --- | --- | ---: | --- |
+| d5 | 13125408740 | 445981 | `cd4e7462754f196741bc9671d18f03054e40d0e0debe0fa88c477b2dbd468824` |
+| pc-gym | 13125602694 | 382496 | `1a5615f0aa4925f7d73177e54916311c2e57d6a3a86a6296c6f13809b5b4bb39` |
+| controlgym | 13125183702 | 403129 | `f0a9a2c3004cbc345f91a65663093538bfbe54dd3e186e103493559307a7ee77` |
+
+Compatibility is based on arXiv's own source, pinned at
+`arXiv/arxiv-browse@60c7f50f40e6f39c2669abb11fc7d845e72efab4`:
+[callout_license.html](https://github.com/arXiv/arxiv-browse/blob/60c7f50f40e6f39c2669abb11fc7d845e72efab4/browse/templates/dissemination/article_scaffold/callout_license.html)
+(blob `1db88a9f96137de032a74baf4e9c099a84e790b5`) renders a license infobox
+containing a version watermark from server metadata;
+[scaffold.py](https://github.com/arXiv/arxiv-browse/blob/60c7f50f40e6f39c2669abb11fc7d845e72efab4/browse/services/html_processing/scaffold.py)
+(blob `9268057d2105373a068ca4f9c4b48ebcc1aaeba1`) inserts it directly before
+`ltx_page_content`. No additional paper fetch was used to inspect these templates.
+
+The parser now recognizes only this narrow, article-external, non-active scaffold:
+`div#infobox.infobox` with the exact official license link followed by a single
+plain-text `div#watermark-tr`, immediately preceding the `ltx_page_content` sibling
+that contains the unique LaTeXML article. Its complete text must match the arXiv
+work ID, an explicit version, optional subject category and printed date. Duplicate
+scoped infoboxes/watermarks or conflict with any accepted head identity fail closed.
+Arbitrary body text, article-local markers, script/template content, wrong furniture
+or license links, detached markers and unversioned text cannot establish identity.
+Request/final URL alone still never establishes response version. Date syntax
+recognition is not scientific or publication-date validation.
+
+Parser release identity advances from `pero.arxiv-latexml.v2` to `.v3`; stored v2
+IR still loads frozen with its original ID, without reparsing or rewriting reports.
+The probe diagnostics additionally permit only the known `infobox`, `watermark-tr`,
+`license-tr` ID values and `infobox`/`ltx_page_content` classes. The next authorized
+three-case Actions run must establish both the actual scaffold shape and the
+candidate parser's real behavior. Until then, this is offline compatibility work,
+not a passed D5 or a successful live structured read; six-kind expectations remain
+unchanged and no model/PDF/image request is added.
+
+Candidate verification after the final containment correction: 27 scientific/probe
+tests passed; full offline Paper discovery passed 242 tests in 67.613 seconds
+(241 passed, one existing platform skip). Six CI contract tests and
+`git diff --check` passed. Independent review reran the 27 focused tests and
+confirmed the article-containment search cannot cross template/noscript/object/form
+or other dropped content. These are L0 results; the candidate's live gate remains
+pending its next explicit Actions execution.
+
+## Successful fixed-corpus acceptance (2026-11-02, PR not yet merged)
+
+[Actions run 41415609085](https://github.com/phodal/pero/actions/runs/41415609085)
+completed all three explicitly authorized live HTML jobs successfully against
+[PR #102](https://github.com/phodal/pero/pull/102) head
+`346d0498f52ed65e42672a3968e40ecace1afe53` (Actions merge checkout
+`51a7d0956340d1b592fa54cb1f97466940a9f7c3`). The PR is **not yet merged** at this
+recording. This establishes D5's real fixed-v2 acquisition/parser/read gate on
+that candidate, not its presence on `master` or a new whole-product Desktop run.
+The opt-in label was removed after this bounded run; no further HTML request was
+needed to inspect its results.
+
+All three ZIP downloads matched the SHA-256 values supplied by GitHub artifact
+metadata; only their named metadata JSON files were inspected:
+
+| Case / job | Artifact | Verified artifact ZIP SHA-256 |
+| --- | --- | --- |
+| [d5 / 125178583693](https://github.com/phodal/pero/actions/runs/41415609085/job/125178583693) | [13127930217](https://github.com/phodal/pero/actions/runs/41415609085/artifacts/13127930217) | `2960a8e51249b3ba33c806e863e8639ccafca0cf1483da4819547e089f90b214` |
+| [pc-gym / 125178584276](https://github.com/phodal/pero/actions/runs/41415609085/job/125178584276) | [13127297272](https://github.com/phodal/pero/actions/runs/41415609085/artifacts/13127297272) | `b6544f4c780f372ac8ac85ff9e647aae1ba2d61d6ec3bad406b7c23ed301584c` |
+| [controlgym / 125178584155](https://github.com/phodal/pero/actions/runs/41415609085/job/125178584155) | [13127367074](https://github.com/phodal/pero/actions/runs/41415609085/artifacts/13127367074) | `51aea3dd7da428e2b1c2e2f24c8ced94a73c1f100824f555dde2ff138eb3ea4c` |
+
+### Exact source and immutable parse identities
+
+Observed on Linux x86_64 / Python 3.12.15, at `08:47:41.113219` UTC (d5),
+`08:47:56.363855` (pc-gym), and `08:47:59.002192` (controlgym). Request and response
+URLs match each exact fixed official HTML URL listed in the corpus table; MIME
+is `text/html`. Transport diagnostic digest/size equals the parsed source digest/size
+for each case.
+
+| Case | Source bytes | Source SHA-256 | Immutable document ID |
+| --- | ---: | --- | --- |
+| d5 / `2606.03979v2` | 446216 | `a9b4c6274c7eda8fbfb4602e0884c5fb613e056bb6193c9176eb5c36c113e769` | `87891aa4f4cba8d318dc1d065949c5ff58ae44014fe8c040ff09fab79ec59d1a` |
+| pc-gym / `2410.22093v4` | 382406 | `e28dad00c579e480ba0b68b3cd6d1c66bf390c1c9b07b60d72aaefe6dc267c1e` | `3a93ea60160744b4d5d967ad600f38dbc238020436f140a0d0a143c7b57add02` |
+| controlgym / `2311.18736v2` | 403129 | `f0a9a2c3004cbc345f91a65663093538bfbe54dd3e186e103493559307a7ee77` | `6cfb5bdc5cb77094a5f38942075dd1557845eab82dd37eb5c358ebba4d1100b6` |
+
+Controlgym's source bytes/digest match diagnostic run 41411522519 exactly. D5 and
+PC-Gym's full response bytes/digests **changed** between runs; the summaries do not
+establish why. All three extracted watermark text hashes match the previous run.
+Do not describe those two changed snapshots as same-byte regression comparisons
+or use their new bytes to repair historical evidence. Each successful probe did
+independently pass same-input repeat parsing and immutable JSON roundtrip for its
+own acquired snapshot.
+
+All manifests record parser `pero.arxiv-latexml.v3`, options
+`whitespace=preserve-decoded-text` and `math=allowlisted-mathml`, with limits:
+8,388,608 bytes; 100,000 nodes; depth 100; 20,000 blocks; 2,000,000 text characters;
+100,000 table slots. All record `source_identity=response-explicit-version` and
+`identity_evidence=[[scaffold:watermark-tr, <exact fixed arXiv ID>]]`.
+The new diagnostics independently show one marker under actual
+`div#infobox.infobox > div#watermark-tr` outside the article for each response,
+not merely a compatible unnamed-div path. The unchanged production owner admitted
+that marker only after the full scaffold/license/article-position checks. Diagnostic
+candidates themselves remain `diagnostic-only`, not a second identity authority.
+
+### Structural and bounded-read results
+
+All cases returned `outcome=passed`; all original six required kinds are present.
+No expected kind was removed or relaxed after seeing the result.
+
+| Case | Headings | Paragraphs | Equations | Tables | Figures | References | Table cells | Typed windows | Windows with `complete=false` |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| d5 | 34 | 77 | 7 | 1 | 10 | 144 | 24 | 311 | 37 |
+| pc-gym | 40 | 507 | 32 | 6 | 12 | 52 | 152 | 670 | 31 |
+| controlgym | 24 | 72 | 26 | 3 | 16 | 85 | 281 | 260 | 50 |
+
+All report `missingItems=0`. The probe followed each block's `nextStart` to its end,
+checked strictly progressing continuations and a maximum 32,768-byte encoded read,
+and retained `evidenceAdmission=not-observed-in-study`. A window's `complete=false`
+can reflect pagination, a nonzero starting offset or truncated context; it is not
+an assertion that every window is a complete representation. Zero missing items
+does not erase parser limitations or certify scientific fidelity. Source locators
+number 291 / 254 / 225 and source-anchor citation targets 469 / 112 / 194 for
+d5 / pc-gym / controlgym respectively; these are structural counts, not semantic
+citation validation.
+
+### Retained limitations and evidence level
+
+Every document remains `parseStatus=partial`, with these explicit warnings:
+
+- **d5:** `active-content-omitted`, `image-bytes-not-acquired`,
+  `theorem-structure-unavailable`.
+- **pc-gym:** `image-bytes-not-acquired`, `inline-note-as-text`,
+  `original-element-window-unavailable`, `unclassified-text-preserved`,
+  `unsafe-link-omitted`, `unsupported-math-element`.
+- **controlgym:** `image-bytes-not-acquired`, `original-element-window-unavailable`,
+  `unclassified-text-preserved`, `unsafe-link-omitted`, `unsupported-math-element`.
+
+This is successful **L2 product HTML transport/parser/bounded typed-read acceptance**,
+including D5, with conservative partial structure. It does not establish complete
+formula/theorem semantics, full raw-source reveal coverage, App consent or ledger
+observation, report reopen, new Desktop behavior, a model run or scientific result.
+All summaries explicitly retain `scientificAcceptance=unverified`,
+`pdfAlignment=unavailable`, `imageObservation=not-observed`, and
+`sourceBytesExported=false`. No original HTML, full IR, PDF, image or model output
+was published in these artifacts or this record. Existing authored-corpus evidence
+continues to own the separate App/ledger/Desktop checks; this live gate does not
+retroactively upgrade them.
+
+## Final fixture coverage reconciliation (2026-11-02)
+
+A literal review of #76's checklist found two verification gaps despite the
+successful real-corpus gate: explicit two-column source order (D1), and an
+intentional HTML preparation failure in the actual Desktop journey (D4).
+
+The existing authored HTML fixture now gives its main section two-column CSS
+presentation. A deterministic parser test asserts ordered paragraph, equation,
+table, figure, code, footnote and appendix blocks, parent-section ownership,
+original offsets, citation resolution and source digest. This is native HTML DOM
+flow preservation, **not PDF column reconstruction**. The Desktop fixture also
+asserts the corresponding rendered block order and that source column CSS is not
+imported into Read.
+
+The same Desktop journey now first stages a wrong-version response at its existing
+disposable transport seam. Production authorization, worker and parser must reject
+it; the UI must show the error and enabled Retry, with no document or observed
+scope published. PDF page 2 and its zoom label must be preserved, with rendered
+page content still visible. Restoring
+the valid authored response and explicitly choosing Retry must recover into the
+existing Read/restart/scoped-report journey. The intentional error state receives
+`structured-rejected-version.png`; no second App startup, new network path or
+larger suite timeout is added.
+
+These new GUI assertions have **not run locally**: the executor's Desktop
+permission blocker remains, and no local GUI retry was attempted. A new exact-head
+CI Desktop result is required before declaring D4 satisfied or closing #76.
+The successful real-corpus records above remain their own L2 evidence; adding
+these fixtures does not upgrade partial parses, image observation, PDF alignment
+or scientific acceptance.
+
+Local L0 verification on this increment: scientific parser/probe tests 28/28;
+full Paper discovery 243 tests in 74.793 seconds (242 passed, one existing platform
+skip); Paper typecheck; all nine App-builder/Desktop-CI contracts; Desktop fixture
+JavaScript syntax and `git diff --check` passed. Commands:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s apps/paper-agent/test -p 'test_scientific*.py' -v
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s apps/paper-agent/test -v
+npm --prefix apps/paper-agent run typecheck
+node --test scripts/build/apps.test.mjs scripts/ci/desktop-ci.test.mjs
+node --check tests/e2e/paper-structured-reading.mjs
+git diff --check
+```

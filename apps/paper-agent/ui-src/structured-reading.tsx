@@ -1,18 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useAppI18n } from '@pero/app-sdk';
 import { Button, Disclosure, Feedback, Select, Toolbar } from '@pero/app-sdk/ui';
 import type { Api } from './types';
 import './structured-reading.css';
 import { SourceReports } from './research-source-reports';
 import type { DocumentEvidenceScope } from './research-types';
+import { ArxivReading, type ReadingSource } from './arxiv-reading';
 
 type Inline = { kind: string; text: string; latex: string; mathml: string; target: string; url: string };
 type Cell = { row: number; column: number; row_span: number; column_span: number; header: boolean; content: Inline[] };
 type Locator = { start: number; end: number; start_line: number; end_line: number };
 type Block = { id: string; kind: string; content: Inline[]; cells: Cell[]; images: { url: string; alt: string }[]; anchors: string[]; level: number; section_id: string; locator: Locator | null; limitations: string[] };
 type Document = { id: string; paperId: string; parser: string; metadata: { title: string; authors: string[]; abstract: string; identifiers: [string, string][]; date: string | null }; source: { url: string; digest: string; version: string }; warnings: string[]; blocks: Block[]; parseStatus: string; sourceIdentity: string };
-type Source = { bundleId: string; resourceId: string; url: string; revision: string; authorized: boolean; reviewUrl: string };
+type Source = ReadingSource;
 type EvidenceScope = { bundleId: string; resourceId: string };
-type Overview = { revisions: { id: string; source: Document['source']; parser: string; createdAt: string; bundleId: string; resourceId: string; scopes: EvidenceScope[] }[]; sources: Source[] };
+type Overview = { revisions: { id: string; source: Document['source']; parser: string; createdAt: string; bundleId: string; resourceId: string; scopes: EvidenceScope[] }[]; sources: Source[]; reviewUrl?: string | null };
 type Original = { observationId?: string; documentId: string; content: string; start: number; end: number; nextStart: number | null; sourceDigest: string; blockLocator: Locator | null };
 const mathTags = new Set('math mrow mi mn mo mtext ms mspace msup msub msubsup mfrac msqrt mroot munder mover munderover mtable mtr mtd mlabeledtr mfenced menclose mpadded mphantom mmultiscripts mprescripts none semantics'.split(' '));
 const mathAttrs = new Set('display mathvariant stretchy fence separator accent accentunder columnalign rowalign columnspan rowspan open close separators notation linethickness bevelled'.split(' '));
@@ -39,6 +41,8 @@ function readSetting(key: string) { try { return localStorage.getItem(key); } ca
 function saveSetting(key: string, value: string) { try { localStorage.setItem(key, value); } catch { /* Reading works without storage. */ } }
 
 export function StructuredReading({ api, paperId, openToken, onReady, onReview, showText, children }: { api: Api; paperId: string; openToken: number; showText?: boolean; onReady(ready: boolean): void; onReview(): void; children: React.ReactNode }) {
+  const { t } = useAppI18n({ prepareReading: { zh: '准备排版阅读', en: 'Prepare formatted reading' } });
+  const [reviewing, setReviewing] = useState(false);
   const [overview, setOverview] = useState<Overview>({ revisions: [], sources: [] }), [document, setDocument] = useState<Document | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [original, setOriginal] = useState<Original | null>(null), [originalBlock, setOriginalBlock] = useState('');
   const [target, setTarget] = useState(''), [candidates, setCandidates] = useState<Block[]>([]), [targetError, setTargetError] = useState('');
@@ -86,6 +90,7 @@ export function StructuredReading({ api, paperId, openToken, onReady, onReview, 
   async function prepare(source: Source, refresh = false) {
     if (busy) return;
     const version = ++epoch.current; setBusy(true); setError('');
+    setOverview(previous => ({ ...previous, sources: [...previous.sources.filter(value => value.bundleId !== source.bundleId || value.resourceId !== source.resourceId), source] }));
     try {
       const prepared = await api.post<{ documentId: string } & EvidenceScope>('/api/paper-document', { operation: 'prepare', paperId, bundleId: source.bundleId, resourceId: source.resourceId, refresh });
       await load(prepared.documentId, version, prepared);
@@ -148,8 +153,9 @@ export function StructuredReading({ api, paperId, openToken, onReady, onReview, 
   }
   if (showText) return <>{children}</>;
   return <div ref={root} className="pa-structured-reading" data-document-id={document?.id}>
-    {!document && <Toolbar><Button disabled={busy} onClick={onReview}>Review HTML sources</Button>{overview.sources.filter(s => s.authorized).map(s => <Button key={`${s.bundleId}:${s.resourceId}`} busy={busy} onClick={() => void prepare(s)}>Prepare Read · {s.revision}</Button>)}</Toolbar>}
-    {!document && overview.sources.length === 0 && <p className="pa-document-meta">Read needs an explicitly approved, fixed-version official HTML source. Existing text and PDF remain available.</p>}
+    {!document && <Toolbar><Button disabled={busy} onClick={() => overview.reviewUrl ? setReviewing(value => !value) : onReview()}>{overview.reviewUrl ? t('prepareReading') : 'Review HTML sources'}</Button>{overview.sources.filter(s => s.authorized).map(s => <Button key={`${s.bundleId}:${s.resourceId}`} busy={busy} onClick={() => void prepare(s)}>Prepare Read · {s.revision}</Button>)}</Toolbar>}
+    {reviewing && <ArxivReading api={api} paperId={paperId} onPrepare={prepare}/>}
+    {!document && !overview.reviewUrl && overview.sources.length === 0 && <p className="pa-document-meta">Read needs an explicitly approved, fixed-version official HTML source. Existing text and PDF remain available.</p>}
     {!document && overview.sources.some(s => !s.authorized) && <p className="pa-document-meta">HTML acquisition is not authorized. Review sources before downloading; PDF permission does not include HTML.</p>}
     {busy && <p role="status">Loading Read… PDF remains available.</p>}
     {error && <Feedback kind="error">{error}<Button onClick={() => setError('')}>Dismiss</Button>{overview.sources.filter(s => s.authorized).map(s => <Button key={`${s.bundleId}:${s.resourceId}`} disabled={busy} onClick={() => void prepare(s, true)}>Retry {s.revision}</Button>)}</Feedback>}

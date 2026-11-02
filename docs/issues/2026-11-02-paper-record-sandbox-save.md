@@ -42,3 +42,19 @@ revises with Enter. The Desktop feedback assertion and timeout are unchanged.
 - No local GUI was launched: executor GUI permission remains blocked. The
   sandboxed browser regression and real Desktop journey require the authorized
   CI rerun. This record remains active until that evidence is established.
+
+## Next Desktop run: revision field selector
+
+Run `41423671104`, job `125210996729`, passed the original save-feedback
+assertion and reached revision editing, then failed filling Scope. Artifact
+`13132302581` SHA-256
+`2e47fabb58a82105e6b8d16367a4cf33a26d854c08f3e3adcb187aee011d69f4`
+shows the revision editor and saved Scope still visible after Question changed.
+
+This is a separate test selector mismatch: Playwright's `getByLabel` matches
+raw wrapping-label descendant text, including a prefilled textarea's initial
+text node. Its textbox accessible-name calculation excludes that same control
+while traversing its label. Both journeys now use exact textbox role/name
+selectors and assert the saved Scope value before editing it. No product label,
+assertion timeout, save feedback assertion, or sandbox permission was changed.
+The sandboxed component and complete Desktop journeys still need a passing run.

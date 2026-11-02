@@ -30,7 +30,7 @@ def record_command(store, value, now):
             if link.reportId is None:
                 continue  # An explicitly missing evidence gap is not an observation.
             saved = report(link.reportId)  # Owner rechecks input and report digests.
-            if not any(ref.paper_id == link.paperId for section in saved.report.sections for ref in section.evidence):
+            if not _report_cites_paper(saved.report, link.paperId):
                 raise Invalid('This report has no cited evidence for the selected paper')
         store._write('research-records', record.id, record.to_dict())
         return record.to_dict()
@@ -70,3 +70,11 @@ def record_command(store, value, now):
         except Invalid:
             unavailable.append(identity)
     return dict(record.impact(tuple(papers)), unavailablePaperIds=unavailable)
+
+
+def _report_cites_paper(report, paper_id):
+    """Match validated evidence, never paper labels or intent membership."""
+    groups = list(report.sections) + list(report.experiments)
+    if report.matrix is not None:
+        groups.extend(report.matrix.cells)
+    return any(reference.paper_id == paper_id for group in groups for reference in group.evidence)
