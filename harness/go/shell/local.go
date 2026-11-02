@@ -18,7 +18,6 @@ import (
 const (
 	defaultTimeout     = 30 * time.Second
 	maximumTimeout     = 120 * time.Second
-	absoluteMaxTimeout = 2 * time.Hour
 	maximumOutputBytes = 64 * 1024
 	defaultGrace       = 250 * time.Millisecond
 )
@@ -33,6 +32,9 @@ type LocalOptions struct {
 	MaxTimeout     time.Duration
 	MaxOutputBytes int
 	Grace          time.Duration
+	// ProcessStarted must not block. Trusted owners use it to distinguish a
+	// live process from preparation when their foreground wait expires.
+	ProcessStarted func()
 	// BaseEnv is an explicit trusted allowlist input, never inherited implicitly.
 	// Only PATH, LANG, LC_ALL and TZ are accepted; no per-command environment seam.
 	BaseEnv []string
@@ -53,6 +55,7 @@ type LocalExecutor struct {
 	maxOutputBytes             int
 	baseEnv                    []string
 	outputSink                 io.Writer
+	processStarted             func()
 }
 
 func NewLocalExecutor(options LocalOptions) (*LocalExecutor, error) {
@@ -91,7 +94,7 @@ func NewLocalExecutor(options LocalOptions) (*LocalExecutor, error) {
 	if options.Grace == 0 {
 		options.Grace = defaultGrace
 	}
-	if options.Timeout < 0 || options.MaxTimeout <= 0 || options.MaxTimeout > absoluteMaxTimeout || options.Timeout > options.MaxTimeout || options.MaxOutputBytes < 1 || options.MaxOutputBytes > maximumOutputBytes || options.Grace < 0 || options.Grace > time.Second {
+	if options.Timeout < 0 || options.MaxTimeout <= 0 || options.Timeout > options.MaxTimeout || options.MaxOutputBytes < 1 || options.MaxOutputBytes > maximumOutputBytes || options.Grace < 0 || options.Grace > time.Second {
 		return nil, errors.New("shell: limits exceed supported bounds")
 	}
 	env, err := explicitEnvironment(options.BaseEnv)
@@ -108,7 +111,7 @@ func NewLocalExecutor(options LocalOptions) (*LocalExecutor, error) {
 			return nil, err
 		}
 	}
-	return &LocalExecutor{sandbox: confined, windowsACL: windowsACL, shell: shell, cwd: cwd, workspaceIdentity: info, timeout: options.Timeout, maxTimeout: options.MaxTimeout, maxOutputBytes: options.MaxOutputBytes, grace: options.Grace, baseEnv: env, outputSink: options.OutputSink}, nil
+	return &LocalExecutor{sandbox: confined, windowsACL: windowsACL, shell: shell, cwd: cwd, workspaceIdentity: info, timeout: options.Timeout, maxTimeout: options.MaxTimeout, maxOutputBytes: options.MaxOutputBytes, grace: options.Grace, baseEnv: env, outputSink: options.OutputSink, processStarted: options.ProcessStarted}, nil
 }
 
 func explicitEnvironment(entries []string) ([]string, error) {
@@ -218,11 +221,19 @@ func (e *LocalExecutor) Resolve(request ExecRequest) (ExecSpec, error) {
 	if limit < 1 || limit > e.maxOutputBytes {
 		return ExecSpec{}, errors.New("shell: output limit exceeds configured bounds")
 	}
-	return ExecSpec{Command: request.Command, Workdir: workdir, Timeout: timeout, StdoutMaxBytes: limit}, nil
+	expiry := request.OnExpiry
+	if expiry == "" {
+		expiry = ExpiryKill
+	}
+	if expiry != ExpiryKill && expiry != ExpiryNone {
+		return ExecSpec{}, errors.New("shell: unsupported execution expiry policy")
+	}
+	return ExecSpec{Command: request.Command, Workdir: workdir, Timeout: timeout, StdoutMaxBytes: limit, OnExpiry: expiry}, nil
 }
 
-// Run adapts the source foreground lifecycle. Cancellation owns the process
-// group until forced cleanup completes, even when Bash exits before descendants.
+// Run defaults to timeout-kill execution. With trusted OnExpiry:none the owner
+// supplies its lifetime. Cancellation joins the process group even when Bash
+// exits before descendants.
 func (e *LocalExecutor) Run(ctx context.Context, spec ExecSpec) (RunResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -233,14 +244,31 @@ func (e *LocalExecutor) Run(ctx context.Context, spec ExecSpec) (RunResult, erro
 	}
 	spec = resolved
 	result := RunResult{Timeout: spec.Timeout}
+	callerCause := func() error {
+		if spec.OnExpiry == ExpiryNone {
+			return context.Cause(ctx)
+		}
+		return ctx.Err() // Preserve the legacy caller-cancellation contract.
+	}
 	if err := ctx.Err(); err != nil {
-		result.Aborted = true
-		return result, err
+		cause := callerCause()
+		result.TimedOut = errors.Is(cause, ErrTimeout)
+		result.Aborted = !result.TimedOut
+		return result, cause
 	}
 	executionCtx, cancel := context.WithCancelCause(context.Background())
-	stopCaller := context.AfterFunc(ctx, func() { cancel(ctx.Err()) })
-	timer := time.AfterFunc(spec.Timeout, func() { cancel(ErrTimeout) })
-	defer func() { stopCaller(); timer.Stop(); cancel(nil) }()
+	stopCaller := context.AfterFunc(ctx, func() { cancel(callerCause()) })
+	var timer *time.Timer
+	if spec.OnExpiry == ExpiryKill {
+		timer = time.AfterFunc(spec.Timeout, func() { cancel(ErrTimeout) })
+	}
+	defer func() {
+		stopCaller()
+		if timer != nil {
+			timer.Stop()
+		}
+		cancel(nil)
+	}()
 	argv := shellCommand(e.shell, spec.Command, runtime.GOOS)
 	env := append([]string(nil), e.baseEnv...)
 	if e.sandbox != nil {
@@ -285,6 +313,9 @@ func (e *LocalExecutor) Run(ctx context.Context, spec ExecSpec) (RunResult, erro
 	}
 	if err := command.Start(); err != nil {
 		return result, fmt.Errorf("shell: start command: %w", err)
+	}
+	if e.processStarted != nil {
+		e.processStarted()
 	}
 	if controlRead != nil {
 		_ = controlRead.Close()

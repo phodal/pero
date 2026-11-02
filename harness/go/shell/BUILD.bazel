@@ -20,6 +20,7 @@ go_test(
     name = "shell_test",
     srcs = [
         "claude_status_test.go",
+        "expiry_test.go",
         "file_capture_test.go",
         "local_test.go",
         "output_sink_test.go",

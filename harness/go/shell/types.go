@@ -13,11 +13,19 @@ type CollectedOutput struct {
 	Truncated bool   `json:"truncated"`
 }
 
+type ExpiryPolicy string
+
+const (
+	ExpiryKill ExpiryPolicy = "kill"
+	ExpiryNone ExpiryPolicy = "none"
+)
+
 type ExecRequest struct {
 	Command        string
 	Workdir        string
 	Timeout        time.Duration
 	StdoutMaxBytes int
+	OnExpiry       ExpiryPolicy
 }
 
 type ExecSpec struct {
@@ -25,6 +33,7 @@ type ExecSpec struct {
 	Workdir        string
 	Timeout        time.Duration
 	StdoutMaxBytes int
+	OnExpiry       ExpiryPolicy
 }
 
 type RunResult struct {
