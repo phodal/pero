@@ -3,8 +3,11 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "nativetools",
     srcs = [
+        "background.go",
+        "background_journal.go",
         "claude.go",
         "claude_search.go",
+        "foreground.go",
         "research_clone.go",
         "tools.go",
     ],
@@ -13,6 +16,7 @@ go_library(
     deps = [
         "//fstools",
         "//harness",
+        "//runtime",
         "//sandbox",
         "//shell",
     ],

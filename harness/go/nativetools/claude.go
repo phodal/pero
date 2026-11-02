@@ -23,6 +23,7 @@ type claudeArguments struct {
 	Offset          int    `json:"offset"`
 	Limit           int    `json:"limit"`
 	Command         string `json:"command"`
+	Description     string `json:"description"`
 	Timeout         int    `json:"timeout"`
 	Pattern         string `json:"pattern"`
 	Glob            string `json:"glob"`
@@ -49,8 +50,12 @@ func decodeNativeArguments(raw json.RawMessage, workspace string, claude, allowR
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return arguments{}, err
 	}
+	maximumTimeoutMS := 600000
 	if value.RunInBackground {
-		return arguments{}, errors.New("Bash background execution is unavailable; run a bounded foreground command")
+		maximumTimeoutMS = int(backgroundShellMaximum.Milliseconds())
+	}
+	if value.Timeout > maximumTimeoutMS {
+		value.Timeout = maximumTimeoutMS
 	}
 	selectedPath := value.Path
 	resourcePath := ""
@@ -101,6 +106,7 @@ func decodeNativeArguments(raw json.RawMessage, workspace string, claude, allowR
 		OutputMode: value.OutputMode, IgnoreCase: value.IgnoreCase, Multiline: value.Multiline,
 		LineNumbers: value.LineNumbers, Before: value.Before, After: value.After,
 		Around: around, HeadLimit: value.HeadLimit, SearchOffset: value.Offset, ResourcePath: resourcePath,
+		RunInBackground: value.RunInBackground, Description: value.Description,
 	}, nil
 }
 
@@ -172,7 +178,8 @@ func claudeToolDefinition(definition toolDefinition, files *fstools.Workspace, r
 		}
 	case "shell":
 		definition.name = "Bash"
-		definition.properties = `"command":{"type":"string","minLength":1,"maxLength":16384},"timeout":{"type":"integer","minimum":1,"maximum":120000},"description":{"type":"string"},"run_in_background":{"type":"boolean","const":false}`
+		definition.description = "Run an approved shell command. Foreground timeout defaults to 120000ms and is capped at 600000ms. run_in_background returns a durable task_id for TaskOutput/TaskStop; background timeout defaults to 1800000ms and is capped at 7200000ms. Timeout values above the selected cap are reduced. Parent cancellation and retirement stop owned jobs; cold recovery never replays commands. The configured sandbox and existing approval policy apply to both forms."
+		definition.properties = `"command":{"type":"string","minLength":1,"maxLength":16384},"timeout":{"type":"integer","minimum":1},"description":{"type":"string"},"run_in_background":{"type":"boolean"}`
 		definition.required = `"command"`
 	}
 	return definition

@@ -29,15 +29,22 @@ type Options struct {
 	PluginEnvironment   []string
 }
 type App struct {
-	files *fstools.Workspace
-	shell *shell.LocalExecutor
+	files      *fstools.Workspace
+	shell      *shell.LocalExecutor
+	background *shellTasks
 }
 
 func (a *App) Close() error {
 	if a == nil || a.files == nil {
 		return nil
 	}
-	return a.files.Close()
+	var err error
+	if a.background != nil && a.background.instance != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		err = a.background.instance.Dispose(ctx)
+	}
+	return errors.Join(err, a.files.Close())
 }
 
 // CheckCWD reuses the launch-time workspace authority for early ACP admission.
@@ -75,6 +82,8 @@ type arguments struct {
 	LineNumbers                                    *bool
 	Before, After, Around, HeadLimit, SearchOffset int
 	ResourcePath                                   string
+	RunInBackground                                bool
+	Description                                    string
 }
 
 type toolDefinition struct {
@@ -107,7 +116,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 	app = &App{files: files}
 	defer func() {
 		if resultErr != nil && files != nil {
-			_ = files.Close()
+			_ = app.Close()
 		}
 	}()
 	var shellAdmission func(context.Context, harness.ToolRequest) (*harness.NativeApprovalDescriptor, error)
@@ -138,6 +147,15 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 			shellOptions.BaseEnv = opts.PluginEnvironment
 			shellOptions.TrustedBaseEnvironment = true
 		}
+		if opts.ClaudeTools {
+			shellOptions.Timeout, shellOptions.MaxTimeout = 120*time.Second, 600*time.Second
+			if opts.EnableShell {
+				app.background, err = mountShellTasks(ctx, h, shellOptions)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
 		executor, e := shell.NewLocalExecutor(shellOptions)
 		if e != nil {
 			return nil, e
@@ -161,10 +179,18 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 					if err != nil {
 						return nil, err
 					}
-					if _, err := executor.Resolve(shell.ExecRequest{Command: a.Command, Workdir: workspace, Timeout: time.Duration(a.TimeoutMS) * time.Millisecond}); err != nil {
+					admissionExecutor := executor
+					if a.RunInBackground && app.background != nil {
+						backgroundOptions := app.background.options
+						admissionExecutor, err = shell.NewLocalExecutor(backgroundOptions)
+						if err != nil {
+							return nil, err
+						}
+					}
+					if _, err := admissionExecutor.Resolve(shell.ExecRequest{Command: a.Command, Workdir: workspace, Timeout: time.Duration(a.TimeoutMS) * time.Millisecond}); err != nil {
 						return nil, err
 					}
-					if err := executor.CheckConfinement(c); err != nil {
+					if err := admissionExecutor.CheckConfinement(c); err != nil {
 						return nil, err
 					}
 					return &harness.NativeApprovalDescriptor{Version: 1, Operation: "shell", Workspace: workspace, SandboxMode: string(opts.Sandbox.Mode), Enforcement: "required", Network: "deny"}, nil
@@ -187,7 +213,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 					return nil, e
 				}
 				result, runErr := executor.Run(c, spec)
-				if runErr == nil && result.ExitCode != nil && *result.ExitCode != 0 {
+				if runErr == nil && result.ExitCode != nil && *result.ExitCode != 0 && (!opts.ClaudeTools || !shell.ClaudeCommandSucceeded(spec.Command, result.ExitCode)) {
 					runErr = fmt.Errorf("shell exited with code %d", *result.ExitCode)
 				}
 				return result, runErr
@@ -215,7 +241,11 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 			d = claudeToolDefinition(d, files, opts.ReadOnlyResource)
 		}
 		schema := json.RawMessage(fmt.Sprintf(`{"type":"object","additionalProperties":false,"properties":{%s},"required":[%s]}`, d.properties, d.required))
-		_, err = h.RegisterTool(ctx, "native/"+d.name, harness.Tool{Schema: harness.ToolSchema{Name: d.name, Description: d.description, InputSchema: schema}, RequiresApproval: d.approval, ApprovalDescriptor: admission, Timeout: 125 * time.Second, ExecutionMode: harness.ExecutionSerial, ExecuteRequest: func(c context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
+		toolTimeout := 125 * time.Second
+		if opts.ClaudeTools && d.name == "Bash" {
+			toolTimeout = 605 * time.Second
+		}
+		_, err = h.RegisterTool(ctx, "native/"+d.name, harness.Tool{Schema: harness.ToolSchema{Name: d.name, Description: d.description, InputSchema: schema}, RequiresApproval: d.approval, ApprovalDescriptor: admission, Timeout: toolTimeout, ExecutionMode: harness.ExecutionSerial, ExecuteRequest: func(c context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
 			if request.Agent == nil {
 				return harness.ToolResult{}, errors.New("native tools require an agent")
 			}
@@ -225,6 +255,9 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 			a, e := decodeNativeArguments(request.Arguments, workspace, opts.ClaudeTools, d.name == "Read" && opts.ReadOnlyResource != nil, opts.Workspace)
 			if e != nil {
 				return harness.ToolResult{}, e
+			}
+			if d.name == "Bash" && app.background != nil {
+				return app.background.start(c, request, a)
 			}
 			value, operationErr := d.run(c, a)
 			return renderResult(value, operationErr)
