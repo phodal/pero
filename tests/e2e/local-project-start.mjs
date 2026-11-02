@@ -39,6 +39,10 @@ try {
   await expect.poll(async () => (await state()).selectedProject).toBe(`workspace:${root}`);
   await expect.poll(async () => (await state()).localRoadmap.data.items.length).toBeGreaterThan(0);
   expect((await state()).localRoadmap.show_cloud).toBe(false);
+  expect((await state()).projectTab).toBe('overview');
+  const tasks = (await state()).projectControls['tab:nav.tasks'];
+  await page.mouse.click(tasks.x + tasks.width / 2, tasks.y + tasks.height / 2);
+  await expect.poll(async () => (await state()).projectTab).toBe('tasks');
   await capture('02-local-roadmap');
   await clickAppShortcut(page, 'account');
   await capture('03-account-settings');

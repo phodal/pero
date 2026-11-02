@@ -108,3 +108,5 @@ Public literature search, source metadata and thumbnails: [Paper search](paper-s
 
 Pinned Harness/DSH capability comparison, deterministic Skill compaction evidence
 and remaining gaps: [Harness behavior parity](harness-behavior-parity.md).
+
+Local research goals, Overview and links to App-owned records: [research Projects](research-projects.md).

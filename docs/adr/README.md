@@ -28,3 +28,4 @@
 - [0024: Reliable, composable event-driven Automation](0024-event-driven-automation.md)
 - [0025: Connectors as a Host-backed App](0025-connectors-app.md)
 - [0027: App Agent Plugins and local dependencies](0027-app-agent-plugins.md)
+- [0028: Local research Projects and App-owned resources](0028-local-research-projects.md)

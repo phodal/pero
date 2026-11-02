@@ -34,6 +34,16 @@ App 安装和执行仅依赖 Pero 自身的 App SDK、Host 与声明式后端协
 继续保留为直接 ACP 授权。当前开发验收与账号、平台及安装包缺口见
 [Connectors 验证](fitness/connectors.md)。
 
+## 本地研究项目
+
+[ADR 0028](adr/0028-local-research-projects.md) 定义本地 `ResearchProject`：独立身份、
+研究目标、可选目录与 App 对象引用由 Host 的运行时设置持久化。工作台默认打开
+概览，汇总显式关联的 Paper 论文/研究记录和 Control Lab、Lab 实验；读取现有
+App 后端的公共摘要，再通过 App location 打开原记录。项目只保存对象与观察版本
+的引用，不复制科学数据，不建立第二套实验、验证或执行状态。目录在保存前沿用
+Host 的规范化回执；共享任务和远程 Worker 继续走已有控制面链路。已实现范围与
+运行证据见 [研究项目验证](fitness/research-projects.md)。
+
 ## 可组合应用与产品
 
 产品装配以 [ADR 0008](adr/0008-product-distributions.md) 为准，区分三个概念：
