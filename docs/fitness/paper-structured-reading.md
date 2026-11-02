@@ -515,3 +515,48 @@ All summaries explicitly retain `scientificAcceptance=unverified`,
 was published in these artifacts or this record. Existing authored-corpus evidence
 continues to own the separate App/ledger/Desktop checks; this live gate does not
 retroactively upgrade them.
+
+## Final fixture coverage reconciliation (2026-11-02)
+
+A literal review of #76's checklist found two verification gaps despite the
+successful real-corpus gate: explicit two-column source order (D1), and an
+intentional HTML preparation failure in the actual Desktop journey (D4).
+
+The existing authored HTML fixture now gives its main section two-column CSS
+presentation. A deterministic parser test asserts ordered paragraph, equation,
+table, figure, code, footnote and appendix blocks, parent-section ownership,
+original offsets, citation resolution and source digest. This is native HTML DOM
+flow preservation, **not PDF column reconstruction**. The Desktop fixture also
+asserts the corresponding rendered block order and that source column CSS is not
+imported into Read.
+
+The same Desktop journey now first stages a wrong-version response at its existing
+disposable transport seam. Production authorization, worker and parser must reject
+it; the UI must show the error and enabled Retry, with no document or observed
+scope published. PDF page 2 and its zoom label must be preserved, with rendered
+page content still visible. Restoring
+the valid authored response and explicitly choosing Retry must recover into the
+existing Read/restart/scoped-report journey. The intentional error state receives
+`structured-rejected-version.png`; no second App startup, new network path or
+larger suite timeout is added.
+
+These new GUI assertions have **not run locally**: the executor's Desktop
+permission blocker remains, and no local GUI retry was attempted. A new exact-head
+CI Desktop result is required before declaring D4 satisfied or closing #76.
+The successful real-corpus records above remain their own L2 evidence; adding
+these fixtures does not upgrade partial parses, image observation, PDF alignment
+or scientific acceptance.
+
+Local L0 verification on this increment: scientific parser/probe tests 28/28;
+full Paper discovery 243 tests in 74.793 seconds (242 passed, one existing platform
+skip); Paper typecheck; all nine App-builder/Desktop-CI contracts; Desktop fixture
+JavaScript syntax and `git diff --check` passed. Commands:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s apps/paper-agent/test -p 'test_scientific*.py' -v
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s apps/paper-agent/test -v
+npm --prefix apps/paper-agent run typecheck
+node --test scripts/build/apps.test.mjs scripts/ci/desktop-ci.test.mjs
+node --check tests/e2e/paper-structured-reading.mjs
+git diff --check
+```

@@ -50,6 +50,28 @@ class ScientificDocumentTests(unittest.TestCase):
         self.assertLess(next(i for i,b in enumerate(doc.blocks) if b.text == 'Appendix A'),
                         next(i for i,b in enumerate(doc.blocks) if b.kind == 'reference'))
 
+    def test_two_column_source_retains_dom_reading_order_and_original_locators(self):
+        # Presentation columns do not authorize reconstructing PDF reading order.
+        self.assertIn(b'column-count: 2', SOURCE)
+        doc = parse_arxiv_html(SOURCE, URL)
+        expected = ['S1.p1', 'E1', 'T1', 'F1', 'code', 'note1', 'A']
+        blocks = [b for b in doc.blocks if any(a in expected for a in b.anchors)]
+        self.assertEqual([next(a for a in b.anchors if a in expected) for b in blocks], expected)
+        self.assertEqual([b.kind for b in blocks],
+                         ['paragraph', 'equation', 'table', 'figure', 'code', 'footnote', 'heading'])
+        section = next(b for b in doc.blocks if b.text == '1 Method')
+        self.assertTrue(all(b.section_id == section.id for b in blocks[:-1]))
+        original = SOURCE.decode('utf-8')
+        starts = [b.locator.start for b in blocks]
+        self.assertEqual(starts, sorted(set(starts)))
+        for block, anchor in zip(blocks[:-1], expected[:-1]):
+            self.assertIn(f'id="{anchor}"', original[block.locator.start:block.locator.end])
+        self.assertEqual(original[blocks[-1].locator.start:blocks[-1].locator.end], '<h2>Appendix A</h2>')
+        citation = next(t for t in blocks[0].content if t.target == 'bib1')
+        self.assertEqual(citation.target_status, 'source-anchor')
+        self.assertEqual(doc.source.digest, sha256(SOURCE).hexdigest())
+        self.assertEqual(doc.to_dict()['pdfAlignment'], 'unavailable')
+
     def test_metadata_does_not_promote_bibliography_names_or_guess_dates(self):
         doc = parse_arxiv_html(article('<div class="ltx_authors"><span class="ltx_personname">Author A</span></div><p>Body</p><div class="ltx_bibliography"><span class="ltx_personname">Referenced B</span></div>'), URL)
         self.assertEqual(doc.metadata.authors, ('Author A',))
