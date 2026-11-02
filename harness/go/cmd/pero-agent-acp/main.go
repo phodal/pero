@@ -55,6 +55,8 @@ func run() (resultErr error) {
 	enableShell := flag.Bool("enable-shell", false, "enable approved shell execution (Unix unsandboxed unless --sandbox supplied; Windows requires windows-acl; requires --workspace)")
 	shellPath := flag.String("shell", "", "absolute shell executable; defaults to /bin/bash on Unix; Windows requires explicit pwsh.exe")
 	bashOutputMaxChars := flag.Int("bash-output-max-chars", 0, "plugin Bash inline/readback character override, 1..128000; zero uses Claude defaults and BASH_MAX_OUTPUT_LENGTH")
+	bashHostMode := flag.String("bash-host-mode", "unattended", "plugin Bash background deadlines: unattended or explicit interactive")
+	disableBashBackground := flag.Bool("disable-bash-background", false, "disable plugin Bash background starts and automatic promotion")
 	approval := flag.String("approval", "ask", "tool approval policy: never or ask via ACP client")
 	budget := bindProviderBudget(flag.CommandLine)
 	skillRoots := bindSkillRoots(flag.CommandLine)
@@ -169,6 +171,7 @@ func run() (resultErr error) {
 			nativeOptions.ReadOnlyResource = pluginResourceReader(skillCatalog, selections)
 			nativeOptions.PluginEnvironment = pluginEnvironment
 			nativeOptions.BashOutput.BashOutputMaxChars = *bashOutputMaxChars
+			nativeOptions.BashTiming = nativetools.BashTimingOptions{HostMode: nativetools.BashHostMode(*bashHostMode), DisableBackground: *disableBashBackground}
 		}
 		native, err = nativetools.Mount(ctx, h, nativeOptions)
 		if err != nil {
