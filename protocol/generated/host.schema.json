@@ -817,6 +817,9 @@
           "$ref": "#/$defs/ResolveApp"
         },
         {
+          "$ref": "#/$defs/ProjectResourcesApp"
+        },
+        {
           "$ref": "#/$defs/AgentApp"
         },
         {
@@ -1104,6 +1107,9 @@
             },
             {
               "$ref": "#/$defs/AppAccess"
+            },
+            {
+              "$ref": "#/$defs/ProjectResourceCatalog"
             },
             {
               "$ref": "#/$defs/AppAgentInfo"
@@ -5466,6 +5472,9 @@
           "$ref": "#/$defs/AppsCatalogEvent"
         },
         {
+          "$ref": "#/$defs/ProjectResourcesEvent"
+        },
+        {
           "$ref": "#/$defs/AppsErrorEvent"
         },
         {
@@ -8452,6 +8461,221 @@
       ],
       "additionalProperties": false
     },
+    "ProjectResourceCatalog": {
+      "title": "ProjectResourceCatalog",
+      "type": "object",
+      "properties": {
+        "app": {
+          "type": "string"
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProjectResourceSummary"
+          }
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "app",
+        "resources"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectResourceRef": {
+      "title": "ProjectResourceRef",
+      "type": "object",
+      "properties": {
+        "app": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "paper-agent"
+            },
+            {
+              "type": "string",
+              "const": "control-lab"
+            },
+            {
+              "type": "string",
+              "const": "lab"
+            }
+          ]
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "paper"
+            },
+            {
+              "type": "string",
+              "const": "study"
+            },
+            {
+              "type": "string",
+              "const": "experiment"
+            }
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "app",
+        "kind",
+        "id",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectResourceReference": {
+      "title": "ProjectResourceReference",
+      "type": "object",
+      "properties": {
+        "app": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "app",
+        "kind",
+        "id",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "description": "An App catalog observation; revisions do not claim complete experimental provenance."
+    },
+    "ProjectResourcesApp": {
+      "title": "ProjectResourcesApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "projectresources"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectResourcesEvent": {
+      "title": "ProjectResourcesEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "project_resources"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ProjectResourceCatalog"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectResourceSummary": {
+      "title": "ProjectResourceSummary",
+      "type": "object",
+      "properties": {
+        "reference": {
+          "$ref": "#/$defs/ProjectResourceReference"
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "verification": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "location": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reference",
+        "title",
+        "summary",
+        "status",
+        "location"
+      ],
+      "additionalProperties": false
+    },
     "PromptCommand": {
       "title": "PromptCommand",
       "type": "object",
@@ -9254,6 +9478,51 @@
       "maxLength": 64,
       "pattern": "^[a-f0-9]{64}$",
       "description": "Paper may request only saved research identities; Host owns the fixed Data target."
+    },
+    "ResearchProject": {
+      "title": "ResearchProject",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "goal": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "workspace": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProjectResourceRef"
+          },
+          "maxItems": 256
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "goal",
+        "workspace",
+        "resources"
+      ],
+      "additionalProperties": false
     },
     "ResetWorkspaceSession": {
       "title": "ResetWorkspaceSession",
@@ -11753,6 +12022,13 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/ProjectBinding"
+          },
+          "maxItems": 128
+        },
+        "research_projects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResearchProject"
           },
           "maxItems": 128
         },
