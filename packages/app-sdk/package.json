@@ -2,6 +2,10 @@
   "name": "@pero/app-sdk",
   "version": "0.1.0",
   "private": true,
+  "scripts": {
+    "typecheck": "tsc --ignoreConfig --noEmit --jsx react-jsx --moduleResolution bundler --module esnext --target es2022 --esModuleInterop --skipLibCheck --types node,vite/client src/components/code.tsx",
+    "test": "node --test src/components/code-compare-blocks.test.mjs"
+  },
   "type": "module",
   "exports": {
     ".": "./src/index.tsx",
