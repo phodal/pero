@@ -222,6 +222,26 @@ impl NativeApps {
         if path.starts_with("/api/") {self.request::<Value>("apiaccess",json!({"name":name,"path":path}))?;}
         let method = request.method();
         let body = request.body();
+        if path == "/host/sdk" {
+            anyhow::ensure!(method == "GET", "Method refused");
+            let mut info: Value = self.request("sdkcontext", json!({"name":name}))?;
+            info["slots"] = json!([]);
+            return Ok(Response::builder().header("Content-Type","application/json").header("Cache-Control","no-store").body(serde_json::to_vec(&info)?)?);
+        }
+        if path == "/host/capability" {
+            anyhow::ensure!(method == "POST" && body.len() <= 256000, "Invalid Host request");
+            let call: Value = serde_json::from_slice(body)?;
+            let target = match call["capability"].as_str() {
+                Some("agent") => "app-agent", Some("insights") => "insights", Some("connectors") => "connectors",
+                Some("automation") => "automation", Some("research-assets") => "research-assets", _ => anyhow::bail!("Host capability unavailable"),
+            };
+            let mut input = call["input"].as_object().cloned().ok_or_else(|| anyhow::anyhow!("Host input must be an object"))?;
+            let operation = call["operation"].as_str().ok_or_else(|| anyhow::anyhow!("Host operation is required"))?;
+            input.insert("operation".into(),json!(operation));
+            let forwarded = Request::builder().method("POST").uri(format!("pero-app://{name}/host/{target}"))
+                .header("Content-Type","application/json").body(serde_json::to_vec(&input)?)?;
+            return self.respond(name,forwarded);
+        }
         if path == "/host/research-assets" {
             if method != "POST" {
                 return Ok(Response::builder().status(405).body(b"Method refused".to_vec())?);

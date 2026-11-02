@@ -22,7 +22,7 @@ import {setActiveIconTheme,type IconThemePackage} from '../../icons/theme';
 export {getActiveIconTheme} from '../../icons/theme';
 export type {IconThemePackage} from '../../icons/theme';
 
-export type AppContext = { locale: 'en' | 'zh-CN'; dark: boolean; active: boolean; appearance?: AppearanceSnapshot; iconTheme?:IconThemePackage|null; name?: string; version?: string; permissions?: { api: string[]; events: string[]; host: string[] } };
+export type AppContext = { locale: 'en' | 'zh-CN'; dark: boolean; active: boolean; appearance?: AppearanceSnapshot; iconTheme?:IconThemePackage|null; name?: string; version?: string; slots?: string[]; permissions?: { api: string[]; events: string[]; host: string[] } };
 const Context = createContext<AppContext>({ locale: 'en', dark: false, active: true });
 
 /** The parent owns context; the App frame never receives Desktop credentials. */
@@ -62,7 +62,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     locale={context.locale} active={context.active} allowedApiPaths={context.permissions?.api ?? ['/api']}
     allowedEvents={context.permissions?.events ?? []} allowedHostCapabilities={context.permissions?.host ?? []}
     subscribeFn={subscribeAppEvent} navigateFn={navigateApp} notifyFn={notifyApp} setBadgeFn={setAppBadge}
-    launchChatFn={async options => (await launchAppChat(options)).threadId} mountConversationFn={mountAppConversation} mountSessionConversationFn={mountAppConversation} hostCallFn={callAppHost} surface={appSurface}>
+    launchChatFn={async options => (await launchAppChat(options)).threadId} mountConversationFn={context.slots?.includes('conversation') ? mountAppConversation : undefined} mountSessionConversationFn={context.slots?.includes('session-conversation') ? mountAppConversation : undefined} hostCallFn={callAppHost} surface={appSurface}>
     {children}</AppApiProvider></Context.Provider>;
 }
 

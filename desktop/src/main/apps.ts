@@ -213,7 +213,7 @@ export class DesktopApps {
         return new Response('Agent route is reserved for the Host', { status: 403 });
       if (url.pathname === '/host/sdk') {
         if (request.method !== 'GET') return new Response('Method refused', {status:405});
-        return Response.json(await this.request('sdkcontext', {name:url.hostname}), {headers:{'Cache-Control':'no-store'}});
+        return Response.json({...await this.request<Record<string,unknown>>('sdkcontext', {name:url.hostname}),slots:['conversation']}, {headers:{'Cache-Control':'no-store'}});
       }
       if (url.pathname === '/host/capability') {
         if (request.method !== 'POST') return new Response('Method refused', {status:405});
