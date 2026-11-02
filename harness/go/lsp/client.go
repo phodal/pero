@@ -38,6 +38,7 @@ type instance struct {
 	conn         *connection
 	capabilities capabilities
 	launches     int
+	version      int
 }
 type App struct {
 	mu            sync.Mutex
@@ -273,6 +274,9 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 	uri := fileURI(filepath.Join(app.files.Path(), relative))
 	requestCtx, requestCancel := context.WithTimeout(ctx, session.selected.Server.Config.RequestTimeout)
 	defer requestCancel()
+	session.version++
+	session.conn.openDiagnostics(uri, session.version)
+	defer session.conn.takeDiagnostics()
 	if err := session.conn.notify(requestCtx, "textDocument/didOpen", struct {
 		Document struct {
 			URI        string `json:"uri"`
@@ -285,7 +289,7 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 		LanguageID string `json:"languageId"`
 		Version    int    `json:"version"`
 		Text       string `json:"text"`
-	}{uri, language, 1, source.Text}}); err != nil {
+	}{uri, language, session.version, source.Text}}); err != nil {
 		return Result{}, err
 	}
 	defer func() {
@@ -297,7 +301,9 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 		}
 	}()
 	requestCancel()
-	return session.query(ctx, query.Operation, uri, position, symbol)
+	result, err := session.query(ctx, query.Operation, uri, position, symbol)
+	result.Diagnostics = session.conn.takeDiagnostics()
+	return result, err
 }
 func longestExtension(selection Selection, file string) int {
 	longest := 0
@@ -339,6 +345,11 @@ func (instance *instance) ensure(ctx context.Context, environment []string) erro
 		Folders               []workspaceFolder `json:"workspaceFolders"`
 		InitializationOptions JSONValue         `json:"initializationOptions"`
 		Capabilities          struct {
+			TextDocument struct {
+				PublishDiagnostics struct {
+					VersionSupport bool `json:"versionSupport"`
+				} `json:"publishDiagnostics"`
+			} `json:"textDocument"`
 			General struct {
 				PositionEncodings []string `json:"positionEncodings"`
 			} `json:"general"`
@@ -349,6 +360,7 @@ func (instance *instance) ensure(ctx context.Context, environment []string) erro
 		} `json:"capabilities"`
 	}{ProcessID: os.Getpid(), RootURI: uri, Folders: []workspaceFolder{{URI: uri, Name: filepath.Base(instance.cwd)}}, InitializationOptions: config.InitializationOptions}
 	params.Capabilities.General.PositionEncodings = []string{"utf-16"}
+	params.Capabilities.TextDocument.PublishDiagnostics.VersionSupport = true
 	params.Capabilities.Workspace.Configuration = true
 	params.Capabilities.Workspace.WorkspaceFolders = true
 	raw, err := conn.request(startup, "initialize", params)

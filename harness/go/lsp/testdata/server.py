@@ -6,6 +6,7 @@ import sys
 mode = os.environ.get("LSP_FIXTURE_MODE", "normal")
 log_path = os.environ["LSP_FIXTURE_LOG"]
 uri = ""
+version = 0
 pending = None
 span = {"start": {"line": 1, "character": 5}, "end": {"line": 1, "character": 10}}
 
@@ -63,6 +64,7 @@ while True:
               "params": {"edit": {"changes": {"file:///should-not-exist": []}}}})
     elif method == "textDocument/didOpen":
         uri = params["textDocument"]["uri"]
+        version = params["textDocument"]["version"]
     elif method in ("textDocument/definition", "textDocument/implementation"):
         answer(message, [{"targetUri": uri, "targetRange": span, "targetSelectionRange": span}])
     elif method == "textDocument/references":
@@ -71,6 +73,16 @@ while True:
         else:
             answer(message, [{"uri": uri, "range": span}])
     elif method == "textDocument/hover":
+        if mode.startswith("diagnostics"):
+            def publish(target, revision, text):
+                send({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",
+                      "params": {"uri": target, "version": revision,
+                                 "diagnostics": [{"range": span, "severity": 1, "source": "fixture", "message": text}] if text else []}})
+            publish(uri, version, "fixture type error 🧪")
+            publish(uri, version - 1, "stale error")
+            publish("file:///unselected.go", version, "foreign error")
+            if mode == "diagnostics-clear":
+                publish(uri, version, "")
         if mode in ("cancel", "uncancellable"):
             pending = message
             open(log_path + ".query-ready", "w").close()

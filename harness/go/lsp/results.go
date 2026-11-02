@@ -56,12 +56,13 @@ type Call struct {
 	Ranges  []Range
 }
 type Result struct {
-	Operation Operation
-	Locations []Location
-	Hover     string
-	Symbols   []Symbol
-	Calls     []Call
-	Truncated bool
+	Operation   Operation
+	Locations   []Location
+	Hover       string
+	Symbols     []Symbol
+	Calls       []Call
+	Truncated   bool
+	Diagnostics *DiagnosticReport
 }
 
 func (q Query) position(text string) (Position, string, error) {
@@ -347,6 +348,16 @@ func (result Result) Format() (string, bool) {
 	}
 	if len(lines) == 0 {
 		lines = append(lines, "No results returned by the initialized language server for this query.")
+	}
+	if report := result.Diagnostics; report != nil {
+		appendLine("Diagnostics published for this document (server evidence):")
+		if len(report.Items) == 0 {
+			appendLine("Server published an empty diagnostic set.")
+		}
+		for _, item := range report.Items {
+			appendLine(fmt.Sprintf("%s:%d:%d [severity=%d %s] %s", report.URI, item.Range.Start.Line+1, item.Range.Start.Character+1, item.Severity, item.Source, item.Message))
+		}
+		result.Truncated = result.Truncated || report.Truncated
 	}
 	text := strings.Join(lines, "\n")
 	runes := []rune(text)

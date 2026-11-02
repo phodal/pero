@@ -51,6 +51,7 @@ type connection struct {
 	settings     JSONValue
 	workspaceURI string
 	workers      sync.WaitGroup
+	diagnostics  *documentDiagnostics
 }
 
 func startConnection(command *exec.Cmd, settings JSONValue, workspaceURI string) (*connection, error) {
@@ -260,6 +261,13 @@ func (c *connection) readLoop(reader *bufio.Reader) {
 			return
 		}
 		if message.Method != "" {
+			if message.Method == "textDocument/publishDiagnostics" && len(message.ID) == 0 {
+				c.mu.Lock()
+				if c.diagnostics != nil {
+					c.diagnostics.publish(message.Params)
+				}
+				c.mu.Unlock()
+			}
 			if len(message.ID) != 0 {
 				if err := c.answer(message); err != nil {
 					c.abort(err)
