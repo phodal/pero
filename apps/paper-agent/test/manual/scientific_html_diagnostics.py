@@ -30,9 +30,12 @@ def response_summary(response):
         # Restricted arXiv names and known LaTeXML page furniture, never arbitrary attrs.
         classes = [name for name in node.attrs.get('class', '').split()
                    if (re.fullmatch(r'arxiv[-_][a-zA-Z_-]{1,60}', name)
-                       or name in {'ltx_page_header', 'ltx_page_footer', 'ltx_header'})][:4]
+                       or name in {'ltx_page_header', 'ltx_page_footer', 'ltx_header', 'infobox', 'ltx_page_content'})][:4]
         tag = node.tag if node.tag in {'root', 'html', 'head', 'body', 'header', 'footer', 'nav', 'div', 'span', 'p', 'a', 'b', 'i', 'strong', 'small'} else 'other'
-        location = path + [dict(tag=tag, classes=classes)]
+        position = dict(tag=tag, classes=classes)
+        if node.attrs.get('id') in {'infobox', 'watermark-tr', 'license-tr'}:
+            position['id'] = node.attrs['id']
+        location = path + [position]
         in_head = any(part['tag'] == 'head' for part in location)
         field = node.attrs.get('name') or node.attrs.get('property', '')
         if in_head and node.tag == 'meta' and field in fields:

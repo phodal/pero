@@ -6,7 +6,7 @@ import re
 from urllib.parse import urlsplit
 
 SCHEMA = 'pero.scientific-document.v2'
-PARSER = 'pero.arxiv-latexml.v2'
+PARSER = 'pero.arxiv-latexml.v3'
 ARXIV_ID = re.compile(r'(?:\d{4}\.\d{4,5}|[a-z][a-z.\-]*/\d{7})(?:v[1-9]\d*)?')
 PINNED_ID = re.compile(r'(.+?)v([1-9]\d*)')
 

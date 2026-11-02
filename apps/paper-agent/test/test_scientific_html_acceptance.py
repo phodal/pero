@@ -137,7 +137,7 @@ class ScientificHtmlAcceptanceTests(unittest.TestCase):
         self.assertNotIn('PRIVATE', json.dumps(summary))
 
     def test_identity_diagnostics_retain_only_known_page_furniture_classes(self):
-        for known in ('ltx_page_header', 'ltx_page_footer', 'ltx_header'):
+        for known in ('ltx_page_header', 'ltx_page_footer', 'ltx_header', 'infobox', 'ltx_page_content'):
             with self.subTest(known=known):
                 raw = (f'<div class="{known} author_private ltx_unknown">arXiv:2606.03979v2</div>'
                        '<article class="ltx_document"><div class="ltx_page_header">arXiv:9999.00001v1</div></article>').encode()
@@ -146,6 +146,12 @@ class ScientificHtmlAcceptanceTests(unittest.TestCase):
                 self.assertEqual(summary['outsideArticleMarkers'][0]['path'][-1]['classes'], [known])
                 for excluded in ('author_private', 'ltx_unknown', '9999.00001'):
                     self.assertNotIn(excluded, json.dumps(summary))
+
+    def test_identity_diagnostic_reports_only_official_scaffold_ids(self):
+        for identifier in ('infobox', 'watermark-tr', 'license-tr', 'private-unknown'):
+            raw = f'<div id="{identifier}">arXiv:2606.03979v2</div>'.encode()
+            position = response_summary(SourceResponse(URL, raw, 'text/html'))['outsideArticleMarkers'][0]['path'][-1]
+            self.assertEqual(position.get('id'), identifier if identifier != 'private-unknown' else None)
 
     def test_arbitrary_case_is_rejected_before_acquisition(self):
         with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(io.StringIO()):

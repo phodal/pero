@@ -157,6 +157,53 @@ class ScientificDocumentTests(unittest.TestCase):
             with self.assertRaisesRegex(DocumentError, 'identity'):
                 parse_arxiv_html(article('<p>text</p>', metadata), URL)
 
+    def test_official_scaffold_identity_is_scoped_and_conflicts_fail_closed(self):
+        # Minimal self-authored shape from arXiv's published callout_license template.
+        box = ('<div id="infobox" class="infobox"><a id="license-tr" '
+               'href="https://info.arxiv.org/help/license/index.html#licenses-available">License</a>'
+               '<div id="watermark-tr">arXiv:2606.03979v2 [cs.LG] 10 Jul 2026</div></div>')
+        content = '<div class="ltx_page_content">' + article('<p>text</p>', '').decode() + '</div>'
+        valid = '<html><body><div>' + box + content + '</div></body></html>'
+        doc = parse_arxiv_html(valid.encode(), URL)
+        self.assertEqual(doc.manifest.identity_evidence, (('scaffold:watermark-tr', '2606.03979v2'),))
+        self.assertEqual(doc.source_identity, 'response-explicit-version')
+        self.assertEqual(doc.manifest.parser, 'pero.arxiv-latexml.v3')
+        unconfirmed = [
+            content, valid.replace('2606.03979v2', '2606.03979'),
+            valid.replace('id="infobox"', 'id="unknown"'),
+            valid.replace('class="infobox"', 'class="unknown"'),
+            valid.replace('id="watermark-tr"', 'id="unknown"'),
+            valid.replace('#licenses-available', '#unknown'),
+            valid.replace('arXiv:2606.03979v2', 'See arXiv:2606.03979v2'),
+            valid.replace('arXiv:2606.03979v2', '<span>arXiv:2606.03979v2</span>'),
+            box + '<aside>' + content + '</aside>',
+            '<script>' + box + '</script>' + content,
+            '<template>' + box + '</template>' + content,
+            article(box + '<p>arXiv:2606.03979v2 [cs.LG] 10 Jul 2026</p>', '').decode(),
+            content + box,
+            valid.replace(content, '<div class="ltx_page_content"></div>' + content),
+        ]
+        for excluded in ('template', 'noscript', 'object', 'form'):
+            unconfirmed.append(valid.replace('<article class="ltx_document">',
+                                              f'<{excluded}><article class="ltx_document">')
+                               .replace('</article>', f'</article></{excluded}>'))
+        for raw in unconfirmed:
+            with self.subTest(raw=raw):
+                self.assertEqual(parse_arxiv_html(raw.encode(), URL).source_identity, 'version-unconfirmed')
+        mismatches = [valid.replace('2606.03979v2', '2606.03979v1'),
+                      valid.replace('2606.03979v2', '2410.22093v4'),
+                      '<meta name="citation_arxiv_id" content="2606.03979v1">' + valid,
+                      valid.replace(box, box + box.replace('v2', 'v1')),
+                      valid.replace('</div></div><div class="ltx_page_content">',
+                                    '</div><div id="watermark-tr">arXiv:2606.03979v1 [cs.LG] 10 Jul 2026</div></div><div class="ltx_page_content">')]
+        for raw in mismatches:
+            with self.subTest(raw=raw), self.assertRaisesRegex(DocumentError, 'identity'):
+                parse_arxiv_html(raw.encode(), URL)
+        old = replace(doc, manifest=replace(doc.manifest, parser='pero.arxiv-latexml.v2'))
+        restored = ScientificDocument.from_record(json.loads(encoded(old.to_dict())))
+        self.assertEqual(restored.id, old.id)
+        self.assertNotEqual(restored.id, doc.id)
+
     def test_source_identity_error_pages_and_resource_limits_fail_closed(self):
         cases = [(SOURCE, URL[:-2]), (SOURCE, URL.replace('https:', 'http:')),
                  (SOURCE, URL.replace('arxiv.org', 'arxiv.org.evil.invalid')),

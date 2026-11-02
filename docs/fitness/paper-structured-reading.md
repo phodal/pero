@@ -362,3 +362,58 @@ has already been accepted by the product parser.
 Offline verification: 25 scientific/probe tests passed, including metadata-only
 projection, marker/body/script exclusion, count/length bounds, a single mocked transport
 seam invocation, and continued `prepare_html` rejection of a diagnostic-only banner.
+
+### Official scaffold compatibility candidate
+
+The metadata artifacts of
+[diagnostic run 41411522519](https://github.com/phodal/pero/actions/runs/41411522519)
+(head `003636260a36f2acbfdf7c066d503c501c3024b2`) were downloaded and their ZIP
+SHA-256 values verified against GitHub's artifact metadata. Each response has zero
+recognized head identity fields and one article-external exact-version `arXiv:`
+marker at `html/body/div/div/div`. The restricted class arrays were empty. These
+paths are compatible with the official scaffold below, but this diagnostic did
+**not** record element IDs and therefore does not establish the actual infobox IDs.
+All three acquisition attempts still failed the unchanged identity gate.
+
+| Case | Artifact ID | Response bytes | Response SHA-256 |
+| --- | --- | ---: | --- |
+| d5 | 13125408740 | 445981 | `cd4e7462754f196741bc9671d18f03054e40d0e0debe0fa88c477b2dbd468824` |
+| pc-gym | 13125602694 | 382496 | `1a5615f0aa4925f7d73177e54916311c2e57d6a3a86a6296c6f13809b5b4bb39` |
+| controlgym | 13125183702 | 403129 | `f0a9a2c3004cbc345f91a65663093538bfbe54dd3e186e103493559307a7ee77` |
+
+Compatibility is based on arXiv's own source, pinned at
+`arXiv/arxiv-browse@60c7f50f40e6f39c2669abb11fc7d845e72efab4`:
+[callout_license.html](https://github.com/arXiv/arxiv-browse/blob/60c7f50f40e6f39c2669abb11fc7d845e72efab4/browse/templates/dissemination/article_scaffold/callout_license.html)
+(blob `1db88a9f96137de032a74baf4e9c099a84e790b5`) renders a license infobox
+containing a version watermark from server metadata;
+[scaffold.py](https://github.com/arXiv/arxiv-browse/blob/60c7f50f40e6f39c2669abb11fc7d845e72efab4/browse/services/html_processing/scaffold.py)
+(blob `9268057d2105373a068ca4f9c4b48ebcc1aaeba1`) inserts it directly before
+`ltx_page_content`. No additional paper fetch was used to inspect these templates.
+
+The parser now recognizes only this narrow, article-external, non-active scaffold:
+`div#infobox.infobox` with the exact official license link followed by a single
+plain-text `div#watermark-tr`, immediately preceding the `ltx_page_content` sibling
+that contains the unique LaTeXML article. Its complete text must match the arXiv
+work ID, an explicit version, optional subject category and printed date. Duplicate
+scoped infoboxes/watermarks or conflict with any accepted head identity fail closed.
+Arbitrary body text, article-local markers, script/template content, wrong furniture
+or license links, detached markers and unversioned text cannot establish identity.
+Request/final URL alone still never establishes response version. Date syntax
+recognition is not scientific or publication-date validation.
+
+Parser release identity advances from `pero.arxiv-latexml.v2` to `.v3`; stored v2
+IR still loads frozen with its original ID, without reparsing or rewriting reports.
+The probe diagnostics additionally permit only the known `infobox`, `watermark-tr`,
+`license-tr` ID values and `infobox`/`ltx_page_content` classes. The next authorized
+three-case Actions run must establish both the actual scaffold shape and the
+candidate parser's real behavior. Until then, this is offline compatibility work,
+not a passed D5 or a successful live structured read; six-kind expectations remain
+unchanged and no model/PDF/image request is added.
+
+Candidate verification after the final containment correction: 27 scientific/probe
+tests passed; full offline Paper discovery passed 242 tests in 67.613 seconds
+(241 passed, one existing platform skip). Six CI contract tests and
+`git diff --check` passed. Independent review reran the 27 focused tests and
+confirmed the article-containment search cannot cross template/noscript/object/form
+or other dropped content. These are L0 results; the candidate's live gate remains
+pending its next explicit Actions execution.
