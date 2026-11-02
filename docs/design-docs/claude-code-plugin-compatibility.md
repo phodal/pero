@@ -677,7 +677,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 | MCP | stdio/streamable HTTP/旧版 SSE、环境替换、namespace、root-agent 连接生命周期 | SSE 实际发现、调用、取消与退役回收；拒绝向外部 origin 转发配置凭据；OAuth/每工具迁移仍待补 |
 | LSP | `--lsp-config`、所选插件 `.lsp.json`/manifest 声明默认装配；9 类 query、UTF-16 坐标、能力协商、取消与进程生命周期 | 实际 `/usr/bin/clangd` hover、operator/bundled 两种真实 CLI 路径通过；不安装服务器，不应用编辑；Write/Edit 后有界诊断已接通；连续异步诊断与动态注册仍缺 |
 | WebSearch/WebFetch | 显式 DeepSeek Search/Fetch provider；域名过滤、引用、offset 分片及无工具子代理提取 | CLI loopback 验证审批、共享预算、取消和拒绝写文件；真实 API 两次请求通过；缓存与跨域 redirect handoff 尚未实现，搜索后端不同 |
-| 同步 Workflow | 原始 scriptPath、export const meta、args、嵌套 workflow、agent/parallel/pipeline/phase/log；RPC 复用 ClaudeContribution.Invoke | 原始 3 个审查脚本实际运行；9 次 agent()、10 次 loopback HTTP、峰值并发 3；后台 Workflow 明确拒绝，详见 16.4 |
+| 同步 Workflow | 原始 scriptPath、export const meta、args、嵌套 workflow、agent/parallel/pipeline/phase/log；RPC 复用 ClaudeContribution.Invoke | 原始 3 个审查脚本实际运行；9 次 agent()、10 次 loopback HTTP、峰值并发 3；同步检查点见 16.4；后台任务接入见 16.10 |
 | Trial runner | 显式选择 Harness ACP 或原 Claude runner；工作区/session/续跑/问答策略/审批/真实 usage/进程回收 | 15 项本地测试通过；所有 session 与最终产物复核，取消/关闭失败/非零退出不伪成功；不估算 USD，不重试已提交 prompt |
 | 显式研究依赖 | 选定固定来源后生成内容寻址 package view；原 research → research-deep → research-report 留在 root，保留人工 gate | 原链 CLI loopback 已通过：6 次问答、2 个后台研究代理、10 Search、2 Fetch、2 次无工具提取、16 次审批、原 validator 和 raw 字节归档；不宣称真实研究质量 |
 
@@ -695,7 +695,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 
 ### 16.2 继续实现的出口
 
-完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的后台执行与可恢复任务句柄；动态模板的精确呈现；后台子代理的驻留、cold-resume、turn/run 区分及命令完成通知/自动唤醒；LSP 连续异步 diagnostics 与动态能力注册；研究技能的真实模型/真实语料质量；外部依赖和实际服务连接。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。Trial 的最终产物复核、关闭失败和进程退出处理已完成独立回归，真实优化效果仍需另行验收。
+完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的执行续跑与完成通知；动态模板的精确呈现；后台子代理的驻留、cold-resume、turn/run 区分及命令完成通知/自动唤醒；LSP 连续异步 diagnostics 与动态能力注册；研究技能的真实模型/真实语料质量；外部依赖和实际服务连接。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。Trial 的最终产物复核、关闭失败和进程退出处理已完成独立回归，真实优化效果仍需另行验收。
 
 任务归属也需区分目标契约：当前任务查询限定创建者，子代理退出时取消并等待其命令，这与 pinned DSH 的 owner 隔离及 disposal 语义相符。Claude 官方要求前台子代理结束时停止命令，但允许后台子代理在当前 turn 结束后继续持有后台命令，并接收完成通知；run 真正退出时才停止。现有 one-shot 子代理在结果返回后回收，尚未实现后一种驻留。不能把它写成所有子代理命令都应无限存活，或已经支持根会话接管所有子任务。当前 Claude 文档还注明 TaskOutput 自 v2.1.277 移除、改为 Read 输出文件；本批插件所用旧 TaskOutput 接口作为显式兼容接口保留。
 
@@ -806,3 +806,14 @@ Trial 源码检查点为 `49135115`、`72ea0376`，15 项本地测试通过，�
 此实现使用临时打开/保存/关闭的文件快照，空集合只表示该时刻服务器的回执，不承诺异步分析全部结束。保留文档并持续接收后续异步诊断、任意 Bash 或外部编辑器改动通知仍待实现；不将这一检查点扩大为完整连续诊断等价。[运行契约](../../harness/go/lsp/README.md#automatic-checks-after-saved-files)
 
 本步骤冻结后通过 Go 全量 `go test -race ./...`（34 个有测试的包）、`go vet ./...`，Bazel LSP、plugins、完整 ACP CLI 三个测试目标全部通过。验证使用本地 stdio 与模型 seam，无付费模型请求。
+
+
+### 16.10 后台 Workflow 与任务终态恢复
+
+Workflow 的 run_in_background:true 已接入同一个 Node/Claude 子代理执行器。启动前把 task intent Append/Flush，返回真实 workflow task_id；现有 TaskOutput/TaskStop 分发到该 Workflow owner，精确父会话隔离。当前轮正常结束或工具返回后，已接受工作继续执行；中断、退役和运行时退出取消。并发后台流程上限 16，重复 call ID/turn 不启动副本。实际结束并清理成员后记录终态；只有真实 completed result 才报告完成。[任务契约](../../harness/go/workflow/README.md#background-task-ownership)
+
+测试真实运行两个 member 阶段，在父轮结束后进行一次 Write 和一次审批，取得最终结果；覆盖其他父会话拒绝、查询等待、TaskStop、应用退出、父会话实际退役。退出测试发现并修复了 Workflow 等待子代理而子代理回执等待父退役的生命周期死锁。退役钩子只 fence/cancel；原 AgentManager 完成子树回收，Workflow owner drain 再等待账务收尾。[问题与修复](../issues/2026-11-03-workflow-retirement-wait.md)、[运行回归](../../harness/go/workflow/background_test.go)
+
+任务查询可从所属 Session 日志恢复终态；无活跃进程的未结束 intent 只标记 interrupted，绝不重新启动 Node、模型或文件副作用。测试验证终态恢复与一次 interrupted 落账；这不是恢复工作流执行进度，也不代替真实进程崩溃后的逐插件业务验收。自动完成通知和可续跑的后台执行仍待补，当前通过 TaskOutput 取得结果。Session 的外部持久化仍使用现有配置，不将内存 fixture 写成磁盘恢复验收。
+
+本批验证：Go 全量 race/vet 通过（34 个有测试的包）；新增持久化失败与真实父 Prompt 结束场景另做 workflow race 回归。Bazel harness、subagents、workflow、完整 ACP CLI 四个目标通过。未调用付费模型。

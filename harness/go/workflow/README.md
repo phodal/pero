@@ -1,6 +1,6 @@
 # Selected plugin workflows
 
-`workflow` runs synchronous JavaScript orchestration from explicitly selected
+`workflow` runs selected JavaScript orchestration from explicitly selected
 plugin packages. It registers the `Workflow` tool in the existing Harness tool
 registry and delegates `agent()` through `subagents.ClaudeContribution.Invoke`.
 It does not own a second model loop, credentials, approval system or task store.
@@ -64,8 +64,8 @@ disposal also reclaim Node and child activations before returning.
 
 ## Scope and remaining differences
 
-`run_in_background: true` is explicitly unsupported. There is no background
-Workflow task handle, resume protocol, arbitrary module loader or claim of
+`run_in_background: true` returns an owned task handle as described below.
+There is no execution-resume protocol, arbitrary module loader or claim of
 general JavaScript application compatibility. Scripts run as trusted selected
 package code. The Node VM restricts available globals but **is not an OS
 sandbox**; deployment isolation remains the host's responsibility.
@@ -95,3 +95,40 @@ fixtures from a selected package snapshot. Its applicable MIT license and
 copyright notice are preserved in [testdata/review/LICENSE](testdata/review/LICENSE).
 Snapshot commit, exact file hashes and the distinction between behavior
 adaptation and copied fixtures are recorded in [SOURCE.json](SOURCE.json).
+
+## Background task ownership
+
+The Workflow tool accepts run_in_background=true. It appends and flushes a
+workflow-task/started intent before launching the same selected Node executor.
+The tool returns task_id and kind=workflow; shared TaskOutput polls or waits,
+and TaskStop cancels and joins the real Node process and member activations.
+The exact parent owns access. Admission context cancellation after the returned
+handle does not stop accepted work. Runtime ownership, parent interruption and
+retirement do cancel it. There are at most 16 concurrent background workflows.
+
+Normal completion of a parent turn leaves accepted work running, including
+later member stages and their existing approval channel. No model credentials
+or additional model loop are introduced. The task ID also identifies progress
+RunID. Repeated dispatch of the same call ID in the same turn returns the
+existing receipt. A terminal fact is flushed after actual executor and child
+settlement; success requires the real completed result. Failed persistence
+is reported as failure, never as durable success.
+
+Lookup reconstructs terminal results from the owning Session's journal. An
+unfinished intent with no live process owner becomes interrupted once; it
+never launches Node, repeats members or retries file effects. This is terminal
+recovery, not workflow execution resumption. External storage durability still
+requires the existing Session persistence configuration; in-memory Sessions
+do not acquire disk durability from this API.
+
+Parent retirement cancels without joining from within its lifecycle hooks:
+member receipts themselves await parent retirement. The AgentManager owns child
+retirement, and contribution drain joins the workflow bookkeeping afterwards.
+See the [retirement wait fix](../../../docs/issues/2026-11-03-workflow-retirement-wait.md).
+
+Real integration tests exercise two background stages, a member Write and its
+approval after the parent turn ends, shared polling/waiting/stopping, exact
+parent isolation, cancellation, disposal, actual parent retirement, terminal
+restoration and lost-owner interruption without replay. The actual model seam
+is a fixture. Automatic parent completion notices and resumable workflow
+continuations remain separate work; callers retrieve results through TaskOutput.

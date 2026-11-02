@@ -104,8 +104,7 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   text, multiple questions and cancellation without using permission dialogs.
   The Desktop client negotiates this extension and renders its own question form.
 - Selected JavaScript Workflow scripts run through the existing child-agent
-  service, including nested scripts and structured results. Execution is
-  synchronous; see the [Workflow contract](../workflow/README.md).
+  service, including nested scripts and structured results. Execution supports synchronous results and owned background task handles; see the [Workflow contract](../workflow/README.md).
 - Native plugin Bash supports background tasks, durable output logs and success
   artifacts. Foreground timeouts promote the same live process after a durable
   transition; sleep/disable/bare exceptions still stop it. Explicit
@@ -138,7 +137,7 @@ of inspection output. Unknown execution fields and invalid declarations stop
 runtime loading instead of silently changing their meaning.
 
 This profile is still incomplete. Conditional Bash grants and exit-1
-interpretation for compound syntax, asynchronous Workflow execution, resident
+interpretation for compound syntax, resumable Workflow continuations, resident
 background agents, cold agent resumption and several additional hook/configuration features remain
 open. Hooks do not yet use the sandbox backend; selecting both command hooks
 and a sandbox currently returns an error. Explore/Plan use a narrower read-only
