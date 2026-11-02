@@ -1,4 +1,4 @@
-// Adapted from Point App SDK d95f9118e (Apache-2.0).
+// Upstream attribution and license: packages/app-sdk/NOTICE.md.
 import React, { forwardRef, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as Primitive from '@radix-ui/react-context-menu';
 import { ensureUiStyles } from './ui-styles';

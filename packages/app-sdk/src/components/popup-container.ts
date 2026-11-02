@@ -1,4 +1,4 @@
-// Adapted from Point App SDK d95f9118e (Apache-2.0).
+// Upstream attribution and license: packages/app-sdk/NOTICE.md.
 /** Shared owning-document and native top-layer policy for anchored controls. */
 function isOpenDialog(element: Element): element is HTMLDialogElement {
   return element.localName === 'dialog' && ((element as HTMLDialogElement).open === true || element.hasAttribute('open'));
