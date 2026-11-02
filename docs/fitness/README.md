@@ -1,5 +1,8 @@
 # Quality gates
 
+ReFrame benchmark library, local numerical references and separate Slurm/OpenFOAM
+acceptance: [HPC Benchmarks](hpc.md).
+
 Global appearance, scoped typography and current Settings shell limits:
 [appearance](appearance.md).
 

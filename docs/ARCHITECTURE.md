@@ -46,6 +46,11 @@ Host 的规范化回执；共享任务和远程 Worker 继续走已有控制面�
 
 ## 可组合应用与产品
 
+[ADR 0026](adr/0026-hpc-benchmark-library.md) 定义 HPC 基准库与 Compute 的分工：
+App 保存版本化方法、固定输入、独立检查和比较证据，ReFrame 执行已选择的基准。
+Compute/Host 继续拥有机器、授权和通用执行生命周期。首版使用本地 CPU 参考方法；
+Slurm、多 MPI ranks 与 OpenFOAM 的真实站点验收单独记录，不能由本地参考结果代替。
+
 产品装配以 [ADR 0008](adr/0008-product-distributions.md) 为准，区分三个概念：
 
 - **App** 拥有领域界面、数据与可选后端，由 `app.json` 声明。相同 App 可在工作台内运行，也可成为独立产品的入口。
