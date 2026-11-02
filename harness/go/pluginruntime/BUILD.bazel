@@ -3,8 +3,11 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "pluginruntime",
     srcs = [
+        "command_output.go",
+        "command_status.go",
         "hooks.go",
         "mcp.go",
+        "preprocess.go",
         "transcript.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/pluginruntime",
@@ -36,21 +39,25 @@ go_test(
     ] + select({
         "@rules_go//go/platform:android": [
             "//claudehooks",
+            "//nativetools",
             "//runtime",
             "//skills",
         ],
         "@rules_go//go/platform:darwin": [
             "//claudehooks",
+            "//nativetools",
             "//runtime",
             "//skills",
         ],
         "@rules_go//go/platform:ios": [
             "//claudehooks",
+            "//nativetools",
             "//runtime",
             "//skills",
         ],
         "@rules_go//go/platform:linux": [
             "//claudehooks",
+            "//nativetools",
             "//runtime",
             "//skills",
         ],
