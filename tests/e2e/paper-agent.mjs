@@ -98,6 +98,7 @@ try {
   await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(item => item.name === 'paper-agent'));
   const installedBackend = resolve(profile, 'desktop/apps/paper-agent/backend');
   await writeFile(resolve(installedBackend, 'discovery_fixture.py'), await readFile(resolve(root, 'tests/fixtures/paper-discovery.py')));
+  await writeFile(resolve(installedBackend, 'reader_download_fixture.py'), await readFile(resolve(root, 'tests/fixtures/paper-reader-download.py')));
   const serverPath = resolve(installedBackend, 'server.py');
   await writeFile(serverPath, paperBackendFixture(await readFile(serverPath, 'utf8'), pdfPath));
   let frame = await openPaper(page);

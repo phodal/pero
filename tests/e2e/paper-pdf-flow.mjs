@@ -2,6 +2,19 @@ import { chatState, askPaperChat, fillPaperChat, closePaperChat, showPaperReport
 import { exercisePdfSearch } from './paper-search-flow.mjs';
 import { expect } from '@playwright/test';
 import { resolve } from 'node:path';
+export async function saveLibraryCopies(frame, title, { tex = false, timeout = 20000 } = {}) {
+  const row = frame.locator('.pa-library-list > li').filter({ hasText: title });
+  await row.getByRole('button', { name: 'Save', exact: true }).click();
+  const dialog = frame.getByRole('dialog', { name: 'Save copies', exact: true });
+  await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled({ timeout });
+  if (tex) await dialog.getByRole('checkbox', { name: 'TeX', exact: true }).check();
+  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Export copies', exact: true })).toBeEnabled({ timeout });
+  await dialog.getByRole('button', { name: 'Export copies', exact: true }).click();
+  await expect(dialog.getByRole('status').filter({ hasText: 'Saved the PDF' })).toBeVisible();
+  return dialog;
+}
+
 // Electron may expose an empty clipboard as one item with no advertised types.
 // It carries no bytes to preserve and cannot construct a new ClipboardItem.
 export async function savePaperClipboard({ clipboard, ClipboardItem }) {
@@ -62,9 +75,11 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
     const value = await response.json(); if (!response.ok) throw new Error(JSON.stringify(value)); return value;
   }, { path, body });
   await backToLibrary(frame);
-  const paper = await post('/api/papers/import', { title: fixture.realPdf ? 'Attention Is All You Need · PDF' : 'Synthetic PDF reading', sourceId: '1706.03762',
-    url: 'https://arxiv.org/abs/1706.03762', pdfUrl: 'https://arxiv.org/pdf/1706.03762', authors: [], contentKind: 'full-text', content: fixture.text });
+  const paper = await post('/api/papers/import', { title: fixture.realPdf ? 'Attention Is All You Need · PDF' : 'Synthetic PDF reading', sourceId: '1706.03762v1',
+    url: 'https://arxiv.org/abs/1706.03762v1', pdfUrl: 'https://arxiv.org/pdf/1706.03762v1', authors: [], contentKind: 'full-text', content: fixture.text });
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
+  const save = await saveLibraryCopies(frame, paper.title);
+  await save.getByRole('button', { name: 'Close', exact: true }).click();
   await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true }), nav = frame.locator('.pa-reading-bar');
   await expect(viewer).toBeVisible({ timeout: 30000 });
@@ -193,9 +208,12 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   const unavailable = await post('/api/papers/import', { title: 'Synthetic unavailable PDF', sourceId: 'unavailable-pdf', url: 'https://example.invalid/source', pdfUrl: 'https://example.invalid/paper.pdf', authors: [], contentKind: 'abstract', content: 'Synthetic source remains readable.' });
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
   await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(unavailable.title, { exact: true }) }).click();
-  await expect(frame.locator('.pa-pdf-reading [role="alert"]')).toContainText('PDF URL');
-  await expect(frame.locator('.pa-pdf-reading').getByRole('button', { name: 'Retry', exact: true })).toBeEnabled();
-  await frame.getByRole('button', { name: 'Text', exact: true }).click();
+  // Opening metadata cannot initiate acquisition; the old implicit-download
+  // error is now an explicit Save action, while its abstract stays readable.
+  await frame.locator('.pa-pdf-reading').getByRole('button', { name: 'PDF', exact: true }).click();
+  const unavailableSave = frame.getByRole('dialog', { name: 'Save copies', exact: true });
+  await expect(unavailableSave.getByRole('button', { name: 'Retry', exact: true })).toBeEnabled();
+  await unavailableSave.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(frame.locator('.pa-source-text')).toContainText('Synthetic source remains readable.');
   await expect(frame.locator('.pa-pdf-reading [role="alert"]')).toHaveCount(0);
   await backToLibrary(frame);
