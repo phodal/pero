@@ -1,6 +1,30 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { savePaperClipboard } from '../../tests/e2e/paper-pdf-flow.mjs';
+import { savePaperClipboard, backToLibrary } from '../../tests/e2e/paper-pdf-flow.mjs';
+
+test('return to Library handles reader and Library sub-screens without skipping the actual list', async () => {
+  for (const initial of ['reader', 'bundle', 'import', 'papers']) {
+    let screen = initial;
+    const clicks = [];
+    const frame = {
+      locator: selector => {
+        if (selector === '.pa-workspace') return { getAttribute: async () => null };
+        assert.ok(['.pa-reading-bar', '.pa-library-screen'].includes(selector));
+        return { getByRole: (role, { name }) => {
+          assert.equal(role, 'button');
+          if (name === 'Refresh') return { isVisible: async () => screen === 'papers' };
+          assert.equal(name, 'Back to library');
+          const isVisible = () => selector === '.pa-reading-bar' ? screen === 'reader' : ['bundle', 'import'].includes(screen);
+          return { isVisible: async () => isVisible(), click: async () => { assert.ok(isVisible()); clicks.push(screen); screen = 'papers'; } };
+        } };
+      },
+      getByRole: (role, { name }) => { assert.equal(role, 'button'); assert.equal(name, 'Close research records'); return { isVisible: async () => false }; },
+    };
+    await backToLibrary(frame);
+    assert.equal(screen, 'papers');
+    assert.deepEqual(clicks, initial === 'papers' ? [] : [initial]);
+  }
+});
 
 test('reader fixture preserves advertised clipboard data but accepts an empty native item', async () => {
   class ClipboardItem {

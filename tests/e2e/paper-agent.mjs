@@ -313,7 +313,7 @@ try {
     await setAppearance(page,'light');
     checks.push('dark theme, Chinese locale and narrow Agent overlay');
   }
-  const savedPdf = await exercisePdf({frame,page,app,out,fixture:pdfFixture});
+  const savedPdf = await exercisePdf({frame,page,app,out,fixture:pdfFixture,profile});
   checks.push('reading-only default at 1440x900, retained viewer/zoom/selection across Ask, selected-text question context');
   checks.push('PDF pointer highlight, contextual crop, native image copy, inline manual matrix, source navigation and PDF failure recovery');
   checks.push('full-text retrieval -> Host ACP answer -> exact PDF quotation highlight');

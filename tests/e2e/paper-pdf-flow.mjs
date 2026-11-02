@@ -2,6 +2,7 @@ import { chatState, askPaperChat, fillPaperChat, closePaperChat, showPaperReport
 import { exercisePdfSearch } from './paper-search-flow.mjs';
 import { expect } from '@playwright/test';
 import { resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
 export async function saveLibraryCopies(frame, title, { tex = false, timeout = 20000 } = {}) {
   const dialog = frame.getByRole('dialog', { name: 'Save copies', exact: true });
   // Add may already have opened this review. Never dismiss it or approve a
@@ -69,13 +70,21 @@ export async function backToLibrary(frame) {
   if (await close.isVisible()) await close.click();
   const back = frame.locator('.pa-reading-bar').getByRole('button', { name: 'Back to library', exact: true });
   if (await back.isVisible()) await back.click();
+  // Source/import journeys may already be in Library, but on its bundle or
+  // import sub-screen. Its own Back returns to the actual papers list.
+  const library = frame.locator('.pa-library-screen');
+  const libraryBack = library.getByRole('button', { name: 'Back to library', exact: true });
+  if (await libraryBack.isVisible()) await libraryBack.click();
+  await expect.poll(() => library.getByRole('button', { name: 'Refresh', exact: true }).isVisible(), {
+    message: 'Paper Library list is visible after real reader/sub-screen navigation',
+  }).toBe(true);
 }
 export async function pdfAction(frame, name) {
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
   await viewer.focus(); await viewer.press('Shift+F10');
   await viewer.getByRole('menuitem', { name, exact: true }).click();
 }
-export async function exercisePdf({ frame, page, app, out, fixture }) {
+export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   const post = (path, body) => frame.locator('body').evaluate(async (_element, { path, body }) => {
     const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const value = await response.json(); if (!response.ok) throw new Error(JSON.stringify(value)); return value;
@@ -215,15 +224,47 @@ export async function exercisePdf({ frame, page, app, out, fixture }) {
   })).toBe(true);
   await page.screenshot({ path: resolve(out, 'pdf-restored-numeric-zoom.png') });
   await backToLibrary(frame);
-  const unavailable = await post('/api/papers/import', { title: 'Synthetic unavailable PDF', sourceId: 'unavailable-pdf', url: 'https://example.invalid/source', pdfUrl: 'https://example.invalid/paper.pdf', authors: [], contentKind: 'abstract', content: 'Synthetic source remains readable.' });
+  const unavailable = await post('/api/papers/import', { title: 'Synthetic unavailable PDF', sourceId: 'unavailable-pdf', url: 'https://example.invalid/source', pdfUrl: 'https://reader.example.org/retry.pdf', authors: [], contentKind: 'abstract', content: 'Synthetic source remains readable.' });
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
   await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(unavailable.title, { exact: true }) }).click();
   // Opening metadata cannot initiate acquisition; the old implicit-download
   // error is now an explicit Save action, while its abstract stays readable.
   await frame.locator('.pa-pdf-reading').getByRole('button', { name: 'PDF', exact: true }).click();
   const unavailableSave = frame.getByRole('dialog', { name: 'Save copies', exact: true });
-  await expect(unavailableSave.getByRole('button', { name: 'Retry', exact: true })).toBeEnabled();
+  await expect(unavailableSave.getByText(unavailable.title, { exact: true })).toBeVisible();
+  await expect(unavailableSave.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
+  const attempts = async () => {
+    try { return (await readFile(resolve(profile, 'desktop/app-data/paper-agent/reader-retry-attempts.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse); }
+    catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+  };
+  const savedLibrary = () => frame.locator('body').evaluate(async () => (await (await fetch('/api/library')).json()));
+  expect(await attempts()).toEqual([]);
+  expect((await savedLibrary()).bundles.some(bundle => bundle.seedUrl === unavailable.pdfUrl)).toBe(false);
+  // Direct-PDF inspection is metadata-only and succeeds without a byte probe.
+  // Confirm is the first authorization; only its real owner can report failure.
+  await unavailableSave.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(unavailableSave.getByText('PDF download failed', { exact: true })).toBeVisible({ timeout: 15000 });
+  const retry = unavailableSave.getByRole('button', { name: 'Retry PDF download', exact: true });
+  await expect(retry).toBeEnabled();
+  await expect(unavailableSave.getByRole('button', { name: 'Export copies', exact: true })).toBeDisabled();
+  const retryBundle = (await savedLibrary()).bundles.find(bundle => bundle.seedUrl === unavailable.pdfUrl);
+  expect(retryBundle.pdfDownloadIds).toHaveLength(1);
+  expect(retryBundle.sourceDownloadIds).toEqual([]);
+  const retryStatus = () => post('/api/research/pdf', { operation: 'status', bundleId: retryBundle.id, resourceId: retryBundle.pdfDownloadIds[0] });
+  const failed = await retryStatus();
+  expect(failed.status).toBe('failed'); expect(failed.receipt).toBeNull();
+  expect(await attempts()).toEqual([{ url: unavailable.pdfUrl }]);
+  await retry.click();
+  await expect(unavailableSave.getByText('PDF downloaded; text extraction available', { exact: true })).toBeVisible({ timeout: 15000 });
+  await expect(unavailableSave.getByRole('button', { name: 'Export copies', exact: true })).toBeEnabled();
+  const recovered = await retryStatus();
+  expect(recovered.status).toBe('completed'); expect(recovered.localAvailable).toBe(true);
+  expect(recovered.receipt.requestUrl).toBe(unavailable.pdfUrl);
+  expect(await attempts()).toEqual([{ url: unavailable.pdfUrl }, { url: unavailable.pdfUrl }]);
+  // Deliberately do not export/associate the recovered local PDF with this
+  // metadata paper: the unchanged abstract must still be readable afterwards.
   await unavailableSave.getByRole('button', { name: 'Close', exact: true }).click();
+  expect(await frame.locator('body').evaluate(async (_element, id) => (await (await fetch(`/api/pdf?paperId=${id}`)).json()).document, unavailable.id)).toBeNull();
   await expect(frame.locator('.pa-source-text')).toContainText('Synthetic source remains readable.');
   await expect(frame.locator('.pa-pdf-reading [role="alert"]')).toHaveCount(0);
   await backToLibrary(frame);
