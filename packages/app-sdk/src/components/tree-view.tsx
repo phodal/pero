@@ -1,4 +1,4 @@
-// Adapted from Point App SDK d95f9118e (Apache-2.0).
+// Upstream attribution and license: packages/app-sdk/NOTICE.md.
 import React from 'react';
 import { Tree, TreeItem, TreeItemContent, I18nProvider, Button as AriaButton } from 'react-aria-components';
 import { Icon } from './icon';
