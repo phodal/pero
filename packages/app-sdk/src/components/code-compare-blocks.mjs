@@ -1,4 +1,4 @@
-// Adapted from Point App SDK (Apache-2.0), source revision 872cbf87d.
+// Upstream attribution and license: packages/app-sdk/NOTICE.md.
 /** Absolute inclusive line ranges. Never infer a correspondence through an unmapped gap. */
 export function mappedCompareBlock(blocks, side, line) {
   return blocks.filter(block => line >= block[side].startLine && line <= block[side].endLine)

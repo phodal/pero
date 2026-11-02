@@ -1,4 +1,4 @@
-// Adapted from Point App SDK (Apache-2.0), source revision 872cbf87d.
+// Upstream attribution and license: packages/app-sdk/NOTICE.md.
 import { useEffect, useRef } from 'react';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';

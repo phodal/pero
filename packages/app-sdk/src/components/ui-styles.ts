@@ -1,4 +1,4 @@
-// Adapted from Point App SDK d95f9118e (Apache-2.0).
+// Upstream attribution and license: packages/app-sdk/NOTICE.md.
 import { ensureDesignTokens } from '../tokens/ensure-tokens.mjs';
 /** Exported for isolated renderers whose CSP requires external stylesheets. */
 export const uiStyles = `
@@ -294,7 +294,7 @@ export const uiStyles = `
 .pero-ui-help-tip-button::after, .pero-ui-checkbox:not([data-unstyled])::after, .pero-ui-radio-item:not([data-unstyled])::after, .pero-ui-switch:not([data-unstyled])::after { content: ""; position: absolute; top: 50%; left: 50%; width: max(100%, var(--pero-size-hit-min, 24px)); height: max(100%, var(--pero-size-hit-min, 24px)); transform: translate(-50%, -50%); }
 `;
 
-/** Same-document Apps share one style element, scoped to Point controls. */
+/** Same-document Apps share one style element, scoped to Pero controls. */
 export function ensureUiStyles(doc: Document) {
   ensureDesignTokens(doc);
   if (doc.getElementById('pero-app-ui-styles')) return;
