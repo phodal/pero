@@ -1,0 +1,26 @@
+{
+  "implementation": "Original Go implementation of documented LSP protocol and selected Claude compatibility input; no TypeScript source copied.",
+  "reference_repository": "deepseek-ai/deepseek-harness",
+  "reference_commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+  "reference_paths": [
+    "packages/lsp/tool-lsp/src/index.ts",
+    "packages/lsp/lsp-stdio/src/connection.ts",
+    "packages/lsp/lsp-stdio/src/protocol.ts",
+    "packages/lsp/lsp-stdio/src/instance.ts",
+    "packages/lsp/lsp-stdio/src/translate.ts"
+  ],
+  "reference_license": "MIT; DEEPSEEK_LICENSE.txt retains the upstream notice",
+  "protocol_references": [
+    "https://code.claude.com/docs/en/plugins-reference#lspservers",
+    "https://code.claude.com/docs/en/tools-reference#lsp-tool-behavior",
+    "https://code.claude.com/docs/en/agent-sdk/typescript",
+    "https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/"
+  ],
+  "compatibility_input_evidence": "The official SDK does not export LSPInput. The uniform operation/filePath/line/character shape is recorded in the upstream schema issue https://github.com/anthropics/claude-code/issues/38011; it is an observed compatibility contract, not a claimed SDK type.",
+  "differences": [
+    "Nine Claude operation names extend the four-operation DSH provider reference through actual symbol and call-hierarchy RPCs.",
+    "Reads use the existing descriptor-rooted workspace with its source byte limit; selected processes are trusted and not an OS sandbox.",
+    "Non-stdio transport, live post-edit diagnostics injection and dynamic capability registration are explicitly unsupported.",
+    "Server processes are lazy, bounded by configured startup/request/shutdown deadlines and restart policy, and owned through existing Harness runtime teardown."
+  ]
+}

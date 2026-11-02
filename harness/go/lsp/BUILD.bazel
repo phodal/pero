@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "lsp",
+    srcs = [
+        "config.go",
+        "results.go",
+    ],
+    importpath = "github.com/phodal/pero/harness/go/lsp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//fstools",
+        "//harness",
+        "//runtime",
+    ],
+)
+
+go_test(
+    name = "lsp_test",
+    srcs = [
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":lsp"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//harness",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//harness",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//harness",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//harness",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "test_server",
+    testonly = True,
+    srcs = ["testdata/server.py"],
+    visibility = ["//cmd/pero-agent-acp:__pkg__"],
+)
