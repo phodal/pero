@@ -20,6 +20,7 @@ import { DesktopComputer } from './computer';
 import { computerPermissions } from './computer-electron';
 import { backgroundTest, testWindowOptions } from './test-display';
 import { prepareWorkbenchHome } from './home.ts';
+import { bindAppFrameEditing } from './frame-editing.ts';
 import { HostConnectors } from '../../../packages/connectors/src/host.mjs';
 import { ConnectorSecretStore } from './connector-secrets.ts';
 import { ConnectorMcp } from '../../../packages/connectors/src/mcp.ts';
@@ -412,6 +413,7 @@ app.whenReady().then(async () => {
   webPages=new WebPages(window,send,resolve(app.getPath('userData'),'web-sessions.json'),url=>!!mcpHost?.ownsPanel(url));
   mcpHost=new McpHost(resolve(dirname(runtimeSettingsPath),'mcp-servers.json'),__dirname,url=>shell.openExternal(url),binding=>send({version:1,kind:'mcp_app_opened',request_id:null,thread_id:binding.thread_id,text:'',data:binding}));
   window.on('closed',()=>webPages?.dispose());
+  bindAppFrameEditing(window.webContents);
   window.webContents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main) appUse?.reset(); });
   window.webContents.on('render-process-gone', () => appUse?.reset());
   let workspaceWindowPending=false;

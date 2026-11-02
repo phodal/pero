@@ -70,7 +70,7 @@ mod desktop_login;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
 pub mod native;
 #[cfg(all(feature="native",not(target_family="wasm")))]
-mod native_web;
+pub(crate) mod native_web;
 #[cfg(all(feature="native-probe",not(target_family="wasm")))]
 mod native_web_probe;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]

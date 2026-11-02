@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { translate } from '../../../locales';
 import { Product } from '../../../packages/product/product';
 import { testWindowOptions } from './test-display';
+import { bindAppFrameEditing } from './frame-editing.ts';
 
 const root = resolve(__dirname, '../..');
 const product = Product.parse(JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8')));
@@ -206,6 +207,7 @@ app.whenReady().then(async () => {
     } finally { clearTimeout(timer); }
   });
   nativeTheme.on('updated', () => { if (!window.isDestroyed()) window.webContents.send('product:context', context()); });
+  bindAppFrameEditing(window.webContents);
   window.webContents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main) appUse?.reset(); });
   window.webContents.on('render-process-gone', () => appUse?.reset());
   window.webContents.setWindowOpenHandler(({ url }) => {

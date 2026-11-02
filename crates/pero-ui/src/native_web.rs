@@ -276,13 +276,17 @@ impl NativeWebPage {
     }
 }
 #[cfg(target_os = "macos")]
-fn edit_macos(view: &wry::WebView, command: &str) -> bool {
+pub(crate) fn edit_macos(view: &wry::WebView, command: &str) -> bool {
     use objc2::msg_send;
     use objc2::runtime::AnyObject;
     use wry::WebViewExtMacOS as _;
     let webview = view.webview();
     let sender: *mut AnyObject = std::ptr::null_mut();
     unsafe {
+        let window: *mut AnyObject = msg_send![&*webview, window];
+        if !window.is_null() {
+            let _: bool = msg_send![window, makeFirstResponder: &*webview];
+        }
         match command {
             "copy" => {
                 let _: () = msg_send![&*webview, copy: sender];

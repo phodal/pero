@@ -195,6 +195,17 @@ impl Workbench {
             KeyBinding::new("cmd-9",crate::workspace_tab_actions::FocusPane9,None),
             KeyBinding::new("ctrl-9",crate::workspace_tab_actions::FocusPane9,None),
         ]);
+        #[cfg(all(feature = "native", not(target_family = "wasm")))]
+        cx.bind_keys([
+            KeyBinding::new("cmd-c", gpui_kit::component::input::Copy, Some(crate::web_documents::SURFACE_KEY_CONTEXT)),
+            KeyBinding::new("cmd-x", gpui_kit::component::input::Cut, Some(crate::web_documents::SURFACE_KEY_CONTEXT)),
+            KeyBinding::new("cmd-v", gpui_kit::component::input::Paste, Some(crate::web_documents::SURFACE_KEY_CONTEXT)),
+            KeyBinding::new("cmd-a", gpui_kit::component::input::SelectAll, Some(crate::web_documents::SURFACE_KEY_CONTEXT)),
+            KeyBinding::new("ctrl-c", gpui_kit::component::input::Copy, Some(crate::web_documents::SURFACE_KEY_CONTEXT)),
+            KeyBinding::new("ctrl-x", gpui_kit::component::input::Cut, Some(crate::web_documents::SURFACE_KEY_CONTEXT)),
+            KeyBinding::new("ctrl-v", gpui_kit::component::input::Paste, Some(crate::web_documents::SURFACE_KEY_CONTEXT)),
+            KeyBinding::new("ctrl-a", gpui_kit::component::input::SelectAll, Some(crate::web_documents::SURFACE_KEY_CONTEXT)),
+        ]);
         let workspace_focus=cx.focus_handle();
         workspace_focus.focus(window,cx);
         let input = cx.new(|cx| {

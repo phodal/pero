@@ -129,6 +129,33 @@ impl NativeAppPage {
         if self.ready {self.send(json!({"type":"pero:app:location","location":location}),cx);}
         else {self.location=Some(location);}
     }
+    pub fn insert_text(&self, text: &str, cx: &App) -> bool {
+        let Some(view) = &self.view else {
+            return false;
+        };
+        let Ok(literal) = serde_json::to_string(text) else {
+            return false;
+        };
+        let script = format!(
+            "(function(){{const text={literal};const el=document.activeElement;if(!(el instanceof HTMLInputElement||el instanceof HTMLTextAreaElement))return;const proto=el instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;const set=Object.getOwnPropertyDescriptor(proto,'value').set;const start=el.selectionStart??el.value.length;const end=el.selectionEnd??start;set.call(el,el.value.slice(0,start)+text+el.value.slice(end));const caret=start+text.length;el.selectionStart=el.selectionEnd=caret;el.dispatchEvent(new InputEvent('input',{{bubbles:true,inputType:'insertFromPaste',data:text}}));}})()"
+        );
+        let _ = view.read(cx).raw().evaluate_script(&script);
+        true
+    }
+    pub fn perform_edit(&self, command: &str, cx: &App) -> bool {
+        #[cfg(target_os = "macos")]
+        {
+            let Some(view) = &self.view else {
+                return false;
+            };
+            return crate::native_web::edit_macos(view.read(cx).raw(), command);
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = (command, cx);
+            false
+        }
+    }
     pub fn send(&self, message: Value, cx: &App) {
         if let Some(view) = &self.view {
             let _ = view
@@ -209,6 +236,29 @@ pub(crate) struct RetainedApp {
     _subscription: Subscription,
 }
 impl Workbench {
+    pub(crate) fn paste_app_text(&self, cx: &App) -> bool {
+        #[cfg(not(target_family = "wasm"))]
+        {
+            if !self.layout.embedded_surface_visible {
+                return false;
+            }
+            let Some(WorkspaceItem::App { name, panel }) = self.navigation.current() else {
+                return false;
+            };
+            let Some(page) = self.native_app_pages.get(&(name.clone(), panel.clone())) else {
+                return false;
+            };
+            let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) else {
+                return page.view.read(cx).perform_edit("paste", cx);
+            };
+            return page.view.read(cx).insert_text(&text, cx);
+        }
+        #[cfg(target_family = "wasm")]
+        {
+            let _ = cx;
+            false
+        }
+    }
     pub(crate) fn native_app_rpc(&mut self,event:HostEvent,_window:&mut Window,cx:&mut Context<Self>) {
         let id=event.request_id.unwrap_or_default();
         let input=event.data;

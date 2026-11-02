@@ -346,6 +346,9 @@ impl Render for Workbench {
             .when(self.pane_tabs.switching(), |el| {
                 el.key_context("PaneTabSwitcher")
             })
+            .when(!self.pane_tabs.switching(), |el| {
+                el.key_context(crate::web_documents::SURFACE_KEY_CONTEXT)
+            })
             .on_modifiers_changed(
                 cx.listener(|this, event, window, cx| this.pane_tab_modifiers(event, window, cx)),
             )
@@ -464,6 +467,9 @@ impl Render for Workbench {
                 }
             }))
             .on_action(cx.listener(|this, _: &gpui_kit::component::input::Paste, _, cx| {
+                if this.paste_app_text(cx) {
+                    return;
+                }
                 if !this.forward_web_editing("paste", cx) {
                     cx.propagate();
                 }

@@ -11,6 +11,7 @@ use pero_contracts::{
 };
 use serde_json::json;
 gpui_kit::actions!(web_document, [OpenWeb]);
+pub(crate) const SURFACE_KEY_CONTEXT: &str = "WebSurface";
 
 #[cfg(not(target_family = "wasm"))]
 pub(crate) struct WorkspaceNativeWeb {
@@ -411,16 +412,22 @@ impl Workbench {
     pub(crate) fn forward_web_editing(&self, command: &str, cx: &App) -> bool {
         #[cfg(not(target_family = "wasm"))]
         {
-            let Some(WorkspaceItem::Web(id)) = self.navigation.current() else {
-                return false;
-            };
             if !self.layout.embedded_surface_visible {
                 return false;
             }
-            return self
-                .native_web_pages
-                .get(id)
-                .is_some_and(|page| page.view.read(cx).perform_edit(command, cx));
+            if let Some(WorkspaceItem::Web(id)) = self.navigation.current() {
+                return self
+                    .native_web_pages
+                    .get(id)
+                    .is_some_and(|page| page.view.read(cx).perform_edit(command, cx));
+            }
+            if let Some(WorkspaceItem::App { name, panel }) = self.navigation.current() {
+                return self
+                    .native_app_pages
+                    .get(&(name.clone(), panel.clone()))
+                    .is_some_and(|page| page.view.read(cx).perform_edit(command, cx));
+            }
+            return false;
         }
         #[cfg(target_family = "wasm")]
         {
