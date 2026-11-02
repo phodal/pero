@@ -3,7 +3,11 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "lsp",
     srcs = [
+        "client.go",
         "config.go",
+        "connection.go",
+        "process_unix.go",
+        "process_unsupported.go",
         "results.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/lsp",
@@ -18,6 +22,7 @@ go_library(
 go_test(
     name = "lsp_test",
     srcs = [
+        "protocol_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":lsp"],
