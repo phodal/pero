@@ -3,10 +3,18 @@ on:
   schedule:
     - cron: "0 20 * * *"
   workflow_dispatch:
+    inputs:
+      paper_host_approval_native:
+        description: 'Owned Linux Host approval semantic Cancel/Run once (no computation)'
+        type: boolean
+        required: false
+        default: false
   push:
     paths: ['use/**', 'protocol/computer-*.tsp', 'crates/pero-contracts/**', 'scripts/build/computer.mjs', 'tests/**/computer-*', '.github/workflows/computer-use.yml']
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
+permissions:
+  contents: read
 jobs:
   native:
     name: Native Computer Use (${{ matrix.os }})
@@ -40,3 +48,32 @@ jobs:
         with:
           name: linux-computer-use
           path: target/computer-verification/
+      - name: Check Host approval opt-in wiring
+        if: runner.os == 'Linux'
+        run: node --test tests/build/paper-host-approval-wiring.test.mjs
+      - name: Prepare opt-in Host approval UI
+        if: runner.os == 'Linux' && ((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-host-approval-native')) || (github.event_name == 'workflow_dispatch' && inputs.paper_host_approval_native))
+        timeout-minutes: 10
+        run: |
+          npm ci --registry=https://registry.npmjs.org
+          sudo apt-get update -qq
+          sudo apt-get install -y dbus-x11 at-spi2-core libatk-bridge2.0-0 libgtk-3-0 python3-gi gir1.2-gtk-3.0 libnss3 libgbm1 libasound2t64
+          node scripts/build/desktop.mjs
+          node --experimental-transform-types --test desktop/src/main/reproduction-approval-linux.test.ts desktop/src/main/apps-reproduction.test.ts tests/fixtures/paper-host-approval.test.mjs
+      - name: Owned Host approval semantic UI only
+        if: runner.os == 'Linux' && ((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-host-approval-native')) || (github.event_name == 'workflow_dispatch' && inputs.paper_host_approval_native))
+        timeout-minutes: 3
+        env:
+          PERO_PAPER_HOST_APPROVAL_NATIVE: '1'
+          PERO_TEST_HEADED: '1'
+          PERO_TEST_SOFTWARE_GL: '1'
+        run: node scripts/ci/run-acceptance.mjs --name paper-host-approval-native --timeout-seconds 120 -- xvfb-run -a node tests/e2e/paper-host-approval-native.mjs
+      - name: Owned Host approval UI evidence
+        if: always() && runner.os == 'Linux' && ((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-host-approval-native')) || (github.event_name == 'workflow_dispatch' && inputs.paper_host_approval_native))
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-host-approval-native
+          path: |
+            test-results/paper-host-approval-native/
+            test-results/ci/paper-host-approval-native.json
+          retention-days: 7
