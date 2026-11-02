@@ -126,4 +126,5 @@ Final verification on 2026-11-02:
 
 The running Native preview was not replaced or restarted. This does not claim
 new full-Desktop, signed-package, scientific or live HTML-download acceptance;
-the previously recorded proxy-DNS constraint on that transport is unchanged.
+the later proxy-DNS repair and successful production HTML/TeX acquisition are
+recorded in [the arXiv incident](2026-11-02-paper-arxiv-reading-navigation.md).

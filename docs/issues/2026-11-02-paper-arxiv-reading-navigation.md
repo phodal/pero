@@ -53,10 +53,40 @@ keep source acquisition, immutable documents and evidence with their owners.
 - Evidence: `test-results/paper-arxiv-reading/` contains source bytes, Python log,
   navigation receipt and `reading-narrow.jpg`, `reading-dark.jpg` screenshots.
 
-The default public-address transport could not perform a live inspection here:
-the machine's DNS returns `198.18.*`/`2001:2::*` proxy addresses, which its existing
-policy rejects. That policy was not changed. The browser run used explicitly
-cached official bytes and a prepared review; it does not establish a successful
-live inspection/download through the production transport. The currently running
-Native preview was not restarted or replaced. No local TeX compilation, paid
-Agent execution or signed-package acceptance is claimed.
+## Follow-up: proxy DNS and reading controls (2026-11-02)
+
+The first browser verification used cached official bytes because the machine's
+DNS returns proxy addresses (`198.18.*` / `2001:2::*`). The generic public-address
+transport correctly refused them, but this also blocked fixed-version arXiv
+review and the new import fallback in the user's actual network environment.
+
+`OfficialArxivEndpoint` now recognizes official arXiv paper endpoints and
+single-paper API queries. These endpoints use an existing configured HTTP
+CONNECT proxy with normal target TLS verification. Other destinations and
+redirects retain public-address pinning, request limits and type checks.
+An injected transport still owns all fixture networking.
+
+Actual production review of `https://arxiv.org/abs/2610.24007` now establishes v1,
+then acquires official HTML and optional TeX through the production workers.
+Receipt: `test-results/paper-arxiv-reading/live-result.json` (1,832 blocks,
+explicit partial parse, two TeX members, `source_available`). The unchanged
+13-page PDF also passes the 319 exact-window navigation checks.
+
+The reader now has a compact title row and one tools row containing Text/PDF,
+the original link, Format, page navigation and zoom. Format opens a compact
+source review beside these controls. Preparation switches to Read; failures
+remain visible above the PDF and retry the same approved source. Downloaded PDFs
+recover their original link from their existing acquisition receipt.
+
+Verification: 247 Python tests (246 passed, one platform skip), App TypeScript,
+build, repository `npm run check` and whitespace checks pass. Real Electron
+structured-reading and PDF journeys cover one-row controls, original links,
+version review, preparation, acquisition-error retry, selection/zoom/page
+retention and restart recovery. Synthetic sources/providers are explicit;
+separate live production arXiv acquisition is recorded above. Browser checks
+cover Chinese/English, light/dark and 489/1,280px widths. Evidence is under
+`test-results/paper-source-fixes/`, `test-results/paper-structured-reading/fixture/`
+and `test-results/paper-agent/`.
+
+The currently running Native preview was not restarted or replaced. No local
+TeX compilation, paid Agent execution or signed-package acceptance is claimed.
