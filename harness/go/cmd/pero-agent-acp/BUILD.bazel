@@ -52,6 +52,7 @@ go_test(
         "compaction_wire_test.go",
         "main_test.go",
         "models_test.go",
+        "plugin_execution_test.go",
         "plugin_fork_test.go",
         "plugin_runtime_test.go",
         "plugins_test.go",

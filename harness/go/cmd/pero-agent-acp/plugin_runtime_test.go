@@ -28,6 +28,13 @@ func TestPluginRuntimeAgentProcess(t *testing.T) {
 	}
 	flag.CommandLine = flag.NewFlagSet("plugin-runtime-fixture", flag.ContinueOnError)
 	os.Args = []string{"plugin-runtime-fixture", "--endpoint", os.Getenv("PERO_PLUGIN_RUNTIME_ENDPOINT"), "--model", "fixture", "--selectable-model", "fixture-analysis", "--plugin-model", "analysis=fixture-analysis", "--session-dir", os.Getenv("PERO_PLUGIN_RUNTIME_SESSIONS"), "--workspace", os.Getenv("PERO_PLUGIN_RUNTIME_WORKSPACE"), "--plugin-dir", os.Getenv("PERO_PLUGIN_RUNTIME_DIRECTORY"), "--api-key-env", "PERO_PLUGIN_RUNTIME_CREDENTIAL", "--max-requests", "8", "--max-tokens", "2048", "--max-retries", "0"}
+	if encoded := os.Getenv("PERO_PLUGIN_RUNTIME_EXTRA_ARGS"); encoded != "" {
+		var extra []string
+		if err := json.Unmarshal([]byte(encoded), &extra); err != nil {
+			t.Fatal(err)
+		}
+		os.Args = append(os.Args, extra...)
+	}
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
