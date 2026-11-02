@@ -16,6 +16,7 @@ go_library(
         "agent_session_log.go",
         "agent_session_surface.go",
         "agent_shutdown.go",
+        "agent_turn_state.go",
         "agent_user_inbox.go",
         "agent_worker.go",
         "approval.go",
@@ -139,6 +140,7 @@ go_library(
 go_test(
     name = "harness_test",
     srcs = [
+        "agent_turn_state_test.go",
         "approval_preapproved_test.go",
         "approval_test.go",
         "extraction_test.go",

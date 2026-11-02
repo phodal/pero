@@ -154,7 +154,7 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 			return nil, err
 		}
 		if _, err := h.Hooks().Status.On(run, func(_ context.Context, status harness.AgentStatusInput) error {
-			if status.Status == harness.AgentIdle && claudeParentInterrupted(status.Agent) {
+			if status.Status == harness.AgentIdle && status.Agent.CurrentTurnInterrupted() {
 				service.stopParent(status.Agent, false)
 			}
 			return nil
@@ -254,7 +254,7 @@ func (s *claudeDelegation) observeTask(ctx context.Context, task *claudeTask) {
 		result = harness.SubagentResult{ChildID: task.activation.ChildID, Status: harness.SubagentFailed, Reason: harness.FinishError, Diagnostic: "subagent closed without a terminal result"}
 	}
 	task.result, task.err = result, task.activation.Wait(context.Background())
-	if task.notifyParent && !task.suppressNotice.Load() && ctx.Err() == nil && s.run.Active() && !claudeParentInterrupted(task.parent) {
+	if task.notifyParent && !task.suppressNotice.Load() && ctx.Err() == nil && s.run.Active() && !task.parent.CurrentTurnInterrupted() {
 		if parent, live := s.h.Agents().Get(task.parent.ID()); live && parent == task.parent {
 			diagnostic := result.Diagnostic
 			if task.err != nil {
@@ -352,22 +352,4 @@ func (s *claudeDelegation) stopParent(parent *harness.Agent, forget bool) {
 	for _, task := range tasks {
 		_ = task.activation.RequestDispose()
 	}
-}
-
-func claudeParentInterrupted(parent *harness.Agent) bool {
-	if parent == nil {
-		return false
-	}
-	events := parent.Session().Events()
-	for i := len(events) - 1; i >= 0; i-- {
-		if events[i].Type != "turn/end" {
-			continue
-		}
-		var end struct {
-			Turn   int                `json:"turn"`
-			Reason harness.FinishKind `json:"reason"`
-		}
-		return json.Unmarshal(events[i].Data, &end) == nil && end.Turn == parent.CurrentTurn() && (end.Reason == harness.FinishAborted || end.Reason == harness.FinishError)
-	}
-	return false
 }
