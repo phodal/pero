@@ -83,6 +83,16 @@ func TestReattachmentBudgetPrefersRecentSkillsAndPreservesRunes(t *testing.T) {
 	}
 }
 
+func TestForkSkillInstructionsDoNotReattachToParent(t *testing.T) {
+	definition := Definition{Summary: Summary{Name: "sample:fork", Digest: "fork"}, Claude: true, Context: "fork"}
+	catalog := &Catalog{entries: map[string]entry{definition.Name: {definition: definition}}}
+	events := []harness.Event{retainedReceipt(1, skillInvocation{Kind: "skill-invocation", Form: "instructions", Name: definition.Name, Digest: definition.Digest}, "child-only body", harness.RoleUser)}
+	got, err := reattachSkills(catalog, events)
+	if err != nil || len(got) != 0 {
+		t.Fatalf("fork body leaked into parent compaction: %+v %v", got, err)
+	}
+}
+
 func TestActivationReattachmentRequiresSuccessfulCorrelatedSkillResult(t *testing.T) {
 	definition := Definition{Summary: Summary{Name: "sample:flow", Digest: "selected"}, Content: "expanded snapshot", Claude: true}
 	for _, test := range []struct {

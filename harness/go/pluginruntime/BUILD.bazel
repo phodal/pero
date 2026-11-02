@@ -27,9 +27,12 @@ go_library(
 go_test(
     name = "pluginruntime_test",
     srcs = [
+        "command_output_test.go",
+        "command_status_test.go",
         "compaction_test.go",
         "hooks_test.go",
         "mcp_test.go",
+        "preprocess_test.go",
     ],
     embed = [":pluginruntime"],
     deps = [
