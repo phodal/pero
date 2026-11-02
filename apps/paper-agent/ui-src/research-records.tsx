@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { downloadFile } from '@pero/app-sdk';
 import { Button, EmptyState, Feedback } from '@pero/app-sdk/ui';
 import { Experiments, ReportView, type Citation } from './documents';
@@ -31,7 +31,9 @@ function Answer({ report, intent, api, onCite, t }: { report: Report; intent: In
   </div>;
 }
 
-function SavedTurn({ entry, reports, api, onCite, onResume, disabled, t }: { entry: Intent; reports: Report[]; api: Api; onCite(citation: Citation, intent: Intent): void; onResume(intent: Intent): void; disabled: boolean; t: Translator }) {
+function SavedTurn({ entry, reports, api, onCite, onResume, disabled, opening, t }: { entry: Intent; reports: Report[]; api: Api; onCite(citation: Citation, intent: Intent): void; onResume(intent: Intent): void; disabled: boolean; opening?: number; t: Translator }) {
+  const details = useRef<HTMLDetailsElement>(null);
+  useEffect(() => { if (opening && details.current) { details.current.open = true; details.current.scrollIntoView({ block: 'nearest' }); } }, [opening]);
   const [loaded, setLoaded] = useState<{ intent: Intent; reports: Report[] } | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(false);
   async function load() {
     if (loaded || loading) return;
@@ -40,7 +42,7 @@ function SavedTurn({ entry, reports, api, onCite, onResume, disabled, t }: { ent
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setLoading(false); }
   }
-  return <details className="pa-turn-history" data-turn-id={entry.id} onToggle={event => { if (event.currentTarget.open) void load(); }}><summary>{entry.question}</summary>
+  return <details ref={details} className="pa-turn-history" data-turn-id={entry.id} onToggle={event => { if (event.currentTarget.open) void load(); }}><summary>{entry.question}</summary>
     {loading && <p role="status">{t('loading')}</p>}
     {error && <Feedback kind="error">{error}<Button onClick={() => void load()}>{t('retry')}</Button></Feedback>}
     {loaded?.intent.contextFile?.anchor && <Button onClick={() => onCite({ paperId: loaded.intent.contextFile!.paperId, anchor: loaded.intent.contextFile!.anchor }, loaded.intent)}>{loaded.intent.contextFile.anchor.rects?.length ? 'Show discussed region' : 'Show discussed page'}</Button>}
@@ -49,7 +51,9 @@ function SavedTurn({ entry, reports, api, onCite, onResume, disabled, t }: { ent
   </details>;
 }
 
-function SavedStudy({ entry, api, onContinue, t }: { entry: StudySummary; api: Api; onContinue(): void; t: Translator }) {
+function SavedStudy({ entry, api, onContinue, opening, t }: { entry: StudySummary; api: Api; onContinue(): void; opening?: number; t: Translator }) {
+  const details = useRef<HTMLDetailsElement>(null);
+  useEffect(() => { if (opening && details.current) { details.current.open = true; details.current.scrollIntoView({ block: 'nearest' }); } }, [opening]);
   const [study, setStudy] = useState<ResearchStudy | null>(null), [error, setError] = useState('');
   const [open, setOpen] = useState(false), [retry, setRetry] = useState(0);
   useEffect(() => {
@@ -59,7 +63,7 @@ function SavedStudy({ entry, api, onContinue, t }: { entry: StudySummary; api: A
     api.get<ResearchStudy>(`/api/studies/${entry.id}`).then(value => { if (active) setStudy(value); }, error => { if (active) setError(String(error)); });
     return () => { active = false; };
   }, [api, entry.id, entry.budget.used, open, retry]);
-  return <details className="pa-turn-history" data-saved-study-id={entry.id} onToggle={event => setOpen(event.currentTarget.open)}>
+  return <details ref={details} className="pa-turn-history" data-saved-study-id={entry.id} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>{entry.question}</summary>
     {error ? <Feedback kind="error">{error}<Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></Feedback> : study ? <StudyRecord study={study} complete={false} t={t}/> : <p role="status">{t('loading')}</p>}
     <Button onClick={onContinue}>{t('continueStudy')}</Button>
@@ -67,8 +71,8 @@ function SavedStudy({ entry, api, onContinue, t }: { entry: StudySummary; api: A
 }
 
 /** Paper owns persisted research output; the Host owns the conversation and execution. */
-export function ResearchRecords({ api, library, paper, onFollowUp, onContinue, onCite, matrixOpen, onMatrixOpen, onAnnotation, t }: {
-  api: Api; library: Library; paper: Paper | null;
+export function ResearchRecords({ api, library, paper, onFollowUp, onContinue, onCite, matrixOpen, onMatrixOpen, onAnnotation, opening, t }: {
+  api: Api; library: Library; paper: Paper | null; opening?: { studyId: string; intentId: string | null; token: number } | null;
   onFollowUp(intent: Intent): void; onContinue(study: StudySummary): void;
   onCite(citation: Citation, intent: Intent): void;
   matrixOpen: boolean; onMatrixOpen(value: boolean): void; onAnnotation(annotation: PdfAnnotation): void; t: Translator;
@@ -77,8 +81,8 @@ export function ResearchRecords({ api, library, paper, onFollowUp, onContinue, o
   const unfinished = library.studies?.filter(study => !study.reportId && (!paper || study.paperIds.includes(paper.id))) ?? [];
   return <div className="pa-records-scroll" aria-label={t('researchProgress')}>
     {!history.length && !unfinished.length && !library.matrixCount && <EmptyState heading={t('noResearchRecords')}/>}
-    {unfinished.map(study => <SavedStudy key={study.id} entry={study} api={api} onContinue={() => onContinue(study)} t={t}/>)}
-    {history.map(intent => <SavedTurn key={`${intent.id}:${library.reports.filter(report => report.intentId === intent.id).length}`} entry={intent} reports={library.reports.filter(report => report.intentId === intent.id)} api={api} onCite={onCite} onResume={onFollowUp} disabled={false} t={t}/>)}
+    {unfinished.map(study => <SavedStudy key={study.id} entry={study} api={api} opening={opening?.studyId === study.id ? opening.token : undefined} onContinue={() => onContinue(study)} t={t}/>)}
+    {history.map(intent => <SavedTurn key={`${intent.id}:${library.reports.filter(report => report.intentId === intent.id).length}`} entry={intent} opening={opening?.intentId === intent.id ? opening.token : undefined} reports={library.reports.filter(report => report.intentId === intent.id)} api={api} onCite={onCite} onResume={onFollowUp} disabled={false} t={t}/>)}
     {!!library.matrixCount && <details className="pa-output-matrix" open={matrixOpen} onToggle={event => onMatrixOpen(event.currentTarget.open)}><summary>{t('matrix')}</summary><ReadingMatrix api={api} active={matrixOpen} count={library.matrixCount} papers={library.papers} onOpen={onAnnotation} t={t}/></details>}
   </div>;
 }

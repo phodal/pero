@@ -224,3 +224,44 @@ test('native reproduction fixture dispatches cancellation modes outside Electron
     else globalThis.paperNative = previous;
   }
 });
+
+
+test('ordinary core runs source campaign contracts after dependencies without provider or Host launch', () => {
+  const { steps } = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8')).jobs.core;
+  const install = steps.findIndex(step => step.run === 'npm ci');
+  const contracts = steps.findIndex(step => step.name === 'Permission, cancellation and fixture contracts');
+  assert(install >= 0 && contracts > install);
+  const command = 'node --experimental-transform-types --test tests/runtime/paper-study/*.test.mjs tests/runtime/research-import/cleanup.test.mjs';
+  assert(steps[contracts].run.split('\n').includes(command));
+  assert.equal(steps[contracts].if, undefined);
+  assert.equal(steps[contracts]['continue-on-error'], undefined);
+  assert(!steps[contracts].run.includes('paper-study/run.mjs'));
+});
+
+test('public HTML corpus requires its own opt-in and exports only per-case summaries', () => {
+  const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
+  assert.equal(workflow.on.workflow_dispatch.inputs.paper_html_live.default, false);
+  const job = workflow.jobs['paper-html-live'];
+  const condition = "${{ (github.event_name == 'workflow_dispatch' && inputs.paper_html_live) || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-html-live')) }}";
+  assert.equal(job.if, condition);
+  assert.equal(workflow.jobs.complete.steps.at(-1).env.PAPER_HTML_LIVE, condition);
+  assert.deepEqual(job.permissions, { contents: 'read' });
+  assert.deepEqual(job.strategy.matrix.corpus, ['d5', 'pc-gym', 'controlgym']);
+  assert.equal(job.strategy['fail-fast'], false);
+  assert.equal(job['timeout-minutes'], 5);
+  assert.equal(job['continue-on-error'], undefined);
+  const run = job.steps.find(step => step.run);
+  assert.equal(run.run, 'python apps/paper-agent/test/manual/scientific_html.py --allow-official-html --case ${{ matrix.corpus }} --output test-results/paper-html-live/${{ matrix.corpus }}.json');
+  const upload = job.steps.at(-1);
+  assert.equal(upload.if, 'always()');
+  assert.equal(upload.with.path, 'test-results/paper-html-live/${{ matrix.corpus }}.json');
+  assert.equal(upload.with['if-no-files-found'], 'error');
+  for (const full of [false, true]) {
+    assert.deepEqual(failures({ 'paper-html-live': { result: 'skipped' } }, full, false), []);
+    for (const result of ['skipped', 'failure', 'cancelled']) {
+      assert.deepEqual(failures({ 'paper-html-live': { result } }, full, true), ['paper-html-live']);
+    }
+    assert.deepEqual(failures({ 'paper-html-live': { result: 'failure' } }, full, false), ['paper-html-live']);
+    assert.deepEqual(failures({ 'paper-html-live': { result: 'success' } }, full, true), []);
+  }
+});

@@ -1,7 +1,16 @@
 # Quality gates
 
+AI4S environment values, matching and read-only Control Lab / PC-Gym observations;
+managed execution admission remains planned: [Environments P1](ai4s-environments.md).
+
+ReFrame benchmark library, local numerical references and separate Slurm/OpenFOAM
+acceptance: [HPC Benchmarks](hpc.md).
+
 Global appearance, scoped typography and current Settings shell limits:
 [appearance](appearance.md).
+
+Independent App Agent Plugin declarations, local dependencies and scoped ACP
+assembly: [App Agent Plugins](app-agent-plugins.md).
 
 Remote dispatch is covered by the Worker tests and `tests/e2e/remote.mjs`. The incident note is [2026-10-28 remote worker descendant cleanup](../issues/2026-10-28-remote-worker-descendant-cleanup.md). Use an isolated PostgreSQL database for `PERO_TEST_DATABASE_URL`; `server/` integration tests create and remove isolated schemas. Run the Go suite with `go test -race ./...`.
 
@@ -105,3 +114,5 @@ Public literature search, source metadata and thumbnails: [Paper search](paper-s
 
 Pinned Harness/DSH capability comparison, deterministic Skill compaction evidence
 and remaining gaps: [Harness behavior parity](harness-behavior-parity.md).
+
+Local research goals, Overview and links to App-owned records: [research Projects](research-projects.md).

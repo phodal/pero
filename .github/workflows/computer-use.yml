@@ -3,10 +3,18 @@ on:
   schedule:
     - cron: "0 20 * * *"
   workflow_dispatch:
+    inputs:
+      paper_native_diagnostic:
+        description: 'Read-only owned Paper dialog diagnostics (no approval input or computation)'
+        type: boolean
+        required: false
+        default: false
   push:
     paths: ['use/**', 'protocol/computer-*.tsp', 'crates/pero-contracts/**', 'scripts/build/computer.mjs', 'tests/**/computer-*', '.github/workflows/computer-use.yml']
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
+permissions:
+  contents: read
 jobs:
   native:
     name: Native Computer Use (${{ matrix.os }})
@@ -40,3 +48,30 @@ jobs:
         with:
           name: linux-computer-use
           path: target/computer-verification/
+      - name: Check read-only Paper diagnostic wiring
+        if: runner.os == 'Linux'
+        run: |
+          node --test tests/build/paper-native-diagnostic-wiring.test.mjs
+          python3 tests/fixtures/paper-atspi-diagnostic-test.py
+      - name: Prepare opt-in Paper diagnostic
+        if: runner.os == 'Linux' && ((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-native-diagnostic')) || (github.event_name == 'workflow_dispatch' && inputs.paper_native_diagnostic))
+        run: |
+          npm ci --registry=https://registry.npmjs.org
+          sudo apt-get update -qq
+          sudo apt-get install -y dbus-x11 at-spi2-core libatk-bridge2.0-0 libgtk-3-0 python3-gi gir1.2-gtk-3.0 libnss3 libgbm1 libasound2t64
+      - name: Read-only owned Paper native diagnostic
+        if: runner.os == 'Linux' && ((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-native-diagnostic')) || (github.event_name == 'workflow_dispatch' && inputs.paper_native_diagnostic))
+        timeout-minutes: 3
+        env:
+          PERO_TEST_HEADED: '1'
+          PERO_TEST_SOFTWARE_GL: '1'
+        run: node scripts/ci/run-acceptance.mjs --name paper-native-diagnostic --timeout-seconds 90 -- xvfb-run -a node tests/e2e/paper-native-diagnostic.mjs
+      - name: Read-only Paper diagnostic evidence
+        if: always() && runner.os == 'Linux' && ((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-native-diagnostic')) || (github.event_name == 'workflow_dispatch' && inputs.paper_native_diagnostic))
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-native-diagnostic
+          path: |
+            test-results/paper-native-diagnostic/
+            test-results/ci/paper-native-diagnostic.json
+          retention-days: 7

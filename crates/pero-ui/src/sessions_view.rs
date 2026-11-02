@@ -18,6 +18,7 @@ impl Workbench {
         Rc::new(
             cx.listener(|this: &mut Self, action: &SidebarAction, window, cx| {
                 match action {
+                    SidebarAction::Account => this.show_settings_page(WorkbenchPage::Connections, window, cx),
                     SidebarAction::Terminal => this.toggle_terminal(window,cx),
                     SidebarAction::RequestDelete(index) => {
                         this.chat.update(cx, |panel, _| {

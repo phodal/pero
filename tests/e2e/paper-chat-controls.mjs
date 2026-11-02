@@ -100,7 +100,7 @@ export async function exitPaperQuestionMode(frame) {
   // Body is not focusable: after the Host close click it can leave the actual
   // keyboard target on the Host canvas. Focus an existing native App control,
   // without clicking it (which would change PDF/Read mode or selection).
-  const pdf = frame.locator('.pa-pdf-reading > .pero-ui-toolbar').getByRole('button', { name: 'PDF', exact: true });
+  const pdf = frame.locator('.pa-reader-tools').getByRole('button', { name: 'PDF', exact: true });
   const target = await pdf.isVisible() ? pdf : frame.locator('.pa-pdf-inline-toolbar').getByRole('button', { name: 'Back to library', exact: true });
   await target.focus();
   await expect.poll(() => target.evaluate(element => element.ownerDocument.activeElement === element && element.ownerDocument.hasFocus()), {

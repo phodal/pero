@@ -29,6 +29,13 @@ def acquire_pdf(output, directory, url, transport):
 
 
 class PdfDownloads:
+    def original_url(self, document):
+        for identity in self.store._list('pdf-downloads'):
+            receipt = self._read(identity).receipt
+            if receipt and receipt.documentId == document.id and receipt.fileDigest == document.file_digest:
+                return receipt.requestUrl
+        return None
+
     def __init__(self, store, transport=None, seconds=DOWNLOAD_SECONDS):
         self.store, self.transport, self.seconds = store, transport or PublicMetadata(), seconds
         self.running = {}

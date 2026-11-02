@@ -2,54 +2,16 @@
 from contextlib import closing
 import io
 import threading
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
-from urllib.request import Request, build_opener
 
-from .literature import ARXIV, _NoRedirect
 from .model import Invalid, PaperSnapshot, digest
 from .pdf import PdfAnchor, PdfDocument, PdfPage, PdfRect
 
-from .local_pdf import LocalPdf, MAX_PDF_BYTES
+from .local_pdf import LocalPdf
 # PDFium prohibits simultaneous calls even for different documents.
 PDFIUM_LOCK = threading.Lock()
 
 
-def arxiv_identifier(paper):
-    values = [paper.source_id] if paper.source in ('alphaxiv', 'arxiv') else []
-    values.extend(value for value in (paper.pdf_url, paper.url) if isinstance(value, str) and 'arxiv.org' in value)
-    for value in values:
-        found = ARXIV.search(value)
-        if found:
-            return found.group(0)
-    return None
-
-
 class PdfFiles:
-    def __init__(self, fetch=None):
-        self.fetch = fetch or build_opener(_NoRedirect()).open
-
-    def download(self, paper):
-        url = paper.pdf_url
-        parsed = urlsplit(url or '')
-        allowed = (parsed.scheme == 'https' and not parsed.username and not parsed.password and not parsed.port
-                   and ((parsed.hostname == 'arxiv.org' and parsed.path.startswith('/pdf/')
-                         and ARXIV.fullmatch(parsed.path[5:].removesuffix('.pdf')))
-                        or (parsed.hostname in ('www.biorxiv.org', 'www.medrxiv.org')
-                            and parsed.path.startswith('/content/') and parsed.path.endswith('.full.pdf'))))
-        if not allowed:
-            raise Invalid('This paper needs an arXiv or bioRxiv/medRxiv PDF URL')
-        try:
-            with closing(self.fetch(Request(url, headers={'User-Agent': 'Pero-Paper-Agent/0.1', 'Accept': 'application/pdf'}), timeout=30)) as response:
-                data = response.read(MAX_PDF_BYTES + 1)
-        except (HTTPError, URLError, TimeoutError) as error:
-            raise Invalid('Cannot download the PDF. Retry or open the original source.', 502) from error
-        if len(data) > MAX_PDF_BYTES:
-            raise Invalid('PDF exceeds 16 MiB', 413)
-        if not data.startswith(b'%PDF-'):
-            raise Invalid('The source did not return a PDF', 502)
-        return data
-
     def inspect(self, paper, data, now):
         return PdfDocument.create(paper.id, digest(data), paper.pdf_url or paper.url, self.pages(data), now)
 
@@ -132,22 +94,21 @@ class PdfFiles:
         with PDFIUM_LOCK, closing(pdfium.PdfDocument(data)) as pdf, closing(pdf[page_number - 1]) as page:
             page.set_rotation(0)
             with closing(page.get_textpage()) as textpage:
+                if textpage.get_text_range() != page_info.text:
+                    raise Invalid('Saved PDF text differs from the current extraction; reopen the original PDF', 409)
                 for start, end in windows:
                     quote = page_info.text[start:end]
-                    with closing(textpage.search(quote, match_case=True, consecutive=True)) as search:
-                        while True:
-                            match = search.get_next()
-                            if match is None:
-                                raise Invalid('The quotation cannot be located in this PDF', 422)
-                            # PDFium char indices differ from extracted-text offsets when
-                            # characters are inserted/excluded. Prove this exact window.
-                            prefix = textpage.get_text_range(0, match[0]) if match[0] else ''
-                            if len(prefix) == start and textpage.get_text_range(*match) == quote:
-                                break
-                            if len(prefix) > start:
-                                raise Invalid('The quotation has no exact PDF text region', 422)
+                    # PDFium search may return only part of a multiline phrase.
+                    # Map this exact saved window instead; PDFium text indices
+                    # use UTF-16 units, while our offsets count Python characters.
+                    text_start = len(page_info.text[:start].encode('utf-16-le')) // 2
+                    text_end = text_start + len(quote.encode('utf-16-le')) // 2 - 1
+                    first = pdfium.raw.FPDFText_GetCharIndexFromTextIndex(textpage, text_start)
+                    last = pdfium.raw.FPDFText_GetCharIndexFromTextIndex(textpage, text_end)
+                    if first < 0 or last < first or textpage.get_text_range(first, last - first + 1) != quote:
+                        raise Invalid('The quotation has no exact PDF text region', 422)
                     rects = []
-                    for i in range(textpage.count_rects(*match)):
+                    for i in range(textpage.count_rects(first, last - first + 1)):
                         left, bottom, right, top = textpage.get_rect(i)
                         x, y = max(0, left / page_info.width), max(0, 1 - top / page_info.height)
                         width = min(1, right / page_info.width) - x

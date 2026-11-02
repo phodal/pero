@@ -7,7 +7,7 @@ import { exerciseLocalSearch } from './paper-search-flow.mjs';
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -43,7 +43,9 @@ await writeFile(agents, JSON.stringify([
   ...['pero', 'codex', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({ id, name: id, command: resolve(profile, `unavailable-${id}`) })),
   { id: 'paper-fixture', name: 'Synthetic Paper fixture', command: process.execPath,
   args: [resolve(root, 'tests/fixtures/paper-agent.mjs'), `--capture=${capture}`] }]));
-await writeFile(resolve(profile, 'settings.json'), JSON.stringify({ chat_agent: 'paper-fixture' }));
+await writeFile(resolve(profile, 'settings.json'), JSON.stringify({ chat_agent: 'paper-fixture',
+  ...(process.env.PERO_APP_PYTHON ? { app_python: { apps: { 'paper-agent': dirname(dirname(process.env.PERO_APP_PYTHON)) } } } : {}),
+}));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop'), PERO_LOCALE: 'en',
   PERO_SETTINGS_PATH: resolve(profile, 'settings.json'), PERO_HISTORY_PATH: resolve(profile, 'sessions.jsonl'), PERO_AGENTS_FILE: agents };
 delete env.ELECTRON_RUN_AS_NODE;

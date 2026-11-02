@@ -1,0 +1,330 @@
+/* non-colour tokens (shape, density, type, motion) */
+:root,
+:root body {
+  --pero-radius-2xs: 2px;
+  --pero-radius-xs: 4px;
+  --pero-radius-sm: 6px;
+  --pero-radius-md: 8px;
+  --pero-radius-lg: 10px;
+  --pero-radius-xl: 12px;
+  --pero-radius-2xl: 14px;
+  --pero-radius-3xl: 16px;
+  --pero-radius-full: 999px;
+  --pero-space-1: 2px;
+  --pero-space-2: 4px;
+  --pero-space-3: 6px;
+  --pero-space-4: 8px;
+  --pero-space-5: 10px;
+  --pero-space-6: 12px;
+  --pero-space-7: 14px;
+  --pero-space-8: 16px;
+  --pero-space-9: 18px;
+  --pero-space-10: 20px;
+  --pero-space-12: 24px;
+  --pero-font-size-2xs: 10px;
+  --pero-font-size-xs: 12px;
+  --pero-font-size-xs-plus: 11.5px;
+  --pero-font-size-sm: 12px;
+  --pero-font-size-sm-plus: 12.5px;
+  --pero-font-size-md: 13px;
+  --pero-font-size-md-plus: 13.5px;
+  --pero-font-size-base: 14px;
+  --pero-font-size-base-plus: 15px;
+  --pero-font-size-lg: 16px;
+  --pero-font-size-xl: 18px;
+  --pero-font-size-2xl: 20px;
+  --pero-font-size-3xl: 24px;
+  --pero-font-weight-regular: 400;
+  --pero-font-weight-medium: 500;
+  --pero-font-weight-semibold: 600;
+  --pero-font-weight-bold: 700;
+  --pero-line-height-tight: 1.3;
+  --pero-line-height-snug: 1.4;
+  --pero-line-height-normal: 1.5;
+  --pero-line-height-relaxed: 1.6;
+  --pero-font-family-sans: var(--dsw-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif);
+  --pero-font-family-mono: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  --pero-elevation-sm: 0 1px 2px var(--pero-shadow);
+  --pero-elevation-md: 0 4px 16px var(--pero-shadow);
+  --pero-elevation-lg: 0 10px 32px var(--pero-shadow);
+  --pero-duration-fast: 120ms;
+  --pero-duration-base: 150ms;
+  --pero-duration-moderate: 180ms;
+  --pero-duration-medium: 200ms;
+  --pero-duration-slow: 350ms;
+  --pero-easing-standard: ease;
+  --pero-easing-out: ease-out;
+  --pero-easing-in-out: ease-in-out;
+  --pero-easing-linear: linear;
+  --pero-border-width-thin: 1px;
+  --pero-border-width-medium: 1.5px;
+  --pero-border-width-thick: 2px;
+  --pero-border-width-accent: 3px;
+  --pero-z-raised: 1;
+  --pero-z-dropdown: 20;
+  --pero-z-sticky: 30;
+  --pero-z-overlay: 100;
+  --pero-z-modal: 1000;
+  --pero-z-toast: 1100;
+  --pero-size-control: 30px;
+  --pero-size-control-sm: 28px;
+  --pero-size-hit-min: 24px;
+  --pero-focus-ring-width: 2px;
+  --pero-focus-ring-offset: 2px;
+  --pero-control-radius: var(--pero-radius-sm);
+}
+
+/* style comfortable — Comfortable */
+[data-style="comfortable"],
+body[data-style="comfortable"],
+[data-style="comfortable"] body:where(:not([data-style])) {
+  --pero-style: comfortable;
+  --pero-radius-2xs: 3px;
+  --pero-radius-xs: 6px;
+  --pero-radius-sm: 9px;
+  --pero-radius-md: 12px;
+  --pero-radius-lg: 14px;
+  --pero-radius-xl: 16px;
+  --pero-radius-2xl: 18px;
+  --pero-radius-3xl: 22px;
+  --pero-radius-full: 999px;
+  --pero-space-1: 3px;
+  --pero-space-2: 5px;
+  --pero-space-3: 8px;
+  --pero-space-4: 10px;
+  --pero-space-5: 13px;
+  --pero-space-6: 15px;
+  --pero-space-7: 18px;
+  --pero-space-8: 20px;
+  --pero-space-9: 22px;
+  --pero-space-10: 25px;
+  --pero-space-12: 30px;
+  --pero-font-size-2xs: 11px;
+  --pero-font-size-xs: 12px;
+  --pero-font-size-xs-plus: 12.5px;
+  --pero-font-size-sm: 13px;
+  --pero-font-size-sm-plus: 13.5px;
+  --pero-font-size-md: 14px;
+  --pero-font-size-md-plus: 14.5px;
+  --pero-font-size-base: 15px;
+  --pero-font-size-base-plus: 16px;
+  --pero-font-size-lg: 17px;
+  --pero-font-size-xl: 19px;
+  --pero-font-size-2xl: 22px;
+  --pero-font-size-3xl: 26px;
+  --pero-line-height-tight: 1.35;
+  --pero-line-height-snug: 1.45;
+  --pero-line-height-normal: 1.55;
+  --pero-line-height-relaxed: 1.7;
+  --pero-elevation-sm: 0 2px 6px var(--pero-shadow);
+  --pero-elevation-md: 0 8px 24px var(--pero-shadow);
+  --pero-elevation-lg: 0 16px 48px var(--pero-shadow);
+  --pero-duration-fast: 140ms;
+  --pero-duration-base: 180ms;
+  --pero-duration-moderate: 220ms;
+  --pero-duration-medium: 240ms;
+  --pero-duration-slow: 420ms;
+  --pero-border-width-thin: 1px;
+  --pero-border-width-medium: 1.5px;
+  --pero-border-width-thick: 2px;
+  --pero-border-width-accent: 3px;
+  --pero-size-control: 36px;
+  --pero-size-control-sm: 32px;
+  --pero-size-hit-min: 28px;
+  --pero-focus-ring-width: 3px;
+  --pero-focus-ring-offset: 2px;
+  --pero-control-radius: var(--pero-radius-sm);
+}
+
+/* style compact — Compact */
+[data-style="compact"],
+body[data-style="compact"],
+[data-style="compact"] body:where(:not([data-style])) {
+  --pero-style: compact;
+  --pero-radius-2xs: 1px;
+  --pero-radius-xs: 2px;
+  --pero-radius-sm: 3px;
+  --pero-radius-md: 4px;
+  --pero-radius-lg: 5px;
+  --pero-radius-xl: 6px;
+  --pero-radius-2xl: 7px;
+  --pero-radius-3xl: 8px;
+  --pero-radius-full: 999px;
+  --pero-space-1: 2px;
+  --pero-space-2: 3px;
+  --pero-space-3: 4px;
+  --pero-space-4: 6px;
+  --pero-space-5: 7px;
+  --pero-space-6: 9px;
+  --pero-space-7: 10px;
+  --pero-space-8: 12px;
+  --pero-space-9: 13px;
+  --pero-space-10: 15px;
+  --pero-space-12: 18px;
+  --pero-font-size-2xs: 10px;
+  --pero-font-size-xs: 10.5px;
+  --pero-font-size-xs-plus: 11px;
+  --pero-font-size-sm: 11.5px;
+  --pero-font-size-sm-plus: 12px;
+  --pero-font-size-md: 12.5px;
+  --pero-font-size-md-plus: 13px;
+  --pero-font-size-base: 13px;
+  --pero-font-size-base-plus: 14px;
+  --pero-font-size-lg: 15px;
+  --pero-font-size-xl: 17px;
+  --pero-font-size-2xl: 19px;
+  --pero-font-size-3xl: 22px;
+  --pero-line-height-tight: 1.25;
+  --pero-line-height-snug: 1.35;
+  --pero-line-height-normal: 1.4;
+  --pero-line-height-relaxed: 1.5;
+  --pero-elevation-sm: 0 1px 1px var(--pero-shadow);
+  --pero-elevation-md: 0 2px 8px var(--pero-shadow);
+  --pero-elevation-lg: 0 6px 18px var(--pero-shadow);
+  --pero-duration-fast: 90ms;
+  --pero-duration-base: 110ms;
+  --pero-duration-moderate: 140ms;
+  --pero-duration-medium: 160ms;
+  --pero-duration-slow: 260ms;
+  --pero-border-width-thin: 1px;
+  --pero-border-width-medium: 1px;
+  --pero-border-width-thick: 1.5px;
+  --pero-border-width-accent: 2px;
+  --pero-size-control: 26px;
+  --pero-size-control-sm: 24px;
+  --pero-size-hit-min: 24px;
+  --pero-focus-ring-width: 2px;
+  --pero-focus-ring-offset: 2px;
+  --pero-control-radius: var(--pero-radius-sm);
+}
+
+/* style pero-default — Pero */
+[data-style="pero-default"],
+body[data-style="pero-default"],
+[data-style="pero-default"] body:where(:not([data-style])) {
+  --pero-style: pero-default;
+  --pero-radius-2xs: 2px;
+  --pero-radius-xs: 4px;
+  --pero-radius-sm: 6px;
+  --pero-radius-md: 8px;
+  --pero-radius-lg: 10px;
+  --pero-radius-xl: 12px;
+  --pero-radius-2xl: 14px;
+  --pero-radius-3xl: 16px;
+  --pero-radius-full: 999px;
+  --pero-space-1: 2px;
+  --pero-space-2: 4px;
+  --pero-space-3: 6px;
+  --pero-space-4: 8px;
+  --pero-space-5: 10px;
+  --pero-space-6: 12px;
+  --pero-space-7: 14px;
+  --pero-space-8: 16px;
+  --pero-space-9: 18px;
+  --pero-space-10: 20px;
+  --pero-space-12: 24px;
+  --pero-font-size-2xs: 10px;
+  --pero-font-size-xs: 12px;
+  --pero-font-size-xs-plus: 11.5px;
+  --pero-font-size-sm: 12px;
+  --pero-font-size-sm-plus: 12.5px;
+  --pero-font-size-md: 13px;
+  --pero-font-size-md-plus: 13.5px;
+  --pero-font-size-base: 14px;
+  --pero-font-size-base-plus: 15px;
+  --pero-font-size-lg: 16px;
+  --pero-font-size-xl: 18px;
+  --pero-font-size-2xl: 20px;
+  --pero-font-size-3xl: 24px;
+  --pero-line-height-tight: 1.3;
+  --pero-line-height-snug: 1.4;
+  --pero-line-height-normal: 1.5;
+  --pero-line-height-relaxed: 1.6;
+  --pero-elevation-sm: 0 1px 2px var(--pero-shadow);
+  --pero-elevation-md: 0 4px 16px var(--pero-shadow);
+  --pero-elevation-lg: 0 10px 32px var(--pero-shadow);
+  --pero-duration-fast: 120ms;
+  --pero-duration-base: 150ms;
+  --pero-duration-moderate: 180ms;
+  --pero-duration-medium: 200ms;
+  --pero-duration-slow: 350ms;
+  --pero-border-width-thin: 1px;
+  --pero-border-width-medium: 1.5px;
+  --pero-border-width-thick: 2px;
+  --pero-border-width-accent: 3px;
+  --pero-size-control: 30px;
+  --pero-size-control-sm: 28px;
+  --pero-size-hit-min: 24px;
+  --pero-focus-ring-width: 2px;
+  --pero-focus-ring-offset: 2px;
+  --pero-control-radius: var(--pero-radius-sm);
+}
+
+/* prefers-reduced-motion: every duration token collapses to 0 (in every style) */
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  :root body,
+  [data-style] {
+    --pero-duration-fast: 0ms;
+    --pero-duration-base: 0ms;
+    --pero-duration-moderate: 0ms;
+    --pero-duration-medium: 0ms;
+    --pero-duration-slow: 0ms;
+  }
+}
+
+/* Deprecated aliases (public to apps; add, never remove). Declared on body so they
+   override the upstream DSH theme and resolve against the active Pero theme. */
+:root body,
+:root body[data-ds-dark-theme],
+[data-theme] {
+  --dsw-alias-bg-base: var(--pero-surface);
+  --dsw-alias-bg-layer-1: var(--pero-surface);
+  --dsw-alias-bg-subtle: var(--pero-surface-muted);
+  --dsw-alias-bg-l2: var(--pero-surface-muted);
+  --dsw-alias-bg-module-platform: var(--pero-page);
+  --dsw-alias-label-primary: var(--pero-text);
+  --dsw-alias-label-secondary: var(--pero-text-secondary);
+  --dsw-alias-label-tertiary: var(--pero-text-secondary);
+  --dsw-alias-label-caption: var(--pero-text-secondary);
+  --dsw-alias-label-primary-foreground: var(--pero-on-primary);
+  --dsw-alias-label-error: var(--pero-danger);
+  --dsw-alias-label-danger: var(--pero-danger);
+  --dsw-alias-label-warning: var(--pero-warning);
+  --dsw-alias-interactive-bg-hover: var(--pero-hover);
+  --dsw-alias-interactive-bg-active: var(--pero-active);
+  --dsw-alias-interactive-primary: var(--pero-accent);
+  --dsw-alias-button-info-fill: var(--pero-accent);
+  --dsw-alias-button-info-label: var(--pero-surface);
+  --dsw-alias-button-primary-fill: var(--pero-primary);
+  --dsw-alias-button-primary-hover: var(--pero-primary-hover);
+  --dsw-alias-button-ghost-active-border: var(--pero-border-control);
+  --dsw-alias-brand-primary: var(--pero-focus);
+  --dsw-alias-border-l: var(--pero-border-subtle);
+  --dsw-alias-border-l2: var(--pero-border-subtle);
+  --dsw-alias-border-primary: var(--pero-border-subtle);
+  --dsw-alias-border-focus: var(--pero-focus);
+  --dsw-alias-state-error-primary: var(--pero-danger);
+  --dsw-alias-state-error-bg: var(--pero-danger-surface);
+  --dsw-alias-state-success-primary: var(--pero-success);
+  --dsw-alias-state-warning-primary: var(--pero-warning);
+  --dsw-alias-state-warning-bg: var(--pero-warning-surface);
+  --dsw-alias-state-info-primary: var(--pero-info);
+  --dsw-alias-status-error: var(--pero-danger);
+  --dsw-alias-status-warning: var(--pero-warning);
+  --dsw-alias-shadow-color: var(--pero-shadow);
+  --pero-border: var(--pero-border-subtle);
+  --pero-muted: var(--pero-text-secondary);
+  --pero-splitter: var(--pero-border-subtle);
+  --pero-accent-color: var(--pero-accent);
+  --pero-focus-color: var(--pero-focus);
+  --pero-hover-bg: var(--pero-hover);
+  --pero-active-bg: var(--pero-active);
+  --pero-active-border: var(--pero-border-control);
+  --pero-primary-bg: var(--pero-primary);
+  --pero-primary-hover-bg: var(--pero-primary-hover);
+  --pero-primary-text: var(--pero-on-primary);
+  --dsw-alias-state-business-primary: var(--pero-info);
+  --dsw-alias-label-link: var(--pero-link);
+  --dsw-alias-bg-l1: var(--pero-surface);
+}

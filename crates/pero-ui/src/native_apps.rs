@@ -138,6 +138,17 @@ impl NativeApps {
     pub fn command(&self, value: Value) {
         let this = self.clone();
         std::thread::spawn(move || {
+            if value["action"] == "apps_project_resources" {
+                let app = value["name"].as_str().unwrap_or("").to_string();
+                let result = if matches!(app.as_str(), "paper-agent" | "control-lab" | "lab") {
+                    this.request::<pero_contracts::project_resources::ProjectResourceCatalog>("projectresources", json!({"name":app}))
+                } else { Err(anyhow::anyhow!("This App has no project resource catalog")) };
+                let catalog = result.unwrap_or_else(|error| pero_contracts::project_resources::ProjectResourceCatalog { app, resources: Vec::new(), error: Some(error.to_string()) });
+                let mut event = HostEvent::new("project_resources", value["request_id"].as_str().map(str::to_string), String::new());
+                event.data = serde_json::to_value(catalog).expect("Public resource catalog");
+                let _ = this.events.send_blocking(event);
+                return;
+            }
             let result = (|| -> anyhow::Result<HostEvent> {
                 let action = value["action"]
                     .as_str()
@@ -164,7 +175,7 @@ impl NativeApps {
                     let fields = match action {
                         "list" => json!({}),
                         "install" => json!({"path":value["path"]}),
-                        "enable" | "disable" | "uninstall" => json!({"name":value["name"]}),
+                        "prepare" | "enable" | "disable" | "uninstall" => json!({"name":value["name"]}),
                         _ => anyhow::bail!("Unsupported App action"),
                     };
                     event.data = this.request(action, fields)?;
@@ -208,8 +219,29 @@ impl NativeApps {
                 .header("Cache-Control", "no-store")
                 .body(b"Agent route is reserved for the Host".to_vec())?);
         }
+        if path.starts_with("/api/") {self.request::<Value>("apiaccess",json!({"name":name,"path":path}))?;}
         let method = request.method();
         let body = request.body();
+        if path == "/host/sdk" {
+            anyhow::ensure!(method == "GET", "Method refused");
+            let mut info: Value = self.request("sdkcontext", json!({"name":name}))?;
+            info["slots"] = json!([]);
+            return Ok(Response::builder().header("Content-Type","application/json").header("Cache-Control","no-store").body(serde_json::to_vec(&info)?)?);
+        }
+        if path == "/host/capability" {
+            anyhow::ensure!(method == "POST" && body.len() <= 256000, "Invalid Host request");
+            let call: Value = serde_json::from_slice(body)?;
+            let target = match call["capability"].as_str() {
+                Some("agent") => "app-agent", Some("insights") => "insights", Some("connectors") => "connectors",
+                Some("automation") => "automation", Some("research-assets") => "research-assets", _ => anyhow::bail!("Host capability unavailable"),
+            };
+            let mut input = call["input"].as_object().cloned().ok_or_else(|| anyhow::anyhow!("Host input must be an object"))?;
+            let operation = call["operation"].as_str().ok_or_else(|| anyhow::anyhow!("Host operation is required"))?;
+            input.insert("operation".into(),json!(operation));
+            let forwarded = Request::builder().method("POST").uri(format!("pero-app://{name}/host/{target}"))
+                .header("Content-Type","application/json").body(serde_json::to_vec(&input)?)?;
+            return self.respond(name,forwarded);
+        }
         if path == "/host/research-assets" {
             if method != "POST" {
                 return Ok(Response::builder().status(405).body(b"Method refused".to_vec())?);
@@ -247,14 +279,15 @@ impl NativeApps {
                 _ => response(503, json!({"ok":false,"code":"MCP_HOST_UNAVAILABLE"})),
             });
         }
-        let (status, content_type, data) = if matches!(path, "/host/agent" | "/host/point-agent" | "/host/insights") {
+        let (status, content_type, data) = if matches!(path, "/host/agent" | "/host/app-agent" | "/host/insights") {
             anyhow::ensure!(
                 method == "POST" && body.len() <= 256_000,
                 "Invalid App Host request"
             );
             let operation: Value = serde_json::from_slice(body)?;
-            let (action, fields) = if path == "/host/point-agent" {
-                ("pointagent", json!({"name":name,"request":operation}))
+            let preparing = path == "/host/app-agent" && operation["operation"] == "prepare";
+            let (action, fields) = if path == "/host/app-agent" {
+                ("agentrun", json!({"name":name,"request":operation}))
             } else if path == "/host/agent" {
                 ("agent", json!({"name":name,"request":operation}))
             } else {
@@ -264,7 +297,8 @@ impl NativeApps {
                 }
                 ("insights", fields)
             };
-            let value: Value = self.request(action, fields)?;
+            let mut value: Value = self.request(action, fields)?;
+            if preparing {value=value["context"].take();}
             (
                 200,
                 "application/json".to_string(),
@@ -274,7 +308,7 @@ impl NativeApps {
             let access: Access = self.request("resolve", json!({"name":name}))?;
             if matches!(path,"/api/workspaces"|"/api/harnesses") {
                 anyhow::ensure!(method == "GET" && uri.query().is_none(),"Method refused");
-                let value:Value=self.request("pointcatalog",json!({"name":name,"path":path}))?;
+                let value:Value=self.request("agentcatalog",json!({"name":name,"path":path}))?;
                 return Ok(Response::builder().status(200).header("Content-Type","application/json").header("Cache-Control","no-store").body(serde_json::to_vec(&value)?)?);
             }
             if path.starts_with("/api/") {

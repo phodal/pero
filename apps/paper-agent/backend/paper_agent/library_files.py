@@ -7,8 +7,7 @@ import tempfile
 
 from .model import Invalid, digest
 from .pdf import PdfDocument
-from .research_resources import ImportDraft, PublicURL, ResearchResource
-from .pdf_files import arxiv_identifier
+from .research_resources import ArxivPaper, ImportDraft, PublicURL, ResearchResource
 
 
 def paper_directory(root=None):
@@ -28,7 +27,10 @@ def paper_directory(root=None):
 
 
 def file_stem(paper):
-    identifier = arxiv_identifier(paper)
+    try:
+        identifier = ArxivPaper.from_snapshot(paper).identifier
+    except Invalid:
+        identifier = None
     if identifier:
         raw = identifier
     else:
@@ -189,6 +191,14 @@ class LibraryFiles:
         if digest(content) != document.file_digest:
             raise Invalid('Saved PDF original failed integrity checks.' + recovery, 409)
         return content
+
+    def reading_pdf(self, paper):
+        """Reading reuses a saved original; acquisition belongs to PdfDownloads."""
+        document = self.store.paper_pdf(paper.id)
+        if document is None:
+            raise Invalid('Save this paper PDF through the source review before full-text reading.', 409)
+        self.original_pdf(document)
+        return document
 
     def prepare(self, paper, value, now):
         document, seed = self._context(paper)

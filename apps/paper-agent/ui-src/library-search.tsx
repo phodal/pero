@@ -72,7 +72,7 @@ export function LibrarySearch({ api, t, onOpen, onAdded, activeHitId, children }
     finally { if (mounted.current) setAdding(''); }
   }
   return <section className="pa-local-search" aria-label={label}>
-    <form ref={form} className="pa-query-line" role="search" onSubmit={event => { event.preventDefault(); submit(); }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (!event.nativeEvent.isComposing) submit(); } }}>
+    <form ref={form} className="pa-query-line" role="search" onSubmit={event => { event.preventDefault(); submit(); }}>
       <div className="pa-query-scope" role="radiogroup" aria-label={t('searchScope')}>
         <label><input type="radio" name="paper-search-scope" value="local" checked={scope === 'local'} onChange={() => choose('local')}/>{t('scopeLocal')}</label>
         <label><input type="radio" name="paper-search-scope" value="web" checked={scope === 'web'} onChange={() => choose('web')}/>{t('scopeWeb')}</label>
@@ -83,7 +83,12 @@ export function LibrarySearch({ api, t, onOpen, onAdded, activeHitId, children }
       </div>}
       <div className="pa-query-field">
         <label className="pa-sr-only" htmlFor={inputId}>{label}</label>
-        <Input id={inputId} type="search" name="q" enterKeyHint="search" maxLength={scope === 'web' ? 500 : 2000} value={query} placeholder={scope === 'local' ? t('localSearch') : t('searchPlaceholder')} aria-describedby={scope === 'web' ? noteId : undefined} onChange={event => change(event.target.value)}/>
+        <Input id={inputId} type="search" name="q" enterKeyHint="search" maxLength={scope === 'web' ? 500 : 2000} value={query} placeholder={scope === 'local' ? t('localSearch') : t('searchPlaceholder')} aria-describedby={scope === 'web' ? noteId : undefined} onChange={event => change(event.target.value)} onKeyDown={event => {
+          if (event.key !== 'Enter') return;
+          // The App sandbox blocks native form submission; handle only the input's Enter.
+          event.preventDefault();
+          if (!event.nativeEvent.isComposing) submit();
+        }}/>
         {!!query && <Button variant="ghost" onClick={() => { change(''); form.current?.querySelector<HTMLInputElement>('input[type=search]')?.focus(); }}>{t('clearSearch')}</Button>}
         {scope === 'web' && !!query.trim() && <Button busy={adding === query} disabled={!!adding} onClick={() => void add({ id: query, ...(source !== 'all' ? { source } : {}) })}>{adding === query ? t('addingPaper') : t('fetchPaper')}</Button>}
         <Button onClick={submit} variant="primary" busy={busy} disabled={busy || !query.trim()}>{busy ? t('searching') : error ? t('retry') : t('search')}</Button>

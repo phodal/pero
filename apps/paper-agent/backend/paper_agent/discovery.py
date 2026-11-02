@@ -51,6 +51,8 @@ class DiscoveryPaper:
     date: str
     citations: int | None
     doi: str = ''
+    pdf_url: str | None = None
+    full_text_url: str | None = None
 
     @classmethod
     def parse(cls, value):
@@ -65,17 +67,24 @@ class DiscoveryPaper:
         return cls(identity, text(value.get('title'), 1000, 'paper title'), https(value.get('url')),
                    tuple(text(a, 300, 'author') for a in sequence(value.get('authors', []), 100, 'authors')),
                    abstract, str(value.get('publicationDate') or '')[:10], citations,
-                   text(value['doi'], 300, 'DOI') if value.get('doi') else '')
+                   text(value['doi'], 300, 'DOI') if value.get('doi') else '',
+                   https(value['pdfUrl']) if value.get('pdfUrl') else None,
+                   https(value['fullTextUrl']) if value.get('fullTextUrl') else None)
 
     def to_dict(self):
-        return dict(id=self.id, source='openalex', title=self.title, url=self.url, authors=list(self.authors),
-                    abstract=self.abstract, publicationDate=self.date, citations=self.citations, doi=self.doi)
+        value = dict(id=self.id, source='openalex', title=self.title, url=self.url, authors=list(self.authors),
+                     abstract=self.abstract, publicationDate=self.date, citations=self.citations, doi=self.doi)
+        if self.pdf_url:
+            value['pdfUrl'] = self.pdf_url
+        if self.full_text_url:
+            value['fullTextUrl'] = self.full_text_url
+        return value
 
     def reading(self, now):
         if not self.abstract.strip():
             raise Invalid('This record has no abstract. Open the original source and import readable text before comparison.')
-        return PaperSnapshot.from_reading(dict(source='openalex', sourceId=self.id, title=self.title, url=self.url,
-            authors=list(self.authors), content=self.abstract, contentKind='abstract'), now)
+        return PaperSnapshot.from_reading({**self.to_dict(), 'sourceId': self.id,
+            'content': self.abstract, 'contentKind': 'abstract'}, now)
 
 
 @dataclass(frozen=True)

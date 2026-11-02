@@ -1,4 +1,5 @@
 export const messages = {
+  researchUrl: { zh: '链接导入', en: 'Research URL' },
   reproductionEnvironmentFailed: { zh: '环境预检失败（未启动计算）', en: 'Environment preflight failed (computation not started)' },
   reproductionSmokeOnly: { zh: '此入口仅启动 smoke；其他方案的已有结果仍可查看。', en: 'This entry only starts smoke runs; existing results from other profiles remain readable.' },
   reproductionVerify: { zh: "验证此结果", en: "Verify this result" },
@@ -153,7 +154,7 @@ export const messages = {
   chooseSourceCopy: { zh: '论文与报告会保存在本机，可随时重新打开。', en: 'Papers and reports are saved locally and can be reopened.' },
   usePaper: { zh: '加入研究', en: 'Use for research' }, selected: { zh: '已选', en: 'Selected' },
   maxSelection: { zh: '每次研究最多选择 5 篇论文。', en: 'Select up to five papers per research input.' },
-  original: { zh: '打开原始来源', en: 'Open original source' }, originalPdf: { zh: '原始 PDF', en: 'Original PDF' },
+  original: { zh: '打开原始来源', en: 'Open original source' }, readerOriginal: { zh: '原文', en: 'Source' }, originalPdf: { zh: '原始 PDF', en: 'Original PDF' },
   localPdfFile: { zh: '本地PDF', en: 'PDF file' },
   downloadPaper: { zh: '保存', en: 'Save' },
   savedRefreshFailed: { zh: '副本已保存，但文献列表刷新失败：', en: 'Copies saved, but the Library could not refresh:' },

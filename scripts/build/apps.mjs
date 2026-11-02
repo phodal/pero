@@ -1,3 +1,4 @@
+import { appSdkAliases } from './app-sdk.mjs';
 import { build } from 'esbuild';
 import { buildScientificViewer } from './scientific-viewer.mjs';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -29,7 +30,6 @@ if (appName === 'data-agent' || appName === 'data') {
   for (const name of modules)
     await cp(resolve(root, 'harness/go/charts/python', name), resolve(appRoot, 'backend/_core', name));
 }
-const sdk = resolve(root, 'packages/app-sdk/src');
 const outdir = resolve(appRoot, 'dist');
 await mkdir(outdir, { recursive: true });
 await build({
@@ -39,7 +39,7 @@ await build({
   loader: { '.png': 'dataurl', '.svg': 'dataurl', '.woff2': 'file', '.woff': 'file', '.ttf': 'file', '.wasm': 'file' },
   minify: true, target: 'chrome140', jsx: 'automatic',
   nodePaths: [resolve(appRoot, 'node_modules')],
-  alias: { '@pero/app-sdk/ui': resolve(sdk, 'ui.tsx'), '@pero/app-sdk/chart': resolve(sdk, 'chart.ts'), '@pero/app-sdk': resolve(sdk, 'index.tsx') },
+  alias: appSdkAliases(root),
   plugins: [{ name: 'app-react-runtime', setup(builder) {
     // SDK source lives outside the App tree; nodePaths is only a fallback.
     // Resolve from the App while preserving package exports/browser conditions

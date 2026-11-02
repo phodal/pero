@@ -7,9 +7,9 @@ import { electron } from './electron.mjs';
 import { deferDocumentRefresh } from './paper-document-refresh-gate.mjs';
 import { openResearchImport, inspectResearchReview } from './paper-research-ui-controls.mjs';
 import { clickAppShortcut } from './sidebar-controls.mjs';
-import { setPaperAppearance, backToLibrary } from './paper-pdf-flow.mjs';
+import { setPaperAppearance, backToLibrary, saveLibraryCopies } from './paper-pdf-flow.mjs';
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile, cp } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -19,7 +19,9 @@ const root = resolve(import.meta.dirname, '../..'), out = resolve(root, 'test-re
 await mkdir(out, { recursive: true });
 const profile = await realpath(await mkdtemp(resolve(tmpdir(), 'pero-structured-reading-')));
 const settings = resolve(profile, 'settings.json'), agents = resolve(profile, 'agents.json');
-await writeFile(settings, '{}');
+await writeFile(settings, JSON.stringify(process.env.PERO_APP_PYTHON ? {
+  app_python: { apps: { 'paper-agent': dirname(dirname(process.env.PERO_APP_PYTHON)) } },
+} : {}));
 await writeFile(agents, JSON.stringify(['pero', 'codex', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({ id, name: id, command: resolve(profile, `unavailable-${id}`) }))));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop'), PERO_SETTINGS_PATH: settings,
   PERO_HISTORY_PATH: resolve(profile, 'history.jsonl'), PERO_AGENTS_FILE: agents, PERO_LOCALE: 'en',
@@ -37,6 +39,15 @@ async function ready() {
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await expect.poll(() => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(app => app.name === 'paper-agent') ?? false)).toBe(true);
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900));
+  // Desktop can refresh the installed bundle at restart. Reapply only this
+  // disposable transport seam before any App backend is opened.
+  const installed = resolve(profile, 'desktop/apps/paper-agent/backend');
+  for (const [from, to] of [['research-pdf.py', 'pdf_fixture.py'], ['research-structured.py', 'structured_fixture.py']]) {
+    await writeFile(resolve(installed, to), await readFile(resolve(root, 'tests/fixtures', from)));
+  }
+  await writeFile(resolve(installed, 'scientific-document.html'), original);
+  const entry = resolve(installed, 'server.py'), text = await readFile(entry, 'utf8');
+  if (!text.includes('from structured_fixture import install')) await writeFile(entry, paperDocumentBackendFixture(text));
 }
 async function openPaper() {
   await page.evaluate(path => window.pero.sessionCommand({ action: 'workspace', path }), profile);
@@ -56,13 +67,14 @@ const requests = async () => (await readFile(resolve(profile, 'desktop/app-data/
 const status = (bundle, resource) => api('/api/research/pdf', { operation: 'status', bundleId: bundle.id, resourceId: resource.id });
 try {
   app = await launch(); await ready();
+  // Freeze the installed offline fixture across restarts before opening its backend.
+  await app.close();
+  env.PERO_BUILTIN_APPS = ',';
+  app = await launch(); await ready();
+  // Retain the upstream wrong-version rejection before publishing any document.
   const installed = resolve(profile, 'desktop/apps/paper-agent/backend');
-  for (const [from, to] of [['research-pdf.py', 'pdf_fixture.py'], ['research-structured.py', 'structured_fixture.py']]) {
-    await writeFile(resolve(installed, to), await readFile(resolve(root, 'tests/fixtures', from)));
-  }
-  await writeFile(resolve(installed, 'scientific-document.html'), original);
-  const entry = resolve(installed, 'server.py'), text = await readFile(entry, 'utf8');
-  await writeFile(entry, paperDocumentBackendFixture(text));
+  const htmlFixture = resolve(installed, 'scientific-document.html');
+  await writeFile(htmlFixture, original.toString('utf8').replace('content="2606.03979v2"', 'content="2606.03979v1"'));
   await openPaper(); await openResearchImport(page, frame);
   const review = await inspectResearchReview(frame, seed);
   const draft = (await api('/api/research/drafts')).drafts.find(d => d.seedUrl === seed);
@@ -86,18 +98,46 @@ try {
   await frame.getByRole('button', { name: 'Open saved PDF', exact: true }).click();
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
   await expect(viewer.locator('[data-page-number="1"] img,[data-page-number="1"] canvas').first()).toBeVisible({ timeout: 30000 });
-  const bar = frame.locator('.pa-reading-bar');
+  const bar = frame.locator('.pa-reader-tools');
+  await expect(bar.getByRole('button', { name: 'PDF', exact: true })).toBeVisible();
+  await expect(bar.getByRole('link', { name: 'Open original source', exact: true })).toHaveAttribute('href', pdfUrl);
   await bar.getByRole('spinbutton', { name: 'Page', exact: true }).fill('2');
   await expect(bar.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('2');
   const zoom = await bar.getByRole('button', { name: 'Fit page', exact: true }).innerText();
   await frame.getByRole('button', { name: 'Text', exact: true }).click();
   await frame.getByRole('button', { name: 'Prepare Read · v2', exact: true }).click();
+  const rejection = frame.getByText('HTML identity differs from the requested version', { exact: false });
+  await expect(rejection).toBeVisible({ timeout: 60000 });
+  await expect(frame.getByRole('button', { name: 'Retry v2', exact: true })).toBeEnabled();
+  expect((await api(`/api/paper-documents?paperId=${paperId}`)).revisions).toEqual([]);
+  expect((await api('/api/research/source-report', { operation: 'observations', bundleId: bundle.id })).observations).toEqual([]);
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(1);
+  await page.screenshot({ path: resolve(out, 'structured-rejected-version.png') });
+  await frame.getByRole('button', { name: 'PDF', exact: true }).click();
+  await expect(viewer).toBeVisible();
+  await expect(bar.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('2');
+  await expect(bar.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(zoom);
+  await expect(viewer.locator('[data-page-number="2"] img,[data-page-number="2"] canvas').first()).toBeVisible();
+  await frame.getByRole('button', { name: 'Text', exact: true }).click();
+  await expect(rejection).toBeVisible();
+  await writeFile(htmlFixture, original);
+  await frame.getByRole('button', { name: 'Retry v2', exact: true }).click();
   await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeVisible({ timeout: 60000 });
   const overview = await api(`/api/paper-documents?paperId=${paperId}`), identity = overview.revisions[0].id;
   const document = await api(`/api/paper-documents/${identity}`);
+  await expect(rejection).toHaveCount(0);
+  await expect(frame.getByRole('button', { name: 'Retry v2', exact: true })).toHaveCount(0);
+  checks.push('Wrong-version HTML is visibly rejected without a document or observation; PDF page/zoom state is preserved with visible page content, and explicit Retry recovers through the same transport/parser');
   expect(document.source.digest).toBe(createHash('sha256').update(original).digest('hex'));
   expect(document.sourceIdentity).toBe('response-explicit-version');
-  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(1);
+  const orderedAnchors = ['S1.p1', 'E1', 'T1', 'F1', 'code', 'note1', 'A'];
+  const orderedBlocks = orderedAnchors.map(anchor => document.blocks.find(block => block.anchors.includes(anchor)).id);
+  await expect.poll(() => frame.locator('.pa-structured-reading [data-block-id]').evaluateAll(
+    (elements, ids) => elements.map(element => element.dataset.blockId).filter(id => ids.includes(id)), orderedBlocks
+  )).toEqual(orderedBlocks);
+  await expect(frame.locator('.pa-structured-reading [style*="column-count"]')).toHaveCount(0);
+  checks.push('Two-column native HTML retains source DOM block order in Read without importing source presentation CSS or claiming PDF column reconstruction');
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
   const table = document.blocks.find(b => b.kind === 'table'), equation = document.blocks.find(b => b.kind === 'equation'), figure = document.blocks.find(b => b.kind === 'figure');
   const sourceReports = input => api('/api/research/source-report', { bundleId: bundle.id, ...input });
   expect((await sourceReports({ operation: 'observations' })).observations).toEqual([]);
@@ -177,7 +217,7 @@ try {
   } finally {
     await frame.locator('body').evaluate(() => { window.paperRefreshGate.restore(); delete window.paperRefreshGate; });
   }
-  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   checks.push('Logical empty table rows preserve rowspan; version switching is disabled while an actual refresh response is pending and recovers after delivery');
   await page.screenshot({ path: resolve(out, 'structured-light.png') });
   await frame.getByRole('button', { name: 'PDF', exact: true }).click();
@@ -198,13 +238,13 @@ try {
   await bundleReports.getByRole('button', { name: 'Structured scopes', exact: true }).click();
   await expect(bundleReports.getByRole('article', { name: 'Saved source evidence report', exact: true })).toBeVisible();
   await expect(bundleReports.getByRole('button', { name: /^Open recorded/ })).toHaveCount(0);
-  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   checks.push('Library bundle opens historical source reports independently of Reader preparation, without fetching originals or offering implicit restore');
   await frame.getByRole('button', { name: 'Open saved PDF', exact: true }).click();
   const readButton = frame.getByRole('button', { name: 'Read', exact: true });
   await expect(readButton).toBeVisible(); await readButton.click();
   await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toHaveValue(identity);
-  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   await frame.getByText('Recorded evidence', { exact: true }).click();
   const reopenedReports = frame.getByRole('region', { name: 'Source evidence reports', exact: true });
   await reopenedReports.getByRole('button', { name: 'Structured scopes', exact: true }).click();
@@ -266,7 +306,7 @@ try {
   } finally { await frame.locator('body').evaluate(() => { window.paperScopeOverviewGate.restore(); delete window.paperScopeOverviewGate; }); }
   const selectedEvidence = `${secondBundle.id}:${secondResource.id}`;
   await expect(frame.getByRole('combobox', { name: 'Evidence bundle', exact: true })).toHaveValue(selectedEvidence);
-  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   await frame.getByRole('button', { name: 'Original HTML', exact: true }).click();
   await expect(frame.getByRole('complementary', { name: 'Original HTML source', exact: true })).toBeVisible();
   const secondScope = { documentId: identity, bundleId: secondBundle.id, resourceId: secondResource.id };
@@ -285,9 +325,44 @@ try {
   await frame.getByRole('button', { name: 'Second scoped report', exact: true }).click();
   await frame.getByRole('button', { name: 'Open recorded original-html 13–30', exact: true }).click();
   await expect(frame.getByRole('complementary', { name: 'Original HTML source', exact: true }).locator('pre')).toHaveText(secondRaw.content);
-  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   expect(await api('/api/research/source-report', { operation: 'read', bundleId: secondBundle.id, reportId: secondReport.id })).toEqual(secondReport);
   checks.push('Second approved bundle reuses identical HTML without fetching; selected typed/raw report ownership and exact windows survive restart without changing the first report');
+  await backToLibrary(frame);
+  const toolbarBar = frame.locator('.pa-reader-tools'), toolbarViewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
+  const toolbarPaper = await api('/api/papers/import', { title: 'Toolbar reading fixture', sourceId: '2606.03979v2',
+    url: 'https://arxiv.org/abs/2606.03979v2', pdfUrl, authors: [], contentKind: 'abstract', content: 'Official abstract fixture.' });
+  await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
+  const saved = await saveLibraryCopies(frame, toolbarPaper.title);
+  await saved.getByRole('button', { name: 'Close', exact: true }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(toolbarPaper.title, { exact: true }) }).click();
+  await toolbarBar.getByRole('button', { name: 'PDF', exact: true }).click();
+  await expect(toolbarViewer).toBeVisible();
+  const format = toolbarBar.getByRole('button', { name: 'Format', exact: true });
+  const boxes = await Promise.all(['Text', 'PDF', 'Format', 'Zoom in'].map(name => toolbarBar.getByRole('button', { name, exact: true }).boundingBox()));
+  expect(boxes.every(box => box && Math.abs(box.y - boxes[0].y) <= 4)).toBe(true);
+  await expect(toolbarBar.getByRole('link', { name: 'Open original source', exact: true })).toHaveAttribute('href', toolbarPaper.url);
+  await format.click();
+  await expect(toolbarBar.getByRole('button', { name: 'Download and format', exact: true })).toBeVisible();
+  await expect(toolbarBar.locator('.pa-reading-source-menu')).toContainText('arXiv v2');
+  await expect(frame.locator('.pa-structured-reading').getByRole('button', { name: 'Format', exact: true })).toHaveCount(0);
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 800));
+  await expect.poll(() => toolbarBar.locator('.pa-reading-source-options').evaluate(element => {
+    const box = element.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth;
+  })).toBe(true);
+  await page.screenshot({ path: resolve(out, 'toolbar-source-review-narrow.png') });
+  await writeFile(resolve(profile, 'desktop/app-data/paper-agent/fail-next-html'), 'synthetic acquisition failure');
+  await toolbarBar.getByRole('button', { name: 'Download and format', exact: true }).click();
+  await expect(toolbarBar.getByRole('alert')).toContainText('503');
+  await expect(toolbarViewer).toBeVisible();
+  await page.screenshot({ path: resolve(out, 'toolbar-format-error.png') });
+  await toolbarBar.getByRole('button', { name: 'Retry v2', exact: true }).click();
+  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeVisible({ timeout: 60000 });
+  await expect(toolbarViewer).not.toBeVisible();
+  await toolbarBar.getByRole('button', { name: 'PDF', exact: true }).click();
+  await expect(toolbarViewer).toBeVisible();
+  await expect(toolbarBar.getByRole('button', { name: 'Read', exact: true })).toBeVisible();
+  checks.push('Saved arXiv paper reviews and formats beside Text/PDF; original link, one-row controls, narrow source menu, visible acquisition failure/retry and automatic Read/PDF switching work through real APIs');
   expect(errors).toEqual([]); expect(remoteRequests).toEqual([]);
   // Export a private stopped-profile copy through the existing real JSON CLI.
   await app.close(); app = null;

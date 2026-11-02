@@ -45,6 +45,7 @@ impl Workbench {
         let apps = self.apps.entries.iter().filter(|app| app.enabled || app.placement() != crate::apps::AppPlacement::Catalog).filter_map(|app| {
             let panel = app.panels.first()?;
             Some(sidebar::AppShortcut {
+                badge: self.apps.badges.get(&app.name).map(ToString::to_string),
                 name: app.name.clone(), panel: panel.id.clone(),
                 label: self.installed_app_title(&app.name, &app.display_name),
                 placement: app.placement(),
@@ -55,7 +56,7 @@ impl Workbench {
         sidebar::sidebar(self.ui(cx), width, sidebar::SidebarProps {
             shortcut_bounds: &self.view_bounds.sidebar,
             navigation: self.navigation.page(), catalog_open: self.navigation.current().is_none(),
-            identity: self.remote.data["identity"]["name"].as_str().unwrap_or(self.t("nav.local_user")).to_string(),
+            identity: self.remote.data["identity"]["name"].as_str().unwrap_or(self.t("nav.sign_in")).to_string(),
             terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed, apps,
         }, settings, actions, cx)
     }
@@ -742,21 +743,8 @@ impl Render for Workbench {
                                                     == WorkbenchPage::Conversation,
                                             |el| el.child(self.detail(window, cx)),
                                         )
-                                        .when(self.show_local_execution_onboarding(), |el| {
-                                            el.child(
-                                                div()
-                                                    .id("first-run-setup")
-                                                    .flex_1()
-                                                    .min_h_0()
-                                                    .overflow_y_scroll()
-                                                    .child(
-                                                        self.local_execution_setup_view(true, cx),
-                                                    ),
-                                            )
-                                        })
                                         .when(
-                                            self.navigation.page() == WorkbenchPage::Projects
-                                                && !self.show_local_execution_onboarding(),
+                                            self.navigation.page() == WorkbenchPage::Projects,
                                             |el| el.child(self.projects_view(cx)),
                                         )
                                         .when(

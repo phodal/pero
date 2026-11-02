@@ -3,7 +3,7 @@ use crate::{
     app::Workbench,
     workspace::{WorkspaceItem, WorkspaceRoute},
 };
-use gpui_kit::{component::button::*, prelude::*, *};
+use gpui_kit::{component::{button::*, notification::Notification, WindowExt}, prelude::*, *};
 use gpui_webview::WebView;
 use pero_contracts::HostEvent;
 use serde_json::{Value, json};
@@ -23,7 +23,7 @@ addEventListener('message',event=>{
  if(event.source!==window)return;
  const message=event.data;
  if(!message||typeof message.type!=='string')return;
- if(message.type==='pero:app:examples'||message.type==='pero:app:ready'||message.type==='pero:app:chat'||message.type==='pero:app-use:result'||message.type==='pero:app:open-session')window.ipc.postMessage(JSON.stringify(message));
+ if(message.type==='pero:app:sdk'||message.type==='pero:app:examples'||message.type==='pero:app:ready'||message.type==='pero:app:chat'||message.type==='pero:app-use:result'||message.type==='pero:app:open-session')window.ipc.postMessage(JSON.stringify(message));
  if(message.type==='pero:app:chat-slot')window.postMessage({type:'pero:app:chat-slot-result',id:message.id,active:false},'*');
 });
 addEventListener('pointerdown',()=>window.ipc.postMessage('{"type":"focus"}'),true);
@@ -271,7 +271,7 @@ impl Workbench {
                 }
                 Some("written")=>{
                     let app=input["event"]["data"]["app"].as_str().unwrap_or_default();
-                    for ((name,_),view) in &self.native_app_pages { if name==app { view.view.read(cx).send(json!({"type":"pero:app:data-changed"}),cx); } }
+                    for ((name,_),view) in &self.native_app_pages { if name==app { view.view.read(cx).send(json!({"type":"pero:app:data-changed"}),cx); view.view.read(cx).send(json!({"type":"pero:app:event","event":"app:written","value":{"app":app}}),cx); } }
                     Ok(Some(Value::Null))
                 }
                 Some("page")=>{
@@ -337,6 +337,38 @@ impl Workbench {
         let subscription = cx.subscribe_in(&view, window, move |this, view, event: &NativeAppMessage, window, cx| {
             let message = &event.0;
             let item = WorkspaceItem::App { name: scope.app.clone(), panel: scope.panel.clone() };
+            if message["type"] == "pero:app:sdk" {
+                let result = (|| -> anyhow::Result<()> {
+                    anyhow::ensure!(this.navigation.current()==Some(&item), "Open the App before using Host presentation");
+                    let input = &message["input"];
+                    match message["operation"].as_str() {
+                        Some("navigate") => {
+                            let path=input["path"].as_str().ok_or_else(||anyhow::anyhow!("Choose a Pero page"))?;
+                            if let Some(target)=path.strip_prefix("/apps/") {
+                                let mut parts=target.split('/');let app=parts.next().unwrap_or_default();let panel=parts.next().unwrap_or("main");
+                                anyhow::ensure!(parts.next().is_none() && this.apps.contains_panel(app,panel), "App panel is unavailable");
+                                this.open_app(app.into(),panel.into(),cx);
+                            } else {
+                                let page=if path=="/" {"projects"} else {path.strip_prefix('/').ok_or_else(||anyhow::anyhow!("Choose a local Pero page"))?};
+                                this.navigate(serde_json::from_value(json!(page))?,cx);
+                            }
+                        }
+                        Some("notify") => {
+                            let text=input["message"].as_str().filter(|text|!text.is_empty() && text.len()<=4000).ok_or_else(||anyhow::anyhow!("Invalid notification"))?.to_owned();
+                            let note=match input["type"].as_str().unwrap_or("info") { "info"=>Notification::info(text),"success"=>Notification::success(text),"error"=>Notification::error(text),_=>anyhow::bail!("Invalid notification type") };
+                            window.push_notification(note,cx);
+                        }
+                        Some("badge") => {
+                            let count=input["count"].as_u64().filter(|count|*count<=999999).ok_or_else(||anyhow::anyhow!("Invalid App count"))? as u32;
+                            if count==0 {this.apps.badges.remove(&scope.app);}else{this.apps.badges.insert(scope.app.clone(),count);}
+                        }
+                        _ => anyhow::bail!("Host presentation unavailable"),
+                    }
+                    Ok(())
+                })();
+                let reply=match result {Ok(())=>json!({"type":"pero:app:sdk-result","id":message["id"],"ok":true}),Err(error)=>json!({"type":"pero:app:sdk-result","id":message["id"],"ok":false,"error":error.to_string()})};
+                view.read(cx).send(reply,cx);cx.notify();
+            }
             if message["type"] == "pero:app:examples" {this.receive_app_examples(scope.clone(),message["state"].clone(),cx);}
             if message["type"] == "focus" { this.focus_surface_item(&item, window, cx); }
             if message["type"] == "link" {this.web_command(json!({"action":"web_open","url":message["url"]}),window,cx);}

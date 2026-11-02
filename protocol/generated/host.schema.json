@@ -71,6 +71,69 @@
       ],
       "additionalProperties": false
     },
+    "AgentCatalogCommand": {
+      "title": "AgentCatalogCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "agentcatalog"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "/api/workspaces"
+            },
+            {
+              "type": "string",
+              "const": "/api/harnesses"
+            }
+          ]
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "path",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "AgentCatalogReply": {
+      "title": "AgentCatalogReply",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AgentWorkspace"
+              },
+              {
+                "$ref": "#/$defs/AgentHarness"
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false
+    },
     "AgentEventsRequest": {
       "title": "AgentEventsRequest",
       "type": "object",
@@ -92,6 +155,27 @@
         "operation",
         "sessionId",
         "after"
+      ],
+      "additionalProperties": false
+    },
+    "AgentHarness": {
+      "title": "AgentHarness",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "available": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "available"
       ],
       "additionalProperties": false
     },
@@ -152,6 +236,74 @@
       ],
       "additionalProperties": false
     },
+    "AgentPluginRevision": {
+      "title": "AgentPluginRevision",
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "version": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "AgentPluginSummary": {
+      "title": "AgentPluginSummary",
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "version": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "revision",
+        "enabled"
+      ],
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "not": {}
+          },
+          {
+            "not": {}
+          }
+        ]
+      }
+    },
+    "AgentPreparedContext": {
+      "title": "AgentPreparedContext",
+      "type": "object",
+      "properties": {
+        "context": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "context"
+      ],
+      "additionalProperties": false
+    },
     "AgentRequest": {
       "title": "AgentRequest",
       "oneOf": [
@@ -168,6 +320,529 @@
           "$ref": "#/$defs/AgentCancelRequest"
         }
       ]
+    },
+    "AgentRun": {
+      "title": "AgentRun",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentScope"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "running"
+            },
+            {
+              "type": "string",
+              "const": "needs_input"
+            },
+            {
+              "type": "string",
+              "const": "cancelling"
+            },
+            {
+              "type": "string",
+              "const": "completed"
+            },
+            {
+              "type": "string",
+              "const": "failed"
+            },
+            {
+              "type": "string",
+              "const": "cancelled"
+            },
+            {
+              "type": "string",
+              "const": "interrupted"
+            }
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "stopReason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "sessionId",
+        "scope",
+        "status",
+        "attempt",
+        "requestId",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunAttempt": {
+      "title": "AgentRunAttempt",
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId",
+        "text",
+        "attempt",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunBinding": {
+      "title": "AgentRunBinding",
+      "type": "object",
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/AgentScope"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "harnessId": {
+          "type": "string"
+        },
+        "panel": {
+          "type": "string"
+        },
+        "runtimeDigest": {
+          "type": "string"
+        },
+        "appRevision": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "context": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "scope",
+        "requestId",
+        "harnessId",
+        "panel",
+        "runtimeDigest",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunCancel": {
+      "title": "AgentRunCancel",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "cancel"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentScope"
+        },
+        "runId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "runId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunCommand": {
+      "title": "AgentRunCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "agentrun"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "request": {
+          "$ref": "#/$defs/AgentRunRequest"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "request",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunEvent": {
+      "title": "AgentRunEvent",
+      "type": "object",
+      "properties": {
+        "seq": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "data": {}
+      },
+      "required": [
+        "seq",
+        "type",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunEvents": {
+      "title": "AgentRunEvents",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "events"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentScope"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "after": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "runId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunLookup": {
+      "title": "AgentRunLookup",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "lookup"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentScope"
+        },
+        "requestId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunLookupReply": {
+      "title": "AgentRunLookupReply",
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string"
+        },
+        "run": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRun"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "requestId",
+        "run"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunOpen": {
+      "title": "AgentRunOpen",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "open"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunOpenReply": {
+      "title": "AgentRunOpenReply",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunPrepare": {
+      "title": "AgentRunPrepare",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "prepare"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentScope"
+        },
+        "input": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunRequest": {
+      "title": "AgentRunRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AgentRunPrepare"
+        },
+        {
+          "$ref": "#/$defs/AgentRunTerminal"
+        },
+        {
+          "$ref": "#/$defs/AgentRunStart"
+        },
+        {
+          "$ref": "#/$defs/AgentRunLookup"
+        },
+        {
+          "$ref": "#/$defs/AgentRunStatus"
+        },
+        {
+          "$ref": "#/$defs/AgentRunEvents"
+        },
+        {
+          "$ref": "#/$defs/AgentRunCancel"
+        },
+        {
+          "$ref": "#/$defs/AgentRunRetry"
+        },
+        {
+          "$ref": "#/$defs/AgentRunOpen"
+        }
+      ]
+    },
+    "AgentRunRetry": {
+      "title": "AgentRunRetry",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "retry"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentScope"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "runId",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunStart": {
+      "title": "AgentRunStart",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "start"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentScope"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "harnessId": {
+          "type": "string"
+        },
+        "context": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "requestId",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunStatus": {
+      "title": "AgentRunStatus",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "status"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentScope"
+        },
+        "runId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "runId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunTerminal": {
+      "title": "AgentRunTerminal",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "terminal"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentScope"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "terminalId": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "runId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunTranscript": {
+      "title": "AgentRunTranscript",
+      "type": "object",
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/AgentRun"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentRunEvent"
+          }
+        },
+        "cursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run",
+        "events",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "AgentScope": {
+      "title": "AgentScope",
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspaceId"
+      ],
+      "additionalProperties": false
     },
     "AgentsEvent": {
       "title": "AgentsEvent",
@@ -278,6 +953,88 @@
       ],
       "additionalProperties": false
     },
+    "AgentTerminal": {
+      "title": "AgentTerminal",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/AgentTerminalStatus"
+        }
+      },
+      "required": [
+        "sessionId",
+        "type",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "AgentTerminalList": {
+      "title": "AgentTerminalList",
+      "type": "object",
+      "properties": {
+        "terminals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentTerminal"
+          }
+        }
+      },
+      "required": [
+        "terminals"
+      ],
+      "additionalProperties": false
+    },
+    "AgentTerminalStatus": {
+      "title": "AgentTerminalStatus",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "exitCode": {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        "signal": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "AgentWorkspace": {
+      "title": "AgentWorkspace",
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "title",
+        "path"
+      ],
+      "additionalProperties": false
+    },
     "AppAccess": {
       "title": "AppAccess",
       "type": "object",
@@ -295,6 +1052,116 @@
       "required": [
         "root",
         "entry"
+      ],
+      "additionalProperties": false
+    },
+    "AppAgentAttemptData": {
+      "title": "AppAgentAttemptData",
+      "type": "object",
+      "properties": {
+        "attempt": {
+          "$ref": "#/$defs/AgentRunAttempt"
+        },
+        "runTime": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "attempt"
+      ],
+      "additionalProperties": false
+    },
+    "AppAgentAttemptEvent": {
+      "title": "AppAgentAttemptEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "app_agent_attempt"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/AppAgentAttemptData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "AppAgentCancelData": {
+      "title": "AppAgentCancelData",
+      "type": "object",
+      "properties": {
+        "runTime": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "AppAgentCancelEvent": {
+      "title": "AppAgentCancelEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "app_agent_cancel"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/AppAgentCancelData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
       ],
       "additionalProperties": false
     },
@@ -350,6 +1217,61 @@
         "available",
         "workspace",
         "agents"
+      ],
+      "additionalProperties": false
+    },
+    "AppAgentSessionOpenData": {
+      "title": "AppAgentSessionOpenData",
+      "type": "object",
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/AppChatScope"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope",
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "AppAgentSessionOpenEvent": {
+      "title": "AppAgentSessionOpenEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "app_agent_session_open"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/AppAgentSessionOpenData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
       ],
       "additionalProperties": false
     },
@@ -426,6 +1348,37 @@
         "cursor",
         "status",
         "text"
+      ],
+      "additionalProperties": false
+    },
+    "AppApiAccess": {
+      "title": "AppApiAccess",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "apiaccess"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "path": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "path",
+        "method",
+        "id"
       ],
       "additionalProperties": false
     },
@@ -589,6 +1542,40 @@
       ],
       "additionalProperties": false
     },
+    "AppPluginAssembly": {
+      "title": "AppPluginAssembly",
+      "type": "object",
+      "properties": {
+        "app": {
+          "$ref": "#/$defs/AppName"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppWriteRoute"
+          }
+        },
+        "maxCalls": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "app",
+        "revision",
+        "instructions",
+        "tools",
+        "maxCalls"
+      ],
+      "additionalProperties": false
+    },
     "AppPreparation": {
       "title": "AppPreparation",
       "type": "object",
@@ -598,6 +1585,10 @@
         },
         "phase": {
           "anyOf": [
+            {
+              "type": "string",
+              "const": "required"
+            },
             {
               "type": "string",
               "const": "checking"
@@ -642,6 +1633,9 @@
         "version": {
           "type": "string"
         },
+        "revision": {
+          "type": "string"
+        },
         "displayName": {
           "type": "string"
         },
@@ -679,6 +1673,7 @@
       "required": [
         "name",
         "version",
+        "revision",
         "displayName",
         "description",
         "enabled",
@@ -691,16 +1686,34 @@
       "title": "AppRequest",
       "oneOf": [
         {
+          "$ref": "#/$defs/AppApiAccess"
+        },
+        {
+          "$ref": "#/$defs/AppSdkRequest"
+        },
+        {
           "$ref": "#/$defs/ListApps"
         },
         {
           "$ref": "#/$defs/InstallApp"
         },
         {
-          "$ref": "#/$defs/PointAgent"
+          "$ref": "#/$defs/ListAgentPlugins"
         },
         {
-          "$ref": "#/$defs/PointCatalog"
+          "$ref": "#/$defs/InstallAgentPlugin"
+        },
+        {
+          "$ref": "#/$defs/EnableAgentPlugin"
+        },
+        {
+          "$ref": "#/$defs/AgentRunCommand"
+        },
+        {
+          "$ref": "#/$defs/AgentCatalogCommand"
+        },
+        {
+          "$ref": "#/$defs/PrepareApp"
         },
         {
           "$ref": "#/$defs/EnableApp"
@@ -713,6 +1726,9 @@
         },
         {
           "$ref": "#/$defs/ResolveApp"
+        },
+        {
+          "$ref": "#/$defs/ProjectResourcesApp"
         },
         {
           "$ref": "#/$defs/AgentApp"
@@ -780,6 +1796,84 @@
       ],
       "additionalProperties": false
     },
+    "AppSdkContext": {
+      "title": "AppSdkContext",
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "version": {
+          "type": "string"
+        },
+        "permissions": {
+          "$ref": "#/$defs/AppSdkPermissions"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "permissions"
+      ],
+      "additionalProperties": false
+    },
+    "AppSdkPermissions": {
+      "title": "AppSdkPermissions",
+      "type": "object",
+      "properties": {
+        "api": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "host": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "api",
+        "events",
+        "host"
+      ],
+      "additionalProperties": false
+    },
+    "AppSdkRequest": {
+      "title": "AppSdkRequest",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "sdkcontext"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "AppsErrorEvent": {
       "title": "AppsErrorEvent",
       "type": "object",
@@ -830,8 +1924,8 @@
         "prompt": {
           "type": "string"
         },
-        "point": {
-          "$ref": "#/$defs/PointBinding"
+        "run": {
+          "$ref": "#/$defs/AgentRunBinding"
         }
       },
       "required": [
@@ -968,19 +2062,28 @@
         "value": {
           "anyOf": [
             {
-              "$ref": "#/$defs/PointRun"
+              "$ref": "#/$defs/AgentPreparedContext"
             },
             {
-              "$ref": "#/$defs/PointTranscript"
+              "$ref": "#/$defs/AgentTerminalList"
             },
             {
-              "$ref": "#/$defs/PointLookupReply"
+              "$ref": "#/$defs/AppSdkContext"
             },
             {
-              "$ref": "#/$defs/PointOpenReply"
+              "$ref": "#/$defs/AgentRun"
             },
             {
-              "$ref": "#/$defs/PointCatalogReply"
+              "$ref": "#/$defs/AgentRunTranscript"
+            },
+            {
+              "$ref": "#/$defs/AgentRunLookupReply"
+            },
+            {
+              "$ref": "#/$defs/AgentRunOpenReply"
+            },
+            {
+              "$ref": "#/$defs/AgentCatalogReply"
             },
             {
               "$ref": "#/$defs/AutomationApiReply"
@@ -992,7 +2095,19 @@
               }
             },
             {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AgentPluginSummary"
+              }
+            },
+            {
+              "$ref": "#/$defs/AgentPluginSummary"
+            },
+            {
               "$ref": "#/$defs/AppAccess"
+            },
+            {
+              "$ref": "#/$defs/ProjectResourceCatalog"
             },
             {
               "$ref": "#/$defs/AppAgentInfo"
@@ -4679,6 +5794,37 @@
       "additionalProperties": false,
       "description": "Bootstrap transport probe."
     },
+    "EnableAgentPlugin": {
+      "title": "EnableAgentPlugin",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "pluginenable"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "enabled",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "EnableApp": {
       "title": "EnableApp",
       "type": "object",
@@ -5324,6 +6470,9 @@
           "$ref": "#/$defs/AppsCatalogEvent"
         },
         {
+          "$ref": "#/$defs/ProjectResourcesEvent"
+        },
+        {
           "$ref": "#/$defs/AppsErrorEvent"
         },
         {
@@ -5825,6 +6974,33 @@
       "additionalProperties": false,
       "description": "Derived session analysis. Not written into the session journal."
     },
+    "InstallAgentPlugin": {
+      "title": "InstallAgentPlugin",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "plugininstall"
+        },
+        "path": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "path",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "InstallApp": {
       "title": "InstallApp",
       "type": "object",
@@ -5900,6 +7076,29 @@
           "default": 260
         }
       },
+      "additionalProperties": false
+    },
+    "ListAgentPlugins": {
+      "title": "ListAgentPlugins",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "pluginlist"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "method",
+        "id"
+      ],
       "additionalProperties": false
     },
     "ListAgentsCommand": {
@@ -7510,19 +8709,16 @@
       ],
       "additionalProperties": false
     },
-    "PointAgent": {
-      "title": "PointAgent",
+    "PrepareApp": {
+      "title": "PrepareApp",
       "type": "object",
       "properties": {
         "action": {
           "type": "string",
-          "const": "pointagent"
+          "const": "prepare"
         },
         "name": {
           "$ref": "#/$defs/AppName"
-        },
-        "request": {
-          "$ref": "#/$defs/PointAgentRequest"
         },
         "method": {
           "type": "string",
@@ -7535,708 +8731,8 @@
       "required": [
         "action",
         "name",
-        "request",
         "method",
         "id"
-      ],
-      "additionalProperties": false
-    },
-    "PointAgentRequest": {
-      "title": "PointAgentRequest",
-      "oneOf": [
-        {
-          "$ref": "#/$defs/PointStart"
-        },
-        {
-          "$ref": "#/$defs/PointLookup"
-        },
-        {
-          "$ref": "#/$defs/PointStatus"
-        },
-        {
-          "$ref": "#/$defs/PointEvents"
-        },
-        {
-          "$ref": "#/$defs/PointCancel"
-        },
-        {
-          "$ref": "#/$defs/PointRetry"
-        },
-        {
-          "$ref": "#/$defs/PointOpen"
-        }
-      ]
-    },
-    "PointAttempt": {
-      "title": "PointAttempt",
-      "type": "object",
-      "properties": {
-        "requestId": {
-          "type": "string"
-        },
-        "text": {
-          "type": "string"
-        },
-        "attempt": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 4294967295
-        },
-        "updatedAt": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "requestId",
-        "text",
-        "attempt",
-        "updatedAt"
-      ],
-      "additionalProperties": false
-    },
-    "PointAttemptData": {
-      "title": "PointAttemptData",
-      "type": "object",
-      "properties": {
-        "attempt": {
-          "$ref": "#/$defs/PointAttempt"
-        },
-        "pointTime": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "attempt"
-      ],
-      "additionalProperties": false
-    },
-    "PointAttemptEvent": {
-      "title": "PointAttemptEvent",
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "app_agent_attempt"
-        },
-        "version": {
-          "type": "number",
-          "const": 1
-        },
-        "request_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "text": {
-          "type": "string"
-        },
-        "thread_id": {
-          "type": "string"
-        },
-        "data": {
-          "$ref": "#/$defs/PointAttemptData"
-        }
-      },
-      "required": [
-        "kind",
-        "version",
-        "request_id",
-        "text",
-        "thread_id",
-        "data"
-      ],
-      "additionalProperties": false
-    },
-    "PointBinding": {
-      "title": "PointBinding",
-      "type": "object",
-      "properties": {
-        "scope": {
-          "$ref": "#/$defs/PointScope"
-        },
-        "requestId": {
-          "type": "string"
-        },
-        "harnessId": {
-          "type": "string"
-        },
-        "panel": {
-          "type": "string"
-        },
-        "runtimeDigest": {
-          "type": "string"
-        },
-        "appRevision": {
-          "type": "string"
-        },
-        "createdAt": {
-          "type": "string"
-        },
-        "context": {
-          "$ref": "#/$defs/AppDocumentSchema"
-        }
-      },
-      "required": [
-        "scope",
-        "requestId",
-        "harnessId",
-        "panel",
-        "runtimeDigest",
-        "createdAt"
-      ],
-      "additionalProperties": false
-    },
-    "PointCancel": {
-      "title": "PointCancel",
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "cancel"
-        },
-        "scope": {
-          "$ref": "#/$defs/PointScope"
-        },
-        "runId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "operation",
-        "scope",
-        "runId"
-      ],
-      "additionalProperties": false
-    },
-    "PointCancelData": {
-      "title": "PointCancelData",
-      "type": "object",
-      "properties": {
-        "pointTime": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
-    "PointCancelEvent": {
-      "title": "PointCancelEvent",
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "app_agent_cancel"
-        },
-        "version": {
-          "type": "number",
-          "const": 1
-        },
-        "request_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "text": {
-          "type": "string"
-        },
-        "thread_id": {
-          "type": "string"
-        },
-        "data": {
-          "$ref": "#/$defs/PointCancelData"
-        }
-      },
-      "required": [
-        "kind",
-        "version",
-        "request_id",
-        "text",
-        "thread_id",
-        "data"
-      ],
-      "additionalProperties": false
-    },
-    "PointCatalog": {
-      "title": "PointCatalog",
-      "type": "object",
-      "properties": {
-        "action": {
-          "type": "string",
-          "const": "pointcatalog"
-        },
-        "name": {
-          "$ref": "#/$defs/AppName"
-        },
-        "path": {
-          "anyOf": [
-            {
-              "type": "string",
-              "const": "/api/workspaces"
-            },
-            {
-              "type": "string",
-              "const": "/api/harnesses"
-            }
-          ]
-        },
-        "method": {
-          "type": "string",
-          "const": "apps"
-        },
-        "id": {
-          "$ref": "#/$defs/RequestId"
-        }
-      },
-      "required": [
-        "action",
-        "name",
-        "path",
-        "method",
-        "id"
-      ],
-      "additionalProperties": false
-    },
-    "PointCatalogReply": {
-      "title": "PointCatalogReply",
-      "type": "object",
-      "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/PointWorkspace"
-              },
-              {
-                "$ref": "#/$defs/PointHarness"
-              }
-            ]
-          }
-        }
-      },
-      "required": [
-        "items"
-      ],
-      "additionalProperties": false
-    },
-    "PointEvents": {
-      "title": "PointEvents",
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "events"
-        },
-        "scope": {
-          "$ref": "#/$defs/PointScope"
-        },
-        "runId": {
-          "type": "string"
-        },
-        "after": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "operation",
-        "scope",
-        "runId"
-      ],
-      "additionalProperties": false
-    },
-    "PointHarness": {
-      "title": "PointHarness",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "available": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "available"
-      ],
-      "additionalProperties": false
-    },
-    "PointLookup": {
-      "title": "PointLookup",
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "lookup"
-        },
-        "scope": {
-          "$ref": "#/$defs/PointScope"
-        },
-        "requestId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "operation",
-        "scope",
-        "requestId"
-      ],
-      "additionalProperties": false
-    },
-    "PointLookupReply": {
-      "title": "PointLookupReply",
-      "type": "object",
-      "properties": {
-        "requestId": {
-          "type": "string"
-        },
-        "run": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/PointRun"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "required": [
-        "requestId",
-        "run"
-      ],
-      "additionalProperties": false
-    },
-    "PointOpen": {
-      "title": "PointOpen",
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "open"
-        },
-        "sessionId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "operation",
-        "sessionId"
-      ],
-      "additionalProperties": false
-    },
-    "PointOpenReply": {
-      "title": "PointOpenReply",
-      "type": "object",
-      "properties": {
-        "sessionId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "sessionId"
-      ],
-      "additionalProperties": false
-    },
-    "PointProjectedEvent": {
-      "title": "PointProjectedEvent",
-      "type": "object",
-      "properties": {
-        "seq": {
-          "type": "string"
-        },
-        "type": {
-          "type": "string"
-        },
-        "data": {}
-      },
-      "required": [
-        "seq",
-        "type",
-        "data"
-      ],
-      "additionalProperties": false
-    },
-    "PointRetry": {
-      "title": "PointRetry",
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "retry"
-        },
-        "scope": {
-          "$ref": "#/$defs/PointScope"
-        },
-        "runId": {
-          "type": "string"
-        },
-        "requestId": {
-          "type": "string"
-        },
-        "text": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "operation",
-        "scope",
-        "runId",
-        "requestId"
-      ],
-      "additionalProperties": false
-    },
-    "PointRun": {
-      "title": "PointRun",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "sessionId": {
-          "type": "string"
-        },
-        "scope": {
-          "$ref": "#/$defs/PointScope"
-        },
-        "status": {
-          "anyOf": [
-            {
-              "type": "string",
-              "const": "running"
-            },
-            {
-              "type": "string",
-              "const": "needs_input"
-            },
-            {
-              "type": "string",
-              "const": "cancelling"
-            },
-            {
-              "type": "string",
-              "const": "completed"
-            },
-            {
-              "type": "string",
-              "const": "failed"
-            },
-            {
-              "type": "string",
-              "const": "cancelled"
-            },
-            {
-              "type": "string",
-              "const": "interrupted"
-            }
-          ]
-        },
-        "attempt": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 4294967295
-        },
-        "requestId": {
-          "type": "string"
-        },
-        "updatedAt": {
-          "type": "string"
-        },
-        "error": {
-          "type": "string"
-        },
-        "stopReason": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "sessionId",
-        "scope",
-        "status",
-        "attempt",
-        "requestId",
-        "updatedAt"
-      ],
-      "additionalProperties": false
-    },
-    "PointScope": {
-      "title": "PointScope",
-      "type": "object",
-      "properties": {
-        "workspaceId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "workspaceId"
-      ],
-      "additionalProperties": false
-    },
-    "PointSessionOpenData": {
-      "title": "PointSessionOpenData",
-      "type": "object",
-      "properties": {
-        "scope": {
-          "$ref": "#/$defs/AppChatScope"
-        },
-        "sessionId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "scope",
-        "sessionId"
-      ],
-      "additionalProperties": false
-    },
-    "PointSessionOpenEvent": {
-      "title": "PointSessionOpenEvent",
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "point_app_session_open"
-        },
-        "version": {
-          "type": "number",
-          "const": 1
-        },
-        "request_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "text": {
-          "type": "string"
-        },
-        "data": {
-          "$ref": "#/$defs/PointSessionOpenData"
-        }
-      },
-      "required": [
-        "kind",
-        "version",
-        "request_id",
-        "text",
-        "data"
-      ],
-      "additionalProperties": false
-    },
-    "PointStart": {
-      "title": "PointStart",
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "start"
-        },
-        "scope": {
-          "$ref": "#/$defs/PointScope"
-        },
-        "requestId": {
-          "type": "string"
-        },
-        "text": {
-          "type": "string"
-        },
-        "harnessId": {
-          "type": "string"
-        },
-        "context": {
-          "$ref": "#/$defs/AppDocumentSchema"
-        }
-      },
-      "required": [
-        "operation",
-        "scope",
-        "requestId",
-        "text"
-      ],
-      "additionalProperties": false
-    },
-    "PointStatus": {
-      "title": "PointStatus",
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "status"
-        },
-        "scope": {
-          "$ref": "#/$defs/PointScope"
-        },
-        "runId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "operation",
-        "scope",
-        "runId"
-      ],
-      "additionalProperties": false
-    },
-    "PointTranscript": {
-      "title": "PointTranscript",
-      "type": "object",
-      "properties": {
-        "run": {
-          "$ref": "#/$defs/PointRun"
-        },
-        "events": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/PointProjectedEvent"
-          }
-        },
-        "cursor": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "run",
-        "events",
-        "cursor"
-      ],
-      "additionalProperties": false
-    },
-    "PointWorkspace": {
-      "title": "PointWorkspace",
-      "type": "object",
-      "properties": {
-        "workspaceId": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "workspaceId",
-        "title",
-        "path"
       ],
       "additionalProperties": false
     },
@@ -8257,6 +8753,221 @@
       "required": [
         "workspace",
         "project_id"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectResourceCatalog": {
+      "title": "ProjectResourceCatalog",
+      "type": "object",
+      "properties": {
+        "app": {
+          "type": "string"
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProjectResourceSummary"
+          }
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "app",
+        "resources"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectResourceRef": {
+      "title": "ProjectResourceRef",
+      "type": "object",
+      "properties": {
+        "app": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "paper-agent"
+            },
+            {
+              "type": "string",
+              "const": "control-lab"
+            },
+            {
+              "type": "string",
+              "const": "lab"
+            }
+          ]
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "paper"
+            },
+            {
+              "type": "string",
+              "const": "study"
+            },
+            {
+              "type": "string",
+              "const": "experiment"
+            }
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "app",
+        "kind",
+        "id",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectResourceReference": {
+      "title": "ProjectResourceReference",
+      "type": "object",
+      "properties": {
+        "app": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "app",
+        "kind",
+        "id",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "description": "An App catalog observation; revisions do not claim complete experimental provenance."
+    },
+    "ProjectResourcesApp": {
+      "title": "ProjectResourcesApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "projectresources"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectResourcesEvent": {
+      "title": "ProjectResourcesEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "project_resources"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ProjectResourceCatalog"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectResourceSummary": {
+      "title": "ProjectResourceSummary",
+      "type": "object",
+      "properties": {
+        "reference": {
+          "$ref": "#/$defs/ProjectResourceReference"
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "verification": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "location": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reference",
+        "title",
+        "summary",
+        "status",
+        "location"
       ],
       "additionalProperties": false
     },
@@ -9063,6 +9774,51 @@
       "pattern": "^[a-f0-9]{64}$",
       "description": "Paper may request only saved research identities; Host owns the fixed Data target."
     },
+    "ResearchProject": {
+      "title": "ResearchProject",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "goal": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "workspace": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProjectResourceRef"
+          },
+          "maxItems": 256
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "goal",
+        "workspace",
+        "resources"
+      ],
+      "additionalProperties": false
+    },
     "ResetWorkspaceSession": {
       "title": "ResetWorkspaceSession",
       "type": "object",
@@ -9768,6 +10524,15 @@
         },
         "appBinding": {
           "$ref": "#/$defs/AppSessionBinding"
+        },
+        "appPlugin": {
+          "$ref": "#/$defs/AppPluginAssembly"
+        },
+        "agentPlugins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentPluginRevision"
+          }
         }
       },
       "required": [
@@ -10626,13 +11391,13 @@
           "$ref": "#/$defs/TurnStartedEvent"
         },
         {
-          "$ref": "#/$defs/PointSessionOpenEvent"
+          "$ref": "#/$defs/AppAgentSessionOpenEvent"
         },
         {
-          "$ref": "#/$defs/PointAttemptEvent"
+          "$ref": "#/$defs/AppAgentAttemptEvent"
         },
         {
-          "$ref": "#/$defs/PointCancelEvent"
+          "$ref": "#/$defs/AppAgentCancelEvent"
         },
         {
           "$ref": "#/$defs/SessionCreatedEvent"
@@ -11552,6 +12317,13 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/ProjectBinding"
+          },
+          "maxItems": 128
+        },
+        "research_projects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResearchProject"
           },
           "maxItems": 128
         },

@@ -159,3 +159,41 @@ test('App bridge accepts only its parent and returns structured results and refu
   assert.equal(replies.at(-1).reply.type, 'pero:app-use:human-input');
   stop(); assert.equal(listeners.size, 0);
 });
+
+test('mention search is explicit, bounded, revision-bound and cancellable', async () => {
+  const surface = new AppSurface( 'cobol-modernization');
+  let complete!: (value: any) => void;
+  const pending = new Promise<any>(resolve => { complete = resolve; });
+  const handle = surface.register({ id: 'source', kind: 'source', state: { snapshotId: 'old' }, mentions: () => pending });
+  const signal = new AbortController().signal;
+  const search = surface.searchMentions('PAY', signal);
+  handle.update({ id: 'source', kind: 'source', state: { snapshotId: 'new' }, mentions: async () => [{ label: 'PAY', selection: { snapshotId: 'new' } }] });
+  complete([{ label: 'OLD', selection: { snapshotId: 'old' } }]);
+  assert.deepEqual(await search, [], 'late results cannot cross a snapshot change');
+  assert.deepEqual(await surface.searchMentions('PAY', signal), [{ label: 'PAY', selection: { snapshotId: 'new' }, objectId: 'source', revision: 2 }]);
+  await assert.rejects(surface.searchMentions('', AbortSignal.abort()), { name: 'AbortError' });
+  handle.update({ id: 'source', kind: 'source', mentions: async () => Array(41).fill({ label: 'PAY', selection: {} }) });
+  await assert.rejects(surface.searchMentions('', signal), /40 results/);
+  handle.update({ id: 'source', kind: 'source', mentions: async () => [{ label: 'PAY', selection: { huge: 'x'.repeat(4096) } }] });
+  await assert.rejects(surface.searchMentions('', signal), /exceeds/);
+  surface.dispose();
+  assert.deepEqual(await surface.searchMentions('', signal), []);
+});
+
+
+test('surface subscriptions and handles retain their registered identity', () => {
+  const surface = new AppSurface();
+  const seen: number[] = [];
+  surface.subscribe(() => { throw new Error('Broken observer'); });
+  surface.subscribe(revision => { seen.push(revision); });
+  const declaration = object({value:1});
+  const handle = surface.register(declaration);
+  declaration.id = 'changed-by-caller';
+  handle.update(object({value:2}));
+  assert.equal(surface.snapshot().objects[0].id,'lab');
+  handle.dispose();
+  assert.deepEqual(surface.snapshot().objects,[]);
+  assert.deepEqual(seen,[1,2,3]);
+  for (const declaration of [null, [], {...object({}),actions:[]}, {...object({}),actions:null}])
+    assert.throws(() => surface.register(declaration as unknown as AppObject),code('APP_OBJECT_INVALID'));
+});

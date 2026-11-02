@@ -44,7 +44,7 @@ pub(crate) fn window_titlebar(
             .flex()
             .items_center()
             .bg(p.surface_muted)
-            .border_b_1()
+            .border_b(px(0.5))
             .border_color(p.border),
         dragging,
         window,
@@ -60,7 +60,7 @@ pub(crate) fn window_titlebar(
             .justify_end()
             .pl(px(sidebar::traffic_inset(window)))
             .pr(px(8.))
-            .border_r_1()
+            .border_r(px(0.5))
             .border_color(p.border)
             .child(
                 keep_click(div()).child(

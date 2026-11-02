@@ -47,6 +47,10 @@ pub struct AppPanel {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AppPermissions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub events: Vec<String>,
     #[serde(default)]
     pub host: Vec<String>,
 }
@@ -66,6 +70,8 @@ pub struct AppContributions {
     pub panels: Vec<AppPanel>,
     #[serde(default,skip_serializing_if="Vec::is_empty")]
     pub writes: Vec<AppWriteRoute>,
+    #[serde(default, rename = "agentPlugin", skip_serializing_if = "Option::is_none")]
+    pub agent_plugin: Option<super::agent_plugin::AppAgentPlugin>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -122,6 +128,8 @@ pub struct AppDefinition {
     pub contributes: AppContributions,
     #[serde(default)]
     pub permissions: AppPermissions,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requires_agent_plugins: Vec<AppName>,
     pub backend: Option<AppBackend>,
 }
 
@@ -131,6 +139,7 @@ pub struct AppDefinition {
 pub struct AppSummary {
     pub name: AppName,
     pub version: String,
+    pub revision: String,
     pub display_name: String,
     pub description: String,
     pub enabled: bool,
@@ -153,7 +162,7 @@ impl AppDefinition {
         if bytes.len() > 64 * 1024 {
             return Err("App manifest exceeds 64 KiB".into());
         }
-        let value: Self = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+        let mut value: Self = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
         if value.schema_version != 1 {
             return Err("Unsupported App schemaVersion; expected 1".into());
         }
@@ -167,11 +176,19 @@ impl AppDefinition {
         }
         let mut seen = std::collections::BTreeSet::new();
         for grant in &value.permissions.host {
-            if !matches!(grant.as_str(), "agent" | "insights" | "connectors" | "automation" | "research-assets") || !seen.insert(grant.as_str()) {
+            if !matches!(grant.as_str(), "agent" | "agent-plugin" | "insights" | "connectors" | "automation" | "research-assets") || !seen.insert(grant.as_str()) {
                 return Err(
-                    "This Host supports only the App agent, insights, connectors, automation and research-assets permissions".into(),
+                    "This Host supports only the App agent, agent-plugin, insights, connectors, automation and research-assets permissions".into(),
                 );
             }
+        }
+        if let Some(paths) = &value.permissions.api {
+            if paths.len() > 64 || paths.iter().any(|path| !path.starts_with("/api") || (path != "/api" && !path.starts_with("/api/")) || path.contains(['?', '#', '\\']) || !relative_entry(&path[1..])) {
+                return Err("App API permissions require at most 64 local /api prefixes".into());
+            }
+        }
+        if value.permissions.events.len() > 64 || value.permissions.events.iter().any(|event| event.is_empty() || event.len() > 128 || !event.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"_.:-*".contains(&byte))) {
+            return Err("App event permissions require at most 64 named events".into());
         }
         if value.contributes.panels.is_empty() || value.contributes.panels.len() > 8 {
             return Err("This Host supports one to eight App panels".into());
@@ -208,6 +225,7 @@ impl AppDefinition {
                 );
             }
         }
+        value.validate_agent_plugin()?;
         Ok(value)
     }
 
@@ -215,6 +233,7 @@ impl AppDefinition {
         AppSummary {
             name: self.name.clone(),
             version: self.version.clone(),
+            revision: self.revision(),
             display_name: self.display_name.clone(),
             description: self.description.clone(),
             enabled,
@@ -257,6 +276,11 @@ mod tests {
             ("name", serde_json::json!("../escape"), false),
             ("name", serde_json::json!("-cell"), false),
             ("displayName", serde_json::json!(" "), false),
+            ("permissions", serde_json::json!({"api":["/api/data"],"events":["app:written"]}), true),
+            ("permissions", serde_json::json!({"api":["https://example.invalid/api"]}), false),
+            ("permissions", serde_json::json!({"api":["/api/../private"]}), false),
+            ("permissions", serde_json::json!({"api":["/api/data?token=x"]}), false),
+            ("permissions", serde_json::json!({"events":[""]}), false),
             ("permissions", serde_json::json!({"host":["shell"]}), false),
             ("permissions", serde_json::json!({"host":["agent"]}), true),
             ("permissions", serde_json::json!({"host":["insights"]}), true),

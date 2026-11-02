@@ -1,3 +1,4 @@
+import { appSdkAliases } from './app-sdk.mjs';
 // Repository-owned App, built only from pinned public dependencies.
 import { build } from 'esbuild';
 import { cp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
@@ -16,7 +17,7 @@ export async function buildScientificViewer({ outdir = resolve(root, 'apps/scien
   await rm(dist, { recursive: true, force: true });
   await mkdir(dist, { recursive: true });
   await build({ entryPoints: [resolve(app, 'ui-src/frame.tsx')], outfile: resolve(dist, 'index.js'), bundle: true, format: 'esm', platform: 'browser', target: 'chrome140', jsx: 'automatic', minify: true,
-    alias: { react: resolve(modules, 'react'), 'react-dom': resolve(modules, 'react-dom'), '@pero/app-sdk': resolve(root, 'packages/app-sdk/src/index.tsx') }, nodePaths: [modules], loader: { '.wasm': 'file' } });
+    alias: { react: resolve(modules, 'react'), 'react-dom': resolve(modules, 'react-dom'), ...appSdkAliases(root) }, nodePaths: [modules], loader: { '.wasm': 'file', '.woff2':'file', '.woff':'file', '.ttf':'file' } });
   for (const [source, target] of [
     ['molstar/build/viewer/molstar.css', 'molstar.css'],
     ['pdfjs-dist/build/pdf.worker.mjs', 'pdf.worker.mjs'], ['pdfjs-dist/standard_fonts', 'pdfjs-fonts'], ['pdfjs-dist/cmaps', 'pdfjs-cmaps'], ['pdfjs-dist/wasm', 'pdfjs-wasm'],

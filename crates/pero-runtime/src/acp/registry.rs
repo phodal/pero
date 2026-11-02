@@ -7,6 +7,9 @@ use std::{
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
+    /// Host-frozen App/plugin instructions; never read from the Agent registry.
+    #[serde(skip)]
+    pub session_instructions: String,
     /// Frozen local managed configuration; not accepted from Agent registry JSON.
     #[serde(skip)]
     pub managed_mcp: Option<pero_contracts::mcp::McpConfiguration>,
@@ -98,6 +101,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
     };
     let mut agents = vec![
         AgentConfig {
+            session_instructions: String::new(),
             managed_mcp: None,
             id: "pero".into(),
             name: "Pero (DeepSeek)".into(),
@@ -122,6 +126,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
         AgentConfig {
+            session_instructions: String::new(),
             managed_mcp: None,
             id: "codex".into(),
             name: "Codex".into(),
@@ -135,6 +140,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
         AgentConfig {
+            session_instructions: String::new(),
             managed_mcp: None,
             id: "claude".into(),
             name: "Claude".into(),
@@ -148,6 +154,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
         AgentConfig {
+            session_instructions: String::new(),
             managed_mcp: None,
             id: "copilot".into(),
             name: "GitHub Copilot".into(),
@@ -158,6 +165,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
         AgentConfig {
+            session_instructions: String::new(),
             managed_mcp: None,
             id: "grok".into(),
             name: "Grok".into(),
@@ -168,6 +176,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
         AgentConfig {
+            session_instructions: String::new(),
             managed_mcp: None,
             id: "qoder".into(),
             name: "Qoder".into(),
@@ -178,6 +187,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             mcp_servers: vec![],
         },
         AgentConfig {
+            session_instructions: String::new(),
             managed_mcp: None,
             id: "opencode".into(),
             name: "OpenCode".into(),
@@ -362,6 +372,7 @@ mod tests {
 
     fn agent(args: &[&str], env: &[(&str, &str)]) -> AgentConfig {
         AgentConfig {
+            session_instructions: String::new(),
             managed_mcp: None,
             id: "pero".into(),
             name: "Pero".into(),

@@ -8,12 +8,13 @@ import { tmpdir } from 'node:os';
 import { openHost, root, skillName } from '../research-import/host-harness.mjs';
 import { scrubTree } from '../research-import/cleanup.mjs';
 import { CampaignLedger } from './ledger.mjs';
+import { providerEvaluationPlan } from './plan.mjs';
 import { startFixtureProvider } from './fixture-provider.mjs';
 import { assess, referenceBoundary } from './assess.mjs';
 import { scenes, prompts, publicSourceTools } from './scenarios.mjs';
 
-const [mode, scene, agentArg] = process.argv.slice(2);
-assert(['--fixture', '--real'].includes(mode) && scenes[scene], 'Use --fixture|--real source|vision|nonstandard|nonstandard-read|public-results /absolute/pero-agent-acp');
+const [mode, scene, agentArg, planPath] = process.argv.slice(2);
+assert(['--fixture', '--real'].includes(mode) && scenes[scene], 'Use --fixture|--real <known scene> /absolute/pero-agent-acp [absolute new plan JSON; real only]');
 assert(agentArg?.startsWith('/'), 'Explicit absolute Go executable required');
 assert.equal(process.platform, 'linux', 'Owned-descendant verification requires Linux /proc');
 const real = mode === '--real', agent = resolve(agentArg);
@@ -25,6 +26,10 @@ const recordedSourceArchive = process.env.PAPER_STUDY_SOURCE_ARCHIVE;
 assert(!scenes[scene].publicRecording || (recordedSourceArchive && isAbsolute(recordedSourceArchive)),
   'Set PAPER_STUDY_SOURCE_ARCHIVE to an absolute authorized archive file');
 assert.equal(execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).trim(), '', 'Freeze committed source before recording trajectories');
+const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+assert(!real || (planPath && isAbsolute(planPath)), 'Real mode requires an absolute new plan JSON path before credential input');
+assert(real || !planPath, 'Fixture mode does not consume provider plans');
+const plan = real ? providerEvaluationPlan(JSON.parse(await readFile(planPath, 'utf8')), scene, sourceCommit) : null;
 const evidenceRoot = resolve(root, 'test-results/paper-study-harness');
 await mkdir(evidenceRoot, { recursive: true, mode: 0o700 });
 async function stdinCredential() {
@@ -36,7 +41,7 @@ async function stdinCredential() {
 let credential = real ? await stdinCredential() : 'local-paper-study-fixture';
 const scrub = value => String(value).split(credential).join('[REDACTED]');
 // Third-party originals and raw source/image sessions must never enter CI artifacts.
-const privateRoot = scenes[scene].publicRecording
+const privateRoot = real || scenes[scene].publicRecording
   ? configuredPrivateRoot || await mkdtemp(resolve(tmpdir(), 'pero-paper-study-private-'))
   : evidenceRoot;
 await mkdir(privateRoot, { recursive: true, mode: 0o700 });
@@ -48,10 +53,12 @@ const identity = { sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cw
   agentSHA256: await hash(agent), hostSHA256: await hash(resolve(root, 'target/debug/pero-host')),
   skillDigest: 'sha256:' + await hash(resolve(root, 'apps/paper-agent/skills', skillName, 'SKILL.md')) };
 const result = { scene, ...identity, startedAt: new Date().toISOString(),
-  inference: real ? 'real DeepSeek deepseek-flash' : 'scripted loopback provider', network: scenes[scene].publicRecording
+  inference: real ? `real provider ${plan.model}` : 'scripted loopback provider',
+  provider: plan ? { endpoint: plan.endpoint, model: plan.model, authorizationReference: plan.authorizationReference, planDigest: plan.digest } : null, network: scenes[scene].publicRecording
     ? 'authentic public source bytes / recorded transport; NOT live product public networking'
     : 'synthetic metadata/source/PDF transport; actual production domain and parser',
-  limits: { maxCampaignSessions: null, localRequestCap: null, localOutputTokenCap: null, perTurnWallTimeMs: 120000,
+  limits: { maxCampaignSessions: plan?.limits.maxSessions ?? null, localRequestCap: plan?.limits.maxRequests ?? null,
+    localOutputTokenCap: plan?.limits.maxTokens ?? null, perTurnWallTimeMs: plan?.limits.perTurnWallTimeMs ?? 120000,
     existingHarnessStepGuard: 512, nativeExecutionTools: false, imageInput: scenes[scene].vision === true },
   passScope: 'Automated action/permission/persistence/Skill checks only; semantic source/visual interpretation requires separate manual assessment' };
 let ledger, provider, host, thread, failure, interrupted = false;
@@ -70,12 +77,15 @@ async function prepareApp(name, source) {
   return { type: 'python', entry: 'backend/server.py' };
 }
 try {
-  if (real) { ledger = await CampaignLedger.acquire(resolve(evidenceRoot, 'provider-ledger.json'), scrub); await ledger.reserve(scene, directory, result.startedAt); }
-  else provider = await startFixtureProvider(scene, identity.skillDigest);
-  host = await openHost({ directory, agent, endpoint: real ? 'https://api.deepseek.com/v1' : provider.endpoint,
-    model: real ? 'deepseek-flash' : 'fixture', credential, audit, useEnvironmentProxy: real, prepareApp,
+  if (real) { ledger = await CampaignLedger.acquire(resolve(evidenceRoot, `provider-ledger-${plan.authorizationReference}.json`), plan, scrub); await ledger.reserve(scene, directory, result.startedAt); }
+  else {
+    const skillText = await readFile(resolve(root, 'apps/paper-agent/skills', skillName, 'SKILL.md'), 'utf8');
+    provider = await startFixtureProvider(scene, identity.skillDigest, skillText.replace(/^---\n[\s\S]*?\n---\n/, '').trim());
+  }
+  host = await openHost({ directory, agent, endpoint: real ? plan.endpoint : provider.endpoint,
+    model: real ? plan.model : 'fixture', credential, audit, useEnvironmentProxy: real, prepareApp,
     allowedPaperTools: scenes[scene].publicRecording ? publicSourceTools : undefined,
-    pythonEnvironment, imageInput: scenes[scene].vision === true });
+    pythonEnvironment, providerBudget: plan?.limits, imageInput: scenes[scene].vision === true });
   if (interrupted) throw new Error('Cancelled during startup');
   thread = await host.start();
   const turns = prompts(scene); result.prompts = turns; result.turns = [];
@@ -84,7 +94,7 @@ try {
     await host.prompt(thread, prompt, result.limits.perTurnWallTimeMs);
     result.turns.push({ index, wallTimeMs: Date.now() - startedAt });
     if (interrupted) throw new Error('Cancelled during model turn');
-    if (index === 0) result.referenceBoundary = await referenceBoundary(host, directory);
+    if (index === 0) result.referenceBoundary = await referenceBoundary(host, directory, { inspectOnly: scenes[scene].inspectOnly });
   }
   Object.assign(result, await assess({ host, scene, directory, digest: identity.skillDigest, credential }));
   if (result.automatedFailure) throw new Error(result.automatedFailure);

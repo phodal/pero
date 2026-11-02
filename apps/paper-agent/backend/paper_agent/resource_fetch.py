@@ -1,14 +1,17 @@
-"""Bounded HTTPS metadata transport with public-address pinning and no proxy."""
+"""Bounded HTTPS transport; official arXiv endpoints can use the system proxy."""
 from dataclasses import dataclass
 from http.client import HTTPSConnection, HTTPException
 import ipaddress
+import re
 import socket
 import ssl
 import time
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import parse_qs, urljoin, urlsplit
+from urllib.request import getproxies
 
 from .model import Invalid
 from .research_resources import PublicURL
+from .literature import ARXIV
 
 MAX_BYTES = 1024 * 1024
 
@@ -33,6 +36,29 @@ class SourceResponse:
     mime: str
 
 
+@dataclass(frozen=True)
+class OfficialArxivEndpoint:
+    host: str
+    target: str
+
+    @classmethod
+    def from_url(cls, url):
+        parts = urlsplit(url)
+        if parts.scheme != 'https' or parts.netloc not in ('arxiv.org', 'www.arxiv.org', 'export.arxiv.org') or parts.fragment:
+            return None
+        if parts.path == '/api/query':
+            query = parse_qs(parts.query)
+            if set(query) == {'id_list'} and len(query['id_list']) == 1 and ARXIV.fullmatch(query['id_list'][0]):
+                return cls(parts.hostname, parts.path + '?' + parts.query)
+            return None
+        match = re.fullmatch(r'/(abs|pdf|html|src|e-print)/(.+?)(?:\.pdf)?', parts.path)
+        if not parts.query and match and ARXIV.fullmatch(match[2]):
+            if match[1] in ('html', 'src', 'e-print') and not re.search(r'v[1-9]\d*$', match[2]):
+                return None
+            return cls(parts.hostname, parts.path)
+        return None
+
+
 class PinnedHTTPS(HTTPSConnection):
     def __init__(self, host, address, timeout):
         super().__init__(host, timeout=timeout, context=ssl.create_default_context())
@@ -48,8 +74,10 @@ class PinnedHTTPS(HTTPSConnection):
 
 
 class PublicMetadata:
-    def __init__(self, resolve=socket.getaddrinfo, connection=PinnedHTTPS, clock=time.monotonic):
-        self.resolve, self.connection, self.clock = resolve, connection, clock
+    def __init__(self, resolve=socket.getaddrinfo, connection=None, clock=time.monotonic):
+        self.resolve, self.connection, self.clock = resolve, connection or PinnedHTTPS, clock
+        # An injected connection owns all networking, including offline fixtures.
+        self.system_proxy = connection is None
 
     def fetch(self, url, *, timeout=6, limit=MAX_BYTES):
         result = self._fetch(url, timeout=timeout, limit=limit, pdf=False)
@@ -79,15 +107,24 @@ class PublicMetadata:
             url = PublicURL.parse(url).value
             parts = urlsplit(url)
             try:
-                addresses = tuple(dict.fromkeys(item[4][0] for item in self.resolve(parts.hostname, 443, type=socket.SOCK_STREAM)))
-                if not addresses or any(not ipaddress.ip_address(address).is_global or ipaddress.ip_address(address).is_multicast for address in addresses):
-                    raise Invalid('Private or non-public network addresses are refused')
                 remaining = deadline - self.clock()
                 if remaining <= 0:
                     raise Invalid('Metadata request timed out')
-                connection = self.connection(parts.hostname, addresses[0], remaining)
+                endpoint = OfficialArxivEndpoint.from_url(url)
+                proxy = getproxies().get('https') if self.system_proxy and endpoint else None
+                if proxy:
+                    configured = urlsplit(proxy if '://' in proxy else 'http://' + proxy)
+                    if configured.scheme != 'http' or not configured.hostname or configured.username or configured.password:
+                        raise Invalid('Official arXiv requires a configured HTTP CONNECT proxy without embedded credentials')
+                    connection = HTTPSConnection(configured.hostname, configured.port or 80, timeout=remaining, context=ssl.create_default_context())
+                    connection.set_tunnel(endpoint.host, 443)
+                else:
+                    addresses = tuple(dict.fromkeys(item[4][0] for item in self.resolve(parts.hostname, 443, type=socket.SOCK_STREAM)))
+                    if not addresses or any(not ipaddress.ip_address(address).is_global or ipaddress.ip_address(address).is_multicast for address in addresses):
+                        raise Invalid('Private or non-public network addresses are refused')
+                    connection = self.connection(parts.hostname, addresses[0], remaining)
                 try:
-                    connection.request('GET', parts.path + ('?' + parts.query if parts.query else ''), headers={
+                    connection.request('GET', endpoint.target if proxy else parts.path + ('?' + parts.query if parts.query else ''), headers={
                         'User-Agent': 'Pero-Research-Import/0.1', 'Accept': 'application/pdf' if pdf else 'text/html,application/json,text/plain,application/xml',
                         'Accept-Encoding': 'identity'})
                     response = connection.getresponse()

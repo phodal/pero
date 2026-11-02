@@ -49,3 +49,34 @@ Provider requests and domain App computations were not exercised by this check.
 Release CI adds an independent macOS Native job and retains publication only
 after every product succeeds. The release tag for this change is
 `v0.1.0-dev.20261102`. This record does not claim cross-platform acceptance.
+
+## First tagged run and follow-up
+
+[Run 41404974937](https://github.com/phodal/pero/actions/runs/41404974937)
+passed the Native package build, verification and actual installed launch check.
+Publication was correctly withheld because other products failed:
+
+- Virtual Cell's standalone shell imported `app-examples.ts`, which directly
+  imported the full workbench Wasm even though standalone Products do not build
+  it. The shell must receive the example-state callback from its composition root.
+- Linux Electron reached Host readiness before asynchronous remote preferences
+  arrived. The smoke check read `connection.url` too early; it must wait for the
+  expected URL rather than only Host readiness.
+- macOS Electron hit `hdiutil create: Resource busy`; no package was accepted.
+  Both packagers now create HFS+ images without Spotlight indexing and retry
+  only that exact transient failure, at most three attempts. Other failures
+  remain immediate errors; a passing CI rerun is still required.
+- Windows was cancelled; this is not a successful platform verification.
+
+The Native unit suite also exposed `view_bounds` importing GPUI's `test` macro
+through `super::*`. Explicit imports restore the ordinary Rust test attribute;
+all 50 Native library tests pass after that change.
+
+The follow-up candidate will use a new version tag, preserving the original tag.
+
+Follow-up local checks passed: all 50 Native library tests, TypeScript/generated
+checks, standalone browser-shell bundling with Workbench Wasm explicitly denied,
+and the actual Electron release smoke (Host ready, exact default Task Center URL,
+unconfigured credentials, no page errors). The shared HFS+/no-index disk-image
+builder also created the complete Electron image successfully on this Mac.
+These checks do not turn the failed first CI run into a successful publication.

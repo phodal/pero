@@ -6,6 +6,7 @@ export type AppWriteDefinition = Readonly<{
   app: string;
   panel: string;
   version: string;
+  revision?: string;
   method?: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   maxBodyBytes?: number;
   name: string;

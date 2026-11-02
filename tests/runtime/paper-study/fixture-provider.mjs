@@ -25,30 +25,42 @@ function* invoke(name, args, pointer = '', text) {
 }
 const write = function* (name, args, text) { return yield* invoke(alias(name), args, '/result', text); };
 
-function* plan(scene, digest) {
+export function* plan(scene, digest) {
   const spec = scenes[scene];
-  const catalog = yield* invoke('skill', {});
-  assert.equal(catalog.find(item => item.name === skillName)?.digest, digest);
-  const skill = yield* invoke('skill', { name: skillName, digest });
-  assert(skill.content.includes('research-source-read'));
+  if (!spec.explicitSkill) {
+    const catalog = yield* invoke('skill', {});
+    assert.equal(catalog.find(item => item.name === skillName)?.digest, digest);
+    const skill = yield* invoke('skill', { name: skillName, digest });
+    assert(skill.content.includes('research-source-read'));
+  }
   let draft = yield* write('inspect-research-link', { url: spec.seed });
   while (draft.status === 'inspecting') draft = yield* write('inspect-research-link', { draftId: draft.id });
   assert.equal(draft.status, 'ready');
   if (spec.analysis) {
     const context = yield* write('research-analysis', { operation: 'context', draftId: draft.id });
-    const link = context.pages.flatMap(page => page.links).find(link => link.href.includes('/attachments?'));
+    const conservative = scene === 'nonstandard-decline';
+    const link = context.pages.flatMap(page => page.links).find(link => conservative
+      ? link.href.endsWith('/files/methods.tgz') : link.href.includes('/attachments?'));
     assert(link);
     draft = yield* write('research-analysis', { operation: 'propose', draftId: draft.id, draftDigest: context.draftDigest,
-      proposals: [{ evidenceId: link.id, kind: 'source_archive', title: 'Unresolved attachment', reason: 'Observed attachment; format and identity not verified' }] });
+      proposals: [{ evidenceId: link.id, kind: 'source_archive', title: 'Unverified source candidate', reason: 'Observed link; format and identity not verified' }] });
+    if (conservative) assert(!draft.resources.some(resource => resource.originalUrl === 'https://research.example.org/attachments?id=methods'),
+      'Conservative fixture must leave the ambiguous link unclassified');
     const candidate = draft.resources.find(resource => resource.originalUrl === link.href);
     assert.equal(candidate.confidence, 'unresolved'); assert.equal(candidate.workIdentity, null); assert.equal(candidate.revision, null);
   }
   const selection = { draftId: draft.id, resourceIds: draft.resources.map(resource => resource.id) };
   const review = 'Synthetic protocol review (not model inference): ' + JSON.stringify(draft.resources);
-  let bundle = yield* write('commit-research-bundle', selection, review);
-  assert.deepEqual(bundle.sourceDownloadIds, []); assert.deepEqual(bundle.pdfDownloadIds, []);
+  let bundle;
+  if (spec.inspectOnly) {
+    yield { answer: review + ' Inspection only: no bundle saved or downloads authorized.' };
+    if (spec.decline) return 'User declined: no references saved, no grants or file bytes acquired. Identity and version remain unresolved.';
+  } else {
+    bundle = yield* write('commit-research-bundle', selection, review);
+    assert.deepEqual(bundle.sourceDownloadIds, []); assert.deepEqual(bundle.pdfDownloadIds, []);
+  }
   if (!spec.source) return 'Synthetic protocol completed: unresolved observed attachment saved; no download or page-granted authority.';
-  yield { answer: 'Synthetic protocol stopped at references. Exact source/PDF acquisition still requires next user confirmation.' };
+  if (!spec.inspectOnly) yield { answer: 'Synthetic protocol stopped at references. Exact source/PDF acquisition still requires next user confirmation.' };
   const source = draft.resources.find(resource => resource.kind === 'source_archive' && (!spec.sourceURL || resource.originalUrl === spec.sourceURL));
   const pdf = draft.resources.find(resource => resource.kind === 'pdf_candidate');
   bundle = yield* write('commit-research-bundle', { ...selection, sourceIds: [source.id], pdfIds: spec.pdf ? [pdf.id] : [], confirmedDownloads: true });
@@ -90,15 +102,25 @@ function* plan(scene, digest) {
   return 'Synthetic protocol completed source lines, literal PDF comparison and validated PDF passage report; not LLM evidence.';
 }
 
-export async function startFixtureProvider(scene, digest) {
+export function verifyFirstSkillInput(body, skillBody) {
+  assert(typeof skillBody === 'string' && skillBody.length > 0, 'Expected exact installed Skill body');
+  const expected = `<skill_content name="${skillName}">\n${skillBody}\n</skill_content>`;
+  assert(body.messages.some(message => message.role === 'user' &&
+    (typeof message.content === 'string' ? message.content === expected :
+      message.content?.some(block => block.type === 'text' && block.text === expected))),
+    'First provider request must contain actual Go-injected Skill instructions');
+}
+
+export async function startFixtureProvider(scene, digest, skillBody) {
   const iterator = plan(scene, digest), errors = [];
-  let requests = 0, imageRequests = 0;
+  let requests = 0, imageRequests = 0, firstProviderSkillContent = false;
   const server = createServer(async (request, response) => {
     try {
       assert.equal(request.headers.authorization, 'Bearer local-paper-study-fixture');
       assert.equal(request.url, '/v1/chat/completions');
       let raw = ''; for await (const chunk of request) raw += chunk;
       const body = JSON.parse(raw); requests++;
+      if (requests === 1 && scenes[scene].explicitSkill) { verifyFirstSkillInput(body, skillBody); firstProviderSkillContent = true; }
       assert.equal(body.max_tokens, undefined);
       if (scenes[scene].publicRecording) for (const name of ['import-paper', 'prepare-research', 'research-pdf', 'research-assets'])
         assert(!body.tools.some(tool => tool.function.name === alias(name)), 'Public replay must not advertise unrelated access');
@@ -128,5 +150,5 @@ export async function startFixtureProvider(scene, digest) {
   });
   await new Promise(done => server.listen(0, '127.0.0.1', done));
   return { endpoint: `http://127.0.0.1:${server.address().port}/v1`, errors,
-    counts: () => ({ requests, imageRequests }), async close() { server.closeAllConnections(); await new Promise(done => server.close(done)); } };
+    counts: () => ({ requests, imageRequests, firstProviderSkillContent }), async close() { server.closeAllConnections(); await new Promise(done => server.close(done)); } };
 }

@@ -61,6 +61,13 @@ questions in the existing conversation.
    source work/version. Inspect longtable/tabularx,
    caption* and embedded bibitem even without labels. Nearby textbf is context,
    not an inferred caption. Unknown macros remain unresolved; no LaTeX execution.
+   Source/PDF acquisition shares one bounded worker: wait for the source job to
+   settle before starting the separately approved PDF. A busy refusal is not
+   extra authority or a reason to launch an alternate downloader.
+   When image input is disabled or unknown, do not call operation=image. Continue
+   with literal source/caption and PDF-text evidence, explicitly stating that the
+   image was not visually observed; a successful image tool response cannot enable
+   model vision.
    With an image-capable authorized session, use operation=image for an approved
    raster member. Its bounded preview carries original and preview hashes. Keep
    originalWidth/originalHeight, size and sha256 separate from previewWidth/

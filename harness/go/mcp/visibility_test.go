@@ -33,3 +33,21 @@ func TestModelToolVisibility(t *testing.T) {
 	}
 }
 
+func TestExplicitMCPMutationRequiresApproval(t *testing.T) {
+	for _, row := range []struct {
+		name        string
+		annotations *sdk.ToolAnnotations
+		ask         bool
+	}{
+		{"legacy", nil, false}, {"read", &sdk.ToolAnnotations{ReadOnlyHint: true}, false},
+		{"write", &sdk.ToolAnnotations{ReadOnlyHint: false}, true},
+	} {
+		tools, err := buildMCPTools(nil, "fixture", []*sdk.Tool{{Name: row.name, InputSchema: map[string]any{"type": "object"}, Annotations: row.annotations}}, time.Second)
+		if err != nil || len(tools) != 1 {
+			t.Fatalf("%s: %v", row.name, err)
+		}
+		if tools[0].RequiresApproval != row.ask {
+			t.Fatalf("%s: approval=%v", row.name, tools[0].RequiresApproval)
+		}
+	}
+}

@@ -62,9 +62,43 @@ export async function exerciseLocalSearch({ frame, page, app, out }) {
   await search.locator('[data-search-hit]').first().getByRole('button').click();
   await expect(frame.getByRole('heading', { name: 'Synthetic reading · a reproducible citation example', exact: true })).toBeVisible();
   await frame.getByRole('button', { name: 'Back to library', exact: true }).click();
-  await search.getByRole('button', { name: 'Clear search', exact: true }).click();
-  await expect(input).toBeFocused();
-  await expect(frame.locator('.pa-library-list')).toBeVisible();
+  await exerciseSearchKeyboard({ frame, page, out });
+}
+
+export async function exerciseSearchKeyboard({ frame, page, out }) {
+  const search = frame.getByRole('region', { name: 'Search saved text', exact: true });
+  const input = search.getByRole('searchbox', { name: 'Search saved text', exact: true });
+  let requests = 0;
+  const observeSearch = request => { if (request.method() === 'POST' && request.url().endsWith('/api/library/search')) requests++; };
+  page.on('request', observeSearch);
+  try {
+    await input.fill('');
+    await input.fill('source snapshot');
+    await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true });
+    // Flush the key event's render work before asserting that composition sent no request.
+    await input.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    expect(requests).toBe(0);
+    await expect(search.locator('[data-search-hit]')).toHaveCount(0);
+    for (const [index, activation] of ['Enter', 'Space', 'click'].entries()) {
+      await input.fill('source snapshot');
+      await input.press('Enter');
+      await expect(search.locator('[data-search-hit]').first()).toBeVisible();
+      expect(requests).toBe(index + 1);
+      const clear = search.getByRole('button', { name: 'Clear search', exact: true });
+      if (activation === 'click') await clear.click();
+      else {
+        await input.press('Tab');
+        await expect(clear).toBeFocused();
+        await clear.press(activation);
+      }
+      await expect(input).toHaveValue('');
+      await expect(input).toBeFocused();
+      await expect(search.locator('[data-search-hit]')).toHaveCount(0);
+      await expect(frame.locator('.pa-library-list')).toBeVisible();
+      expect(requests).toBe(index + 1);
+      if (activation === 'Enter') await page.screenshot({ path: resolve(out, 'local-search-keyboard-clear.png') });
+    }
+  } finally { page.off('request', observeSearch); }
 }
 
 export async function exercisePdfSearch({ frame, page, out, realPdf }) {
@@ -77,13 +111,13 @@ export async function exercisePdfSearch({ frame, page, out, realPdf }) {
   const targetPage = await hit.getAttribute('data-search-page');
   await hit.getByRole('button').click();
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
-  await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue(targetPage);
+  await expect(frame.locator('.pa-reader-tools').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue(targetPage);
   await expect(viewer.locator(`[data-page-number="${targetPage}"] [data-citation-region="true"]`).first()).toBeVisible();
   await page.screenshot({ path: resolve(out, 'local-search-pdf.png') });
   // A real response is held until after a newer reader input, not delayed by a
   // timer. Await the real response body and render frames before checking that the
   // stale search did not change either the user's page or their Text view.
-  const nav = frame.locator('.pa-reading-bar');
+  const nav = frame.locator('.pa-reading-main');
   for (const action of ['page', 'text']) {
     await nav.getByRole('button', { name: 'Back to library', exact: true }).click();
     await frame.locator('body').evaluate(deferPdfLocate);
@@ -115,7 +149,7 @@ export async function exercisePdfSearch({ frame, page, out, realPdf }) {
       } else {
         await expect(viewer).toHaveCount(0);
         await expect(frame.locator('.pa-source-text')).toBeVisible();
-        await frame.locator('.pa-pdf-reading').getByRole('button', { name: 'PDF', exact: true }).click();
+        await frame.locator('.pa-reader-tools').getByRole('button', { name: 'PDF', exact: true }).click();
         await expect(viewer).toBeVisible();
       }
       await page.screenshot({ path: resolve(out, `local-search-deferred-${action}.png`) });

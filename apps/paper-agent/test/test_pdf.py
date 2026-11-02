@@ -135,17 +135,21 @@ class PdfTest(unittest.TestCase):
         for page in doc.pages:
             starts = [i for i in range(len(page.text)) if page.text.startswith('ana', i)]
             windows = [(i, i + 3) for i in starts]
+            # Leading whitespace and multiline windows must locate the entire
+            # saved range, even when PDFium phrase search returns a partial hit.
+            windows += [(page.text.index(' '), len(page.text)), (0, len(page.text)),
+                        (page.text.index('\r\n') + 2, len(page.text))]
             with patch('paper_agent.pdf_files.digest', wraps=digest) as hashed, \
                  patch.object(pdfium, 'PdfDocument', wraps=pdfium.PdfDocument) as opened:
                 anchors = files.locate_anchors(data, doc, doc.file_digest, page.number, windows)
                 self.assertEqual(hashed.call_count, 1)
                 self.assertEqual(opened.call_count, 1)
-            self.assertEqual(len(anchors), 16)
-            self.assertEqual(len({a['id'] for a in anchors}), 16)
-            self.assertEqual([a['start'] for a in anchors], starts)
-            for start, anchor in zip(starts, anchors):
+            self.assertEqual(len(anchors), len(windows))
+            self.assertEqual(len({a['id'] for a in anchors}), len(windows))
+            self.assertEqual([a['start'] for a in anchors[:len(starts)]], starts)
+            for (start, end), anchor in zip(windows, anchors):
                 self.assertEqual(anchor, files.locate_anchor(data, doc, dict(fileDigest=doc.file_digest,
-                    page=page.number, start=start, end=start + 3)))
+                    page=page.number, start=start, end=end)))
             for original, checksum, scope in ((data, '0' * 64, windows), (data + b'changed', doc.file_digest, windows),
                                               (data, doc.file_digest, [(True, 3)]), (data, doc.file_digest, [(0, len(page.text) + 1)])):
                 with self.subTest(checksum=checksum, scope=scope), self.assertRaises(Invalid):
@@ -157,8 +161,8 @@ class PdfTest(unittest.TestCase):
                     url='https://arxiv.org/abs/1706.03762', pdfUrl='https://arxiv.org/pdf/1706.03762',
                     contentKind='full-text', content='Exact original evidence.'), NOW)
         content = pdf_fixture()
-        files = PdfFiles(lambda *_args, **_kwargs: io.BytesIO(content))
-        doc = files.inspect(paper, files.download(paper), NOW)
+        files = PdfFiles()
+        doc = files.inspect(paper, content, NOW)
         self.assertEqual(doc.matching_pages('Exact original evidence.'), (1, 2))
         self.assertEqual((doc.pages[1].width, doc.pages[1].height), (400, 600))
         figure = PdfAnnotation.create(dict(page=2, kind='figure', rects=[dict(x=.1,y=.2,width=.5,height=.5)]), doc, NOW)

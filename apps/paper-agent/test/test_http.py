@@ -77,7 +77,7 @@ class ResearchHTTP(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             store = ResearchStore(root)
             server = ThreadingHTTPServer(("127.0.0.1", 0), handler(store, "test-token", LiteratureFixture(), lambda: NOW,
-                       PdfFiles(lambda *_args, **_kwargs: io.BytesIO(pdf_fixture()))))
+                       PdfFiles()))
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
 
@@ -167,6 +167,15 @@ class ResearchHTTP(unittest.TestCase):
                 self.assertEqual(candidate['contentKind'], 'abstract')
                 self.assertEqual(store.intent(frozen['id']), intent)
                 pdf_paper = call('POST', '/api/papers/import', {**reading(), 'pdfUrl': 'https://arxiv.org/pdf/1706.03762'})[1]
+                # Reading cannot acquire an unapproved PDF. A saved original is
+                # the same input used by both reader and research preparation.
+                self.assertEqual(call('POST', '/api/pdf', dict(paperId=pdf_paper['id']))[0], 409)
+                missing = dict(question='Read the evidence', paperIds=[pdf_paper['id']], fullText=True,
+                               requestId='unapproved-pdf')
+                self.assertEqual(call('POST', '/api/research/prepare', missing)[0], 409)
+                self.assertIsNone(store.paper_pdf(pdf_paper['id']))
+                original = pdf_fixture()
+                store.save_pdf(PdfFiles().inspect(store.paper(pdf_paper['id']), original, NOW), original)
                 prepared_context = call('POST', '/api/contexts', dict(content=selected, paperId=pdf_paper['id']))[1]
                 for full_text in (False, True):
                     request = dict(question='Read the evidence', paperIds=[pdf_paper['id']], fullText=full_text,

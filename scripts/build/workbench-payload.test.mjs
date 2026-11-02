@@ -58,7 +58,11 @@ test('Builtin staging ships only the exact Paper CLI and skill additions', async
   const paperEntries = ['tools/research.py', 'skills/research-resource-import/SKILL.md',
     'skills/paper-code-audit/SKILL.md', 'skills/paper-code-audit/references/audit-contract.md',
     'skills/paper-code-audit/references/other-cases.md', 'skills/paper-code-audit/references/pcgym-table6.md',
-    'skills/paper-reproduction/SKILL.md', 'skills/paper-reproduction/references/reproduction-protocol.md'];
+    'skills/paper-reproduction/SKILL.md', 'skills/paper-reproduction/references/reproduction-protocol.md',
+    'skills/paper-plan/SKILL.md', 'skills/paper-write/SKILL.md',
+    'skills/paper-write/references/evidence-contract.md', 'skills/paper-write/references/paper-types.md',
+    'skills/paper-write/references/paper-agent-integration.md',
+    'skills/paper-build/SKILL.md', 'skills/paper-review/SKILL.md'];
   const directory = mkdtempSync(join(tmpdir(), 'pero-builtin-payload-'));
   try {
     const source = join(directory, 'source');
@@ -121,7 +125,11 @@ test('Staged Paper CLI executes references-only commit and export using its stag
     for (const entry of ['skills/paper-code-audit/SKILL.md',
       'skills/paper-code-audit/references/audit-contract.md',
       'skills/paper-reproduction/SKILL.md',
-      'skills/paper-reproduction/references/reproduction-protocol.md']) {
+      'skills/paper-reproduction/references/reproduction-protocol.md',
+      'skills/paper-plan/SKILL.md', 'skills/paper-write/SKILL.md',
+      'skills/paper-write/references/evidence-contract.md', 'skills/paper-write/references/paper-types.md',
+      'skills/paper-write/references/paper-agent-integration.md',
+      'skills/paper-build/SKILL.md', 'skills/paper-review/SKILL.md']) {
       const path = join(payload, entry);
       for (const [, target] of readFileSync(path, 'utf8').matchAll(/\]\(([^)]+\.md)\)/g)) {
         assert.ok(readFileSync(resolve(path, '..', target), 'utf8').length > 0, `${entry}: ${target}`);

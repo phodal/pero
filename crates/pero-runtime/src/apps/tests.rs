@@ -371,12 +371,12 @@ fn app_run_access_uses_enabled_pero_agent_grants() {
         store.install(&source).unwrap();
         let name = AppName::try_from("virtual-cell".to_owned()).unwrap();
         store.set_enabled(&name, true).unwrap();
-        assert_eq!(store.point_agent_panel(&name).is_ok(), granted);
+        assert_eq!(store.agent_panel(&name).is_ok(), granted);
         assert_eq!(store.agent_declaration_revision(&name).is_ok(), granted);
-        for path in ["/api/workspaces", "/api/harnesses"] { assert_eq!(store.point_catalog_permission(&name, path).is_ok(), granted); }
-        assert!(store.point_catalog_permission(&name, "/api/projects").is_err());
+        for path in ["/api/workspaces", "/api/harnesses"] { assert_eq!(store.agent_catalog_permission(&name, path).is_ok(), granted); }
+        assert!(store.agent_catalog_permission(&name, "/api/projects").is_err());
         store.set_enabled(&name, false).unwrap();
-        assert!(store.point_agent_panel(&name).is_err());
+        assert!(store.agent_panel(&name).is_err());
         assert!(store.agent_declaration_revision(&name).is_err());
     }
 }

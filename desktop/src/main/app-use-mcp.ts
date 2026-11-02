@@ -7,7 +7,7 @@ import type { AppScope } from './app-use-task.ts';
 import { PreparedAppWrite, parseAppWrite, type AppWriteDefinition } from './app-write.ts';
 import { PaperSourceImage } from './paper-source-image.ts';
 import { AppInputs } from './app-inputs.ts';
-import type { ContextReference } from '../../../protocol/generated/host';
+import type { AppPluginAssembly, ContextReference } from '../../../protocol/generated/host';
 import { ContentArtifacts } from './content-artifacts.ts';
 import { ContentRead } from '../../../packages/content-source/index.ts';
 import { AppChatContext } from './app-chat-context.ts';
@@ -16,6 +16,7 @@ import { DesktopComputer, COMPUTER_TOOL, COMPUTER_INSTRUCTIONS } from './compute
 import { ComputerFailure } from './computer-client.ts';
 import { APP_USE_ACTIONS, APP_USE_VERBS, AppUseError } from './app-use-task.ts';
 import { ControlLabGoals, type ControlLabGoal } from './control-lab-goal.ts';
+import { AppAgentPluginBinding } from './app-agent-plugin.ts';
 
 type Event = {
   version: number;
@@ -70,6 +71,7 @@ export class DesktopAppUse {
   readonly draftContext: AppChatContext;
   readonly goals = new ControlLabGoals();
   private submitted = new Set<string>();
+  private plugins = new Map<string, AppAgentPluginBinding | null>();
   private writes?: {
     describe(): Promise<AppWriteDefinition[]>;
     apply(write: PreparedAppWrite, signal: AbortSignal, goal?: ControlLabGoal): Promise<unknown>;
@@ -161,6 +163,22 @@ export class DesktopAppUse {
     this.draftContext = new AppChatContext(ports, (scope, thread, refs) => this.goals.approve(scope, thread, refs));
   }
   accept(event: AppUseEvent) {
+    if (event.kind === 'session_created' && event.thread_id) {
+      const data = event.data as { scope?: AppScope; appPlugin?: AppPluginAssembly };
+      if (data?.appPlugin) this.plugins.set(event.thread_id,
+        data.scope ? AppAgentPluginBinding.bind(data.appPlugin, data.scope) : null);
+      else this.plugins.delete(event.thread_id);
+    }
+    // Journal history describes prior mounts; only a fresh Host event mounts one.
+    if (event.kind === 'replay')
+      for (const entry of (event.data as { events?: AppUseEvent[] })?.events || [])
+        if (entry.kind === 'session_created' && entry.thread_id
+          && (entry.data as { appPlugin?: AppPluginAssembly })?.appPlugin && !this.plugins.has(entry.thread_id))
+          this.plugins.set(entry.thread_id, null);
+    if (event.thread_id && ['session_closed', 'session_deleted', 'session_error'].includes(event.kind)
+      && this.plugins.has(event.thread_id)) this.plugins.set(event.thread_id, null);
+    if (event.kind === 'disconnected')
+      for (const thread of this.plugins.keys()) this.plugins.set(thread, null);
     if (event.kind === 'disconnected') { this.goals.forget(); this.submitted.clear(); }
     const rejected = ['session_error', 'session_auth_required', 'session_auth_error', 'command_rejected'].includes(event.kind);
     if (rejected && !event.thread_id) { this.goals.revokeAll(); this.submitted.clear(); }
@@ -194,6 +212,8 @@ export class DesktopAppUse {
     this.authority.accept(event);
   }
   command(value: { action?: string; thread_id?: string }) {
+    if (value.thread_id && ['close', 'delete'].includes(value.action || '')
+      && this.plugins.has(value.thread_id)) this.plugins.set(value.thread_id, null);
     if (value.thread_id && ['cancel', 'close', 'delete'].includes(value.action || '')) this.goals.revoke(value.thread_id);
     this.authority.command(value);
   }
@@ -203,6 +223,7 @@ export class DesktopAppUse {
     return grant.file;
   }
   reset() {
+    for (const thread of this.plugins.keys()) this.plugins.set(thread, null);
     this.inputs.forget();
     this.goals.forget();
     this.submitted.clear();
@@ -212,6 +233,10 @@ export class DesktopAppUse {
     this.reset();
     this.server?.close();
     await this.computer?.stop();
+  }
+  private pluginWrites(thread: string, definitions: AppWriteDefinition[]): AppWriteDefinition[] {
+    const plugin = this.plugins.get(thread);
+    return plugin === undefined ? definitions : plugin?.definitions(definitions) || [];
   }
   async start(): Promise<{ PERO_APP_USE_URL: string; PERO_APP_USE_TOKEN: string }> {
     const token = randomBytes(32).toString('hex');
@@ -247,7 +272,7 @@ export class DesktopAppUse {
         }
         const message = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if(message.method==='tools/call' && typeof message.params?.name==='string' && message.params.name.startsWith('app__') && this.writes) {
-          const definition=(await this.writes.describe()).find(d=>`app__${d.app}__${d.name}`===message.params.name);
+          const definition=this.pluginWrites(thread, await this.writes.describe()).find(d=>`app__${d.app}__${d.name}`===message.params.name);
           if(!definition)throw new AppUseError('APP_WRITE_UNKNOWN','This enabled App has no such declared tool');
           message.params={name:'app_write',arguments:{app:definition.app,tool:definition.name,document:message.params.arguments}};
         }
@@ -267,7 +292,7 @@ export class DesktopAppUse {
         else if (message.method === 'tools/list')
           result = {
             tools: [
-              ...(this.writes ? (await this.writes.describe()).filter(d=>`app__${d.app}__${d.name}`.length<=64).map(d=>({name:`app__${d.app}__${d.name}`,description:d.description,inputSchema:d.schema})) : []),
+              ...(this.writes ? this.pluginWrites(thread, await this.writes.describe()).filter(d=>`app__${d.app}__${d.name}`.length<=64).map(d=>({name:`app__${d.app}__${d.name}`,annotations:{readOnlyHint:false},description:d.description,inputSchema:d.schema})) : []),
               ...(this.uiAvailable ? [TOOL] : []),
               ...(this.computer ? [COMPUTER_TOOL] : []),
               {
@@ -293,6 +318,7 @@ export class DesktopAppUse {
                     },
                     {
                       name: 'app_write',
+                      annotations: { readOnlyHint: false },
                       description:
                         'Write a document through an enabled App declared route, after the calling Agent session policy allows this tool call. Supply app, tool and document only. No URL, path, credentials, retry or rollback. The prepared document and installed route are fixed before execution.',
                       inputSchema: {
@@ -317,8 +343,8 @@ export class DesktopAppUse {
             thread,
             undefined,
             async (scope) => ({
-              apps: (await this.writes!.describe())
-                .filter((d) => !scope || (d.app === scope.app && d.panel === scope.panel))
+              apps: this.pluginWrites(thread, await this.writes!.describe())
+                .filter((d) => !scope || (d.app === scope.app && (this.plugins.has(thread) || d.panel === scope.panel)))
                 .map(({ app, name, description, schema }) => ({
                   app,
                   tool: name,
@@ -333,17 +359,22 @@ export class DesktopAppUse {
         } else if (message.method === 'tools/call' && message.params?.name === 'app_write' && this.writes) {
           const input = parseAppWrite(message.params.arguments);
           const definitions = await this.writes.describe(),
-            definition = definitions.find((d) => d.app === input.app && d.name === input.tool);
+            definition = this.pluginWrites(thread, definitions).find((d) => d.app === input.app && d.name === input.tool);
           if (!definition)
             throw new AppUseError('APP_WRITE_UNKNOWN', 'This enabled App has no such declared write tool');
           const prepared = new PreparedAppWrite(definition, input.document);
           const value = await this.authority.access(
             thread,
-            { app: definition.app, panel: definition.panel },
+            { app: definition.app, panel: this.plugins.get(thread)?.scope.panel || definition.panel },
             async (_scope, signal) => {
               const goal = input.app === 'control-lab' || input.app === 'lab'
                 ? this.goals.require(thread, (prepared.document as Record<string, unknown>).experimentId, input.app)
                 : undefined;
+              if (this.plugins.has(thread)) {
+                const plugin = this.plugins.get(thread);
+                if (!plugin) throw new AppUseError('APP_PLUGIN_REVOKED', 'The App plugin connection ended. Open a new App conversation.');
+                this.plugins.set(thread, plugin.consume(definition, definitions));
+              }
               return { app: input.app, tool: input.tool, digest: prepared.digest,
                 result: await this.writes!.apply(prepared, signal, goal) };
             },

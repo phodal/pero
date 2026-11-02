@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "poisson-1d-v1",
+  "name": "Poisson 1D finite differences",
+  "version": "1.0.0",
+  "description": "Single-process CPU finite-difference solve with independent analytical error and discrete residual checks; not MPI, Slurm or production performance.",
+  "availability": "available",
+  "executionKind": "local-reference",
+  "reframeVersion": "4.10.4",
+  "defaultRanks": 1,
+  "minRanks": 1,
+  "maxRanks": 1,
+  "spec": {
+    "method": "poisson-1d",
+    "equation": "-u'' = pi^2 * sin(pi*x)",
+    "boundaryValues": [0, 0],
+    "lowerBound": 0,
+    "upperBound": 1,
+    "intervals": [64, 128],
+    "reference": "sin(pi*x)"
+  },
+  "thresholds": {
+    "absoluteErrorMax": 0.0001,
+    "convergenceRatioMin": 3.9,
+    "convergenceRatioMax": 4.1,
+    "sampleConsistencyMax": 0.0000000000001,
+    "estimateConsistencyMax": 0.0000000000001,
+    "residualMax": 0.000000001
+  }
+}

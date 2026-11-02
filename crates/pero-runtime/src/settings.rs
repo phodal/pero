@@ -170,6 +170,7 @@ mod tests {
         ).unwrap();
         let restored = load_workbench(&path);
         assert_eq!(restored.appearance, pero_contracts::workbench::Appearance::Dark);
+        assert!(restored.research_projects.is_empty());
         assert_eq!(restored.layout.chat_width(), 420.);
         assert!(!restored.layout.chat_open);
         save_locale(&path, "en").unwrap();
@@ -194,6 +195,10 @@ mod tests {
             projects: vec![pero_contracts::workbench::ProjectBinding {
                 workspace: "/work/pero".into(), project_id: "pero".into(),
             }],
+            research_projects: vec![pero_contracts::research_project::ResearchProject::new(
+                "research-1".into(), "Control comparison".into(), "Compare held-out scenarios".into(),
+                Some("/work/pero".into()),
+            ).unwrap()],
             layout: {
                 let mut layout = pero_contracts::workbench::LayoutPreferences::default();
                 layout.resize_chat(512.);

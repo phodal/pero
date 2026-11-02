@@ -11,6 +11,13 @@ const PAPER_ENTRIES = [
   'skills/paper-code-audit/references/pcgym-table6.md',
   'skills/paper-reproduction/SKILL.md',
   'skills/paper-reproduction/references/reproduction-protocol.md',
+  'skills/paper-plan/SKILL.md',
+  'skills/paper-write/SKILL.md',
+  'skills/paper-write/references/evidence-contract.md',
+  'skills/paper-write/references/paper-types.md',
+  'skills/paper-write/references/paper-agent-integration.md',
+  'skills/paper-build/SKILL.md',
+  'skills/paper-review/SKILL.md',
 ];
 
 /** Equal assets share storage in the distribution while keeping their original URLs. */
