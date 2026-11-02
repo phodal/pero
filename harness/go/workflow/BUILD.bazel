@@ -1,0 +1,65 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "workflow",
+    srcs = [
+        "catalog.go",
+        "process_unix.go",
+        "process_unsupported.go",
+        "runtime.go",
+        "workflow.go",
+    ],
+    embedsrcs = ["worker.cjs"],
+    importpath = "github.com/phodal/pero/harness/go/workflow",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//fstools",
+        "//harness",
+        "//plugins",
+        "//runtime",
+        "//subagents",
+    ],
+)
+
+go_test(
+    name = "workflow_test",
+    srcs = [
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":workflow"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//harness",
+            "//nativetools",
+            "//plugins",
+            "//providers/openai",
+            "//runtime",
+            "//subagents",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//harness",
+            "//nativetools",
+            "//plugins",
+            "//providers/openai",
+            "//runtime",
+            "//subagents",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//harness",
+            "//nativetools",
+            "//plugins",
+            "//providers/openai",
+            "//runtime",
+            "//subagents",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//harness",
+            "//nativetools",
+            "//plugins",
+            "//providers/openai",
+            "//runtime",
+            "//subagents",
+        ],
+        "//conditions:default": [],
+    }),
+)
