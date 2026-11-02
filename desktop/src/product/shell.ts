@@ -43,7 +43,23 @@ const launchAppChat=appChatLauncher({
   },
   deliver:(thread_id,contexts,text,replace)=>chat?.event({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}}),
 });
-const surface = mountAppSurfaces(async () => bridge.open(selected.app, selected.panel).catch(report),launchAppChat,openReading,undefined,async slot=>{
+const appBadges = new Map<string, number>();
+const surface = mountAppSurfaces(async value => {
+  const request = value as {action?:string;name?:string;count?:number;panel?:string};
+  if (request.action === 'sdkpage') throw new Error('Workspace pages are unavailable in this App product');
+  if (request.action === 'sdkbadge') { appBadges.set(request.name!,request.count!);update();return; }
+  if (request.action === 'open') {
+    if (!request.name || !context.product.apps.includes(request.name)) throw new Error('Choose an App included in this Product');
+    reader?.dispose();reader=undefined;
+    selected = { app: request.name, panel: request.panel };
+    openedScope = undefined;
+    selectedThread = undefined;
+    selector.value = selected.app;
+    update();
+    return bridge.open(selected.app, selected.panel);
+  }
+  return bridge.open(selected.app, selected.panel).catch(report);
+},launchAppChat,openReading,undefined,async slot=>{
   const accepted = !!slot && !!context?.product.chat && !!chat && !reader && selected?.app === slot.scope.app && (selected.panel || 'main') === slot.scope.panel;
   const next = accepted ? slot : null;
   if (JSON.stringify(chatSlot) !== JSON.stringify(next)) { chatSlot = next; chatSlotReady = false; queueMicrotask(update); }
@@ -142,7 +158,9 @@ function update() {
   navigation.hidden = context.product.apps.length < 2 && !context.product.chat;
   selector.hidden = context.product.apps.length < 2;
   appTitle.hidden = !selector.hidden;
-  appTitle.textContent = context.product.name;
+  const count = appBadges.get(selected.app) || 0;
+  appTitle.textContent = context.product.name + (count ? ` (${count})` : '');
+  for (const option of selector.options) option.textContent = option.value + (appBadges.get(option.value) ? ` (${appBadges.get(option.value)})` : '');
   selector.setAttribute('aria-label', translate(context.locale, 'apps.switch'));
   toggle.hidden = !context.product.chat || embedded || chatOpen;
   const notice = selectedThread && chatNotices.get(selectedThread);

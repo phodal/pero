@@ -25,8 +25,10 @@ enum Request {
     Pluginlist { method: Method, id: String },
     Plugininstall { method: Method, id: String, path: PathBuf },
     Pluginenable { method: Method, id: String, name: AppName, enabled: bool },
-    Pointagent { method: Method, id: String, name: AppName, request: pero_runtime::apps::point_agent::Request },
-    Pointcatalog { method: Method, id: String, name: AppName, path: String },
+    Agentrun { method: Method, id: String, name: AppName, request: pero_runtime::apps::agent_run::Request },
+    Apiaccess { method: Method, id: String, name: AppName, path: String },
+    Sdkcontext { method: Method, id: String, name: AppName },
+    Agentcatalog { method: Method, id: String, name: AppName, path: String },
     Prepare { method: Method, id: String, name: AppName },
     Enable {
         method: Method,
@@ -95,7 +97,7 @@ pub struct Apps {
 impl Apps {
     pub(crate) fn agent_panel(&self, name: &AppName) -> Result<String, String> {
         let guard = self.store.try_lock().map_err(|_| "An App environment is being prepared; retry when installation finishes")?;
-        guard.as_ref().map_err(Clone::clone)?.point_agent_panel(name)
+        guard.as_ref().map_err(Clone::clone)?.agent_panel(name)
     }
     pub(crate) fn session_plugins(&self, name: &AppName, panel: &str) -> Result<Option<pero_runtime::apps::AppSessionPlugins>, String> {
         let guard = self.store.try_lock().map_err(|_| "An App environment is being prepared; retry when installation finishes")?;
@@ -157,7 +159,7 @@ impl Apps {
     /// cancellation remain responsive while pip downloads packages.
     pub fn dispatch_async(&self, value: serde_json::Value, agents: &mut crate::agents::Manager) {
         let action = value["action"].as_str().unwrap_or("");
-        if matches!(action, "pointagent" | "pointcatalog" | "agent" | "insights" | "connectors" | "disable" | "uninstall" | "pluginenable") {
+        if matches!(action, "agentrun" | "agentcatalog" | "agent" | "insights" | "connectors" | "disable" | "uninstall" | "pluginenable") {
             let mut this = self.clone();
             let event = this.dispatch(value, Some(agents));
             let _ = crate::emit(event);
@@ -209,6 +211,12 @@ impl Apps {
                     if !enabled { agents.as_deref_mut().expect("Host manager").stop_plugin_sessions(&name); }
                     serde_json::to_value(plugins.list())
                 }
+                Request::Apiaccess {method,id,name,path} => {
+                    let _=(method,id);store.require_api(&name,&path)?;Ok(serde_json::json!({"permitted":true}))
+                }
+                Request::Sdkcontext { method, id, name } => {
+                    let _ = (method, id); serde_json::to_value(store.sdk_context(&name)?)
+                }
                 Request::List { method, id } => {
                     let _ = (method, id);
                     if let Some(catalog) = &self.builtins {
@@ -220,15 +228,21 @@ impl Apps {
                     let _ = (method, id);
                     serde_json::to_value(store.install(&path)?)
                 }
-                Request::Pointagent { method,id,name,request } => {
-                    let _=(method,id);let panel=store.point_agent_panel(&name)?;
+                Request::Agentrun { method,id,name,request } => {
+                    let _=(method,id);
+                    if let pero_runtime::apps::agent_run::Request::Prepare {scope,input} = request {
+                        agents.as_deref_mut().expect("Host manager").run_scope(&scope)?;
+                        return Ok(serde_json::json!({"context":store.prepare_agent_context(&name,input)?}));
+                    }
+                    let panel=store.agent_panel(&name)?;
                     let revision=store.agent_declaration_revision(&name)?;
+                    if let pero_runtime::apps::agent_run::Request::Start {ref context,..} = request {store.validate_agent_context(&name,context.as_ref())?;}
                     drop(guard);
-                    return agents.as_deref_mut().expect("Host manager").point_request(name,panel,revision,request);
+                    return agents.as_deref_mut().expect("Host manager").agent_run_request(name,panel,revision,request);
                 }
-                Request::Pointcatalog { method,id,name,path } => {
-                    let _=(method,id);store.point_catalog_permission(&name,&path)?;
-                    return agents.as_deref_mut().expect("Host manager").point_catalog(&path);
+                Request::Agentcatalog { method,id,name,path } => {
+                    let _=(method,id);store.agent_catalog_permission(&name,&path)?;
+                    return agents.as_deref_mut().expect("Host manager").agent_catalog(&path);
                 }
                 Request::Prepare { method, id, name } => {
                     let _ = (method, id);

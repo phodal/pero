@@ -1,0 +1,2 @@
+// Generated from the shared Pero palette.
+export const APPEARANCE_PROPERTIES = ["bg","surface","surface-muted","text","text-muted","border","input-border","action","action-hover","on-action","accent","on-accent","accent-soft","accent-text","link","focus","success","on-success","success-bg","warning","on-warning","warning-bg","error","on-error","error-bg","info","on-info","info-bg","disabled","disabled-text","text-secondary","border-subtle"];

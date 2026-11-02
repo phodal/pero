@@ -5,7 +5,7 @@ fn event(kind:&str,text:&str,data:serde_json::Value)->HostEvent {
 #[test]
 fn transcript_keeps_complete_messages_cursors_attempts_and_interruption() {
     let binding=Binding{scope:Scope{workspace_id:"ws_checked".into()},request_id:"start-1".into(),harness_id:"point".into(),panel:"viewer".into(),runtime_digest:"fixture".into(),app_revision:Some("declaration".into()),created_at:"2026-10-31T00:00:00Z".into(),context:None};
-    let history=vec![event("session_created","",serde_json::json!({})),event("session_update","",serde_json::json!({"sessionUpdate":"agent_message_chunk","content":{"text":"{\"title\":"}})),event("session_update","",serde_json::json!({"sessionUpdate":"agent_message_chunk","content":{"text":"\"Checked\"}"}})),event("turn_finished","end_turn",serde_json::json!({"stopReason":"end_turn","pointTime":"2026-10-31T00:00:01Z"}))];
+    let history=vec![event("session_created","",serde_json::json!({})),event("session_update","",serde_json::json!({"sessionUpdate":"agent_message_chunk","content":{"text":"{\"title\":"}})),event("session_update","",serde_json::json!({"sessionUpdate":"agent_message_chunk","content":{"text":"\"Checked\"}"}})),event("turn_finished","end_turn",serde_json::json!({"stopReason":"end_turn","runTime":"2026-10-31T00:00:01Z"}))];
     let view=Transcript::project("run",&binding,&history,true,0);
     assert_eq!(view.run.status,"completed");assert_eq!(view.run.updated_at,"2026-10-31T00:00:01Z");
     assert_eq!(view.events.iter().find(|event|event.kind=="assistant/message").unwrap().data["content"][0]["text"],"{\"title\":\"Checked\"}");

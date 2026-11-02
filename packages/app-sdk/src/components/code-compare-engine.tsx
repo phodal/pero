@@ -1,4 +1,4 @@
-// Adapted from Point App SDK (Apache-2.0), source revision 872cbf87d.
+// Upstream attribution and license: packages/app-sdk/NOTICE.md.
 import React, { useEffect, useRef } from 'react';
 import { EditorState, StateEffect, StateField } from '@codemirror/state';
 import { EditorView, Decoration, WidgetType, keymap, lineNumbers, highlightActiveLine, drawSelection } from '@codemirror/view';

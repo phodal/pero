@@ -1,4 +1,4 @@
-//! Point's App Agent protocol projected from the existing Pero Session journal.
+//! Pero's App Agent protocol projected from the existing Pero Session journal.
 use super::AppName;
 use pero_contracts::HostEvent;
 use serde::{Deserialize, Serialize};
@@ -25,6 +25,8 @@ pub struct Binding {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", rename_all_fields = "camelCase", deny_unknown_fields)]
 pub enum Request {
+    Prepare { scope: Scope, input: serde_json::Value },
+    Terminal { scope: Scope, run_id: String, #[serde(default)] terminal_id: Option<String>, #[serde(default)] offset: Option<u32>, #[serde(default)] count: Option<u32> },
     Start { scope: Scope, request_id: String, text: String, #[serde(default)] harness_id: Option<String>, #[serde(default)] context: Option<serde_json::Value> },
     Lookup { scope: Scope, request_id: String },
     Status { scope: Scope, run_id: String },
@@ -56,7 +58,7 @@ pub fn timestamp(seconds: u64) -> String {
 pub fn request_key(value: &str) -> Result<(), String> {
     if value.is_empty() || value.len() > 128 || !value.as_bytes()[0].is_ascii_alphanumeric()
         || !value.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"._:-".contains(&byte)) {
-        return Err("Point requestId must contain 1–128 letters, digits or ._:-".into());
+        return Err("Pero requestId must contain 1–128 letters, digits or ._:-".into());
     }
     Ok(())
 }
@@ -81,7 +83,7 @@ impl Transcript {
         for (index, event) in history.iter().filter(|event| event.thread_id.as_deref() == Some(id)).enumerate() {
             let seq = (index as u64 + 1) * 2;
             cursor = seq;
-            if let Some(time) = event.data["pointTime"].as_str() { run.updated_at = time.into(); }
+            if let Some(time) = event.data["runTime"].as_str().or_else(|| event.data["pointTime"].as_str()) { run.updated_at = time.into(); }
             let kind = match event.kind.as_str() {
                 "session_created" => Some("agent/created"),
                 "app_agent_attempt" => {
@@ -109,12 +111,12 @@ impl Transcript {
                 }
                 _ => None,
             };
-            if let Some(kind)=kind {events.push(Event{seq,kind:kind.into(),data:serde_json::to_value(&run).expect("Point run")});}
+            if let Some(kind)=kind {events.push(Event{seq,kind:kind.into(),data:serde_json::to_value(&run).expect("Pero run")});}
         }
         if !active && run.active() { run.status="interrupted".into();run.error=Some("This Pero Host Session stopped; inspect its history before explicitly retrying".into()); }
         let mut size=0;
         let events:Vec<_>=events.into_iter().filter(|event|event.seq>after).take(64).take_while(|event|{
-            let bytes=serde_json::to_vec(&event).expect("Point event").len();
+            let bytes=serde_json::to_vec(&event).expect("Pero event").len();
             let admit=size==0||size+bytes<=128*1024; if admit {size+=bytes;} admit
         }).collect();
         // Do not jump beyond a bounded response, or the next page would lose events.
@@ -123,5 +125,5 @@ impl Transcript {
     }
 }
 #[cfg(test)]
-#[path = "point_agent_test.rs"]
+#[path = "agent_run_test.rs"]
 mod tests;

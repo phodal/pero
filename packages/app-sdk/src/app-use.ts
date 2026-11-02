@@ -7,15 +7,19 @@ export type AppObjectAction = {
 export type AppObject = {
   id: string;
   kind: string;
-  label: string;
-  state: unknown;
+  label?: string;
+  summary?: string;
+  mentions?: (query: string, signal: AbortSignal) => Promise<AppMention[]>;
+  state?: unknown;
   actions?: Record<string, AppObjectAction>;
 };
+export type AppMention = { label: string; description?: string; selection: Record<string, unknown> };
 export type AppObjectSnapshot = {
   id: string;
   kind: string;
   label: string;
   state: AppJson;
+  summary?: string;
   revision: number;
   commands: Array<{ name: string; description?: string; parameters: Record<string, unknown> }>;
 };
@@ -178,37 +182,93 @@ export class AppParameterSchema {
 type RegisteredObject = {
   snapshot: Omit<AppObjectSnapshot, 'revision'>;
   revision: number;
+  mentions?: AppObject['mentions'];
   actions: Map<string, { run: AppObjectAction['run']; parameters: AppParameterSchema }>;
 };
 
 /** An App declares its existing UI state and actions; no second model is maintained. */
 export class AppSurface {
   private readonly objects = new Map<string, RegisteredObject>();
-  private revision = 0;
+  private readonly listeners = new Set<(revision: number) => void>();
+  private semanticRevision = 0;
+  private closed = false;
+  readonly appName: string;
+  readonly tabId: string | null;
+  constructor(appName = 'app', tabId: string | null = null) {
+    if (!appName) throw new TypeError('appName is required');
+    this.appName = appName; this.tabId = tabId;
+  }
+  get revision() { return this.semanticRevision; }
+  get disposed() { return this.closed; }
+  private requireLive() {
+    if (this.closed) throw new AppUseError('APP_SURFACE_DISPOSED', 'App surface is disposed');
+  }
+  private changed(entry?: RegisteredObject) {
+    ++this.semanticRevision;
+    if (entry) entry.revision = this.semanticRevision;
+    for (const listener of [...this.listeners]) {
+      try { listener(this.semanticRevision); } catch { /* One observer cannot prevent the remaining subscribers seeing the transition. */ }
+    }
+  }
+  snapshot() { return this.observe(); }
+  subscribe(listener: (revision: number) => void) {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
+  dispose() {
+    if (this.closed) return;
+    this.closed = true; this.objects.clear(); this.changed(); this.listeners.clear();
+  }
+  async searchMentions(query: string, signal: AbortSignal) {
+    signal.throwIfAborted();
+    const result: Array<AppMention & { objectId: string; revision: number }> = [];
+    if (this.closed || typeof query !== 'string' || query.length > 256) return result;
+    for (const [objectId, entry] of this.objects) {
+      if (!entry.mentions) continue;
+      const revision = entry.revision;
+      const values = await entry.mentions(query, signal);
+      signal.throwIfAborted();
+      if (this.closed || this.objects.get(objectId) !== entry || revision !== entry.revision) continue;
+      if (!Array.isArray(values) || values.length > 40) throw new AppUseError('APP_OBJECT_INVALID', 'App mentions exceed 40 results');
+      for (const value of values) {
+        if (!value || typeof value.label !== 'string' || !value.label.trim() || value.label.length > 300 ||
+            value.description !== undefined && (typeof value.description !== 'string' || value.description.length > 500) ||
+            !value.selection || typeof value.selection !== 'object' || Array.isArray(value.selection))
+          throw new AppUseError('APP_OBJECT_INVALID', 'Invalid App mention');
+        result.push({ label: value.label, ...(value.description === undefined ? {} : { description: value.description }),
+          selection: copyJson(value.selection, 4096) as Record<string, AppJson>, objectId, revision });
+        if (result.length === 40) return result;
+      }
+    }
+    return result;
+  }
 
   register(object: AppObject) {
-    if (this.objects.has(object.id)) throw new AppUseError('APP_OBJECT_DUPLICATE', `App object ${object.id} is already registered`);
-    if (this.objects.size >= 100) throw new AppUseError('APP_OBJECT_LIMIT', 'An App may expose at most 100 objects');
+    this.requireLive();
     const entry = this.normalize(object);
-    entry.revision = ++this.revision;
-    this.objects.set(object.id, entry);
+    const id = entry.snapshot.id;
+    if (this.objects.has(id)) throw new AppUseError('APP_OBJECT_DUPLICATE', `App object ${id} is already registered`);
+    if (this.objects.size >= 100) throw new AppUseError('APP_OBJECT_LIMIT', 'An App may expose at most 100 objects');
+    this.objects.set(id, entry);
+    this.changed(entry);
     let live = true;
     return {
       update: (next: AppObject) => {
-        if (!live) return;
-        if (next.id !== object.id) throw new AppUseError('APP_OBJECT_INVALID', 'An App object cannot change its identity');
+        if (!live || this.closed) return;
         const replacement = this.normalize(next);
+        if (replacement.snapshot.id !== id) throw new AppUseError('APP_OBJECT_INVALID', 'An App object cannot change its identity');
         entry.actions = replacement.actions;
+        entry.mentions = replacement.mentions;
         if (!equal(entry.snapshot, replacement.snapshot)) {
           entry.snapshot = replacement.snapshot;
-          entry.revision = ++this.revision;
+          this.changed(entry);
         }
       },
       dispose: () => {
         if (!live) return;
         live = false;
-        this.objects.delete(object.id);
-        ++this.revision;
+        this.objects.delete(id);
+        if (!this.closed) this.changed();
       },
     };
   }
@@ -222,16 +282,20 @@ export class AppSurface {
     };
   }
 
-  async invoke(target: string, name: string, params: Record<string, unknown>, revision: number) {
+  invoke(target: string, name: string, params: Record<string, unknown>, revision: number): Promise<{ verdict: 'not-run'; result: AppJson }>;
+  invoke(target: string, name: string, params?: Record<string, unknown>): Promise<unknown>;
+  async invoke(target: string, name: string, params: Record<string, unknown> = {}, revision?: number) {
+    this.requireLive();
     const entry = this.objects.get(target);
     if (!entry) throw new AppUseError('APP_OBJECT_UNKNOWN', `Unknown App object ${target}`);
-    if (entry.revision !== revision) throw new AppUseError('APP_REVISION_STALE', 'The App object changed; observe it again before invoking an action');
+    if (revision !== undefined && entry.revision !== revision) throw new AppUseError('APP_REVISION_STALE', 'The App object changed; observe it again before invoking an action');
     const action = entry.actions.get(name);
     if (!action) throw new AppUseError('APP_ACTION_UNKNOWN', `Unknown App action ${target}.${name}`);
     const input = copyJson(params, 65536);
     action.parameters.validate(input);
     const result = await action.run(input as Record<string, AppJson>);
-    return { verdict: 'not-run' as const, result: copyJson(result, 32768) };
+    const value = result === undefined && revision === undefined ? undefined : copyJson(result, 32768);
+    return revision === undefined ? value : { verdict: 'not-run' as const, result: value };
   }
 
   verify(target: string, key: string, expected: unknown) {
@@ -243,26 +307,33 @@ export class AppSurface {
 
   /** An App can report a rendered frame that changed outside its JSON state. */
   signal(target: string) {
+    this.requireLive();
     const entry = this.objects.get(target);
     if (!entry) throw new AppUseError('APP_OBJECT_UNKNOWN', `Unknown App object ${target}`);
-    entry.revision = ++this.revision;
+    this.changed(entry);
     return entry.revision;
   }
 
   private normalize(object: AppObject): RegisteredObject {
-    if (typeof object.id !== 'string' || !objectId.test(object.id) || typeof object.kind !== 'string' || !object.kind || object.kind.length > 64 || typeof object.label !== 'string' || object.label.length > 300)
+    if (!object || typeof object !== 'object' || Array.isArray(object) || object.actions !== undefined && (!object.actions || typeof object.actions !== 'object' || Array.isArray(object.actions)))
+      throw new AppUseError('APP_OBJECT_INVALID', 'App objects and actions must be records');
+    if (typeof object.id !== 'string' || !objectId.test(object.id) || typeof object.kind !== 'string' || !object.kind || object.kind.length > 64 || object.label !== undefined && (typeof object.label !== 'string' || object.label.length > 300))
       throw new AppUseError('APP_OBJECT_INVALID', 'An App object needs an id, kind and label within their limits');
+    if (object.summary !== undefined && (typeof object.summary !== 'string' || object.summary.length > 500) || object.mentions !== undefined && typeof object.mentions !== 'function')
+      throw new AppUseError('APP_OBJECT_INVALID', 'App summary or mention search is invalid');
     const entries = Object.entries(object.actions ?? {}).sort(([a], [b]) => a.localeCompare(b));
     if (entries.length > 32) throw new AppUseError('APP_OBJECT_INVALID', 'An App object may expose at most 32 actions');
     const actions: RegisteredObject['actions'] = new Map();
     const commands = entries.map(([name, action]) => {
       if (!actionName.test(name) || typeof action.run !== 'function' || action.description !== undefined && (typeof action.description !== 'string' || action.description.length > 500))
         throw new AppUseError('APP_OBJECT_INVALID', 'App actions need a valid name, description and run function');
+      if (action.parameters !== undefined && (!action.parameters || typeof action.parameters !== 'object' || Array.isArray(action.parameters)))
+        throw new AppUseError('APP_OBJECT_INVALID', 'App action parameters must be a schema object');
       const parameters = copyJson(action.parameters === undefined ? { type: 'object', properties: {}, additionalProperties: false } : action.parameters, 8192) as Record<string, unknown>;
-      actions.set(name, { run: action.run, parameters: AppParameterSchema.parse(parameters) });
+      actions.set(name, { run: action.run, parameters: AppParameterSchema.parse({ type: 'object', ...parameters }) });
       return { name, ...(action.description === undefined ? {} : { description: action.description }), parameters };
     });
-    return { snapshot: { id: object.id, kind: object.kind, label: object.label, state: copyJson(object.state, 32768), commands }, revision: 0, actions };
+    return { snapshot: { id: object.id, kind: object.kind, label: object.label ?? '', ...(object.summary === undefined ? {} : { summary: object.summary }), state: copyJson(object.state, 32768), commands }, revision: 0, actions, mentions: object.mentions };
   }
 }
 
@@ -325,8 +396,8 @@ export function installAppUseBridge(surface: AppUseSurface = appSurface, frame: 
 }
 
 
-const objectMarker = '[data-app-object],[data-point-object]';
-const markedObject = (element: Element | null) => element?.getAttribute('data-app-object') ?? element?.getAttribute('data-point-object');
+const objectMarker = '[data-app-object]';
+const markedObject = (element: Element | null) => element?.getAttribute('data-app-object');
 
 const controls = 'button,a[href],input,textarea,select,summary,[contenteditable="true"],[role="button"],[role="checkbox"],[role="switch"],[role="tab"],[role="radio"],[role="menuitem"],[role="option"],[role="slider"],[role="link"]';
 const textInputs = new Set(['text', 'search', 'url', 'tel', 'email']);
@@ -455,13 +526,13 @@ export class AppUseDom {
 
   annotation() {
     const { rect } = this.geometry();
-    const elements = [...this.document.querySelectorAll(`[data-app-object],[data-point-object],${controls}`)].filter(visible).slice(0, 300);
+    const elements = [...this.document.querySelectorAll(`${objectMarker},${controls}`)].filter(visible).slice(0, 300);
     return {
       ...this.surface.observe(), rect, viewport: { width: rect.width, height: rect.height },
       annotationDom: elements.map((element, index) => {
         const box = element.getBoundingClientRect();
         return { id: `element-${index}`, kind: element.tagName.toLowerCase(), label: label(element), role: role(element),
-          ...((element.getAttribute('data-app-object') ?? element.getAttribute('data-point-object')) ? { semanticId: (element.getAttribute('data-app-object') ?? element.getAttribute('data-point-object'))! } : {}),
+          ...(markedObject(element) ? { semanticId: markedObject(element)! } : {}),
           bounds: { x: box.left - rect.x, y: box.top - rect.y, width: box.width, height: box.height } };
       }),
     };

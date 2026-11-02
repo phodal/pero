@@ -45,6 +45,7 @@ impl Workbench {
         let apps = self.apps.entries.iter().filter(|app| app.enabled || app.placement() != crate::apps::AppPlacement::Catalog).filter_map(|app| {
             let panel = app.panels.first()?;
             Some(sidebar::AppShortcut {
+                badge: self.apps.badges.get(&app.name).map(ToString::to_string),
                 name: app.name.clone(), panel: panel.id.clone(),
                 label: self.installed_app_title(&app.name, &app.display_name),
                 placement: app.placement(),

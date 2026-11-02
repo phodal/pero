@@ -77,6 +77,9 @@ try {
     deliver:(thread_id,contexts,text,replace)=>receive_host_event(JSON.stringify({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}})),
   });
   const apps = mountAppSurfaces(async value=>{
+    if ('action' in value && ['sdkpage','sdkbadge'].includes(String(value.action))) {
+      receive_host_event(JSON.stringify({version:1,kind:value.action === 'sdkpage' ? 'app_sdk_page' : 'app_sdk_badge',request_id:null,text:'',data:value})); return;
+    }
     if ('action' in value && value.action === 'scientific_paper_open') {
       const before = JSON.parse(snapshot());
       if (!before.apps?.some((app: { name: string; enabled: boolean; panels: { id: string }[] }) => app.name === 'paper-agent' && app.enabled && app.panels.some(panel => panel.id === 'main'))) throw new Error('Paper App is not installed and enabled in this product');

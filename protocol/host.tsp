@@ -388,12 +388,12 @@ model AppsErrorEvent { kind: "apps_error"; ...EventBase }
 model AppOpenedData { name: string; panel: string; url: string; ...Closed; }
 model AppsOpenedEvent { kind: "apps_opened"; ...EventBase; data: AppOpenedData }
 
-model PointSessionOpenData {scope:AppChatScope;sessionId:string;...Closed}
-model PointSessionOpenEvent {kind:"point_app_session_open";...EventBase;data:PointSessionOpenData}
-model PointAttemptData {attempt:Pero.Apps.PointAttempt;pointTime?:string;...Closed}
-model PointAttemptEvent {kind:"app_agent_attempt";...ThreadEventBase;data:PointAttemptData}
-model PointCancelData {pointTime?:string;...Closed}
-model PointCancelEvent {kind:"app_agent_cancel";...ThreadEventBase;data:PointCancelData}
+model AppAgentSessionOpenData {scope:AppChatScope;sessionId:string;...Closed}
+model AppAgentSessionOpenEvent {kind:"app_agent_session_open";...EventBase;data:AppAgentSessionOpenData}
+model AppAgentAttemptData {attempt:Pero.Apps.AgentRunAttempt;runTime?:string;...Closed}
+model AppAgentAttemptEvent {kind:"app_agent_attempt";...ThreadEventBase;data:AppAgentAttemptData}
+model AppAgentCancelData {runTime?:string;...Closed}
+model AppAgentCancelEvent {kind:"app_agent_cancel";...ThreadEventBase;data:AppAgentCancelData}
 model SessionCreatedData { agent: string; workspace: string; scope?: AppChatScope; appBinding?: Pero.Apps.AppSessionBinding; appPlugin?: Pero.Apps.AppPluginAssembly; agentPlugins?: Pero.Apps.AgentPluginRevision[]; ...Closed }
 model SessionCreatedEvent { kind: "session_created"; ...ThreadEventBase; data: SessionCreatedData }
 model UserMessageContext {contexts: ContextReference[]; ...Closed}
@@ -466,9 +466,9 @@ model InsightsEvent { kind: "insights"; ...ThreadEventBase; data: InsightsSummar
 @oneOf
 union ThreadEvent {
   TurnStartedEvent,
-  PointSessionOpenEvent,
-  PointAttemptEvent,
-  PointCancelEvent,
+  AppAgentSessionOpenEvent,
+  AppAgentAttemptEvent,
+  AppAgentCancelEvent,
   SessionCreatedEvent,
   UserMessageEvent,
   SessionUpdateEvent,

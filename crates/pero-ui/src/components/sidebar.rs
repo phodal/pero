@@ -31,6 +31,7 @@ pub(crate) struct ProjectGroup {
     pub rows: Vec<RecentRow>,
 }
 pub(crate) struct AppShortcut {
+    pub badge: Option<String>,
     pub placement: crate::apps::AppPlacement,
     pub name: String, pub panel: String, pub label: String, pub icon: String, pub active: bool,
 }
@@ -397,7 +398,7 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
                         .selected(app.active).icon(Icon::default().path(app.icon)).tooltip(app.label.clone()).accessibility_label(app.label)
                         .on_click(click(&on_action, action)).into_any_element()
                 } else {
-                    pero_theme::sidebar_row(("sidebar-app", index), app.label, None, None, app.active, pero_theme::RowLevel::Nav,
+                    pero_theme::sidebar_row(("sidebar-app", index), app.label, None, app.badge.map(Into::into), app.active, pero_theme::RowLevel::Nav,
                         Some(Icon::default().path(app.icon).into_any_element()), chrome, click(&on_action, action)).into_any_element()
                 };
                 div().relative().w_full().flex().justify_center().child(element).child(props.shortcut_bounds.probe(app.name))

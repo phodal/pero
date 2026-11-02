@@ -1,0 +1,146 @@
+/* Generated from the shared Pero palette; run scripts/build/app-sdk-tokens.mjs. */
+:root, [data-theme] { --pero-bg:var(--pero-page); --pero-action:var(--pero-primary); --pero-on-action:var(--pero-on-primary); --pero-error:var(--pero-danger); --pero-text-muted:var(--pero-text-secondary); }
+:root,
+[data-theme="light"],
+[data-theme="pero-light"],
+[data-theme="system"] {
+  --pero-bg: #F7F9FC;
+  --pero-surface: #FFFFFF;
+  --pero-surface-muted: #EEF3F8;
+  --pero-text: #172536;
+  --pero-text-muted: #596B7D;
+  --pero-border: #DCE4ED;
+  --pero-input-border: #748599;
+  --pero-action: #007F86;
+  --pero-action-hover: #00666D;
+  --pero-on-action: #FFFFFF;
+  --pero-accent: #55D5DD;
+  --pero-on-accent: #142B45;
+  --pero-accent-soft: #E7F3F5;
+  --pero-accent-text: #00777D;
+  --pero-link: #00777D;
+  --pero-focus: #007F86;
+  --pero-success: #35704B;
+  --pero-on-success: #FFFFFF;
+  --pero-success-bg: #EBF5EF;
+  --pero-warning: #8A5D17;
+  --pero-on-warning: #FFFFFF;
+  --pero-warning-bg: #FFF5DF;
+  --pero-error: #B54445;
+  --pero-on-error: #FFFFFF;
+  --pero-error-bg: #FDEEEF;
+  --pero-info: #3C65A0;
+  --pero-on-info: #FFFFFF;
+  --pero-info-bg: #EEF3FC;
+  --pero-disabled: #E3EAF1;
+  --pero-disabled-text: #596B7D;
+  --pero-primary: var(--pero-action);
+  --pero-primary-hover: var(--pero-action-hover);
+  --pero-primary-border: var(--pero-action);
+  --pero-on-primary: var(--pero-on-action);
+  --pero-danger: var(--pero-error);
+  --pero-danger-surface: var(--pero-error-bg);
+  --pero-danger-button: var(--pero-error);
+  --pero-danger-button-hover: var(--pero-error);
+  --pero-border-control: var(--pero-input-border);
+  --pero-border-subtle: var(--pero-border);
+  --pero-text-secondary: var(--pero-text-muted);
+  --pero-hover: var(--pero-surface-muted);
+  --pero-active: var(--pero-accent-soft);
+  --pero-page: var(--pero-bg);
+}
+[data-theme="dark"],
+[data-theme="pero-dark"] {
+  --pero-bg: #0B1420;
+  --pero-surface: #121F2E;
+  --pero-surface-muted: #192A3B;
+  --pero-text: #EAF1F8;
+  --pero-text-muted: #ACBBCB;
+  --pero-border: #34485D;
+  --pero-input-border: #6B849D;
+  --pero-action: #55D5DD;
+  --pero-action-hover: #82E5EA;
+  --pero-on-action: #0B1420;
+  --pero-accent: #55D5DD;
+  --pero-on-accent: #142B45;
+  --pero-accent-soft: #12363E;
+  --pero-accent-text: #55D5DD;
+  --pero-link: #55D5DD;
+  --pero-focus: #55D5DD;
+  --pero-success: #8BC9A2;
+  --pero-on-success: #0B1420;
+  --pero-success-bg: #173426;
+  --pero-warning: #E8C16B;
+  --pero-on-warning: #0B1420;
+  --pero-warning-bg: #3A2E17;
+  --pero-error: #F1A4A4;
+  --pero-on-error: #0B1420;
+  --pero-error-bg: #3D252E;
+  --pero-info: #9ABCEB;
+  --pero-on-info: #0B1420;
+  --pero-info-bg: #1A2D46;
+  --pero-disabled: #293B4D;
+  --pero-disabled-text: #ACBBCB;
+  --pero-primary: var(--pero-action);
+  --pero-primary-hover: var(--pero-action-hover);
+  --pero-primary-border: var(--pero-action);
+  --pero-on-primary: var(--pero-on-action);
+  --pero-danger: var(--pero-error);
+  --pero-danger-surface: var(--pero-error-bg);
+  --pero-danger-button: var(--pero-error);
+  --pero-danger-button-hover: var(--pero-error);
+  --pero-border-control: var(--pero-input-border);
+  --pero-border-subtle: var(--pero-border);
+  --pero-text-secondary: var(--pero-text-muted);
+  --pero-hover: var(--pero-surface-muted);
+  --pero-active: var(--pero-accent-soft);
+  --pero-page: var(--pero-bg);
+}
+@media (prefers-color-scheme: dark) {
+[data-theme="system"] {
+  --pero-bg: #0B1420;
+  --pero-surface: #121F2E;
+  --pero-surface-muted: #192A3B;
+  --pero-text: #EAF1F8;
+  --pero-text-muted: #ACBBCB;
+  --pero-border: #34485D;
+  --pero-input-border: #6B849D;
+  --pero-action: #55D5DD;
+  --pero-action-hover: #82E5EA;
+  --pero-on-action: #0B1420;
+  --pero-accent: #55D5DD;
+  --pero-on-accent: #142B45;
+  --pero-accent-soft: #12363E;
+  --pero-accent-text: #55D5DD;
+  --pero-link: #55D5DD;
+  --pero-focus: #55D5DD;
+  --pero-success: #8BC9A2;
+  --pero-on-success: #0B1420;
+  --pero-success-bg: #173426;
+  --pero-warning: #E8C16B;
+  --pero-on-warning: #0B1420;
+  --pero-warning-bg: #3A2E17;
+  --pero-error: #F1A4A4;
+  --pero-on-error: #0B1420;
+  --pero-error-bg: #3D252E;
+  --pero-info: #9ABCEB;
+  --pero-on-info: #0B1420;
+  --pero-info-bg: #1A2D46;
+  --pero-disabled: #293B4D;
+  --pero-disabled-text: #ACBBCB;
+  --pero-primary: var(--pero-action);
+  --pero-primary-hover: var(--pero-action-hover);
+  --pero-primary-border: var(--pero-action);
+  --pero-on-primary: var(--pero-on-action);
+  --pero-danger: var(--pero-error);
+  --pero-danger-surface: var(--pero-error-bg);
+  --pero-danger-button: var(--pero-error);
+  --pero-danger-button-hover: var(--pero-error);
+  --pero-border-control: var(--pero-input-border);
+  --pero-border-subtle: var(--pero-border);
+  --pero-text-secondary: var(--pero-text-muted);
+  --pero-hover: var(--pero-surface-muted);
+  --pero-active: var(--pero-accent-soft);
+  --pero-page: var(--pero-bg);
+}
+}

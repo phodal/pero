@@ -12,6 +12,12 @@ pub struct AppAgentPlugin {
     /// Names refer to this App's existing contributes.writes declarations.
     pub tools: Vec<AppName>,
     pub max_calls: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prepare_tool: Option<AppName>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_schema: Option<serde_json::Value>,
+    #[serde(skip)]
+    pub(crate) preparation: Option<std::sync::Arc<super::agent_preparation::AgentContextPreparation>>,
 }
 
 /// A frozen declaration, not a second session or execution owner.
@@ -26,7 +32,7 @@ pub struct AppPluginAssembly {
 }
 
 impl AppDefinition {
-    pub(super) fn validate_agent_plugin(&self) -> Result<(), String> {
+    pub(super) fn validate_agent_plugin(&mut self) -> Result<(), String> {
         let mut dependencies = BTreeSet::new();
         if self.requires_agent_plugins.len() > 32
             || self
@@ -41,7 +47,7 @@ impl AppDefinition {
         {
             return Err("App requiresAgentPlugins requires the agent Host permission".into());
         }
-        let Some(plugin) = &self.contributes.agent_plugin else {
+        let Some(plugin) = &mut self.contributes.agent_plugin else {
             return Ok(());
         };
         if self.backend.is_none()
@@ -78,6 +84,15 @@ impl AppDefinition {
             {
                 return Err("App agentPlugin tools must uniquely name declared writes with MCP names of at most 64 bytes".into());
             }
+        }
+        match (&plugin.prepare_tool, &plugin.context_schema) {
+            (None,None) => {},
+            (Some(name),Some(schema)) => {
+                let route=self.contributes.writes.iter().find(|route| &route.name==name && !plugin.tools.contains(name))
+                    .ok_or("App preparation must name a declared write outside the Agent tool allowlist")?;
+                plugin.preparation=Some(std::sync::Arc::new(super::agent_preparation::AgentContextPreparation::compile(route.clone(),schema)?));
+            }
+            _ => return Err("App preparation needs both prepareTool and contextSchema".into()),
         }
         Ok(())
     }
@@ -145,11 +160,13 @@ mod tests {
     #[test]
     fn app_plugin_declaration_contract() {
         for (label, pointer, value, accepted) in [
+            ("unpaired preparation", "/contributes/agentPlugin/prepareTool", json!("publish"), false),
+            ("unpaired context", "/contributes/agentPlugin/contextSchema", json!({"type":"object"}), false),
             ("valid", "/contributes/agentPlugin/maxCalls", json!(4), true),
             (
                 "wrong schema",
                 "/contributes/agentPlugin/schema",
-                json!("point.app-agent-plugin.v1"),
+                json!("unsupported.app-agent-plugin.v1"),
                 false,
             ),
             (
@@ -233,7 +250,8 @@ mod tests {
             ),
         ] {
             let mut candidate = manifest();
-            *candidate.pointer_mut(pointer).unwrap() = value;
+            let (parent,key)=pointer.rsplit_once('/').unwrap();
+            candidate.pointer_mut(parent).unwrap()[key] = value;
             let result = AppDefinition::parse(&serde_json::to_vec(&candidate).unwrap());
             assert_eq!(result.is_ok(), accepted, "{label}: {result:?}");
         }
