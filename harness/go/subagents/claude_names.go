@@ -71,6 +71,11 @@ func (s *claudeDelegation) invocationPlugin(agent *harness.Agent) (string, error
 			return origin, nil
 		}
 	}
+	identity, _, err := selectedClaudeDefinition(agent)
+	return identity.Origin, err
+}
+
+func selectedClaudeDefinition(agent *harness.Agent) (claudeDefinitionIdentity, bool, error) {
 	events := agent.Session().Events()
 	for index := len(events) - 1; index >= 0; index-- {
 		if events[index].Type != claudeDefinitionEvent {
@@ -78,9 +83,37 @@ func (s *claudeDelegation) invocationPlugin(agent *harness.Agent) (string, error
 		}
 		var identity claudeDefinitionIdentity
 		if err := json.Unmarshal(events[index].Data, &identity); err != nil || identity.Version != 1 || identity.Name == "" {
-			return "", fmt.Errorf("subagents: selected Claude definition identity is unreadable or unsupported")
+			return claudeDefinitionIdentity{}, false, fmt.Errorf("subagents: selected Claude definition identity is unreadable or unsupported")
 		}
-		return identity.Origin, nil
+		return identity, true, nil
 	}
-	return "", nil
+	return claudeDefinitionIdentity{}, false, nil
+}
+
+// ClaudeHookAttribution identifies the root session that owns hook lifecycle
+// and the child that owns a particular tool call. It grants no execution rights.
+type ClaudeHookAttribution struct {
+	Session   *harness.Agent
+	AgentID   harness.SessionID
+	AgentType string
+}
+
+// HookAttribution reads the existing selected-definition fact. Generic child
+// agents retain their exact ID without inventing a Claude agent type. Root
+// lifecycle calls have neither agent_id nor agent_type.
+func HookAttribution(agent *harness.Agent) (ClaudeHookAttribution, error) {
+	if agent == nil {
+		return ClaudeHookAttribution{}, fmt.Errorf("subagents: hook attribution requires an agent")
+	}
+	result := ClaudeHookAttribution{Session: agent}
+	for result.Session.Parent() != nil {
+		result.Session = result.Session.Parent()
+	}
+	if result.Session == agent {
+		return result, nil
+	}
+	result.AgentID = agent.ID()
+	identity, _, err := selectedClaudeDefinition(agent)
+	result.AgentType = identity.Name
+	return result, err
 }

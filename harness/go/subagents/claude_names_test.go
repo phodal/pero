@@ -72,6 +72,10 @@ func TestClaudeAgentBareNameRunsSelectedPersona(t *testing.T) {
 					if err != nil || origin != "beta" {
 						t.Errorf("child origin=%s error=%v", origin, err)
 					}
+					attribution, err := HookAttribution(child)
+					if err != nil || attribution.Session != f.parent || attribution.AgentID != child.ID() || attribution.AgentType != test.selected {
+						t.Errorf("child hook attribution=%+v error=%v", attribution, err)
+					}
 					selected, err := resolveClaudeDefinition(map[string]AgentDefinition{definitions[0].Name: definitions[0], definitions[1].Name: definitions[1]}, "worker", origin)
 					if err != nil || selected.Name != "beta:worker" {
 						t.Errorf("child bare name=%+v error=%v", selected, err)
@@ -87,6 +91,10 @@ func TestClaudeAgentBareNameRunsSelectedPersona(t *testing.T) {
 				}
 				return ""
 			}})
+			root, err := HookAttribution(f.parent)
+			if err != nil || root.Session != f.parent || root.AgentID != "" || root.AgentType != "" {
+				t.Fatalf("root hook attribution=%+v error=%v", root, err)
+			}
 			result := f.call(t, f.parent, "Agent", fmt.Sprintf(`{"subagent_type":%q,"description":"resolve bare plugin name","prompt":"Run the selected persona"}`, test.name))
 			if result.IsError || calls.Load() != 1 || len(result.Content) != 2 || !strings.Contains(result.Content[1].Text, test.selected) {
 				t.Fatalf("selected result=%+v requests=%d", result, calls.Load())
