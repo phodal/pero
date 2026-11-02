@@ -97,6 +97,10 @@ class ResearchHTTP(unittest.TestCase):
                 example = call("GET", "/api/example")[1]
                 self.assertIn("Synthetic", example["title"])
                 self.assertEqual(call("GET", "/api/library")[1]["papers"], [])
+                # Public snapshot import cannot claim the local-PDF empty-text exception.
+                forged_scan = reading(source='local-pdf', sourceId='a' * 64,
+                                      url='urn:sha256:' + 'a' * 64, content='')
+                self.assertEqual(call('POST', '/api/papers/import', forged_scan)[0], 400)
                 paper = call("POST", "/api/papers/import", reading())[1]
                 self.assertEqual(paper["source"], "import")
                 selected = '原始选段 β\r\n' + 'Selected source text. ' * 2000

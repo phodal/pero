@@ -11,7 +11,7 @@ from unittest.mock import patch
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 
-from test_pdf import NOW, pdf_fixture
+from test_pdf import NOW, pdf_fixture, image_pdf_fixture
 from test_research import reading
 from test_pdf_downloads import finish
 from test_source_downloads import SourceTransport
@@ -112,6 +112,47 @@ class LibraryFilesTest(unittest.TestCase):
         self.acquire(plan, 'pdf')
         self.export(plan)
         return self.store.paper_pdf(self.paper.id)
+
+    def test_library_image_only_save_preserves_metadata_and_empty_page_text(self):
+        from paper_agent.model import ResearchRequest
+        data = image_pdf_fixture()
+        before = self.paper.to_dict()
+        self.store.pdf_downloads.transport = LibraryPdfTransport(data)
+        plan = self.confirm(tex=False)
+        result = self.acquire(plan, 'pdf')
+        self.assertEqual((result['receipt']['textPages'], result['receipt']['textCharacters']), (0, 0))
+        saved = self.export(plan)
+        self.assertEqual(Path(saved['pdf']).read_bytes(), data)
+        linked = self.store.paper_pdf(self.paper.id)
+        self.assertEqual(linked.file_digest, result['receipt']['fileDigest'])
+        self.assertEqual(linked.page(1).text, '')
+        self.assertEqual(self.store.paper(self.paper.id).to_dict(), before)
+        request = ResearchRequest.parse(dict(requestId='library-image-only', question='Read full text', paperIds=[self.paper.id], fullText=True))
+        with self.assertRaisesRegex(Invalid, 'no selectable text'):
+            self.store.create_study(request, NOW)
+        self.assertEqual(self.store._list('source-observations'), [])
+        self.assertEqual(self.store._list('studies'), [])
+
+    def test_cached_pdf_affordance_is_cheap_and_requires_present_regular_bytes(self):
+        value = reading()
+        value.pop('pdfUrl', None)
+        paper = self.store.save_paper(PaperSnapshot.from_reading(value, NOW))
+        def projected():
+            with patch('pathlib.Path.read_bytes', side_effect=AssertionError('Library must not read PDF bytes')):
+                return next(p for p in self.store.library()['papers'] if p['id'] == paper.id)['hasCachedPdf']
+        self.assertFalse(projected())
+        document = seed_pdf(self.store, paper)
+        self.assertTrue(projected())
+        path = self.store.root / 'pdf-files' / (document.file_digest + '.pdf')
+        path.unlink()
+        self.assertFalse(projected())
+        path.write_bytes(b'')
+        self.assertFalse(projected())
+        path.unlink()
+        other = Path(self.copies) / 'external.pdf'
+        other.write_bytes(pdf_fixture())
+        path.symlink_to(other)
+        self.assertFalse(projected())
 
     def test_real_inspection_confirmation_downloads_association_and_observed_read(self):
         original_paper = self.paper.to_dict()

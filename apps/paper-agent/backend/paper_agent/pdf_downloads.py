@@ -22,8 +22,6 @@ def acquire_pdf(output, directory, url, transport):
     fetched_at = datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
     output.send(('stage', 'parsing'))
     pages = PdfFiles().pages(response.data)
-    if not any(page.text.strip() for page in pages):
-        raise Invalid('This PDF has no selectable text. OCR is not available.', 422)
     root = Path(directory)
     (root / 'original.pdf').write_bytes(response.data)
     (root / 'pages.json').write_bytes(canonical([page.to_dict() for page in pages]))
@@ -109,6 +107,8 @@ class PdfDownloads:
                             result[1], result[2], document.file_digest, len(data), len(document.pages), document.id,
                             paper.id, 'sha256:' + document.file_digest,
                             sum(bool(p.text.strip()) for p in document.pages), sum(len(p.text) for p in document.pages),
+                            ('This PDF has no selectable text. OCR is not available; use the PDF view.',)
+                            if not any(p.text.strip() for p in document.pages) else
                             ('Some pages have little or no extracted text; verify page images. No OCR or structured table extraction was performed.',)
                             if any(len(p.text.strip()) < 40 for p in document.pages) else ())
                         if job.receipt:

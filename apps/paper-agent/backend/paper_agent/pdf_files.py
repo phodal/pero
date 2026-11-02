@@ -58,13 +58,19 @@ class PdfFiles:
 
     @staticmethod
     def from_pages(upload, pages, now):
+        if not pages:
+            raise Invalid('PDF must contain at least one page', 422)
         content = '\n\n'.join(page.text for page in pages)
+        limitation = None
         if not content.strip():
-            raise Invalid('This PDF has no selectable text. OCR is not available.', 422)
+            content = ''
+            limitation = 'This PDF has no selectable text. OCR is not available; use the PDF view.'
+        elif len(content) > 120000:
+            limitation = 'Text view is limited to 120,000 characters; full PDF page text remains searchable.'
         paper = PaperSnapshot.from_reading(dict(source='local-pdf', sourceId=upload.file_digest,
             title=upload.title, url='urn:sha256:' + upload.file_digest, contentKind='full-text',
             content=content[:120000], authors=[],
-            **(dict(limitation='Text view is limited to 120,000 characters; full PDF page text remains searchable.') if len(content) > 120000 else {})), now)
+            **(dict(limitation=limitation) if limitation else {})), now)
         return paper, PdfDocument.create(paper.id, upload.file_digest, paper.url, pages, now)
 
     def pages(self, data):
