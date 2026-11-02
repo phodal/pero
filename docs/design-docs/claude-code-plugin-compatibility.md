@@ -675,7 +675,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 | 压缩生命周期 | PreCompact 可阻止；PostCompact 后 SessionStart(source=compact) 上下文进入紧接的请求 | manual 与真实 context-overflow retry fixture；不延迟到下一个 tool step |
 | 压缩后的技能 | 最近一次已渲染正文与参数从原始日志恢复，单项 5000、合计 25000 估算 token | Unicode 安全截断；不重新读安装文件、不重跑命令、不恢复过期授权，不恢复 fork 正文到父会话 |
 | MCP | stdio/streamable HTTP/旧版 SSE、环境替换、namespace、root-agent 连接生命周期 | SSE 实际发现、调用、取消与退役回收；拒绝向外部 origin 转发配置凭据；OAuth/每工具迁移仍待补 |
-| LSP | `--lsp-config`、所选插件 `.lsp.json`/manifest 声明默认装配；9 类 query、UTF-16 坐标、能力协商、取消与进程生命周期 | 实际 `/usr/bin/clangd` hover、operator/bundled 两种真实 CLI 路径通过；不安装服务器，不应用编辑；自动 diagnostics 与动态注册仍缺 |
+| LSP | `--lsp-config`、所选插件 `.lsp.json`/manifest 声明默认装配；9 类 query、UTF-16 坐标、能力协商、取消与进程生命周期 | 实际 `/usr/bin/clangd` hover、operator/bundled 两种真实 CLI 路径通过；不安装服务器，不应用编辑；Write/Edit 后有界诊断已接通；连续异步诊断与动态注册仍缺 |
 | WebSearch/WebFetch | 显式 DeepSeek Search/Fetch provider；域名过滤、引用、offset 分片及无工具子代理提取 | CLI loopback 验证审批、共享预算、取消和拒绝写文件；真实 API 两次请求通过；缓存与跨域 redirect handoff 尚未实现，搜索后端不同 |
 | 同步 Workflow | 原始 scriptPath、export const meta、args、嵌套 workflow、agent/parallel/pipeline/phase/log；RPC 复用 ClaudeContribution.Invoke | 原始 3 个审查脚本实际运行；9 次 agent()、10 次 loopback HTTP、峰值并发 3；后台 Workflow 明确拒绝，详见 16.4 |
 | Trial runner | 显式选择 Harness ACP 或原 Claude runner；工作区/session/续跑/问答策略/审批/真实 usage/进程回收 | 15 项本地测试通过；所有 session 与最终产物复核，取消/关闭失败/非零退出不伪成功；不估算 USD，不重试已提交 prompt |
@@ -695,7 +695,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 
 ### 16.2 继续实现的出口
 
-完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的后台执行与可恢复任务句柄；动态模板的精确呈现；后台子代理的驻留、cold-resume、turn/run 区分及命令完成通知/自动唤醒；LSP 自动 diagnostics 与动态能力注册；研究技能的真实模型/真实语料质量；外部依赖和实际服务连接。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。Trial 的最终产物复核、关闭失败和进程退出处理已完成独立回归，真实优化效果仍需另行验收。
+完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的后台执行与可恢复任务句柄；动态模板的精确呈现；后台子代理的驻留、cold-resume、turn/run 区分及命令完成通知/自动唤醒；LSP 连续异步 diagnostics 与动态能力注册；研究技能的真实模型/真实语料质量；外部依赖和实际服务连接。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。Trial 的最终产物复核、关闭失败和进程退出处理已完成独立回归，真实优化效果仍需另行验收。
 
 任务归属也需区分目标契约：当前任务查询限定创建者，子代理退出时取消并等待其命令，这与 pinned DSH 的 owner 隔离及 disposal 语义相符。Claude 官方要求前台子代理结束时停止命令，但允许后台子代理在当前 turn 结束后继续持有后台命令，并接收完成通知；run 真正退出时才停止。现有 one-shot 子代理在结果返回后回收，尚未实现后一种驻留。不能把它写成所有子代理命令都应无限存活，或已经支持根会话接管所有子任务。当前 Claude 文档还注明 TaskOutput 自 v2.1.277 移除、改为 Read 输出文件；本批插件所用旧 TaskOutput 接口作为显式兼容接口保留。
 
@@ -767,7 +767,7 @@ Workflow 并发默认 3、总 agent() 调用预算默认 64，嵌套脚本共享
 
 ### 16.7 LSP、Bash timing、Trial 与研究技能接入
 
-LSP 通过可重复的 `--lsp-config /absolute/servers.json` 选择 operator 配置；所选插件的 `.lsp.json` 与 manifest `lspServers` 默认进入装配，`--disable-plugin-lsp` 仅关闭 bundled 声明。配置在边界严格校验，执行文件需预先可用，匹配 query 才启动真实 stdio 服务器。query 使用既有工作区读权限及 one-based UTF-16 坐标，九类操作逐项检查服务器 capability；宿主不执行服务器返回的编辑或命令。取消发 `$/cancelRequest`，不应答时强制回收；失败 query 不自动重试，后续 query 按配置的重启次数决定是否重连。当前仅支持 macOS/Linux 进程管理；自动 post-edit diagnostics 和动态 capability 注册未实现，显式 `diagnostics:true` 会拒绝启用。[LSP 契约](../../harness/go/lsp/README.md)
+LSP 通过可重复的 `--lsp-config /absolute/servers.json` 选择 operator 配置；所选插件的 `.lsp.json` 与 manifest `lspServers` 默认进入装配，`--disable-plugin-lsp` 仅关闭 bundled 声明。配置在边界严格校验，执行文件需预先可用，匹配 query 才启动真实 stdio 服务器。query 使用既有工作区读权限及 one-based UTF-16 坐标，九类操作逐项检查服务器 capability；宿主不执行服务器返回的编辑或命令。取消发 `$/cancelRequest`，不应答时强制回收；失败 query 不自动重试，后续 query 按配置的重启次数决定是否重连。当前仅支持 macOS/Linux 进程管理；该检查点尚未实现 post-edit diagnostics；当前已支持原生保存后的有界检查（16.9），连续异步诊断和动态 capability 注册仍缺。[LSP 契约](../../harness/go/lsp/README.md)
 
 实际 `/usr/bin/clangd` 在临时 C++ 工作区完成 hover。独立 CLI fixture 分别走 operator `--lsp-config` 与 bundled plugin `.lsp.json`，都经真实 LSP 工具把代码位置送回 loopback 模型，并检查配置值不进入模型回执。协议 fixture 另外验证设置交换、取消与退出。这证明已装配和协议交互，不表示任意服务器可用或 issue-fixer 的真实修复/PR 工作流已通过。[真实服务器测试](../../harness/go/lsp/client_test.go)、[CLI 两路径测试](../../harness/go/cmd/pero-agent-acp/lsp_cli_test.go)
 
@@ -795,3 +795,14 @@ Trial 源码检查点为 `49135115`、`72ea0376`，15 项本地测试通过，�
 真实 stdio 工具测试覆盖诊断呈现、Unicode、空集合清除、其他 URI、过期版本和重复打开。此步骤尚未接通 Write/Edit 后的变更通知及异步注入，`diagnostics:true` 仍明确拒绝；不能据此宣称自动编辑诊断已经完成。[接收契约](../../harness/go/lsp/README.md#query-time-diagnostic-evidence)
 
 本步骤验证：`go test -race ./lsp ./cmd/pero-agent-acp`、`go vet ./lsp` 通过，Bazel LSP 与 CLI 两个测试目标通过。未重复调用付费模型或扩大为完整编辑诊断验收。
+
+
+### 16.9 原生 Write/Edit 保存后的诊断
+
+`diagnostics` 现在按官方配置默认 true，可显式 false。原生 Write/Edit 成功后，现有工具 After pipeline 根据实际 applied 文件回执读取保存内容，按工作区权限送入新版本 didOpen；服务器声明 save capability 时发送 didSave，并仅在要求时携带正文。通过同一连接等待首个有效诊断通知，写入同工具回执的持久 additional context，带 lsp-diagnostics 来源，进入下一模型请求。该步骤不执行第二次文件操作。[默认与配置](https://code.claude.com/docs/en/plugins-reference#lspservers)、[保存协议](https://raw.githubusercontent.com/microsoft/language-server-protocol/gh-pages/_specifications/lsp/3.17/textDocument/didSave.md)
+
+检查使用最多两秒的预算，涵盖服务器启动和连接等待；等待通知还受 requestTimeout 限制。退出、超时、无通知都保留已成功的文件操作，只追加诊断不可用说明，不伪造无错误结论。拒绝、失败、无映射或 diagnostics:false 不触发检查。真实 native Write→错误→Edit→空诊断与三次模型调用通过，模型确实接收错误和清除上下文，两次实际审批，两次实际文件副作用；另覆盖服务器崩溃、静默超时和显式关闭。[运行测试](../../harness/go/lsp/after_edit_test.go)
+
+此实现使用临时打开/保存/关闭的文件快照，空集合只表示该时刻服务器的回执，不承诺异步分析全部结束。保留文档并持续接收后续异步诊断、任意 Bash 或外部编辑器改动通知仍待实现；不将这一检查点扩大为完整连续诊断等价。[运行契约](../../harness/go/lsp/README.md#automatic-checks-after-saved-files)
+
+本步骤冻结后通过 Go 全量 `go test -race ./...`（34 个有测试的包）、`go vet ./...`，Bazel LSP、plugins、完整 ACP CLI 三个测试目标全部通过。验证使用本地 stdio 与模型 seam，无付费模型请求。

@@ -117,8 +117,9 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   explicit repeatable `--lsp-config` files remain available independently.
   Selection grants execution of trusted local stdio servers; it does not
   install missing executables. Nine capability-checked queries, cancellation,
-  restart limits and shutdown are implemented; automatic diagnostics and
-  dynamic registration are not. See the [LSP contract](../lsp/README.md).
+  restart limits and shutdown are implemented. Native saved-file diagnostic
+  checks default to enabled; continuous asynchronous monitoring and dynamic
+  registration remain pending. See the [LSP contract](../lsp/README.md).
 - Explicit `--web-provider deepseek-api` enables WebSearch/WebFetch, using the
   existing approval channel and a tool-free child for page extraction. See
   [Web provider configuration](../webtools/README.md).

@@ -136,8 +136,9 @@ lazily for a matching query and must advertise the requested capability.
 The nine query operations use one-based UTF-16 cursor positions and the existing
 workspace reader. The host never applies server edits or commands. Language
 servers are trusted local processes, with cancellation, restart limits and
-shutdown ownership; they are not an OS sandbox. Automatic post-edit diagnostics
-and dynamic capability registration remain unsupported. Actual `/usr/bin/clangd`
+shutdown ownership; they are not an OS sandbox. Native Write/Edit now trigger bounded saved-file diagnostic checks by default;
+see the LSP contract. Continuous asynchronous diagnostics and dynamic capability
+registration remain unsupported. Actual `/usr/bin/clangd`
 hover and both operator/bundled CLI fixture paths have passed. See the
 [LSP contract](../lsp/README.md) for configuration, supported operations and
 remaining platform limits.

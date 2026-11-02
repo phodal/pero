@@ -39,9 +39,9 @@ rendered results to 100 entries / 16,000 characters.
 `restartOnCrash` and `maxRestarts` control lazy replacement on a subsequent
 query; the failed query is not silently retried. Defaults permit three
 replacements. Supported configuration is strict: unknown fields, non-stdio
-transport and explicit `diagnostics: true` are rejected. Live post-edit
-diagnostics injection and dynamic capability registration are not implemented;
-omitting `diagnostics` leaves that feature disabled in this runtime. Managed
+transport is rejected. Dynamic capability registration is not implemented.
+Post-edit diagnostic checks default to enabled; `diagnostics: false` disables
+them for the selected server. Managed
 process ownership is currently implemented only on Linux and macOS.
 
 Tests use a local stdio fixture without network access. With an installed
@@ -75,6 +75,33 @@ for a server to finish all asynchronous validation.
 
 Real stdio tool tests cover Unicode diagnostics, clear notifications, foreign
 URIs, stale versions and repeated openings. This is the receiving path needed
-for automatic diagnostics; Write/Edit notification and later asynchronous
-injection are still pending, so `diagnostics: true` remains rejected.
+for automatic diagnostics described below. Later asynchronous publications
+after a saved-snapshot check are not injected.
 Protocol reference: [publishDiagnostics](https://raw.githubusercontent.com/microsoft/language-server-protocol/gh-pages/_specifications/lsp/3.17/language/publishDiagnostics.md).
+
+## Automatic checks after saved files
+
+`diagnostics` defaults to true, matching the selected Claude configuration.
+After a successful native Write/Edit (or write_file/edit_file), the existing
+After pipeline reads the actual applied filesystem receipt. For a mapped file,
+it reads the saved contents through the existing workspace authority and opens
+a fresh versioned document on that server. If the server advertises save
+support, the host sends didSave, including text only when requested. It closes
+the transient document after the check; it never sends an invented didChange
+for a document that it did not already own.
+
+The host waits up to two seconds for startup, connection admission and the
+first valid publication (also bounded by requestTimeout for publication).
+The latest received set becomes a durable additional context on the same tool
+result, attributed as lsp-diagnostics. An empty set is explicit server evidence
+at that moment, not a promise that all asynchronous analysis has finished.
+Failure, timeout or server exit preserves the successful file operation and
+adds an unavailable notice; it never retries the write or reports a clean set.
+Denied/failed effects and unmapped or disabled files do not start this check.
+
+Tests execute real native Write and Edit, observe error and empty publications,
+and prove that the next model requests receive both contexts with exactly two
+approvals and two effects. Crash, silent-server and disabled cases are covered.
+This saved-snapshot path does not retain documents for later asynchronous
+updates or observe arbitrary Bash/external-editor file changes. Those remain
+part of full continuous diagnostic parity.
