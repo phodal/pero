@@ -28,7 +28,7 @@ class ResearchRecords(unittest.TestCase):
             papers = [store.save_paper(PaperSnapshot.from_reading(reading(sourceId=str(i)), NOW)) for i in range(2)]
             intent = store.prepare(request(papers), NOW)
             report = store.save_report(intent.id, json.dumps(report_value(intent)), NOW)
-            value = draft(papers)
+            value = draft(papers, parentId=None)
             value['evidence'] = [dict(paperId=papers[0].id, reportId=report.id, stance='counterevidence', note='Only a synthetic finding')]
             first = record_command(store, value, NOW)
             amended = {**value, 'scope': 'Narrower conditions', 'parentId': first['id'],
@@ -41,11 +41,13 @@ class ResearchRecords(unittest.TestCase):
             self.assertEqual(second['verification'], 'not_run')
             self.assertEqual(len(record_command(reopened, {'operation': 'list'}, NOW)['records']), 2)
             for mutate in (
+                lambda v: v.update(paperIds=[papers[0].id, papers[0].id]),
                 lambda v: v['decisions'].pop(),
                 lambda v: v['decisions'][0].update(reason=''),
                 lambda v: v['decisions'][1].update(paperId=papers[0].id),
                 lambda v: v['evidence'][0].update(paperId=papers[1].id),
                 lambda v: v['evidence'][0].update(reportId='0' * 64),
+                lambda v: v['evidence'][0].update(reportId=None),
                 lambda v: v.update(verification='PASS'),
                 lambda v: v.update(parentId='0' * 64),
                 lambda v: v.update(review=dict(decision='accepted', note='OK', identityScope='independent')),
@@ -54,10 +56,26 @@ class ResearchRecords(unittest.TestCase):
                 mutate(invalid)
                 with self.subTest(value=invalid), self.assertRaises(Invalid):
                     record_command(store, invalid, NOW)
+            # The Agent schema enforces shape/length; the domain still owns hex IDs
+            # and saved-owner references (never provider source IDs).
+            for identity in ('g' * 64, 'A' * 64, 'a' * 63, 'a' * 65, papers[0].source_id):
+                for command in (
+                    {**value, 'parentId': identity},
+                    {**value, 'paperIds': [identity]},
+                    {**value, 'decisions': [dict(paperId=identity, decision='pending', reason='Review')]},
+                    {**value, 'evidence': [dict(paperId=identity, reportId=report.id, stance='support', note='Review')]},
+                    {**value, 'evidence': [dict(paperId=papers[0].id, reportId=identity, stance='support', note='Review')]},
+                    dict(operation='read', recordId=identity),
+                    dict(operation='select', recordId=first['id'], paperIds=[identity]),
+                ):
+                    with self.subTest(command=command), self.assertRaises(Invalid):
+                        record_command(store, command, NOW)
             # A missing evidence gap needs no forged report/observation.
             gap = draft(papers)
             gap['evidence'] = [dict(paperId=papers[1].id, stance='gap', note='No observed result')]
-            self.assertIsNone(record_command(store, gap, NOW)['evidence'][0]['reportId'])
+            for nullable in ({}, {'reportId': None}):
+                gap['evidence'][0].update(nullable)
+                self.assertIsNone(record_command(store, gap, NOW)['evidence'][0]['reportId'])
 
     def test_actual_saved_change_selection_and_private_export(self):
         with tempfile.TemporaryDirectory() as root:
