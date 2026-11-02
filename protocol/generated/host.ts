@@ -92,6 +92,7 @@ export type ContextKind =
 export type ThreadId = string;
 export type ContextContent = TextContextContent | ImageContextContent;
 export type AppRequest =
+  | AppApiAccess
   | AppSdkRequest
   | ListApps
   | InstallApp
@@ -969,6 +970,13 @@ export interface DeleteCommand {
 export interface InsightsCommand {
   action: "insights";
   thread_id: ThreadId;
+}
+export interface AppApiAccess {
+  action: "apiaccess";
+  name: AppName;
+  path: string;
+  method: "apps";
+  id: RequestId;
 }
 export interface AppSdkRequest {
   action: "sdkcontext";

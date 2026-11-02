@@ -26,6 +26,7 @@ enum Request {
     Plugininstall { method: Method, id: String, path: PathBuf },
     Pluginenable { method: Method, id: String, name: AppName, enabled: bool },
     Agentrun { method: Method, id: String, name: AppName, request: pero_runtime::apps::agent_run::Request },
+    Apiaccess { method: Method, id: String, name: AppName, path: String },
     Sdkcontext { method: Method, id: String, name: AppName },
     Agentcatalog { method: Method, id: String, name: AppName, path: String },
     Prepare { method: Method, id: String, name: AppName },
@@ -209,6 +210,9 @@ impl Apps {
                     plugins.set_enabled(&name, enabled)?;
                     if !enabled { agents.as_deref_mut().expect("Host manager").stop_plugin_sessions(&name); }
                     serde_json::to_value(plugins.list())
+                }
+                Request::Apiaccess {method,id,name,path} => {
+                    let _=(method,id);store.require_api(&name,&path)?;Ok(serde_json::json!({"permitted":true}))
                 }
                 Request::Sdkcontext { method, id, name } => {
                     let _ = (method, id); serde_json::to_value(store.sdk_context(&name)?)

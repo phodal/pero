@@ -1214,6 +1214,37 @@
       ],
       "additionalProperties": false
     },
+    "AppApiAccess": {
+      "title": "AppApiAccess",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "apiaccess"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "path": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "path",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "AppChatScope": {
       "title": "AppChatScope",
       "type": "object",
@@ -1517,6 +1548,9 @@
     "AppRequest": {
       "title": "AppRequest",
       "oneOf": [
+        {
+          "$ref": "#/$defs/AppApiAccess"
+        },
         {
           "$ref": "#/$defs/AppSdkRequest"
         },

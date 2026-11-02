@@ -225,6 +225,7 @@ export class DesktopApps {
         const target = new URL(`/host/${routes[capability]}`, request.url);
         return this.serve(new Request(target, {method:'POST',headers:request.headers,body:JSON.stringify({...input,operation})}));
       }
+      if (url.pathname.startsWith('/api/')) await this.request('apiaccess', {name:url.hostname,path:url.pathname});
       const sdkInputPrefix = `/api/apps/${url.hostname}/inputs/`;
       if (url.pathname.startsWith(sdkInputPrefix)) {
         return this.serve(new Request(new URL(`/host/inputs/${url.pathname.slice(sdkInputPrefix.length)}`, request.url), request));

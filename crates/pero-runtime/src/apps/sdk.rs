@@ -21,3 +21,13 @@ impl AppStore {
         } })
     }
 }
+
+impl Permissions {
+    fn require_api(&self,path:&str)->Result<(),String> {
+        if self.api.iter().any(|prefix| path==prefix || path.strip_prefix(prefix).is_some_and(|tail| tail.starts_with('/'))) {Ok(())}
+        else {Err("App API path is not declared".into())}
+    }
+}
+impl AppStore {
+    pub fn require_api(&self,name:&AppName,path:&str)->Result<(),String> { self.sdk_context(name)?.permissions.require_api(path) }
+}

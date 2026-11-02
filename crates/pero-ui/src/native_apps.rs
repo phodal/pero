@@ -219,6 +219,7 @@ impl NativeApps {
                 .header("Cache-Control", "no-store")
                 .body(b"Agent route is reserved for the Host".to_vec())?);
         }
+        if path.starts_with("/api/") {self.request::<Value>("apiaccess",json!({"name":name,"path":path}))?;}
         let method = request.method();
         let body = request.body();
         if path == "/host/research-assets" {
