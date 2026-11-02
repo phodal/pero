@@ -64,3 +64,23 @@ test('each active phase requires actual requests and consumes every planned Pape
   assert.throws(() => decline.finishTurn(), /No actual bounded permission/);
   decline.beginTurn(1); decline.finishTurn();
 });
+
+test('ID-only Go permission updates retain subject; supplied updates must match exactly', () => {
+  for (const subject of [{}, { title: name('inspect-research-link'), rawInput: args }]) {
+    const p = setup(), r = request(); Object.assign(r.data.toolCall, subject);
+    assert.equal(p.respond(r, 'owned').option_id, 'allow');
+    assert.equal(p.respond(r, 'owned').option_id, 'deny');
+  }
+  for (const subject of [
+    { title: 'shell' }, { title: null }, { title: {} },
+    { rawInput: { command: 'unauthorized' } }, { rawInput: null },
+    { rawInput: JSON.stringify(args) }, { rawInput: [] },
+  ]) {
+    const p = setup(), r = request(); Object.assign(r.data.toolCall, subject);
+    assert.equal(p.respond(r, 'owned').option_id, 'deny');
+    assert.equal(p.decisions[0].allowed, false);
+    // A conflicting subject consumes the request; restoring it cannot replay.
+    r.data.toolCall = { toolCallId: 'call', title: name('inspect-research-link'), rawInput: args };
+    assert.equal(p.respond(r, 'owned').option_id, 'deny');
+  }
+});

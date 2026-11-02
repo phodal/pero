@@ -46,9 +46,16 @@ export class FixtureApproval {
   respond(event, thread) {
     const data = event.data || {}, id = data.permission_id, callId = data.toolCall?.toolCallId;
     const call = this.calls.get(callId), expected = this.expected.get(callId);
+    // Go ACP requestApproval (harness/go/acp/server.go) sends an ID-only
+    // ToolCallUpdate. Omitted fields retain the observed pending subject; an
+    // explicitly supplied update must not contradict that subject.
+    const subject = data.toolCall || {};
+    const subjectMatches = expected &&
+      (!Object.hasOwn(subject, 'title') || subject.title === expected.name) &&
+      (!Object.hasOwn(subject, 'rawInput') || isDeepStrictEqual(subject.rawInput, expected.args));
     const allowed = event.kind === 'permission' && event.thread_id === thread && typeof id === 'string' &&
       this.decisions.length < 128 && !this.seen.has(id) && call && expected && call.status === 'in_progress' &&
-      call.title === expected.name && isDeepStrictEqual(call.rawInput, expected.args) && this.permits(call.title, call.rawInput);
+      subjectMatches && call.title === expected.name && isDeepStrictEqual(call.rawInput, expected.args) && this.permits(call.title, call.rawInput);
     if (id) this.seen.add(id);
     this.expected.delete(callId); this.calls.delete(callId);
     const options = (data.options || []).filter(option => option.kind === (allowed ? 'allow_once' : 'reject_once'));
