@@ -1,5 +1,15 @@
 # Paper Agent
 
+论文生命周期能力统一属于本 App：资料与证据、规划、写作、TeX 构建/PDF
+预览、审阅和交付共享现有 Paper 数据与 Host Chat。接入范围和实施顺序见
+[稿件写作设计](../../docs/design-docs/paper-manuscript-authoring.md)。
+
+本 App 自带四个阶段技能：[规划](skills/paper-plan/SKILL.md)、
+[写作与修订](skills/paper-write/SKILL.md)、[构建与预览](skills/paper-build/SKILL.md)、
+[审阅](skills/paper-review/SKILL.md)。它们及共享参考文件随 builtin payload
+交付，可指导已有授权工作区中的操作；作者稿件持久化、受管 TeX 编译和作者 PDF
+预览的 App 路由/UI 尚待实现。文件打包不代表 Desktop 自动发现或工具已接通。
+
 端到端 [Paper Reproduction Skill](skills/paper-reproduction/SKILL.md) 串起结果提取、
 代码审计、协议冻结、获准执行、独立重算与结果包交接；支持只做计划、重分析和新实验，
 分别报告来源一致性、执行状态、数值核验与科学结论。它复用当前可用执行入口，
