@@ -64,12 +64,23 @@ type StepInput struct {
 	Messages            []Message
 	Continue            bool
 	Reject              bool
+	RejectReason        string
 	StartsRequestSeries bool
 }
 
 type TurnStoppingInput struct {
 	Agent *Agent
 	Turn  int
+}
+
+type CompactionHookInput struct {
+	Agent   *Agent
+	Trigger string
+	Reject  bool
+	Reason  string
+	// Messages contains synthetic user context to append durably after a
+	// successful compaction, before the next provider request is assembled.
+	Messages []Message
 }
 
 type AgentErrorInput struct {
@@ -126,6 +137,8 @@ type AgentHooks struct {
 	Request      *point.Pipeline[GenerateRequest]
 	RequestError *point.Pipeline[RequestErrorInput]
 	TurnStopping *point.Signal[TurnStoppingInput]
+	PreCompact   *point.Pipeline[CompactionHookInput]
+	PostCompact  *point.Pipeline[CompactionHookInput]
 	// Error is a contained lifecycle notification. The loop never replaces the
 	// original turn failure with a listener failure.
 	Error     *point.Signal[AgentErrorInput]
@@ -153,6 +166,8 @@ func NewAgentHooks(runtime *point.Runtime) *AgentHooks {
 		Request:        point.NewPipeline[GenerateRequest](runtime, "harness/agent/request"),
 		RequestError:   point.NewPipeline[RequestErrorInput](runtime, "harness/agent/request-error"),
 		TurnStopping:   point.NewSignal[TurnStoppingInput](runtime, "harness/agent/turn-stopping"),
+		PreCompact:     point.NewPipeline[CompactionHookInput](runtime, "harness/agent/pre-compact"),
+		PostCompact:    point.NewPipeline[CompactionHookInput](runtime, "harness/agent/post-compact"),
 		Error:          point.NewSignal[AgentErrorInput](runtime, "harness/agent/error"),
 		Status:         point.NewSignal[AgentStatusInput](runtime, "harness/agent/status"),
 		Published:      point.NewSignal[*Agent](runtime, "harness/agent/published"),

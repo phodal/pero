@@ -217,6 +217,9 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 			// decision, not a preparation failure to recover.
 			uncommitted = nil
 			reason = FinishStop
+			if decision.RejectReason != "" {
+				return result, errors.New(decision.RejectReason)
+			}
 			return result, nil
 		}
 		// An errored PreStep retains original accepted bytes. After a successful

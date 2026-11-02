@@ -165,6 +165,17 @@ func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measure
 	if turn != nil && (openTurn == nil || *openTurn != *turn) {
 		return nil, errors.New("harness: automatic compaction requires its current open turn")
 	}
+	hookInput := CompactionHookInput{Agent: agent, Trigger: "auto"}
+	if turn == nil {
+		hookInput.Trigger = "manual"
+	}
+	hookInput, hookErr := agent.hooks.PreCompact.Run(ctx, hookInput, func(_ context.Context, input CompactionHookInput) (CompactionHookInput, error) { return input, nil })
+	if hookErr != nil {
+		return nil, hookErr
+	}
+	if hookInput.Reject {
+		return nil, fmt.Errorf("harness: compaction blocked: %s", hookInput.Reason)
+	}
 	beforeNodes := append([]TokenNode(nil), measurement.Nodes...)
 	selectedNodes := append([]TokenNode(nil), measurement.Nodes[selection.startIndex:selection.endIndex+1]...)
 	compactionID, err := newCompactionID()
@@ -318,6 +329,23 @@ func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measure
 		return nil, err
 	}
 	closed = true
+	hookInput, hookErr = agent.hooks.PostCompact.Run(ctx, hookInput, func(_ context.Context, input CompactionHookInput) (CompactionHookInput, error) { return input, nil })
+	if hookErr != nil {
+		return nil, hookErr
+	}
+	for _, message := range hookInput.Messages {
+		if message.Role != RoleUser || len(message.Source) == 0 {
+			return nil, errors.New("harness: post-compaction context requires synthetic user messages with a source")
+		}
+	}
+	for _, message := range hookInput.Messages {
+		if _, err := session.AppendSurface("user/message", message, []uint64{endEvent.Seq}); err != nil {
+			return nil, fmt.Errorf("harness: append post-compaction context: %w", err)
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return &CompactionResult{
 		CompactionID: compactionID, SourceCommandID: commandIDValue(sourceCommandID), StartSeq: start.Seq, SummarySeq: summaryEvent.Seq, EndSeq: endEvent.Seq,
 		Summary: summary, ShadowedRange: selection.rangeValue, ShadowedSeqs: append([]uint64(nil), selection.seqs...),
