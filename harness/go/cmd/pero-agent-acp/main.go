@@ -29,6 +29,9 @@ func main() {
 }
 
 func run() (resultErr error) {
+	if len(os.Args) > 1 && os.Args[1] == "plugins" {
+		return runPlugins(os.Args[2:], os.Stdout)
+	}
 	endpoint := flag.String("endpoint", "", "explicit OpenAI-compatible HTTPS endpoint (loopback HTTP allowed)")
 	model := flag.String("model", "", "explicit provider model ID")
 	chartPython := flag.String("chart-python", "python3", "Python 3.9+ executable for shared chart/data core")

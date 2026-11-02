@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "components.go",
         "diagnostic.go",
+        "inspect.go",
         "integrations.go",
         "manifest.go",
         "types.go",
@@ -18,6 +19,7 @@ go_test(
     name = "plugins_test",
     srcs = [
         "components_test.go",
+        "inspect_test.go",
         "integrations_test.go",
     ],
     embed = [":plugins"],
