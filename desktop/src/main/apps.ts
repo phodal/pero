@@ -7,7 +7,7 @@ import { AppWriteRoutes } from './app-write-routes.ts';
 import { PreparedAppWrite, type AppWriteDefinition } from './app-write.ts';
 
 // These are transport values, generated from the same contract as the Rust Host.
-import type { AppAccess, AppRecord } from '../../../protocol/generated/host';
+import type { AppAccess, AppRecord, ProjectResourceCatalog } from '../../../protocol/generated/host';
 
 type Event = { version: number; kind: string; request_id: string | null; text: string; data?: unknown };
 type Pending = { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> };
@@ -151,8 +151,21 @@ export class DesktopApps {
   }
 
   async command(value: unknown): Promise<void> {
+    const command = value as { action?: string; name?: string; panel?: string; request_id?: string };
+    if (command?.action === 'apps_project_resources') {
+      const app = typeof command.name === 'string' ? command.name : '';
+      const request_id = typeof command.request_id === 'string' ? command.request_id : null;
+      let catalog: ProjectResourceCatalog;
+      try {
+        if (!['paper-agent', 'control-lab', 'lab'].includes(app)) throw new Error('This App has no project resource catalog');
+        catalog = await this.request<ProjectResourceCatalog>('projectresources', { name: app });
+      } catch (error) {
+        catalog = { app, resources: [], error: (error as Error).message };
+      }
+      this.send({ version: 1, kind: 'project_resources', request_id, text: '', data: catalog });
+      return;
+    }
     try {
-      const command = value as { action?: string; name?: string; panel?: string };
       const action = command?.action?.replace(/^apps_/, '');
       if (!['list', 'install', 'enable', 'disable', 'uninstall', 'open'].includes(action || '')) throw new Error('Unsupported App action');
       if (command.name !== undefined && (command.name.length > 64 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(command.name))) throw new Error('Invalid App name');

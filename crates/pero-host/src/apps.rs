@@ -47,6 +47,11 @@ enum Request {
         id: String,
         name: AppName,
     },
+    Projectresources {
+        method: Method,
+        id: String,
+        name: AppName,
+    },
     Agent {
         method: Method,
         id: String,
@@ -276,6 +281,12 @@ impl Apps {
                 Request::Resolve { method, id, name } => {
                     let _ = (method, id);
                     serde_json::to_value(store.resolve_with_progress(&name, &mut progress)?)
+                }
+                Request::Projectresources { method, id, name } => {
+                    let _ = (method, id);
+                    let catalog = crate::project_resources::ProjectResources::resolve(store, &name, &mut progress)?;
+                    drop(guard);
+                    return serde_json::to_value(catalog.read()?).map_err(|error| error.to_string());
                 }
                 Request::Agent {
                     method,

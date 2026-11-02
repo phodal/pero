@@ -8,6 +8,7 @@ mod automation;
 mod automation_store;
 mod apps;
 mod research_assets;
+mod project_resources;
 mod paper_reproduction;
 mod local_repo;
 mod contributions;
