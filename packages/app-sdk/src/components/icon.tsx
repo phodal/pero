@@ -1,4 +1,4 @@
-// Adapted from Point App SDK d95f9118e (Apache-2.0).
+// Upstream attribution and license: packages/app-sdk/NOTICE.md.
 import { iconArtwork } from '../icons.generated';
 import React, { forwardRef } from 'react';
 import type { ReactNode } from 'react';
