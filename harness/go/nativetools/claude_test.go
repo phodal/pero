@@ -26,6 +26,7 @@ type claudeFixture struct {
 	allowed   *harness.Agent
 	denied    *harness.Agent
 	approvals atomic.Int32
+	calls     atomic.Int32
 }
 
 func newClaudeFixture(t *testing.T, options Options) *claudeFixture {
@@ -69,7 +70,9 @@ func newClaudeFixture(t *testing.T, options Options) *claudeFixture {
 		if err != nil {
 			t.Fatal(err)
 		}
-		agent.Session().Append("turn/start", struct{ Turn int }{1})
+		agent.Session().Append("turn/start", struct {
+			Turn int `json:"turn"`
+		}{1})
 		if allowed {
 			fixture.allowed = agent
 		} else {
@@ -85,7 +88,7 @@ func (f *claudeFixture) call(t *testing.T, agent *harness.Agent, name string, in
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := f.harness.Tools().Execute(t.Context(), harness.ToolRequest{Agent: agent, Name: name, CallID: harness.ToolCallID(name + "-call"), Arguments: raw})
+	out, err := f.harness.Tools().Execute(t.Context(), harness.ToolRequest{Agent: agent, Name: name, CallID: harness.ToolCallID(fmt.Sprintf("%s-call-%d", name, f.calls.Add(1))), Arguments: raw})
 	if err != nil {
 		t.Fatal(err)
 	}

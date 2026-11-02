@@ -25,7 +25,11 @@ go_library(
 go_test(
     name = "nativetools_test",
     srcs = [
+        "background_journal_test.go",
+        "background_restart_test.go",
+        "background_test.go",
         "claude_test.go",
+        "output_file_test.go",
         "research_clone_test.go",
         "sandbox_test.go",
         "tools_test.go",
