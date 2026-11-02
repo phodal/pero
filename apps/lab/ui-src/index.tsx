@@ -55,6 +55,15 @@ export default function Lab() {
     pending.current = true; setBusy(true); setError(''); setNotice('');
     try { await work(); } catch (cause) { fail(cause); } finally { pending.current = false; setBusy(false); }
   }
+  useEffect(() => {
+    const receive = (event: MessageEvent) => {
+      if (event.source !== window.parent || event.data?.type !== 'pero:app:location' || typeof event.data.location !== 'string') return;
+      const match = /^experiment\/([a-f0-9]{32})$/.exec(event.data.location);
+      if (match) void open(match[1]);
+    };
+    window.addEventListener('message', receive);
+    return () => window.removeEventListener('message', receive);
+  }, [api]);
   async function open(id: string) {
     await perform(async () => {
       const next = await api.get<Experiment>(`/api/experiments/${encodeURIComponent(id)}`);

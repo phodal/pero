@@ -133,6 +133,15 @@ export default function ControlLab() {
   useEffect(() => {
     void initialize();
   }, [initialize]);
+  useEffect(() => {
+    const receive = (event: MessageEvent) => {
+      if (event.source !== window.parent || event.data?.type !== 'pero:app:location' || typeof event.data.location !== 'string') return;
+      const match = /^experiment\/([a-f0-9]{32})$/.exec(event.data.location);
+      if (match) void open(match[1]);
+    };
+    window.addEventListener('message', receive);
+    return () => window.removeEventListener('message', receive);
+  }, [api]);
   async function open(id: string) {
     const revision = ++selection.current;
     setBusy(true);

@@ -32,6 +32,7 @@ export default function PaperAgent() {
   const [importingPdf, setImportingPdf] = useState(false);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [reading, setReading] = useState<Paper | null>(null), [readingBusy, setReadingBusy] = useState(false);
   const [showResearch, setShowResearch] = useState(false), [questionMode, setQuestionMode] = useState(false);
+  const [recordOpening, setRecordOpening] = useState<{ studyId: string; intentId: string | null; token: number } | null>(null);
   const [savingPaper, setSavingPaper] = useState<Paper | null>(null), [saveRevision, setSaveRevision] = useState(0);
   const [chatRequest, setChatRequest] = useState<{selection:Partial<PaperResearchSelection>;message:string} | null>(null);
   const [discoveryOpening, setDiscoveryOpening] = useState<DiscoveryOpening | null>(null), [matrixOpen, setMatrixOpen] = useState(false);
@@ -211,9 +212,27 @@ export default function PaperAgent() {
   useEffect(() => {
     const receive=(event:MessageEvent)=>{
       if(event.source!==window.parent || event.data?.type!=='pero:app:location' || typeof event.data.location!=='string')return;
+      const resource=/^(paper|study)\/([a-f0-9]{64})$/.exec(event.data.location);
       const match=/^report\/([a-f0-9]{64})\/citation\/(\d+)$/.exec(event.data.location);
-      if(!match)return;
+      if(!resource&&!match)return;
       void (async()=>{
+        if(resource){
+          setQuestionMode(false);setSavingPaper(null);
+          if(resource[1]==='paper'){
+            setRecordOpening(null);
+            await read(await api.get<Paper>(`/api/papers/${resource[2]}`),false,true);
+          }else{
+            const study=await api.get<import('./types').ResearchStudy>(`/api/studies/${resource[2]}`);
+            const paperId=study.paperIds[0];
+            if(!paperId)throw Error('The study has no saved source');
+            await read(await api.get<Paper>(`/api/papers/${paperId}`),false,true);
+            await refresh();
+            setRecordOpening(previous=>({studyId:study.id,intentId:study.intentId,token:(previous?.token??0)+1}));
+            setShowResearch(true);
+          }
+          return;
+        }
+        if(!match)return;
         const report=await api.get<import('./types').Report>(`/api/reports/${match[1]}`);
         const intent=await api.get<Intent>(`/api/intents/${report.intentId}`);
         const refs=report.sections?.flatMap(section=>section.evidence??[])??[];
@@ -272,7 +291,7 @@ export default function PaperAgent() {
       {screen === 'reading' && showResearch && <aside className="pa-records" aria-label={t('researchProgress')} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); if (citation) closeEvidence(); else closeRecords(); } }}>
         <header className="pa-records-header"><h2>{t('researchProgress')}</h2><Button variant="ghost" aria-label={t('closeRecords')} onClick={closeRecords}>×</Button></header>
         <div className="pa-records-panel">
-          <ResearchRecords api={api} library={library} paper={reading} onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} t={t}/>
+          <ResearchRecords api={api} library={library} paper={reading} onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} opening={recordOpening} t={t}/>
           {citation && <div className="pa-record-evidence"><EvidencePanel citation={citation} location={evidence} paper={citation.intent.papers.find(p => p.id === citation.paperId)} busy={evidenceBusy} onClose={closeEvidence} onRead={(page, rects) => { const paper = citation.intent.papers.find(p => p.id === citation.paperId), pdf = evidence?.pdf; if (paper && pdf) void revealPdf(paper, { documentId: pdf.documentId, page: page ?? pdf.pages[0], rects: rects ?? pdf.rects }).catch(onError); else if (paper) void read(paper, true); }} t={t}/></div>}
         </div>
       </aside>}
