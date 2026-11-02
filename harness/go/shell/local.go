@@ -34,6 +34,9 @@ type LocalOptions struct {
 	// BaseEnv is an explicit trusted allowlist input, never inherited implicitly.
 	// Only PATH, LANG, LC_ALL and TZ are accepted; no per-command environment seam.
 	BaseEnv []string
+	// TrustedBaseEnvironment accepts an operator-supplied launch snapshot, such
+	// as an explicitly enabled plugin profile. Model requests cannot set it.
+	TrustedBaseEnvironment bool
 }
 
 type LocalExecutor struct {
@@ -86,6 +89,9 @@ func NewLocalExecutor(options LocalOptions) (*LocalExecutor, error) {
 		return nil, errors.New("shell: limits exceed supported bounds")
 	}
 	env, err := explicitEnvironment(options.BaseEnv)
+	if options.TrustedBaseEnvironment {
+		env, err = trustedEnvironment(options.BaseEnv)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +118,32 @@ func explicitEnvironment(entries []string) ([]string, error) {
 		default:
 			return nil, errors.New("shell: environment variable is not allowlisted")
 		}
+	}
+	names := make([]string, 0, len(values))
+	for name := range values {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	result := make([]string, 0, len(names))
+	for _, name := range names {
+		result = append(result, name+"="+values[name])
+	}
+	return result, nil
+}
+
+func trustedEnvironment(entries []string) ([]string, error) {
+	values := map[string]string{"PATH": "/usr/bin:/bin", "NO_COLOR": "1", "TERM": "dumb", "PAGER": "cat", "GIT_PAGER": "cat"}
+	for _, entry := range entries {
+		name, value, ok := strings.Cut(entry, "=")
+		if !ok || name == "" || strings.ContainsRune(value, 0) {
+			return nil, errors.New("shell: invalid trusted environment binding")
+		}
+		for i, r := range name {
+			if !(r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || i > 0 && r >= '0' && r <= '9') {
+				return nil, errors.New("shell: invalid trusted environment name")
+			}
+		}
+		values[name] = value
 	}
 	names := make([]string, 0, len(values))
 	for name := range values {

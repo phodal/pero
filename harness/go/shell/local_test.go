@@ -59,6 +59,15 @@ func TestForegroundOutputExitAndEnvironment(t *testing.T) {
 		t.Fatal(r)
 	}
 }
+
+func TestTrustedPluginEnvironmentIsExplicit(t *testing.T) {
+	t.Setenv("PERO_NOT_SELECTED", "must-not-inherit")
+	e := testExecutor(t, LocalOptions{BaseEnv: []string{"PLUGIN_ACCOUNT=explicit-fixture"}, TrustedBaseEnvironment: true})
+	r, err := runCommand(t, e, context.Background(), `printf '%s/%s' "$PLUGIN_ACCOUNT" "${PERO_NOT_SELECTED-unset}"`)
+	if err != nil || r.Stdout.Text != "explicit-fixture/unset" {
+		t.Fatalf("result=%+v error=%v", r, err)
+	}
+}
 func TestOutputCapsBothStreams(t *testing.T) {
 	e := testExecutor(t, LocalOptions{MaxOutputBytes: 128})
 	r, err := runCommand(t, e, context.Background(), `for ((i=0;i<5000;i++)); do printf 1234567890; printf abcdefghij >&2; done`)
