@@ -1,4 +1,5 @@
 // Actual Electron/Host/Paper source-only UI. All default inputs are authored fixtures; no Agent runs.
+import { exerciseLibrarySave } from './paper-library-save-desktop.mjs';
 import { execFileSync } from 'node:child_process';
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
@@ -61,8 +62,12 @@ try {
     const installed = resolve(profile, 'desktop/apps/paper-agent/backend');
     await writeFile(resolve(installed, 'source_fixture.py'), await readFile(resolve(root, 'tests/fixtures/research-source.py')));
     const entry = resolve(installed, 'server.py'), text = await readFile(entry, 'utf8');
-    const marker = '    store = ResearchStore(os.environ["PERO_APP_DATA"], open_embedder())'; expect(text).toContain(marker);
-    await writeFile(entry, text.replace(marker, `${marker}\n    from source_fixture import install\n    install(store)`));
+    const marker = '    store = ResearchStore(os.environ["PERO_APP_DATA"], open_embedder())'; expect(text.split(marker)).toHaveLength(2);
+    expect(text).not.toContain('from source_fixture import install');
+    const handler = 'handler(store, os.environ["PERO_APP_TOKEN"]';
+    expect(text.split(handler)).toHaveLength(2);
+    await writeFile(entry, text.replace(marker, `${marker}\n    from source_fixture import install\n    fixture_pdf_files = install(store)`)
+      .replace(handler, `${handler}, pdf_files=fixture_pdf_files`));
   }
   await openPaper(); let draft = await inspect();
   const candidates = draft.resources.filter(resource => resource.kind === 'source_archive');
@@ -221,6 +226,12 @@ try {
     await frame.getByRole('button', { name: 'Save and download', exact: true }).click();
     await expect(row(pdfOnly.title)).toContainText('Provider returned PDF only; no TeX source', { timeout: 15000 });
     checks.push('Cancellation interrupts source acquisition; explicit retry accepts gzip single TeX; PDF-only response never claims TeX');
+  }
+  if (!live) {
+    await exerciseLibrarySave({ frame, page, api, requests, out, profile, restart: async () => {
+      await app.close(); app = await launch(); await ready(); await openPaper(); return { frame, page };
+    } });
+    checks.push('Library explicit fixed-version copies, cancellation, original identity/annotations, evidence ledger and Desktop restart');
   }
   expect(errors).toEqual([]); expect(acquisitionConflicts).toEqual([]);
   if (live) {
