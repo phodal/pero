@@ -14,7 +14,8 @@
     "https://code.claude.com/docs/en/plugins-reference#lspservers",
     "https://code.claude.com/docs/en/tools-reference#lsp-tool-behavior",
     "https://code.claude.com/docs/en/agent-sdk/typescript",
-    "https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/"
+    "https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/",
+    "https://raw.githubusercontent.com/microsoft/language-server-protocol/gh-pages/_specifications/lsp/3.17/language/publishDiagnostics.md"
   ],
   "compatibility_input_evidence": "The official SDK does not export LSPInput. The uniform operation/filePath/line/character shape is recorded in the upstream schema issue https://github.com/anthropics/claude-code/issues/38011; it is an observed compatibility contract, not a claimed SDK type.",
   "differences": [

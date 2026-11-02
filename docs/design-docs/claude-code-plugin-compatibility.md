@@ -786,3 +786,12 @@ Trial 源码检查点为 `49135115`、`72ea0376`，15 项本地测试通过，�
 原生成脚本真实产生 report.md，随后由 Read 回读，再经批准的 Bash `cp` 与 `cmp` 把 **492 字节**报告原样归档为 raw research，调用方继续创建 source ledger、final report 和 executive summary。测试校验 raw 与 report 字节相同且含引用，不把 Skill 的 instructions 响应当成研究正文。适配来源、许可、解释器/PyYAML 版本及逐文件前后 SHA-256 写入快照 provenance；同一选择可重用已验证 view，来源变化则拒绝套用旧迁移。[原链运行测试](../../harness/go/cmd/pero-agent-acp/research_cli_test.go)、[来源与 validator 测试](../../harness/go/researchprofile/source_test.go)
 
 本次研究验收的 **provider 与网页语料均为 loopback fixture**，证明真实工具链、人工 gate 的交互位置、校验与归档，不证明真实研究质量。实际 DeepSeek 验收仍限于 16.1 的 PRD 流程和 16.6 的各一次 Search/Fetch API 请求；未把它们当作真实完整研究链。后台研究 Agent 使用现有 live-session 生命周期，不承诺 parent 退出后驻留或进程重启后恢复。机器 first-option 试验策略不替代正常研究的人类确认，也不由这次验收推导全部插件业务完全等同。
+
+
+### 16.8 LSP 查询期间的诊断接收
+
+2026-11-03，补齐 stdio `textDocument/publishDiagnostics` 接收链路。查询打开文档时分配递增版本，声明 versionSupport，只接收当前 URI 与匹配版本；新通知替换旧集合，空数组清除旧诊断。查询回执呈现构建回执时已收到的最新诊断，限制 100 条与 16000 Unicode 字符，并沿用总输出上限。未收到通知不等于无错误，省略版本的服务器也无法标识同 URI 旧打开周期的延迟通知。[协议依据](https://raw.githubusercontent.com/microsoft/language-server-protocol/gh-pages/_specifications/lsp/3.17/language/publishDiagnostics.md)
+
+真实 stdio 工具测试覆盖诊断呈现、Unicode、空集合清除、其他 URI、过期版本和重复打开。此步骤尚未接通 Write/Edit 后的变更通知及异步注入，`diagnostics:true` 仍明确拒绝；不能据此宣称自动编辑诊断已经完成。[接收契约](../../harness/go/lsp/README.md#query-time-diagnostic-evidence)
+
+本步骤验证：`go test -race ./lsp ./cmd/pero-agent-acp`、`go vet ./lsp` 通过，Bazel LSP 与 CLI 两个测试目标通过。未重复调用付费模型或扩大为完整编辑诊断验收。

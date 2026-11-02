@@ -55,3 +55,26 @@ The current Agent SDK tool-input union does not export an LSP input type. The
 uniform compatibility shape is also recorded in the
 [upstream schema report](https://github.com/anthropics/claude-code/issues/38011).
 Implementation provenance and licensing are recorded in `SOURCE.json`.
+
+## Query-time diagnostic evidence
+
+The stdio reader now accepts `textDocument/publishDiagnostics` for the document
+currently opened by a query. Initialize advertises version support. Every
+reopening uses a new document version; publications for another URI or another
+version are ignored. A versionless publication is accepted only while that
+URI is open, as permitted by LSP. Servers that omit versions cannot identify a
+delayed publication from an earlier opening of the same URI.
+
+A publication replaces the preceding set; an empty array explicitly clears it.
+Malformed replacements leave the last valid set intact. Retained evidence is
+bounded to 100 entries and 16000 Unicode characters. Query results render the
+latest publication received when the query result is assembled, using the
+existing shared result limits. Missing publication means no evidence received;
+it is never represented as a clean diagnostic result. The host does not wait
+for a server to finish all asynchronous validation.
+
+Real stdio tool tests cover Unicode diagnostics, clear notifications, foreign
+URIs, stale versions and repeated openings. This is the receiving path needed
+for automatic diagnostics; Write/Edit notification and later asynchronous
+injection are still pending, so `diagnostics: true` remains rejected.
+Protocol reference: [publishDiagnostics](https://raw.githubusercontent.com/microsoft/language-server-protocol/gh-pages/_specifications/lsp/3.17/language/publishDiagnostics.md).
