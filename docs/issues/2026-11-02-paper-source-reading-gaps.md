@@ -128,3 +128,20 @@ The running Native preview was not replaced or restarted. This does not claim
 new full-Desktop, signed-package, scientific or live HTML-download acceptance;
 the later proxy-DNS repair and successful production HTML/TeX acquisition are
 recorded in [the arXiv incident](2026-11-02-paper-arxiv-reading-navigation.md).
+
+## Next repair scope (2026-11-02)
+
+Implement in order: retain supplied PDF/full-text links across discovery and
+saved snapshots; route full-text preparation through the existing approved PDF
+acquisition/receipt owner; group only confirmed work/version representations in
+Research URL review. Old immutable records and independent file grants remain
+unchanged. Add fixture-backed end-to-end coverage before scoped commits.
+
+Source-link retention verified: OpenAlex selects an available supplied PDF even
+when its best OA location is HTML-only; discovery, favorites and snapshots retain
+PDF/full-text URLs across store reopen. PubMed PMC and bioRxiv full-text links
+survive actual adapter reads and snapshot persistence. Absent optional fields
+stay omitted for old immutable identities. Focused discovery/literature tests,
+App typecheck/build and the six-group Electron PDF journey pass; the UI original
+link points at the saved full-text URL. No new XML parser or medRxiv adapter is
+part of this increment.

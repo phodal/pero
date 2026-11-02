@@ -77,6 +77,7 @@ class PaperSnapshot:
     limitation: str | None = None
     resource_kind: str | None = None
     source_revision: str | None = None
+    full_text_url: str | None = None
 
     @classmethod
     def from_reading(cls, value, fetched_at):
@@ -109,7 +110,7 @@ class PaperSnapshot:
             url = https(url)
         base = dict(source=source, sourceId=source_id, title=title, url=url,
                     contentKind=kind, content=content, contentDigest=actual_digest, authors=list(authors))
-        optional = {key: https(value[key]) for key in ("pdfUrl", "metadataUrl") if value.get(key)}
+        optional = {key: https(value[key]) for key in ("pdfUrl", "metadataUrl", "fullTextUrl") if value.get(key)}
         base.update(optional)
         resource_kind = value.get("resourceKind")
         if resource_kind is not None:
@@ -123,7 +124,7 @@ class PaperSnapshot:
         limitation = text(value["limitation"], 2000, "source limitation") if value.get("limitation") else None
         return cls(identity, source, source_id, title, base["url"], kind, content, actual_digest,
                    text(value.get("fetchedAt", fetched_at), 40, "retrieval time"), authors,
-                   optional.get("pdfUrl"), optional.get("metadataUrl"), limitation, resource_kind, source_revision)
+                   optional.get("pdfUrl"), optional.get("metadataUrl"), limitation, resource_kind, source_revision, optional.get("fullTextUrl"))
 
     @classmethod
     def from_record(cls, value):
@@ -151,7 +152,7 @@ class PaperSnapshot:
             value["sourceRevision"] = self.source_revision
         if include_content:
             value["content"] = self.content
-        for key, item in (("pdfUrl", self.pdf_url), ("metadataUrl", self.metadata_url), ("limitation", self.limitation)):
+        for key, item in (("pdfUrl", self.pdf_url), ("metadataUrl", self.metadata_url), ("fullTextUrl", self.full_text_url), ("limitation", self.limitation)):
             if item:
                 value[key] = item
         return value

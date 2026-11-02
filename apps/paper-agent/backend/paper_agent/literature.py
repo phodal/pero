@@ -24,7 +24,7 @@ ORIGINS = frozenset(("api.alphaxiv.org", "www.alphaxiv.org", "api.openalex.org",
                      "api.biorxiv.org", "eutils.ncbi.nlm.nih.gov", "arxiv.org", "huggingface.co"))
 LIMIT_BYTES = 1024 * 1024
 ARXIV = re.compile(r"(?:\d{4}\.\d{4,5}|[a-z][a-z.-]*/\d{7})(?:v\d+)?", re.I)
-MERGED_METADATA = ('publicationDate', 'citations', 'citationSource', 'authors', 'pdfUrl', 'doi',
+MERGED_METADATA = ('publicationDate', 'citations', 'citationSource', 'authors', 'pdfUrl', 'fullTextUrl', 'doi',
                    'paperUrl', 'hfVotes', 'thumbnailUrl', 'thumbnailId', 'githubUrl', 'githubStars', 'projectUrl')
 
 
@@ -271,7 +271,8 @@ def _abstract(work):
 
 def _openalex(work, source):
     doi = re.sub(r"^https://doi.org/", "", _text(work.get("doi")))
-    location = work.get("best_oa_location") or work.get("primary_location") or {}
+    locations = [location for location in (work.get("best_oa_location"), work.get("primary_location"),
+                 *(work.get("locations") or [])) if isinstance(location, dict)]
     authors = []
     for authorship in work.get("authorships") or []:
         author = authorship.get("author") if isinstance(authorship, dict) else None
@@ -288,9 +289,12 @@ def _openalex(work, source):
     citations = work.get("cited_by_count")
     if type(citations) is int and citations >= 0:
         hit.update(citations=citations, citationSource="openalex")
-    pdf = _link(location.get("pdf_url"))
+    pdf = next((url for location in locations if (url := _link(location.get("pdf_url")))), None)
     if pdf:
         hit["pdfUrl"] = pdf
+    landing = next((url for location in locations if (url := _link(location.get("landing_page_url")))), None)
+    if landing:
+        hit["fullTextUrl"] = landing
     return hit
 
 

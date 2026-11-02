@@ -226,6 +226,17 @@ class LiteratureTest(unittest.TestCase):
                 reading = client.read({"id": paper_id, "full": True})
                 self.assertEqual((reading["content"], reading["contentKind"]), (expected, kind))
                 self.assertTrue(reading["limitation"])
+                with tempfile.TemporaryDirectory() as root:
+                    store = ResearchStore(root)
+                    snapshot = store.save_paper(PaperSnapshot.from_reading(reading, NOW))
+                    reopened = ResearchStore(root).paper(snapshot.id)
+                    self.assertEqual(reopened, snapshot)
+                    if paper_id.startswith('pmid:'):
+                        self.assertEqual(reopened.full_text_url, 'https://pmc.ncbi.nlm.nih.gov/articles/PMC123/')
+                    elif paper_id.startswith('10.1101/'):
+                        self.assertEqual(reopened.full_text_url, 'https://www.biorxiv.org/content/10.1101/2026.01.01.1v2.full')
+                    else:
+                        self.assertNotIn('fullTextUrl', reopened.to_record())
                 if paper_id == "W123":
                     self.assertEqual(reading["authors"], ["Researcher"])
         hits = client.search({"query": "biology", "sources": ["biorxiv", "pubmed"]})
