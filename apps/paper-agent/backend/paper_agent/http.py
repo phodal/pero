@@ -24,6 +24,7 @@ from .context_file import ContextSelection, ContextRead
 from .research import ResearchPlan
 from .thumbnails import PaperThumbnails
 from .source_reading import source_read, source_image
+from .tex_preview import TexPreviews
 from .pcgym_domain import Invalid as PcgymInvalid, fields as reproduction_fields
 
 MAX_BODY = 1024 * 1024
@@ -46,6 +47,7 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
     pdf_files = pdf_files if pdf_files is not None else PdfFiles()
     thumbnails = thumbnails if thumbnails is not None else PaperThumbnails()
     documents = documents if documents is not None else PaperDocuments(store)
+    tex = TexPreviews(store, pdf_files)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -97,6 +99,15 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if self.command == 'GET': return self.reply(200, store.report_matrix(matrix_match[1]))
                     if self.command == 'POST': return self.reply(201, store.edit_matrix(matrix_match[1], data, now()))
                 if self.command == "GET":
+                    tex_compilation = re.fullmatch(r'/api/tex-compilations/([a-f0-9]{64})', path)
+                    if tex_compilation:
+                        return self.reply(200, tex.status(tex_compilation[1]))
+                    tex_file = re.fullmatch(r'/api/tex-previews/([a-f0-9]{64})/file', path)
+                    if tex_file:
+                        return self.binary(200, tex.file(tex_file[1]), 'application/pdf')
+                    tex_paper = re.fullmatch(r'/api/papers/([a-f0-9]{64})/tex', path)
+                    if tex_paper:
+                        return self.reply(200, tex.overview(tex_paper[1]))
                     source_image_match = re.fullmatch(r'/api/research/source-image/([a-f0-9]{64})/([a-f0-9]{64})', path)
                     if source_image_match:
                         return self.binary(200, source_image(store, *source_image_match.groups()), 'image/png')
@@ -176,6 +187,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, record.to_dict())
                 if self.command == "POST":
+                    tex_paper = re.fullmatch(r'/api/papers/([a-f0-9]{64})/tex', path)
+                    if tex_paper:
+                        return self.reply(202, tex.start(tex_paper[1], data, now()))
                     if path == '/api/reproduction/host':
                         if not compute_secret or not hmac.compare_digest(compute_secret, self.headers.get('X-Pero-Compute-Token', '')):
                             raise Invalid('Private Host computation authority required', 403)
