@@ -27,10 +27,12 @@ const write = function* (name, args, text) { return yield* invoke(alias(name), a
 
 export function* plan(scene, digest) {
   const spec = scenes[scene];
-  const catalog = yield* invoke('skill', {});
-  assert.equal(catalog.find(item => item.name === skillName)?.digest, digest);
-  const skill = yield* invoke('skill', { name: skillName, digest });
-  assert(skill.content.includes('research-source-read'));
+  if (!spec.explicitSkill) {
+    const catalog = yield* invoke('skill', {});
+    assert.equal(catalog.find(item => item.name === skillName)?.digest, digest);
+    const skill = yield* invoke('skill', { name: skillName, digest });
+    assert(skill.content.includes('research-source-read'));
+  }
   let draft = yield* write('inspect-research-link', { url: spec.seed });
   while (draft.status === 'inspecting') draft = yield* write('inspect-research-link', { draftId: draft.id });
   assert.equal(draft.status, 'ready');
@@ -96,15 +98,25 @@ export function* plan(scene, digest) {
   return 'Synthetic protocol completed source lines, literal PDF comparison and validated PDF passage report; not LLM evidence.';
 }
 
-export async function startFixtureProvider(scene, digest) {
+export function verifyFirstSkillInput(body, skillBody) {
+  assert(typeof skillBody === 'string' && skillBody.length > 0, 'Expected exact installed Skill body');
+  const expected = `<skill_content name="${skillName}">\n${skillBody}\n</skill_content>`;
+  assert(body.messages.some(message => message.role === 'user' &&
+    (typeof message.content === 'string' ? message.content === expected :
+      message.content?.some(block => block.type === 'text' && block.text === expected))),
+    'First provider request must contain actual Go-injected Skill instructions');
+}
+
+export async function startFixtureProvider(scene, digest, skillBody) {
   const iterator = plan(scene, digest), errors = [];
-  let requests = 0, imageRequests = 0;
+  let requests = 0, imageRequests = 0, firstProviderSkillContent = false;
   const server = createServer(async (request, response) => {
     try {
       assert.equal(request.headers.authorization, 'Bearer local-paper-study-fixture');
       assert.equal(request.url, '/v1/chat/completions');
       let raw = ''; for await (const chunk of request) raw += chunk;
       const body = JSON.parse(raw); requests++;
+      if (requests === 1 && scenes[scene].explicitSkill) { verifyFirstSkillInput(body, skillBody); firstProviderSkillContent = true; }
       assert.equal(body.max_tokens, undefined);
       if (scenes[scene].publicRecording) for (const name of ['import-paper', 'prepare-research', 'research-pdf', 'research-assets'])
         assert(!body.tools.some(tool => tool.function.name === alias(name)), 'Public replay must not advertise unrelated access');
@@ -134,5 +146,5 @@ export async function startFixtureProvider(scene, digest) {
   });
   await new Promise(done => server.listen(0, '127.0.0.1', done));
   return { endpoint: `http://127.0.0.1:${server.address().port}/v1`, errors,
-    counts: () => ({ requests, imageRequests }), async close() { server.closeAllConnections(); await new Promise(done => server.close(done)); } };
+    counts: () => ({ requests, imageRequests, firstProviderSkillContent }), async close() { server.closeAllConnections(); await new Promise(done => server.close(done)); } };
 }

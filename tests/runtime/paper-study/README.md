@@ -142,3 +142,42 @@ The plan/ledger and scripted-scenario tests do not start a real provider. Freeze
 and build actual executables before running the separate actual-process fixture
 campaign. Passing contract tests is not that process campaign and is not criteria
 8–9 acceptance.
+
+## Explicit Skill / text-only corrective composition
+
+The four closure cases now explicitly invoke `/research-resource-import` in their
+first direct user prompt, using the existing Go Skill hook. Scripted cases do not
+manufacture `skill` list/read calls: the first provider request must contain the
+exact installed Skill body injected by Go. The assessor separately requires a
+persisted `user/message` with `source.kind=skill-invocation`, the expected name
+and launch-time digest. `skillListed` and `digestValidatedRead` remain independent
+natural-tool observations (normally false for this explicit path); ordinary user
+wrapper text or a wrong digest cannot substitute for that source record.
+
+For a text-only campaign the disposable installed Paper manifest exposes only
+`list/read/compare` for `research-source-read`. The same declared schema enforces
+alias and generic `app_write` validation before backend access; it does not just
+hide a tool description. Image-enabled fixture cases keep the original image
+operation. The Go provider's hard image-input guard is unchanged. This is a
+campaign composition restriction, not a claim that every product Agent dynamically
+projects its tools from model capabilities. It does not turn a declined image
+into a successful visual reading or silently drop typed image content.
+
+This correction follows a failed standard real-provider attempt: no Skill read
+was observed, a source-image result was delivered to the text-only session, and
+the next provider request was refused before a PDF report was produced. Its
+failure remains failure. An explicit-Skill/text-only rerun is a changed evaluation
+condition, not proof of natural plain-link routing or an unchanged-prompt model
+improvement. Exact source/table/PDF/report assertions remain required.
+
+Offline red tests first demonstrated the old image operation reaching the backend
+and being accepted by the text-only declaration. Green coverage now checks both
+alias/generic rejection with no backend fetch, enabled-image preservation,
+explicit persisted source versus wrong digest/ordinary-user text, and the first
+provider body versus only a slash token/catalogue. Thirteen Node tests including
+cleanup pass. Actual-process validation must follow source freezing; no new
+provider call was made by these regressions.
+Existing Go `TestExplicit*` Skill tests and
+`TestImageInputRejectsUnsafeMediaBeforeHTTP` also passed offline; the provider hard
+guard was not modified. Independent review verified the persisted event fields,
+exact injected-body formatting and both MCP rejection routes.

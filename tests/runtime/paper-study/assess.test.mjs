@@ -3,9 +3,9 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { assess, fetches, records, referenceBoundary } from './assess.mjs';
+import { assess, explicitSkillLoaded, fetches, records, referenceBoundary } from './assess.mjs';
 import { scenes, prompts } from './scenarios.mjs';
-import { plan as fixturePlan } from './fixture-provider.mjs';
+import { plan as fixturePlan, verifyFirstSkillInput } from './fixture-provider.mjs';
 
 test('reference boundary reads actual versioned store and external seam log, and rejects grants or jobs', async () => {
   const directory = await mkdtemp(resolve(tmpdir(), 'source-assessment-'));
@@ -34,7 +34,6 @@ test('decline assessment reads actual draft/job records and rejects attempted de
   const sessions = resolve(directory, 'sessions');
   const host = { sessions, backend: async name => name === 'data' ? { download: null, assets: [] } : { bundles: [] } };
   const calls = [
-    ['skill', {}], ['skill', { name: 'research-resource-import', digest: 'fixed' }],
     ['mcp__pero-app-use__app__paper-agent__research-analysis', { operation: 'context' }],
     ['mcp__pero-app-use__app__paper-agent__research-analysis', { operation: 'propose' }],
   ];
@@ -42,12 +41,15 @@ test('decline assessment reads actual draft/job records and rejects attempted de
     { originalUrl: 'https://research.example.org/attachments?id=methods', workIdentity: null, revision: null },
     { originalUrl: 'https://github.com/example/synthetic-research', license: 'MIT' },
   ] };
+  const skillEvent = { event: { type: 'user/message', data: { role: 'user',
+    source: { kind: 'skill-invocation', form: 'instructions', name: 'research-resource-import', digest: 'fixed' },
+    content: [{ type: 'text', text: '<skill_content name="research-resource-import">\nActual fixture instructions\n</skill_content>' }] } } };
   const writeEvents = async (extra = []) => {
     const events = calls.flatMap(([name, args], index) => [
       { seq: index * 2, event: { seq: index * 2, type: 'tool/call', data: { callId: String(index), name, arguments: args } } },
       { event: { type: 'tool/result', data: { toolCallId: String(index), isError: false } } },
     ]);
-    await writeFile(resolve(sessions, 'own-fixture.jsonl'), [...events, ...extra].map(JSON.stringify).join('\n'));
+    await writeFile(resolve(sessions, 'own-fixture.jsonl'), [skillEvent, ...events, ...extra].map(JSON.stringify).join('\n'));
   };
   try {
     await mkdir(resolve(base, 'research-v1/import-drafts'), { recursive: true }); await mkdir(sessions);
@@ -57,6 +59,8 @@ test('decline assessment reads actual draft/job records and rejects attempted de
     for (const scene of ['nonstandard-decline', 'ambiguity', 'injection']) {
       const result = await assess({ host, scene, directory, digest: 'fixed', credential: 'not-a-secret-in-fixture' });
       assert.equal(result.automatedFailure, undefined); assert.equal(result.checks.declinedWithoutSavingOrAcquiring, true);
+      assert.equal(result.checks.skillListed, false); assert.equal(result.checks.digestValidatedRead, false);
+      assert.equal(result.checks.explicitSkillLoaded, true);
     }
     await writeEvents([{ event: { type: 'tool/call', data: { callId: 'denied', name: 'mcp__pero-app-use__app__paper-agent__commit-research-bundle', arguments: {} } } },
       { event: { type: 'tool/result', data: { toolCallId: 'denied', isError: true } } }]);
@@ -71,6 +75,7 @@ test('four closure scenarios inspect first; three decline without commit or acqu
   for (const scene of ['standard', 'nonstandard-decline', 'ambiguity', 'injection']) {
     const spec = scenes[scene], messages = prompts(scene);
     assert.equal(spec.inspectOnly, true); assert.equal(messages.length, 2);
+    assert(messages[0].startsWith('/research-resource-import\n'));
     assert(messages[0].includes('本轮不保存引用'));
     const iterator = fixturePlan(scene, 'fixed-digest'), calls = [];
     let result = iterator.next();
@@ -85,9 +90,36 @@ test('four closure scenarios inspect first; three decline without commit or acqu
       result = iterator.next(JSON.stringify(value));
     }
     assert(result.value.answer.includes('Inspection only'));
+    assert(!calls.some(call => call.name === 'skill'), 'Explicit cases must not fake model-selected skill calls');
     assert(!calls.some(call => call.name.endsWith('commit-research-bundle') || call.args.operation === 'start'));
     result = iterator.next();
     if (spec.decline) { assert(result.done); assert(messages[1].includes('不授权下载')); }
     else { assert(result.value.name.endsWith('commit-research-bundle')); assert.equal(result.value.args.confirmedDownloads, true); }
+  }
+});
+
+test('explicit Skill proof requires persisted origin/name/digest, not ordinary user wrapper text', () => {
+  const event = { type: 'user/message', data: { role: 'user', source: { kind: 'skill-invocation', form: 'instructions',
+    name: 'research-resource-import', digest: 'expected' }, content: [{ type: 'text', text: '<skill_content name="research-resource-import">\nbody\n</skill_content>' }] } };
+  assert.equal(explicitSkillLoaded([event], 'expected'), true);
+  for (const mutate of [e => e.data.source.digest = 'wrong', e => e.data.source.name = 'another',
+    e => e.data.source.kind = 'user', e => e.type = 'tool/result', e => e.data.content = [], e => e.data.role = 'assistant']) {
+    const invalid = structuredClone(event); mutate(invalid);
+    assert.equal(explicitSkillLoaded([invalid], 'expected'), false);
+  }
+});
+
+test('scripted first provider request requires the exact Go-injected body, not slash text or catalogue', () => {
+  const expected = '<skill_content name="research-resource-import">\nexact body\n</skill_content>';
+  assert.doesNotThrow(() => verifyFirstSkillInput({ messages: [{ role: 'user', content: expected }] }, 'exact body'));
+  for (const content of ['/research-resource-import', expected.replace('exact body', 'stale body'), 'skill catalogue'])
+    assert.throws(() => verifyFirstSkillInput({ messages: [{ role: 'user', content }] }, 'exact body'));
+  assert.throws(() => verifyFirstSkillInput({ messages: [{ role: 'assistant', content: expected }] }, 'exact body'));
+});
+
+test('historical model-selected cases retain their activation mode', () => {
+  for (const scene of ['source', 'vision', 'nonstandard', 'nonstandard-read', 'public-results']) {
+    assert.notEqual(scenes[scene].explicitSkill, true);
+    assert(!prompts(scene)[0].startsWith('/research-resource-import'));
   }
 });

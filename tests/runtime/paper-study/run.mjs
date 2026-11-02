@@ -78,7 +78,10 @@ async function prepareApp(name, source) {
 }
 try {
   if (real) { ledger = await CampaignLedger.acquire(resolve(evidenceRoot, `provider-ledger-${plan.authorizationReference}.json`), plan, scrub); await ledger.reserve(scene, directory, result.startedAt); }
-  else provider = await startFixtureProvider(scene, identity.skillDigest);
+  else {
+    const skillText = await readFile(resolve(root, 'apps/paper-agent/skills', skillName, 'SKILL.md'), 'utf8');
+    provider = await startFixtureProvider(scene, identity.skillDigest, skillText.replace(/^---\n[\s\S]*?\n---\n/, '').trim());
+  }
   host = await openHost({ directory, agent, endpoint: real ? plan.endpoint : provider.endpoint,
     model: real ? plan.model : 'fixture', credential, audit, useEnvironmentProxy: real, prepareApp,
     allowedPaperTools: scenes[scene].publicRecording ? publicSourceTools : undefined,
