@@ -56,7 +56,7 @@ export function ArxivReading({ api, paperId, onPrepare }: { api: Api; paperId: s
         {review?.status === 'ready' && !selection && <>
           <a href={review.htmlUrl} target="_blank" rel="noreferrer">arXiv {review.version} HTML</a>
           <p className="pa-document-meta">{t('scope')}</p>
-          {review.texUrl && <label><Checkbox checked={tex} disabled={busy} onCheckedChange={setTex}/>{t('tex')}</label>}
+          {review.texUrl && <label><Checkbox checked={tex} disabled={busy} onCheckedChange={checked => setTex(checked === true)}/>{t('tex')}</label>}
           <Toolbar><Button variant="primary" busy={busy} onClick={() => void confirm()}>{t('download')}</Button></Toolbar>
         </>}
       </div>
