@@ -49,6 +49,40 @@ The pure selection table retains Control Lab's valid incompatible-minor migratio
 and rejects invalid configuration before acquisition. This is local source and
 protocol acceptance; the real network installer was not rerun for this fix.
 
+## 2026-11-02 explicit preparation action
+
+Source: Host `97e1a2e1`, Desktop `dada02a0`, macOS arm64.
+
+Opening and enabling an App no longer acquire its environment. `resolve` checks
+readiness and starts an already configured backend; the separate `prepare`
+request owns downloads, package installation and successful managed bindings.
+Project catalog observation uses the same read-only readiness path. Missing
+requirements show a localized preparation action in the App content area, with
+the technical reason available on demand. Installation retains progress, logs
+and recovery. Native uses the same Host command and readiness event.
+
+- L0: `npm run check`, Host/runtime suites (43 + 83 cases), App stdio contracts,
+  App Agent and Point Agent contracts, and App Agent Plugin wiring passed.
+  The offline fixture verifies enabling, repeated opening and project catalog
+  reads without an environment directory, backend data directory or settings
+  mutation. Missing pins do not trigger an installer; explicit preparation still
+  rejects an invalid selected venv and recovers after repair.
+- L0: GPUI Wasm, web, Desktop and Host builds passed; native GPUI compilation
+  passed with `+nightly-2026-10-28`.
+- L1/L2: `PERO_APP_PREPARATION_NETWORK=1 node tests/e2e/app-preparation.mjs`
+  passed in a disposable canonical profile. Before the explicit click, enabling,
+  opening again and reading project resources emitted only readiness notices,
+  did not create the environment and did not mutate the settings. Clicking
+  Prepare environment installed the real Control Lab dependencies and opened its
+  backend. Invalid configuration failed on explicit preparation; repair and retry
+  reused installed packages without another installation. Browser errors: zero.
+- Screenshots under `test-results/app-preparation/` show `required.png`,
+  `required-dark-narrow.png`, `installing.png`, `control-lab.png`, `failed.png`,
+  `dark.png` and `narrow.png`; `result.json` records the observed events. These
+  are development evidence, not committed binaries or packaged acceptance.
+
+This pass does not execute a scientific experiment or install ngspice.
+
 ## Remaining boundaries
 
 The native installation view compiles but has not had the corresponding real-app

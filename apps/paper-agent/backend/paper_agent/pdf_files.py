@@ -2,44 +2,16 @@
 from contextlib import closing
 import io
 import threading
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
-from urllib.request import Request, build_opener
 
-from .literature import ARXIV, _NoRedirect
 from .model import Invalid, PaperSnapshot, digest
 from .pdf import PdfAnchor, PdfDocument, PdfPage, PdfRect
 
-from .local_pdf import LocalPdf, MAX_PDF_BYTES
+from .local_pdf import LocalPdf
 # PDFium prohibits simultaneous calls even for different documents.
 PDFIUM_LOCK = threading.Lock()
 
 
 class PdfFiles:
-    def __init__(self, fetch=None):
-        self.fetch = fetch or build_opener(_NoRedirect()).open
-
-    def download(self, paper):
-        url = paper.pdf_url
-        parsed = urlsplit(url or '')
-        allowed = (parsed.scheme == 'https' and not parsed.username and not parsed.password and not parsed.port
-                   and ((parsed.hostname == 'arxiv.org' and parsed.path.startswith('/pdf/')
-                         and ARXIV.fullmatch(parsed.path[5:].removesuffix('.pdf')))
-                        or (parsed.hostname in ('www.biorxiv.org', 'www.medrxiv.org')
-                            and parsed.path.startswith('/content/') and parsed.path.endswith('.full.pdf'))))
-        if not allowed:
-            raise Invalid('This paper needs an arXiv or bioRxiv/medRxiv PDF URL')
-        try:
-            with closing(self.fetch(Request(url, headers={'User-Agent': 'Pero-Paper-Agent/0.1', 'Accept': 'application/pdf'}), timeout=30)) as response:
-                data = response.read(MAX_PDF_BYTES + 1)
-        except (HTTPError, URLError, TimeoutError) as error:
-            raise Invalid('Cannot download the PDF. Retry or open the original source.', 502) from error
-        if len(data) > MAX_PDF_BYTES:
-            raise Invalid('PDF exceeds 16 MiB', 413)
-        if not data.startswith(b'%PDF-'):
-            raise Invalid('The source did not return a PDF', 502)
-        return data
-
     def inspect(self, paper, data, now):
         return PdfDocument.create(paper.id, digest(data), paper.pdf_url or paper.url, self.pages(data), now)
 

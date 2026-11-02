@@ -6,8 +6,8 @@ status: active
 # Public paper sources lose version and reading representations
 
 Review date: 2026-11-02. Scope: current literature adapters, saved snapshots,
-discovery, and the handoff to existing reading/download owners. This review does
-not implement the proposals below or establish live availability of all sources.
+discovery, and the handoff to existing reading/download owners. This record separates initial reproductions, implemented repairs and remaining
+proposals; it does not establish live availability of all sources.
 The arXiv reading/navigation repair is separately resolved in
 [its incident record](2026-11-02-paper-arxiv-reading-navigation.md).
 
@@ -33,13 +33,14 @@ these findings concern how the right bytes and versions reach that reader.
 
 ## Proposed order
 
-Implementation on 2026-11-02 covers the first two priorities only. The bioRxiv
+Implementation on 2026-11-02 repairs the first two priorities and the supplied
+PDF/full-text URL handoff, acquisition ownership and import grouping. The bioRxiv
 repair now retains an explicitly requested revision, selects that exact metadata
 record, and freezes its revision in the saved snapshot, including Research URL
 inspection and commit. A missing requested revision fails rather than using a
 later version. Hugging Face/arXiv fallback now retains usable alphaXiv text, or
 saves official metadata as abstract-only when that text is unavailable. Other
-representation and medRxiv work remains open.
+representation metadata, XML parsing and medRxiv adapter work remain open.
 
 1. Preserve explicit bioRxiv versions and distinguish bioRxiv/medRxiv identity.
    Keep work identity, requested revision and returned revision together; never
@@ -126,4 +127,55 @@ Final verification on 2026-11-02:
 
 The running Native preview was not replaced or restarted. This does not claim
 new full-Desktop, signed-package, scientific or live HTML-download acceptance;
-the previously recorded proxy-DNS constraint on that transport is unchanged.
+the later proxy-DNS repair and successful production HTML/TeX acquisition are
+recorded in [the arXiv incident](2026-11-02-paper-arxiv-reading-navigation.md).
+
+## Next repair scope (2026-11-02)
+
+Implement in order: retain supplied PDF/full-text links across discovery and
+saved snapshots; route full-text preparation through the existing approved PDF
+acquisition/receipt owner; group only confirmed work/version representations in
+Research URL review. Old immutable records and independent file grants remain
+unchanged. Add fixture-backed end-to-end coverage before scoped commits.
+
+Source-link retention verified: OpenAlex selects an available supplied PDF even
+when its best OA location is HTML-only; discovery, favorites and snapshots retain
+PDF/full-text URLs across store reopen. PubMed PMC and bioRxiv full-text links
+survive actual adapter reads and snapshot persistence. Absent optional fields
+stay omitted for old immutable identities. Focused discovery/literature tests,
+App typecheck/build and the six-group Electron PDF journey pass; the UI original
+link points at the saved full-text URL. No new XML parser or medRxiv adapter is
+part of this increment.
+
+Unified acquisition verified: full-text research and the legacy PDF command now
+read integrity-checked saved originals only. Missing originals return a source
+review recovery path; they cannot bypass PdfDownloads with a second downloader.
+Ask first opens the existing Library review for missing PDFs, keeps the intended
+research draft on confirmation, and resumes after the approved copy is saved.
+Cancellation starts neither a download nor a Chat request. A synthetic generic
+publisher PDF completes the actual Electron approval/acquisition/research flow:
+zero fetches before confirmation and one total fetch after study finalization.
+All 248 Python tests pass (one platform skip); three recorded-transport boundary
+tests and the six-group PDF Electron journey pass. The obsolete direct PDF
+network adapter and its injected fixture path are removed.
+
+Version-grouped review verified: `ResearchResourceGroup` is a pure presentation
+projection of the existing typed resources. Only explicit work identity plus
+revision groups paper/PDF/source rows. Different or unknown revisions remain
+separate; titles never establish equivalence. The row selects its references,
+while each PDF/source keeps its original ID and independent grant. One official
+HTML option represents the group's exact arXiv version. All original provenance
+remains available in Source details, and checkbox names include the version.
+
+Deterministic grouping cases and the eight-group Chromium journey cover distinct
+versions, unknown identities, multiple file identities, independent selections,
+exact submitted grant IDs and no acquisition on HTML-only permission. Actual
+Electron journeys pass nine structured-reading and seven source-study groups,
+including approved acquisition, failure/retry, source/image scopes, original-copy
+export, annotations and restart. The six-group PDF journey covers the generic
+publisher Ask preflight and cache reuse. Browser screenshots were inspected in
+Chinese, light/dark and wide/489px layouts; no horizontal overflow was observed.
+Evidence: `test-results/paper-source-fixes/`, `paper-structured-reading/fixture/`,
+`paper-source-study/fixture/`, `paper-agent/` and `research-import/`.
+These are authored offline sources/providers with real App/Host/Python/reader
+components, not new public-source, real-model or installed Native acceptance.

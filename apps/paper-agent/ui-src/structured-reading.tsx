@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, Disclosure, Feedback, Select, Toolbar } from '@pero/app-sdk/ui';
 import type { Api } from './types';
@@ -13,6 +14,7 @@ type Locator = { start: number; end: number; start_line: number; end_line: numbe
 type Block = { id: string; kind: string; content: Inline[]; cells: Cell[]; images: { url: string; alt: string }[]; anchors: string[]; level: number; section_id: string; locator: Locator | null; limitations: string[] };
 type Document = { id: string; paperId: string; parser: string; metadata: { title: string; authors: string[]; abstract: string; identifiers: [string, string][]; date: string | null }; source: { url: string; digest: string; version: string }; warnings: string[]; blocks: Block[]; parseStatus: string; sourceIdentity: string };
 type Source = ReadingSource;
+type ReadingFailure = { message: string; source?: Source };
 type EvidenceScope = { bundleId: string; resourceId: string };
 type Overview = { revisions: { id: string; source: Document['source']; parser: string; createdAt: string; bundleId: string; resourceId: string; scopes: EvidenceScope[] }[]; sources: Source[]; reviewUrl?: string | null };
 type Original = { observationId?: string; documentId: string; content: string; start: number; end: number; nextStart: number | null; sourceDigest: string; blockLocator: Locator | null };
@@ -40,11 +42,11 @@ function Contents({ tokens, onTarget }: { tokens: Inline[]; onTarget(target: str
 function readSetting(key: string) { try { return localStorage.getItem(key); } catch { return null; } }
 function saveSetting(key: string, value: string) { try { localStorage.setItem(key, value); } catch { /* Reading works without storage. */ } }
 
-export function StructuredReading({ api, paperId, openToken, onReady, onReview, showText, children }: { api: Api; paperId: string; openToken: number; showText?: boolean; onReady(ready: boolean): void; onReview(): void; children: React.ReactNode }) {
-  const { t } = useAppI18n({ prepareReading: { zh: '准备排版阅读', en: 'Prepare formatted reading' } });
+export function StructuredReading({ api, paperId, openToken, onReady, onPrepared, onReview, showText, toolbar, children }: { api: Api; paperId: string; openToken: number; showText?: boolean; toolbar?: HTMLElement | null; onReady(ready: boolean): void; onPrepared?(): void; onReview(): void; children: React.ReactNode }) {
+  const { t } = useAppI18n({ prepareReading: { zh: '排版阅读', en: 'Format' }, preparing: { zh: '排版中…', en: 'Formatting…' }, failed: { zh: '阅读失败', en: 'Reading failed' } });
   const [reviewing, setReviewing] = useState(false);
   const [overview, setOverview] = useState<Overview>({ revisions: [], sources: [] }), [document, setDocument] = useState<Document | null>(null);
-  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [original, setOriginal] = useState<Original | null>(null), [originalBlock, setOriginalBlock] = useState('');
+  const [busy, setBusy] = useState(false), [error, setError] = useState<ReadingFailure | null>(null), [original, setOriginal] = useState<Original | null>(null), [originalBlock, setOriginalBlock] = useState('');
   const [target, setTarget] = useState(''), [candidates, setCandidates] = useState<Block[]>([]), [targetError, setTargetError] = useState('');
   const [evidenceScope, setEvidenceScope] = useState<EvidenceScope | null>(null);
   const [recordedScope, setRecordedScope] = useState<DocumentEvidenceScope | null>(null), [reportRefresh, setReportRefresh] = useState(0);
@@ -63,14 +65,14 @@ export function StructuredReading({ api, paperId, openToken, onReady, onReview, 
     return value;
   }
   useEffect(() => {
-    const version = ++epoch.current; setDocument(null); setRecordedScope(null); setOverview({ revisions: [], sources: [] }); setBusy(false); setError(''); setOriginal(null); onReady(false);
+    const version = ++epoch.current; setDocument(null); setRecordedScope(null); setOverview({ revisions: [], sources: [] }); setBusy(false); setError(null); setOriginal(null); onReady(false);
     api.get<Overview>(`/api/paper-documents?paperId=${paperId}`).then(async value => {
       if (version !== epoch.current) return;
       setOverview(value);
       const saved = readSetting(`paper-read-revision:${paperId}`);
       const identity = value.revisions.find(r => r.id === saved)?.id ?? value.revisions[0]?.id;
       if (identity) await load(identity, version);
-    }).catch(error => { if (version === epoch.current) setError(String(error.message ?? error)); });
+    }).catch(error => { if (version === epoch.current) setError({ message: String(error.message ?? error) }); });
     return () => { epoch.current++; originalEpoch.current++; };
     // Reader stays mounted behind the library. An explicit reopen must discover
     // newly approved bundle scopes even when the PDF identity did not change.
@@ -89,14 +91,15 @@ export function StructuredReading({ api, paperId, openToken, onReady, onReview, 
   useEffect(() => { if (original) { const panel = root.current?.querySelector<HTMLElement>('.pa-original-html'); panel?.scrollIntoView({ block: 'nearest' }); panel?.querySelector('button')?.focus(); } }, [original?.start, originalBlock]);
   async function prepare(source: Source, refresh = false) {
     if (busy) return;
-    const version = ++epoch.current; setBusy(true); setError('');
+    const version = ++epoch.current; setBusy(true); setError(null);
     setOverview(previous => ({ ...previous, sources: [...previous.sources.filter(value => value.bundleId !== source.bundleId || value.resourceId !== source.resourceId), source] }));
     try {
       const prepared = await api.post<{ documentId: string } & EvidenceScope>('/api/paper-document', { operation: 'prepare', paperId, bundleId: source.bundleId, resourceId: source.resourceId, refresh });
       await load(prepared.documentId, version, prepared);
+      if (version === epoch.current) onPrepared?.();
       const next = await api.get<Overview>(`/api/paper-documents?paperId=${paperId}`);
       if (version === epoch.current) setOverview(next);
-    } catch (error) { if (version === epoch.current) setError(error instanceof Error ? error.message : String(error)); }
+    } catch (error) { if (version === epoch.current) setError({ message: error instanceof Error ? error.message : String(error), source }); }
     finally { if (version === epoch.current) setBusy(false); }
   }
   function reveal(blockId: string) {
@@ -115,7 +118,7 @@ export function StructuredReading({ api, paperId, openToken, onReady, onReview, 
   }
   async function openRecorded(scope: DocumentEvidenceScope, observationId: string, resourceId: string) {
     if (busy || !recordedRevision(scope, resourceId)) return;
-    const version = ++epoch.current; setBusy(true); setError('');
+    const version = ++epoch.current; setBusy(true); setError(null);
     try {
       const loaded = await load(scope.documentId, version, recordedRevision(scope, resourceId)!);
       if (version !== epoch.current || !loaded) return;
@@ -130,7 +133,7 @@ export function StructuredReading({ api, paperId, openToken, onReady, onReview, 
         setOriginal(raw); setOriginalBlock('');
       }
       setRecordedScope(scope);
-    } catch (error) { if (version === epoch.current) setError(error instanceof Error ? error.message : String(error)); }
+    } catch (error) { if (version === epoch.current) setError({ message: error instanceof Error ? error.message : String(error) }); }
     finally { if (version === epoch.current) setBusy(false); }
   }
   useEffect(() => {
@@ -143,27 +146,30 @@ export function StructuredReading({ api, paperId, openToken, onReady, onReview, 
   }
   async function source(block?: Block, start?: number) {
     if (!document || busy) return;
-    if (!activeRevision) { setError('Choose an evidence bundle before reading original HTML.'); return; }
+    if (!activeRevision) { setError({ message: 'Choose an evidence bundle before reading original HTML.' }); return; }
     setRecordedScope(null);
     const version = ++originalEpoch.current;
     try {
       const value = await api.post<Original>('/api/paper-document', { operation: 'source', documentId: document.id, ...(activeRevision ? { bundleId: activeRevision.bundleId, resourceId: activeRevision.resourceId } : {}), ...(block ? { blockId: block.id } : {}), ...(start == null ? {} : { start }) });
       if (version === originalEpoch.current) { setOriginal(value); setOriginalBlock(block?.id ?? ''); }
-    } catch (error) { if (version === originalEpoch.current) setError(error instanceof Error ? error.message : String(error)); }
+    } catch (error) { if (version === originalEpoch.current) setError({ message: error instanceof Error ? error.message : String(error) }); }
   }
   if (showText) return <>{children}</>;
-  return <div ref={root} className="pa-structured-reading" data-document-id={document?.id}>
-    {!document && <Toolbar><Button disabled={busy} onClick={() => overview.reviewUrl ? setReviewing(value => !value) : onReview()}>{overview.reviewUrl ? t('prepareReading') : 'Review HTML sources'}</Button>{overview.sources.filter(s => s.authorized).map(s => <Button key={`${s.bundleId}:${s.resourceId}`} busy={busy} onClick={() => void prepare(s)}>Prepare Read · {s.revision}</Button>)}</Toolbar>}
+  const controls = <div className="pa-reader-format-controls">
+    {!document && <><Button variant="ghost" disabled={busy} aria-expanded={reviewing} onClick={() => overview.reviewUrl ? setReviewing(value => !value) : onReview()}>{overview.reviewUrl ? t('prepareReading') : 'Review HTML sources'}</Button>{overview.sources.filter(s => s.authorized).map(s => <Button key={`${s.bundleId}:${s.resourceId}`} busy={busy} onClick={() => void prepare(s)}>Prepare Read · {s.revision}</Button>)}</>}
     {reviewing && <ArxivReading api={api} paperId={paperId} onPrepare={prepare}/>}
+    {busy && <span role="status">{t('preparing')}</span>}
+    {error && <details className="pa-reading-source-menu" open><summary>{t('failed')}</summary><div className="pa-reading-source-options"><Feedback kind="error">{error.message}<Button onClick={() => setError(null)}>Dismiss</Button>{error.source && <Button disabled={busy} onClick={() => void prepare(error.source!, true)}>Retry {error.source.revision}</Button>}</Feedback></div></details>}
+  </div>;
+  return <div ref={root} className="pa-structured-reading" data-document-id={document?.id}>
+    {toolbar ? createPortal(controls, toolbar) : controls}
     {!document && !overview.reviewUrl && overview.sources.length === 0 && <p className="pa-document-meta">Read needs an explicitly approved, fixed-version official HTML source. Existing text and PDF remain available.</p>}
     {!document && overview.sources.some(s => !s.authorized) && <p className="pa-document-meta">HTML acquisition is not authorized. Review sources before downloading; PDF permission does not include HTML.</p>}
-    {busy && <p role="status">Loading Read… PDF remains available.</p>}
-    {error && <Feedback kind="error">{error}<Button onClick={() => setError('')}>Dismiss</Button>{overview.sources.filter(s => s.authorized).map(s => <Button key={`${s.bundleId}:${s.resourceId}`} disabled={busy} onClick={() => void prepare(s, true)}>Retry {s.revision}</Button>)}</Feedback>}
     {!document ? children : <>
       {(scopes.length > 1 || !!evidenceScope && !selectedScope) && <Select label="Evidence bundle" disabled={busy} value={selectedScope ? `${selectedScope.bundleId}:${selectedScope.resourceId}` : ''} onChange={value => {
         const scope = scopes.find(scope => `${scope.bundleId}:${scope.resourceId}` === value); chooseScope(document.id, scope ?? null);
       }} options={[{ value: '', label: 'Choose evidence bundle' }, ...scopes.map(scope => ({ value: `${scope.bundleId}:${scope.resourceId}`, label: `${scope.bundleId.slice(0, 12)} · ${scope.resourceId.slice(0, 8)}` }))]}/>}
-      <Toolbar><Select disabled={busy} label="Read version" value={document.id} onChange={id => { const version = ++epoch.current; void load(id, version).catch(error => { if (version === epoch.current) setError(String(error.message ?? error)); }); }} options={overview.revisions.map(r => ({ value: r.id, label: `${r.source.version} · ${r.parser} · ${r.source.digest.slice(0, 10)}` }))}/><Button variant="ghost" disabled={busy || !activeRevision} onClick={() => void source()}>Original HTML</Button></Toolbar>
+      <Toolbar><Select disabled={busy} label="Read version" value={document.id} onChange={id => { const version = ++epoch.current; void load(id, version).catch(error => { if (version === epoch.current) setError({ message: String(error.message ?? error) }); }); }} options={overview.revisions.map(r => ({ value: r.id, label: `${r.source.version} · ${r.parser} · ${r.source.digest.slice(0, 10)}` }))}/><Button variant="ghost" disabled={busy || !activeRevision} onClick={() => void source()}>Original HTML</Button></Toolbar>
       <p className="pa-document-meta">Derived structure · PDF alignment unavailable · {document.parseStatus === 'partial' ? 'Partial parse' : 'Parsed, not fully read'}</p>
       {!!document.metadata.authors.length && <p>{document.metadata.authors.join(', ')}</p>}
       <Disclosure summary="Source and parsing details"><a href={document.source.url} target="_blank" rel="noreferrer">Official source · {document.source.version}</a><dl><dt>Original SHA-256</dt><dd><code>{document.source.digest}</code></dd><dt>Parser</dt><dd>{document.parser}</dd><dt>Response identity</dt><dd>{document.sourceIdentity}</dd>{document.metadata.date && <><dt>Declared date</dt><dd>{document.metadata.date}</dd></>}{document.metadata.identifiers.map(([kind, value], i) => <React.Fragment key={i}><dt>{kind}</dt><dd>{value}</dd></React.Fragment>)}</dl>{document.warnings.length > 0 && <ul>{document.warnings.map(w => <li key={w}>{w}</li>)}</ul>}<a href={`/api/paper-documents/${document.id}/original`} download="source.html.txt">Download original bytes (text)</a><div>{overview.sources.filter(s => s.authorized && !scopes.some(scope => scope.bundleId === s.bundleId && scope.resourceId === s.resourceId)).map(s => <Button key={`reuse:${s.bundleId}:${s.resourceId}`} disabled={busy} onClick={() => void prepare(s)}>Use saved Read · {s.revision}</Button>)}{overview.sources.filter(s => s.authorized).map(s => <Button key={`${s.bundleId}:${s.resourceId}`} disabled={busy} onClick={() => void prepare(s, true)}>Prepare fresh parse · {s.revision}</Button>)}</div></Disclosure>

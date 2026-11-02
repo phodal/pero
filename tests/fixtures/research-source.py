@@ -194,9 +194,6 @@ class Connection:
         pass
 
 
-def legacy_pdf_fetch(*_args, **_options):
-    raise AssertionError('Source study must acquire only through the approved download owner')
-
 
 def install(store):
     # Disposable fixture exports must never touch the runner's real ~/.pero.
@@ -210,4 +207,4 @@ def install(store):
     store.pdf_downloads = PdfDownloads(store, transport)
     store.source_downloads = SourceDownloads(store, transport)
     from paper_agent.pdf_files import PdfFiles
-    return PdfFiles(legacy_pdf_fetch)
+    return PdfFiles()

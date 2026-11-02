@@ -144,14 +144,14 @@ try {
       await frame.getByRole('button', { name: 'Add papers', exact: true }).first().click();
       await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).fill('2609.35738');
       await frame.getByRole('button', { name: 'Read ID / URL', exact: true }).click();
-      await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveAttribute('max', '36', { timeout: 90000 });
+      await expect(frame.locator('.pa-reader-tools').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveAttribute('max', '36', { timeout: 90000 });
       await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Back to library', exact: true }).click();
     }
     const paper = library.papers.find(p => p.sourceId === '2610.14224');
     const sortedReports = [...library.reports].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     const previous = process.env.PERO_PAPER_LIVE_BRANCH ? sortedReports.at(-1) : sortedReports[0];
     await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
-    const nav = frame.locator('.pa-reading-bar');
+    const nav = frame.locator('.pa-reading-main');
     await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveAttribute('max', '37', { timeout: 30000 });
     await expect(frame.locator('.pa-pdf-page img,.pa-pdf-page canvas').first()).toBeVisible({ timeout: 30000 });
     await nav.getByRole('button', { name: 'Ask', exact: true }).click();
@@ -251,7 +251,7 @@ try {
   const save = await saveLibraryCopies(frame, paper.title, { timeout: 90000 });
   await save.getByRole('button', { name: 'Close', exact: true }).click();
   // Export refreshes the missing PDF in this same reader; no implicit fetch.
-  const nav = frame.locator('.pa-reading-bar');
+  const nav = frame.locator('.pa-reading-main');
   await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveAttribute('max', '37', { timeout: 90000 });
   await expect(frame.locator('.pa-pdf-page img,.pa-pdf-page canvas').first()).toBeVisible({ timeout: 30000 });
   const reading = await api(`/api/pdf?paperId=${paper.id}`);

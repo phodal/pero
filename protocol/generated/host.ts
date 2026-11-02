@@ -99,6 +99,7 @@ export type AppRequest =
   | EnableAgentPlugin
   | PointAgent
   | PointCatalog
+  | PrepareApp
   | EnableApp
   | DisableApp
   | UninstallApp
@@ -1057,6 +1058,12 @@ export interface PointCatalog {
   action: "pointcatalog";
   name: AppName;
   path: "/api/workspaces" | "/api/harnesses";
+  method: "apps";
+  id: RequestId;
+}
+export interface PrepareApp {
+  action: "prepare";
+  name: AppName;
   method: "apps";
   id: RequestId;
 }
@@ -2462,7 +2469,7 @@ export interface AppsPreparationEvent {
  */
 export interface AppPreparation {
   name: AppName;
-  phase: "checking" | "creating" | "installing" | "ready" | "failed";
+  phase: "required" | "checking" | "creating" | "installing" | "ready" | "failed";
   message: string;
 }
 export interface AppsCatalogEvent {

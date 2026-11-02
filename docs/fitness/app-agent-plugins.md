@@ -104,6 +104,35 @@ human button clicks, packaged Desktop and arbitrary third-party plugins are not
 certified. Go MCP/Harness/ACP race suites, TypeScript and the 30 App Use/SDK cases
 also passed.
 
+### Native input on the visible Desktop (2026-11-02)
+
+The production Electron App shell and shared GPUI ChatPanel were launched with
+an isolated synthetic App and real `deepseek-flash`. Native CUA input clicked
+Prepare observation, submitted through the Composer, then clicked the painted
+Allow once and Reject controls in two separately created conversations. No
+permission reply was injected through the Host API. Session setup selected the
+existing full-access mode before submission.
+
+The first conversation completed one save of `allow-ui-evidence`. The second
+showed `Failed / tool approval rejected`, stopped without retry, and added zero
+records. Refreshing the App displayed only the first record. Host snapshots and
+an independent read of the backend's JSONL file confirmed both outcomes.
+
+`test-results/app-plugin-desktop/` contains `allow-pending.png`,
+`allow-complete.png`, `reject-pending.png`, `reject-complete.png`, each inspected
+as the captured native-window image. `result.json` records screenshot hashes,
+permission IDs and thread identities; per-scenario snapshots preserve tool
+status and saved records. The control driver is
+`tests/e2e/app-plugin-desktop-manual.mjs`; it deliberately provides no API action
+for answering approvals. Its stdin commands prepare, inspect/verify and stop the
+test. Use a PTY so stdin remains open; optionally supply `PLUGIN_UI_ELECTRON` for
+a dedicated Electron application identity when other Electron apps are running.
+
+This is a development App-shell acceptance, not a signed release or full
+Workbench acceptance. Existing Product header labels overlap in the captured
+layout. A shutdown error was observed after the successful turns and is tracked
+separately in [the Product shutdown issue](../issues/2026-11-02-product-shutdown-renderer-gone.md).
+
 Observed results: Host/runtime/worker Rust suites passed 152 cases; App Use/SDK
 passed 30 cases. An exported committed source snapshot including code through `5e54df15` passed
 `npm run check`, the 30 App Use/SDK cases and the plugin Host/ACP wiring test

@@ -689,6 +689,10 @@
           "anyOf": [
             {
               "type": "string",
+              "const": "required"
+            },
+            {
+              "type": "string",
               "const": "checking"
             },
             {
@@ -803,6 +807,9 @@
         },
         {
           "$ref": "#/$defs/PointCatalog"
+        },
+        {
+          "$ref": "#/$defs/PrepareApp"
         },
         {
           "$ref": "#/$defs/EnableApp"
@@ -8438,6 +8445,33 @@
         "workspaceId",
         "title",
         "path"
+      ],
+      "additionalProperties": false
+    },
+    "PrepareApp": {
+      "title": "PrepareApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "prepare"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "method",
+        "id"
       ],
       "additionalProperties": false
     },

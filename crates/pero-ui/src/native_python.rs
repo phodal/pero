@@ -1,4 +1,4 @@
-//! Bind the default environment; the Host prepares it on first App use.
+//! Bind the default environment; the Host prepares it only on explicit request.
 use std::path::Path;
 pub fn prepare(settings: &Path, home: &Path) -> anyhow::Result<()> {
     if std::env::var_os("PERO_APP_PYTHON").is_some() { return Ok(()); }

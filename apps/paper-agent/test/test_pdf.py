@@ -161,8 +161,8 @@ class PdfTest(unittest.TestCase):
                     url='https://arxiv.org/abs/1706.03762', pdfUrl='https://arxiv.org/pdf/1706.03762',
                     contentKind='full-text', content='Exact original evidence.'), NOW)
         content = pdf_fixture()
-        files = PdfFiles(lambda *_args, **_kwargs: io.BytesIO(content))
-        doc = files.inspect(paper, files.download(paper), NOW)
+        files = PdfFiles()
+        doc = files.inspect(paper, content, NOW)
         self.assertEqual(doc.matching_pages('Exact original evidence.'), (1, 2))
         self.assertEqual((doc.pages[1].width, doc.pages[1].height), (400, 600))
         figure = PdfAnnotation.create(dict(page=2, kind='figure', rects=[dict(x=.1,y=.2,width=.5,height=.5)]), doc, NOW)

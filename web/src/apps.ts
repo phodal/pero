@@ -131,6 +131,22 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   const renderStatus = (slot:Mount) => {
     const {surface,status}=slot;
     const frame = active(slot);
+    const required = preparation.get(surface.name)?.phase === 'required';
+    status.toggleAttribute('data-preparation', required);
+    if (required) {
+      status.replaceChildren(); status.hidden = false;
+      const t = (key: Parameters<typeof translate>[1]) => translate(normalizeLocale(surface.locale), key);
+      const title = document.createElement('strong'); title.textContent = t('apps.env_required');
+      const notice = document.createElement('p'); notice.textContent = t('apps.env_notice');
+      const details = document.createElement('details');
+      const summary = document.createElement('summary'); summary.textContent = t('apps.env_log');
+      const reason = document.createElement('pre'); reason.textContent = preparation.get(surface.name)!.message;
+      details.append(summary, reason);
+      const prepare = document.createElement('button'); prepare.textContent = t('apps.env_prepare');
+      prepare.onclick = () => { prepare.disabled = true; void command({ action: 'apps_prepare', name: surface.name }); };
+      status.append(title, notice, prepare, details);
+      return;
+    }
     const message = slot.error || (frame?.failed ? translate(normalizeLocale(surface.locale), 'apps.panel_timeout') : '');
     status.replaceChildren();
     status.hidden = !!frame?.ready && !message;
@@ -279,9 +295,12 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
       update();
     },
     event(event: HostEvent) {
-      preparation.event(event);
+      preparation.event(event, ![...mounts.values()].some(slot => slot.surface.visible && slot.surface.name === (event.data as { name?: string })?.name));
       if (event.kind === 'apps_preparation') {
         const value = event.data as { name: string; phase: string };
+        if (value.phase === 'required') for (const slot of mounts.values()) {
+          if (slot.surface.name === value.name) renderStatus(slot);
+        }
         if (value.phase === 'ready') for (const slot of mounts.values()) {
           if (slot.surface.name === value.name && slot.error && slot.surface.visible) {
             slot.error = ''; renderStatus(slot);

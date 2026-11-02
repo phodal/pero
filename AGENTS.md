@@ -91,19 +91,27 @@ beyond loopback unless the test is an explicit opt-in, such as
 ## UI
 
 Use [DESIGN.md](DESIGN.md) for color design and implementation.
-Review UI changes against [DESIGN-REVIEW.md](DESIGN-REVIEW.md).
+The implementation rules below incorporate the general requirements from
+[DESIGN-REVIEW.md](DESIGN-REVIEW.md). Apply them while building, then inspect the
+running UI against that document's review checklist before delivery.
 Optimize for task completion, not visual minimalism. Every screen should make it obvious what matters, what the user can do, what is happening, and what needs attention.
 
 - **Task-first**: Design around user goals, not internal modules. Every screen should clearly communicate its primary content, actions, and current state.
 - **Visual minimalism**: Use black, white, and gray as primary colors. Establish hierarchy through spacing, typography, and subtle borders. Avoid excessive shadows, nested cards, and decoration.
 - **Concise copy**: Remove redundant explanations, repeated statuses, and generic AI-style filler. Don't move unnecessary text into tooltips. Reveal secondary details on demand; keep critical warnings visible.
 - **Information density**: Avoid excessive whitespace and card-heavy layouts. Prefer tables, lists, split views, and progressive disclosure for complex workbenches.
+- **Typography**: Use the system font. Keep interface sizes primarily to 12, 14, 18 and 24px, with a 12px minimum; establish hierarchy through weight and spacing. Use monospace only for code, commands, JSON and other character-sensitive content. Research text retains its reading typography. Do not introduce Instrument Serif, Space Grotesk or Bricolage Grotesque as interface fonts.
+- **Workbench scale**: At a 14px interface font, use 24px list rows and input controls, 30px tabs, and 12px page padding and section spacing. Increase control height with text line height when fonts grow; keep padding compact and preserve complete text, focus outlines and click targets.
+- **Content hierarchy**: Put titles before supporting metadata. Express each fact once. Remove decorative numbering, eyebrows, all-uppercase section labels, repeated statuses, unnecessary italics, oversized titles, internal IDs used as headings, middle-dot separators and decorative emoji. Use common, concrete words; avoid invented terms, marketing copy and conversational filler.
+- **Borders and decoration**: Use subtle 0.5px secondary separators and omit table vertical rules when unnecessary. Keep visible 1px input boundaries and 2px focus outlines. Avoid nested bordered cards, layered shadows, purple gradients, translucent decoration and colored stripes on card edges. Coordinate nested corner radii with their container and spacing.
+- **Scientific graphics**: Show only the curves and measures needed for the current question; reveal secondary detail on demand. Use actual observed data and retain the associated checks and evidence. Preserve original research figures and formulas. Do not substitute decorative graphics for results or hide missing, conflicting or unverified evidence.
+- **Motion and controls**: Avoid decorative scroll animation. Keep necessary transitions short and support reduced motion. Do not draw extra dropdown chevrons; preserve native select indicators and semantics, and avoid unnecessary dropdowns.
 - **Resizable panes**: A screen with two or more side-by-side panes, including a list or table beside a preview, uses `Split` and `SplitPane` from `@pero/app-sdk/ui`. Leave one pane unsized so it fills the leftover space. Every pane has a minimum. Dragging a separator resizes the sized neighbor; double-click restores that pane's default. Arrow keys, Home, and End move the focused separator. Below the split's `collapseBelow`, stack the panes and hide the separators. Persist sizes with `storageKey` in the App's own storage.
 - **Complete states**: Cover Loading, Empty, Running, Success, Error, and Disabled. Empty states should suggest the next action; errors should provide recovery paths; long-running tasks should expose progress and results.
 - **Clear interactions**: Provide feedback for every action. Confirm or allow undo for destructive operations. Avoid nonfunctional controls, duplicate actions, and unnecessary dialogs.
 - **Accessibility**: Support keyboard navigation, visible focus states, sufficient contrast, and semantic labels. Never rely solely on color or hover to convey meaning.
 - **Responsive & themed**: Use theme tokens consistently. Verify light/dark modes, narrow windows, overflow, and varying content lengths.
-- **Real verification**: Inspect the running UI, key interactions, error states, and browser behavior. Code review alone is insufficient.
+- **Real verification**: Inspect the running UI, key interactions, error states, and browser behavior. Check light/dark, narrow layouts, overflow, keyboard focus, varying content lengths and recovery actions. Keep critical warnings and unverified results visible. Capture and inspect screenshots of the changed states; passing tests and code review alone are insufficient.
 - **Engineering constraints**: Persist Desktop preferences through harness runtime settings. Follow `ui-workbench.sidebarBrowser` registration and Go/frontend namespaces. Prefer Point-owned slots and wrappers over upstream patches.
 
 **Principle: Optimize for task completion, not visual minimalism.**

@@ -40,3 +40,18 @@ unchanged binding, repair in the same Host, restart, real backend/child-interpre
 use and missing-environment rejection without downloading dependencies.
 Host/runtime suites and App Agent/Point Agent/plugin wiring checks also passed.
 Packaged and platform acceptance boundaries remain in the verification record.
+
+## 2026-11-02: opening an App acquires its environment
+
+The same `resolve` path prepared dependencies before opening an App or reading
+its project resource catalog. A navigation or read action could therefore
+download Python and install packages without an explicit preparation action.
+Opening must only check and reuse an available environment. Missing dependencies
+must show a preparation action; only that action may acquire the environment.
+
+Resolved by separating `prepare` from `enable` and `resolve`. The readiness check
+reuses interpreter-selection and pinned-package checks without invoking the
+installer or saving bindings. Both Desktop shells expose an explicit preparation
+action; an unprepared App is shown as not ready rather than already installing.
+The offline contract covers repeated opens, project catalog reads, missing pins
+and unchanged settings. Real Desktop verification is recorded in `docs/fitness/app-preparation.md`.

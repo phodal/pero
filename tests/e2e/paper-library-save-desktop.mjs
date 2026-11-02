@@ -66,7 +66,7 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
     kind: 'highlight', quote: 'Synthetic source figure.', rects: [{ x: .075, y: .11, width: .4, height: .03 }] });
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   dialog = await saveLibraryCopies(frame, paper.title, { tex: true });
-  expect((await api(`/api/pdf?paperId=${paper.id}`))).toEqual({ document: reading.document, annotations: [annotation] });
+  expect((await api(`/api/pdf?paperId=${paper.id}`))).toEqual({ ...reading, annotations: [annotation] });
   expect((await observations()).observations).toEqual([]);
   const sources = dialog.getByRole('region', { name: 'Paper source files', exact: true });
   await sources.getByRole('button', { name: 'Browse source files', exact: true }).click();
@@ -110,7 +110,7 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   ({ frame, page } = await restart());
   await row().locator('.pero-list-open').click();
   await expect(frame.getByRole('region', { name: 'PDF reader', exact: true }).locator('img,canvas').first()).toBeVisible({ timeout: 30000 });
-  expect(await api(`/api/pdf?paperId=${paper.id}`)).toEqual({ document: reading.document, annotations: [annotation] });
+  expect(await api(`/api/pdf?paperId=${paper.id}`)).toEqual({ ...reading, annotations: [annotation] });
   expect((await api('/api/research/pdf', pdfRequest)).receipt).toEqual(pdf.receipt);
   expect((await api('/api/research/source', sourceRequest)).receipt).toEqual(source.receipt);
   expect(await acquisitions()).toEqual(acquired);

@@ -222,7 +222,16 @@ try {
   await writeFile(resolve(temp, 'settings.json'), JSON.stringify({ app_python: { apps: { recoverable: recoverable.environment } } }));
   host = await launch();
   assert.equal((await host.request('install', { path: recoverable.app })).ok, true);
-  const failedRecovery = await host.request('enable', { name: 'recoverable' });
+  const beforeOpen = await readFile(resolve(temp, 'settings.json'), 'utf8');
+  assert.equal((await host.request('enable', { name: 'recoverable' })).ok, true);
+  const unprepared = await host.request('resolve', { name: 'recoverable' });
+  assert.equal(unprepared.ok, false);
+  assert.match(unprepared.error, /include-system-site-packages/i);
+  assert.deepEqual(preparation.filter(event => event.name === 'recoverable').map(event => event.phase), ['required']);
+  assert.equal(await readFile(resolve(temp, 'settings.json'), 'utf8'), beforeOpen);
+  assert.equal((await host.request('disable', { name: 'recoverable' })).ok, true);
+  preparation.length = 0;
+  const failedRecovery = await host.request('prepare', { name: 'recoverable' });
   assert.equal(failedRecovery.ok, false);
   assert.match(failedRecovery.error, /include-system-site-packages/i);
   assert(failedRecovery.error.includes(recoverable.environment), failedRecovery.error);
@@ -230,14 +239,20 @@ try {
   assert.equal(JSON.parse(await readFile(resolve(temp, 'settings.json'), 'utf8')).app_python.apps.recoverable, recoverable.environment);
   assert.deepEqual(preparation.filter(event => event.name === 'recoverable').map(event => event.phase), ['checking', 'failed']);
   await writeFile(recoveryConfig, validConfig);
+  assert.equal((await host.request('enable', { name: 'recoverable' })).ok, true);
+  const missingPins = await host.request('resolve', { name: 'recoverable' });
+  assert.equal(missingPins.ok, false);
+  assert.match(missingPins.error, /locked dependencies are missing/);
+  assert.equal((await host.request('disable', { name: 'recoverable' })).ok, true);
   const executable = resolve(recoverable.environment, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
   const packages = execFileSync(executable, ['-I', '-c', 'import sysconfig; print(sysconfig.get_path("purelib"))'], { encoding: 'utf8' }).trim();
   const metadata = resolve(packages, 'paper_dependency-1.0.dist-info');
   await mkdir(metadata);
   await writeFile(resolve(metadata, 'METADATA'), 'Metadata-Version: 2.1\nName: paper-dependency\nVersion: 1.0\n');
   await writeFile(resolve(metadata, 'top_level.txt'), 'paper_dependency\n');
-  const recovered = await host.request('enable', { name: 'recoverable' });
+  const recovered = await host.request('prepare', { name: 'recoverable' });
   assert.equal(recovered.ok, true, recovered.error);
+  assert.equal((await host.request('enable', { name: 'recoverable' })).ok, true);
   await host.close(); host = await launch();
   const recoveredAccess = await host.request('resolve', { name: 'recoverable' });
   assert.equal(recoveredAccess.ok, true, recoveredAccess.error);
@@ -251,13 +266,34 @@ try {
   assert.equal(recoveredEnvironment.childDependency, 'prepared');
   assert.equal((await host.request('disable', { name: 'recoverable' })).ok, true);
   await rm(recoverable.environment, { recursive: true });
-  const missingEnvironment = await host.request('enable', { name: 'recoverable' });
+  const missingEnvironment = await host.request('prepare', { name: 'recoverable' });
   assert.equal(missingEnvironment.ok, false);
   assert(missingEnvironment.error.includes(recoverable.environment), missingEnvironment.error);
   assert.equal(JSON.parse(await readFile(resolve(temp, 'settings.json'), 'utf8')).app_python.apps.recoverable, recoverable.environment);
   assert.equal((await host.request('list')).value.find(app => app.name === 'recoverable').enabled, false);
   await assert.rejects(realpath(recoverable.environment), { code: 'ENOENT' });
   assert(!preparation.some(event => event.name === 'recoverable' && ['creating', 'installing'].includes(event.phase)));
+  await host.close(); host = undefined;
+  // A fresh profile has no managed Python. Navigation and project observation
+  // must stop at readiness, without creating files, saving a binding or installing.
+  const fresh = await preparePythonApp('lab', 'unused');
+  const freshManifest = JSON.parse(await readFile(resolve(fresh.app, 'app.json'), 'utf8'));
+  freshManifest.backend.dependencies = ['paper-dependency==1.0'];
+  await writeFile(resolve(fresh.app, 'app.json'), JSON.stringify(freshManifest));
+  await writeFile(resolve(temp, 'settings.json'), '{}');
+  preparation.length = 0;
+  host = await launch();
+  assert.equal((await host.request('install', { path: fresh.app })).ok, true);
+  assert.equal((await host.request('enable', { name: 'lab' })).ok, true);
+  assert.equal(preparation.length, 0);
+  for (const action of ['resolve', 'projectresources', 'resolve']) {
+    const opened = await host.request(action, { name: 'lab' });
+    assert.equal(opened.ok, false);
+  }
+  assert.deepEqual(preparation.map(event => event.phase), ['required', 'required', 'required']);
+  await assert.rejects(realpath(resolve(temp, 'environment')), { code: 'ENOENT' });
+  await assert.rejects(realpath(resolve(temp, 'app-data/lab')), { code: 'ENOENT' });
+  assert.equal(await readFile(resolve(temp, 'settings.json'), 'utf8'), '{}');
   assert.deepEqual(failures, []);
   console.log('App stdio wiring, generated contract, Python environments, incremental builtin discovery and retained disable/removal passed.');
 } finally {

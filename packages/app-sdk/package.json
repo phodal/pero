@@ -2,7 +2,33 @@
   "name": "@pero/app-sdk",
   "version": "0.1.0",
   "private": true,
+  "scripts": {
+    "typecheck": "tsc --ignoreConfig --noEmit --jsx react-jsx --moduleResolution bundler --module esnext --target es2022 --esModuleInterop --skipLibCheck --types node,vite/client src/components/code.tsx",
+    "test": "node --test src/components/code-compare-blocks.test.mjs"
+  },
   "type": "module",
-  "exports": { ".": "./src/index.tsx", "./ui": "./src/ui.tsx", "./chart": "./src/chart.ts" },
-  "peerDependencies": { "react": ">=19", "react-dom": ">=19" }
+  "exports": {
+    ".": "./src/index.tsx",
+    "./ui": "./src/ui.tsx",
+    "./chart": "./src/chart.ts"
+  },
+  "peerDependencies": {
+    "react": ">=19",
+    "react-dom": ">=19"
+  },
+  "dependencies": {
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/language": "6.12.4",
+    "@codemirror/legacy-modes": "6.5.4",
+    "@codemirror/merge": "6.12.0",
+    "@codemirror/search": "6.7.2",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.13",
+    "@lezer/highlight": "1.2.5",
+    "@lezer/javascript": "1.5.6"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
+  }
 }

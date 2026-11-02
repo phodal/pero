@@ -131,18 +131,20 @@ mod surface {
                 "creating" => self.t("apps.env_creating"),
                 "installing" => self.t("apps.env_installing"),
                 "ready" => self.t("apps.env_ready"),
+                "required" => self.t("apps.env_required"),
                 _ => self.t("apps.env_failed"),
             };
             div().flex().flex_col().gap(px(12.)).p(px(12.))
                 .child(format!("{}: {}", value.name, phase))
                 .children(value.log.iter().map(|line| div().text_sm().child(line.clone())))
-                .when(value.phase == "failed", |el| el.child(Button::new("app-env-retry")
-                    .label(self.t("apps.env_retry"))
+                .when(value.phase == "required", |el| el.child(self.t("apps.env_notice")))
+                .when(value.phase == "failed" || value.phase == "required", |el| el.child(Button::new("app-env-retry")
+                    .label(self.t(if value.phase == "required" { "apps.env_prepare" } else { "apps.env_retry" }))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         if let Some(WorkspaceItem::App { name: active, panel }) = this.navigation.current() {
                             if active == &name { this.pending_app = Some((active.clone(), panel.clone())); }
                         }
-                        this.command(json!({"action":"apps_enable","name":name}), cx);
+                        this.command(json!({"action":"apps_prepare","name":name}), cx);
                     }))))
                 .into_any_element()
         }

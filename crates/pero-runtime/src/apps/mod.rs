@@ -451,7 +451,7 @@ impl AppStore {
         Ok(self.list())
     }
 
-    /// Prepare before enable/open, preserving explicit environments. Control Lab
+    /// Explicit preparation before enable, preserving selected environments. Control Lab
     /// alone binds the bundled minor when its valid selection is incompatible.
     pub fn prepare(&mut self, name: &AppName, progress: &mut impl FnMut(AppPreparation)) -> Result<(), String> {
         self.prepare_agent_plugins(name)?;
@@ -460,7 +460,6 @@ impl AppStore {
         let Some(backend) = &app.definition.backend else { return Ok(()); };
         if !matches!(backend.kind, definition::BackendKind::Python) || backend.dependencies.is_empty() && self.python.select(name).is_none() { return Ok(()); }
         let managed = self.root.parent().ok_or("App root needs a parent")?.join("environment/pero-python312");
-        if backend.dependencies.is_empty() && self.python.select(name).is_none_or(|env| env.root() != managed) { return Ok(()); }
         let dependencies = backend.dependencies.clone();
         let target = preparation::prepare(name, self.python.select(name),
             PythonEnvironment::try_from(managed)?, &dependencies, progress)?;
@@ -492,8 +491,6 @@ impl AppStore {
         if !app.enabled {
             return Err("App is disabled; enable it before opening".into());
         }
-        self.prepare(name, progress)?;
-        let app = self.installed.get(name).ok_or("App is not installed")?;
         let root = self.root.join(name.as_str());
         let entry = app.definition.contributes.panels[0].entry.clone();
         if self
@@ -504,7 +501,21 @@ impl AppStore {
             self.processes.remove(name);
         }
         if app.definition.backend.is_some() && !self.processes.contains_key(name) {
-            let python = self.selected_python(name)?;
+            let mut python = self.selected_python(name)?;
+            let backend = app.definition.backend.as_ref().expect("App backend");
+            if matches!(backend.kind, definition::BackendKind::Python)
+                && (!backend.dependencies.is_empty() || python.is_some())
+            {
+                let managed = PythonEnvironment::try_from(self.root.parent()
+                    .ok_or("App root needs a parent")?.join("environment/pero-python312"))?;
+                let checked = preparation::check(name, self.python.select(name), managed, &backend.dependencies);
+                progress(AppPreparation {
+                    name: name.clone(),
+                    phase: if checked.is_ok() { preparation::PreparationPhase::Ready } else { preparation::PreparationPhase::Required },
+                    message: match &checked { Ok(_) => "Python environment is ready".into(), Err(error) => error.clone() },
+                });
+                python = Some(checked?);
+            }
             self.processes.insert(
                 name.clone(),
                 AppProcess::start(

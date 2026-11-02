@@ -12,12 +12,12 @@ type Selection = { bundle: ResearchBundle; source: ReadingSource; sourceIds: str
 export function ArxivReading({ api, paperId, onPrepare }: { api: Api; paperId: string; onPrepare(source: ReadingSource): Promise<void> }) {
   const { t } = useAppI18n({
     sources: { zh: 'arXiv 阅读来源', en: 'arXiv reading sources' },
-    checking: { zh: '正在检查 arXiv 版本和阅读来源…', en: 'Checking arXiv version and reading sources…' },
+    checking: { zh: '检查版本…', en: 'Checking version…' },
     retry: { zh: '重试', en: 'Retry' },
-    scope: { zh: '下载官方 HTML 并排版（最多 8 MiB）；许可和实际大小未知。PDF 引用仍定位到原 PDF。', en: 'Download and format official HTML (up to 8 MiB); license and actual size unknown. PDF citations keep their original PDF locations.' },
-    tex: { zh: '同时下载此版本的 TeX 源码（最多 16 MiB，许可和大小未知）', en: 'Also download this version’s TeX source (up to 16 MiB; license and size unknown)' },
+    scope: { zh: '官方 HTML，最多 8 MiB。实际大小和许可未确认。', en: 'Official HTML, up to 8 MiB. Actual size and license unknown.' },
+    tex: { zh: '附带 TeX 源码（最多 16 MiB，大小和许可未知）', en: 'Include TeX source (up to 16 MiB; size and license unknown)' },
     download: { zh: '下载并排版', en: 'Download and format' },
-    preparing: { zh: '正在准备正文…', en: 'Preparing reading…' },
+    failed: { zh: '排版失败', en: 'Formatting failed' },
     sourceFiles: { zh: 'TeX 源码', en: 'TeX source files' },
   });
   const [review, setReview] = useState<Review | null>(null), [selection, setSelection] = useState<Selection | null>(null);
@@ -47,19 +47,22 @@ export function ArxivReading({ api, paperId, onPrepare }: { api: Api; paperId: s
     } catch (error) { setError(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(false); }
   }
-  return <section aria-label={t('sources')}>
-    {!review && !error || review?.status === 'inspecting' ? <p role="status">{t('checking')}</p> : null}
-    {(error || review?.error) && <Feedback kind="error">{error || review?.error}<Button disabled={busy} onClick={() => selection ? void onPrepare(selection.source) : setAttempt(value => value + 1)}>{t('retry')}</Button></Feedback>}
-    {review?.status === 'ready' && !selection && <>
-      <p><a href={review.htmlUrl} target="_blank" rel="noreferrer">arXiv {review.version} HTML</a></p>
-      <p className="pa-document-meta">{t('scope')}</p>
-      {review.texUrl && <label><Checkbox checked={tex} disabled={busy} onCheckedChange={setTex}/>{t('tex')}</label>}
-      {review.warnings?.map((warning, index) => <Feedback key={index}>{warning}</Feedback>)}
-      <Toolbar><Button variant="primary" busy={busy} onClick={() => void confirm()}>{t('download')}</Button></Toolbar>
-    </>}
+  return <section className="pa-reading-source-tools" aria-label={t('sources')}>
+    {!review && !error || review?.status === 'inspecting' ? <span role="status">{t('checking')}</span> : null}
+    {(error || review?.error || review?.status === 'ready' && !selection) && <details className="pa-reading-source-menu" open>
+      <summary>{error || review?.error ? t('failed') : `arXiv ${review?.version}`}</summary>
+      <div className="pa-reading-source-options">
+        {(error || review?.error) && <Feedback kind="error">{error || review?.error}<Button disabled={busy} onClick={() => selection ? void onPrepare(selection.source) : setAttempt(value => value + 1)}>{t('retry')}</Button></Feedback>}
+        {review?.status === 'ready' && !selection && <>
+          <a href={review.htmlUrl} target="_blank" rel="noreferrer">arXiv {review.version} HTML</a>
+          <p className="pa-document-meta">{t('scope')}</p>
+          {review.texUrl && <label><Checkbox checked={tex} disabled={busy} onCheckedChange={setTex}/>{t('tex')}</label>}
+          <Toolbar><Button variant="primary" busy={busy} onClick={() => void confirm()}>{t('download')}</Button></Toolbar>
+        </>}
+      </div>
+    </details>}
     {selection && <>
-      {busy && <p role="status">{t('preparing')}</p>}
-      {selection.sourceIds.length > 0 && <Disclosure summary={t('sourceFiles')}><ResearchSources api={api} bundle={selection.bundle} startSourceIds={selection.sourceIds} scopedIds={selection.sourceIds} onRead={() => {}}/></Disclosure>}
+      {selection.sourceIds.length > 0 && <div className="pa-reading-source-menu"><Disclosure summary={t('sourceFiles')}><div className="pa-reading-source-options"><ResearchSources api={api} bundle={selection.bundle} startSourceIds={selection.sourceIds} scopedIds={selection.sourceIds} onRead={() => {}}/></div></Disclosure></div>}
     </>}
   </section>;
 }

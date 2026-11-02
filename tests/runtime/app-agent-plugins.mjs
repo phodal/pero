@@ -119,6 +119,7 @@ try {
   await until(event => event.kind === 'ready');
 
   await successfulApp('install', { path: source });
+  await successfulApp('prepare', { name: 'sample' });
   await successfulApp('enable', { name: 'sample' });
   const installed = await successfulApp('pluginlist');
   assert.equal(installed.length, 1);

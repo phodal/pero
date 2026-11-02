@@ -27,6 +27,7 @@ enum Request {
     Pluginenable { method: Method, id: String, name: AppName, enabled: bool },
     Pointagent { method: Method, id: String, name: AppName, request: pero_runtime::apps::point_agent::Request },
     Pointcatalog { method: Method, id: String, name: AppName, path: String },
+    Prepare { method: Method, id: String, name: AppName },
     Enable {
         method: Method,
         id: String,
@@ -229,9 +230,13 @@ impl Apps {
                     let _=(method,id);store.point_catalog_permission(&name,&path)?;
                     return agents.as_deref_mut().expect("Host manager").point_catalog(&path);
                 }
-                Request::Enable { method, id, name } => {
+                Request::Prepare { method, id, name } => {
                     let _ = (method, id);
                     store.prepare(&name, &mut progress)?;
+                    serde_json::to_value(store.list())
+                }
+                Request::Enable { method, id, name } => {
+                    let _ = (method, id);
                     serde_json::to_value(store.set_enabled(&name, true).map_err(|error| error.to_string())?)
                 }
                 Request::Disable { method, id, name } => {
