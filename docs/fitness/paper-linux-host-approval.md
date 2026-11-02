@@ -79,7 +79,8 @@ Only a Linux PR labelled `ci:paper-host-approval-native` or manual dispatch with
 boolean `paper_host_approval_native=true` (default false) runs this fixture.
 The #103 read-only label, ordinary PR/push/schedule and `ci:full` do not opt in.
 Preparation installs official GTK/AT-SPI/Gio/X11 prerequisites and locked root
-npm dependencies, builds Desktop/static preload using the normal build entry,
+npm dependencies plus the separate locked `packages/connectors` dependencies
+with `--ignore-scripts`, builds Desktop/static preload using the normal build entry,
 and runs unit negatives before UI input. The existing job supplies the native
 driver. The UI step has a 3-minute outer timeout and a 120-second owned runner:
 
@@ -96,3 +97,24 @@ its positive label after
 the intended run. If complete semantic evidence is missing, stop; do not relax
 the gates. Any follow-up scientific environment or worker run remains outside
 this authorized no-compute UI exercise.
+
+
+## First CI preparation failures (no UI or input)
+
+PR #107 head `5fb6463fb153251fb427701760df8b914ded69cd` runs
+[41419923766](https://github.com/phodal/pero/actions/runs/41419923766) and
+[41419924398](https://github.com/phodal/pero/actions/runs/41419924398) failed in
+**Prepare opt-in Host approval UI**, before the semantic fixture step. Job
+`125192737152` reported missing `fflate` and
+`pdfjs-dist/legacy/build/pdf{.worker}.mjs` imports from the Feishu file parser.
+Root `npm ci` had succeeded; `packages/connectors` is not a root workspace and
+owns a separate committed package-lock. The normal connector build initializes
+that lock with `npm ci --prefix ... --ignore-scripts` before Desktop bundling.
+
+The narrow preparation fix runs that same locked dependency initialization
+explicitly, without building/launching connector workers, changing dependency
+versions, externalizing imports or bypassing production bundling. A static wiring
+regression checks lock entries and ordering before the Desktop build. Both failed
+attempts remain failures; neither produced native input or approval evidence.
+The corrected workflow has not yet been run. Labels were removed before the fix;
+root controls publication and a separately opted-in retry.

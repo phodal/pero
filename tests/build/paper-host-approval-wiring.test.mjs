@@ -26,6 +26,12 @@ test('new positive UI entry requires its own explicit Linux opt-in, default off'
   const prepare = step('Prepare opt-in Host approval UI');
   assert.ok(prepare.includes('npm ci --registry=https://registry.npmjs.org'));
   assert.ok(prepare.includes('node scripts/build/desktop.mjs'));
+  const connectorInstall = 'npm ci --prefix packages/connectors --ignore-scripts --registry=https://registry.npmjs.org';
+  assert.ok(prepare.includes(connectorInstall), 'Connectors owns a separate lockfile outside root workspaces');
+  assert.ok(prepare.indexOf(connectorInstall) < prepare.indexOf('node scripts/build/desktop.mjs'));
+  const connectorLock = JSON.parse(read('packages/connectors/package-lock.json'));
+  for (const name of ['fflate', 'pdfjs-dist']) assert.ok(connectorLock.packages[`node_modules/${name}`]);
+  assert.doesNotMatch(prepare, /--external|npm install|build\/connectors\.mjs/);
   assert.ok(prepare.includes('--test desktop/src/main/reproduction-approval-linux.test.ts'));
   assert.ok(workflow.includes('node scripts/build/computer.mjs\n'));
   for (const script of ['scripts/build/desktop.mjs', 'scripts/build/product.mjs']) {
