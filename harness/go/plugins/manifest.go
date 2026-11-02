@@ -34,6 +34,7 @@ type manifestInput struct {
 	Agents            json.RawMessage `json:"agents"`
 	Hooks             json.RawMessage `json:"hooks"`
 	MCPServers        json.RawMessage `json:"mcpServers"`
+	LSPServers        json.RawMessage `json:"lspServers"`
 }
 
 type componentPaths struct {
@@ -48,6 +49,7 @@ type manifestDefinition struct {
 	Components []componentPaths
 	Hooks      json.RawMessage
 	MCP        json.RawMessage
+	LSP        json.RawMessage
 }
 
 func parseManifest(path, fallback string, content []byte) (manifestDefinition, []Diagnostic) {
@@ -63,6 +65,7 @@ func parseManifest(path, fallback string, content []byte) (manifestDefinition, [
 	}
 	d.Name, d.Version = input.Name, input.Version
 	d.Hooks, d.MCP = input.Hooks, input.MCPServers
+	d.LSP = input.LSPServers
 	var diagnostics []Diagnostic
 	if !pluginNamePattern.MatchString(input.Name) {
 		diagnostics = append(diagnostics, Diagnostic{SeverityError, "INVALID_PLUGIN_NAME", path, "name", "A manifest requires a plugin name starting with a letter or digit and containing only letters, digits, dots, underscores or hyphens."})
@@ -117,7 +120,7 @@ func parseManifest(path, fallback string, content []byte) (manifestDefinition, [
 		d.Components = append(d.Components, selection)
 	}
 	metadata := map[string]bool{"$schema": true, "name": true, "displayName": true, "version": true, "description": true, "author": true, "homepage": true, "repository": true, "license": true, "keywords": true, "metadata": true, "icon": true, "documentationUrl": true, "supportUrl": true, "privacyPolicyUrl": true, "termsOfServiceUrl": true}
-	known := map[string]bool{"skills": true, "commands": true, "agents": true, "hooks": true, "mcpServers": true}
+	known := map[string]bool{"skills": true, "commands": true, "agents": true, "hooks": true, "mcpServers": true, "lspServers": true}
 	var keys []string
 	for key := range fields {
 		keys = append(keys, key)

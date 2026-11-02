@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/phodal/pero/harness/go/claudehooks"
+	"github.com/phodal/pero/harness/go/lsp"
 )
 
 // Package is a compiled local package, not permission to run it. Connection and
@@ -26,6 +27,7 @@ type Package struct {
 	Resources  []string              `json:"resources"`
 	Hooks      []claudehooks.Hook    `json:"-"`
 	MCP        []MCPServerDefinition `json:"-"`
+	LSP        []lsp.Server          `json:"-"`
 }
 
 type MCPServerDefinition struct {
@@ -132,6 +134,10 @@ func compilePackage(ctx context.Context, path string, definition Plugin) (Packag
 		return Package{}, errors.New("plugins: manifest identity changed during package compilation")
 	}
 	excluded := make(map[string]bool)
+	value.LSP = append([]lsp.Server(nil), definition.lsp.servers...)
+	for _, source := range definition.lsp.sources {
+		excluded[source] = true
+	}
 	var compileErr error
 	loadIntegration(root, "", "hooks/hooks.json", parsed.Hooks, func(path string, raw []byte) {
 		excluded[path] = true

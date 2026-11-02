@@ -165,6 +165,7 @@ func inspectPlugin(ctx context.Context, root *os.Root, fallback, prefix string) 
 		p.MCP = p.MCP.Merge(value)
 		diagnostics = append(diagnostics, ds...)
 	}, &diagnostics)
+	p.inspectLSP(root, prefix, definition.LSP, &diagnostics)
 	sort.Slice(p.Components, func(i, j int) bool {
 		a, b := p.Components[i], p.Components[j]
 		if a.Kind != b.Kind {
@@ -342,6 +343,10 @@ func loadIntegration(root *os.Root, prefix, standard string, explicit json.RawMe
 			continue
 		}
 		key := "hooks"
+		if standard == ".lsp.json" {
+			parse(joined(prefix, ".claude-plugin/plugin.json"), source)
+			continue
+		}
 		if standard == ".mcp.json" {
 			key = "mcpServers"
 		}

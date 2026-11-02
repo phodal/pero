@@ -29,4 +29,6 @@ type Plugin struct {
 	Components         []Component     `json:"components"`
 	Hooks              HooksDefinition `json:"hooks"`
 	MCP                MCPDefinition   `json:"mcp"`
+	LSP                LSPDefinition   `json:"lsp"`
+	lsp                compiledLSP
 }

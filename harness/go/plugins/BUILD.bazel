@@ -7,6 +7,7 @@ go_library(
         "diagnostic.go",
         "inspect.go",
         "integrations.go",
+        "lsp.go",
         "manifest.go",
         "package.go",
         "types.go",
@@ -15,6 +16,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//claudehooks",
+        "//lsp",
         "@in_gopkg_yaml_v3//:yaml_v3",
     ],
 )
@@ -25,6 +27,7 @@ go_test(
         "components_test.go",
         "inspect_test.go",
         "integrations_test.go",
+        "lsp_test.go",
         "package_test.go",
     ],
     embed = [":plugins"],
