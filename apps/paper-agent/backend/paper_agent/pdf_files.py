@@ -122,22 +122,21 @@ class PdfFiles:
         with PDFIUM_LOCK, closing(pdfium.PdfDocument(data)) as pdf, closing(pdf[page_number - 1]) as page:
             page.set_rotation(0)
             with closing(page.get_textpage()) as textpage:
+                if textpage.get_text_range() != page_info.text:
+                    raise Invalid('Saved PDF text differs from the current extraction; reopen the original PDF', 409)
                 for start, end in windows:
                     quote = page_info.text[start:end]
-                    with closing(textpage.search(quote, match_case=True, consecutive=True)) as search:
-                        while True:
-                            match = search.get_next()
-                            if match is None:
-                                raise Invalid('The quotation cannot be located in this PDF', 422)
-                            # PDFium char indices differ from extracted-text offsets when
-                            # characters are inserted/excluded. Prove this exact window.
-                            prefix = textpage.get_text_range(0, match[0]) if match[0] else ''
-                            if len(prefix) == start and textpage.get_text_range(*match) == quote:
-                                break
-                            if len(prefix) > start:
-                                raise Invalid('The quotation has no exact PDF text region', 422)
+                    # PDFium search may return only part of a multiline phrase.
+                    # Map this exact saved window instead; PDFium text indices
+                    # use UTF-16 units, while our offsets count Python characters.
+                    text_start = len(page_info.text[:start].encode('utf-16-le')) // 2
+                    text_end = text_start + len(quote.encode('utf-16-le')) // 2 - 1
+                    first = pdfium.raw.FPDFText_GetCharIndexFromTextIndex(textpage, text_start)
+                    last = pdfium.raw.FPDFText_GetCharIndexFromTextIndex(textpage, text_end)
+                    if first < 0 or last < first or textpage.get_text_range(first, last - first + 1) != quote:
+                        raise Invalid('The quotation has no exact PDF text region', 422)
                     rects = []
-                    for i in range(textpage.count_rects(*match)):
+                    for i in range(textpage.count_rects(first, last - first + 1)):
                         left, bottom, right, top = textpage.get_rect(i)
                         x, y = max(0, left / page_info.width), max(0, 1 - top / page_info.height)
                         width = min(1, right / page_info.width) - x
