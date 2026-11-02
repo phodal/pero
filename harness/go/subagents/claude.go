@@ -33,6 +33,7 @@ type ClaudeOptions struct {
 
 type ClaudeContribution struct {
 	instance, provider *point.Instance
+	service            *claudeDelegation
 }
 
 func (c *ClaudeContribution) Dispose(ctx context.Context) error {
@@ -171,7 +172,7 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 		_ = provider.Dispose(context.Background())
 		return nil, err
 	}
-	return &ClaudeContribution{instance: instance, provider: provider}, nil
+	return &ClaudeContribution{instance: instance, provider: provider, service: service}, nil
 }
 
 func (s *claudeDelegation) agentTool() harness.Tool {
@@ -203,56 +204,8 @@ func (s *claudeDelegation) agentTool() harness.Tool {
 		if input.Resume != "" {
 			return harness.ToolResult{}, errors.New("subagents: Claude task resume is unsupported; start a new Agent with the previous result")
 		}
-		if request.Agent == nil || strings.TrimSpace(input.Prompt) == "" || strings.TrimSpace(input.Description) == "" {
-			return harness.ToolResult{}, errors.New("subagents: Agent requires a parent, prompt and description")
-		}
-		if input.Type == "" {
-			input.Type = "general-purpose"
-		}
-		origin, err := s.invocationPlugin(request.Agent)
+		task, err := s.start(ctx, request.Agent, ClaudeInvocation{Definition: input.Type, Prompt: input.Prompt, Description: input.Description, Model: input.Model})
 		if err != nil {
-			return harness.ToolResult{}, err
-		}
-		definition, err := resolveClaudeDefinition(s.definitions, input.Type, origin)
-		if err != nil {
-			return harness.ToolResult{}, err
-		}
-		child := harness.SubagentRequest{Parent: request.Agent, Prompt: input.Prompt, Label: input.Description, Persona: definition.Instructions, MaxDepth: s.maxDepth}
-		if definition.Tools != nil {
-			child.ToolFilter = &harness.ToolRestriction{Allow: append([]string{}, definition.Tools...)}
-		}
-		if s.readOnlyBuiltins[definition.Name] {
-			tools, err := s.readOnlyTools(ctx, request.Agent)
-			if err != nil {
-				return harness.ToolResult{}, err
-			}
-			child.ToolFilter = &harness.ToolRestriction{Allow: tools}
-		}
-		model := definition.Model
-		if input.Model != "" {
-			model = input.Model
-		}
-		if model != "" && model != "inherit" {
-			route, exists := s.routes[model]
-			if !exists {
-				return harness.ToolResult{}, fmt.Errorf("subagents: model alias %q is unavailable; configure an explicit model route", model)
-			}
-			child.Provider, child.Model = route.Provider, route.Model
-		}
-		if plugin, _, qualified := strings.Cut(definition.Name, ":"); qualified {
-			origin = plugin
-		}
-		ctx = context.WithValue(ctx, claudeDefinitionContextKey{}, claudeDefinitionIdentity{Version: 1, Name: definition.Name, Origin: origin})
-		activation, err := s.facade.StartActivation(ctx, "claude", child, "caller")
-		if err != nil {
-			return harness.ToolResult{}, err
-		}
-		task := &claudeTask{parent: request.Agent, activation: activation, done: make(chan struct{})}
-		s.mu.Lock()
-		s.tasks[activation.ChildID] = task
-		s.mu.Unlock()
-		if err := s.run.Go("claude-task/"+string(activation.ChildID), func(ctx context.Context) error { s.observeTask(ctx, task); return nil }); err != nil {
-			_ = activation.RequestDispose()
 			return harness.ToolResult{}, err
 		}
 		if input.Background {
@@ -262,7 +215,7 @@ func (s *claudeDelegation) agentTool() harness.Tool {
 		case <-task.done:
 			return claudeTaskResult(task, "success"), nil
 		case <-ctx.Done():
-			_ = activation.RequestDispose()
+			_ = task.activation.RequestDispose()
 			return harness.ToolResult{}, ctx.Err()
 		}
 	}}

@@ -24,6 +24,7 @@ type claudeHTTPFixture struct {
 	ctx       context.Context
 	h         *harness.Harness
 	parent    *harness.Agent
+	claude    *ClaudeContribution
 	root      string
 	approvals atomic.Int32
 }
@@ -59,7 +60,7 @@ func newClaudeHTTPFixture(t *testing.T, root string, handler http.HandlerFunc, a
 	if options.ModelRoutes == nil {
 		options.ModelRoutes = []ModelRoute{{Alias: "sonnet", Provider: "fixture", Model: "worker-model"}}
 	}
-	if _, err := MountClaude(ctx, h, definitions, options); err != nil {
+	if f.claude, err = MountClaude(ctx, h, definitions, options); err != nil {
 		t.Fatal(err)
 	}
 	f.parent, err = h.Agents().Create(ctx, harness.AgentOptions{ID: "claude-parent", CWD: root, Provider: "fixture", Model: "parent-model", MaxSteps: 5, MaxTokens: 128, DisableCompaction: true, Configure: func(_ context.Context, run *point.Run, _ *harness.Agent) error {

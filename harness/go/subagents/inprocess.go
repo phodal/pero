@@ -199,6 +199,15 @@ func (p *inProcessProvider) createChild(ctx context.Context, request harness.Sub
 	if err != nil {
 		return nil, nil, err
 	}
+	if configure, _ := ctx.Value(claudeChildConfigurationKey{}).(func(context.Context, *point.Run, *harness.Agent) error); configure != nil {
+		base := options.Configure
+		options.Configure = func(setup context.Context, run *point.Run, child *harness.Agent) error {
+			if err := base(setup, run, child); err != nil {
+				return err
+			}
+			return configure(setup, run, child)
+		}
+	}
 	// Resolve an explicit or inherited route before publishing a child Session.
 	// Adapters own exact-model validity; a failed lookup must leave neither a
 	// live child nor a durable catalog entry behind.
