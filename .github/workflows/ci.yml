@@ -17,6 +17,10 @@ on:
     - cron: "0 20 * * *" # 04:00 UTC+08; GitHub runs schedules on the default branch.
   workflow_dispatch:
     inputs:
+      paper_html_live:
+        description: "Opt in to three fixed public arXiv HTML parser checks (no PDF, images or model)"
+        type: boolean
+        default: false
       paper_pdf_live:
         description: "Opt in to public arXiv source and Google PDF journeys (no real model)"
         type: boolean
@@ -609,15 +613,45 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  paper-html-live:
+    name: Paper fixed HTML (${{ matrix.corpus }})
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.paper_html_live) || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-html-live')) }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        corpus: [d5, pc-gym, controlgym]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Acquire and parse only the selected fixed official HTML
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python apps/paper-agent/test/manual/scientific_html.py --allow-official-html --case ${{ matrix.corpus }} --output test-results/paper-html-live/${{ matrix.corpus }}.json
+      - name: Upload metadata-only corpus result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: paper-html-live-${{ matrix.corpus }}-${{ github.sha }}
+          path: test-results/paper-html-live/${{ matrix.corpus }}.json
+          if-no-files-found: error
+          retention-days: 7
+
   complete:
     name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'Full-platform CI gate' || 'Linux CI gate' }}
     if: always()
-    needs: [core, data, lab, control-lab, virtual-cell, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
+    needs: [paper-html-live, core, data, lab, control-lab, virtual-cell, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - name: Require every contract and acceptance shard for this mode
         env:
           RESULTS: ${{ toJSON(needs) }}
+          PAPER_HTML_LIVE: ${{ (github.event_name == 'workflow_dispatch' && inputs.paper_html_live) || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-html-live')) }}
           FULL_MATRIX: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full') }}
         run: node scripts/ci/gate.mjs
