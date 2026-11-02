@@ -96,6 +96,7 @@ try {
     fixtureApproval.beginTurn(index);
     const startedAt = Date.now();
     await host.prompt(thread, prompt, result.limits.perTurnWallTimeMs);
+    fixtureApproval.finishTurn();
     result.turns.push({ index, wallTimeMs: Date.now() - startedAt });
     if (interrupted) throw new Error('Cancelled during model turn');
     if (index === 0) result.referenceBoundary = await referenceBoundary(host, directory, { inspectOnly: scenes[scene].inspectOnly });

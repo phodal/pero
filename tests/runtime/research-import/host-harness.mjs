@@ -142,6 +142,12 @@ export async function openHost({ directory, agent, endpoint, model, credential, 
       command({ action: 'new_session', thread_id: thread, agent_id: 'research-harness', scope: { app: 'paper-agent', panel: 'main' } });
       const ready = await wait(event => event.thread_id === thread && ['session_ready', 'session_error'].includes(event.kind), 20000, since);
       assert.equal(ready.kind, 'session_ready', ready.text);
+      if (fixtureApproval) {
+        const after = events.length;
+        command({ action: 'configure', thread_id: thread, config_id: 'permission', value: 'workspace-write' });
+        await wait(event => event.thread_id === thread && event.kind === 'configuration_changed' &&
+          event.data?.options?.some(option => option.id === 'permission' && option.current === 'workspace-write'), 15000, after);
+      }
       return thread;
     },
     async prompt(thread, text, timeout = 120000) {

@@ -214,3 +214,12 @@ end-to-end success. For real inference, use the existing product Host/ACP
 permission UI to review individual requests. A headless campaign needs an explicit
 human responder before it can proceed; a plan's `confirmed` flag is not a human
 permission response.
+
+The first controller revision `6e451635` produced four exit-zero trajectories,
+but all recorded zero permission decisions: Go ACP's default `auto-review` mode
+answered before the controller. Those runs are **not** permission integration
+passes. The fixture now selects the existing narrower `workspace-write` setting
+and waits for its actual `configuration_changed` acknowledgement before prompting.
+Every active phase must have actual bounded decisions and every planned Paper
+call must consume its own permission request; auto-review can no longer silently
+pass this check. No production default or persistent permission was changed.

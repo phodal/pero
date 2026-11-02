@@ -13,6 +13,12 @@ export class FixtureApproval {
     assert.equal(index, this.phase + 1, 'Fixture phases advance once');
     assert(index <= 1); this.phase = index; this.expected.clear(); this.calls.clear();
   }
+  finishTurn() {
+    assert.equal(this.expected.size, 0, 'Every scripted Paper call must consume an actual permission request');
+    if (this.phase === 0 || this.scene === 'standard')
+      assert(this.decisions.some(decision => decision.phase === this.phase && decision.allowed), 'No actual bounded permission decision in this phase');
+    assert.deepEqual(this.errors, [], 'Unexpected permission requests');
+  }
   permits(name, args) {
     if (!name.startsWith(prefix)) return false;
     const tool = name.slice(prefix.length);

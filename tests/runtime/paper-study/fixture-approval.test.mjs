@@ -55,3 +55,12 @@ test('real mode stops before credential input or provider construction', () => {
   assert.match(run.stderr, /Real campaign stopped: this runner has no human ACP permission responder/);
   assert.doesNotMatch(run.stderr, /Missing or invalid credential input/);
 });
+
+test('each active phase requires actual requests and consumes every planned Paper call', () => {
+  const p = setup(); assert.throws(() => p.finishTurn(), /actual permission request/);
+  p.respond(request(), 'owned'); p.finishTurn();
+  p.beginTurn(1); assert.throws(() => p.finishTurn(), /No actual bounded permission/);
+  const decline = new FixtureApproval('injection'); decline.beginTurn(0);
+  assert.throws(() => decline.finishTurn(), /No actual bounded permission/);
+  decline.beginTurn(1); decline.finishTurn();
+});
