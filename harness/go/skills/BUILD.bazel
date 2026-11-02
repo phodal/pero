@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "catalog.go",
         "invocation.go",
+        "selected.go",
         "tool.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/skills",
@@ -23,6 +24,7 @@ go_test(
         "catalog_test.go",
         "compaction_test.go",
         "invocation_test.go",
+        "selected_test.go",
     ],
     embed = [":skills"],
     deps = [

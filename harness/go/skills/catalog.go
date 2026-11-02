@@ -29,24 +29,33 @@ type Summary struct {
 }
 type Definition struct {
 	Summary
-	Content string `json:"content"`
+	Content      string   `json:"content"`
+	ResourceBase string   `json:"resourceBase,omitempty"`
+	Directory    string   `json:"directory,omitempty"`
+	Resources    []string `json:"resources,omitempty"`
+	AllowedTools []string `json:"allowedTools,omitempty"`
+	Model        string   `json:"model,omitempty"`
+	Claude       bool     `json:"-"`
 }
 type entry struct {
-	summary  Summary
-	path     string
-	files    *fstools.ScopedTextFiles
-	disabled bool
+	definition                    Definition
+	path                          string
+	files                         *fstools.ScopedTextFiles
+	userInvocable, modelInvocable bool
+	resources                     map[string]selectedResource
 }
 
 // Catalog owns a fixed launch-time selection. New, removed or changed files
 // require a new catalog; reads never silently refresh the authorized manifest.
 type Catalog struct {
 	// Private deterministic discovery race fixture; never set by tool arguments.
-	openFiles func(string, []string, int64) (*fstools.ScopedTextFiles, error)
-	afterRead func()
-	mu        sync.Mutex
-	entries   map[string]entry
-	closed    bool
+	openFiles  func(string, []string, int64) (*fstools.ScopedTextFiles, error)
+	afterRead  func()
+	mu         sync.Mutex
+	entries    map[string]entry
+	resources  map[selectedSource]selectedResource
+	ownedFiles []*fstools.ScopedTextFiles
+	closed     bool
 }
 
 // Open accepts only explicit roots. Layout is root/<skill-name>/SKILL.md;
@@ -162,7 +171,8 @@ func (c *Catalog) scan(ctx context.Context, path string, visited *int) error {
 			return fmt.Errorf("skills: duplicate name %q; no root takes precedence", definition.Name)
 		}
 		definition.Digest = text.Digest
-		c.entries[definition.Name] = entry{definition.Summary, relative, files, disabled}
+		c.entries[definition.Name] = entry{definition: definition, path: relative, files: files, userInvocable: !disabled, modelInvocable: !disabled}
+		c.ownedFiles = append(c.ownedFiles, files)
 	}
 	after, err := os.Lstat(path)
 	if err != nil || !os.SameFile(before, after) {
@@ -171,6 +181,16 @@ func (c *Catalog) scan(ctx context.Context, path string, visited *int) error {
 	return nil
 }
 func (c *Catalog) List(ctx context.Context) ([]Summary, error) {
+	return c.list(ctx, false)
+}
+
+// UserList includes user-invocable definitions that are hidden from model
+// discovery. Legacy roots preserve their existing disabled behavior.
+func (c *Catalog) UserList(ctx context.Context) ([]Summary, error) {
+	return c.list(ctx, true)
+}
+
+func (c *Catalog) list(ctx context.Context, user bool) ([]Summary, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
@@ -181,39 +201,65 @@ func (c *Catalog) List(ctx context.Context) ([]Summary, error) {
 	}
 	rows := make([]Summary, 0, len(c.entries))
 	for _, e := range c.entries {
-		if !e.disabled {
-			rows = append(rows, e.summary)
+		if user && e.userInvocable || !user && e.modelInvocable {
+			rows = append(rows, e.definition.Summary)
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
 	return rows, nil
 }
 func (c *Catalog) Read(ctx context.Context, name, digest string) (Definition, error) {
+	return c.read(ctx, name, digest, false)
+}
+
+func (c *Catalog) ReadUser(ctx context.Context, name, digest string) (Definition, error) {
+	return c.read(ctx, name, digest, true)
+}
+
+func (c *Catalog) read(ctx context.Context, name, digest string, user bool) (Definition, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.closed {
-		return Definition{}, errors.New("skills: catalog closed")
-	}
-	if err := ctx.Err(); err != nil {
+	e, err := c.lookup(ctx, name, digest)
+	if err != nil {
 		return Definition{}, err
 	}
+	if user && !e.userInvocable || !user && !e.modelInvocable {
+		return Definition{}, errors.New("skills: skill is unavailable to this invocation source")
+	}
+	return c.definition(ctx, e)
+}
+
+// lookup and definition run under the Catalog mutex. They own snapshot checks
+// for both instruction and resource reads.
+func (c *Catalog) lookup(ctx context.Context, name, digest string) (entry, error) {
+	if c.closed {
+		return entry{}, errors.New("skills: catalog closed")
+	}
+	if err := ctx.Err(); err != nil {
+		return entry{}, err
+	}
 	e, ok := c.entries[name]
-	if !ok || e.disabled {
-		return Definition{}, errors.New("skills: unknown or model-disabled skill")
+	if !ok {
+		return entry{}, errors.New("skills: unknown skill")
 	}
-	if digest != e.summary.Digest {
-		return Definition{}, errors.New("skills: digest must match the launch-time catalog; call skill with {} to list this catalog, then copy the listed digest rather than guessing it")
+	if digest != e.definition.Digest {
+		return entry{}, errors.New("skills: digest must match the launch-time catalog; call skill with {} to list this catalog, then copy the listed digest rather than guessing it")
 	}
+	return e, nil
+}
+
+func (c *Catalog) definition(ctx context.Context, e entry) (Definition, error) {
 	text, err := e.files.Read(ctx, e.path)
 	if err != nil {
 		return Definition{}, fmt.Errorf("skills: selected file unavailable or changed; restart to select again: %w", err)
 	}
-	if text.Digest != digest {
+	if text.Digest != e.definition.Digest {
 		return Definition{}, errors.New("skills: content changed; restart to select again")
 	}
-	definition, _, err := parse(text.Text)
-	definition.Digest = digest
-	return definition, err
+	definition := e.definition
+	definition.Resources = append([]string(nil), definition.Resources...)
+	definition.AllowedTools = append([]string(nil), definition.AllowedTools...)
+	return definition, nil
 }
 func (c *Catalog) Close() error {
 	if c == nil {
@@ -226,8 +272,8 @@ func (c *Catalog) Close() error {
 	}
 	c.closed = true
 	var err error
-	for _, e := range c.entries {
-		err = errors.Join(err, e.files.Close())
+	for _, files := range c.ownedFiles {
+		err = errors.Join(err, files.Close())
 	}
 	return err
 }
