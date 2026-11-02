@@ -78,24 +78,7 @@ impl Manager {
         if binding.is_some_and(|binding|binding.point.is_some()) { self.point_journal.append(&self.tx,event)?; } else { let _ = self.tx.send(event); }
         self.sessions.insert(
             thread_id.clone(),
-            if let Some(resume_id)=resume_id {
-                acp::resume_app(agent.clone(),self.workspace.clone(),thread_id,self.tx.clone(),app_use,resume_id)
-            } else if let Some(endpoint) = app_use {
-                acp::start_app(
-                    agent.clone(),
-                    self.workspace.clone(),
-                    thread_id,
-                    self.tx.clone(),
-                    endpoint,
-                )
-            } else {
-                acp::start(
-                    agent.clone(),
-                    self.workspace.clone(),
-                    thread_id,
-                    self.tx.clone(),
-                )
-            },
+            acp::start_interactive(agent.clone(),self.workspace.clone(),thread_id,self.tx.clone(),app_use,resume_id),
         );
         Ok(())
     }

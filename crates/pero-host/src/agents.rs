@@ -100,6 +100,9 @@ impl Manager {
                             | "session_closed"
                             | "session_deleted"
                             | "permission"
+                            | "user_questions"
+                            | "user_questions_resolved"
+                            | "user_questions_error"
                             | "session_auth_required"
                             | "session_auth_error"
                             | "session_authenticated"
@@ -110,6 +113,9 @@ impl Manager {
                     if !matches!(
                         event.kind.as_str(),
                         "permission"
+                            | "user_questions"
+                            | "user_questions_resolved"
+                            | "user_questions_error"
                             | "session_auth_required"
                             | "session_auth_error"
                             | "session_authenticated"
@@ -421,6 +427,16 @@ impl Manager {
                     }
                 }
             }
+            HostCommand::AnswerUserQuestions {thread_id,request_id,reply} => {
+                let result = self.sessions.get(&thread_id).ok_or("Session is unavailable".to_owned())
+                    .and_then(|session|session.user_questions.finish(&request_id,reply));
+                if let Err(error)=result {
+                    let mut event=HostEvent::new("user_questions_error",None,error.clone());
+                    event.thread_id=Some(thread_id);
+                    event.data=serde_json::json!({"request_id":request_id,"error":error});
+                    let _=self.tx.send(event);
+                }
+            }
             HostCommand::Insights { thread_id } => self.publish_insights(thread_id),
             HostCommand::Delete { thread_id } => {
                 if thread_id.is_empty() || thread_id.len() > 128 {
@@ -428,6 +444,7 @@ impl Manager {
                     return;
                 }
                 if let Some(session) = self.sessions.remove(&thread_id) {
+                    session.user_questions.clear();
                     session.permissions.lock().unwrap().clear();
                     let _ = session.tx.send(SessionCommand::Close);
                 }
@@ -484,6 +501,7 @@ impl Manager {
                     } => (thread_id, SessionCommand::Authenticate(method_id)),
                     HostCommand::Close { thread_id } => {
                         if let Some(session) = self.sessions.remove(&thread_id) {
+                            session.user_questions.clear();
                             session.permissions.lock().unwrap().clear();
                             let _ = session.tx.send(SessionCommand::Close);
                         }
@@ -511,6 +529,7 @@ impl Manager {
                         let _ = self.tx.send(event);
                     }
                     if matches!(command, SessionCommand::Cancel) {
+                        session.user_questions.clear();
                         session.permissions.lock().unwrap().clear();
                     }
                     if session.tx.send(command).is_ok() {
@@ -531,6 +550,7 @@ impl Manager {
 impl Drop for Manager {
     fn drop(&mut self) {
         for session in self.sessions.values() {
+            session.user_questions.clear();
             session.permissions.lock().unwrap().clear();
             let _ = session.tx.send(SessionCommand::Close);
         }
