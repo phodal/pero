@@ -1,4 +1,3 @@
-import { installPaperFetchObserver } from './paper-fetch-observer.mjs';
 import { paperDocumentBackendFixture } from './paper-backend-fixture.mjs';
 // Offline authored corpus through actual Desktop/Host/approved Paper APIs/PDFium.
 // No mocked API responses, remote provider or scientific acceptance claim.
@@ -35,10 +34,7 @@ const checks = [], errors = [], remoteRequests = [];
 let app, page, frame;
 const launch = () => electron.launch({ args: [resolve(root, 'desktop')], cwd: root, env });
 async function ready() {
-  page = await app.firstWindow();
-  await page.addInitScript(installPaperFetchObserver);
-  await expect(page.locator('iframe[title="paper-agent"]')).toHaveCount(0);
-  page.on('pageerror', error => errors.push(error.message));
+  page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (/^https:\/\//.test(request.url())) remoteRequests.push(request.url()); });
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await expect.poll(() => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(app => app.name === 'paper-agent') ?? false)).toBe(true);
@@ -104,11 +100,11 @@ try {
   await expect(viewer.locator('[data-page-number="1"] img,[data-page-number="1"] canvas').first()).toBeVisible({ timeout: 30000 });
   const bar = frame.locator('.pa-reader-tools');
   await expect(bar.getByRole('button', { name: 'PDF', exact: true })).toBeVisible();
-  await expect(bar.getByRole('link', { name: 'Open original source', exact: true })).toHaveAttribute('href', pdfUrl);
+  await expect(bar.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute('title', pdfUrl);
   await bar.getByRole('spinbutton', { name: 'Page', exact: true }).fill('2');
   await expect(bar.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('2');
   const zoom = await bar.getByRole('button', { name: 'Fit page', exact: true }).innerText();
-  await frame.getByRole('button', { name: 'Text', exact: true }).click();
+  await frame.getByRole('button', { name: 'Read', exact: true }).click();
   await frame.getByRole('button', { name: 'Prepare Read · v2', exact: true }).click();
   const rejection = frame.getByText('HTML identity differs from the requested version', { exact: false });
   await expect(rejection).toBeVisible({ timeout: 60000 });
@@ -122,11 +118,11 @@ try {
   await expect(bar.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('2');
   await expect(bar.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(zoom);
   await expect(viewer.locator('[data-page-number="2"] img,[data-page-number="2"] canvas').first()).toBeVisible();
-  await frame.getByRole('button', { name: 'Text', exact: true }).click();
+  await frame.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(rejection).toBeVisible();
   await writeFile(htmlFixture, original);
   await frame.getByRole('button', { name: 'Retry v2', exact: true }).click();
-  await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toBeVisible({ timeout: 60000 });
+  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeVisible({ timeout: 60000 });
   const overview = await api(`/api/paper-documents?paperId=${paperId}`), identity = overview.revisions[0].id;
   const document = await api(`/api/paper-documents/${identity}`);
   await expect(rejection).toHaveCount(0);
@@ -214,9 +210,9 @@ try {
       if (window.paperRefreshGate.error) throw Error(window.paperRefreshGate.error);
       return window.paperRefreshGate.arrived;
     }), { message: 'Real document refresh response reached the App fetch gate' }).toBe(true);
-    await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toBeDisabled();
+    await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeDisabled();
     await frame.locator('body').evaluate(() => window.paperRefreshGate.release());
-    await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toBeEnabled();
+    await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeEnabled();
     expect(await frame.locator('body').evaluate(() => window.paperRefreshGate.delivered)).toBe(true);
   } finally {
     await frame.locator('body').evaluate(() => { window.paperRefreshGate.restore(); delete window.paperRefreshGate; });
@@ -229,7 +225,7 @@ try {
   await expect(bar.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('2');
   await expect(bar.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(zoom);
   await frame.getByRole('button', { name: 'Read', exact: true }).click();
-  await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toHaveAttribute('data-value', identity);
+  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toHaveValue(identity);
   await setPaperAppearance(page, 'dark');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 800));
   await expect.poll(() => frame.locator('html').evaluate(e => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
@@ -247,7 +243,7 @@ try {
   await frame.getByRole('button', { name: 'Open saved PDF', exact: true }).click();
   const readButton = frame.getByRole('button', { name: 'Read', exact: true });
   await expect(readButton).toBeVisible(); await readButton.click();
-  await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toHaveAttribute('data-value', identity);
+  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toHaveValue(identity);
   expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   await frame.getByText('Recorded evidence', { exact: true }).click();
   const reopenedReports = frame.getByRole('region', { name: 'Source evidence reports', exact: true });
@@ -278,15 +274,15 @@ try {
   await frame.getByRole('button', { name: 'Read', exact: true }).click();
   await frame.getByText('Source and parsing details', { exact: true }).click();
   await expect(frame.getByRole('button', { name: 'Prepare fresh parse · v2', exact: true })).toHaveCount(2);
-  await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toHaveAttribute('data-value', identity);
+  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toHaveValue(identity);
   expect(await sourceReports({ operation: 'read', reportId: sourceReport.id })).toEqual(sourceReport);
   // Hold only the real refreshed overview after B preparation. The old overview
   // still contains A; no original read may silently fall back to that scope.
   await frame.locator('body').evaluate(() => {
-    const original = window.paperNativeFetch; let release;
+    const original = window.fetch; let release;
     const held = new Promise(resolve => { release = resolve; });
-    window.paperScopeOverviewGate = { arrived: false, error: '', release, restore() { delete window.paperFetchObserver; release(); } };
-    window.paperFetchObserver = async (...args) => {
+    window.paperScopeOverviewGate = { arrived: false, error: '', release, restore() { window.fetch = original; release(); } };
+    window.fetch = async (...args) => {
       const response = await original.apply(window, args);
       if (new URL(typeof args[0] === 'string' ? args[0] : args[0].url, location.href).pathname === '/api/paper-documents') {
         if (!response.ok) window.paperScopeOverviewGate.error = `Overview failed: ${response.status}`;
@@ -309,7 +305,7 @@ try {
     await expect(frame.getByRole('button', { name: 'Original HTML', exact: true })).toBeEnabled();
   } finally { await frame.locator('body').evaluate(() => { window.paperScopeOverviewGate.restore(); delete window.paperScopeOverviewGate; }); }
   const selectedEvidence = `${secondBundle.id}:${secondResource.id}`;
-  await expect(frame.getByRole('button', { name: 'Evidence bundle', exact: true })).toHaveAttribute('data-value', selectedEvidence);
+  await expect(frame.getByRole('combobox', { name: 'Evidence bundle', exact: true })).toHaveValue(selectedEvidence);
   expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   await frame.getByRole('button', { name: 'Original HTML', exact: true }).click();
   await expect(frame.getByRole('complementary', { name: 'Original HTML source', exact: true })).toBeVisible();
@@ -324,7 +320,7 @@ try {
   await frame.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: secondBundle.title, exact: true }).click();
   await frame.getByRole('button', { name: 'Open saved PDF', exact: true }).click();
   await frame.getByRole('button', { name: 'Read', exact: true }).click();
-  await expect(frame.getByRole('button', { name: 'Evidence bundle', exact: true })).toHaveAttribute('data-value', selectedEvidence);
+  await expect(frame.getByRole('combobox', { name: 'Evidence bundle', exact: true })).toHaveValue(selectedEvidence);
   await frame.getByText('Recorded evidence', { exact: true }).click();
   await frame.getByRole('button', { name: 'Second scoped report', exact: true }).click();
   await frame.getByRole('button', { name: 'Open recorded original-html 13–30', exact: true }).click();
@@ -343,30 +339,34 @@ try {
   await toolbarBar.getByRole('button', { name: 'PDF', exact: true }).click();
   await expect(toolbarViewer).toBeVisible();
   const format = toolbarBar.getByRole('button', { name: 'Format', exact: true });
-  const boxes = await Promise.all(['Text', 'PDF', 'Format', 'Zoom in'].map(name => toolbarBar.getByRole('button', { name, exact: true }).boundingBox()));
+  const boxes = await Promise.all(['Read', 'PDF', 'TeX', 'Source', 'Zoom in'].map(name => toolbarBar.getByRole('button', { name, exact: true }).boundingBox()));
   expect(boxes.every(box => box && Math.abs(box.y - boxes[0].y) <= 4)).toBe(true);
-  await expect(toolbarBar.getByRole('link', { name: 'Open original source', exact: true })).toHaveAttribute('href', toolbarPaper.url);
+  await expect(toolbarBar.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute('title', toolbarPaper.url);
+  await toolbarBar.getByRole('button', { name: 'Read', exact: true }).click();
   await format.click();
-  await expect(toolbarBar.getByRole('button', { name: 'Download and format', exact: true })).toBeVisible();
-  await expect(toolbarBar.locator('.pa-reading-source-menu')).toContainText('arXiv v2');
+  const sourceReview = frame.getByRole('dialog', { name: 'arXiv v2', exact: true });
+  await expect(sourceReview.getByRole('button', { name: 'Download and format', exact: true })).toBeVisible();
+  await expect(sourceReview).toContainText('arXiv v2');
   await expect(frame.locator('.pa-structured-reading').getByRole('button', { name: 'Format', exact: true })).toHaveCount(0);
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 800));
-  await expect.poll(() => toolbarBar.locator('.pa-reading-source-options').evaluate(element => {
+  await expect.poll(() => sourceReview.evaluate(element => {
     const box = element.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth;
   })).toBe(true);
   await page.screenshot({ path: resolve(out, 'toolbar-source-review-narrow.png') });
   await writeFile(resolve(profile, 'desktop/app-data/paper-agent/fail-next-html'), 'synthetic acquisition failure');
-  await toolbarBar.getByRole('button', { name: 'Download and format', exact: true }).click();
-  await expect(toolbarBar.getByRole('alert')).toContainText('503');
+  await sourceReview.getByRole('button', { name: 'Download and format', exact: true }).click();
+  await expect(frame.getByRole('alert')).toContainText('503');
+  await toolbarBar.getByRole('button', { name: 'PDF', exact: true }).click();
   await expect(toolbarViewer).toBeVisible();
   await page.screenshot({ path: resolve(out, 'toolbar-format-error.png') });
-  await toolbarBar.getByRole('button', { name: 'Retry v2', exact: true }).click();
-  await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toBeVisible({ timeout: 60000 });
+  await toolbarBar.getByRole('button', { name: 'Read', exact: true }).click();
+  await frame.getByRole('button', { name: 'Retry v2', exact: true }).click();
+  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeVisible({ timeout: 60000 });
   await expect(toolbarViewer).not.toBeVisible();
   await toolbarBar.getByRole('button', { name: 'PDF', exact: true }).click();
   await expect(toolbarViewer).toBeVisible();
   await expect(toolbarBar.getByRole('button', { name: 'Read', exact: true })).toBeVisible();
-  checks.push('Saved arXiv paper reviews and formats beside Text/PDF; original link, one-row controls, narrow source menu, visible acquisition failure/retry and automatic Read/PDF switching work through real APIs');
+  checks.push('Saved arXiv paper reviews and formats beside Read/PDF/TeX/Source; one-row controls and a bounded source review, visible acquisition failure/retry and automatic Read/PDF switching work through real APIs');
   expect(errors).toEqual([]); expect(remoteRequests).toEqual([]);
   // Export a private stopped-profile copy through the existing real JSON CLI.
   await app.close(); app = null;

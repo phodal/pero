@@ -135,7 +135,7 @@ export async function exercisePdfSearch({ frame, page, out, realPdf }) {
         await expect(pageInput).toHaveValue(chosenPage);
       } else {
         await viewer.focus(); await viewer.press('Shift+F10');
-        await viewer.getByRole('menuitem', { name: 'Text', exact: true }).click();
+        await viewer.getByRole('menuitem', { name: 'Read', exact: true }).click();
         await expect(viewer).toHaveCount(0);
       }
       await frame.locator('body').evaluate(async () => {
