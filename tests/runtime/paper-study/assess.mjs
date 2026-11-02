@@ -114,9 +114,13 @@ export async function assess({ host, scene, directory, digest, credential }) {
     }
   }
   if (spec.source) { assert.equal(sourceJobs.length, 1); assert(checks.sourceList && checks.sourceRead); }
-  else { assert.deepEqual(sourceJobs, []); assert(checks.analysisContext && checks.analysisPropose); }
+  else assert.deepEqual(sourceJobs, []);
+  if (!spec.source || spec.analysis) {
+    assert(checks.analysisContext, 'Analysis requires frozen context');
+    // Inspect-only decline may describe existing candidates without proposing new types.
+    if (!(spec.inspectOnly && spec.decline)) assert(checks.analysisPropose, 'This analysis workflow requires a proposal');
+  }
   if (spec.analysis) {
-    assert(checks.analysisContext && checks.analysisPropose);
     const drafts = spec.inspectOnly && spec.decline ? await records(directory, 'import-drafts') : [];
     const resources = spec.inspectOnly && spec.decline ? drafts.flatMap(draft => draft.resources || []) : library.bundles.flatMap(bundle => bundle.resources);
     if (spec.decline) {
