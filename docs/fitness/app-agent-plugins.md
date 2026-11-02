@@ -43,7 +43,9 @@ passed 30 cases. An exported committed source snapshot including code through `5
 (using the rebuilt development Host binary). The snapshot reused the existing
 Node dependencies, generated reader-Wasm declarations and GPUI icon checkout.
 
-The broader existing `tests/contracts/apps.mjs` remains blocked at its Python
-environment recovery fixture. The observed rebinding and source comparison are
-recorded in [the supporting verification note](../issues/2026-11-02-app-plugin-contract-verification.md).
-This failure is not counted as passing plugin acceptance.
+The broader `npm run test:apps:contracts` now passes after the Python recovery
+fix in `a1527117`. The strengthened contract covers unchanged explicit bindings,
+same-Host repair, restart and real backend/child-interpreter environment selection.
+The App plugin, App Agent and Point Agent wiring checks also passed with the
+rebuilt Host. The original failure and resolution are recorded in
+[the supporting verification note](../issues/2026-11-02-app-plugin-contract-verification.md).
