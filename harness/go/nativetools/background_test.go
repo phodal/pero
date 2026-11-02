@@ -28,6 +28,8 @@ type shellTaskReceipt struct {
 	Result            *shell.RunResult       `json:"result"`
 	OutputFile        string                 `json:"output_file"`
 	OutputFilePartial bool                   `json:"output_file_partial"`
+	WorkingLogFile    string                 `json:"working_log_file"`
+	WorkingLogPartial bool                   `json:"working_log_partial"`
 }
 
 func shellReceipt(t *testing.T, result harness.ToolResult) shellTaskReceipt {
@@ -287,7 +289,7 @@ func TestBackgroundShellTerminalOutcomes(t *testing.T) {
 			if test.exit >= 0 && (receipt.Result.ExitCode == nil || *receipt.Result.ExitCode != test.exit) {
 				t.Fatalf("lost actual exit status: %+v", receipt)
 			}
-			if test.exit == 7 && (receipt.Result.Stdout.Text != "failure" || receipt.Result.Stderr.Text != "diagnostic") {
+			if test.exit == 7 && (!strings.Contains(receipt.Result.Stdout.Text, "failure") || !strings.Contains(receipt.Result.Stdout.Text, "diagnostic") || receipt.Result.Stderr.Text != "") {
 				t.Fatalf("lost failure output: %+v", receipt)
 			}
 		})

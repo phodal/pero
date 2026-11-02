@@ -59,11 +59,11 @@ type shellTaskTerminal struct {
 	Diagnostic        string            `json:"diagnostic,omitempty"`
 	OutputFile        string            `json:"output_file,omitempty"`
 	OutputFilePartial bool              `json:"output_file_partial,omitempty"`
+	Presentation      *bashPresentation `json:"presentation,omitempty"`
 }
 
 type shellTask struct {
 	parent    *harness.Agent
-	executor  *shell.LocalExecutor
 	intent    shellTaskIntent
 	cancel    context.CancelCauseFunc
 	done      chan struct{}
@@ -72,6 +72,7 @@ type shellTask struct {
 	output    []byte
 	lossy     bool
 	capture   *shell.FileCapture
+	executor  *shell.LocalExecutor
 	fileReady bool
 }
 
@@ -101,27 +102,32 @@ func (t *shellTask) snapshot(retrieval harness.TaskRetrieval) harness.ToolResult
 	t.mu.Lock()
 	status, diagnostic := shellTaskRunning, ""
 	outputFile, partial := "", false
+	workingLog := ""
+	workingLogPartial := false
+	var presentation *bashPresentation
 	var result *shell.RunResult
 	var output *shell.CollectedOutput
 	if t.terminal != nil {
 		status, diagnostic, result = t.terminal.Status, t.terminal.Diagnostic, t.terminal.Result
-		outputFile, partial = t.terminal.OutputFile, t.terminal.OutputFilePartial
+		workingLog, workingLogPartial = t.terminal.OutputFile, t.terminal.OutputFilePartial
+		presentation = t.terminal.Presentation
+		if presentation != nil {
+			outputFile = presentation.OutputFile
+		}
 		retrieval = harness.TaskRetrieved
 	} else {
 		output = &shell.CollectedOutput{Text: strings.ToValidUTF8(string(t.output), "�"), Truncated: t.lossy}
 		if t.fileReady {
-			outputFile = t.intent.OutputFile
-			partial = true
+			workingLog = t.intent.OutputFile
+			workingLogPartial = true
 		}
 	}
-	if result != nil {
-		copy := *result
-		copy.Stdout.Text, copy.Stderr.Text = boundedTail(copy.Stdout.Text, 4096), boundedTail(copy.Stderr.Text, 4096)
-		copy.Stdout.Truncated = copy.Stdout.Truncated || len(copy.Stdout.Text) != len(result.Stdout.Text)
-		copy.Stderr.Truncated = copy.Stderr.Truncated || len(copy.Stderr.Text) != len(result.Stderr.Text)
-		result = &copy
-	}
 	t.mu.Unlock()
+	var presentedResult *bashPresentedResult
+	if result != nil {
+		copy := presentedBashResult(*result, presentation)
+		presentedResult = &copy
+	}
 	raw, _ := json.Marshal(struct {
 		ID                string                 `json:"task_id"`
 		Kind              harness.TaskKind       `json:"kind"`
@@ -129,10 +135,12 @@ func (t *shellTask) snapshot(retrieval harness.TaskRetrieval) harness.ToolResult
 		Retrieval         harness.TaskRetrieval  `json:"retrieval_status"`
 		Diagnostic        string                 `json:"diagnostic,omitempty"`
 		Output            *shell.CollectedOutput `json:"output,omitempty"`
-		Result            *shell.RunResult       `json:"result,omitempty"`
+		Result            *bashPresentedResult   `json:"result,omitempty"`
 		OutputFile        string                 `json:"output_file,omitempty"`
 		OutputFilePartial bool                   `json:"output_file_partial,omitempty"`
-	}{t.intent.ID, harness.TaskKindShell, status, retrieval, boundedText(diagnostic, 1024), output, result, outputFile, partial})
+		WorkingLogFile    string                 `json:"working_log_file,omitempty"`
+		WorkingLogPartial bool                   `json:"working_log_partial,omitempty"`
+	}{t.intent.ID, harness.TaskKindShell, status, retrieval, boundedText(diagnostic, 1024), output, presentedResult, outputFile, partial, workingLog, workingLogPartial})
 	return harness.ToolResult{IsError: status == shellTaskFailed || status == shellTaskInterrupted || diagnostic != "", Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(raw)}}}
 }
 
@@ -166,10 +174,10 @@ type shellTasks struct {
 	admission    sync.Mutex
 }
 
-func mountShellTasks(ctx context.Context, h *harness.Harness, options shell.LocalOptions) (*shellTasks, error) {
+func mountShellTasks(ctx context.Context, h *harness.Harness, options shell.LocalOptions, policy bashOutputPolicy) (*shellTasks, error) {
 	foreground := options
 	options.Timeout, options.MaxTimeout = backgroundShellDefault, backgroundShellMaximum
-	owner := &shellTasks{options: options, foreground: foreground, tasks: make(map[string]*shellTask), fenced: make(map[*harness.Agent]bool)}
+	owner := &shellTasks{options: options, foreground: foreground, outputPolicy: policy, tasks: make(map[string]*shellTask), fenced: make(map[*harness.Agent]bool)}
 	definition := point.Define(point.Descriptor{ID: "harness/contribution/background-shell", Requires: []point.Requirement{point.Require(harness.AgentHooksKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
 		owner.run = run
 		if _, err := h.Hooks().Activated.On(run, func(ctx context.Context, agent *harness.Agent) error {
@@ -255,6 +263,7 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 	if err != nil {
 		return harness.ToolResult{}, err
 	}
+	task.executor = executor
 	timeout := time.Duration(min(input.TimeoutMS, int(options.MaxTimeout.Milliseconds()))) * time.Millisecond
 	spec, err := executor.Resolve(shell.ExecRequest{Command: input.Command, Workdir: request.Agent.Session().WorkingDirectory(), Timeout: timeout})
 	if err != nil {
@@ -370,6 +379,7 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 
 func (s *shellTasks) finish(task *shellTask, result *shell.RunResult, operationErr error, status shellTaskStatus) {
 	terminal := shellTaskTerminal{Version: 1, ID: task.intent.ID, Owner: task.intent.Owner, Status: status, Result: result}
+	var failurePresentation *bashPresentation
 	if task.capture != nil && task.capture.Path() != "" {
 		terminal.OutputFile = task.intent.OutputFile
 		terminal.OutputFilePartial = result == nil || result.Aborted || result.TimedOut || result.CleanupUncertain || result.ExitCode == nil || errors.Is(operationErr, shell.ErrOutputFileLimit) || errors.Is(operationErr, exec.ErrWaitDelay)
@@ -378,9 +388,18 @@ func (s *shellTasks) finish(task *shellTask, result *shell.RunResult, operationE
 			result.OutputBytes = task.capture.Bytes()
 			result.OutputFilePartial = terminal.OutputFilePartial
 		}
+		failurePresentation, _ = s.presentCapture(task, false)
+		presentation, err := s.presentCapture(task, status == shellTaskCompleted && operationErr == nil && !terminal.OutputFilePartial)
+		if err != nil {
+			operationErr = errors.Join(operationErr, fmt.Errorf("present Bash output: %w", err))
+			terminal.Status = shellTaskFailed
+			presentation = failurePresentation
+		}
+		terminal.Presentation = presentation
 		if err := task.capture.Close(true); err != nil {
 			operationErr = errors.Join(operationErr, fmt.Errorf("preserve shell output file: %w", err))
 			terminal.Status, terminal.OutputFilePartial = shellTaskFailed, true
+			terminal.Presentation = failurePresentation
 			if result != nil {
 				result.OutputFilePartial = true
 			}
@@ -397,6 +416,7 @@ func (s *shellTasks) finish(task *shellTask, result *shell.RunResult, operationE
 	}
 	if err != nil {
 		terminal.Diagnostic += "; terminal durability failed; do not replay the command: " + err.Error()
+		terminal.Presentation = failurePresentation
 	}
 	task.mu.Lock()
 	task.terminal = &terminal

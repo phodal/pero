@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,20 +14,38 @@ import (
 )
 
 func TestColdShellTaskRecoveryNeverReplaysEffects(t *testing.T) {
-	for _, running := range []bool{false, true} {
-		t.Run(map[bool]string{false: "terminal result", true: "uncertain running intent"}[running], func(t *testing.T) {
+	for _, test := range []struct {
+		name              string
+		running, artifact bool
+	}{{"terminal result", false, false}, {"uncertain running intent", true, false}, {"success artifact", false, true}} {
+		t.Run(test.name, func(t *testing.T) {
+			running := test.running
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			old := newBackgroundFixture(t)
 			command := "printf x >> effects; printf recovered-output"
+			wantLog := "recovered-output"
+			if test.artifact {
+				wantLog = strings.Repeat("a", 30001)
+				if err := os.WriteFile(filepath.Join(old.root, "artifact-input.txt"), []byte(wantLog), 0600); err != nil {
+					t.Fatal(err)
+				}
+				command = "printf x >> effects; cat artifact-input.txt"
+			}
 			if running {
 				command = "printf x >> effects; printf running-log; printf '%s' $$ > task.pid; sleep 30"
+				wantLog = "running-log"
 			}
 			task := startShell(t, old, command)
+			savedArtifact := ""
 			if running {
 				waitShellPID(t, filepath.Join(old.root, "task.pid"))
-			} else if result := old.call(t, old.allowed, "TaskOutput", taskQuery(task.ID, true, 2000)); result.IsError {
-				t.Fatal(result)
+			} else {
+				result := old.call(t, old.allowed, "TaskOutput", taskQuery(task.ID, true, 2000))
+				if result.IsError {
+					t.Fatal(result)
+				}
+				savedArtifact = shellReceipt(t, result).OutputFile
 			}
 			// Persist the exact checkpoint observed before cleanup, including the
 			// uncertainty window between a durable intent and a terminal receipt.
@@ -106,19 +125,25 @@ func TestColdShellTaskRecoveryNeverReplaysEffects(t *testing.T) {
 			if running {
 				want = shellTaskInterrupted
 			}
-			if receipt.Status != want || result.IsError != running || !running && (receipt.Result == nil || receipt.Result.Stdout.Text != "recovered-output") {
+			expectedInline := wantLog
+			if test.artifact {
+				expectedInline = expectedInline[:2000]
+			}
+			if receipt.Status != want || result.IsError != running || !running && (receipt.Result == nil || receipt.Result.Stdout.Text != expectedInline) {
 				t.Fatalf("cold task manufactured an outcome: %+v %+v", receipt, result)
 			}
-			if receipt.OutputFile == "" || receipt.OutputFile != task.OutputFile || receipt.OutputFilePartial != running {
+			if receipt.WorkingLogFile == "" || receipt.WorkingLogFile != task.WorkingLogFile || receipt.WorkingLogPartial != running || receipt.OutputFile != savedArtifact {
 				t.Fatalf("cold recovery lost the real output reference: %+v", receipt)
 			}
-			log, err := os.ReadFile(receipt.OutputFile)
-			wantLog := "recovered-output"
-			if running {
-				wantLog = "running-log"
-			}
+			log, err := os.ReadFile(receipt.WorkingLogFile)
 			if err != nil || string(log) != wantLog {
 				t.Fatalf("cold log unavailable: %q %v", log, err)
+			}
+			if test.artifact {
+				artifact, err := os.ReadFile(receipt.OutputFile)
+				if err != nil || string(artifact) != wantLog {
+					t.Fatalf("cold artifact unavailable: bytes=%d error=%v", len(artifact), err)
+				}
 			}
 			persisted, err := reader.Load(ctx, parent.ID())
 			if err != nil {

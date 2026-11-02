@@ -45,5 +45,5 @@ func (s *shellTasks) waitForeground(ctx context.Context, parent *harness.Agent, 
 	} else if terminal.Status != shellTaskCompleted {
 		err = fmt.Errorf("shell task ended with status %s", terminal.Status)
 	}
-	return renderResult(result, err)
+	return renderBashResult(result, terminal.Presentation, err)
 }

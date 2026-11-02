@@ -69,6 +69,9 @@ func foldShellTasks(events []harness.Event, owner harness.SessionID) (map[string
 			if terminal.Result != nil && terminal.Result.OutputFile != "" && terminal.Result.OutputFile != terminal.OutputFile {
 				return nil, errors.New("shell task result changed its output destination")
 			}
+			if terminal.Presentation != nil && terminal.Presentation.OutputFile != "" && terminal.Status != shellTaskCompleted {
+				return nil, errors.New("failed shell task advertises a success artifact")
+			}
 			previous.terminal = &terminal
 			tasks[terminal.ID] = previous
 		}
@@ -126,6 +129,27 @@ func (s *shellTasks) lookup(ctx context.Context, parent *harness.Agent, id strin
 			copy.Result = &result
 		}
 		stored.terminal = &copy
+	}
+	if stored.terminal.Presentation != nil && stored.terminal.Presentation.OutputFile != "" {
+		plan, err := shell.PlanOutputFile(s.options.CWD, ".pero/bash-artifacts", stored.intent.ID+".txt", bashArtifactBytes)
+		if err != nil {
+			return harness.TaskHandle{}, false, err
+		}
+		if plan.Path() != stored.terminal.Presentation.OutputFile {
+			return harness.TaskHandle{}, false, errors.New("Bash artifact reference is outside its configured destination")
+		}
+		exists, err := plan.Exists()
+		if err != nil {
+			return harness.TaskHandle{}, false, err
+		}
+		if !exists {
+			copy := *stored.terminal
+			presentation := *copy.Presentation
+			presentation.OutputFile, presentation.OutputFileBytes = "", 0
+			copy.Presentation = &presentation
+			copy.Diagnostic += "; saved Bash artifact is unavailable; inspect working_log_file"
+			stored.terminal = &copy
+		}
 	}
 	task = &shellTask{parent: parent, intent: stored.intent, terminal: stored.terminal, done: make(chan struct{})}
 	close(task.done)

@@ -27,6 +27,7 @@ type Options struct {
 	ClaudeTools         bool
 	ReadOnlyResource    func(context.Context, string) (fstools.ScopedText, error)
 	PluginEnvironment   []string
+	BashOutput          BashOutputOptions
 }
 type App struct {
 	files      *fstools.Workspace
@@ -150,7 +151,11 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 		if opts.ClaudeTools {
 			shellOptions.Timeout, shellOptions.MaxTimeout = 120*time.Second, 600*time.Second
 			if opts.EnableShell {
-				app.background, err = mountShellTasks(ctx, h, shellOptions)
+				policy, policyErr := resolveBashOutputPolicy(opts.BashOutput, opts.PluginEnvironment)
+				if policyErr != nil {
+					return nil, policyErr
+				}
+				app.background, err = mountShellTasks(ctx, h, shellOptions, policy)
 				if err != nil {
 					return nil, err
 				}

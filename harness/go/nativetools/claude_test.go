@@ -304,7 +304,7 @@ func TestClaudeBashKeepsSingleApprovalAndStatus(t *testing.T) {
 	var got struct {
 		Result shell.RunResult `json:"result"`
 	}
-	if !result.IsError || f.approvals.Load()-before != 1 || json.Unmarshal([]byte(result.Content[0].Text), &got) != nil || got.Result.ExitCode == nil || *got.Result.ExitCode != 7 || got.Result.Stdout.Text != "output" || got.Result.Stderr.Text != "failure" {
+	if !result.IsError || f.approvals.Load()-before != 1 || json.Unmarshal([]byte(result.Content[0].Text), &got) != nil || got.Result.ExitCode == nil || *got.Result.ExitCode != 7 || !strings.Contains(got.Result.Stdout.Text, "output") || !strings.Contains(got.Result.Stdout.Text, "failure") || got.Result.Stderr.Text != "" {
 		t.Fatalf("Bash lost approval/status: %+v", result)
 	}
 	if _, err := harness.SetPermissionMode(f.allowed.Session(), harness.PermissionWorkspaceWrite); err != nil {
