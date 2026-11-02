@@ -206,7 +206,9 @@ export class AppSurface {
   private changed(entry?: RegisteredObject) {
     ++this.semanticRevision;
     if (entry) entry.revision = this.semanticRevision;
-    for (const listener of [...this.listeners]) listener(this.semanticRevision);
+    for (const listener of [...this.listeners]) {
+      try { listener(this.semanticRevision); } catch { /* One observer cannot prevent the remaining subscribers seeing the transition. */ }
+    }
   }
   snapshot() { return this.observe(); }
   subscribe(listener: (revision: number) => void) {
@@ -243,17 +245,18 @@ export class AppSurface {
 
   register(object: AppObject) {
     this.requireLive();
-    if (this.objects.has(object.id)) throw new AppUseError('APP_OBJECT_DUPLICATE', `App object ${object.id} is already registered`);
-    if (this.objects.size >= 100) throw new AppUseError('APP_OBJECT_LIMIT', 'An App may expose at most 100 objects');
     const entry = this.normalize(object);
-    this.objects.set(object.id, entry);
+    const id = entry.snapshot.id;
+    if (this.objects.has(id)) throw new AppUseError('APP_OBJECT_DUPLICATE', `App object ${id} is already registered`);
+    if (this.objects.size >= 100) throw new AppUseError('APP_OBJECT_LIMIT', 'An App may expose at most 100 objects');
+    this.objects.set(id, entry);
     this.changed(entry);
     let live = true;
     return {
       update: (next: AppObject) => {
         if (!live || this.closed) return;
-        if (next.id !== object.id) throw new AppUseError('APP_OBJECT_INVALID', 'An App object cannot change its identity');
         const replacement = this.normalize(next);
+        if (replacement.snapshot.id !== id) throw new AppUseError('APP_OBJECT_INVALID', 'An App object cannot change its identity');
         entry.actions = replacement.actions;
         entry.mentions = replacement.mentions;
         if (!equal(entry.snapshot, replacement.snapshot)) {
@@ -264,7 +267,7 @@ export class AppSurface {
       dispose: () => {
         if (!live) return;
         live = false;
-        this.objects.delete(object.id);
+        this.objects.delete(id);
         if (!this.closed) this.changed();
       },
     };
@@ -312,6 +315,8 @@ export class AppSurface {
   }
 
   private normalize(object: AppObject): RegisteredObject {
+    if (!object || typeof object !== 'object' || Array.isArray(object) || object.actions !== undefined && (!object.actions || typeof object.actions !== 'object' || Array.isArray(object.actions)))
+      throw new AppUseError('APP_OBJECT_INVALID', 'App objects and actions must be records');
     if (typeof object.id !== 'string' || !objectId.test(object.id) || typeof object.kind !== 'string' || !object.kind || object.kind.length > 64 || object.label !== undefined && (typeof object.label !== 'string' || object.label.length > 300))
       throw new AppUseError('APP_OBJECT_INVALID', 'An App object needs an id, kind and label within their limits');
     if (object.summary !== undefined && (typeof object.summary !== 'string' || object.summary.length > 500) || object.mentions !== undefined && typeof object.mentions !== 'function')
@@ -391,8 +396,8 @@ export function installAppUseBridge(surface: AppUseSurface = appSurface, frame: 
 }
 
 
-const objectMarker = '[data-app-object],[data-point-object]';
-const markedObject = (element: Element | null) => element?.getAttribute('data-app-object') ?? element?.getAttribute('data-point-object');
+const objectMarker = '[data-app-object]';
+const markedObject = (element: Element | null) => element?.getAttribute('data-app-object');
 
 const controls = 'button,a[href],input,textarea,select,summary,[contenteditable="true"],[role="button"],[role="checkbox"],[role="switch"],[role="tab"],[role="radio"],[role="menuitem"],[role="option"],[role="slider"],[role="link"]';
 const textInputs = new Set(['text', 'search', 'url', 'tel', 'email']);
@@ -521,13 +526,13 @@ export class AppUseDom {
 
   annotation() {
     const { rect } = this.geometry();
-    const elements = [...this.document.querySelectorAll(`[data-app-object],[data-point-object],${controls}`)].filter(visible).slice(0, 300);
+    const elements = [...this.document.querySelectorAll(`${objectMarker},${controls}`)].filter(visible).slice(0, 300);
     return {
       ...this.surface.observe(), rect, viewport: { width: rect.width, height: rect.height },
       annotationDom: elements.map((element, index) => {
         const box = element.getBoundingClientRect();
         return { id: `element-${index}`, kind: element.tagName.toLowerCase(), label: label(element), role: role(element),
-          ...((element.getAttribute('data-app-object') ?? element.getAttribute('data-point-object')) ? { semanticId: (element.getAttribute('data-app-object') ?? element.getAttribute('data-point-object'))! } : {}),
+          ...(markedObject(element) ? { semanticId: markedObject(element)! } : {}),
           bounds: { x: box.left - rect.x, y: box.top - rect.y, width: box.width, height: box.height } };
       }),
     };

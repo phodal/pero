@@ -180,3 +180,20 @@ test('mention search is explicit, bounded, revision-bound and cancellable', asyn
   assert.deepEqual(await surface.searchMentions('', signal), []);
 });
 
+
+test('surface subscriptions and handles retain their registered identity', () => {
+  const surface = new AppSurface();
+  const seen: number[] = [];
+  surface.subscribe(() => { throw new Error('Broken observer'); });
+  surface.subscribe(revision => { seen.push(revision); });
+  const declaration = object({value:1});
+  const handle = surface.register(declaration);
+  declaration.id = 'changed-by-caller';
+  handle.update(object({value:2}));
+  assert.equal(surface.snapshot().objects[0].id,'lab');
+  handle.dispose();
+  assert.deepEqual(surface.snapshot().objects,[]);
+  assert.deepEqual(seen,[1,2,3]);
+  for (const declaration of [null, [], {...object({}),actions:[]}, {...object({}),actions:null}])
+    assert.throws(() => surface.register(declaration as unknown as AppObject),code('APP_OBJECT_INVALID'));
+});
