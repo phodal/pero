@@ -24,6 +24,9 @@ type Options struct {
 	EnableShell         bool
 	EnableResearchClone bool
 	Shell               string
+	ClaudeTools         bool
+	ReadOnlyResource    func(context.Context, string) (fstools.ScopedText, error)
+	PluginEnvironment   []string
 }
 type App struct {
 	files *fstools.Workspace
@@ -53,16 +56,31 @@ func (a *App) CheckCWD(cwd string) error {
 }
 
 type arguments struct {
-	Path       string `json:"path"`
-	Content    string `json:"content"`
-	OldText    string `json:"old_text"`
-	NewText    string `json:"new_text"`
-	ReplaceAll bool   `json:"replace_all"`
-	Query      string `json:"query"`
-	Offset     int    `json:"offset"`
-	Limit      int    `json:"limit"`
-	Command    string `json:"command"`
-	TimeoutMS  int    `json:"timeout_ms"`
+	Path                                           string `json:"path"`
+	Content                                        string `json:"content"`
+	OldText                                        string `json:"old_text"`
+	NewText                                        string `json:"new_text"`
+	ReplaceAll                                     bool   `json:"replace_all"`
+	Query                                          string `json:"query"`
+	Offset                                         int    `json:"offset"`
+	Limit                                          int    `json:"limit"`
+	Command                                        string `json:"command"`
+	TimeoutMS                                      int    `json:"timeout_ms"`
+	Pattern                                        string
+	Glob                                           string
+	FileType                                       string
+	OutputMode                                     string
+	IgnoreCase                                     bool
+	Multiline                                      bool
+	LineNumbers                                    *bool
+	Before, After, Around, HeadLimit, SearchOffset int
+	ResourcePath                                   string
+}
+
+type toolDefinition struct {
+	name, description, properties, required string
+	approval                                bool
+	run                                     func(context.Context, arguments) (any, error)
 }
 
 func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, resultErr error) {
@@ -93,11 +111,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 		}
 	}()
 	var shellAdmission func(context.Context, harness.ToolRequest) (*harness.NativeApprovalDescriptor, error)
-	definitions := []struct {
-		name, description, properties, required string
-		approval                                bool
-		run                                     func(context.Context, arguments) (any, error)
-	}{
+	definitions := []toolDefinition{
 		{"read_file", "Read bounded UTF-8 text from an existing workspace-relative file. offset is a 1-based line number.", `"path":{"type":"string"},"offset":{"type":"integer","minimum":1},"limit":{"type":"integer","minimum":1,"maximum":2000}`, `"path"`, false, func(c context.Context, a arguments) (any, error) {
 			v, e := files.Read(c, a.Path)
 			if e != nil {
@@ -119,7 +133,12 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 			}
 			opts.Shell = "/bin/bash"
 		}
-		executor, e := shell.NewLocalExecutor(shell.LocalOptions{Sandbox: opts.Sandbox, Shell: opts.Shell, CWD: workspace, Timeout: 30 * time.Second, MaxTimeout: 120 * time.Second, MaxOutputBytes: 16 << 10, Grace: 200 * time.Millisecond, BaseEnv: []string{"PATH=/usr/bin:/bin", "LANG=C.UTF-8"}})
+		shellOptions := shell.LocalOptions{Sandbox: opts.Sandbox, Shell: opts.Shell, CWD: workspace, Timeout: 30 * time.Second, MaxTimeout: 120 * time.Second, MaxOutputBytes: 16 << 10, Grace: 200 * time.Millisecond, BaseEnv: []string{"PATH=/usr/bin:/bin", "LANG=C.UTF-8"}}
+		if opts.ClaudeTools && opts.PluginEnvironment != nil {
+			shellOptions.BaseEnv = opts.PluginEnvironment
+			shellOptions.TrustedBaseEnvironment = true
+		}
+		executor, e := shell.NewLocalExecutor(shellOptions)
 		if e != nil {
 			return nil, e
 		}
@@ -138,8 +157,8 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 					if err := app.CheckCWD(request.Agent.Session().WorkingDirectory()); err != nil {
 						return nil, err
 					}
-					var a arguments
-					if err := json.Unmarshal(request.Arguments, &a); err != nil {
+					a, err := decodeNativeArguments(request.Arguments, workspace, opts.ClaudeTools, false, opts.Workspace)
+					if err != nil {
 						return nil, err
 					}
 					if _, err := executor.Resolve(shell.ExecRequest{Command: a.Command, Workdir: workspace, Timeout: time.Duration(a.TimeoutMS) * time.Millisecond}); err != nil {
@@ -159,11 +178,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 					description = "Run an approved bounded foreground command in a strict native sandbox. Network denied; only declared runtime files and workspace readable. Workspace mode: " + string(opts.Sandbox.Mode)
 				}
 			}
-			definitions = append(definitions, struct {
-				name, description, properties, required string
-				approval                                bool
-				run                                     func(context.Context, arguments) (any, error)
-			}{"shell", description, `"command":{"type":"string","minLength":1,"maxLength":16384},"timeout_ms":{"type":"integer","minimum":1,"maximum":120000}`, `"command"`, true, func(c context.Context, a arguments) (any, error) {
+			definitions = append(definitions, toolDefinition{"shell", description, `"command":{"type":"string","minLength":1,"maxLength":16384},"timeout_ms":{"type":"integer","minimum":1,"maximum":120000}`, `"command"`, true, func(c context.Context, a arguments) (any, error) {
 				if e := app.CheckCWD(workspace); e != nil {
 					return nil, e
 				}
@@ -196,6 +211,9 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 		if d.name == "shell" {
 			admission = shellAdmission
 		}
+		if opts.ClaudeTools {
+			d = claudeToolDefinition(d, files, opts.ReadOnlyResource)
+		}
 		schema := json.RawMessage(fmt.Sprintf(`{"type":"object","additionalProperties":false,"properties":{%s},"required":[%s]}`, d.properties, d.required))
 		_, err = h.RegisterTool(ctx, "native/"+d.name, harness.Tool{Schema: harness.ToolSchema{Name: d.name, Description: d.description, InputSchema: schema}, RequiresApproval: d.approval, ApprovalDescriptor: admission, Timeout: 125 * time.Second, ExecutionMode: harness.ExecutionSerial, ExecuteRequest: func(c context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
 			if request.Agent == nil {
@@ -204,8 +222,8 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 			if e := app.CheckCWD(request.Agent.Session().WorkingDirectory()); e != nil {
 				return harness.ToolResult{}, e
 			}
-			var a arguments
-			if e := json.Unmarshal(request.Arguments, &a); e != nil {
+			a, e := decodeNativeArguments(request.Arguments, workspace, opts.ClaudeTools, d.name == "Read" && opts.ReadOnlyResource != nil, opts.Workspace)
+			if e != nil {
 				return harness.ToolResult{}, e
 			}
 			value, operationErr := d.run(c, a)
