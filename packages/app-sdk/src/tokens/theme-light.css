@@ -1,12 +1,12 @@
-/* GENERATED from structure.json + themes/*.json by generate.mjs. Do not edit by hand. */
-/* Point design tokens v3. Palette and semantic roles follow the Pero Color Tokens v2.0 six-color reference. */
+/* Shared App design tokens; runtime embedding: scripts/build/app-sdk-tokens.mjs. */
+/* Pero design tokens v3. Palette and semantic roles follow the Pero Color Tokens v2.0 six-color reference. */
 /* - Muted borders (border-subtle) are decorative; input outlines use border-control. */
 /* - Pero v2 has six core families in PPT order: navy, mint, red, orange, amber, violet. Blue/green and categorical-7/8 are compatibility aliases, not additional series. */
 /* - Charts draw on chart-surface with chart-1..6. */
 /* - Colour alone must not convey a series or a status: pair it with text, an icon or a pattern. */
 /* - Domain colours (--pero-domain-*) carry app meaning (map layers, signals, CAD, CPK); themes may override them, conventions should not be. */
 
-/* theme pero-light (light) — Point Light */
+/* theme pero-light (light) — Pero Light */
 :root,
 [data-theme="light"],
 [data-theme="pero-light"],
