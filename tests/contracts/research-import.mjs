@@ -72,6 +72,11 @@ async function stage(name) {
   await cp(resolve(root, 'apps', name, 'backend'), resolve(source, 'backend'), {
     recursive: true, filter: path => !path.includes('__pycache__') && !path.endsWith('.pyc'),
   });
+  // Mirror scripts/build/apps.mjs: installed Data Apps carry the shared exact-value core.
+  if (name === 'data') {
+    await mkdir(resolve(source, 'backend/_core'), { recursive: true });
+    await cp(resolve(root, 'harness/go/charts/python/dataset.py'), resolve(source, 'backend/_core/dataset.py'));
+  }
   for (const [from, to] of [['research-import-backend.py', 'research_fixture_server.py'],
                            ['research-resources.py', 'research_resources_fixture.py']])
     await cp(resolve(root, 'tests/fixtures', from), resolve(source, 'backend', to));
