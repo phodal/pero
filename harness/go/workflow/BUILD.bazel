@@ -24,6 +24,9 @@ go_library(
 go_test(
     name = "workflow_test",
     srcs = [
+        "lifecycle_test.go",
+        "review_test.go",
+        "workflow_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":workflow"],
