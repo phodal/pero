@@ -5,7 +5,7 @@ This is not Desktop, bundle-consent, observed-ledger or scientific validation.
 """
 import argparse
 from collections import Counter
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
@@ -22,25 +22,47 @@ from paper_agent.paper_documents import prepare_html
 from paper_agent.resource_fetch import PublicMetadata
 from paper_agent.scientific_document import ScientificDocument, encoded
 
-URL = 'https://arxiv.org/html/2606.03979v2'
+
+@dataclass(frozen=True)
+class CorpusCase:
+    arxiv_id: str
+    required_kinds: tuple[str, ...] = ('heading', 'paragraph', 'equation', 'table', 'figure', 'reference')
+
+    @property
+    def url(self):
+        return 'https://arxiv.org/html/' + self.arxiv_id
+
+    @property
+    def version(self):
+        return 'v' + self.arxiv_id.rsplit('v', 1)[1]
 
 
-def coverage(document, original):
+# Fixed official versions inspected before execution; no arbitrary URL input.
+# Additional papers supplement, never replace, the original #76 D5 case.
+CORPUS = {
+    'd5': CorpusCase('2606.03979v2'),
+    'pc-gym': CorpusCase('2410.22093v4'),
+    'controlgym': CorpusCase('2311.18736v2'),
+}
+URL = CORPUS['d5'].url
+
+
+def coverage(document, original, case=CORPUS['d5']):
     """Verify retained structure and export only a fixed metadata projection."""
     if document.source.digest != sha256(original).hexdigest():
         raise ValueError("Original digest mismatch")
     if document.source.byte_length != len(original):
         raise ValueError("Original size mismatch")
-    if document.source.url != URL or document.source.version != 'v2':
+    if document.source.url != case.url or document.source.version != case.version:
         raise ValueError('Unexpected source version')
     if document.source_identity != 'response-explicit-version':
         raise ValueError('Response version unconfirmed')
     if ScientificDocument.from_record(json.loads(encoded(document.to_dict()))).id != document.id:
         raise ValueError('Immutable roundtrip changed identity')
-    if parse_arxiv_html(original, URL, document.paper_id, requested_url=URL).id != document.id:
+    if parse_arxiv_html(original, case.url, document.paper_id, requested_url=case.url).id != document.id:
         raise ValueError('Repeated parse changed identity')
     kinds = Counter(block.kind for block in document.blocks)
-    for kind in ('heading', 'paragraph', 'equation', 'table', 'figure', 'reference'):
+    for kind in case.required_kinds:
         if not kinds[kind]:
             raise ValueError('Missing expected corpus structure: ' + kind)
     windows, missing, partial = 0, 0, 0
@@ -78,17 +100,20 @@ def coverage(document, original):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--allow-official-html', action='store_true', required=True,
-                        help='Consent only to the fixed v2 HTML; no images, PDF, source or model')
+                        help='Consent only to the selected fixed HTML; no images, PDF, TeX or model')
+    parser.add_argument('--case', choices=tuple(CORPUS), default='d5')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args(argv)
-    report = dict(observedAt=datetime.now(timezone.utc).isoformat(), requestedUrl=URL,
+    case = CORPUS[args.case]
+    report = dict(corpusCase=args.case, requiredKinds=list(case.required_kinds),
+                  observedAt=datetime.now(timezone.utc).isoformat(), requestedUrl=case.url,
                   environment=dict(python=platform.python_version(), system=platform.system(),
                                    machine=platform.machine()),
                   scope='product HTML transport/parser; no Desktop, ledger or scientific validation',
                   outcome='not-run', sourceBytesExported=False)
     # Original HTML and IR never leave a private, automatically removed directory.
     with tempfile.TemporaryDirectory(prefix='pero-html-acceptance-') as directory:
-        result = acquire_bounded(prepare_html, (directory, URL, '', PublicMetadata()),
+        result = acquire_bounded(prepare_html, (directory, case.url, '', PublicMetadata()),
                                  threading.Event(), 45, lambda _stage: None)
         if result[0] != 'complete':
             report.update(outcome='acquisition-not-completed', acquisitionStatus=result[0], reason=result[1])
@@ -96,7 +121,7 @@ def main(argv=None):
             root = Path(directory)
             document = ScientificDocument.from_record(json.loads((root / 'document.json').read_bytes()))
             try:
-                report.update(coverage(document, (root / 'source.html').read_bytes()), outcome='passed')
+                report.update(coverage(document, (root / 'source.html').read_bytes(), case), outcome='passed')
             except ValueError as error:
                 # Do not emit third-party text or a traceback containing source data.
                 report.update(outcome='regression-failed', reason=str(error) or 'Corpus invariant failed')

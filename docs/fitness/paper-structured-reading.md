@@ -246,3 +246,82 @@ Final local full Paper regression on this increment:
 completed 210 tests in 58.320 seconds: 209 passed, one existing platform skip.
 Local documentation links and `git diff --check` passed. This is L0 evidence;
 it does not replace the still-blocked live acquisition or claim fresh Desktop CI.
+
+### Fixed-v2 acquisition recheck (2026-11-02)
+
+The existing opt-in probe was rerun unchanged against merged
+`master@78881615e37790b0a0b4635a197e18f974ea6867`, on Linux x86_64 / Python
+3.12.14 at `2026-11-02T07:47:27.094506+00:00`:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 apps/paper-agent/test/manual/scientific_html.py \
+  --allow-official-html \
+  --output /workspace/scratch/859e376748c6/pero76-d5-attempt-20261102.json
+```
+
+It exited 1 with `outcome=acquisition-not-completed`,
+`acquisitionStatus=failed`, and `reason=Metadata request failed: gaierror`.
+The product acquisition did not obtain original bytes; there is still no live
+source digest, parser manifest or bounded-read result. This is an executor
+DNS/acquisition failure, not evidence that the official paper is unavailable.
+No alternative downloader, browser-derived fixture, proxy, permission workaround,
+model call or repeated fetch was used. D5 remains open pending an authorized
+execution path with working official-site DNS/HTTPS.
+
+The unchanged deterministic scientific-document/probe suite passed all 19 tests
+in 0.577 seconds in the same checkout. This is L0 only and does not satisfy D5
+or imply fresh Desktop acceptance. The recheck changes no product code or parser
+boundaries and does not supersede the earlier authored-corpus Desktop evidence.
+
+### Explicit Actions HTML corpus opt-in
+
+The manual probe now accepts only `--case d5|pc-gym|controlgym`; omitting it
+retains the original `d5` case. Each case is a fixed official HTML version,
+verified through the official abstract/HTML pages on 2026-11-02 **before** the
+product run. Web inspection selects the corpus; it supplies neither original
+bytes nor parser evidence.
+
+| Case | Fixed official HTML | Predeclared structural check |
+| --- | --- | --- |
+| `d5` (mandatory D5) | [2606.03979v2](https://arxiv.org/html/2606.03979v2) | Heading, paragraph, equation, table, figure, reference; original six-kind gate unchanged. |
+| `pc-gym` | [2410.22093v4](https://arxiv.org/html/2410.22093v4) | Same six kinds. Official v4 contains display equations, figure captions, bibliography and Table 1 (multistage extraction parameters). |
+| `controlgym` | [2311.18736v2](https://arxiv.org/html/2311.18736v2) | Same six kinds. Official v2 contains display equations, figure captions, bibliography and Tables 1–2 (linear/PDE environments). |
+
+The official [PC-Gym abstract](https://arxiv.org/abs/2410.22093v4) and
+[Controlgym abstract](https://arxiv.org/abs/2311.18736v2) link those exact HTML
+versions. Additional cases supplement D5 and cannot replace it. These expectations
+are not adapted to the eventual parser output; an absent required kind fails.
+
+The existing `ci.yml` has an independent three-case `paper-html-live` job,
+activated only by boolean dispatch input `paper_html_live=true` or a PR carrying
+`ci:paper-html-live`. Ordinary PRs, pushes, daily schedules and `ci:full` alone do
+not activate it. For a lightweight PR run use only `ci:paper-html-live`, not
+`ci:full` or `ci:paper-pdf-live`. A manual dispatch still retains the workflow's
+existing full-platform behavior, but does not enable PDF/model journeys through
+this new input. The aggregate gate permits this job to be skipped only without
+its opt-in and propagates enabled acquisition/parser failures. Matrix fail-fast
+is disabled so one unavailable paper does not hide the other two results.
+
+Each case invokes the same product acquisition/parser owners once with the
+unchanged 45-second worker and 8 MiB response limits. No alternate URL, version,
+redirect-following fallback, retry, PDF, image, TeX, provider or secret is added.
+Original HTML/IR live only in a private temporary directory that is removed on
+normal completion/failure; CI uploads only the exact named per-case JSON summary,
+never a temporary directory or a wildcard source tree. The job has read-only
+contents permission and a five-minute ceiling. Artifact names bind the corpus
+case and checkout SHA, with seven-day retention. Summaries retain source digest,
+size, parser manifest, counts, limitations and bounded-read checks when parsing
+succeeds; acquisition failure records no invented digest.
+
+Local offline checks cover every fixed identity, the unchanged six required
+kinds, rejection of arbitrary case URLs, selected-case metadata-only output and
+temporary-original cleanup. CI wiring tests cover opt-in isolation, exact artifact
+paths and enabled failure/skip propagation. No new live product acquisition has
+run in this restricted executor; successful Actions artifacts remain required
+before D5 or the supplementary real-corpus checks can be claimed.
+
+Verification of this opt-in wiring: 22 scientific-document/probe tests passed;
+all six Desktop-CI contract tests passed. Full offline Paper regression completed
+237 tests in 76.719 seconds (236 passed, one existing platform skip).
+`git diff --check` passed. These remain L0 checks, not results of the future
+Actions live run.
