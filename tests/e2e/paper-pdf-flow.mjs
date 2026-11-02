@@ -8,7 +8,7 @@ export async function saveLibraryCopies(frame, title, { tex = false, timeout = 2
   // Add may already have opened this review. Never dismiss it or approve a
   // residual dialog for another paper merely to reach the Library button.
   if (!await dialog.isVisible()) {
-    const row = frame.locator('.pa-library-list > li').filter({ hasText: title });
+    const row = frame.locator('.pa-library-list > li').filter({ has: frame.getByText(title, { exact: true }) });
     await row.getByRole('button', { name: 'Save', exact: true }).click();
   }
   await expect(dialog.getByText(title, { exact: true })).toBeVisible();

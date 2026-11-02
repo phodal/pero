@@ -1,6 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { savePaperClipboard, backToLibrary } from '../../tests/e2e/paper-pdf-flow.mjs';
+import { savePaperClipboard, backToLibrary, saveLibraryCopies } from '../../tests/e2e/paper-pdf-flow.mjs';
+
+test('Library Save targets the exact title instead of a substring-related paper', async () => {
+  const title = 'image-only', exactTitle = {}, stop = new Error('selected exact row');
+  const frame = {
+    getByRole: () => ({ isVisible: async () => false }),
+    getByText: (value, options) => { assert.equal(value, title); assert.deepEqual(options, { exact: true }); return exactTitle; },
+    locator: selector => {
+      assert.equal(selector, '.pa-library-list > li');
+      return { filter: options => {
+        assert.deepEqual(options, { has: exactTitle });
+        return { getByRole: (role, options) => {
+          assert.equal(role, 'button'); assert.deepEqual(options, { name: 'Save', exact: true });
+          return { click: async () => { throw stop; } };
+        } };
+      } };
+    },
+  };
+  await assert.rejects(saveLibraryCopies(frame, title), error => error === stop);
+});
 
 test('return to Library handles reader and Library sub-screens without skipping the actual list', async () => {
   for (const initial of ['reader', 'bundle', 'import', 'papers']) {
