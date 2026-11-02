@@ -1,10 +1,10 @@
 /*
- * Adapted and modified for Point from KiroCrew website/src/app-sdk at
+ * Adapted and modified for Pero from KiroCrew website/src/app-sdk at
  * 65b08d3f963cb5b81b5ea7c06047e4dca763c602 (Apache-2.0).
  * See ../NOTICE.md and ../LICENSE-KIROCREW.
  */
 import { normalizeAppLocale } from './i18n.mjs';
-const LOCAL_ORIGIN = "http://point.invalid";
+const LOCAL_ORIGIN = "http://pero.invalid";
 
 export class AppApiError extends Error {
   constructor(status, body) {
@@ -19,10 +19,10 @@ function localPath(path, label = "path") {
   if (typeof path !== "string" || path.length === 0)
     throw new TypeError(`${label} must be a non-empty string`);
   if (/^(?:[a-z][a-z\d+.-]*:)?[/\\]{2}/i.test(path) || path.includes("\\"))
-    throw new Error(`[point-app-sdk] Absolute URLs are not allowed: ${path}`);
+    throw new Error(`[pero-app-sdk] Absolute URLs are not allowed: ${path}`);
   const parsed = new URL(path, LOCAL_ORIGIN);
   if (parsed.origin !== LOCAL_ORIGIN)
-    throw new Error(`[point-app-sdk] Absolute URLs are not allowed: ${path}`);
+    throw new Error(`[pero-app-sdk] Absolute URLs are not allowed: ${path}`);
   return { pathname: parsed.pathname, search: parsed.search };
 }
 
@@ -42,7 +42,7 @@ export function scopedApiPath(path, allowedApiPaths, appName = "app") {
   );
   if (!allowed) {
     throw new Error(
-      `[point-app-sdk] App "${appName}" cannot access ${pathname}. Declared: [${allowedApiPaths.join(", ")}]`,
+      `[pero-app-sdk] App "${appName}" cannot access ${pathname}. Declared: [${allowedApiPaths.join(", ")}]`,
     );
   }
   return pathname + search;
@@ -207,7 +207,7 @@ export function createAppHost({
     },
     subscribe(event, callback) {
       const check = checkEventPermission(event, eventPermissions);
-      if (!check.allowed) throw new Error(`[point-app-sdk] ${check.reason}`);
+      if (!check.allowed) throw new Error(`[pero-app-sdk] ${check.reason}`);
       return rawSubscribe(event, callback);
     },
     navigate,

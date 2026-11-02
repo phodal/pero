@@ -1,6 +1,6 @@
 import { createAppAgent } from './agent.mjs';
 /*
- * Adapted and modified for Point from KiroCrew website/src/app-sdk at
+ * Adapted and modified for Pero from KiroCrew website/src/app-sdk at
  * 65b08d3f963cb5b81b5ea7c06047e4dca763c602 (Apache-2.0).
  * See ../NOTICE.md and ../LICENSE-KIROCREW.
  */
@@ -28,7 +28,7 @@ export { Select, type SelectOption, type SelectProps } from './components/select
 
 export { createAppExamples, readAppExample } from "./examples.mjs";
 export interface AppExampleDocument {
-  schema: 'point.app.example.v1'; id: string;
+  schema: 'pero.app.example.v1'; id: string;
   files: Array<{ name: string; content: string; mediaType: string; sha256: string }>;
   parameters?: Record<string, unknown>;
   source?: Record<string, any>;
@@ -68,7 +68,7 @@ export {
   APP_OBJECT_LIMITS,
   AppSurfaceError,
   createAppSurface,
-  pointObjectProps,
+  appObjectProps,
   validateParameters,
 } from "./surface.mjs";
 
@@ -111,9 +111,9 @@ export interface AppTheme {
   mode: "dark" | "light";
   accent: string;
   colorTheme: string;
-  /** Registered design-token theme id (point-light, point-dark, …); see @point/app-sdk/themes. */
+  /** Registered design-token theme id (pero-light, pero-dark, …); see @pero/app-sdk/themes. */
   id: string;
-  /** Registered style pack id (point-default, compact, comfortable): shape and density, independent of colour. */
+  /** Registered style pack id (pero-default, compact, comfortable): shape and density, independent of colour. */
   style: string;
 }
 
@@ -203,7 +203,7 @@ export function useHostAgent(): AppAgent | null {
 
 export type HostCallFn = (capability: string, operation: string, input: Record<string, unknown>) => Promise<unknown>;
 
-export interface PointAppHost {
+export interface AppHost {
   api: AppApi;
   capability(name: string): HostCapability | null;
   info: AppInfo;
@@ -275,11 +275,11 @@ export interface AppObject {
   actions?: Record<string, AppObjectAction>;
 }
 
-const AppSdkContext = createContext<PointAppHost | null>(null);
+const AppSdkContext = createContext<AppHost | null>(null);
 
-function useHost(): PointAppHost {
+function useHost(): AppHost {
   const host = useContext(AppSdkContext);
-  if (!host) throw new Error("Point App SDK hooks require <AppSdkProvider>");
+  if (!host) throw new Error("Pero App SDK hooks require <AppSdkProvider>");
   return host;
 }
 
@@ -332,7 +332,7 @@ export function useNavigate(): (path: string) => void | Promise<void> {
   return useHost().navigate;
 }
 
-export function useNotify(): PointAppHost["notify"] {
+export function useNotify(): AppHost["notify"] {
   return useHost().notify;
 }
 
@@ -347,7 +347,7 @@ export function useHostCapability(name: string): HostCapability | null {
   return React.useMemo(() => host.capability(name), [host.capability, name]);
 }
 
-export function useChatLauncher(): { openChat(options?: ChatLaunchOptions): void | Promise<void | string>; selectProjectRunSession?: PointAppHost['selectProjectRunSession']; objectReference(objectId: string, selection?: unknown): AppChatAttachment } {
+export function useChatLauncher(): { openChat(options?: ChatLaunchOptions): void | Promise<void | string>; selectProjectRunSession?: AppHost['selectProjectRunSession']; objectReference(objectId: string, selection?: unknown): AppChatAttachment } {
   const host = useHost();
   return React.useMemo(() => ({ openChat: host.launchChat, selectProjectRunSession: host.selectProjectRunSession,
     objectReference(objectId: string, selection?: unknown): AppChatAttachment {
@@ -381,10 +381,10 @@ export function useAppObject(object: AppObject): void {
   useEffect(() => { handle.current?.update(object); });
 }
 
-/** point.app-result-view.v1 (ADR-0194): the reference an App tool answer carries
+/** pero.app-result-view.v1 (ADR-0194): the reference an App tool answer carries
  * as `view` so a Host conversation can show the App's own result view. It names
  * App objects by id; it carries no content, verdict or authority. */
-export const APP_RESULT_VIEW_SCHEMA = "point.app-result-view.v1";
+export const APP_RESULT_VIEW_SCHEMA = "pero.app-result-view.v1";
 export interface AppResultViewRef {
   schema: typeof APP_RESULT_VIEW_SCHEMA;
   /** App-defined, lowercase kebab-case, at most 64 characters. */
@@ -472,7 +472,7 @@ export function AppDesktop({ active = true, className, fallback, target }: { act
 
 const AppTitlebarContext = createContext<HTMLElement | null>(null);
 
-export function AppSdkProvider({ host, titlebar = null, children }: { host: PointAppHost; titlebar?: HTMLElement | null; children: ReactNode }) {
+export function AppSdkProvider({ host, titlebar = null, children }: { host: AppHost; titlebar?: HTMLElement | null; children: ReactNode }) {
   return React.createElement(AppSdkContext.Provider, { value: host }, React.createElement(AppTitlebarContext.Provider, { value: titlebar }, children));
 }
 
@@ -518,16 +518,16 @@ export function AppApiProvider({
   active?: boolean;
   fetch?: typeof globalThis.fetch;
   hostHeaders?: HeadersInit;
-  subscribeFn: PointAppHost["subscribe"];
-  navigateFn: PointAppHost["navigate"];
-  notifyFn: PointAppHost["notify"];
-  setBadgeFn?: PointAppHost["setBadge"];
-  launchChatFn?: PointAppHost["launchChat"];
-  selectProjectRunSessionFn?: PointAppHost['selectProjectRunSession'];
-  mountConversationFn?: PointAppHost["mountConversation"];
-  mountSessionConversationFn?: PointAppHost["mountSessionConversation"];
-  mountProjectRunConversationFn?: PointAppHost['mountProjectRunConversation'];
-  mountDesktopFn?: PointAppHost["mountDesktop"];
+  subscribeFn: AppHost["subscribe"];
+  navigateFn: AppHost["navigate"];
+  notifyFn: AppHost["notify"];
+  setBadgeFn?: AppHost["setBadge"];
+  launchChatFn?: AppHost["launchChat"];
+  selectProjectRunSessionFn?: AppHost['selectProjectRunSession'];
+  mountConversationFn?: AppHost["mountConversation"];
+  mountSessionConversationFn?: AppHost["mountSessionConversation"];
+  mountProjectRunConversationFn?: AppHost['mountProjectRunConversation'];
+  mountDesktopFn?: AppHost["mountDesktop"];
   examples?: AppExamples | null;
   surface?: AppSurface | null;
   allowedHostCapabilities?: string[];
@@ -566,7 +566,7 @@ export function AppApiProvider({
       examples: examples ?? null,
       allowedHostCapabilities,
       hostCall: hostCallFn,
-    }), api: authority.api, capability: authority.capability, selectProjectRunSession: selectProjectRunSessionFn, mountConversation: mountConversationFn, mountSessionConversation: mountSessionConversationFn, mountProjectRunConversation: mountProjectRunConversationFn, mountDesktop: mountDesktopFn }) as PointAppHost,
+    }), api: authority.api, capability: authority.capability, selectProjectRunSession: selectProjectRunSessionFn, mountConversation: mountConversationFn, mountSessionConversation: mountSessionConversationFn, mountProjectRunConversation: mountProjectRunConversationFn, mountDesktop: mountDesktopFn }) as AppHost,
     // Array content, not caller identity, defines the permission boundary.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [appName, appVersion, locale, apiKey, eventKey, hostKey, active, fetch, hostHeaders, subscribeFn, navigateFn, notifyFn, setBadgeFn, launchChatFn, selectProjectRunSessionFn, mountConversationFn, mountSessionConversationFn, mountProjectRunConversationFn, surface, examples, hostCallFn, mountDesktopFn, authority],

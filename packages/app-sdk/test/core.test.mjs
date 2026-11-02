@@ -18,7 +18,7 @@ test("scoped API normalizes traversal and rejects foreign authorities", async ()
   const api = createScopedApi({
     appName: "fixture",
     allowedApiPaths: ["/api/sessions"],
-    hostHeaders: { "X-Point-Session-Id": "host-session" },
+    hostHeaders: { "X-Pero-Session-Id": "host-session" },
     fetch: async (path, init) => {
       calls.push({ path, init });
       return new Response(JSON.stringify({ ok: true }), {
@@ -29,12 +29,12 @@ test("scoped API normalizes traversal and rejects foreign authorities", async ()
 
   assert.deepEqual(
     await api.post("/api/sessions/one/actions?mode=review", { value: 1 }, {
-      headers: { "X-Point-Session-Id": "forged" },
+      headers: { "X-Pero-Session-Id": "forged" },
     }),
     { ok: true },
   );
   assert.equal(calls[0].path, "/api/sessions/one/actions?mode=review");
-  assert.equal(calls[0].init.headers.get("x-point-session-id"), "host-session");
+  assert.equal(calls[0].init.headers.get("x-pero-session-id"), "host-session");
   assert.equal(calls[0].init.body, JSON.stringify({ value: 1 }));
   assert.throws(() => scopedApiPath("/api/sessions/x/../../settings", ["/api/sessions"], "fixture"), /cannot access/);
   await assert.rejects(api.get("https://example.com/api/sessions"), /Absolute URLs/);

@@ -21,10 +21,10 @@ async function fixture(t) {
   }
   const props = {
     appName: 'preview', locale: 'zh', allowedApiPaths: ['/apps/preview/api'], allowedEvents: [],
-    allowedHostCapabilities: ['mobile'], hostHeaders: { 'X-Point-Session-Id': 'session-a' },
+    allowedHostCapabilities: ['mobile'], hostHeaders: { 'X-Pero-Session-Id': 'session-a' },
     subscribeFn: () => () => {}, navigateFn: () => {}, notifyFn: () => {},
     hostCallFn: async (...args) => { calls.push(args); return 'first-host'; },
-    fetch: async (_path, init) => { calls.push(init.headers.get('X-Point-Session-Id')); return new Response('{}'); },
+    fetch: async (_path, init) => { calls.push(init.headers.get('X-Pero-Session-Id')); return new Response('{}'); },
   };
   return { ...env, props, calls, lifecycle, current: () => current,
     update: changes => render(React.createElement(ui.AppApiProvider, { ...props, ...changes }, React.createElement(Preview))) };
@@ -64,7 +64,7 @@ async function eventFixture(t) {
       React.createElement('output', null, received));
   }
   let props = { appName: 'preview', locale: 'en', allowedApiPaths: [], allowedEvents: ['session.changed'],
-    allowedHostCapabilities: ['mobile'], hostHeaders: { 'X-Point-Session-Id': 'session-a' },
+    allowedHostCapabilities: ['mobile'], hostHeaders: { 'X-Pero-Session-Id': 'session-a' },
     subscribeFn: carrier('first'), hostCallFn: async () => 'host' };
   return { ...env, lifecycle, delivered, errors, listeners, carrier, current: () => current,
     update: changes => { props = { ...props, ...changes }; return render(React.createElement(Fixture, props)); } };
@@ -78,7 +78,7 @@ test('App event snapshots do not resubscribe through presentation rerenders and 
   assert.equal(document.querySelector('output').textContent, '1');
   for (let i = 0; i < 4; i++) {
     await env.update({ locale: i % 2 ? 'zh' : 'en', appVersion: String(i), examples: { revision: i }, label: `label-${i}`,
-      hostHeaders: new Headers({ 'x-point-session-id': 'session-a' }), allowedEvents: ['session.changed'] });
+      hostHeaders: new Headers({ 'x-pero-session-id': 'session-a' }), allowedEvents: ['session.changed'] });
   }
   assert.deepEqual(env.lifecycle, [['attach', 'first', 'session.changed']]);
   assert.equal(env.current().api, first.api);
@@ -106,7 +106,7 @@ test('App event authority changes replace the scoped wrapper and revoked grants 
     assert.equal(env.listeners.size, 1);
   };
   await expectRefresh({ allowedEvents: ['session.changed', 'project:*'] });
-  await expectRefresh({ hostHeaders: { 'X-Point-Session-Id': 'session-b' } });
+  await expectRefresh({ hostHeaders: { 'X-Pero-Session-Id': 'session-b' } });
   await expectRefresh({ appName: 'other-preview' });
   await expectRefresh({ active: false });
   await expectRefresh({ active: true });
@@ -134,7 +134,7 @@ test('presentation updates preserve an active preview and use the latest chat ac
   for (let i = 0; i < 4; i++) {
     await update({ locale: i % 2 ? 'zh' : 'en', appVersion: String(i), examples: { revision: i },
       allowedApiPaths: [...props.allowedApiPaths], allowedEvents: [], allowedHostCapabilities: ['mobile'],
-      hostHeaders: new Headers({ 'x-point-session-id': 'session-a' }),
+      hostHeaders: new Headers({ 'x-pero-session-id': 'session-a' }),
       navigateFn: () => {}, launchChatFn: () => calls.push(`chat-${i}`) });
     assert.equal(current().api, first.api);
     assert.equal(current().mobile, first.mobile);
@@ -157,7 +157,7 @@ test('Session, API permissions and Host changes replace the scoped interfaces', 
   const { props, update, current, calls } = env;
   await update({});
   const first = current();
-  const headers = { 'X-Point-Session-Id': 'session-b' };
+  const headers = { 'X-Pero-Session-Id': 'session-b' };
   await update({ hostHeaders: headers });
   assert.notEqual(current().api, first.api);
   await current().api.get('/apps/preview/api/state');
