@@ -62,9 +62,37 @@ export async function exerciseLocalSearch({ frame, page, app, out }) {
   await search.locator('[data-search-hit]').first().getByRole('button').click();
   await expect(frame.getByRole('heading', { name: 'Synthetic reading · a reproducible citation example', exact: true })).toBeVisible();
   await frame.getByRole('button', { name: 'Back to library', exact: true }).click();
-  await search.getByRole('button', { name: 'Clear search', exact: true }).click();
-  await expect(input).toBeFocused();
-  await expect(frame.locator('.pa-library-list')).toBeVisible();
+  let requests = 0;
+  const observeSearch = request => { if (request.method() === 'POST' && request.url().endsWith('/api/library/search')) requests++; };
+  page.on('request', observeSearch);
+  try {
+    await input.fill('');
+    await input.fill('source snapshot');
+    await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true });
+    // Flush the key event's render work before asserting that composition sent no request.
+    await input.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    expect(requests).toBe(0);
+    await expect(search.locator('[data-search-hit]')).toHaveCount(0);
+    for (const [index, activation] of ['Enter', 'Space', 'click'].entries()) {
+      await input.fill('source snapshot');
+      await input.press('Enter');
+      await expect(search.locator('[data-search-hit]').first()).toBeVisible();
+      expect(requests).toBe(index + 1);
+      const clear = search.getByRole('button', { name: 'Clear search', exact: true });
+      if (activation === 'click') await clear.click();
+      else {
+        await input.press('Tab');
+        await expect(clear).toBeFocused();
+        await clear.press(activation);
+      }
+      await expect(input).toHaveValue('');
+      await expect(input).toBeFocused();
+      await expect(search.locator('[data-search-hit]')).toHaveCount(0);
+      await expect(frame.locator('.pa-library-list')).toBeVisible();
+      expect(requests).toBe(index + 1);
+      if (activation === 'Enter') await page.screenshot({ path: resolve(out, 'local-search-keyboard-clear.png') });
+    }
+  } finally { page.off('request', observeSearch); }
 }
 
 export async function exercisePdfSearch({ frame, page, out, realPdf }) {
