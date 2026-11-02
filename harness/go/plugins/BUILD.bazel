@@ -2,13 +2,23 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "plugins",
-    srcs = ["diagnostic.go", "integrations.go"],
+    srcs = [
+        "components.go",
+        "diagnostic.go",
+        "integrations.go",
+        "manifest.go",
+        "types.go",
+    ],
     importpath = "github.com/phodal/pero/harness/go/plugins",
     visibility = ["//visibility:public"],
+    deps = ["@in_gopkg_yaml_v3//:yaml_v3"],
 )
 
 go_test(
     name = "plugins_test",
-    srcs = ["integrations_test.go"],
+    srcs = [
+        "components_test.go",
+        "integrations_test.go",
+    ],
     embed = [":plugins"],
 )
