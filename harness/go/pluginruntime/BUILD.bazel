@@ -4,6 +4,7 @@ go_library(
     name = "pluginruntime",
     srcs = [
         "hooks.go",
+        "mcp.go",
         "transcript.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/pluginruntime",
@@ -25,6 +26,7 @@ go_test(
     srcs = [
         "compaction_test.go",
         "hooks_test.go",
+        "mcp_test.go",
     ],
     embed = [":pluginruntime"],
     deps = [
