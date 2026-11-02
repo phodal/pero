@@ -4,14 +4,14 @@ import { resolve } from 'node:path';
 // Run inside the actual App frame: Electron's pero-app protocol is not a
 // Playwright network route. Preserve the real backend Response and hold delivery.
 export function deferPdfLocate() {
-  const original = window.fetch;
+  const original = window.paperNativeFetch;
   let release, ready;
   const held = new Promise(resolve => { release = resolve; });
   const gate = window.paperLocateGate = {
     arrived: false, delivered: false, error: '', ready: new Promise(resolve => { ready = resolve; }),
-    release, restore() { window.fetch = original; release(); },
+    release, restore() { delete window.paperFetchObserver; release(); },
   };
-  window.fetch = async (...args) => {
+  window.paperFetchObserver = async (...args) => {
     const url = new URL(typeof args[0] === 'string' ? args[0] : args[0].url, window.location.href);
     if (url.pathname !== '/api/pdf/locate') return original.apply(window, args);
     try {

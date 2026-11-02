@@ -42,7 +42,7 @@ export function ResultView({ result, loading, error, labels, formatNumber = n =>
     ? { ...legacy, version: 1, kind: 'table', provenance: { kind: 'calculated', ...legacy.provenance } }
     : result;
   const checked = validateStructuredResult(input);
-  if (!checked.ok) return <div ref={styled} className={cls} role="alert" data-state="invalid" title={checked.errors.join('\n')}>{l.invalid}</div>;
+  if (checked.ok === false) return <div ref={styled} className={cls} role="alert" data-state="invalid" title={checked.errors.join('\n')}>{l.invalid}</div>;
   const r = checked.value as any;
   const p = r.provenance;
   const ref = p.ref;

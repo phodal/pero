@@ -28,8 +28,6 @@ await mkdir(out, { recursive: true });
 const run = await mkdtemp(resolve(out, `${scene}-`));
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-control-lab-live-'));
 const sessions = resolve(temp, 'sessions'), settings = resolve(temp, 'settings.json'), agents = resolve(temp, 'agents.json');
-// A fresh isolated settings file leaves Computer Use disabled.
-await writeFile(settings, JSON.stringify({ chat_agent: 'codex', computer_use: { enabled: false } }));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(temp, 'profile'), PERO_SETTINGS_PATH: settings,
   PERO_HISTORY_PATH: resolve(temp, 'history.jsonl'), PERO_AGENTS_FILE: agents, PERO_LOCALE: 'en' };
 delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT;
@@ -52,7 +50,9 @@ try {
         ...(fixture ? ['fixture', provider.endpoint, ledgerPath] : ['real'])] },
   ]));
   const python = process.env.PERO_APP_PYTHON || 'python3';
-  await execute(python, ['-E', '-s', '-c', 'import control; print(control.__version__)'], { timeout: 30000 });
+  const { stdout: pythonRoot } = await execute(python, ['-E', '-s', '-c', 'import control,sys; print(sys.prefix)'], { encoding: 'utf8', timeout: 30000 });
+  // Reuse the validated engine; keep Computer Use disabled in this isolated profile.
+  await writeFile(settings, JSON.stringify({ chat_agent: 'codex', computer_use: { enabled: false }, app_python: { apps: { 'control-lab': pythonRoot.trim() } } }));
   if (scene === 'active-filter') await execute('ngspice', ['--version'], { timeout: 30000 });
   app = await electron.launch({ requiresNativeWindow: true, args: [...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []), resolve(root, 'desktop')], cwd: root, env });
   page = await app.firstWindow();

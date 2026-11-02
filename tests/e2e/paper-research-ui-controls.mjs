@@ -47,3 +47,12 @@ export async function researchUiState(page, frame) {
   });
   return { host, view };
 }
+
+// SDK Select is an accessible button/listbox, not a native select. Use the
+// painted option and verify the exact stored value after the user interaction.
+export async function selectPaperOption(frame, label, option, value) {
+  const trigger = frame.getByRole('button', { name: label, exact: true });
+  await trigger.click();
+  await frame.getByRole('listbox', { name: label, exact: true }).getByRole('option', { name: option, exact: true }).click();
+  await expect(trigger).toHaveAttribute('data-value', value);
+}

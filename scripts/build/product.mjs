@@ -69,7 +69,7 @@ if (product.chat) {
 rmSync(output, { recursive: true, force: true });
 mkdirSync(join(output, 'desktop/dist'), { recursive: true });
 mkdirSync(join(output, 'bin'), { recursive: true });
-await build({ entryPoints: { product: resolve(root, 'desktop/src/main/product.ts'), 'product-preload': resolve(root, 'desktop/src/product/preload.ts') }, outdir: join(output, 'desktop/dist'), outExtension: { '.js': '.cjs' }, bundle: true, platform: 'node', format: 'cjs', external: ['electron'] });
+await build({ entryPoints: { product: resolve(root, 'desktop/src/main/product.ts'), 'product-preload': resolve(root, 'desktop/src/product/preload.ts'), 'reproduction-approval-preload': resolve(root, 'desktop/src/preload/reproduction-approval.ts') }, outdir: join(output, 'desktop/dist'), outExtension: { '.js': '.cjs' }, bundle: true, platform: 'node', format: 'cjs', external: ['electron'] });
 const script = await build({ entryPoints: [resolve(root, 'desktop/src/product/shell.ts')], bundle: true, platform: 'browser', format: 'iife', write: false, minify: true });
 const style = productShellStyle(root);
 writeFileSync(join(output, 'desktop/dist/product.html'), `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${style}</style></head><body><script>${script.outputFiles[0].text}</script></body></html>`);

@@ -1,14 +1,14 @@
 // Injected only by the Desktop fixture. Hold delivery, never replace the actual
 // authenticated backend request, response, parser work or persistence.
 export function deferDocumentRefresh() {
-  const original = window.fetch;
+  const original = window.paperNativeFetch;
   let release, ready;
   const held = new Promise(resolve => { release = resolve; });
   const gate = window.paperRefreshGate = {
     arrived: false, delivered: false, error: '', ready: new Promise(resolve => { ready = resolve; }),
-    release, restore() { window.fetch = original; release(); },
+    release, restore() { delete window.paperFetchObserver; release(); },
   };
-  window.fetch = async (...args) => {
+  window.paperFetchObserver = async (...args) => {
     const url = new URL(typeof args[0] === 'string' ? args[0] : args[0].url, window.location.href);
     if (url.pathname !== '/api/paper-document') return original.apply(window, args);
     const request = args[0] instanceof Request

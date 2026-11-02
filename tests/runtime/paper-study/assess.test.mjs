@@ -106,8 +106,8 @@ test('four closure scenarios inspect first; three decline without commit or acqu
       let value;
       if (name === 'skill') value = args.name ? { content: 'research-source-read' } : [{ name: 'research-resource-import', digest: 'fixed-digest' }];
       else if (name.endsWith('inspect-research-link') || args.operation === 'propose') value = { result: { id: 'draft', status: 'ready', resources: [
-        { id: 'source', kind: 'source_archive', originalUrl: scene === 'nonstandard-decline' ? 'https://research.example.org/files/methods.tgz' : 'https://research.example.org/attachments?id=methods', confidence: 'unresolved', workIdentity: null, revision: null },
-        { id: 'pdf', kind: 'pdf_candidate' }] } };
+        { id: 'source', kind: 'source_archive', originalUrl: scene === 'standard' ? 'https://arxiv.org/src/2610.00004v1' : scene === 'nonstandard-decline' ? 'https://research.example.org/files/methods.tgz' : 'https://research.example.org/attachments?id=methods', confidence: 'unresolved', workIdentity: null, revision: null },
+        { id: 'pdf', kind: 'pdf_candidate', originalUrl: 'https://arxiv.org/pdf/2610.00004v1' }] } };
       else value = { result: { draftDigest: 'draft-digest', pages: [{ links: [{ id: 'evidence', href: 'https://research.example.org/attachments?id=methods' }, { id: 'archive', href: 'https://research.example.org/files/methods.tgz' }] }] } };
       result = iterator.next(JSON.stringify(value));
     }
