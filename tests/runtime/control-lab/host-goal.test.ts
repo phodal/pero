@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -26,10 +26,18 @@ test('real Host user_message activates only the submitted frozen target before A
   const desktop = new DesktopAppUse(() => window as never, () => {}, temp, { describe: async () => [definition],
     apply: async (_write, _signal, goal) => { applied.push(goal); return { ok: true }; } });
   const endpoint = await desktop.start();
+  // Scoped sessions require an installed App/panel, even when its backend is simulated.
+  const builtins = resolve(temp, 'builtins'), app = resolve(builtins, scope.app);
+  await mkdir(resolve(app, 'dist'), { recursive: true });
+  await writeFile(resolve(app, 'app.json'), JSON.stringify({ schemaVersion: 1, name: scope.app,
+    version: '0.1.0', displayName: 'Goal fixture',
+    contributes: { panels: [{ id: scope.panel, title: 'Fixture', entry: 'dist/index.html' }] } }));
+  await writeFile(resolve(app, 'dist/index.html'), '<title>Goal fixture</title>');
   const agents = resolve(temp, 'agents.json');
   await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'fixture', command: process.execPath,
     args: [resolve(root, 'tests/fixtures/control-lab-goal-acp.mjs')] }]));
   const child = spawn(resolve(root, 'target/debug/pero-host'), ['--stdio'], { cwd: temp, env: { ...process.env, ...endpoint,
+    PERO_APPS_ROOT: resolve(temp, 'installed'), PERO_BUILTIN_APPS_ROOT: builtins, PERO_BUILTIN_APPS: scope.app, PERO_REQUIRED_APPS: '',
     PERO_SETTINGS_PATH: resolve(temp, 'settings.json'), PERO_HISTORY_PATH: resolve(temp, 'history.jsonl'), PERO_AGENTS_FILE: agents },
     stdio: ['pipe', 'pipe', 'pipe'] });
   const events: any[] = [], waiters = new Set<() => void>();
@@ -40,10 +48,12 @@ test('real Host user_message activates only the submitted frozen target before A
   });
   const next = async (kind: string) => {
     const deadline = Date.now() + 10000;
+    const failure = () => new Error(`Host did not emit ${kind}: ${JSON.stringify(events)}\n${stderr}`);
     while (!events.some(event => event.kind === kind && (!event.thread_id || event.thread_id === thread))) {
-      if (Date.now() >= deadline) throw new Error(`Host did not emit ${kind}: ${stderr}`);
+      if (events.some(event => ['error', 'session_error'].includes(event.kind) && (!event.thread_id || event.thread_id === thread))) throw failure();
+      if (Date.now() >= deadline) throw failure();
       await new Promise<void>((done, reject) => {
-        const timeout = setTimeout(() => { waiters.delete(notify); reject(new Error(`Host did not emit ${kind}: ${stderr}`)); }, Math.max(1, deadline - Date.now()));
+        const timeout = setTimeout(() => { waiters.delete(notify); reject(failure()); }, Math.max(1, deadline - Date.now()));
         const notify = () => { clearTimeout(timeout); waiters.delete(notify); done(); };
         waiters.add(notify);
       });
