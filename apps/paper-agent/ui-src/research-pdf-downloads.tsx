@@ -15,8 +15,8 @@ type PdfDownload = {
 };
 
 /** Project saved consent and Paper's PDF lifecycle; never infer consent from a link. */
-export function ResearchPdfDownloads({ api, bundle, startPdfIds, onRead, waitForSources = false }: {
-  api: Api; bundle: ResearchBundle; startPdfIds: string[]; waitForSources?: boolean; onRead(id: string): void;
+export function ResearchPdfDownloads({ api, bundle, startPdfIds, onRead, waitForSources = false, onAvailable }: {
+  api: Api; bundle: ResearchBundle; startPdfIds: string[]; waitForSources?: boolean; onAvailable?(available: boolean): void; onRead(id: string): void;
 }) {
   const resources = bundle.resources.filter(resource => resource.kind === 'pdf_candidate' && bundle.pdfDownloadIds?.includes(resource.id));
   const [values, setValues] = useState<Record<string, PdfDownload>>({});
@@ -78,6 +78,9 @@ export function ResearchPdfDownloads({ api, bundle, startPdfIds, onRead, waitFor
     });
     if (next) void operate('start', next); else setQueue([]);
   }, [waitForSources, loading, busy, running?.id, error, queue, values]);
+  useEffect(() => {
+    if (resources.length) onAvailable?.(!loading && !busy && !error && resources.every(resource => values[resource.id]?.status === 'completed' && values[resource.id]?.localAvailable !== false));
+  }, [loading, busy, error, values, onAvailable]);
   if (!resources.length) return null;
   return <section className="pa-research-downloads" aria-label="PDF reading sources">
     <h2>PDF reading sources</h2>

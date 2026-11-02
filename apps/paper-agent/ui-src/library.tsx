@@ -119,8 +119,8 @@ export function PaperList({ papers, selecting, selected, readingId, locked, savi
   return <>
     <ul className="pa-library-list">{papers.map(paper => <li key={paper.id}>
       {selecting && <Checkbox checked={selected.includes(paper.id)} disabled={locked || selected.length >= 5 && !selected.includes(paper.id)} aria-label={`${t('usePaper')}: ${paper.title}`} onCheckedChange={checked => onSelect(paper.id, checked)}/>}
-      <ListRow title={paper.title} meta={paper.resourceKind === 'web_article' ? 'Article excerpt' : t(paper.contentKind === 'abstract' ? 'abstract' : paper.contentKind === 'report' ? 'sourceReport' : 'fullText')} current={readingId === paper.id} onOpen={() => onRead(paper)}
-        trailing={<span className="pa-actions">{onDownload && <Button variant="ghost" busy={savingId === paper.id} disabled={!!savingId} onClick={() => onDownload(paper)}>{savingId === paper.id ? t('pdfDownloading') : t('downloadPaper')}</Button>}{onDiscover && <Button variant="ghost" onClick={() => onDiscover(paper)}>{t('discover')}</Button>}</span>}/>
+      <ListRow title={paper.title} meta={paper.source === 'local-pdf' ? t('localPdfFile') : paper.resourceKind === 'web_article' ? 'Article excerpt' : t(paper.contentKind === 'abstract' ? 'abstract' : paper.contentKind === 'report' ? 'sourceReport' : 'fullText')} current={readingId === paper.id} onOpen={() => onRead(paper)}
+        trailing={<span className="pa-actions">{onDownload && <Button variant="ghost" busy={savingId === paper.id} disabled={!!savingId} onClick={() => onDownload(paper)}>{savingId === paper.id ? t('saveCopies') : t('downloadPaper')}</Button>}{onDiscover && <Button variant="ghost" onClick={() => onDiscover(paper)}>{t('discover')}</Button>}</span>}/>
     </li>)}</ul>
   </>;
 }

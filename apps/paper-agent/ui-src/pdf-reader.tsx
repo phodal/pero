@@ -18,7 +18,7 @@ import type { Translator } from './i18n';
 import { Reproduction, reproductionPolicy } from './reproduction';
 import { loadReaderState, saveReaderState, type PdfReaderState } from './reader-state';
 
-export type ReaderChrome = { toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void; back?: () => void };
+export type ReaderChrome = { toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void; onSave(): void; back?: () => void };
 
 export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome, readLabel }: {
   paper: Paper; api: Api; focus?: PdfFocus | null; lockText?: boolean; t: Translator; children: React.ReactNode; chrome: ReaderChrome; readLabel?: string;
@@ -33,8 +33,7 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     let alive = true;
     setReading({ document: null, annotations: [] }); setMode('text'); setError('');
     setBusy(!!paper.pdfUrl);
-    api.get<PdfReading>(focus ? `/api/pdf/${focus.documentId}` : `/api/pdf?paperId=${paper.id}`).then(async value => {
-      if (!value.document && paper.pdfUrl && alive) value = await api.post<PdfReading>('/api/pdf', { paperId: paper.id });
+    api.get<PdfReading>(focus ? `/api/pdf/${focus.documentId}` : `/api/pdf?paperId=${paper.id}`).then(value => {
       if (alive) { setReading(value); if (value.document) setMode(focus ? 'pdf' : loadReaderState(value.document)?.mode ?? 'pdf'); }
     }).catch(e => { if (alive) setError(String(e.message ?? e)); }).finally(() => { if (alive) setBusy(false); });
     return () => { alive = false; };
@@ -42,12 +41,9 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   useEffect(() => { if (lockText) setMode('text'); else if (focus) setMode('pdf'); }, [focus, lockText]);
   const view = lockText ? 'text' : mode;
   const textLabel = readLabel ?? t('pdfText');
-  async function open() {
+  function open() {
     if (reading.document) { setMode('pdf'); return; }
-    setBusy(true); setError('');
-    try { setReading(await api.post<PdfReading>('/api/pdf', { paperId: paper.id })); setMode('pdf'); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
+    chrome.onSave();
   }
   // Reader input (including portal toolbar events) supersedes a pending search
   // reveal. Programmatic focus/scroll updates do not invalidate their own request.
@@ -55,7 +51,7 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     onKeyDownCapture={chrome.onNavigate} onWheelCapture={chrome.onNavigate} onChangeCapture={chrome.onNavigate}>
     {!lockText && !busy && (paper.pdfUrl || reading.document) && <Toolbar><Button variant="ghost" aria-pressed={view === 'text'} onClick={() => { setMode('text'); setError(''); }}>{textLabel}</Button><Button variant="ghost" aria-pressed={view === 'pdf'} disabled={busy} onClick={() => void open()}>PDF</Button></Toolbar>}
     {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => void open()} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
-    {busy && <p className="pa-loading" role="status">{t('pdfDownloading')}</p>}
+    {busy && <p className="pa-loading" role="status">{t('loading')}</p>}
     {view !== 'pdf' && chrome.back && <div className="pa-pdf-inline-toolbar"><Button variant="ghost" aria-label={t('backToLibrary')} onClick={chrome.back}>‹</Button></div>}
     <div className="pa-reader-views" style={{ display: 'grid', flex: 1, minHeight: 0 }}>
       {reading.document && <div className="pa-pdf-view-slot" aria-hidden={view !== 'pdf'} inert={view !== 'pdf'} style={{ gridArea: '1 / 1', display: 'flex', minHeight: 0, visibility: view === 'pdf' ? 'visible' : 'hidden' }}>
@@ -238,7 +234,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       <Button role="menuitem" onClick={() => { setNotes(value => !value); setMenu(null); }}>{t('pdfNotes')} {annotations.length}</Button>
       <Button role="menuitem" onClick={() => { setPageText(value => !value); setMenu(null); }}>{t('pdfPageText')}</Button>
       <a role="menuitem" href={`/api/pdf/${document.id}/file`} download="paper.pdf">{t('originalPdf')}</a>
-      <Button role="menuitem" onClick={() => { setMenu(null); void api.post<{ tex?: string }>(`/api/papers/${document.paperId}/files`, {}).then(saved => setStatus(saved.tex ? t('paperSavedWithTex') : t('paperSaved'))).catch(fail); }}>{t('downloadPaper')}</Button>
+      <Button role="menuitem" onClick={() => { setMenu(null); chrome.onSave(); }}>{t('downloadPaper')}</Button>
       <Button role="menuitem" onClick={() => { setMenu(null); onText(); }}>{readLabel}</Button>
     </div>}
     {hasSelection && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') selection?.forDocument(documentId).clear(); }}><Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/><Button disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button>{onDiscuss && <Button disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button variant="ghost" onClick={() => selection?.forDocument(documentId).clear()}>{t('close')}</Button></div>}

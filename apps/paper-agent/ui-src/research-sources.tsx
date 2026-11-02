@@ -24,8 +24,8 @@ const sourceStatus: Record<SourceDownload['status'], string> = {
   denied: 'Source access denied', failed: 'Source acquisition failed', cancelled: 'Source acquisition cancelled', interrupted: 'Source acquisition interrupted by restart',
 };
 
-export function ResearchSources({ api, bundle, startSourceIds, onRead, onAutoQueueComplete }: {
-  api: Api; bundle: ResearchBundle; startSourceIds: string[]; onAutoQueueComplete(): void; onRead(id: string, focus?: PdfFocus): void;
+export function ResearchSources({ api, bundle, startSourceIds, onRead, onAutoQueueComplete, onState }: {
+  api: Api; bundle: ResearchBundle; startSourceIds: string[]; onState?(state: { settled: boolean; available: boolean }): void; onAutoQueueComplete?(): void; onRead(id: string, focus?: PdfFocus): void;
 }) {
   const resources = bundle.resources.filter(r => r.kind === 'source_archive' && bundle.sourceDownloadIds?.includes(r.id));
   const [values, setValues] = useState<Record<string, SourceDownload>>({}), [open, setOpen] = useState<string | null>(null);
@@ -73,8 +73,15 @@ export function ResearchSources({ api, bundle, startSourceIds, onRead, onAutoQue
   }, [loading, busy, running?.id, error, queue, values]);
   useEffect(() => {
     if (loading || busy || running || error || queue.length) return;
-    if (startSourceIds.every(id => terminal.includes(values[id]?.status) && values[id]?.localAvailable)) onAutoQueueComplete();
+    if (startSourceIds.every(id => terminal.includes(values[id]?.status) && values[id]?.localAvailable)) onAutoQueueComplete?.();
   }, [loading, busy, running, error, queue.length, values, startSourceIds, onAutoQueueComplete]);
+  useEffect(() => {
+    const idle = !loading && !busy && !running && !error && !queue.length && resources.length > 0;
+    onState?.({
+      settled: idle && resources.every(resource => [...terminal, ...stopped].includes(values[resource.id]?.status)),
+      available: idle && resources.every(resource => terminal.includes(values[resource.id]?.status) && values[resource.id]?.localAvailable),
+    });
+  }, [loading, busy, running, error, queue.length, values, onState]);
   if (!resources.length) return null;
   return <section className="pa-research-downloads pa-research-sources" aria-label="Paper source files">
     <h2>Paper source files</h2><p>Read-only inspection. Source files are not compiled or executed. Figures are not reproducible experiment code or data.</p>
