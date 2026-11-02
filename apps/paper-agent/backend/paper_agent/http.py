@@ -193,6 +193,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         return self.reply(200, store.imports.analysis(data))
                     if path == '/api/research/source':
                         return self.reply(200, store.source_downloads.request(data))
+                    if path == '/api/research/record':
+                        from .research_commands import execute
+                        return self.reply(200, execute(store, 'record', data))
                     if path == '/api/research/source-report':
                         from .research_commands import execute
                         return self.reply(200, execute(store, 'source-report', data))

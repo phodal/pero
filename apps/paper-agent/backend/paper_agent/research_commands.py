@@ -7,6 +7,9 @@ def execute(store, action, request):
     if not isinstance(request, dict):
         raise Invalid('Command input must be an object')
     now = datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
+    if action == 'record':
+        from .research_record_commands import record_command
+        return record_command(store, request, now)
     if action == 'inspect':
         return store.imports.inspect(request, now).to_dict()
     if action == 'commit':
