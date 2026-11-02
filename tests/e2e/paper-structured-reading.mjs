@@ -60,7 +60,9 @@ try {
   for (const [from, to] of [['research-pdf.py', 'pdf_fixture.py'], ['research-structured.py', 'structured_fixture.py']]) {
     await writeFile(resolve(installed, to), await readFile(resolve(root, 'tests/fixtures', from)));
   }
-  await writeFile(resolve(installed, 'scientific-document.html'), original);
+  // Reject an actual wrong-version response before publishing any document.
+  const htmlFixture = resolve(installed, 'scientific-document.html');
+  await writeFile(htmlFixture, original.toString('utf8').replace('content="2606.03979v2"', 'content="2606.03979v1"'));
   const entry = resolve(installed, 'server.py'), text = await readFile(entry, 'utf8');
   await writeFile(entry, paperDocumentBackendFixture(text));
   await openPaper(); await openResearchImport(page, frame);
@@ -92,12 +94,38 @@ try {
   const zoom = await bar.getByRole('button', { name: 'Fit page', exact: true }).innerText();
   await frame.getByRole('button', { name: 'Text', exact: true }).click();
   await frame.getByRole('button', { name: 'Prepare Read · v2', exact: true }).click();
+  const rejection = frame.getByText('HTML identity differs from the requested version', { exact: false });
+  await expect(rejection).toBeVisible({ timeout: 60000 });
+  await expect(frame.getByRole('button', { name: 'Retry v2', exact: true })).toBeEnabled();
+  expect((await api(`/api/paper-documents?paperId=${paperId}`)).revisions).toEqual([]);
+  expect((await api('/api/research/source-report', { operation: 'observations', bundleId: bundle.id })).observations).toEqual([]);
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(1);
+  await page.screenshot({ path: resolve(out, 'structured-rejected-version.png') });
+  await frame.getByRole('button', { name: 'PDF', exact: true }).click();
+  await expect(viewer).toBeVisible();
+  await expect(bar.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('2');
+  await expect(bar.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(zoom);
+  await expect(viewer.locator('[data-page-number="2"] img,[data-page-number="2"] canvas').first()).toBeVisible();
+  await frame.getByRole('button', { name: 'Text', exact: true }).click();
+  await expect(rejection).toBeVisible();
+  await writeFile(htmlFixture, original);
+  await frame.getByRole('button', { name: 'Retry v2', exact: true }).click();
   await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeVisible({ timeout: 60000 });
   const overview = await api(`/api/paper-documents?paperId=${paperId}`), identity = overview.revisions[0].id;
   const document = await api(`/api/paper-documents/${identity}`);
+  await expect(rejection).toHaveCount(0);
+  await expect(frame.getByRole('button', { name: 'Retry v2', exact: true })).toHaveCount(0);
+  checks.push('Wrong-version HTML is visibly rejected without a document or observation; PDF page/zoom state is preserved with visible page content, and explicit Retry recovers through the same transport/parser');
   expect(document.source.digest).toBe(createHash('sha256').update(original).digest('hex'));
   expect(document.sourceIdentity).toBe('response-explicit-version');
-  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(1);
+  const orderedAnchors = ['S1.p1', 'E1', 'T1', 'F1', 'code', 'note1', 'A'];
+  const orderedBlocks = orderedAnchors.map(anchor => document.blocks.find(block => block.anchors.includes(anchor)).id);
+  await expect.poll(() => frame.locator('.pa-structured-reading [data-block-id]').evaluateAll(
+    (elements, ids) => elements.map(element => element.dataset.blockId).filter(id => ids.includes(id)), orderedBlocks
+  )).toEqual(orderedBlocks);
+  await expect(frame.locator('.pa-structured-reading [style*="column-count"]')).toHaveCount(0);
+  checks.push('Two-column native HTML retains source DOM block order in Read without importing source presentation CSS or claiming PDF column reconstruction');
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
   const table = document.blocks.find(b => b.kind === 'table'), equation = document.blocks.find(b => b.kind === 'equation'), figure = document.blocks.find(b => b.kind === 'figure');
   const sourceReports = input => api('/api/research/source-report', { bundleId: bundle.id, ...input });
   expect((await sourceReports({ operation: 'observations' })).observations).toEqual([]);
@@ -177,7 +205,7 @@ try {
   } finally {
     await frame.locator('body').evaluate(() => { window.paperRefreshGate.restore(); delete window.paperRefreshGate; });
   }
-  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   checks.push('Logical empty table rows preserve rowspan; version switching is disabled while an actual refresh response is pending and recovers after delivery');
   await page.screenshot({ path: resolve(out, 'structured-light.png') });
   await frame.getByRole('button', { name: 'PDF', exact: true }).click();
@@ -198,13 +226,13 @@ try {
   await bundleReports.getByRole('button', { name: 'Structured scopes', exact: true }).click();
   await expect(bundleReports.getByRole('article', { name: 'Saved source evidence report', exact: true })).toBeVisible();
   await expect(bundleReports.getByRole('button', { name: /^Open recorded/ })).toHaveCount(0);
-  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   checks.push('Library bundle opens historical source reports independently of Reader preparation, without fetching originals or offering implicit restore');
   await frame.getByRole('button', { name: 'Open saved PDF', exact: true }).click();
   const readButton = frame.getByRole('button', { name: 'Read', exact: true });
   await expect(readButton).toBeVisible(); await readButton.click();
   await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toHaveValue(identity);
-  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   await frame.getByText('Recorded evidence', { exact: true }).click();
   const reopenedReports = frame.getByRole('region', { name: 'Source evidence reports', exact: true });
   await reopenedReports.getByRole('button', { name: 'Structured scopes', exact: true }).click();
@@ -266,7 +294,7 @@ try {
   } finally { await frame.locator('body').evaluate(() => { window.paperScopeOverviewGate.restore(); delete window.paperScopeOverviewGate; }); }
   const selectedEvidence = `${secondBundle.id}:${secondResource.id}`;
   await expect(frame.getByRole('combobox', { name: 'Evidence bundle', exact: true })).toHaveValue(selectedEvidence);
-  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   await frame.getByRole('button', { name: 'Original HTML', exact: true }).click();
   await expect(frame.getByRole('complementary', { name: 'Original HTML source', exact: true })).toBeVisible();
   const secondScope = { documentId: identity, bundleId: secondBundle.id, resourceId: secondResource.id };
@@ -285,7 +313,7 @@ try {
   await frame.getByRole('button', { name: 'Second scoped report', exact: true }).click();
   await frame.getByRole('button', { name: 'Open recorded original-html 13–30', exact: true }).click();
   await expect(frame.getByRole('complementary', { name: 'Original HTML source', exact: true }).locator('pre')).toHaveText(secondRaw.content);
-  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
+  expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   expect(await api('/api/research/source-report', { operation: 'read', bundleId: secondBundle.id, reportId: secondReport.id })).toEqual(secondReport);
   checks.push('Second approved bundle reuses identical HTML without fetching; selected typed/raw report ownership and exact windows survive restart without changing the first report');
   expect(errors).toEqual([]); expect(remoteRequests).toEqual([]);
