@@ -270,7 +270,7 @@ pub(crate) fn sessions(ui: Ui<'_>, width: f32, props: SessionsProps<'_>, search:
     let p = ui.palette; let chrome = ui.chrome(); let mut index = 0;
     let empty = props.groups.is_empty() && props.ungrouped.is_empty();
     div().id("sessions-list").w(px(width)).flex_shrink_0().h_full().flex().flex_col()
-        .bg(p.surface).border_r_1().border_color(p.border).p(px(8.))
+        .bg(p.surface).border_r(px(0.5)).border_color(p.border).p(px(8.))
         .child(div().flex().items_center().justify_between().gap(px(8.)).mb(px(8.))
             .child(div().font_weight(FontWeight::SEMIBOLD).child(ui.t("nav.sessions")))
             .child(pero_theme::action_button("sessions-new", ui.t("chat.new"), pero_theme::ActionKind::Primary, chrome, cx)
@@ -404,7 +404,7 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
             }).collect::<Vec<_>>();
     div().id("sidebar").w(px(width)).h_full().flex_shrink_0().flex().flex_col()
         .bg(p.surface_muted).text_color(p.text).text_size(chrome.text(pero_theme::TYPE_BODY))
-        .border_r_1().border_color(p.border).p(px(8.)).gap(px(4.))
+        .border_r(px(0.5)).border_color(p.border).p(px(8.)).gap(px(4.))
         .child(nav("sidebar-sessions", ui.t("nav.sessions"), "icons/message-circle.svg", props.navigation == WorkbenchPage::Conversation, SidebarAction::Navigate(WorkbenchPage::Conversation))
             .relative().child(props.shortcut_bounds.probe("sessions".into())))
         .child(nav("sidebar-projects", ui.t("nav.projects"), "icons/folder.svg", matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks), SidebarAction::Navigate(WorkbenchPage::Projects)).relative().child(props.shortcut_bounds.probe("projects".into())))
@@ -433,7 +433,7 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
         .children(app_rows(customize))
         .children(app_rows(automation))
         .child(settings)
-        .child(div().mt(px(4.)).border_t_1().border_color(p.border).pt(px(4.))
+        .child(div().mt(px(4.)).border_t(px(0.5)).border_color(p.border).pt(px(4.))
             .relative().child(props.shortcut_bounds.probe("account".into()))
             .child(if collapsed {
                 pero_theme::ghost_icon_button("sidebar-account", chrome, cx)

@@ -211,7 +211,7 @@ impl Workbench {
             .child(
                 div()
                     .mt(px(pero_theme::WorkbenchStyle::SECTION))
-                    .border_t_1()
+                    .border_t(px(0.5))
                     .border_color(p.border)
                     .child(
                         Button::new("all-project-tasks")
@@ -243,7 +243,7 @@ impl Workbench {
                             let key = project.key;
                             div()
                                 .py(px(8.))
-                                .border_b_1()
+                                .border_b(px(0.5))
                                 .border_color(p.border)
                                 .flex()
                                 .items_center()
@@ -272,7 +272,7 @@ impl Workbench {
                                 )
                                 .child(
                                     Button::new(("open-project", i))
-                                        .outline()
+                                        .ghost()
                                         .small()
                                         .label(self.t("project.open"))
                                         .relative().child(self.view_bounds.projects.probe(format!("open:{key}")))
@@ -321,7 +321,7 @@ impl Workbench {
                             .font_weight(FontWeight::MEDIUM)
                             .child(name),
                     )
-                    .when(!path.is_empty(), |el| {
+                    .when(!path.is_empty() && matches!(self.project_tab, ProjectTab::Execution | ProjectTab::Settings), |el| {
                         el.child(
                             div()
                                 .mt(px(4.))
@@ -336,10 +336,10 @@ impl Workbench {
                     })
                     .child(
                         div()
-                            .mt(px(14.))
+                            .mt(px(8.))
                             .flex()
-                            .gap(px(16.))
-                            .border_b_1()
+                            .gap(px(8.))
+                            .border_b(px(0.5))
                             .border_color(p.border)
                             .children(ProjectTab::ALL.into_iter().enumerate().map(|(i, tab)| {
                                 Button::new(("project-tab", i))
@@ -347,7 +347,7 @@ impl Workbench {
                                     .small()
                                     .h(px(pero_theme::UiAppearance::global(cx)
                                         .typography
-                                        .control_height()))
+                                        .row_height()))
                                     .rounded_none()
                                     .label(self.t(tab.label_key()))
                                     .relative().child(self.view_bounds.projects.probe(format!("tab:{}", tab.label_key())))
@@ -437,7 +437,7 @@ impl Workbench {
             .children(repositories.iter().map(|repo| {
                 div()
                     .py(px(8.))
-                    .border_b_1()
+                    .border_b(px(0.5))
                     .border_color(p.border)
                     .child(format!(
                         "{}/{}",
@@ -521,7 +521,7 @@ impl Workbench {
             .children(workers.iter().map(|worker| {
                 div()
                     .py(px(12.))
-                    .border_b_1()
+                    .border_b(px(0.5))
                     .border_color(p.border)
                     .child(string(worker, "name").to_string())
             }))

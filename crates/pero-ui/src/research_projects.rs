@@ -396,7 +396,7 @@ impl Workbench {
                         Button::new("research-edit")
                             .ghost()
                             .label(self.t("research.edit"))
-                            .disabled(saving)
+                            .disabled(saving || self.research.editor.is_some())
                             .relative()
                             .child(self.view_bounds.projects.probe("edit".into()))
                             .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(false, window, cx))),
@@ -426,7 +426,11 @@ impl Workbench {
                     .child(
                         Button::new("research-link")
                             .outline()
-                            .label(self.t("research.link"))
+                            .label(self.t(if self.research.choosing {
+                                "worker.local.cancel"
+                            } else {
+                                "research.link"
+                            }))
                             .disabled(saving)
                             .relative()
                             .child(self.view_bounds.projects.probe("link".into()))
@@ -516,7 +520,7 @@ impl Workbench {
         let remove = reference.clone();
         div()
             .py(px(8.))
-            .border_b_1()
+            .border_b(px(0.5))
             .border_color(p.border)
             .flex()
             .flex_col()
@@ -562,32 +566,40 @@ impl Workbench {
                             ),
                     ),
             )
-            .child(div().text_color(p.text_muted).child(app_label))
-            .when_some(current, |el, record| {
-                let summary = match record.summary.as_str() {
-                    "simulation" => self.t("research.simulation"),
-                    "import" => "",
-                    _ => record.summary.as_str(),
-                };
-                el.when(!summary.is_empty() && reference.app != "control-lab", |el| {
-                    el.child(div().whitespace_normal().child(summary.to_string()))
-                })
-                .when(!record.status.is_empty(), |el| {
-                    el.child(
-                        div()
-                            .text_color(p.text_muted)
-                            .child(self.research_status(&record.status)),
-                    )
-                })
-                .when_some(record.verification.as_ref(), |el, verdict| {
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .flex_wrap()
+                    .gap(px(12.))
+                    .text_size(px(12.))
+                    .text_color(p.text_muted)
+                    .child(app_label)
+                    .when_some(current, |el, record| {
+                        let summary = match record.summary.as_str() {
+                            "simulation" => self.t("research.simulation"),
+                            "import" => "",
+                            _ => record.summary.as_str(),
+                        };
+                        el.when(!summary.is_empty() && reference.app != "control-lab", |el| {
+                            el.child(summary.to_string())
+                        })
+                        .when(!record.status.is_empty(), |el| {
+                            el.child(self.research_status(&record.status))
+                        })
+                    }),
+            )
+            .when_some(
+                current.and_then(|record| record.verification.as_ref()),
+                |el, verdict| {
                     el.child(
                         div()
                             .whitespace_normal()
                             .text_color(if verdict == "FAIL" { p.error } else { p.text })
                             .child(format!("{}: {}", self.t("research.verification"), verdict)),
                     )
-                })
-            })
+                },
+            )
             .when(loading, |el| {
                 el.child(div().text_color(p.text_muted).child(self.t("research.loading")))
             })
@@ -756,7 +768,7 @@ impl Workbench {
                         let reference = resource.reference.clone();
                         div()
                             .py(px(6.))
-                            .border_b_1()
+                            .border_b(px(0.5))
                             .border_color(p.border)
                             .flex()
                             .items_center()
