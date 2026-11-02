@@ -128,6 +128,14 @@ func (w *FileCapture) Path() string {
 }
 func (w *FileCapture) Bytes() int64 { return w.bytes }
 
+// ReadAt borrows the already-open command log for post-execution projection.
+func (w *FileCapture) ReadAt(destination []byte, offset int64) (int, error) {
+	if w.file == nil {
+		return 0, errors.New("shell: output capture is not open")
+	}
+	return w.file.ReadAt(destination, offset)
+}
+
 func (w *FileCapture) Write(source []byte) (int, error) {
 	if w.file == nil {
 		return 0, errors.New("shell: output capture is not open")

@@ -63,6 +63,7 @@ type shellTaskTerminal struct {
 
 type shellTask struct {
 	parent    *harness.Agent
+	executor  *shell.LocalExecutor
 	intent    shellTaskIntent
 	cancel    context.CancelCauseFunc
 	done      chan struct{}
@@ -152,16 +153,17 @@ func (t *shellTask) handle() harness.TaskHandle {
 // shellTasks owns only native shell execution. Agent activation ownership stays
 // in SubagentRegistry; TaskHandle shares their read/stop dispatch surface.
 type shellTasks struct {
-	instance   *point.Instance
-	run        *point.Run
-	options    shell.LocalOptions
-	foreground shell.LocalOptions
-	mu         sync.Mutex
-	closed     bool
-	fenced     map[*harness.Agent]bool
-	tasks      map[string]*shellTask
-	recovery   sync.Mutex
-	admission  sync.Mutex
+	instance     *point.Instance
+	run          *point.Run
+	options      shell.LocalOptions
+	foreground   shell.LocalOptions
+	outputPolicy bashOutputPolicy
+	mu           sync.Mutex
+	closed       bool
+	fenced       map[*harness.Agent]bool
+	tasks        map[string]*shellTask
+	recovery     sync.Mutex
+	admission    sync.Mutex
 }
 
 func mountShellTasks(ctx context.Context, h *harness.Harness, options shell.LocalOptions) (*shellTasks, error) {
