@@ -140,11 +140,12 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if path == '/api/pdf':
                         document = store.paper_pdf(parse_qs(parsed.query).get('paperId', [''])[0])
                         return self.reply(200, dict(document=document.to_dict() if document else None,
+                                                    originalUrl=store.pdf_downloads.original_url(document) if document else None,
                                                     annotations=[item.to_dict() for item in store.annotations(document.id)] if document else []))
                     document_match = re.fullmatch(r'/api/pdf/([a-f0-9]{64})', path)
                     if document_match:
                         document = store.pdf(document_match[1])
-                        return self.reply(200, dict(document=document.to_dict(), annotations=[item.to_dict() for item in store.annotations(document.id)]))
+                        return self.reply(200, dict(document=document.to_dict(), originalUrl=store.pdf_downloads.original_url(document), annotations=[item.to_dict() for item in store.annotations(document.id)]))
                     pdf_match = re.fullmatch(r'/api/pdf/([a-f0-9]{64})/file', path)
                     if pdf_match:
                         return self.binary(200, store.pdf_bytes(store.pdf(pdf_match[1])), 'application/pdf')
