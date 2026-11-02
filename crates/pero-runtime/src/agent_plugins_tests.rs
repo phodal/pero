@@ -145,8 +145,8 @@ fn dependency_installation_preserves_explicit_choices_and_frozen_values() {
             panic!("stdio expected")
         };
         assert_eq!(
-            server.args[1],
-            managed.join("paper-tools/mcp.mjs").to_string_lossy()
+            Path::new(&server.args[1]),
+            managed.join("paper-tools/mcp.mjs")
         );
         let revision = &snapshot.plugins[0].revision;
         fs::write(source.join("skills/read/SKILL.md"), "Changed source").unwrap();
