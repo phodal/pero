@@ -1,6 +1,8 @@
 # Paper #77: read-only diagnosis and remaining execution gate
 
-2026-11-02; base `78881615`. Analysis and synthetic tests, **not a new native run**.
+2026-11-02; base `78881615`. One read-only native run completed; native approval
+and scientific execution remain unverified. The descendant increment below has
+only synthetic coverage and has not run live.
 
 Two retained #97 attempts (`41363881233`, `41365460393`) verified exact
 Electron PID exclusion and captured the authored dialog, but returned empty,
@@ -12,17 +14,56 @@ empty incomplete observation. Do not repeat the positive probe unchanged.
 ## Read-only instrument
 
 `tests/fixtures/paper-atspi-diagnostic.py` is a separate Linux/Gio collector, not a
-production driver patch. It enumerates at most 32 registry entries, reads only
-bus PID for unrelated entries, and reads at most 32 immediate frames per exact
-owned PID: role, state, interfaces, screen extents and bounded Action metadata.
-It never reads application Name/text/value and never calls DoAction or input.
+production driver patch. It enumerates at most 32 registry entries and traverses
+exact-owned-PID descendants breadth-first, at most depth 4 and 64 queued nodes.
+Immediate frames remain in `frames`; all inspected nodes carry their depth.
+Each new bus must resolve to the exact Electron PID before any child metadata is
+read; renderer/foreign processes are skipped and counted, unresolved owners are
+reported. It reads only child references, role/state/interfaces/screen extents:
+no Name/text/value or Action-interface calls (including Action names).
 Getter error classes are retained without arbitrary remote error payloads.
 The existing four-coordinate ±2 rule is reported unchanged, never relaxed.
-There are 128-call/8-second collection and 10-second process alarm bounds;
-individual RPCs have 500 ms timeouts. Budget/error output is inconclusive.
+There are still 128-call/8-second collection and 10-second process alarm bounds;
+individual RPCs have 500 ms timeouts. Node/depth/RPC/time limits explicitly mark
+`truncated` with `budgetReasons`; errors or any budget failure force an incomplete
+classification. This may stop before 64 nodes: node allowance never expands the
+RPC/time ceiling. Matching geometry, even with a dialog role, is not a complete
+semantic tree or a grant to input. Multiple matches remain ambiguous. Because
+this increment deliberately omits Action getters, it does not rule out later
+production Action.GetName failures or otherwise establish complete root facts.
+
+### First live read-only result (immediate frames only)
+
+Run [41411170232](https://github.com/phodal/pero/actions/runs/41411170232), job
+`125164312388`, artifact `13126105353`, tested PR head
+`fa340d6a4b7693da5fcc2b3c03ab201b1551b15c` through merge
+`b7bd028748c6451caf894e43ad51fba158bd04ca` onto `78881615`.
+The 4.016-second diagnostic completed without input; green means evidence
+collection succeeded, not native approval. The one-shot opt-in label was removed.
+
+- Electron 45.1.0 / Chromium 156.0.8078.49 / Node 24.22.1;
+  `ACCESSIBILITY_ENABLED=1`, observed `NO_AT_BRIDGE=null`.
+- Exact driver PID exclusion and X11 ownership verified PID **6677**.
+- X11 dialog `0x400007`: **(0, 0, 549, 129)**.
+- One exact-PID AT-SPI app, two immediate frames:
+  **(240, 212, 800, 600)** and **(400, 352, 480, 320)**.
+- `matchingFrames=0`, `errors=[]`, collector `truncated=false`;
+  native driver still `elements=[]`, `truncated=true`.
+- ZIP SHA-256 verified against GitHub artifact digest:
+  `3e31fe6859a4efa01da00ede94e3099e4630f49e8f475d90639109f56f78d570`.
+- Owned screenshot SHA-256 verified against its receipt:
+  `80bfcc1d046e00edd5c33c335630ec15c9d683ca7e83511936d5ca997a1f7da8`.
+
+This excludes missing exact-PID registration and observed getter failure for
+that snapshot. It does not establish absence in deeper descendants. The bounded
+descendant increment distinguishes a nested geometry candidate from no matching
+node within the inspected owned subtree, without changing the production binder.
+An incomplete walk cannot establish absence. Old #97 positive attempts stay
+stopped; no input/worker/science acceptance follows from this diagnostic.
 
 Implemented separate entry point: `tests/e2e/paper-native-diagnostic.mjs`. It is
-not registered in the normal positive suite and has not been run live.
+not registered in the normal positive suite. The first immediate-frame version
+ran as recorded above; the descendant increment is wired but not yet run.
 `.github/workflows/computer-use.yml` now wires it only for Linux PRs explicitly
 labelled `ci:paper-native-diagnostic` or manual dispatch with boolean
 `paper_native_diagnostic=true` (default false). Ordinary push/PR/scheduled runs
@@ -59,8 +100,8 @@ before the one-shot run:
    Preserve native semantic/nonce/complete-tree gates for any separately reviewed
    future positive attempt. No keyboard/pixel fallback or OS security changes.
 
-The collector is wired into that separate entry point but has not been run against
-a live native dialog.
+The descendant collector is wired into that separate entry point but has not yet
+been run against a live native dialog.
 Its deterministic fake-transport tests are not accessibility evidence. This
 instrument does not alone resolve Host→worker or forced-destroy acceptance.
 

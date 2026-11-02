@@ -24,26 +24,43 @@ def matches(extents, bounds):
 
 def collect(call, pid, bounds):
     report = {'scope': 'read-only owned fixture metadata; never an input grant',
-              'pid': pid, 'bounds': bounds, 'registry': [], 'frames': [],
-              'errors': [], 'truncated': False}
+              'pid': pid, 'bounds': bounds, 'registry': [], 'frames': [], 'nodes': [],
+              'errors': [], 'truncated': False, 'limits': {'depth': 4, 'nodes': 64, 'calls': 128, 'seconds': 8},
+              'budgetReasons': [], 'skippedForeignPid': 0, 'unresolvedPid': 0}
     deadline = time.monotonic() + 8
     calls = 0
+
+    def truncated(reason):
+        report['truncated'] = True
+        if reason not in report['budgetReasons']:
+            report['budgetReasons'].append(reason)
 
     def read(node, interface, method, signature='()', arguments=()):
         nonlocal calls
         if calls >= 128 or time.monotonic() >= deadline:
-            report['truncated'] = True
+            truncated('rpc-count' if calls >= 128 else 'elapsed-time')
             return None
         calls += 1
         try:
             return call(node, interface, method, signature, arguments)
         except Exception as error:
-            # Preserve operation/error class, not exception text that may include
-            # application content or an arbitrary remote error payload.
             report['errors'].append({'node': list(node), 'interface': interface,
                                      'getter': method, 'error': type(error).__name__,
                                      'code': getattr(error, 'code', None)})
             return None
+
+    owners = {}
+
+    def owned_node(node):
+        bus = node[0]
+        if bus not in owners:
+            owners[bus] = read(('org.freedesktop.DBus', '/org/freedesktop/DBus'),
+                               'org.freedesktop.DBus', 'GetConnectionUnixProcessID', '(s)', (bus,))
+        if owners[bus] is None:
+            report['unresolvedPid'] += 1
+        elif owners[bus] != pid:
+            report['skippedForeignPid'] += 1
+        return owners[bus] == pid
 
     applications = read((REGISTRY, ROOT), ACCESSIBLE, 'GetChildren')
     if applications is None:
@@ -51,52 +68,78 @@ def collect(call, pid, bounds):
         return report
     report['registryChildCount'] = len(applications)
     owned = 0
+    queue = []
+    queued = set()
+
+    def enqueue(children, depth):
+        for child in children:
+            node = tuple(child)
+            if not node[0] or node[1] == '/org/a11y/atspi/null' or node in queued:
+                continue
+            if len(queued) >= 64:
+                truncated('node-count')
+                break
+            queued.add(node)
+            queue.append((node, depth))
+
     for application in applications[:32]:
-        bus, path = application
-        owner = read(('org.freedesktop.DBus', '/org/freedesktop/DBus'),
-                     'org.freedesktop.DBus', 'GetConnectionUnixProcessID', '(s)', (bus,))
-        report['registry'].append({'bus': bus, 'pid': owner, 'owned': owner == pid})
-        if owner != pid:
+        node = tuple(application)
+        is_owned = owned_node(node)
+        report['registry'].append({'bus': node[0], 'pid': owners[node[0]], 'owned': is_owned})
+        if not is_owned:
             continue
         owned += 1
-        frames = read((bus, path), ACCESSIBLE, 'GetChildren')
-        if frames is None:
-            continue
-        if len(frames) > 32:
-            report['truncated'] = True
-        for frame in frames[:32]:
-            node = tuple(frame)
-            facts = {'node': list(node)}
-            for key, interface, method, signature, args in (
-                ('role', ACCESSIBLE, 'GetRole', '()', ()),
-                ('roleName', ACCESSIBLE, 'GetRoleName', '()', ()),
-                ('states', ACCESSIBLE, 'GetState', '()', ()),
-                ('interfaces', ACCESSIBLE, 'GetInterfaces', '()', ()),
-                ('extents', COMPONENT, 'GetExtents', '(u)', (0,)),
-            ):
-                facts[key] = read(node, interface, method, signature, args)
-            if facts['interfaces'] and 'org.a11y.atspi.Action' in facts['interfaces']:
-                count = read(node, 'org.freedesktop.DBus.Properties', 'Get',
-                             '(ss)', ('org.a11y.atspi.Action', 'NActions'))
-                facts['actionCount'] = count
-                facts['actionNames'] = [read(node, 'org.a11y.atspi.Action', 'GetName', '(i)', (index,))
-                                        for index in range(max(0, min(count or 0, 16)))]
-            facts['matchesExistingGeometry'] = (matches(facts['extents'], bounds)
-                                                 if facts['extents'] is not None else None)
-            states = facts['states']
-            facts['rendered'] = (bool(states and states[0] & (1 << 25) and states[0] & (1 << 30))
-                                 if states is not None else None)
-            report['frames'].append(facts)
+        children = read(node, ACCESSIBLE, 'GetChildren')
+        if children is not None:
+            enqueue(children, 1)
     if len(applications) > 32:
-        report['truncated'] = True
-    hits = sum(f['matchesExistingGeometry'] is True for f in report['frames'])
-    report['matchingFrames'] = hits
+        truncated('registry-count')
+
+    # Breadth first: preserve every immediate-frame observation before descending.
+    # Each new bus must resolve to the exact Electron PID, never a renderer PID.
+    index = 0
+    while index < len(queue):
+        if calls >= 128 or time.monotonic() >= deadline:
+            truncated('rpc-count' if calls >= 128 else 'elapsed-time')
+            break
+        node, depth = queue[index]
+        index += 1
+        if not owned_node(node):
+            continue
+        facts = {'node': list(node), 'depth': depth}
+        for key, method in (('role', 'GetRole'), ('roleName', 'GetRoleName'),
+                            ('states', 'GetState'), ('interfaces', 'GetInterfaces')):
+            facts[key] = read(node, ACCESSIBLE, method)
+        # Non-component nodes have no geometry; do not manufacture getter errors.
+        facts['extents'] = (read(node, COMPONENT, 'GetExtents', '(u)', (0,))
+                            if facts['interfaces'] and COMPONENT in facts['interfaces'] else None)
+        facts['matchesExistingGeometry'] = (matches(facts['extents'], bounds)
+                                             if facts['extents'] is not None else None)
+        states = facts['states']
+        facts['rendered'] = (bool(states and states[0] & (1 << 25) and states[0] & (1 << 30))
+                             if states is not None else None)
+        report['nodes'].append(facts)
+        if depth == 1:
+            report['frames'].append(facts)
+        children = read(node, ACCESSIBLE, 'GetChildren')
+        if children:
+            if depth == 4:
+                truncated('depth')
+            else:
+                enqueue(children, depth + 1)
+    hits = sum(f['matchesExistingGeometry'] is True for f in report['nodes'])
+    report['matchingFrames'] = sum(f['matchesExistingGeometry'] is True for f in report['frames'])
+    report['matchingNodes'] = hits
+    report['matchingNestedNodes'] = sum(f['depth'] > 1 and f['matchesExistingGeometry'] is True for f in report['nodes'])
+    report['matchingDialogCandidates'] = sum(f['matchesExistingGeometry'] is True and
+        f['roleName'] in ('dialog', 'alert') for f in report['nodes'])
+    report['calls'] = calls
     report['classification'] = (
         'incomplete-getters-or-budget' if report['errors'] or report['truncated'] else
         'no-exact-pid-application' if not owned else
-        'no-exact-geometry-frame' if not hits else
-        'ambiguous-exact-geometry' if hits > 1 else
-        'one-frame-matches-inspect-root-facts')
+        'no-exact-geometry-node-in-owned-subtree' if not hits else
+        'ambiguous-exact-geometry-nodes' if hits > 1 else
+        'one-exact-geometry-node-not-an-input-grant')
     return report
 
 
