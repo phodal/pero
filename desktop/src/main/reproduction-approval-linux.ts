@@ -28,7 +28,6 @@ export function confirmLinuxReproduction(owner: BrowserWindow, summary: string, 
   const isolated = session.fromPartition(`reproduction-approval-${nonce}`);
   isolated.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   isolated.setPermissionCheckHandler(() => false);
-  isolated.webRequest.onBeforeRequest((_details, callback) => callback({ cancel: true }));
   const denyDownload = (event: Electron.Event) => event.preventDefault();
   isolated.on('will-download', denyDownload);
   const popup = new BrowserWindow({ parent: owner, modal: true, show: false, width: 640, height: 430,
@@ -37,6 +36,10 @@ export function confirmLinuxReproduction(owner: BrowserWindow, summary: string, 
       contextIsolation: true, sandbox: true, nodeIntegration: false, webviewTag: false, devTools: false,
       navigateOnDragDrop: false, safeDialogs: true } });
   const contents = popup.webContents;
+  // Bootstrap only this exact trusted top-level document; even another data URL
+  // or the same bytes requested by another window/subframe remain denied.
+  isolated.webRequest.onBeforeRequest((details, callback) => callback({ cancel:
+    details.webContentsId !== contents.id || details.resourceType !== 'mainFrame' || details.url !== documentURL }));
   popup.setMenu(null);
   pendingOwners.add(owner);
   return new Promise(resolveDecision => {

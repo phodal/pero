@@ -57,3 +57,16 @@ test('UI run is bounded, isolated and saves only its exact owned evidence', () =
   assert.ok(helper.includes("button.actions.includes('click')"));
   assert.doesNotMatch(fixture, /\.click\s*\(|\.press\s*\(|sendInputEvent|kind:\s*['"]pixel['"]|--confirm-execution|paper_agent\.pcgym/);
 });
+
+
+test('modal startup failures retain bounded diagnostic state without relaxing readiness', () => {
+  assert.ok(fixture.includes("globalThis.paperHostApproval.state().disabled), { timeout: 10000 }).toBe(true)"));
+  assert.ok(fixture.includes("events.length < 64"));
+  assert.ok(fixture.includes("BrowserWindow.getAllWindows().slice(0, 8)"));
+  assert.ok(fixture.includes("contents.on('did-fail-load'"));
+  assert.ok(fixture.includes("contents.on('preload-error'"));
+  assert.ok(fixture.includes("`${stage}-startup.json`"));
+  assert.ok(fixture.includes("window.getParentWindow()?.id === ownerId"));
+  assert.ok(fixture.includes("Owned diagnostic capture timed out"));
+  assert.ok(fixture.includes("owned renderer diagnostic only; not native approval evidence"));
+});

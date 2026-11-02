@@ -16,7 +16,9 @@ class FakeSession extends EventEmitter {
   setPermissionRequestHandler(callback: (...args: any[]) => void) { this.permissionRequest = callback; }
   setPermissionCheckHandler(callback: (...args: any[]) => boolean) { this.permissionCheck = callback; }
 }
+let nextContentsId = 1;
 class FakeContents extends EventEmitter {
+  id = nextContentsId++;
   mainFrame = { url: '' };
   sent: { channel: string; value: any }[] = [];
   opener?: (...args: any[]) => unknown;
@@ -89,6 +91,13 @@ test('trusted isolated approval binds one decision and never exposes HTML as exe
     let network: unknown;
     session.network?.({ url: 'https://invalid.test/' }, (value: unknown) => { network = value; });
     assert.deepEqual(network, { cancel: true });
+    const bootstrap = { url: h.popup.webContents.mainFrame.url, webContentsId: h.popup.webContents.id, resourceType: 'mainFrame' };
+    session.network?.(bootstrap, (value: unknown) => { network = value; });
+    assert.deepEqual(network, { cancel: false }, 'Only the exact trusted bootstrap document can load');
+    for (const changed of [{ url: 'data:text/html,untrusted' }, { webContentsId: -1 }, { resourceType: 'subFrame' }, { resourceType: 'image' }]) {
+      session.network?.({ ...bootstrap, ...changed }, (value: unknown) => { network = value; });
+      assert.deepEqual(network, { cancel: true });
+    }
     h.send({ kind: 'decision', nonce: h.configuration.nonce, allow: true });
     assert.equal(await h.result, true);
     h.send({ kind: 'decision', nonce: h.configuration.nonce, allow: false });

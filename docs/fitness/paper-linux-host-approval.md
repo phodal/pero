@@ -14,7 +14,8 @@ bound to its owner. The fixed trusted document is bundled in the main process;
 its summary arrives only at the static isolated preload and is assigned through
 `textContent`. No Paper App iframe, remote document, runtime-generated preload,
 page script or contextBridge API is involved. CSP rejects script/network/frame
-content; a fresh nonpersistent session denies requests, permissions and downloads.
+content; a fresh nonpersistent session permits only its exact fixed top-level document
+for that exact popup and denies all other requests, permissions and downloads.
 Node integration/devtools/webviews are disabled; sandbox/context isolation are
 explicit. Navigation/redirect/new-window attempts deny the pending request.
 
@@ -118,3 +119,35 @@ regression checks lock entries and ordering before the Desktop build. Both faile
 attempts remain failures; neither produced native input or approval evidence.
 The corrected workflow has not yet been run. Labels were removed before the fix;
 root controls publication and a separately opted-in retry.
+
+
+## First actual UI startup failure (no semantic input)
+
+After the dependency fix, run
+[41421332038](https://github.com/phodal/pero/actions/runs/41421332038), job
+`125197309656`, head `dd6972f83f6c74c11ea19511f1ae3e2d5cfdc967`, passed Desktop
+build and 20 unit/helper tests, then failed the first abort-lifecycle readiness
+check: owner disabled was not observed within the unchanged 10-second bound.
+Artifact `13129538388` (SHA-256
+`e86651c1d57084d7710e91186c1927b0d6f10da4eec0c25a14b98d20ad4a0aec`) retained
+runtime and runner records only. No semantic input was attempted.
+
+Pinned Electron implements Linux modal-parent disablement and `isEnabled()`;
+there is no basis to drop that readiness gate. Source review found a bootstrap
+policy defect: the unconditional session request blocker has no exception for
+its own trusted main document. It now permits **only** exact popup webContentsId,
+mainFrame resource type and complete fixed data URL; alternate data URLs,
+foreign windows, frames, resources and remote URLs remain blocked. Unit tests
+exercise this allow case and each independent mismatch. This is not a broader
+origin allowlist or a relaxed security/semantic gate.
+
+The old log does not prove that data-URL interception caused this particular
+failure. That causal diagnosis and the fix's native effect remain unverified.
+The fixture now retains up to 64 authored-process startup events (including
+load/preload failure and show/close), up to 8 window metadata records and, if
+one exact owned approval window survives, a renderer diagnostic screenshot
+with a 2-second capture deadline and hash. Such PNGs are labelled diagnostic,
+not native approval evidence. Original native-driver screenshot/identity/tree
+requirements still precede every semantic click; all existing deadlines remain.
+Root controls publication and the next single opt-in CI verification. No local
+GUI launch, worker, computation or OS security change was performed.
