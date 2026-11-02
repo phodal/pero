@@ -2443,6 +2443,7 @@ export interface AgentPluginSummary {
 export interface AppAccess {
   root: string;
   entry: string;
+  frameOrigins?: string[];
   backend?: BackendAccess;
 }
 /**

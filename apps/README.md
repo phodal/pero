@@ -39,6 +39,12 @@ the parent replies with `{type:"pero:app:context",context:{locale,dark,active}}`
 Hide/show retains the document; disable/remove disposes it. Pause expensive work
 when inactive and keep imports/drafts until the user explicitly saves or exports.
 
+An App may declare `permissions.frameOrigins`, a bounded list of exact HTTPS
+origins such as `["https://arxiv.org"]`. The Host validates the declaration and
+passes it privately to both shells for `frame-src`; undeclared Apps retain
+same-origin frames only. The declaration does not grant backend or Host API
+access to the embedded page. Native accepts SDK IPC only from the App origin.
+
 `useAppApi` supports JSON `get`/`post` under `/api/…` on the App's own origin.
 Desktop privately proxies those requests to the enabled backend. Python binds
 `127.0.0.1:0`, prints and flushes `{"port":<actual-port>}` after binding, and
