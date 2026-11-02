@@ -53,6 +53,7 @@ pub(crate) struct SessionsProps<'a> {
 #[derive(Clone)]
 pub(crate) enum SidebarAction {
     Terminal,
+    Account,
     NewChat,
     Navigate(WorkbenchPage),
     OpenApp { name: String, panel: String },
@@ -432,6 +433,16 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
         .children(app_rows(customize))
         .children(app_rows(automation))
         .child(settings)
-        .when(!collapsed, |el| el.child(div().mt(px(4.)).border_t_1().border_color(p.border).px(px(8.)).py(px(8.))
-            .text_ellipsis().child(props.identity)))
+        .child(div().mt(px(4.)).border_t_1().border_color(p.border).pt(px(4.))
+            .relative().child(props.shortcut_bounds.probe("account".into()))
+            .child(if collapsed {
+                pero_theme::ghost_icon_button("sidebar-account", chrome, cx)
+                    .icon(Icon::default().path("icons/brand-github.svg"))
+                    .accessibility_label(props.identity.clone()).tooltip(props.identity)
+                    .on_click(click(&on_action, SidebarAction::Account)).into_any_element()
+            } else {
+                pero_theme::sidebar_row("sidebar-account", props.identity, None, None, false,
+                    pero_theme::RowLevel::Nav, Some(ui.icon("brand-github").into_any_element()),
+                    chrome, click(&on_action, SidebarAction::Account)).into_any_element()
+            }))
 }

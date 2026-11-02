@@ -216,9 +216,7 @@ pub(crate) fn remote_event_summary(event: &Value) -> String {
 impl Workbench {
     pub fn receive_remote(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
         if event.kind == "remote_open" {
-            if !self.show_local_execution_onboarding() {
-                self.navigate(WorkbenchPage::Tasks, cx);
-            }
+            self.navigate(WorkbenchPage::Tasks, cx);
             self.selected_project = None;
             self.project_tab = crate::projects::ProjectTab::Tasks;
             self.remote.connection.editing = false;
@@ -261,13 +259,6 @@ impl Workbench {
         }
         if !self.remote.seen_connection && self.remote.configured() {
             self.remote.seen_connection = true;
-            if !self.show_local_execution_onboarding()
-                && self.navigation.page() == WorkbenchPage::Projects
-                && self.chat.read(cx).active_chat.is_none()
-                && self.selected_project.is_none()
-            {
-                self.navigate(WorkbenchPage::Tasks, cx);
-            }
             self.sync_follow(cx);
         }
         if !self.remote.loading() && self.remote.connection.submitting {

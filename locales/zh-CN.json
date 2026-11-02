@@ -864,6 +864,7 @@
   "nav.workspace": "工作空间",
   "nav.environment": "环境",
   "nav.todo": "待实现",
+  "nav.sign_in": "登录账户",
   "nav.local_user": "本地用户",
   "apps.categories": "分类",
   "apps.category_all": "全部应用",

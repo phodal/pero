@@ -864,6 +864,7 @@
   "nav.workspace": "Workspace",
   "nav.environment": "Environment",
   "nav.todo": "Coming soon",
+  "nav.sign_in": "Sign in",
   "nav.local_user": "Local user",
   "apps.categories": "Categories",
   "apps.category_all": "All apps",
