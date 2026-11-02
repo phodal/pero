@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -17,8 +18,13 @@ import (
 	"github.com/phodal/pero/harness/go/charts"
 	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/nativetools"
+	"github.com/phodal/pero/harness/go/pluginruntime"
+	"github.com/phodal/pero/harness/go/plugins"
 	"github.com/phodal/pero/harness/go/providers/openai"
+	point "github.com/phodal/pero/harness/go/runtime"
 	"github.com/phodal/pero/harness/go/skills"
+	"github.com/phodal/pero/harness/go/subagents"
+	"github.com/phodal/pero/harness/go/tasks"
 )
 
 func main() {
@@ -46,6 +52,7 @@ func run() (resultErr error) {
 	approval := flag.String("approval", "ask", "tool approval policy: never or ask via ACP client")
 	budget := bindProviderBudget(flag.CommandLine)
 	skillRoots := bindSkillRoots(flag.CommandLine)
+	pluginConfig := bindPluginOptions(flag.CommandLine)
 	compaction := bindCompaction(flag.CommandLine)
 	sandboxOptions := bindSandbox(flag.CommandLine)
 	selectable := bindSelectableModels(flag.CommandLine)
@@ -61,6 +68,18 @@ func run() (resultErr error) {
 	if (*enableShell || *enableResearchClone) && *workspace == "" {
 		return errors.New("--enable-shell / --enable-research-clone requires --workspace")
 	}
+	if len(pluginConfig.Directories) > 0 && *workspace == "" {
+		return errors.New("--plugin-dir requires an explicit --workspace")
+	}
+	packages, err := plugins.LoadPackages(context.Background(), pluginConfig.Directories)
+	if err != nil {
+		return err
+	}
+	selections, agentDefinitions := pluginSelections(packages)
+	pluginShell := *shellPath
+	if pluginShell == "" {
+		pluginShell = "/bin/bash"
+	}
 	if err := coding.validate(*workspace); err != nil {
 		return err
 	}
@@ -75,6 +94,7 @@ func run() (resultErr error) {
 	if err != nil {
 		return err
 	}
+	pluginEnvironment := os.Environ()
 	providerConfig, err := configuredProvider(*endpoint, *model, credential, *budget)
 	if err != nil {
 		return err
@@ -87,7 +107,11 @@ func run() (resultErr error) {
 	if err != nil {
 		return err
 	}
-	if err := configureSelectableModels(&providerConfig, *selectable); err != nil {
+	modelCatalog, err := additionalPluginModels(*model, *selectable, pluginConfig.Models)
+	if err != nil {
+		return err
+	}
+	if err := configureSelectableModels(&providerConfig, modelCatalog); err != nil {
 		return err
 	}
 	adapter, err := openai.New(providerConfig)
@@ -100,20 +124,31 @@ func run() (resultErr error) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: delegation.Enabled, Adapter: adapter, AdapterProviders: []string{"configured"}, ModelInfo: adapter, ApprovalPolicy: harness.ApprovalPolicy(*approval)})
+	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: delegation.Enabled || len(packages) > 0, Adapter: adapter, AdapterProviders: []string{"configured"}, ModelInfo: adapter, ApprovalPolicy: harness.ApprovalPolicy(*approval)})
 	if err != nil {
 		return err
 	}
 	var native *nativetools.App
 	var skillCatalog *skills.Catalog
 	var instructions *agentinstructions.App
+	var pluginHooks *pluginruntime.HookApp
+	var pluginAgents *subagents.ClaudeContribution
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		resultErr = errors.Join(resultErr, h.Dispose(cleanup), h.Drain(cleanup), native.Close(), skillCatalog.Close(), instructions.Close())
+		resultErr = errors.Join(resultErr, h.Dispose(cleanup), h.Drain(cleanup), native.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
 	}()
+	skillCatalog, err = skills.OpenSelected(ctx, *skillRoots, selections)
+	if err != nil {
+		return err
+	}
 	if *workspace != "" {
-		native, err = nativetools.Mount(ctx, h, nativetools.Options{Workspace: *workspace, EnableShell: *enableShell, EnableResearchClone: *enableResearchClone, Shell: *shellPath, Sandbox: sandboxConfig})
+		nativeOptions := nativetools.Options{Workspace: *workspace, EnableShell: *enableShell, EnableResearchClone: *enableResearchClone, Shell: *shellPath, Sandbox: sandboxConfig, ClaudeTools: len(packages) > 0}
+		if len(packages) > 0 {
+			nativeOptions.ReadOnlyResource = pluginResourceReader(skillCatalog, selections)
+			nativeOptions.PluginEnvironment = pluginEnvironment
+		}
+		native, err = nativetools.Mount(ctx, h, nativeOptions)
 		if err != nil {
 			return err
 		}
@@ -125,14 +160,58 @@ func run() (resultErr error) {
 	if err != nil {
 		return err
 	}
-	skillCatalog, err = skills.Mount(ctx, h, *skillRoots)
-	if err != nil {
-		return err
+	if skillCatalog != nil {
+		mountOptions := skills.MountOptions{Claude: len(packages) > 0}
+		if len(packages) > 0 {
+			mountOptions.ResolveModel = pluginModelResolver(pluginConfig.Models)
+			mountOptions.Fork = func(ctx context.Context, parent *harness.Agent, definition skills.Definition) (harness.SubagentResult, error) {
+				origin, _, _ := strings.Cut(definition.Name, ":")
+				return pluginAgents.Invoke(ctx, parent, subagents.ClaudeInvocation{
+					Definition: definition.Agent, Prompt: definition.Content, Description: "Run " + definition.Name, Model: definition.Model, Origin: origin,
+					ConfigureChild: func(ctx context.Context, run *point.Run, child *harness.Agent) error {
+						return skills.ConfigureFork(ctx, h, run, child, definition)
+					},
+				})
+			}
+			mountOptions.Expand = func(ctx context.Context, agent *harness.Agent, definition skills.Definition, args string) (skills.Definition, error) {
+				return pluginruntime.ExpandSkill(ctx, h, agent, definition, args, pluginruntime.ExpansionOptions{Shell: pluginShell, Environment: pluginEnvironment, Sandbox: sandboxConfig})
+			}
+		}
+		if err := skills.MountCatalog(ctx, h, skillCatalog, mountOptions); err != nil {
+			return err
+		}
 	}
 	if err := mountSubagents(ctx, h, persistence, *delegation, compactionConfig); err != nil {
 		return err
 	}
-	serverOptions := acp.Options{ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, Name: "pero-agent-acp", Version: "0.1"}
+	if len(packages) > 0 {
+		stateRoot, err := filepath.Abs(filepath.Join(*sessions, "plugin-hooks"))
+		if err != nil {
+			return err
+		}
+		if sandboxConfig != nil {
+			for _, pkg := range packages {
+				if len(pkg.Hooks) > 0 {
+					return errors.New("plugin command hooks do not yet support the selected sandbox backend")
+				}
+			}
+		}
+		pluginHooks, err = pluginruntime.MountHooks(ctx, h, packages, pluginruntime.HookOptions{Shell: pluginShell, Environment: pluginEnvironment, StateDirectory: stateRoot})
+		if err != nil {
+			return err
+		}
+		if _, err := pluginruntime.MountMCP(ctx, h, packages, pluginEnvironment); err != nil {
+			return err
+		}
+		if _, err := tasks.Mount(ctx, h); err != nil {
+			return err
+		}
+		pluginAgents, err = subagents.MountClaude(ctx, h, agentDefinitions, subagents.ClaudeOptions{InvocationOrigin: skills.ActivePlugin, ModelRoutes: pluginConfig.Models, MaxDepth: 4, MaxActive: delegation.MaxActive, Persistence: persistence, Compaction: compactionConfig})
+		if err != nil {
+			return err
+		}
+	}
+	serverOptions := acp.Options{UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, Name: "pero-agent-acp", Version: "0.1"}
 	if native != nil {
 		serverOptions.ValidateWorkingDirectory = native.CheckCWD
 	}
