@@ -25,3 +25,18 @@ Related regressions passed: all eight Control Lab goal/App Agent Plugin unit and
 real-Host goal cases, the explicit fixture-mode Host launcher test, and
 `tests/runtime/app-agent-plugins.mjs` (plugin dependency/skill/MCP assembly,
 non-main panels, unsupported HTTP refusal, and disable revocation).
+
+## Same stale setup in the Host protocol contract
+
+Full CI `41438025872`, core job `125252594284`, exposed the same uninstalled
+`fixture/main` scope in `tests/contracts/host.mjs`. Its preference expectations
+also omitted the default `research_projects: []` field added by local research
+projects. This produced three whole-object preference mismatches followed by a
+`session_created` timeout; production validation was behaving as designed.
+
+With the rebuilt `08f248cc` Host, the unchanged fixture reproduced all four
+failures locally. Seeding a minimal isolated fixture App/main and including the
+actual default research-project collection makes the same command pass, observing
+40 of 91 declared event kinds. Invalid-preference preservation, restart restore,
+exact App scope, context, permission, cancellation and deletion assertions remain
+intact. No timeout, production gate or runtime setting behavior was weakened.
