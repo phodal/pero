@@ -7,7 +7,7 @@ import { openResearchImport, researchUiState } from './paper-research-ui-control
 import { clickAppShortcut } from './sidebar-controls.mjs';
 import { setPaperAppearance, backToLibrary } from './paper-pdf-flow.mjs';
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const root = resolve(import.meta.dirname, '../..'), live = process.env.PERO_SOURCE_STUDY_LIVE === '1';
@@ -15,7 +15,7 @@ const out = resolve(root, `test-results/paper-source-study/${live ? 'live-networ
 await mkdir(out, { recursive: true });
 const profile = await realpath(await mkdtemp(resolve(tmpdir(), 'pero-source-study-')));
 const settings = resolve(profile, 'settings.json'), agents = resolve(profile, 'agents.json');
-await writeFile(settings, '{}');
+await writeFile(settings, JSON.stringify(process.env.PERO_APP_PYTHON ? { app_python: { apps: { 'paper-agent': dirname(dirname(process.env.PERO_APP_PYTHON)) } } } : {}));
 await writeFile(agents, JSON.stringify(['pero', 'codex', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({ id, name: id, command: resolve(profile, `unavailable-${id}`) }))));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop'), PERO_SETTINGS_PATH: settings,
   PERO_HISTORY_PATH: resolve(profile, 'history.jsonl'), PERO_AGENTS_FILE: agents, PERO_LOCALE: 'en', PERO_BUILTIN_APPS: 'paper-agent', PERO_REQUIRED_APPS: 'paper-agent', PERO_APP_INFRA_EMBED: '0' };

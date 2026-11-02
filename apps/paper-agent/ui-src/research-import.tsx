@@ -4,6 +4,7 @@ import { Button, Checkbox, Feedback, Field, Icon, Input, Toolbar } from '@pero/a
 import type { Api } from './types';
 import { assetSize, type ImportDraft, type ResearchBundle, type ResearchResource } from './research-types';
 import './research-import.css';
+import { groupResearchResources } from './research-groups';
 
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 const confidence = { explicit: 'Explicit link', metadata: 'Source metadata', unresolved: 'Unresolved' };
@@ -40,16 +41,20 @@ const resourceIcons: Record<ResearchResource['kind'], string> = {
   code: 'code', model: 'box', dataset: 'database', benchmark: 'chart-line', service: 'plug',
 };
 
-export function ResourceDetails({ resource, onRead }: { resource: ResearchResource; onRead?(id: string): void }) {
+export function ResourceDetails({ resource, related = [], onRead }: { resource: ResearchResource; related?: readonly ResearchResource[]; onRead?(id: string): void }) {
   const { t } = useAppI18n(labels);
+  const sources = [resource, ...related];
+  const warnings = [...new Set(sources.flatMap(source => source.unresolved))];
   return <div className="pa-resource-info">
     <div className="pa-resource-meta"><span>{t(resource.kind)}</span>{resource.revision && <span>{resource.revision}</span>}<a href={resource.url} target="_blank" rel="noreferrer" aria-label={`${t('original')}: ${new URL(resource.url).hostname}`}><span>{new URL(resource.url).hostname}</span><Icon name="external-link"/></a></div>
-    {resource.unresolved.length > 0 && <ul className="pa-resource-warnings">{resource.unresolved.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
+    {warnings.length > 0 && <ul className="pa-resource-warnings">{warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
     <div className="pa-resource-actions"><details><summary>{t('details')}</summary>
-      <dl className="pa-resource-provenance"><dt>{t('identity')}</dt><dd>{resource.identity}</dd><dt>URL</dt><dd><a href={resource.originalUrl} target="_blank" rel="noreferrer">{resource.originalUrl}</a></dd><dt>{t('revision')}</dt><dd>{resource.revision || t('unresolved')}</dd>{resource.observedAt && <><dt>{t('inspected')}</dt><dd>{resource.observedAt}</dd></>}<dt>{t('licenseLabel')}</dt><dd>{resource.license || t('license')} / {resource.size == null ? t('sizeUnknown') : assetSize(resource.size)}</dd><dt>{relations[resource.relation]}</dt><dd>{confidence[resource.confidence]}</dd></dl>
-      {resource.authors.length > 0 && <p className="pa-muted">{resource.authors.join(', ')}</p>}
-      {resource.evidence.length > 0 && <ul>{resource.evidence.map((evidence, index) => <li key={index}><a href={evidence.url} target="_blank" rel="noreferrer">{evidence.label || evidence.url}</a>{evidence.position != null && ` (link ${evidence.position})`}{evidence.href && <div>{evidence.href}</div>}</li>)}</ul>}
-      {resource.excerpt && <p className="pa-resource-excerpt">{resource.excerpt}</p>}
+      {sources.map(source => <div key={source.id} className="pa-resource-provenance-source">{sources.length > 1 && <p><strong>{t(source.kind)}</strong> {source.title}</p>}
+      <dl className="pa-resource-provenance"><dt>{t('identity')}</dt><dd>{source.identity}</dd><dt>URL</dt><dd><a href={source.originalUrl} target="_blank" rel="noreferrer">{source.originalUrl}</a></dd><dt>{t('revision')}</dt><dd>{source.revision || t('unresolved')}</dd>{source.observedAt && <><dt>{t('inspected')}</dt><dd>{source.observedAt}</dd></>}<dt>{t('licenseLabel')}</dt><dd>{source.license || t('license')} / {source.size == null ? t('sizeUnknown') : assetSize(source.size)}</dd><dt>{relations[source.relation]}</dt><dd>{confidence[source.confidence]}</dd></dl>
+      {source.authors.length > 0 && <p className="pa-muted">{source.authors.join(', ')}</p>}
+      {source.evidence.length > 0 && <ul>{source.evidence.map((evidence, index) => <li key={index}><a href={evidence.url} target="_blank" rel="noreferrer">{evidence.label || evidence.url}</a>{evidence.position != null && ` (link ${evidence.position})`}{evidence.href && <div>{evidence.href}</div>}</li>)}</ul>}
+      {source.excerpt && <p className="pa-resource-excerpt">{source.excerpt}</p>}
+      </div>)}
     </details>{resource.paperId && onRead && <Button variant="ghost" onClick={() => onRead(resource.paperId!)}>{t('read')}</Button>}</div>
   </div>;
 }
@@ -117,6 +122,8 @@ export function ResearchImport({ api, active, onSaved }: { api: Api; active: boo
     } catch (error) { if (mounted.current) setError(errorText(error)); }
     finally { savePending.current = false; if (mounted.current) setSaving(false); }
   }
+  const groups = groupResearchResources(draft?.resources ?? []);
+  const selectedGroups = groups.filter(group => group.resources.some(resource => selected.includes(resource.id)));
   const selectedAssets = draft?.resources.flatMap(resource => resource.assets).filter(asset => downloadIds.includes(asset.id)) ?? [];
   return <div className="pa-research-import">
     <div className="pa-research-url" role="group" aria-label="Inspect research URL" onKeyDown={event => {
@@ -135,17 +142,30 @@ export function ResearchImport({ api, active, onSaved }: { api: Api; active: boo
     {draft?.status === 'cancelled' && <Feedback>{t('cancelled')}<Button onClick={() => void inspect()}>{t('retryInspection')}</Button></Feedback>}
     {draft?.warnings.map((warning, index) => <Feedback key={index}>{warning}</Feedback>)}
     {draft?.status === 'ready' && <section aria-label={t('review')} aria-busy={saving}>
-      <div className="pa-research-heading"><h2>{t('review')}</h2><span className="pa-muted">{selected.length}/{draft.resources.length} {t('selected')}</span></div>
+      <div className="pa-research-heading"><h2>{t('review')}</h2><span className="pa-muted">{selectedGroups.length}/{groups.length} {t('selected')}</span></div>
       {!draft.resources.length && <Feedback>{t('empty')}</Feedback>}
-      <ul className="pa-resource-list">{draft.resources.map(resource => <li key={resource.id}>
-        <div className="pa-resource-identity"><label className="pa-resource-title"><Checkbox checked={selected.includes(resource.id)} disabled={saving} onCheckedChange={checked => { setSelected(values => checked ? [...values, resource.id] : values.filter(id => id !== resource.id)); if (!checked) { setDownloadIds(values => values.filter(id => !resource.assets.some(asset => asset.id === id))); setPdfIds(values => values.filter(id => id !== resource.id)); setSourceIds(values => values.filter(id => id !== resource.id)); setHtmlIds(values => values.filter(id => id !== resource.id)); } setConfirmed(false); }}/><Icon name={resourceIcons[resource.kind]}/><span>{resource.title || resource.url}</span></label><ResourceDetails resource={resource}/></div>
-        <div className="pa-resource-body pa-resource-files">
+      <ul className="pa-resource-list">{groups.map(group => {
+        const resource = group.primary, html = group.html, ids = group.resources.map(value => value.id);
+        return <li key={group.id} data-resource-group={group.id}>
+          <div className="pa-resource-identity"><label className="pa-resource-title"><Checkbox aria-label={[resource.title || resource.url, resource.revision].filter(Boolean).join(' ')} checked={ids.every(id => selected.includes(id))} disabled={saving} onCheckedChange={checked => {
+            setSelected(values => checked ? [...new Set([...values, ...ids])] : values.filter(id => !ids.includes(id)));
+            if (!checked) {
+              setDownloadIds(values => values.filter(id => !group.resources.some(resource => resource.assets.some(asset => asset.id === id))));
+              setPdfIds(values => values.filter(id => !ids.includes(id))); setSourceIds(values => values.filter(id => !ids.includes(id))); setHtmlIds(values => values.filter(id => !ids.includes(id)));
+            }
+            setConfirmed(false);
+          }}/><Icon name={resourceIcons[resource.kind]}/><span>{resource.title || resource.url}</span></label><ResourceDetails resource={resource} related={group.resources.filter(value => value.id !== resource.id)}/></div>
+          <div className="pa-resource-body pa-resource-files">
+          {html && <label className="pa-resource-download"><Checkbox checked={htmlIds.includes(html.id)} disabled={saving || !selected.includes(html.id)} onCheckedChange={checked => { setHtmlIds(values => checked ? [...values, html.id] : values.filter(id => id !== html.id)); setConfirmed(false); }}/><span>{t('html')}<small>{t('htmlScope')}</small></span></label>}
+            {group.resources.map(resource => <React.Fragment key={resource.id}>
           {resource.kind === 'source_archive' && <label className="pa-resource-download"><Checkbox checked={sourceIds.includes(resource.id)} disabled={saving || !selected.includes(resource.id) || !!resource.workIdentity && !resource.revision || /\.zip(?:[?#]|$)/i.test(resource.url)} onCheckedChange={checked => { setSourceIds(values => checked ? [...values, resource.id] : values.filter(id => id !== resource.id)); setConfirmed(false); }}/><span>{t('tex')}<small>{resource.workIdentity && !resource.revision ? t('needsVersion') : t('texScope')}</small></span></label>}
-          {['paper', 'pdf_candidate'].includes(resource.kind) && resource.workIdentity?.startsWith('arxiv:') && /^v[1-9]\d*$/.test(resource.revision ?? '') && <label className="pa-resource-download"><Checkbox checked={htmlIds.includes(resource.id)} disabled={saving || !selected.includes(resource.id)} onCheckedChange={checked => { setHtmlIds(values => checked ? [...values, resource.id] : values.filter(id => id !== resource.id)); setConfirmed(false); }}/><span>{t('html')}<small>{t('htmlScope')}</small></span></label>}
-          {resource.kind === 'pdf_candidate' && <label className="pa-resource-download"><Checkbox checked={pdfIds.includes(resource.id)} disabled={saving || !selected.includes(resource.id)} onCheckedChange={checked => { setPdfIds(values => checked ? [...values, resource.id] : values.filter(id => id !== resource.id)); setConfirmed(false); }}/><span>{t('pdf')}<small>{t('pdfScope')}</small></span></label>}
+
+          {resource.kind === 'pdf_candidate' && <label className="pa-resource-download"><Checkbox checked={pdfIds.includes(resource.id)} disabled={saving || !selected.includes(resource.id)} onCheckedChange={checked => { setPdfIds(values => checked ? [...values, resource.id] : values.filter(id => id !== resource.id)); setConfirmed(false); }}/><span>{t('pdf')}<small>{group.resources.filter(value => value.kind === resource.kind).length > 1 && <a href={resource.originalUrl} target="_blank" rel="noreferrer">{resource.originalUrl}</a>}{t('pdfScope')}</small></span></label>}
           {resource.assets.map(asset => <label className="pa-resource-download" key={asset.id}><Checkbox checked={downloadIds.includes(asset.id)} disabled={saving || !selected.includes(resource.id)} onCheckedChange={checked => { setDownloadIds(values => checked ? [...values, asset.id] : values.filter(id => id !== asset.id)); setConfirmed(false); }}/><span>{t('download')} {asset.filename} <small>{assetSize(asset.size)} / {asset.license}</small></span></label>)}
-        </div>
-      </li>)}</ul>
+            </React.Fragment>)}
+          </div>
+        </li>;
+      })}</ul>
       <footer className="pa-import-footer">
         {downloadIds.length + pdfIds.length + sourceIds.length + htmlIds.length > 0 ? <label className="pa-download-confirm"><Checkbox checked={confirmed} disabled={saving} onCheckedChange={setConfirmed}/><span>{t('confirm')} ({downloadIds.length + pdfIds.length + sourceIds.length + htmlIds.length})<small>{downloadIds.length > 0 && `${assetSize(selectedAssets.reduce((total, asset) => total + asset.size, 0))}. `}{t('noExecution')}</small></span></label> : <p className="pa-muted">{t('referenceScope')}</p>}
         <Toolbar><Button variant="primary" busy={saving} disabled={!selected.length || (downloadIds.length + pdfIds.length + sourceIds.length + htmlIds.length) > 0 && !confirmed} onClick={() => void save()}>{saving ? t('saving') : downloadIds.length + pdfIds.length + sourceIds.length + htmlIds.length ? (downloadIds.length + pdfIds.length + sourceIds.length ? t('saveFiles') : t('saveHtml')) : t('references')}</Button><Button disabled={saving} onClick={() => void inspect(undefined, true)}>{t('again')}</Button></Toolbar>

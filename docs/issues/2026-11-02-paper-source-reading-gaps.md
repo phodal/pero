@@ -6,8 +6,8 @@ status: active
 # Public paper sources lose version and reading representations
 
 Review date: 2026-11-02. Scope: current literature adapters, saved snapshots,
-discovery, and the handoff to existing reading/download owners. This review does
-not implement the proposals below or establish live availability of all sources.
+discovery, and the handoff to existing reading/download owners. This record separates initial reproductions, implemented repairs and remaining
+proposals; it does not establish live availability of all sources.
 The arXiv reading/navigation repair is separately resolved in
 [its incident record](2026-11-02-paper-arxiv-reading-navigation.md).
 
@@ -33,13 +33,14 @@ these findings concern how the right bytes and versions reach that reader.
 
 ## Proposed order
 
-Implementation on 2026-11-02 covers the first two priorities only. The bioRxiv
+Implementation on 2026-11-02 repairs the first two priorities and the supplied
+PDF/full-text URL handoff, acquisition ownership and import grouping. The bioRxiv
 repair now retains an explicitly requested revision, selects that exact metadata
 record, and freezes its revision in the saved snapshot, including Research URL
 inspection and commit. A missing requested revision fails rather than using a
 later version. Hugging Face/arXiv fallback now retains usable alphaXiv text, or
 saves official metadata as abstract-only when that text is unavailable. Other
-representation and medRxiv work remains open.
+representation metadata, XML parsing and medRxiv adapter work remain open.
 
 1. Preserve explicit bioRxiv versions and distinguish bioRxiv/medRxiv identity.
    Keep work identity, requested revision and returned revision together; never
@@ -157,3 +158,24 @@ zero fetches before confirmation and one total fetch after study finalization.
 All 248 Python tests pass (one platform skip); three recorded-transport boundary
 tests and the six-group PDF Electron journey pass. The obsolete direct PDF
 network adapter and its injected fixture path are removed.
+
+Version-grouped review verified: `ResearchResourceGroup` is a pure presentation
+projection of the existing typed resources. Only explicit work identity plus
+revision groups paper/PDF/source rows. Different or unknown revisions remain
+separate; titles never establish equivalence. The row selects its references,
+while each PDF/source keeps its original ID and independent grant. One official
+HTML option represents the group's exact arXiv version. All original provenance
+remains available in Source details, and checkbox names include the version.
+
+Deterministic grouping cases and the eight-group Chromium journey cover distinct
+versions, unknown identities, multiple file identities, independent selections,
+exact submitted grant IDs and no acquisition on HTML-only permission. Actual
+Electron journeys pass nine structured-reading and seven source-study groups,
+including approved acquisition, failure/retry, source/image scopes, original-copy
+export, annotations and restart. The six-group PDF journey covers the generic
+publisher Ask preflight and cache reuse. Browser screenshots were inspected in
+Chinese, light/dark and wide/489px layouts; no horizontal overflow was observed.
+Evidence: `test-results/paper-source-fixes/`, `paper-structured-reading/fixture/`,
+`paper-source-study/fixture/`, `paper-agent/` and `research-import/`.
+These are authored offline sources/providers with real App/Host/Python/reader
+components, not new public-source, real-model or installed Native acceptance.
