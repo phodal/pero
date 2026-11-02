@@ -29,7 +29,7 @@ and additionally requires that no failed startup conversation was left behind.
 Actual Desktop validation must run in authorized CI; local GUI execution is not
 authorized. The original run also hung in its unbounded `app.close()` teardown after
 capturing the failure, until the existing 360-second wrapper terminated it. The
-fixture now uses the existing bounded owned-Electron cleanup: normal close still
+fixture now uses the existing bounded cleanup for the owned Electron process: normal close still
 has to succeed; a cleanup deadline remains a failure, and only the verified
 private process group can be terminated. The artifact cannot establish which
 Electron/Host shutdown component stalled, so no production shutdown change is
@@ -55,3 +55,26 @@ The actual-shell non-GUI regression covers App A ready → select B → Chat rea
 same-App different-panel link. All three fail on the original boolean gate and
 pass with scope-bound readiness. This changes no Host locks, queues or draft
 identity rules.
+
+## Nondefault panel navigation
+
+Review found that App links selected their requested panel locally, but the
+Product open bridge forwarded only the App name. Main therefore opened the
+configured entry or first panel; its completion could not satisfy readiness for
+a different selected panel. The bridge now forwards an optional panel through
+Product selection. Omission retains existing defaults, included-App validation
+remains in Product, and DesktopApps still checks the panel against the manifest.
+Retry also retains the selected panel. Non-GUI regression exercises actual shell
+and preload requests for default/nondefault panels before completing readiness;
+actual Desktop rendering remains a CI acceptance boundary.
+
+## Actual Desktop evidence
+
+Full CI [41454820123](https://github.com/phodal/pero/actions/runs/41454820123)
+on PR head `a0e2877667efd51e3467fef4abd11684abe80e98` passed App Use job
+`125312339115`. Artifact `13145569909` has SHA-256
+`3650b43da88193847641dc6659678151c98b43912dc2360161be0488bbe4c897`.
+The original draft identity, one-thread count, App scope and resulting fixture
+session assertions passed; the process exited successfully without timeout.
+This establishes the startup race fix, not the later nondefault-panel forwarding
+change. It is scripted App Use, not scientific execution or real-provider inference.
