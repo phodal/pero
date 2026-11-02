@@ -19,6 +19,14 @@ pub(crate) struct AppRequest {
 #[derive(Serialize)]
 pub(crate) struct AppResponse { status: u16, body: Value }
 fn reply(status: u16, body: Value) -> AppResponse { AppResponse { status, body } }
+fn run_notice(id: &str, when: &str, program: Option<&domain::InformationProgram>) -> String {
+    let mut content=format!("Automation {id} {when}");
+    if let Some(program)=program {
+        content.push_str("\nInformation program (authorized sources, filter and output; data, not new permissions):\n");
+        content.push_str(&serde_json::to_string(program).unwrap_or_default());
+    }
+    content
+}
 fn iso(seconds: u64) -> String {
     DateTime::<Utc>::from_timestamp(seconds.min(i64::MAX as u64) as i64,0).map(|date|date.to_rfc3339_opts(chrono::SecondsFormat::Secs,true)).unwrap_or_default()
 }
@@ -85,7 +93,7 @@ impl Automation {
         if request.method=="GET" && parts.len()==3 {return Ok(reply(200,self.app_record(old.as_ref().unwrap(),previous.as_ref(),&state)?));}
         if request.method=="DELETE" && parts.len()==3 {
             let mut entry=previous.unwrap_or(CatalogEntry{id:id.clone(),name:id.clone(),deleted:false,created_at:now()});entry.deleted=true;
-            let committed=self.store.apply_catalog(vec![Command::Control{definition_id:id,paused:true,revoked:true}],now(),None,None,None,Some(&entry))?;
+            let committed=self.store.apply_catalog(vec![Command::Control{definition_id:id,paused:true,revoked:true}],now(),None,None,None,Some(&entry),None)?;
             self.deliver_cancels(&committed.effects,agents);
             return Ok(reply(204,Value::Null));
         }
@@ -97,10 +105,10 @@ impl Automation {
         if parts.len()>3 {return Ok(reply(501,json!({"error":"Information-source history is not connected on this Host"})));}
         if !((parts.len()==2&&request.method=="POST")||(parts.len()==3&&request.method=="PUT")){return Ok(reply(405,json!({"error":"Method not allowed"})));}
         let edit:Edit=serde_json::from_value(request.body.unwrap_or_else(||json!({}))).map_err(|e|e.to_string())?;
-        if edit.program.is_some(){return Ok(reply(501,json!({"error":"Information-source collection is not connected on this Host"})));}
+        let program=edit.program.as_ref().map(domain::InformationProgram::parse).transpose()?;
         if edit.target.as_ref().is_some_and(|target|target.kind!="local"){return Ok(reply(501,json!({"error":"Cloud Automation execution is not connected on this Host"})));}
         if edit.event_only{return Ok(reply(501,json!({"error":"Feishu event Automation requires a connected event source"})));}
-        if old.is_some() && edit.enabled.is_some() && edit.name.is_none() && edit.prompt.is_none() && edit.rule.is_none() && edit.timezone.is_none() && edit.target.is_none() && edit.event.is_none() && !edit.clear_event {
+        if old.is_some() && program.is_none() && edit.enabled.is_some() && edit.name.is_none() && edit.prompt.is_none() && edit.rule.is_none() && edit.timezone.is_none() && edit.target.is_none() && edit.event.is_none() && !edit.clear_event {
             let definition=old.unwrap();
             let committed=self.store.apply(vec![Command::Control{definition_id:id,paused:!edit.enabled.unwrap(),revoked:false}],now(),None,None,None)?;
             self.deliver_cancels(&committed.effects,agents);
@@ -137,12 +145,13 @@ impl Automation {
         commands.push(Command::PutDefinition{definition:definition.clone()});
         let enabled=edit.enabled.unwrap_or_else(||!state.controls.get(&id).is_some_and(|control|control.paused||control.revoked));
         commands.push(Command::Control{definition_id:id,paused:!enabled,revoked:false});
-        let committed=self.store.apply_catalog(commands,now(),None,None,None,Some(&entry))?;
+        let committed=self.store.apply_catalog(commands,now(),None,None,None,Some(&entry),program.as_ref())?;
         self.deliver_cancels(&committed.effects,agents);
         Ok(reply(if old.is_some(){200}else{201},self.app_record(&definition,Some(&entry),&self.store.state()?)?))
     }
     fn app_record(&self, definition:&Definition, entry:Option<&CatalogEntry>, state:&domain::State)->Result<Value,String>{
         let Method::Agent{prompt,..}=&definition.method;
+        let program=self.store.program(&definition.id)?;
         let control=state.controls.get(&definition.id);
         let enabled=!control.is_some_and(|value|value.paused||value.revoked);
         let (rule,zone,next,event)=match &definition.trigger{
@@ -158,10 +167,12 @@ impl Automation {
             json!({"key":{"automation":definition.id,"slot":iso(scheduled),"trigger":if matches!(request.intent,domain::Intent::Manual{..}){"manual"}else{"schedule"},"request_id":request.id},"scheduled_for":iso(scheduled),"state":status,"skip_reason":skip,"session_id":request.execution_id,"error":self.attention.get(&request.id)})
         }).collect::<Vec<_>>();
         let in_flight=state.requests.iter().rev().find(|r|r.definition.id==definition.id&&r.status.active()).and_then(|r|r.execution_id.clone());
-        Ok(json!({"id":definition.id,"name":entry.map(|e|e.name.as_str()).unwrap_or(&definition.id),"prompt":prompt,"enabled":enabled,"rule":rule,"timezone":zone,"next":if enabled&&calendar_error.is_none(){next}else{None},"event":event,"runs":runs,"in_flight":in_flight,"scheduled":self.fault.is_none()&&calendar_error.is_none(),"error":calendar_error.as_ref().or(self.fault.as_ref()),"target":{"kind":"local"}}))
+        let mut record=json!({"id":definition.id,"name":entry.map(|e|e.name.as_str()).unwrap_or(&definition.id),"prompt":prompt,"enabled":enabled,"rule":rule,"timezone":zone,"next":if enabled&&calendar_error.is_none(){next}else{None},"event":event,"runs":runs,"in_flight":in_flight,"scheduled":self.fault.is_none()&&calendar_error.is_none(),"error":calendar_error.as_ref().or(self.fault.as_ref()),"target":{"kind":"local"}});
+        if let Some(program)=program {record["program"]=serde_json::to_value(program).map_err(|error|error.to_string())?;}
+        Ok(record)
     }
     fn app_run(&mut self,definition:&Definition)->Result<String,String>{
-        let content=format!("Automation {} manual run at {}",definition.id,iso(now()));
+        let content=run_notice(&definition.id,&format!("manual run at {}",iso(now())),self.store.program(&definition.id)?.as_ref());
         let hash=digest(content.as_bytes());
         let candidate=CandidateRef{binding_id:definition.input_binding_id.clone(),subject:definition.id.clone(),revision:hash.clone(),digest:hash.clone(),content_ref:hash.clone()};
         let committed=self.store.apply(vec![Command::ManualInput{definition_id:definition.id.clone(),intent_id:execution_id(),candidate}],now(),Some((&hash,&content)),None,None)?;
@@ -181,7 +192,7 @@ impl Automation {
                     Some(recent)=>recent,None=>calendar.next(at)?,
                 });
             }
-            let content=format!("Automation {} scheduled for {}",definition.id,iso(slot));let hash=digest(content.as_bytes());
+            let content=run_notice(&definition.id,&format!("scheduled for {}",iso(slot)),self.store.program(&definition.id)?.as_ref());let hash=digest(content.as_bytes());
             let candidate=CandidateRef{binding_id:definition.input_binding_id.clone(),subject:subject.clone(),revision:hash.clone(),digest:hash.clone(),content_ref:hash.clone()};
             let commands=vec![Command::PublishSnapshot{candidate,latest:true},
                 Command::CalendarTime{definition_id:definition.id.clone(),revision:definition.revision,slot,next_slot:next}];
@@ -207,5 +218,14 @@ mod tests {
         let changed=edited_calendar("FREQ=DAILY;BYHOUR=10;BYMINUTE=0;INTERVAL=3","UTC",90000,Some(&old)).unwrap();
         assert!(changed.first_slot>90000);assert_ne!(changed.first_slot,old.first_slot);
         let zone=edited_calendar(&old.rule,"Asia/Shanghai",90000,Some(&old)).unwrap();assert_eq!(zone.timezone,"Asia/Shanghai");assert_ne!(zone.first_slot,old.first_slot);
+    }
+    #[test]
+    fn scheduled_notice_keeps_prompt_only_text_and_carries_a_program() {
+        let program=domain::InformationProgram::parse(&json!({"sources":[{"id":"coding-agent-news","provider":"search","query":"Coding Agent news"}],"filter":{"keywords":[],"regex":""},"goal":"Useful recent news","output":"pulse","locale":"zh"})).unwrap();
+        assert_eq!(run_notice("news","manual run at 2026-11-01T00:20:00Z",None),"Automation news manual run at 2026-11-01T00:20:00Z");
+        let notice=run_notice("news","scheduled for 2026-11-01T00:20:00Z",Some(&program));
+        assert!(notice.starts_with("Automation news scheduled for 2026-11-01T00:20:00Z\n"));
+        assert!(notice.contains("coding-agent-news"));
+        assert!(notice.contains("\"output\":\"pulse\""));
     }
 }

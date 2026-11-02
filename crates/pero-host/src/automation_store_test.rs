@@ -153,13 +153,32 @@ fn app_catalog_and_definition_change_commit_together() {
     let path=path(); let mut store=Store::open(&path).unwrap();
     let entry=domain::catalog::CatalogEntry{id:"named".into(),name:"Daily research".into(),deleted:false,created_at:10};
     store.db.execute_batch("CREATE TRIGGER fail_catalog BEFORE INSERT ON app_catalog BEGIN SELECT RAISE(ABORT,'disk fixture'); END;").unwrap();
-    assert!(store.apply_catalog(vec![acceptance()],10,None,None,None,Some(&entry)).is_err());
+    assert!(store.apply_catalog(vec![acceptance()],10,None,None,None,Some(&entry),None).is_err());
     assert!(store.state().unwrap().events.is_empty());
     assert!(store.catalog().unwrap().is_empty());
     store.db.execute_batch("DROP TRIGGER fail_catalog").unwrap();
-    store.apply_catalog(vec![acceptance()],10,None,None,None,Some(&entry)).unwrap();
+    store.apply_catalog(vec![acceptance()],10,None,None,None,Some(&entry),None).unwrap();
     drop(store);let store=Store::open(&path).unwrap();
     assert_eq!(store.state().unwrap().events.len(),1);
     assert_eq!(store.catalog().unwrap(),vec![entry]);
     drop(store);std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn information_program_commits_with_the_catalog_and_survives_reopen() {
+    let path=path(); let mut store=Store::open(&path).unwrap();
+    let program=domain::InformationProgram::parse(&serde_json::json!({
+        "sources":[{"id":"coding-agent-news","provider":"search","query":"Coding Agent news"}],
+        "filter":{"keywords":[],"regex":""},"goal":"Useful recent news","output":"pulse","locale":"zh"
+    })).unwrap();
+    let entry=domain::catalog::CatalogEntry{id:"news".into(),name:"AI 软件工程新闻".into(),deleted:false,created_at:1};
+    store.db.execute_batch("CREATE TRIGGER fail_program BEFORE INSERT ON app_programs BEGIN SELECT RAISE(ABORT,'disk fixture'); END;").unwrap();
+    assert!(store.apply_catalog(vec![],1,None,None,None,Some(&entry),Some(&program)).is_err());
+    assert!(store.program("news").unwrap().is_none());
+    assert!(store.catalog().unwrap().is_empty());
+    store.db.execute_batch("DROP TRIGGER fail_program").unwrap();
+    store.apply_catalog(vec![],1,None,None,None,Some(&entry),Some(&program)).unwrap();
+    drop(store); let store=Store::open(&path).unwrap();
+    assert_eq!(store.program("news").unwrap().unwrap().output,"pulse");
+    drop(store); std::fs::remove_file(path).unwrap();
 }

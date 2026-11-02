@@ -781,3 +781,5 @@ pub fn due_slots(state: &State, now: u64) -> Vec<Command> {
 mod tests;
 
 pub mod catalog;
+mod program;
+pub use program::{InformationFilter, InformationProgram, InformationSource};

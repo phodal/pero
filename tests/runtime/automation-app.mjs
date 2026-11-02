@@ -76,10 +76,25 @@ try{
   assert.equal(record.next,created.body.next,'manual run must keep the scheduled cursor');
   assert.equal((await host.api('POST','/api/automations',{name:'Invalid',prompt:'test',rule:'not-a-rule'})).status,400);
   assert.equal((await host.api('POST','/api/automations',{name:'Cloud',prompt:'test',target:{kind:'cloud'}})).status,501);
+  const newsProgram={sources:[
+    {id:'coding-agent-news',provider:'search',query:'Coding Agent Codex Claude Code Cursor Antigravity Kiro engineering news'},
+    {id:'harness-news',provider:'search',query:'AI software engineering agent harness platform engineering technical report'},
+    {id:'agent-tools-news',provider:'search',query:'Cursor Kiro Antigravity coding agents developer tools news'},
+    {id:'engineering-practice-news',provider:'search',query:'AI assisted software engineering agent security evaluation engineering practice'},
+  ],filter:{keywords:[],regex:''},goal:'对 AI 软件工程、Coding Agent、Harness、团队上下文、协同工作与可信交付有价值的近期资讯',output:'pulse',locale:'zh'};
+  const news=await host.api('POST','/api/automations',{name:'AI 软件工程新闻',prompt:'搜索授权的公开技术主题，优先原始发布。',rule:'FREQ=DAILY;BYHOUR=8;BYMINUTE=20',timezone:'Asia/Shanghai',target:{kind:'local'},program:newsProgram});
+  assert.equal(news.status,201,JSON.stringify(news));
+  assert.equal(news.body.program.output,'pulse');
+  assert.equal(news.body.program.sources.length,4);
+  assert.equal((await host.api('GET',`/api/automations/${news.body.id}`)).body.program.locale,'zh');
+  assert.equal((await host.api('POST','/api/automations',{name:'Broken source',prompt:'test',program:{sources:[],filter:{},goal:'x',output:'pulse'}})).status,400);
   await host.api('PUT',path,{enabled:false});
   await host.close();host=await launch();
   record=(await host.api('GET',path)).body;assert.equal(record.enabled,false);assert.equal(record.runs[0].state,'succeeded');
+  const restored=(await host.api('GET',`/api/automations/${news.body.id}`)).body;
+  assert.equal(restored.program.sources.length,4);assert.equal(restored.scheduled,true);
   assert.equal((await host.api('DELETE',path)).status,204);
+  assert.equal((await host.api('DELETE',`/api/automations/${news.body.id}`)).status,204);
   assert.deepEqual((await host.api('GET','/api/automations')).body.items,[]);
   console.log('PASS: App grant, calendar CRUD, pause/resume, real local ACP run, history, cursor, error, restart and deletion');
 }finally{if(child){child.stdin.end();await exited;}await rm(temp,{recursive:true,force:true});}

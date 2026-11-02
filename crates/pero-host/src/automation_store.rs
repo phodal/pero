@@ -28,7 +28,8 @@ impl Store {
             CREATE TABLE IF NOT EXISTS admissions (execution_id TEXT PRIMARY KEY, body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS effects (sequence INTEGER NOT NULL, ordinal INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY(sequence,ordinal));
             CREATE TABLE IF NOT EXISTS attention (request_id TEXT PRIMARY KEY, reason TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS observations (execution_id TEXT NOT NULL, position INTEGER PRIMARY KEY AUTOINCREMENT, body TEXT NOT NULL);")
+            CREATE TABLE IF NOT EXISTS observations (execution_id TEXT NOT NULL, position INTEGER PRIMARY KEY AUTOINCREMENT, body TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS app_programs (id TEXT PRIMARY KEY, body TEXT NOT NULL);")
             .map_err(failure)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Exclusive).map_err(failure)?;
         let existing: Option<String> = tx.query_row("SELECT body FROM state WHERE id=1", [], |row| row.get(0)).optional().map_err(failure)?;
@@ -71,7 +72,11 @@ impl Store {
     /// Nothing returned from this function may be executed before COMMIT succeeds.
     pub fn apply(&mut self, commands: Vec<Command>, now: u64, input: Option<(&str, &str)>,
                  admission: Option<(&str, &Value)>, observation: Option<(&str, &Value)>) -> Result<Commit, String> {
-        self.apply_catalog(commands, now, input, admission, observation, None)
+        self.apply_catalog(commands, now, input, admission, observation, None, None)
+    }
+    pub fn program(&self, id: &str) -> Result<Option<domain::InformationProgram>, String> {
+        let body: Option<String> = self.db.query_row("SELECT body FROM app_programs WHERE id=?1", [id], |row| row.get(0)).optional().map_err(failure)?;
+        body.map(|body| serde_json::from_str(&body).map_err(failure)).transpose()
     }
     pub fn catalog(&self) -> Result<Vec<domain::catalog::CatalogEntry>, String> {
         let mut query = self.db.prepare("SELECT body FROM app_catalog ORDER BY id").map_err(failure)?;
@@ -79,7 +84,7 @@ impl Store {
             .map(|row| serde_json::from_str(&row.map_err(failure)?).map_err(failure)).collect()
     }
     pub fn apply_catalog(&mut self, commands: Vec<Command>, now: u64, input: Option<(&str, &str)>,
-                 admission: Option<(&str, &Value)>, observation: Option<(&str, &Value)>, entry: Option<&domain::catalog::CatalogEntry>) -> Result<Commit, String> {
+                 admission: Option<(&str, &Value)>, observation: Option<(&str, &Value)>, entry: Option<&domain::catalog::CatalogEntry>, program: Option<&domain::InformationProgram>) -> Result<Commit, String> {
         let tx = self.db.transaction_with_behavior(TransactionBehavior::Immediate).map_err(failure)?;
         let (body, mut sequence): (String, i64) = tx.query_row("SELECT body,sequence FROM state WHERE id=1", [], |row| Ok((row.get(0)?, row.get(1)?))).map_err(failure)?;
         let mut state: State = serde_json::from_str(&body).map_err(failure)?;
@@ -121,6 +126,10 @@ impl Store {
         tx.execute("UPDATE state SET body=?1,sequence=?2 WHERE id=1", params![body, sequence]).map_err(failure)?;
         if let Some(entry) = entry {
             tx.execute("INSERT INTO app_catalog VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET body=excluded.body", params![entry.id, serde_json::to_string(entry).map_err(failure)?]).map_err(failure)?;
+        }
+        if let Some(program) = program {
+            let id = entry.map(|entry| entry.id.as_str()).ok_or("Information program requires its automation")?;
+            tx.execute("INSERT INTO app_programs VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET body=excluded.body", params![id, serde_json::to_string(program).map_err(failure)?]).map_err(failure)?;
         }
         tx.commit().map_err(failure)?;
         Ok(Commit { receipt, effects })
