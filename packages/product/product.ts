@@ -38,6 +38,10 @@ export class Product {
     return this.name.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '') || this.id;
   }
 
+  macosDownloadLimitBytes(): number | undefined {
+    return this.shell === 'workbench' ? 160_000_000 : undefined;
+  }
+
   /** A product can open only its included Apps; secondary Apps use their first panel. */
   selectApp(name: unknown = this.entry?.app): Readonly<{ app: string; panel?: string }> {
     if (this.shell !== 'app' || typeof name !== 'string' || !this.apps.includes(name)) {

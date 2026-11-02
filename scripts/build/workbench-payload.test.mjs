@@ -5,6 +5,25 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { stageWorkbenchWeb } from './workbench-payload.mjs';
 
+test('Payload deduplication preserves file contents, modes, URLs and symbolic links', async () => {
+  const { deduplicatePayload } = await import('./builtin-app-payload.mjs');
+  const { statSync, chmodSync, symlinkSync, readlinkSync } = await import('node:fs');
+  const directory = mkdtempSync(join(tmpdir(), 'pero-deduplicate-'));
+  try {
+    for (const name of ['first', 'same', 'different-mode', 'different-content', 'small-a', 'small-b']) {
+      writeFileSync(join(directory, name), name.startsWith('small') ? 'small' : (name === 'different-content' ? 'b' : 'a').repeat(20_000));
+    }
+    chmodSync(join(directory, 'different-mode'), 0o755);
+    if (process.platform !== 'win32') symlinkSync('first', join(directory, 'link'));
+    deduplicatePayload(directory);
+    assert.equal(readFileSync(join(directory, 'same'), 'utf8'), 'a'.repeat(20_000));
+    assert.equal(statSync(join(directory, 'first')).ino, statSync(join(directory, 'same')).ino);
+    for (const name of ['different-content', ...(process.platform === 'win32' ? [] : ['different-mode'])]) assert.notEqual(statSync(join(directory, name)).ino, statSync(join(directory, 'first')).ino);
+    assert.notEqual(statSync(join(directory, 'small-a')).ino, statSync(join(directory, 'small-b')).ino);
+    if (process.platform !== 'win32') assert.equal(readlinkSync(join(directory, 'link')), 'first');
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('Workbench payload drops standalone Chat while retaining its own runtime and shared assets', () => {
   const directory = mkdtempSync(join(tmpdir(), 'pero-workbench-web-'));
   try {

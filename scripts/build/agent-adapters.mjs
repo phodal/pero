@@ -3,7 +3,7 @@ import { resolve, join } from 'node:path';
 import { build } from 'esbuild';
 import { buildHarness } from './harness.mjs';
 const root = resolve(import.meta.dirname, '../..');
-export async function stageAgentAdapters(payload) {
+export async function stageAgentAdapters(payload, node) {
   await buildHarness(join(payload, 'bin'));
   // Adapters are small JavaScript bundles; neither native Agent CLI is included.
   const adapters = join(payload, 'adapters');
@@ -25,7 +25,8 @@ export async function stageAgentAdapters(payload) {
   if (process.platform === 'win32') return;
   // Unix launchers remain available to external clients of the bundled adapters.
   const electron = process.platform === 'darwin' ? '$base/MacOS/Pero' : '$base/pero';
-  writeFileSync(join(payload, 'bin/node'), '#!/bin/sh\nbase="$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)"\nexport ELECTRON_RUN_AS_NODE=1\nexec "' + electron + '" "$@"\n', { mode: 0o755 });
+  if (node) cpSync(node, join(payload, 'bin/node'));
+  else writeFileSync(join(payload, 'bin/node'), '#!/bin/sh\nbase="$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)"\nexport ELECTRON_RUN_AS_NODE=1\nexec "' + electron + '" "$@"\n', { mode: 0o755 });
   mkdirSync(join(payload, 'node_modules/.bin'), { recursive: true });
   for (const [name, key, executable] of [['codex-acp', 'CODEX_PATH', 'codex'], ['claude-agent-acp', 'CLAUDE_CODE_EXECUTABLE', 'claude']]) {
     writeFileSync(join(payload, 'bin', name), `#!/bin/sh\nbase="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"\nexport ${key}="\${${key}:-${executable}}"\nexec "$base/bin/node" "$base/adapters/${name}.mjs" "$@"\n`, { mode: 0o755 });

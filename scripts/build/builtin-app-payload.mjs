@@ -1,4 +1,5 @@
-import { cpSync, existsSync, lstatSync, realpathSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, realpathSync, readdirSync, readFileSync, unlinkSync, linkSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join, resolve, sep } from 'node:path';
 
 const APP_ENTRIES = ['app.json', 'dist', 'backend', 'examples', 'evidence', 'THIRD_PARTY_NOTICES.md', 'README.md', 'licenses'];
@@ -11,6 +12,23 @@ const PAPER_ENTRIES = [
   'skills/paper-reproduction/SKILL.md',
   'skills/paper-reproduction/references/reproduction-protocol.md',
 ];
+
+/** Equal assets share storage in the distribution while keeping their original URLs. */
+export function deduplicatePayload(directory) {
+  const files = new Map();
+  function visit(path) {
+    const stat = lstatSync(path);
+    if (stat.isDirectory()) {
+      for (const name of readdirSync(path)) visit(join(path, name));
+    } else if (stat.isFile() && stat.size >= 16_384) {
+      const key = `${stat.mode}:${createHash('sha256').update(readFileSync(path)).digest('hex')}`;
+      const first = files.get(key);
+      if (first) { unlinkSync(path); linkSync(first, path); }
+      else files.set(key, path);
+    }
+  }
+  visit(directory);
+}
 
 /** Builtin distribution payload, shared by Workbench and standalone Products. */
 export function stageBuiltinApp(source, name, destination) {

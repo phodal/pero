@@ -2,7 +2,7 @@
 import { cpSync, mkdirSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { stageBuiltinApp } from './builtin-app-payload.mjs';
+import { stageBuiltinApp, deduplicatePayload } from './builtin-app-payload.mjs';
 import { stageAgentAdapters } from './agent-adapters.mjs';
 const root = resolve(import.meta.dirname, '../..');
 
@@ -21,13 +21,20 @@ export async function stageWorkbench(payload, product) {
   mkdirSync(join(payload, 'bin'), { recursive: true });
   cpSync(resolve(root, 'desktop/dist'), join(payload, 'desktop/dist'), { recursive: true });
   stageWorkbenchWeb(resolve(root, 'web/dist'), join(payload, 'web/dist'));
-  // Builtin Apps include runnable assets and stdlib Python, never development dependencies.
-  for (const appName of product.apps) stageBuiltinApp(resolve(root, 'apps', appName), appName, join(payload, 'apps', appName));
   // GPUI embeds these fonts in Wasm; Vite's public copy is unused duplication.
   const fonts = join(payload, 'web/dist/fonts');
   for (const name of readdirSync(fonts)) {
     if (/\.(ttf|otf|woff2?)$/.test(name) || name === '.fonts-stamp.json') rmSync(join(fonts, name));
   }
+  writeFileSync(join(payload, 'package.json'), JSON.stringify({ name: 'openpero', version: product.version, main: 'desktop/dist/main.cjs' }));
+  cpSync(resolve(root, 'node_modules/electron/LICENSE'), join(payload, 'Electron.LICENSE'));
+  cpSync(resolve(root, 'node_modules/electron/dist/LICENSES.chromium.html'), join(payload, 'LICENSES.chromium.html'));
+  await stageWorkbenchRuntime(payload, product);
+}
+
+export async function stageWorkbenchRuntime(payload, product, node) {
+  mkdirSync(join(payload, 'bin'), { recursive: true });
+  for (const appName of product.apps) stageBuiltinApp(resolve(root, 'apps', appName), appName, join(payload, 'apps', appName));
   const host = process.platform === 'win32' ? 'pero-host.exe' : 'pero-host';
   cpSync(resolve(root, 'target/release', host), join(payload, 'bin', host));
   const worker = process.platform === 'win32' ? 'pero-worker.exe' : 'pero-worker';
@@ -43,8 +50,6 @@ export async function stageWorkbench(payload, product) {
   if (process.platform === 'darwin') {
     for (const binary of [host, worker, computer, connectors]) execFileSync('/usr/bin/strip', ['-x', join(payload, 'bin', binary)]);
   }
-  writeFileSync(join(payload, 'package.json'), JSON.stringify({ name: 'openpero', version: product.version, main: 'desktop/dist/main.cjs' }));
-  cpSync(resolve(root, 'node_modules/electron/LICENSE'), join(payload, 'Electron.LICENSE'));
-  cpSync(resolve(root, 'node_modules/electron/dist/LICENSES.chromium.html'), join(payload, 'LICENSES.chromium.html'));
-  await stageAgentAdapters(payload);
+  await stageAgentAdapters(payload, node);
+  deduplicatePayload(payload);
 }

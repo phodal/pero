@@ -69,6 +69,8 @@ mod cloud_links;
 mod desktop_login;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
 pub mod native;
+#[cfg(all(feature = "native", not(target_family = "wasm")))]
+mod native_distribution;
 #[cfg(all(feature="native",not(target_family="wasm")))]
 pub(crate) mod native_web;
 #[cfg(all(feature="native-probe",not(target_family="wasm")))]

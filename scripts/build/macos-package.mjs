@@ -33,8 +33,8 @@ if (staged) {
 await stageWorkbench(payload, product);
 }
 // Generate platform assets from the Product's SVG; keep generated binaries out of source.
-if (product.icon) {
-  writeIcns(resolve(staged || resolve(root, 'products'), product.icon), join(resources, 'product.icns'));
+if (product.icon || !staged) {
+  writeIcns(product.icon ? resolve(staged || resolve(root, 'products'), product.icon) : resolve(root, 'resources/app-icon.svg'), join(resources, 'product.icns'));
   rmSync(join(resources, 'electron.icns'), { force: true });
 }
 const plist = join(output, 'Contents/Info.plist');
@@ -45,7 +45,7 @@ let content = readFileSync(plist, 'utf8')
 ;
 if (!staged) content = content.replace('</dict>\n</plist>', '<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>Pero Desktop</string><key>CFBundleURLSchemes</key><array><string>pero</string></array></dict></array></dict>\n</plist>');
 content = content.replace(/(<key>CFBundleShortVersionString<\/key>\s*<string>)[^<]+/, `$1${product.version}`);
-if (product.icon) content = content.replace(/(<key>CFBundleIconFile<\/key>\s*<string>)[^<]+/, '$1product.icns');
+if (product.icon || !staged) content = content.replace(/(<key>CFBundleIconFile<\/key>\s*<string>)[^<]+/, '$1product.icns');
 writeFileSync(plist, content);
 execFileSync('/usr/bin/plutil', ['-lint', plist], { stdio: 'inherit' });
 execFileSync('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', output], { stdio: 'pipe' });
@@ -57,7 +57,7 @@ function bytes(path) {
   const stat = statSync(path);
   return stat.isDirectory() ? readdirSync(path, { withFileTypes: true }).reduce((total, entry) => total + (entry.isSymbolicLink() ? 0 : bytes(join(path, entry.name))), 0) : stat.size;
 }
-const report = { app: output, appBytes: bytes(output), dmg: image, dmgBytes: statSync(image).size, limitBytes: staged ? null : 110_000_000, bundledAgentCLIs: false };
+const report = { app: output, appBytes: bytes(output), dmg: image, dmgBytes: statSync(image).size, limitBytes: product.macosDownloadLimitBytes() ?? null, bundledAgentCLIs: false };
 writeFileSync(join(destination, 'size.json'), JSON.stringify(report, null, 2) + '\n');
 console.log(report);
-if (!staged && report.dmgBytes >= report.limitBytes) throw new Error('DMG exceeds the 110 MB download budget. See target/package/size.json.');
+if (report.limitBytes && report.dmgBytes >= report.limitBytes) throw new Error(`DMG exceeds the ${report.limitBytes / 1_000_000} MB download budget. See target/package/size.json.`);

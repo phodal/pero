@@ -46,6 +46,7 @@ jobs:
       matrix:
         include:
           - { os: macos-15, platform: macos, arch: arm64, product: pero }
+          - { os: macos-15, platform: macos, arch: arm64, product: pero-native }
           - { os: ubuntu-24.04, platform: linux, arch: x64, product: pero }
           - { os: windows-2025, platform: windows, arch: x64, product: pero }
           - { os: macos-15, platform: macos, arch: arm64, product: virtual-cell }
@@ -79,8 +80,13 @@ jobs:
           node-version: '22'
           cache: npm
 
+      - name: Set up Go for bundled harness
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.3'
+          cache-dependency-path: harness/go/go.sum
+
       - name: Set up Rust nightly
-        if: matrix.product == 'pero'
         uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: nightly-2026-10-28
@@ -127,6 +133,10 @@ jobs:
         if: matrix.product == 'pero'
         run: npm run package:desktop 2>&1 | tee target/release-diagnostics/package.log
 
+      - name: Build portable Native GPUI package
+        if: matrix.product == 'pero-native'
+        run: npm run package:macos-native 2>&1 | tee target/release-diagnostics/package.log
+
       - name: Fetch pinned standalone Python
         if: matrix.product == 'virtual-cell'
         run: node scripts/release/python.mjs
@@ -142,7 +152,7 @@ jobs:
         run: node scripts/release/desktop.mjs verify
 
       - name: Launch actual packaged Desktop outside checkout
-        if: matrix.product == 'pero'
+        if: matrix.product == 'pero' || matrix.product == 'pero-native'
         run: |
           if [[ "$RUNNER_OS" == Linux ]]; then
             xvfb-run -a node scripts/release/desktop.mjs smoke 2>&1 | tee target/release-diagnostics/smoke.log
@@ -176,6 +186,8 @@ jobs:
             desktop/dist/release.json
             test-results/release/
             test-results/product/
+            test-results/native-package/
+            target/native-package/size.json
             target/products/package-com.openpero.virtualcell/size.json
           if-no-files-found: ignore
           retention-days: 7
@@ -209,8 +221,10 @@ jobs:
           Pero Desktop development packages, built and launch-tested on native GitHub Actions runners.
 
           - Pero: macOS Apple Silicon DMG, Windows x64 portable ZIP, Linux x64 portable tar.gz.
+          - Pero Native: separate macOS Apple Silicon DMG using GPUI and system WebKit, with bundled Host, Node and Apps; no source checkout needed. Native and Electron use separate data profiles.
           - Task Center defaults to https://app.openpero.com.
           - No source checkout needed: sign in, claim a public task and choose a save folder. Pero clones the repository and creates the task branch.
+          - Native local sessions and Apps are available; preparing a cloud contribution workspace is currently supported by Electron only. Python App environments are prepared on first use.
           - Install Git and a supported coding CLI and authenticate the CLI before starting. Native coding CLIs are not bundled.
           - To publish PRs, install GitHub CLI from https://cli.github.com and run `gh auth login --hostname github.com --git-protocol https` in any directory. Then check changes again in Pero. App sign-in and gh authorization are separate.
           - Virtual Cell: separate macOS Apple Silicon App with bundled Python. Opens directly into the research App; no checkout, coding CLI or gh required.

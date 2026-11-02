@@ -43,10 +43,11 @@ impl NativeConnectors {
         root: &Path,
         data: &Path,
         host: &Path,
+        node: Option<&Path>,
     ) -> anyhow::Result<(Arc<Self>, BTreeMap<String, String>)> {
         let helpers = root.join("packages/connectors/helpers");
         let mut child =
-            Command::new(std::env::var_os("PERO_ADAPTER_NODE").unwrap_or_else(|| "node".into()))
+            Command::new(node.unwrap_or_else(|| Path::new("node")))
                 .arg(helpers.join("pero-connectors-host.mjs"))
                 .arg(data.join("connectors"))
                 .arg(host.parent().unwrap().join("pero-connector-worker"))

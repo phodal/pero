@@ -104,6 +104,10 @@ pub(crate) fn native_application() -> Application {
 }
 
 pub fn run() -> anyhow::Result<()> {
+    let installation_receipt = (std::env::args().nth(1).as_deref() == Some("--verify-installation"))
+        .then(|| std::env::args().nth(2).map(PathBuf::from).ok_or_else(|| anyhow::anyhow!("Missing installation receipt path")))
+        .transpose()?;
+    let verifying_installation = installation_receipt.is_some();
     #[cfg(target_os = "windows")]
     unsafe {
         std::env::set_var("GPUI_DISABLE_DIRECT_COMPOSITION", "true");
@@ -129,13 +133,17 @@ pub fn run() -> anyhow::Result<()> {
     if !app_probe {
         relaunch_in_bundle();
     }
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()?;
+    let distribution = crate::native_distribution::NativeDistribution::open(
+        &std::env::current_exe()?,
+        &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."),
+    )?;
+    let root = distribution.root;
+    let packaged = distribution.packaged;
+    if verifying_installation && !packaged { anyhow::bail!("Installation verification requires a portable package"); }
     let data = std::env::var_os("PERO_NATIVE_DATA_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".pero/native-preview")
+            PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(if distribution.packaged { ".pero/native" } else { ".pero/native-preview" })
         });
     std::fs::create_dir_all(&data)?;
     // dev:native sets this. The preview is ad-hoc signed on every rebuild, so a
@@ -144,10 +152,12 @@ pub fn run() -> anyhow::Result<()> {
     let ephemeral_secrets = std::env::var_os("PERO_NATIVE_EPHEMERAL_SECRETS").is_some();
     let executable = std::env::var_os("PERO_NATIVE_HOST")
         .map(PathBuf::from)
-        .unwrap_or_else(|| root.join("target/release/pero-host"));
+        .unwrap_or(distribution.host);
+    let node = std::env::var_os("PERO_ADAPTER_NODE").map(PathBuf::from).or(distribution.node);
     let locale = std::env::var("PERO_LOCALE").unwrap_or_else(|_| "zh-CN".into());
     let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
     let mut paths = vec![
+        root.join("bin"),
         root.join("node_modules/.bin"),
         PathBuf::from("/opt/homebrew/bin"),
         home.join(".local/bin"),
@@ -179,17 +189,18 @@ pub fn run() -> anyhow::Result<()> {
     let product: NativeProduct =
         serde_json::from_slice(&std::fs::read(root.join("products/pero.json"))?)?;
     let (connector_owner, connector_environment) =
-        match crate::native_connectors::NativeConnectors::start(&root, &data, &executable) {
+        match crate::native_connectors::NativeConnectors::start(&root, &data, &executable, node.as_deref()) {
             Ok((owner, environment)) => (Some(owner), environment),
             Err(error) => {
                 eprintln!("Native Connectors: {error:#}");
                 (None, Default::default())
             }
         };
-    let mut host = Command::new(&executable)
-        .arg("--stdio")
+    let mut host_command = Command::new(&executable);
+    if let Some(node) = &node { host_command.env("PERO_ADAPTER_NODE", node); }
+    let mut host = host_command.arg("--stdio")
         .envs(connector_environment)
-        .current_dir(&root)
+        .current_dir(if packaged { &home } else { &root })
         .env("PERO_AGENT_ROOT", &root)
         .env("PATH", std::env::join_paths(paths)?)
         .env("PERO_LOCALE", &locale)
@@ -416,6 +427,8 @@ pub fn run() -> anyhow::Result<()> {
     let palettes: Palettes =
         serde_json::from_str(include_str!("../../../web/src/theme.generated.json"))?;
     let urls = commands.clone();
+    let installation_root = root.clone();
+    let included_apps = product.apps.clone();
     let app = native_application();
     let app = app.with_assets(crate::assets::UiAssets);
     app.on_open_urls(move |opened| {
@@ -425,7 +438,7 @@ pub fn run() -> anyhow::Result<()> {
         }
     });
     app.run(move |cx| {
-        let registration = if app_probe { None } else { Some(cx.register_url_scheme("pero")) };
+        let registration = if app_probe || verifying_installation { None } else { Some(cx.register_url_scheme("pero")) };
         cx.spawn(async move |_cx| {
             if let Some(registration) = registration { if let Err(error) = registration.await {
                 eprintln!("pero:// handler was not registered: {error:#}");
@@ -451,8 +464,8 @@ pub fn run() -> anyhow::Result<()> {
         let system_dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
         pero_theme::ResolvedAppearance::resolve(&Default::default(), system_dark, &palettes).install(cx);
         let mut options = gpui_kit::component::TitleBar::window_options();
-        options.show = !app_probe || paper_chat_probe;
-        options.focus = !app_probe || paper_chat_probe;
+        options.show = (!app_probe || paper_chat_probe) && !verifying_installation;
+        options.focus = options.show;
         options.window_bounds = Some(WindowBounds::Windowed(Bounds::centered(
             None,
             size(px(1440.), px(960.)),
@@ -464,7 +477,7 @@ pub fn run() -> anyhow::Result<()> {
         }
         let (window, view) = gpui_kit::open_window(options, cx, move |window, cx| {
             hide_titlebar_separator(window);
-            window.set_window_title("Pero Native Preview — local sessions");
+            window.set_window_title(if packaged { "Pero Native" } else { "Pero Native Preview — local sessions" });
             cx.new(|cx| {
                 let mut view = Workbench::new(palettes, system_dark, locale, window, cx);
                 view._subscriptions.push(cx.observe_window_appearance(window, |view, window, cx| {
@@ -492,7 +505,16 @@ pub fn run() -> anyhow::Result<()> {
         });
         let view = view.downgrade();
         cx.spawn(async move |cx| {
+            let (mut host_ready, mut harness_ready, mut apps_ready) = (false, false, false);
             while let Ok(event) = received.recv().await {
+                if verifying_installation {
+                    match event.kind.as_str() {
+                        "ready" => host_ready = true,
+                        "agents" => harness_ready = event.data.as_array().is_some_and(|agents| agents.iter().any(|agent| agent["id"] == "pero" && agent["available"] == true)),
+                        "apps_catalog" => apps_ready = event.data.as_array().is_some_and(|apps| included_apps.iter().all(|name| apps.iter().any(|app| app["name"].as_str() == Some(name)))),
+                        _ => {}
+                    }
+                }
                 if event.kind == "native_app_rpc" {
                     let _ = window.update(cx, |_, window, cx|view.update(cx, |view,cx|view.native_app_rpc(event,window,cx)));
                     continue;
@@ -578,6 +600,15 @@ pub fn run() -> anyhow::Result<()> {
                     eprintln!("Native UI delivery: {error}");
                     break;
                 }
+                if verifying_installation && host_ready && harness_ready && apps_ready {
+                    let receipt = serde_json::json!({"passed":true,"root":installation_root,"hostReady":true,"harnessReady":true,"apps":included_apps});
+                    if let Err(error) = std::fs::write(installation_receipt.as_ref().unwrap(), receipt.to_string()) {
+                        eprintln!("Installation receipt: {error}");
+                        std::process::exit(1);
+                    }
+                    cx.update(|cx| cx.quit());
+                    break;
+                }
             }
         })
         .detach();
@@ -591,7 +622,7 @@ pub fn run() -> anyhow::Result<()> {
             }
         })
         .detach();
-        if !app_probe || paper_chat_probe { cx.activate(true); }
+        if (!app_probe || paper_chat_probe) && !verifying_installation { cx.activate(true); }
     });
     if let Some(owner) = &connector_owner {
         owner.close();

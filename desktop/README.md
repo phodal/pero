@@ -334,6 +334,23 @@ use the Host App runtime and native WebView; see [Native App verification](../do
 for the accepted workflows and remaining limits. Native cross-platform packaging
 remains unverified. See [native verification](../docs/fitness/native-preview.md).
 
+### Portable Native macOS package
+
+`npm run package:macos-native` writes `target/native-package/Pero Native.app`
+and `Pero-Native-macos-arm64.dmg`. This distribution bundles the Rust Host,
+Worker, Apps, connector helpers, ACP JavaScript adapters and checksum-pinned
+official Node 22.23.4. It resolves resources relative to its installed executable;
+the source checkout and a system Node installation are not required. Native
+data lives in `~/.pero/native`, separately from Electron and the local preview.
+Python App environments are prepared on first use; coding CLIs and their login
+remain user-installed. Native cloud contribution workspace preparation remains
+unavailable. macOS packages are ad-hoc signed and not notarized.
+
+Release CI builds Native and Electron as separate macOS assets of the same
+prerelease. Both must pass their actual packaged launch checks before publication.
+`node scripts/release/native-smoke.mjs` checks a copied Native App outside the
+checkout with a clean home and no system Node in PATH.
+
 ### Native development packages (Electron)
 
 `npm run package:desktop` packages for the current machine: macOS DMG, Windows
@@ -341,9 +358,9 @@ portable ZIP or Linux portable tar.gz. Extract portable archives before launchin
 `Pero.exe` or `pero`. Linux desktop installations must provide Electron's usual
 system libraries; these archives are not an OS dependency installer.
 
-GitHub Release builds all three OS packages in parallel and builds the standalone
-Virtual Cell App on a separate macOS arm64 runner. Publication waits for all four
-native package checks. The standalone App bundles Python and needs no source
+GitHub Release builds Electron for macOS, Windows and Linux, the portable Native
+macOS DMG, and the standalone Virtual Cell App. Publication waits until every
+product check succeeds. The standalone App bundles Python and needs no source
 checkout, coding CLI or GitHub CLI. Current verification limits and artifact
 names are in [release products](../docs/fitness/release-products.md).
 
@@ -362,7 +379,7 @@ supply the existing custom Agent configuration. Electron supplies the adapters'
 Node runtime. Model authentication remains with the user's Agent installation.
 
 `target/package/size.json` reports uncompressed App bytes and compressed DMG bytes
-separately. Packaging fails if `Pero-macos-<arch>.dmg` is 100,000,000 bytes or larger.
+separately. Packaging fails if `Pero-macos-<arch>.dmg` is 160,000,000 bytes or larger.
 The App itself exceeds that limit because Electron includes Chromium. The bundle
 is ad-hoc signed and signature-verified; it is not notarized.
 

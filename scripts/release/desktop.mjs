@@ -11,19 +11,21 @@ const taskCenter = 'https://app.openpero.com';
 const kitRevision = 'ec89cfc36404667b7947aeb3d40b1c2859d729dd';
 const tag = process.env.RELEASE_TAG || '';
 const standalone = process.env.RELEASE_PRODUCT === 'virtual-cell';
+const native = process.env.RELEASE_PRODUCT === 'pero-native';
 const platform = { darwin: 'macos', linux: 'linux', win32: 'windows' }[process.platform];
 const product = Product.parse(JSON.parse(readFileSync(resolve(root, standalone ? 'products/virtual-cell/product.json' : 'products/pero.json'), 'utf8')));
-const asset = `${product.artifactStem()}-${platform}-${process.arch}`;
-if (process.env.GITHUB_ACTIONS !== 'true' || !platform || (standalone && process.platform !== 'darwin')) {
+const productId = native ? 'com.openpero.native' : product.id;
+const asset = `${native ? 'Pero-Native' : product.artifactStem()}-${platform}-${process.arch}`;
+if (process.env.GITHUB_ACTIONS !== 'true' || !platform || ((standalone || native) && process.platform !== 'darwin')) {
   throw new Error('Release packages require a native GitHub Actions runner; Virtual Cell requires macOS.');
 }
 if (!/^v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(tag)) throw new Error('RELEASE_TAG must identify an existing version tag.');
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 const revision = git('rev-parse', 'HEAD');
 if (git('rev-parse', `refs/tags/${tag}^{commit}`) !== revision) throw new Error('The release tag must match the checked out source.');
-const packageDir = resolve(root, standalone ? 'target/products/package-com.openpero.virtualcell' : 'target/package');
-const app = join(packageDir, process.platform === 'darwin' ? `${product.name}.app` : asset);
-const executable = process.platform === 'darwin' ? join(app, 'Contents/MacOS/Pero') : join(app, process.platform === 'win32' ? 'Pero.exe' : 'pero');
+const packageDir = resolve(root, native ? 'target/native-package' : standalone ? 'target/products/package-com.openpero.virtualcell' : 'target/package');
+const app = join(packageDir, process.platform === 'darwin' ? `${native ? 'Pero Native' : product.name}.app` : asset);
+const executable = process.platform === 'darwin' ? join(app, native ? 'Contents/MacOS/pero-native' : 'Contents/MacOS/Pero') : join(app, process.platform === 'win32' ? 'Pero.exe' : 'pero');
 const payload = join(app, process.platform === 'darwin' ? 'Contents/Resources/app' : 'resources/app');
 const archive = join(packageDir, asset + (process.platform === 'darwin' ? '.dmg' : process.platform === 'win32' ? '.zip' : '.tar.gz'));
 const metadataPath = resolve(root, 'desktop/dist/release.json');
@@ -38,37 +40,38 @@ if (operation === 'prepare') {
   }
   const metadata = {
     schemaVersion: 1, releaseTag: tag, productVersion: product.version, sourceRevision: revision,
-    productId: product.id, taskCenter: standalone ? null : taskCenter, platform: process.platform, arch: process.arch, gpuiKitRevision: standalone ? null : kitRevision,
+    productId, shell: native ? 'gpui' : 'electron', taskCenter: standalone ? null : taskCenter, platform: process.platform, arch: process.arch, gpuiKitRevision: standalone ? null : kitRevision,
     buildProvider: 'GitHub Actions',
     buildURL: `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
     signing: process.platform === 'darwin' ? 'ad-hoc' : 'unsigned', notarized: false, bundledAgentCLIs: false,
+    ...(native ? { nodeVersion: '22.23.4' } : {}),
     ...(standalone ? { python: JSON.parse(readFileSync(resolve(root, 'scripts/release/python.json'), 'utf8')) } : {}),
   };
   mkdirSync(resolve(root, 'desktop/dist'), { recursive: true });
   writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + '\n');
 } else if (operation === 'verify') {
   const metadata = JSON.parse(readFileSync(join(payload, 'desktop/dist/release.json'), 'utf8'));
-  if (metadata.sourceRevision !== revision || metadata.releaseTag !== tag || metadata.taskCenter !== (standalone ? null : taskCenter) || metadata.productId !== product.id || metadata.platform !== process.platform || metadata.arch !== process.arch || metadata.buildProvider !== 'GitHub Actions') {
+  if (metadata.sourceRevision !== revision || metadata.releaseTag !== tag || metadata.taskCenter !== (standalone ? null : taskCenter) || metadata.productId !== productId || metadata.platform !== process.platform || metadata.arch !== process.arch || metadata.buildProvider !== 'GitHub Actions') {
     throw new Error('Packaged release metadata does not match this workflow.');
   }
-  const main = readFileSync(join(payload, `desktop/dist/${standalone ? 'product' : 'main'}.cjs`), 'utf8');
-  if ((!standalone && !main.includes(taskCenter)) || main.includes('tests/fixtures') || main.includes('contribution-fixture')) {
+  const main = native ? '' : readFileSync(join(payload, `desktop/dist/${standalone ? 'product' : 'main'}.cjs`), 'utf8');
+  if ((!standalone && !native && !main.includes(taskCenter)) || main.includes('tests/fixtures') || main.includes('contribution-fixture')) {
     throw new Error('The packaged Desktop must use the online service and exclude fixture code.');
   }
   for (const name of ['tests', 'test-results', '.git', '.env', '.env.local', '.codex', '.claude', 'agents.local.json']) {
     if (existsSync(join(payload, name))) throw new Error(`Unexpected private or test input in package: ${name}`);
   }
   if (process.platform === 'darwin') {
-    for (const executable of ['Contents/MacOS/Pero', 'Contents/Resources/app/bin/pero-host']) {
+    for (const executable of [native ? 'Contents/MacOS/pero-native' : 'Contents/MacOS/Pero', 'Contents/Resources/app/bin/pero-host', ...(native ? ['Contents/Resources/app/bin/node'] : [])]) {
       const arch = execFileSync('/usr/bin/lipo', ['-archs', join(app, executable)], { encoding: 'utf8' }).trim();
       if (arch !== process.arch) throw new Error(`Unexpected packaged architecture: ${arch}`);
     }
     execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' });
   }
   if (!existsSync(archive)) throw new Error('Missing native release archive.');
-  if (process.platform === 'darwin' && !standalone) {
+  if (process.platform === 'darwin' && !standalone && !native) {
     const size = JSON.parse(readFileSync(join(packageDir, 'size.json'), 'utf8'));
-    if (size.dmgBytes >= 110_000_000) throw new Error('Pero DMG exceeds its 110 MB budget.');
+    if (size.dmgBytes >= product.macosDownloadLimitBytes()) throw new Error('Pero DMG exceeds its approved download budget.');
   }
   const sha256 = path => createHash('sha256').update(readFileSync(path)).digest('hex');
   const releaseMetadata = { ...metadata, archive: basename(archive), archiveSha256: sha256(archive) };
@@ -76,6 +79,9 @@ if (operation === 'prepare') {
   writeFileSync(releasedMetadata, JSON.stringify(releaseMetadata, null, 2) + '\n');
   writeFileSync(join(packageDir, `${asset}.SHA256SUMS`), [archive, releasedMetadata].map(path => `${sha256(path)}  ${basename(path)}\n`).join(''));
 } else if (operation === 'smoke') {
+  if (native) {
+    await import('./native-smoke.mjs');
+  } else {
   if (standalone) throw new Error('Use test:product:e2e for the standalone product.');
   const { assertDesktopAccess } = await import('../../tests/e2e/electron.mjs');
   assertDesktopAccess();
@@ -115,6 +121,7 @@ if (operation === 'prepare') {
     }
     if (desktop) await desktop.close();
     rmSync(scratch, { recursive: true, force: true });
+  }
   }
 } else if (operation === 'stage') {
   const assets = resolve(root, 'target/release-assets');
