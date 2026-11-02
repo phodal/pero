@@ -59,7 +59,7 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   useEffect(() => { if (readRequest) setMode('text'); }, [readRequest]);
   const view = lockText ? 'text' : mode;
   const textLabel = readLabel ?? t('pdfText');
-  const originalUrl = paper.metadataUrl ?? (paper.source === 'local-pdf' ? reading.originalUrl ?? reading.document?.sourceUrl : paper.url);
+  const originalUrl = paper.fullTextUrl ?? paper.metadataUrl ?? (paper.source === 'local-pdf' ? reading.originalUrl ?? reading.document?.sourceUrl : paper.url);
   const modes = <div className="pa-reader-modes">
     <Button variant="ghost" aria-pressed={view === 'text'} onClick={() => { setMode('text'); setError(''); }}>{textLabel}</Button>
     {(paper.pdfUrl || reading.document) && <Button variant="ghost" aria-pressed={view === 'pdf'} onClick={() => void open()}>PDF</Button>}

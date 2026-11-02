@@ -91,7 +91,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   }, { path, body });
   await backToLibrary(frame);
   const paper = await post('/api/papers/import', { title: fixture.realPdf ? 'Attention Is All You Need · PDF' : 'Synthetic PDF reading', sourceId: '1706.03762v1',
-    url: 'https://arxiv.org/abs/1706.03762v1', pdfUrl: 'https://arxiv.org/pdf/1706.03762v1', authors: [], contentKind: 'full-text', content: fixture.text });
+    url: 'https://arxiv.org/abs/1706.03762v1', fullTextUrl: 'https://arxiv.org/html/1706.03762v1', pdfUrl: 'https://arxiv.org/pdf/1706.03762v1', authors: [], contentKind: 'full-text', content: fixture.text });
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
   const save = await saveLibraryCopies(frame, paper.title);
   await save.getByRole('button', { name: 'Close', exact: true }).click();
@@ -106,7 +106,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await expect(first).toHaveAttribute('data-selection-ready', 'true', { timeout: 30000 });
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900));
   const tools = frame.locator('.pa-reader-tools');
-  await expect(tools.getByRole('link', { name: 'Open original source', exact: true })).toHaveAttribute('href', 'https://arxiv.org/abs/1706.03762v1');
+  await expect(tools.getByRole('link', { name: 'Open original source', exact: true })).toHaveAttribute('href', 'https://arxiv.org/html/1706.03762v1');
   const toolBoxes = await Promise.all(['Text', 'PDF', 'Zoom out', 'Zoom in'].map(name => tools.getByRole('button', { name, exact: true }).boundingBox()));
   expect(toolBoxes.every(box => box && Math.abs(box.y - toolBoxes[0].y) <= 4)).toBe(true);
   expect(await frame.locator('.pa-reading-bar h1').evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeLessThanOrEqual(16);
