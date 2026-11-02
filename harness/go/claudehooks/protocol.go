@@ -32,6 +32,7 @@ type Input struct {
 	TranscriptPath       string          `json:"transcript_path,omitempty"`
 	AgentID              string          `json:"agent_id,omitempty"`
 	AgentType            string          `json:"agent_type,omitempty"`
+	AgentTranscriptPath  string          `json:"agent_transcript_path,omitempty"`
 	StopHookActive       bool            `json:"stop_hook_active"`
 	Source               string          `json:"source,omitempty"`
 	Trigger              string          `json:"trigger,omitempty"`
@@ -256,7 +257,7 @@ func blockingEvent(event string) bool {
 
 func runControlEvent(event string) bool {
 	switch event {
-	case "PreCompact", "PostCompact", "SessionEnd", "Notification", "StopFailure", "InstructionsLoaded", "DirectoryAdded", "TaskCreated":
+	case "PreCompact", "PostCompact", "SessionEnd", "Notification", "StopFailure", "InstructionsLoaded", "DirectoryAdded", "TaskCreated", "SubagentStart":
 		return false
 	}
 	return true

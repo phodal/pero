@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "command_output.go",
         "hooks.go",
+        "hooks_subagent_start.go",
         "mcp.go",
         "preprocess.go",
         "transcript.go",
@@ -29,6 +30,7 @@ go_test(
     srcs = [
         "command_output_test.go",
         "compaction_test.go",
+        "hooks_subagent_lifecycle_test.go",
         "hooks_subagents_test.go",
         "hooks_test.go",
         "mcp_test.go",

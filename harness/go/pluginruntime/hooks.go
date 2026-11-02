@@ -62,7 +62,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 		for _, hook := range pkg.Hooks {
 			count++
 			switch hook.Event {
-			case "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PreCompact", "PostCompact", "Stop", "SessionEnd":
+			case "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PreCompact", "PostCompact", "Stop", "SessionEnd", "SubagentStart", "SubagentStop":
 			default:
 				return nil, fmt.Errorf("plugin-runtime: hook event %q is not implemented", hook.Event)
 			}
@@ -102,7 +102,11 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 	}
 	app := &HookApp{h: h, packages: append([]plugins.Package(nil), packages...), options: options, transcriptDirectory: directory, states: make(map[*harness.Agent]*hookAgentState)}
 	app.options.Environment = append([]string(nil), options.Environment...)
-	definition := point.Define(point.Descriptor{ID: "harness/claude-command-hooks", Requires: []point.Requirement{point.Require(harness.AgentHooksKey), point.Require(harness.ToolRegistryKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
+	requires := []point.Requirement{point.Require(harness.AgentHooksKey), point.Require(harness.ToolRegistryKey)}
+	if h.Subagents() != nil {
+		requires = append(requires, point.Require(harness.SubagentRegistryKey))
+	}
+	definition := point.Define(point.Descriptor{ID: "harness/claude-command-hooks", Requires: requires}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
 		app.owner = run.Context
 		if err := run.BeforeCleanup("claude-hooks/drain", app.drain); err != nil {
 			return nil, err
@@ -122,6 +126,20 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 
 func (app *HookApp) register(run *point.Run) error {
 	hooks, tools := app.h.Hooks(), app.h.Tools()
+	if registry := app.h.Subagents(); registry != nil {
+		if _, err := registry.Started.On(run, func(ctx context.Context, info harness.SubagentLifecycle) error {
+			if info.Child == nil {
+				return nil
+			}
+			// Start is informational: even an exit-2 hook cannot deny spawning.
+			if err := app.withAgent(ctx, info.Child, func(ctx context.Context, _ *hookAgentState) error { return app.startingChild(ctx, info.Child) }); err != nil {
+				app.h.Runtime().Logger().Warn("Claude SubagentStart hook failed without blocking creation", "error", err)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
 	if _, err := hooks.PreStep.Use(run, func(ctx context.Context, input harness.StepInput, next point.Next[harness.StepInput]) (harness.StepInput, error) {
 		err := app.withAgent(ctx, input.Agent, func(ctx context.Context, state *hookAgentState) error { return app.prepare(ctx, &input, state) })
 		if err != nil {
@@ -246,11 +264,11 @@ func (app *HookApp) withAgent(ctx context.Context, agent *harness.Agent, effect 
 }
 
 func (app *HookApp) prepare(ctx context.Context, input *harness.StepInput, state *hookAgentState) error {
-	if input.Agent.Parent() != nil {
-		return nil
-	}
 	if state.turn != input.Turn {
 		state.turn, state.stopBlocks = input.Turn, 0
+	}
+	if input.Agent.Parent() != nil {
+		return nil
 	}
 	if !state.started {
 		source := "startup"
@@ -362,8 +380,9 @@ func (app *HookApp) afterTool(ctx context.Context, outcome *harness.ToolOutcome)
 }
 
 func (app *HookApp) stopping(ctx context.Context, agent *harness.Agent, state *hookAgentState) error {
+	event := "Stop"
 	if agent.Parent() != nil {
-		return nil
+		event = "SubagentStop"
 	}
 	messages, err := agent.Session().DeriveMessages()
 	if err != nil {
@@ -376,7 +395,7 @@ func (app *HookApp) stopping(ctx context.Context, agent *harness.Agent, state *h
 			break
 		}
 	}
-	decision, err := app.event(ctx, agent, claudehooks.Input{Event: "Stop", StopHookActive: state.stopBlocks > 0, LastAssistantMessage: lastAssistant})
+	decision, err := app.event(ctx, agent, claudehooks.Input{Event: event, StopHookActive: state.stopBlocks > 0, LastAssistantMessage: lastAssistant})
 	if err != nil {
 		return err
 	}
@@ -394,7 +413,7 @@ func (app *HookApp) stopping(ctx context.Context, agent *harness.Agent, state *h
 	if text == "" {
 		text = "Claude command hook requires the workflow to continue."
 	}
-	return agent.Inject(hookMessage("Stop", text))
+	return agent.Inject(hookMessage(event, text))
 }
 
 func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claudehooks.Input) (claudehooks.Decision, error) {
@@ -410,18 +429,18 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 			if hook.Event != input.Event {
 				continue
 			}
-			matcherValue, matches := "", true
+			matcherValue, filter, matches := "", false, true
 			switch input.Event {
 			case "SessionStart":
-				matcherValue = input.Source
+				matcherValue, filter = input.Source, true
 			case "PreToolUse", "PostToolUse", "PostToolUseFailure":
-				matcherValue = input.ToolName
+				matcherValue, filter = input.ToolName, true
+			case "SubagentStart", "SubagentStop":
+				matcherValue, filter = input.AgentType, true
 			case "PreCompact", "PostCompact":
-				matcherValue = input.Trigger
-			default:
-				matcherValue = ""
+				matcherValue, filter = input.Trigger, true
 			}
-			if matcherValue != "" {
+			if filter {
 				var err error
 				matches, err = claudehooks.Match(hook.Matcher, matcherValue)
 				if err != nil {
@@ -434,6 +453,12 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 			if input.TranscriptPath == "" {
 				var err error
 				input.TranscriptPath, err = app.writeTranscript(identity.Session)
+				if err != nil {
+					return claudehooks.Decision{}, err
+				}
+			}
+			if input.Event == "SubagentStop" && input.AgentTranscriptPath == "" {
+				input.AgentTranscriptPath, err = app.writeTranscript(agent)
 				if err != nil {
 					return claudehooks.Decision{}, err
 				}

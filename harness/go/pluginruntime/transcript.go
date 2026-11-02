@@ -53,8 +53,22 @@ func (app *HookApp) writeTranscript(agent *harness.Agent) (string, error) {
 		return "", err
 	}
 	identity := sha256.Sum256([]byte(agent.ID()))
-	path := filepath.Join(app.transcriptDirectory, hex.EncodeToString(identity[:])+".jsonl")
-	file, err := os.CreateTemp(app.transcriptDirectory, ".transcript-*")
+	directory := app.transcriptDirectory
+	name := hex.EncodeToString(identity[:]) + ".jsonl"
+	if agent.Parent() != nil {
+		root := agent.Parent()
+		for root.Parent() != nil {
+			root = root.Parent()
+		}
+		parent := sha256.Sum256([]byte(root.ID()))
+		directory = filepath.Join(directory, hex.EncodeToString(parent[:]), "subagents")
+		if err := os.MkdirAll(directory, 0700); err != nil {
+			return "", fmt.Errorf("plugin-runtime: create subagent transcript directory: %w", err)
+		}
+		name = "agent-" + name
+	}
+	path := filepath.Join(directory, name)
+	file, err := os.CreateTemp(directory, ".transcript-*")
 	if err != nil {
 		return "", fmt.Errorf("plugin-runtime: create hook transcript: %w", err)
 	}
