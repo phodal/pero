@@ -21,6 +21,7 @@ pub mod mcp;
 pub mod roadmap;
 pub mod session_settings;
 pub mod usage;
+pub mod user_questions;
 pub mod workbench;
 pub mod web_document;
 pub mod table_projection;
@@ -137,6 +138,11 @@ pub enum HostCommand {
         thread_id: String,
         request_id: String,
         option_id: Option<String>,
+    },
+    AnswerUserQuestions {
+        thread_id: String,
+        request_id: String,
+        reply: user_questions::QuestionReply,
     },
     Model {
         thread_id: String,
