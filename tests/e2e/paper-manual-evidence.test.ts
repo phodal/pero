@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
+import { AppParameterSchema } from '../../packages/app-sdk/src/app-use.ts';
 import { PreparedAppWrite } from '../../desktop/src/main/app-write.ts';
 import { AppWriteRoutes } from '../../desktop/src/main/app-write-routes.ts';
 import { reviseEvidence, reportsCitingPaper, type ManualEvidence } from '../../apps/paper-agent/ui-src/manual-evidence.ts';
@@ -76,5 +77,33 @@ test('installed manual record write prepares and routes every operation includin
       { ...initial, decisions: [{ ...initial.decisions[0], paperId: value }] },
       { ...initial, evidence: [{ ...initial.evidence[0], paperId: value }] },
       { ...initial, evidence: [{ ...initial.evidence[0], reportId: value }] },
+    ])]) assert.throws(() => new PreparedAppWrite(definition, document));
+});
+
+
+test('every installed Paper write uses the supported App parameter schema subset', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../../apps/paper-agent/app.json', import.meta.url), 'utf8'));
+  for (const write of manifest.contributes.writes) {
+    assert.doesNotThrow(() => AppParameterSchema.parse(write.schema), write.name);
+  }
+});
+
+test('installed source-report writes accept observed references but not nullable or malformed IDs', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../../apps/paper-agent/app.json', import.meta.url), 'utf8'));
+  const write = manifest.contributes.writes.find((route: { name: string }) => route.name === 'research-source-report');
+  assert.ok(write, 'installed research-source-report route');
+  const definition = { app: manifest.name, panel: 'main', version: manifest.version, ...write };
+  assert.equal(definition.path, '/api/research/source-report');
+  const id = 'a'.repeat(64);
+  const create = { operation: 'create', bundleId: id, title: 'Observed source', observationIds: [id], interpretations: ['Unresolved'] };
+  for (const document of [create, { operation: 'read', bundleId: id, reportId: id },
+    ...['observations', 'list'].map(operation => ({ operation, bundleId: id }))]) {
+    assert.deepEqual(new PreparedAppWrite(definition, document).document, document);
+  }
+  for (const document of [{ operation: 'list' }, { ...create, operation: 'execute' }, { ...create, visualReview: 'verified' },
+    { ...create, observationIds: [] }, { ...create, observationIds: Array(65).fill(id) },
+    ...[null, 42, 'source-id', 'a'.repeat(63), 'a'.repeat(65)].flatMap(value => [
+      { ...create, bundleId: value }, { ...create, observationIds: [value] },
+      { operation: 'read', bundleId: id, reportId: value },
     ])]) assert.throws(() => new PreparedAppWrite(definition, document));
 });

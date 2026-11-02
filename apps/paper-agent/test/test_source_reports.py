@@ -79,6 +79,9 @@ class SourceReports(unittest.TestCase):
         self.assertEqual(observation['anchor']['contentDigest'], digest(read['content'].encode()))
         self.assertEqual((observation['anchor']['startLine'], observation['anchor']['endLine']), (1, 3))
         image = self.read('image', memberId=self.image['id'])
+        for ids in ([read['observationId']] * 2, [None], ['g' * 64], ['A' * 64], ['source-id']):
+            with self.subTest(observationIds=ids), self.assertRaises(Invalid):
+                self.report('create', title='Invalid references', observationIds=ids)
         created = self.report('create', title='Observed source', observationIds=[read['observationId'], image['observationId']], interpretations=['The visual meaning has not been checked.'])
         self.assertEqual(created['interpretations'][0]['status'], 'unresolved')
         self.assertEqual(created['observations'][1]['anchor']['visualReview'], 'not_reviewed')
