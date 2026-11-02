@@ -427,6 +427,61 @@ class LibraryFilesTest(unittest.TestCase):
         self.assertIsNone(review['version'])
         self.assertFalse(review['tex']['available'])
 
+    def test_missing_or_corrupt_original_is_409_and_only_exact_owner_restore_repairs_it(self):
+        plan = self.confirm(tex=False)
+        acquired = self.acquire(plan, 'pdf')
+        self.export(plan)
+        document = self.store.paper_pdf(self.paper.id)
+        annotation = PdfAnnotation.create(dict(page=1, kind='highlight', quote='First page.',
+            rects=[dict(x=.1, y=.1, width=.3, height=.1)]), document, NOW)
+        self.store.save_annotation(annotation)
+        original = self.store.pdf_bytes(document)
+        path = self.store.root / 'pdf-files' / (document.file_digest + '.pdf')
+        selection = dict(bundleId=plan['bundleId'], resourceId=plan['pdfResourceId'])
+        server = ThreadingHTTPServer(('127.0.0.1', 0), handler(self.store, 'test-token', now=lambda: NOW))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(thread.join, 3)
+        self.addCleanup(server.shutdown)
+        for damage in ('missing', 'corrupt'):
+            with self.subTest(damage=damage):
+                path.unlink() if damage == 'missing' else path.write_bytes(b'changed cached bytes')
+                with (
+                    patch.object(self.store.imports, 'inspect', side_effect=AssertionError('No implicit inspection')),
+                    patch.object(self.store.pdf_downloads, 'request', side_effect=AssertionError('No implicit acquisition')),
+                ):
+                    for operation in (dict(operation='prepare'), dict(operation='export', documentId=document.id)):
+                        with self.assertRaises(Invalid) as error:
+                            self.files.command(self.paper, operation, NOW)
+                        self.assertEqual(error.exception.status, 409)
+                        self.assertIn('Restore PDF', error.exception.detail)
+                    connection = HTTPConnection('127.0.0.1', server.server_port, timeout=5)
+                    connection.request('POST', f'/api/papers/{self.paper.id}/files', json.dumps(dict(operation='prepare')),
+                        {'Content-Type': 'application/json', 'X-Pero-App-Token': 'test-token'})
+                    response = connection.getresponse()
+                    payload = json.loads(response.read())
+                    connection.close()
+                    self.assertEqual(response.status, 409, payload)
+                    self.assertEqual(payload['code'], 'research_invalid')
+                    self.assertIn('Restore PDF', payload['detail'])
+                self.assertEqual(self.store.paper_pdf(self.paper.id), document)
+                self.assertEqual(self.store.annotation(annotation.id), annotation)
+                unavailable = self.store.pdf_downloads.request(dict(operation='status', **selection))
+                self.assertEqual(unavailable['status'], 'unavailable')
+                self.store.pdf_downloads.transport = LibraryPdfTransport(pdf_fixture(phrase='Changed server bytes.'))
+                self.assertEqual(self.acquire(plan, 'pdf')['status'], 'failed')
+                self.assertEqual(self.store.pdf_downloads.request(dict(operation='status', **selection))['receipt'], acquired['receipt'])
+                self.store.pdf_downloads.transport = LibraryPdfTransport(original)
+                restored = self.acquire(plan, 'pdf')
+                self.assertEqual(restored['status'], 'completed')
+                self.assertEqual(restored['receipt'], acquired['receipt'])
+                self.assertEqual(self.store.pdf_bytes(document), original)
+                self.assertEqual(self.store.paper_pdf(self.paper.id), document)
+                self.assertEqual(self.store.annotation(annotation.id), annotation)
+                self.assertTrue(self.review()['pdf']['cached'])
+                self.assertEqual(Path(self.export(plan)['pdf']).read_bytes(), original)
+
     def test_copy_collision_is_idempotent_and_preserves_existing_bytes(self):
         directory = Path(self.copies)
         first = write_copy(directory, 'paper.pdf', b'first')

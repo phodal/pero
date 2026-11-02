@@ -178,8 +178,21 @@ class LibraryFiles:
             raise Invalid('This paper has no supported PDF candidate')
         return None, resource.originalUrl
 
+    def original_pdf(self, document):
+        """Missing bytes do not turn a historical document into a new download."""
+        recovery = (' Use Restore PDF in the original research resource, if available. '
+                    'Library Save will not replace this saved version.')
+        try:
+            content = self.store.pdf_bytes(document)
+        except OSError as error:
+            raise Invalid('Saved PDF original is missing or unreadable.' + recovery, 409) from error
+        if digest(content) != document.file_digest:
+            raise Invalid('Saved PDF original failed integrity checks.' + recovery, 409)
+        return content
+
     def prepare(self, paper, value, now):
         document, seed = self._context(paper)
+        original = self.original_pdf(document) if document else None
         draft = None
         if seed:
             if value.get('draftId'):
@@ -222,7 +235,7 @@ class LibraryFiles:
                     version=pdf.revision if pdf else None,
                     pdf=dict(available=True, cached=document is not None, resourceId=pdf.id if pdf else None,
                              url=document.source_url if document else pdf.originalUrl, license=None,
-                             size=len(self.store.pdf_bytes(document)) if document else None),
+                             size=len(original) if original is not None else None),
                     tex=dict(available=source is not None, resourceId=source.id if source else None,
                              url=source.originalUrl if source else None, license=None, size=None, reason=reason), warnings=warnings)
 
@@ -311,9 +324,7 @@ class LibraryFiles:
                             receipt['requestUrl'], acquired.pages, receipt['fetchedAt']), self.store.pdf_bytes(acquired))
         if document is None:
             raise Invalid('Save an approved PDF before exporting copies', 409)
-        content = self.store.pdf_bytes(document)
-        if digest(content) != document.file_digest:
-            raise Invalid('Saved PDF original failed integrity checks', 409)
+        content = self.original_pdf(document)
         directory = paper_directory(self.root)
         saved = dict(pdf=str(write_copy(directory, file_stem(paper) + '.pdf', content)))
         if source_id:

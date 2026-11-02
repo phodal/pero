@@ -152,3 +152,31 @@ Final locked-environment full suite after these identity fixes: **228 tests in
 `/tmp/pero-library-python-tests-identity.log`. `git diff --check` passed.
 Production code and tests were unchanged after this run; this is L0 evidence,
 not a claim of a completed Desktop/live/provider/scientific run.
+
+## Missing/corrupt original: explicit recovery boundary
+
+A fixture-backed authenticated HTTP probe reproduced Library `prepare` returning
+500 after its saved PDF bytes were removed. The historical `PdfDocument` still
+existed; it must not be treated as a new paper/download or replaced from current
+metadata. Preparation and copy export now return a specific 409 for missing,
+unreadable or digest-mismatched originals, preserving the document identity.
+No inspection, fresh grant or implicit acquisition is started.
+
+The recovery instruction refers only to the existing research resource's
+**Restore PDF**, when available. The real existing owner was exercised: changed
+server bytes are refused against the original SHA; original bytes restore the
+file while retaining the receipt, document and annotation. Library review then
+works again. Full recovery inside the Library dialog is not implemented here.
+Legacy PDFs without such a resource retain an explicit unavailable-original error.
+A separate existing local re-import shortcut returns on a matching digest without
+repairing missing bytes; that path is not advertised as a recovery method and is
+not changed by this narrow fix.
+
+Focused verification: **21 Library tests passed in 12.294 seconds**. The regression
+covers missing and corrupt originals, real HTTP 409, no implicit inspection/job
+request, exact-SHA restore and unchanged historical objects. Logs:
+`/tmp/pero-library-missing-original-focused.log`; full locked-suite result follows.
+Final locked Python verification: **234 tests in 71.224 seconds: 233 passed,
+one existing Windows-only skip**. Full log:
+`/tmp/pero-library-missing-original-full.log`. Independent focused review and
+`git diff --check` passed. No live network, model or scientific execution was used.
