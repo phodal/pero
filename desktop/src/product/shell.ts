@@ -112,6 +112,7 @@ let chatOpen = false;
 let chatExpanded = false;
 let capturePending = false;
 let chatReady = false;
+let appOpened = false;
 const chatNotices = new Map<string, 'running' | 'permission' | 'auth' | 'error'>();
 let selectedThread: string | undefined;
 const refreshChatNotice = () => {
@@ -124,7 +125,9 @@ const refreshChatNotice = () => {
   });
 };
 const initializeChat = () => {
-  if (!context?.connected || !chatReady) return;
+  // Host readiness precedes App resolution, which owns the App store lock.
+  // Keep the local draft until that work completes before preparing its session.
+  if (!context?.connected || !chatReady || !appOpened) return;
   chat?.event({ version: 1, kind: 'ready', request_id: null, text: '' });
   void Promise.all([
     bridge.sessionCommand({ action: 'list_agents' }),
@@ -200,7 +203,10 @@ bridge.onEvent(event => {
   if (event.kind === 'apps_opened') {
     const value = event.data as { name: string; panel: string };
     // A late response to another selection can be retained without changing the current App.
-    if (value.name === selected.app) { selected.panel = value.panel; update(); }
+    if (value.name === selected.app && (!selected.panel || value.panel === selected.panel)) {
+      selected.panel = value.panel; update();
+      if (!appOpened) { appOpened = true; initializeChat(); }
+    }
   }
   surface.event(event);
 });

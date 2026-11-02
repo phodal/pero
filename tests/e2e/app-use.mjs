@@ -1,6 +1,7 @@
 // Actual Electron, Virtual Cell and ACP -> MCP -> App Use. No model login.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { closeOwnedElectron } from './owned-electron-close.mjs';
 import { productShellStyle } from '../../scripts/build/shell-style.mjs';
 import { requestAppChat } from '../fixtures/app-chat-launch.mjs';
 import { waitForFullAppUse } from '../fixtures/app-use-progress.mjs';
@@ -104,6 +105,7 @@ try {
     await expect.poll(async()=>(await active()).state).toBe('idle');
     const prepared = await active();
     expect(prepared.id).toBe(startingDraft);
+    expect((await state()).chats.map(chat => chat.id)).toEqual([startingDraft]);
     expect(prepared.session_id).toBe('app-use-fixture');
     expect(prepared.error).toBeNull();
     expect(prepared.messages).toEqual([]);
@@ -341,6 +343,6 @@ try {
   }
   throw error;
 } finally {
-  if (app) await app.close();
-  await rm(temp, { recursive: true, force: true });
+  try { if (app) await closeOwnedElectron(app); }
+  finally { await rm(temp, { recursive: true, force: true }); }
 }
