@@ -174,6 +174,37 @@ class LiteratureTest(unittest.TestCase):
                 self.assertEqual(snapshot.content, content)
                 self.assertEqual(PaperSnapshot.from_record(snapshot.to_dict()), snapshot)
 
+    def test_arxiv_abstract_fallback_keeps_import_and_full_text_scope_distinct(self):
+        official = ('<meta name="citation_title" content="Official paper">'
+                    '<meta name="citation_arxiv_id" content="2601.12345">'
+                    '<meta name="citation_author" content="Researcher">'
+                    '<meta name="citation_abstract" content="Exact official abstract &amp; evidence.">')
+        for source, full, body, status in (('huggingface', True, '', 404),
+                                         ('huggingface', True, '   ', 200),
+                                         ('huggingface', True, '', 503),
+                                         ('alphaxiv', True, '', 404),
+                                         ('alphaxiv', False, '', 404)):
+            with self.subTest(source=source, full=full, status=status, body=body):
+                def fetch(url, **_options):
+                    return Response(official, headers={'Content-Type': 'text/html'}) if urlsplit(url).hostname == 'arxiv.org' else Response(body, status)
+                reading = LiteratureClient(fetch).read(dict(source=source, id='2601.12345v1', full=full))
+                paper = PaperSnapshot.from_reading(reading, NOW)
+                self.assertEqual((paper.source, paper.content_kind, paper.source_revision), ('arxiv', 'abstract', 'v1'))
+                self.assertEqual(paper.content, 'Exact official abstract & evidence.')
+                self.assertEqual(paper.url, 'https://arxiv.org/abs/2601.12345v1')
+                self.assertIn('abstract only', paper.limitation)
+                self.assertEqual(PaperSnapshot.from_record(paper.to_record()), paper)
+        for markup in ('<meta name="citation_title" content="No abstract">',
+                       official.replace('2601.12345', '2601.99999'),
+                       official.replace('2601.12345', '2601.12345v2')):
+            with self.subTest(markup=markup), self.assertRaises(Invalid):
+                LiteratureClient(lambda url, **kw: Response(markup, headers={'Content-Type': 'text/html'}) if urlsplit(url).hostname == 'arxiv.org' else Response(status=404)).read(dict(id='2601.12345v1', source='huggingface', full=True))
+        # Metadata availability must never replace already retrieved source bytes.
+        unchanged = '# Source\nOriginal full text.'
+        for markup in (official, '<meta name="citation_title" content="No abstract">'):
+            reading = LiteratureClient(lambda url, **kw: Response(markup, headers={'Content-Type': 'text/html'}) if urlsplit(url).hostname == 'arxiv.org' else Response(unchanged)).read(dict(id='2601.12345', source='huggingface', full=True))
+            self.assertEqual((reading['contentKind'], reading['content']), ('full-text', unchanged))
+
     def test_abstract_sources_reconstruct_content_and_retain_full_text_limitations(self):
         def fetch(url, **_options):
             parsed = urlsplit(url)

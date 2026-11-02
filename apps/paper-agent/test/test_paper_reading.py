@@ -6,6 +6,8 @@ import unittest
 
 from test_paper_documents import HtmlTransport, SOURCE, NOW
 from paper_agent.model import Invalid, PaperSnapshot
+from paper_agent.literature import LiteratureClient
+from test_literature import Response
 from paper_agent.paper_documents import PaperDocuments
 from paper_agent.paper_reading import reading_command
 from paper_agent.research_resources import ImportDraft, ResearchResource
@@ -14,13 +16,17 @@ from paper_agent.store import ResearchStore
 
 class PaperReadingTest(unittest.TestCase):
     def test_review_selection_fixed_reading_and_restart(self):
-        for identifier, tex in (('2606.03979', False), ('2606.03979v2', True)):
-            with self.subTest(identifier=identifier, tex=tex), tempfile.TemporaryDirectory() as directory:
+        for identifier, tex, fallback in (('2606.03979', False, False), ('2606.03979v2', True, False), ('2606.03979v2', False, True)):
+            with self.subTest(identifier=identifier, tex=tex, fallback=fallback), tempfile.TemporaryDirectory() as directory:
                 store = ResearchStore(directory)
-                paper = store.save_paper(PaperSnapshot.from_reading(dict(source='alphaxiv', sourceId=identifier,
+                reading = dict(source='alphaxiv', sourceId=identifier,
                     title='Search result', url='https://www.alphaxiv.org/abs/' + identifier,
                     pdfUrl='https://arxiv.org/pdf/' + identifier, contentKind='full-text',
-                    content='The original search text is immutable.'), NOW))
+                    content='The original search text is immutable.')
+                if fallback:
+                    markup = '<meta name="citation_title" content="Official search fallback"><meta name="citation_abstract" content="Official abstract only.">'
+                    reading = LiteratureClient(lambda url, **kw: Response(markup, headers={'Content-Type': 'text/html'}) if url.startswith('https://arxiv.org/') else Response(status=404)).read(dict(id=identifier, source='huggingface', full=True))
+                paper = store.save_paper(PaperSnapshot.from_reading(reading, NOW))
                 seed = 'https://arxiv.org/abs/' + identifier
                 resource = replace(ResearchResource.linked('https://arxiv.org/abs/2606.03979v2', seed),
                                    excerpt='An independently retrieved abstract.', contentKind='abstract')

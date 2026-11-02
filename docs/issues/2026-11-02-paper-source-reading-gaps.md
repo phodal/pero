@@ -11,7 +11,7 @@ not implement the proposals below or establish live availability of all sources.
 The arXiv reading/navigation repair is separately resolved in
 [its incident record](2026-11-02-paper-arxiv-reading-navigation.md).
 
-## Reproduced behavior
+## Initial reproduction (before repairs)
 
 All cases below were executed with authored inputs at the existing HTTP fetch
 seam. Receipt: `test-results/paper-source-review/reproductions.json`.
@@ -33,13 +33,13 @@ these findings concern how the right bytes and versions reach that reader.
 
 ## Proposed order
 
-Implementation started 2026-11-02 for the first two priorities only. The bioRxiv
+Implementation on 2026-11-02 covers the first two priorities only. The bioRxiv
 repair now retains an explicitly requested revision, selects that exact metadata
 record, and freezes its revision in the saved snapshot, including Research URL
 inspection and commit. A missing requested revision fails rather than using a
-later version. Hugging Face/arXiv fallback
-will retain usable alphaXiv text, or save official metadata as abstract-only when
-that text is unavailable. Other representation and medRxiv work remains open.
+later version. Hugging Face/arXiv fallback now retains usable alphaXiv text, or
+saves official metadata as abstract-only when that text is unavailable. Other
+representation and medRxiv work remains open.
 
 1. Preserve explicit bioRxiv versions and distinguish bioRxiv/medRxiv identity.
    Keep work identity, requested revision and returned revision together; never
@@ -73,9 +73,9 @@ that text is unavailable. Other representation and medRxiv work remains open.
   not an `oa.fcgi` recipe from older documentation. Presence in PMC alone is not
   proof that an article belongs to the reusable dataset.
 
-No provider policy, download authorization, network-address rule, local TeX
-compiler, generic publisher crawler or new agent runtime was changed by this
-review. Fixes remain proposed pending implementation.
+The repairs change source selection and import fallback. Provider policy,
+download authorization, network-address rules, local TeX compilation and agent
+runtime behavior remain unchanged. The other listed fixes are still proposed.
 
 ## bioRxiv version repair verification
 
@@ -95,3 +95,35 @@ actual response, so the selected revision must remain part of snapshot identity.
 Receipts: `test-results/paper-source-fixes/biorxiv-live-result.json` and the
 Python logs in the same directory. Existing immutable snapshots are unchanged.
 The PubMed/OpenAlex/medRxiv and structured XML proposals above remain open.
+
+## Hugging Face/arXiv fallback verification
+
+The existing alphaXiv text remains the saved full text when available. Missing,
+blank or failed alphaXiv text can now fall back to official arXiv metadata with
+`source=arxiv`, `contentKind=abstract`, the requested explicit revision when
+present, and a visible abstract-only limitation. Missing official abstracts or
+conflicting returned paper/version metadata cannot become a successful import.
+Failed metadata still cannot erase usable alphaXiv text. The saved abstract
+enters the existing fixed-version HTML review and immutable preparation owner;
+it does not count as full-text evidence or authorize a file download.
+
+Final verification on 2026-11-02:
+
+- Full Python suite: 245 tests, 244 passed and one Windows-only skip.
+  `test-results/paper-source-fixes/final-tests.log`.
+- App TypeScript and whitespace checks passed.
+- A simulated alphaXiv 404 plus an actual production-adapter HTTPS arXiv request
+  imported the official abstract for `2610.24007v1`, retained its title/authors,
+  and exposed the correct saved-paper review URL. This is a controlled failure
+  test, not evidence that alphaXiv actually lacked that paper at the time.
+  Receipt: `arxiv-fallback-live-result.json` in the same results directory.
+- An isolated browser using the existing built App UI and current Python backend
+  exercised the actual authenticated import handler from a Hugging Face URL,
+  visible Abstract/limitation state, the source review and structured preparation.
+  The source seam used cached official HTML/metadata bytes and a simulated
+  alphaXiv failure; source acquisition was not a live production-transport test.
+  Screenshots: `fallback-import.jpg` and `fallback-reading.jpg`; browser errors: 0.
+
+The running Native preview was not replaced or restarted. This does not claim
+new full-Desktop, signed-package, scientific or live HTML-download acceptance;
+the previously recorded proxy-DNS constraint on that transport is unchanged.

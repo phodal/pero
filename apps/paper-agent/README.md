@@ -358,6 +358,13 @@ The paper verdict remains `INCONCLUSIVE`; no new scientific run accompanies this
 
 ## Structured Read
 
+Hugging Face/arXiv imports keep available alphaXiv text. If that text is missing
+or unavailable, the official arXiv abstract can be saved instead, clearly marked
+**Abstract**; it can then enter the same reading preparation below. Saving that
+abstract does not claim a full-text read or download the PDF/HTML. bioRxiv imports
+retain an explicit `vN` URL revision; an unavailable requested version is an
+error, while an unversioned request selects the latest returned metadata version.
+
 For a saved arXiv/alphaXiv search result, **Prepare formatted reading** reviews
 the current paper's fixed arXiv version without leaving the reader. **Download
 and format** grants that official HTML representation and prepares Read; the

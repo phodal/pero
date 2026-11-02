@@ -318,9 +318,34 @@ class _CitationMetadata(HTMLParser):
         if tag != "meta":
             return
         attrs = dict(attributes)
-        name, content = _text(attrs.get("name")), _text(attrs.get("content"))
-        if name.startswith("citation_") and content and content.strip():
+        name, content = _text(attrs.get("name") or attrs.get('property')), _text(attrs.get("content"))
+        if (name.startswith("citation_") or name == 'og:description') and content and content.strip():
             self.fields.setdefault(name, []).append(content.strip())
+
+
+@dataclass(frozen=True)
+class ArxivMetadata:
+    title: str
+    authors: tuple[str, ...]
+    abstract: str
+    revision: str | None
+
+    @classmethod
+    def parse(cls, document, requested_id):
+        parser = _CitationMetadata()
+        parser.feed(document)
+        declared = parser.fields.get('citation_arxiv_id', [''])[0]
+        requested = re.fullmatch(r'(.+?)(v\d+)?', requested_id)
+        actual = re.fullmatch(r'(.+?)(v\d+)?', declared) if ARXIV.fullmatch(declared) else None
+        if declared and (not actual or requested[1].lower() != actual[1].lower()
+                         or requested[2] and actual[2] and requested[2] != actual[2]):
+            raise Invalid('Official arXiv metadata identifies a different paper or version')
+        title = parser.fields.get('citation_title', [''])[0]
+        if not title or len(title) > 1000:
+            raise Invalid('Official arXiv metadata has no usable paper title')
+        return cls(title, tuple(name for name in parser.fields.get('citation_author', [])[:100] if len(name) <= 300),
+                   parser.fields.get('citation_abstract', parser.fields.get('og:description', ['']))[0],
+                   requested[2] or (actual[2] if actual else None))
 
 
 class LiteratureClient:
@@ -542,24 +567,30 @@ class LiteratureClient:
         if source == "alphaxiv":
             encoded = quote(paper_id, safe="/")
             kind = "full-text" if identity.full else "report"
-            content = self._request(f"https://www.alphaxiv.org/{'abs' if identity.full else 'overview'}/{encoded}.md", optional=True, json_body=False)
-            if content is None and not identity.full:
-                kind = "full-text"
-                content = self._request(f"https://www.alphaxiv.org/abs/{encoded}.md", optional=True, json_body=False)
-            if not content or not content.strip():
-                raise Invalid("No report or extracted full text is available")
+            try:
+                content = self._request(f"https://www.alphaxiv.org/{'abs' if identity.full else 'overview'}/{encoded}.md", optional=True, json_body=False)
+                if (not content or not content.strip()) and not identity.full:
+                    kind = "full-text"
+                    content = self._request(f"https://www.alphaxiv.org/abs/{encoded}.md", optional=True, json_body=False)
+            except Invalid:
+                content = None
             metadata = {"title": paper_id, "url": f"https://www.alphaxiv.org/abs/{encoded}",
                         "pdfUrl": f"https://arxiv.org/pdf/{encoded}", "authors": []}
             metadata_url = f"https://arxiv.org/abs/{encoded}"
+            official = None
             try:
-                parser = _CitationMetadata()
-                parser.feed(self._request(metadata_url, json_body=False, timeout=6, limit=262144))
-                title = parser.fields.get("citation_title", [""])[0]
-                if title and len(title) <= 1000:
-                    metadata.update(title=title, metadataUrl=metadata_url,
-                                    authors=[name for name in parser.fields.get("citation_author", [])[:100] if len(name) <= 300])
+                official = ArxivMetadata.parse(self._request(metadata_url, json_body=False, timeout=6, limit=262144), paper_id)
+                metadata.update(title=official.title, metadataUrl=metadata_url, authors=list(official.authors))
             except Invalid:
                 pass  # Optional publisher metadata cannot erase usable source text.
+            if not content or not content.strip():
+                if official is None or not official.abstract.strip():
+                    raise Invalid('No alphaXiv text or official arXiv abstract is available. Retry the source or import a local PDF.', 502)
+                source, kind, content = 'arxiv', 'abstract', official.abstract
+                metadata.update(url=metadata_url,
+                                limitation='alphaXiv text is unavailable. Saved the official arXiv abstract only; prepare formatted reading or save the PDF for full text.')
+                if official.revision:
+                    metadata['sourceRevision'] = official.revision
         elif source == "pubmed":
             records = self._pubmed([paper_id])
             if not records:
@@ -586,6 +617,6 @@ class LiteratureClient:
                   "authors": metadata.get("authors", []), "content": content, "contentKind": kind,
                   "contentDigest": "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest(),
                   "fetchedAt": self._now(), "verification": "unverified"}
-        if identity.full and kind == "abstract":
+        if identity.full and kind == "abstract" and 'limitation' not in result:
             result["limitation"] = "This source supplies metadata and abstract only; open the original link for full text."
         return result
