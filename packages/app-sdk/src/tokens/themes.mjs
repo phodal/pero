@@ -1,3 +1,4 @@
+import { APPEARANCE_PROPERTIES } from './appearance-properties.mjs';
 // Theme registry and runtime API. A theme is selected by data-theme on <html> (or any
 // subtree root); the generated stylesheet maps it to tokens. data-color-scheme mirrors the
 // theme's declared scheme so code that only cares about light/dark can read one attribute.
@@ -39,6 +40,8 @@ export function applyTheme(id, doc = globalThis.document) {
   if (id == null || id === "system") { root.removeAttribute("data-theme"); root.removeAttribute("data-color-scheme"); return currentThemeId(doc); }
   const theme = getTheme(id);
   if (!theme) throw new Error(`unknown theme ${id}`);
+  for (const name of APPEARANCE_PROPERTIES) root.style?.removeProperty(`--pero-${name}`);
+  if (root.style) root.style.colorScheme = theme.colorScheme;
   root.setAttribute("data-theme", theme.id);
   root.setAttribute("data-color-scheme", theme.colorScheme);
   // Keep the upstream DSH dark marker in step, so app CSS keyed on body[data-ds-dark-theme]
