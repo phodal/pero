@@ -25,7 +25,7 @@ function* invoke(name, args, pointer = '', text) {
 }
 const write = function* (name, args, text) { return yield* invoke(alias(name), args, '/result', text); };
 
-function* plan(scene, digest) {
+export function* plan(scene, digest) {
   const spec = scenes[scene];
   const catalog = yield* invoke('skill', {});
   assert.equal(catalog.find(item => item.name === skillName)?.digest, digest);
@@ -45,10 +45,16 @@ function* plan(scene, digest) {
   }
   const selection = { draftId: draft.id, resourceIds: draft.resources.map(resource => resource.id) };
   const review = 'Synthetic protocol review (not model inference): ' + JSON.stringify(draft.resources);
-  let bundle = yield* write('commit-research-bundle', selection, review);
-  assert.deepEqual(bundle.sourceDownloadIds, []); assert.deepEqual(bundle.pdfDownloadIds, []);
+  let bundle;
+  if (spec.inspectOnly) {
+    yield { answer: review + ' Inspection only: no bundle saved or downloads authorized.' };
+    if (spec.decline) return 'User declined: no references saved, no grants or file bytes acquired. Identity and version remain unresolved.';
+  } else {
+    bundle = yield* write('commit-research-bundle', selection, review);
+    assert.deepEqual(bundle.sourceDownloadIds, []); assert.deepEqual(bundle.pdfDownloadIds, []);
+  }
   if (!spec.source) return 'Synthetic protocol completed: unresolved observed attachment saved; no download or page-granted authority.';
-  yield { answer: 'Synthetic protocol stopped at references. Exact source/PDF acquisition still requires next user confirmation.' };
+  if (!spec.inspectOnly) yield { answer: 'Synthetic protocol stopped at references. Exact source/PDF acquisition still requires next user confirmation.' };
   const source = draft.resources.find(resource => resource.kind === 'source_archive' && (!spec.sourceURL || resource.originalUrl === spec.sourceURL));
   const pdf = draft.resources.find(resource => resource.kind === 'pdf_candidate');
   bundle = yield* write('commit-research-bundle', { ...selection, sourceIds: [source.id], pdfIds: spec.pdf ? [pdf.id] : [], confirmedDownloads: true });
