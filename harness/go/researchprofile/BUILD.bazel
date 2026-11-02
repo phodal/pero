@@ -21,6 +21,7 @@ go_test(
     name = "researchprofile_test",
     srcs = [
         "profile_test.go",
+        "source_test.go",
     ],
     embed = [":researchprofile"],
     deps = ["//plugins"],

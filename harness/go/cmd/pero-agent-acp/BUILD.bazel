@@ -11,6 +11,7 @@ go_library(
         "models.go",
         "plugin_options.go",
         "plugins.go",
+        "research.go",
         "sandbox_options.go",
         "subagents.go",
         "web.go",
@@ -29,6 +30,7 @@ go_library(
         "//pluginruntime",
         "//plugins",
         "//providers/openai",
+        "//researchprofile",
         "//runtime",
         "//sandbox",
         "//skills",
@@ -62,6 +64,9 @@ go_test(
         "plugin_fork_test.go",
         "plugin_runtime_test.go",
         "plugins_test.go",
+        "research_cli_test.go",
+        "research_fixture_test.go",
+        "research_test.go",
         "sandbox_options_test.go",
         "subagents_test.go",
         "web_cli_test.go",
@@ -77,6 +82,7 @@ go_test(
         "//plugins",
         "//providers/openai",
         "//sandbox",
+        "//subagents",
         "@com_github_modelcontextprotocol_go_sdk//mcp",
     ] + select({
         "@rules_go//go/platform:windows": [

@@ -68,6 +68,7 @@ func run() (resultErr error) {
 	delegation := bindSubagents(flag.CommandLine)
 	web := bindWebOptions(flag.CommandLine)
 	lspConfig := bindLSPOptions(flag.CommandLine)
+	research := bindResearchOptions(flag.CommandLine)
 	flag.Parse()
 	if flag.NArg() != 0 || strings.TrimSpace(*model) == "" || strings.TrimSpace(*sessions) == "" {
 		return errors.New("--model and --session-dir are required; positional arguments are unsupported")
@@ -81,10 +82,19 @@ func run() (resultErr error) {
 	if len(pluginConfig.Directories) > 0 && *workspace == "" {
 		return errors.New("--plugin-dir requires an explicit --workspace")
 	}
-	if *bashOutputMaxChars != 0 && len(pluginConfig.Directories) == 0 {
-		return errors.New("--bash-output-max-chars requires --plugin-dir")
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	profile, err := configuredResearch(ctx, *research, *sessions, *workspace, *enableShell, web.enabled(), pluginConfig.Models)
+	if err != nil {
+		return err
 	}
-	packages, err := plugins.LoadPackages(context.Background(), pluginConfig.Directories)
+	if profile != nil {
+		pluginConfig.Directories = append(pluginConfig.Directories, profile.Directory)
+	}
+	if *bashOutputMaxChars != 0 && len(pluginConfig.Directories) == 0 {
+		return errors.New("--bash-output-max-chars requires --plugin-dir or --research-source")
+	}
+	packages, err := plugins.LoadPackages(ctx, pluginConfig.Directories)
 	if err != nil {
 		return err
 	}
@@ -142,8 +152,6 @@ func run() (resultErr error) {
 	if err != nil {
 		return err
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: delegation.Enabled || len(packages) > 0 || web.enabled(), Adapter: adapter, AdapterProviders: []string{"configured"}, ModelInfo: adapter, ApprovalPolicy: harness.ApprovalPolicy(*approval)})
 	if err != nil {
 		return err
@@ -231,7 +239,7 @@ func run() (resultErr error) {
 		if _, err := tasks.Mount(ctx, h); err != nil {
 			return err
 		}
-		pluginAgents, err = subagents.MountClaude(ctx, h, agentDefinitions, subagents.ClaudeOptions{TaskLookup: native.LookupTask, InvocationOrigin: skills.ActivePlugin, ModelRoutes: pluginConfig.Models, MaxDepth: 4, MaxActive: delegation.MaxActive, Persistence: persistence, Compaction: compactionConfig})
+		pluginAgents, err = subagents.MountClaude(ctx, h, agentDefinitions, subagents.ClaudeOptions{TaskLookup: native.LookupTask, InvocationOrigin: skills.ActivePlugin, ModelRoutes: pluginConfig.Models, MaxDepth: 4, MaxActive: delegation.MaxActive, Persistence: persistence, Compaction: compactionConfig, LegacyTaskAlias: profile != nil, BackgroundNotifications: profile != nil})
 		if err != nil {
 			return err
 		}
