@@ -54,7 +54,8 @@ impl WorkbenchBounds {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::WorkbenchBounds;
+    use gpui_kit::{Bounds, point, px, size};
 
     #[test]
     fn hidden_chat_control_does_not_retain_its_last_paint() {
