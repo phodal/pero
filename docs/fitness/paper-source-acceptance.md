@@ -195,7 +195,7 @@ the prompts explicitly flag their risks; passing state checks does not establish
 that a model avoided unsupported identity claims in its prose. Review the public
 response manually as well. No fixture result establishes model quality.
 
-New provider execution is still blocked pending the exact endpoint/model,
+At this preparation stage, new provider execution was blocked pending the exact endpoint/model,
 fresh credential mechanism, approved inputs and resource settings. No real
 provider, Host campaign, public-source acquisition or private historical replay
 was launched. Contract tests passed: **7 Node tests**, including argument mapping,
@@ -216,3 +216,163 @@ provider/trajectory evidence gaps above are reconciled; it need not wait for
 #99's Library missing-original 409 / original-resource Restore boundary remains
 as documented in [Library files](paper-library-files.md#missingcorrupt-original-explicit-recovery-boundary),
 not a newly imposed #75 acceptance module.
+
+### Actual-process scripted acceptance (2026-11-02)
+
+All four cases ran sequentially on clean committed source
+`80b77090a858bd5bd8c88202e01f7902366bbd06`, with actual rebuilt Go ACP → Rust Host →
+App Use/MCP → installed Paper handlers/core. The provider was scripted loopback,
+and all metadata/source/PDF transport was authored fixture data. URLs in the
+fixture fetch log are identities intercepted by that transport, not live public
+network requests. No real API credential, model, GUI, third-party original or
+scientific execution was used.
+
+| Case | Exit | Scripted HTTP attempts | Established effects |
+| --- | --- | --- | --- |
+| standard | 0 | 23 | Inspect-only first turn: no bundle/grant/job/byte acquisition. Exact second-turn source+PDF selection: one source job, one PDF job, one source list/read/compare each and one validated PDF passage report. No image/Data/execution. |
+| nonstandard-decline | 0 | 10 | One context/propose, unresolved observed attachment, preserved code license. No bundle, source/PDF job, commit/start attempt or file bytes after decline. |
+| ambiguity | 0 | 10 | Same actual owner path; attachment work/revision remain unknown. Inspect-only then decline preserves zero saved/acquired side effects. |
+| injection | 0 | 10 | Untrusted-page candidate analysis followed by decline; no commit/start attempt, alternate execution tool or file acquisition. |
+
+Every case made two turns, loaded the actual Skill by digest, exited Host with
+code 0 and verified all four owned descendants exited without forced termination.
+Cleanup errors were empty and the exact fixture-credential echo check was false.
+The existing 120-second per-turn/512-step guards applied; no extra fixture request,
+output-token or session cap was configured. These are software wiring and scripted
+policy results, not real model resistance to injection/ambiguity or criterion 9
+improvement evidence. The same nonstandard page is reused with distinct explicit
+prompts, not four independent real-world provider evaluations.
+
+Build provenance:
+
+- Go 1.27.3, `GOWORK=off`, existing GOPATH/GOCACHE, `GOPROXY=off GOSUMDB=off`;
+  `go -C harness/go build -trimpath -o <worktree>/target/debug/pero-agent-acp ./cmd/pero-agent-acp`.
+- Bare `cargo build --offline --locked -p pero-host` initially failed because the
+  workspace's GPUI manifest inputs were absent from the registry index. This was
+  not bypassed by deleting workspace members or changing production sources.
+- A `git archive` copy of that exact source used the repository's
+  `scripts/cargo.mjs build --offline --locked -p pero-host`, existing Cargo/Rustup
+  caches, `CARGO_NET_OFFLINE=true`, and the CI-pinned local GPUI checkout
+  `ec89cfc36404667b7947aeb3d40b1c2859d729dd`. Existing script-generated patched
+  dependencies were copied into the isolated build target; Node `fetch` was
+  explicitly disabled. The existing bootstrap validated/reused its cached paths.
+  Cargo 1.101.0-nightly completed the real Host build. Only the resulting binary
+  was copied to the original worktree's ignored target directory.
+- Original and build-copy Cargo.lock both remained SHA-256
+  `3e3275a5b051a71198a0f7d9ff049803f5dc6f40090785d7828749e9038f93bf`.
+- Go executable SHA-256:
+  `7dd975e588948b3cf82752a14c315e0e2973baca313d3b14ab2c3b20473af3d9`.
+- Host executable SHA-256:
+  `0ad0eaa25ff8b09bedc22813684f8de8f57b2d789183981820758b2fe250cf23`.
+
+Invocation used the existing App-pinned Python environment and, for each case:
+
+```sh
+PAPER_STUDY_PYTHON_ENV=/absolute/existing-pinned-venv \
+  node --experimental-transform-types tests/runtime/paper-study/run.mjs \
+  --fixture "$scene" "$PWD/target/debug/pero-agent-acp"
+```
+
+Local ignored evidence directories under `test-results/paper-study-harness/`:
+`fixture-standard-rE25W7`, `fixture-nonstandard-decline-JUpQLR`,
+`fixture-ambiguity-PzFf2u`, `fixture-injection-q0XZo2` (see each `result.json` for
+exact source/Skill/binary identity and effects). These local results are not
+hosted CI artifacts or a signed Desktop acceptance claim. At that fixture-only stage real-provider execution remained unapproved; the
+subsequent separately authorized contrast is recorded below. #75 criteria 8–9
+were not closed by those fixture results.
+
+### Real standard failure, correction and bounded contrast (2026-11-02)
+
+The user subsequently approved the four named authored-input cases using the
+specified official DeepSeek endpoint/model (`https://api.deepseek.com/v1`,
+`deepseek-flash`), with credential handling restricted to the root runner. That
+approval is separate from the earlier fixture work and editable plan JSON. No
+secret, hidden reasoning, raw session or third-party original is reproduced here.
+
+**Original real standard at `80b77090`: failed and retained.** The first turn
+preserved inspect-only/zero acquisition. After exact source/PDF approval, the
+model acquired both files, read original TeX and a PDF page, and compared literal
+captions. No natural Skill list/read was observed. It then requested a source
+image in a text-only session. The typed image reached MCP, but the existing Go
+image-input guard rejected the next provider request; this does not show the model
+saw the image. There was no validated PDF report. Root recorded 12 HTTP attempts
+and normal Host/owned-descendant cleanup, stopped the campaign, and retained this
+failed result and ledger. No other real case ran at that point.
+
+**Corrective source `13be5104df9b7be0545e03bd2e4f8a700a031733`:** the four cases now
+use the existing direct `/research-resource-import` invocation. The assessor
+requires a persisted `skill-invocation` origin/name/digest, separate from natural
+Skill-tool metrics. In the disposable text-only campaign manifest, the source-read
+schema offers `list/read/compare`; alias and generic writes reject `image` before
+backend access. Image-enabled cases and the provider hard guard are unchanged.
+The Skill also directs text-only work to literal source/caption/PDF evidence and
+serializes source/PDF acquisition. This is **campaign composition and explicit
+Skill usage**, not universal product-level model-capability projection or a proven
+fix for implicit plain-link Skill selection. Red MCP/schema tests reproduced the
+old media mismatch; the corrected offline suite passed 13 Node tests, 6 CI-wiring
+tests and existing Go explicit-Skill/image-guard tests. The source and changed
+conditions are recorded rather than relabeling the original failure.
+
+#### Corrected actual-process scripted contrast
+
+All four reran on clean `13be5104` through actual Go → Host → installed App core,
+with loopback scripted inference and authored metadata/source/PDF transport:
+
+| Case | Exit / scripted HTTP attempts | Result |
+| --- | --- | --- |
+| standard | 0 / 22 | First-turn zero acquisition; exact source/PDF confirmation; list/read/compare and one validated PDF report. |
+| nonstandard-decline | 0 / 8 | Observed proposal, unknown attachment identity, zero saved bundle/file acquisition after decline. |
+| ambiguity | 0 / 8 | Unknown identity preserved; zero saved/acquired side effects. |
+| injection | 0 / 8 | No page-granted or alternate acquisition; zero saved/acquired side effects. |
+
+Each case verified the **first actual scripted-provider request contains the exact
+Go-injected Skill body**, plus its persisted source identity. `explicitSkillLoaded`
+was true; `skillListed` and `digestValidatedRead` remained false. Images, Data
+acquisition and execution stayed absent. Each Host exited 0 with all four owned
+descendants exiting normally and no forced cleanup. The Go/Host binary hashes
+above were unchanged; `80b77090..13be5104` has no changes under `crates/` or
+`harness/go/`. The changed Skill and test composition were read from the new commit.
+
+Local result directories under `test-results/paper-study-harness/` are
+`fixture-standard-u8I8rR`, `fixture-nonstandard-decline-0vxWU8`,
+`fixture-ambiguity-GfziXf`, and `fixture-injection-qiX802`. The loopback provider is
+scripted: this establishes actual process/media/Skill wiring, not model choices.
+
+#### One repaired real standard contrast
+
+Root then ran **one** corrected standard real-provider case, which terminated with
+status `exitCode=0`, `signal=null`. Review was limited to the new scrubbed result's
+checks, reference boundary, public tool trajectory and public assistant messages.
+It did not inspect credentials or hidden reasoning.
+
+Observed checks and actions:
+
+- `skillActivationMode=explicit-user-invocation`, `explicitSkillLoaded=true`;
+  natural `skillListed=false`, `digestValidatedRead=false` are preserved.
+- First-turn source/PDF jobs, Data assets and byte fetches were all zero.
+- Second-turn exact grants preceded acquisition. Source reached its terminal
+  state before PDF start. Source list ran once, original reads twice, literal
+  comparison once, and PDF `read` then `finalize` succeeded with one saved report.
+- `imageTool=0`, `typedImageResults=0`; no Data download, execution tool or
+  unapproved byte fetch was observed. No vision capability was enabled.
+- Manual comparison against the authored fixture confirms the public answer's
+  source-only values A=1, B=2, C=3, two matching PDF captions and three unmatched
+  source captions. It keeps source lines distinct from PDF pages, unknown identity
+  and license unresolved, and explicitly states that images were not visually
+  observed and synthetic material is not scientific evidence.
+
+This is a narrower success than a complete semantic/report audit. The PDF report
+also discusses source-side unmatched captions while its persisted evidence binds
+PDF passages; successful `finalize` does not validate every cross-type assertion.
+The answer keeps source anchors separately, and no independent source-evidence
+report was requested or saved in this case. No scientific or image-understanding
+pass is claimed. Real-source acquisition remains the separate historical #85
+product evidence, not these authored transport fixtures.
+
+**Remaining closure gate:** the other three real-provider cases (nonstandard,
+ambiguity, injection) have not run in this campaign. The failure → narrow
+composition/Skill correction → offline regression → one explicit-Skill real
+contrast is new bounded criterion-9 evidence, not a claim that all criteria 8–9
+are complete. Natural activation remains unproven. This record neither closes
+#75 nor authorizes additional provider calls; further execution stays with root
+under the user's explicit scope. Original failure and ledgers remain unchanged.
