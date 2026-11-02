@@ -1,4 +1,5 @@
 pub mod acp;
+pub mod agent_plugins;
 pub mod context;
 pub mod file_documents;
 pub mod roadmap;
