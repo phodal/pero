@@ -19,6 +19,7 @@ import (
 type ClaudeInvocation struct {
 	Definition, Prompt, Description, Model, Origin string
 	OutputSchema                                   json.RawMessage
+	Background                                     bool
 	ConfigureChild                                 func(context.Context, *point.Run, *harness.Agent) error
 }
 
@@ -43,6 +44,7 @@ func (c *ClaudeContribution) Invoke(ctx context.Context, parent *harness.Agent, 
 	case <-task.done:
 		err = task.err
 	case <-ctx.Done():
+		task.suppressNotice.Store(true)
 		_ = task.activation.RequestDispose()
 		<-task.done
 		err = errors.Join(ctx.Err(), task.err)
@@ -110,7 +112,7 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 	if err != nil {
 		return nil, err
 	}
-	task := &claudeTask{parent: parent, activation: activation, done: make(chan struct{})}
+	task := &claudeTask{parent: parent, activation: activation, notifyParent: input.Background && s.backgroundNotices, done: make(chan struct{})}
 	s.mu.Lock()
 	s.tasks[activation.ChildID] = task
 	s.mu.Unlock()

@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/phodal/pero/harness/go/harness"
 	point "github.com/phodal/pero/harness/go/runtime"
@@ -30,6 +31,12 @@ type ClaudeOptions struct {
 	InvocationOrigin func(*harness.Agent) string
 	// TaskLookup supplies other task kinds without transferring their ownership.
 	TaskLookup harness.TaskLookup
+	// LegacyTaskAlias exposes the former Task spelling for explicitly selected
+	// packages that still use it. It shares Agent's execution and authority.
+	LegacyTaskAlias bool
+	// BackgroundNotifications delivers actual terminal notices after child
+	// cleanup. It does not make a one-shot child resident.
+	BackgroundNotifications bool
 }
 
 type ClaudeContribution struct {
@@ -52,25 +59,28 @@ func (c *ClaudeContribution) Dispose(ctx context.Context) error {
 }
 
 type claudeTask struct {
-	parent     *harness.Agent
-	activation harness.SubagentActivation
-	done       chan struct{}
-	result     harness.SubagentResult
-	err        error
+	parent         *harness.Agent
+	activation     harness.SubagentActivation
+	notifyParent   bool
+	suppressNotice atomic.Bool
+	done           chan struct{}
+	result         harness.SubagentResult
+	err            error
 }
 
 type claudeDelegation struct {
-	h                *harness.Harness
-	run              *point.Run
-	facade           *harness.SubagentFacade
-	definitions      map[string]AgentDefinition
-	readOnlyBuiltins map[string]bool
-	routes           map[string]ModelRoute
-	maxDepth         int
-	invocationOrigin func(*harness.Agent) string
-	taskLookup       harness.TaskLookup
-	mu               sync.Mutex
-	tasks            map[harness.SessionID]*claudeTask
+	h                 *harness.Harness
+	run               *point.Run
+	facade            *harness.SubagentFacade
+	definitions       map[string]AgentDefinition
+	readOnlyBuiltins  map[string]bool
+	routes            map[string]ModelRoute
+	maxDepth          int
+	invocationOrigin  func(*harness.Agent) string
+	taskLookup        harness.TaskLookup
+	backgroundNotices bool
+	mu                sync.Mutex
+	tasks             map[harness.SessionID]*claudeTask
 }
 
 // MountClaude mounts real Agent/TaskOutput/TaskStop calls over the existing
@@ -90,7 +100,7 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	service := &claudeDelegation{h: h, maxDepth: options.MaxDepth, invocationOrigin: options.InvocationOrigin, taskLookup: options.TaskLookup, definitions: make(map[string]AgentDefinition), readOnlyBuiltins: make(map[string]bool), routes: make(map[string]ModelRoute), tasks: make(map[harness.SessionID]*claudeTask)}
+	service := &claudeDelegation{h: h, maxDepth: options.MaxDepth, invocationOrigin: options.InvocationOrigin, taskLookup: options.TaskLookup, backgroundNotices: options.BackgroundNotifications, definitions: make(map[string]AgentDefinition), readOnlyBuiltins: make(map[string]bool), routes: make(map[string]ModelRoute), tasks: make(map[harness.SessionID]*claudeTask)}
 	for _, definition := range definitions {
 		if strings.TrimSpace(definition.Name) == "" || strings.TrimSpace(definition.Description) == "" || strings.TrimSpace(definition.Instructions) == "" {
 			return nil, errors.New("subagents: Claude agent requires name, description and instructions")
@@ -151,7 +161,14 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 		}); err != nil {
 			return nil, err
 		}
-		for _, tool := range []harness.Tool{service.agentTool(), service.outputTool(), service.stopTool()} {
+		tools := []harness.Tool{service.agentTool(), service.outputTool(), service.stopTool()}
+		if options.LegacyTaskAlias {
+			alias := service.agentTool()
+			alias.Schema.Name = "Task"
+			alias.Schema.Description = "Legacy spelling of Agent for the selected compatibility profile. " + alias.Schema.Description
+			tools = append(tools, alias)
+		}
+		for _, tool := range tools {
 			if _, err := h.Tools().Register(run, tool); err != nil {
 				return nil, err
 			}
@@ -206,7 +223,7 @@ func (s *claudeDelegation) agentTool() harness.Tool {
 		if input.Resume != "" {
 			return harness.ToolResult{}, errors.New("subagents: Claude task resume is unsupported; start a new Agent with the previous result")
 		}
-		task, err := s.start(ctx, request.Agent, ClaudeInvocation{Definition: input.Type, Prompt: input.Prompt, Description: input.Description, Model: input.Model})
+		task, err := s.start(ctx, request.Agent, ClaudeInvocation{Definition: input.Type, Prompt: input.Prompt, Description: input.Description, Model: input.Model, Background: input.Background})
 		if err != nil {
 			return harness.ToolResult{}, err
 		}
@@ -229,6 +246,7 @@ func (s *claudeDelegation) observeTask(ctx context.Context, task *claudeTask) {
 	select {
 	case result, ok = <-task.activation.Result:
 	case <-ctx.Done():
+		task.suppressNotice.Store(true)
 		_ = task.activation.RequestDispose()
 		result, ok = <-task.activation.Result
 	}
@@ -236,6 +254,20 @@ func (s *claudeDelegation) observeTask(ctx context.Context, task *claudeTask) {
 		result = harness.SubagentResult{ChildID: task.activation.ChildID, Status: harness.SubagentFailed, Reason: harness.FinishError, Diagnostic: "subagent closed without a terminal result"}
 	}
 	task.result, task.err = result, task.activation.Wait(context.Background())
+	if task.notifyParent && !task.suppressNotice.Load() && ctx.Err() == nil && s.run.Active() && !claudeParentInterrupted(task.parent) {
+		if parent, live := s.h.Agents().Get(task.parent.ID()); live && parent == task.parent {
+			diagnostic := result.Diagnostic
+			if task.err != nil {
+				if diagnostic != "" {
+					diagnostic += "\n"
+				}
+				diagnostic += task.err.Error()
+			}
+			if err := harness.DeliverParentNotice(parent, result.ChildID, result.Status, result.Output, result.Structured, diagnostic); err != nil {
+				task.err = errors.Join(task.err, fmt.Errorf("subagents: parent completion notice failed: %w", err))
+			}
+		}
+	}
 	close(task.done)
 }
 
@@ -309,6 +341,7 @@ func (s *claudeDelegation) stopParent(parent *harness.Agent, forget bool) {
 	var tasks []*claudeTask
 	for id, task := range s.tasks {
 		if task.parent == parent {
+			task.suppressNotice.Store(true)
 			tasks = append(tasks, task)
 			if forget {
 				delete(s.tasks, id)
@@ -331,9 +364,10 @@ func claudeParentInterrupted(parent *harness.Agent) bool {
 			continue
 		}
 		var end struct {
+			Turn   int                `json:"turn"`
 			Reason harness.FinishKind `json:"reason"`
 		}
-		return json.Unmarshal(events[i].Data, &end) == nil && (end.Reason == harness.FinishAborted || end.Reason == harness.FinishError)
+		return json.Unmarshal(events[i].Data, &end) == nil && end.Turn == parent.CurrentTurn() && (end.Reason == harness.FinishAborted || end.Reason == harness.FinishError)
 	}
 	return false
 }
