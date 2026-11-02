@@ -12,7 +12,7 @@ const bundled = await build({
     build.onLoad({ filter: /.*/, namespace: 'ports' }, () => ({ contents: `
       export const appChatLauncher = () => () => {};
       export const previewContext = () => {};
-      export const mountAppSurfaces = () => ports.surface;
+      export const mountAppSurfaces = command => { ports.surfaceCommand = command; return ports.surface; };
       export const mountChatSurface = (_, options) => { ports.chatOptions = options; return ports.chat; };
       export const translate = (_, key) => key;
       export const applyAppearance = () => {};
@@ -140,3 +140,29 @@ for (const panel of ['main', 'detail']) {
     assert.deepEqual(JSON.parse(JSON.stringify(fixture.contexts.at(-1).scope)), { app: 'fixture', panel });
   });
 }
+
+
+test('SDK navigation preserves scope readiness, requested panel and presentation behavior', async () => {
+  const fixture = await shell(true);
+  fixture.event('apps_opened', { name: 'fixture', panel: 'main' });
+  await fixture.ports.surfaceCommand({ action: 'sdkbadge', name: 'fixture', count: 3 });
+  assert.equal(fixture.selector.options[0].textContent, 'fixture (3)');
+  await assert.rejects(fixture.ports.surfaceCommand({ action: 'sdkpage', page: 'tasks' }), /unavailable/);
+  await assert.rejects(fixture.ports.surfaceCommand({ action: 'open', name: 'excluded', panel: 'detail' }), /included/);
+  assert.equal(fixture.opens.length, 1, 'presentation and rejected navigation do not open another App');
+
+  await fixture.ports.surfaceCommand({ action: 'open', name: 'other', panel: 'detail' });
+  assert.deepEqual(fixture.opens.at(-1), { name: 'other', panel: 'detail' });
+  assert.equal(fixture.selector.value, 'other');
+  fixture.ports.chatOptions.ready();
+  assert.equal(fixture.commands.length, 0, 'the previous App cannot release the SDK navigation');
+  fixture.event('apps_opened', { name: 'fixture', panel: 'main' });
+  fixture.event('apps_opened', { name: 'other', panel: 'main' });
+  assert.equal(fixture.commands.length, 0, 'late or wrong-panel completions cannot release the selected scope');
+  fixture.event('apps_opened', { name: 'other', panel: 'detail' });
+  assert.equal(fixture.commands.length, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(fixture.contexts.at(-1).scope)), { app: 'other', panel: 'detail' });
+
+  await fixture.ports.surfaceCommand({ action: 'apps_open', name: 'other', panel: 'detail' });
+  assert.deepEqual(fixture.opens.at(-1), { name: 'other', panel: 'detail' }, 'retry retains the selected panel');
+});
