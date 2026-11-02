@@ -1,3 +1,4 @@
+import { appPresentation } from './app-sdk-presentation';
 import { admitPaperNavigation } from './app-navigation';
 import { mountAppExamples } from './app-examples';
 import { mountAppPreparation } from './app-preparation';
@@ -203,6 +204,28 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   window.addEventListener('message', event => {
     const frame = [...frames.values()].find(frame => frame.element.contentWindow === event.source);
     if (!frame) return;
+    if (event.data?.type === 'pero:app:sdk') {
+      const url = new URL(frame.element.src), origin = `${url.protocol}//${url.host}`;
+      const {id,operation,input} = event.data;
+      if (event.origin !== origin || typeof id !== 'string' || !id || id.length > 128) return;
+      const slot = mounts.get(key(frame.name,frame.panel));
+      const apply = async () => {
+        if (!slot?.surface.visible) throw new Error('Open the App before using its Host presentation');
+        const value = appPresentation(operation,input);
+        if (value.kind === 'app') return command({action:'open',name:value.name,panel:value.panel});
+        if (value.kind === 'page') return command({action:'sdkpage',page:value.page});
+        if (value.kind === 'badge') return command({action:'sdkbadge',name:frame.name,count:value.count});
+        const previous = slot.region.querySelector('[data-app-notice]'); previous?.remove();
+        const notice = document.createElement('div'); notice.dataset.appNotice = ''; notice.setAttribute('role',value.tone === 'error' ? 'alert' : 'status');
+        notice.style.cssText = 'position:absolute;top:8px;right:8px;left:8px;z-index:5;display:flex;gap:12px;align-items:center;padding:8px 12px;border:1px solid var(--pero-border);background:var(--pero-surface);color:var(--pero-text);font:13px system-ui';
+        const text = document.createElement('span'); text.textContent = value.message; text.style.flex = '1';
+        const close = document.createElement('button'); close.type = 'button'; close.textContent = '×'; close.setAttribute('aria-label',normalizeLocale(surface.locale) === 'zh-CN' ? '关闭通知' : 'Dismiss notification'); close.onclick = () => notice.remove();
+        notice.append(text,close);slot.region.append(notice);
+      };
+      void apply().then(value => frame.element.contentWindow?.postMessage({type:'pero:app:sdk-result',id,ok:true,value},origin),
+        error => frame.element.contentWindow?.postMessage({type:'pero:app:sdk-result',id,ok:false,error:String(error)},origin));
+      return;
+    }
     if (event.data?.type === 'pero:app:navigate') {
       const url = new URL(frame.element.src), origin = `${url.protocol}//${url.host}`;
       const id = admitPaperNavigation({ name: frame.name, panel: frame.panel, visible: !!mounts.get(key(frame.name, frame.panel))?.surface.visible, origin: event.origin, expectedOrigin: origin }, event.data);
@@ -309,7 +332,7 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
         }
       }
       if(event.kind==='icon_themes'||event.kind==='icon_themes_error'){iconTheme=(event.data as {theme:IconThemePackage|null}).theme;for(const frame of frames.values())frame.element.contentWindow?.postMessage({type:'pero:app:icon-theme',theme:iconTheme},'*');}
-      if(event.kind==='app_written'){for(const frame of frames.values())if(frame.name===(event.data as {app:string}).app)frame.element.contentWindow?.postMessage({type:'pero:app:data-changed'},'*');}
+      if(event.kind==='app_written'){for(const frame of frames.values())if(frame.name===(event.data as {app:string}).app){frame.element.contentWindow?.postMessage({type:'pero:app:data-changed'},'*');frame.element.contentWindow?.postMessage({type:'pero:app:event',event:'app:written',value:{app:frame.name}},'*');}}
       if (event.kind === 'apps_opened') {
         const value = event.data as { name: string; panel: string; url: string };
         const identity = key(value.name, value.panel);

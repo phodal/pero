@@ -76,6 +76,7 @@ pub(crate) struct AppPreparationView {
 #[derive(Default)]
 pub(crate) struct AppCatalog {
     pub entries: Vec<InstalledApp>,
+    pub badges: std::collections::BTreeMap<String, u32>,
     pub category: AppCategory,
     pub loading: bool,
     pub error: Option<String>,
@@ -169,6 +170,16 @@ mod surface {
 
         pub(crate) fn receive_apps(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
             match event.kind.as_str() {
+                "app_sdk_page" => {
+                    if let Ok(page) = serde_json::from_value(event.data["page"].clone()) { self.navigate(page, cx); }
+                }
+                "app_sdk_badge" => {
+                    if let (Some(name), Some(count)) = (event.data["name"].as_str(), event.data["count"].as_u64()) {
+                        if self.apps.entries.iter().any(|app| app.name == name && app.enabled) {
+                            if count == 0 { self.apps.badges.remove(name); } else { self.apps.badges.insert(name.into(), count as u32); }
+                        }
+                    }
+                }
                 "app_chat_slot" => {
                     let slot = serde_json::from_value::<Option<AppChatSlot>>(event.data.clone()).ok().flatten();
                     let slot = slot.filter(|slot| {
