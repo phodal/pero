@@ -18,10 +18,10 @@ func TestPermissionModeDecidesApproval(t *testing.T) {
 	}
 	defer h.Dispose(context.Background())
 	for _, row := range []struct {
-		name, mode, tool, operation string
-		never, alwaysAsk            bool
-		want                        ApprovalOutcome
-		consulted                   int32
+		name, mode, tool, operation   string
+		never, alwaysAsk, preapproved bool
+		want                          ApprovalOutcome
+		consulted                     int32
 	}{
 		{name: "unset-asks", tool: "write_file", want: ApprovalAllowedOnce, consulted: 1},
 		{name: "auto-review-explicit-call-asks", mode: "auto-review", tool: "clone_repository", alwaysAsk: true, want: ApprovalAllowedOnce, consulted: 1},
@@ -35,6 +35,12 @@ func TestPermissionModeDecidesApproval(t *testing.T) {
 		{name: "full-access-asks", mode: "full-access", tool: "shell", want: ApprovalAllowedOnce, consulted: 1},
 		{name: "never-rejects-auto-review", mode: "auto-review", tool: "shell", never: true, want: ApprovalRejected},
 		{name: "invalid-mode-rejects", mode: "nope", tool: "write_file", want: ApprovalRejected},
+		{name: "trusted-preapproval", tool: "Write", preapproved: true, want: ApprovalAllowedOnce},
+		{name: "preapproval-never", tool: "Write", preapproved: true, never: true, want: ApprovalRejected},
+		{name: "preapproval-read-only", mode: "read-only", tool: "Write", preapproved: true, want: ApprovalRejected},
+		{name: "preapproval-workspace-files", mode: "workspace-write", tool: "Write", preapproved: true, want: ApprovalAllowedOnce},
+		{name: "preapproval-workspace-shell", mode: "workspace-write", tool: "Bash", preapproved: true, want: ApprovalRejected},
+		{name: "preapproval-always-asks", tool: "Write", preapproved: true, alwaysAsk: true, want: ApprovalAllowedOnce, consulted: 1},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			var consulted atomic.Int32
@@ -72,7 +78,7 @@ func TestPermissionModeDecidesApproval(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			request := ApprovalRequest{Agent: agent, ToolName: row.tool, AlwaysAsk: row.alwaysAsk}
+			request := ApprovalRequest{Agent: agent, ToolName: row.tool, AlwaysAsk: row.alwaysAsk, Preapproved: row.preapproved}
 			if row.operation != "" {
 				request.Native = &NativeApprovalDescriptor{Operation: row.operation}
 			}

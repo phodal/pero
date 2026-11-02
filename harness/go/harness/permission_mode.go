@@ -100,7 +100,7 @@ func permissionEscapesWorkspace(request ApprovalRequest) bool {
 		return true
 	}
 	switch request.ToolName {
-	case "shell", "bash":
+	case "shell", "bash", "Bash":
 		return true
 	default:
 		return false

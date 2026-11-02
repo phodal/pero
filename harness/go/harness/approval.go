@@ -52,7 +52,11 @@ type ApprovalRequest struct {
 	// Native is produced only by trusted registration code, never tool arguments.
 	Native *NativeApprovalDescriptor `json:"-"`
 	// Set only by trusted tool registration, never by model arguments.
-	AlwaysAsk bool `json:"alwaysAsk,omitempty"`
+	AlwaysAsk   bool `json:"alwaysAsk,omitempty"`
+	Preapproved bool `json:"-"`
+	// NonInteractive checks existing authorization without invoking answerers.
+	// Trusted render-time callers retain the ordinary approval audit pair.
+	NonInteractive bool `json:"-"`
 }
 
 // NativeApprovalDescriptor describes required confinement for one native call.
@@ -290,6 +294,12 @@ func (b *ApprovalBroker) resolve(ctx context.Context, request ApprovalRequest, p
 	// otherwise allow the call. A recorded mode decides the rest.
 	if outcome, ask := permissionDecision(policy, request); !ask {
 		return outcome
+	}
+	if request.Preapproved && !request.AlwaysAsk {
+		return ApprovalAllowedOnce
+	}
+	if request.NonInteractive {
+		return ApprovalUnavailable
 	}
 	return b.decide(ctx, request, b.visibleHandlers(request.Agent.Scope()))
 }

@@ -289,7 +289,7 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 			}
 			approval, err = r.approval.Request(ctx, ApprovalRequest{
 				Agent: filtered.Agent, CallID: filtered.CallID, ToolName: filtered.Name,
-				Reason: reason, Native: native, AlwaysAsk: tool.AlwaysAskApproval,
+				Reason: reason, Native: native, AlwaysAsk: tool.AlwaysAskApproval || filtered.RequestApproval, Preapproved: filtered.Preapproved,
 			})
 			if err != nil {
 				if contextFailure(ctx) != nil {

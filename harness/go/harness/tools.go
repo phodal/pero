@@ -326,6 +326,9 @@ type ToolRequest struct {
 	DenyReason      string
 	RequestApproval bool
 	ApprovalReason  string
+	// Preapproved is set by trusted runtime policy for this exact invocation,
+	// never decoded from model arguments. Base approval policy still applies.
+	Preapproved bool `json:"-"`
 
 	executionToken       ToolExecutionToken
 	parentExecutionToken ToolExecutionToken
