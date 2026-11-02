@@ -9,6 +9,7 @@ go_library(
         "process_unix.go",
         "process_unsupported.go",
         "results.go",
+        "tool.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/lsp",
     visibility = ["//visibility:public"],
@@ -22,6 +23,7 @@ go_library(
 go_test(
     name = "lsp_test",
     srcs = [
+        "client_test.go",
         "protocol_test.go",
     ],
     data = glob(["testdata/**"]),
