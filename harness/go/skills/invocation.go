@@ -22,11 +22,16 @@ type skillInvocation struct {
 	Status    harness.SubagentStatus `json:"status,omitempty"`
 }
 
-// invokedSkills selects only whole whitespace-bounded tokens in this step's
-// claimed direct-user text, never history or nested tool/external content.
-// Known launch-time names provide both the grammar and the authority boundary.
-func invokedSkills(messages []harness.Message, rows []Summary) []Summary {
-	var selected []Summary
+type explicitInvocation struct {
+	Summary
+	Arguments string
+}
+
+// explicitInvocations recognizes claimed direct-user text. Claude's ACP/SDK
+// mode loads only the first command at the start; legacy roots retain their
+// existing whitespace-bounded gesture semantics.
+func explicitInvocations(messages []harness.Message, rows []Summary, claude bool) []explicitInvocation {
+	var selected []explicitInvocation
 	seen := make(map[string]bool)
 	for _, message := range messages {
 		var source struct {
@@ -39,13 +44,26 @@ func invokedSkills(messages []harness.Message, rows []Summary) []Summary {
 			if block.Type != harness.BlockText {
 				continue
 			}
+			if claude && strings.TrimSpace(block.Text) == "" {
+				continue
+			}
+			cursor := 0
 			for _, token := range strings.Fields(block.Text) {
+				start := cursor + strings.Index(block.Text[cursor:], token)
+				cursor = start + len(token)
 				for _, row := range rows {
 					if token == "/"+row.Name && !seen[row.Name] {
-						selected = append(selected, row)
+						arguments := strings.TrimSpace(block.Text[cursor:])
+						selected = append(selected, explicitInvocation{Summary: row, Arguments: arguments})
 						seen[row.Name] = true
 					}
 				}
+				if claude {
+					break
+				}
+			}
+			if claude {
+				break
 			}
 		}
 	}

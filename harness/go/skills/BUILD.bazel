@@ -5,8 +5,12 @@ go_library(
     srcs = [
         "arguments.go",
         "catalog.go",
+        "claude_tool.go",
+        "fork.go",
         "invocation.go",
+        "models.go",
         "permissions.go",
+        "reattach.go",
         "selected.go",
         "tool.go",
     ],
