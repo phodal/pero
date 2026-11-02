@@ -1,0 +1,125 @@
+package claudehooks
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
+
+func TestMatcher(t *testing.T) {
+	for _, test := range []struct {
+		pattern, value string
+		match, fail    bool
+	}{
+		{"", "Write", true, false},
+		{"*", "Stop", true, false},
+		{"Write", "Write", true, false},
+		{"Write", "WriteMore", false, false},
+		{"Write|Edit", "Edit", true, false},
+		{"Write, Edit", "Edit", true, false},
+		{"Write|Edit", "NotebookEdit", false, false},
+		{`mcp__.*`, "mcp__memory__save", true, false},
+		{`^(Write|Edit)$`, "Edit", true, false},
+		{`^(Write|Edit)$`, "NotebookEdit", false, false},
+		{`Write.*`, "WriteMore", true, false},
+		{`(?=Write)`, "Write", false, true},
+		{`(Write)\1`, "WriteWrite", false, true},
+		{"[", "Write", false, true},
+	} {
+		t.Run(test.pattern+"/"+test.value, func(t *testing.T) {
+			match, err := Match(test.pattern, test.value)
+			if match != test.match || (err != nil) != test.fail {
+				t.Fatalf("match=%v error=%v", match, err)
+			}
+		})
+	}
+}
+
+func TestCommandDecision(t *testing.T) {
+	for _, test := range []struct {
+		name, event, stdout, stderr string
+		exit                        int
+		permission, reason, context string
+		block, stop, fail           bool
+		patch                       string
+	}{
+		{name: "allow and replace input", event: "PreToolUse", stdout: `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","updatedInput":{"file_path":"report.md"}}}`, permission: "allow", patch: `{"file_path":"report.md"}`},
+		{name: "deny", event: "PreToolUse", stdout: `{"hookSpecificOutput":{"permissionDecision":"deny","permissionDecisionReason":"write gate"}}`, permission: "deny", reason: "write gate", block: true},
+		{name: "ask", event: "PreToolUse", stdout: `{"hookSpecificOutput":{"permissionDecision":"ask","permissionDecisionReason":"confirm"}}`, permission: "ask", reason: "confirm"},
+		{name: "exit two overrides allow", event: "PreToolUse", exit: 2, stdout: `{"hookSpecificOutput":{"permissionDecision":"allow"}}`, stderr: "exit gate", permission: "deny", reason: "exit gate", block: true},
+		{name: "exit two JSON reason wins", event: "Stop", exit: 2, stdout: `{"decision":"block","reason":"JSON gate"}`, stderr: "stderr gate", reason: "JSON gate", block: true},
+		{name: "exit two invalid JSON still blocks", event: "Stop", exit: 2, stdout: "{", stderr: "stderr gate", reason: "stderr gate", block: true},
+		{name: "observational event cannot block", event: "SessionStart", exit: 2, stderr: "failure", fail: true},
+		{name: "ordinary failure is not a block", event: "Stop", exit: 7, stderr: "failure", fail: true},
+		{name: "stop gate continues agent", event: "Stop", stdout: `{"decision":"block","reason":"incomplete"}`, reason: "incomplete", block: true},
+		{name: "continue false ends processing", event: "Stop", stdout: `{"continue":false,"stopReason":"finished"}`, reason: "finished", stop: true},
+		{name: "PreCompact block ignores run control and messages", event: "PreCompact", stdout: `{"decision":"block","reason":"checkpoint missing","continue":false,"systemMessage":"discarded","additionalContext":"discarded"}`, reason: "checkpoint missing", block: true},
+		{name: "session plain context", event: "SessionStart", stdout: " restored context\n", context: "restored context"},
+		{name: "prompt plain context", event: "UserPromptSubmit", stdout: "extra instructions", context: "extra instructions"},
+		{name: "tool plain output does not become context", event: "PreToolUse", stdout: "unstructured diagnostic"},
+		{name: "tool result context", event: "PostToolUse", stdout: `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"update documentation"}}`, context: "update documentation"},
+		{name: "event identity cannot drift", event: "PreToolUse", stdout: `{"hookSpecificOutput":{"hookEventName":"Stop","permissionDecision":"deny"}}`, fail: true},
+		{name: "unknown permission cannot silently pass", event: "PreToolUse", stdout: `{"hookSpecificOutput":{"permissionDecision":"defer"}}`, fail: true},
+		{name: "patch must be an object", event: "PreToolUse", stdout: `{"hookSpecificOutput":{"updatedInput":[]}}`, fail: true},
+		{name: "patch cannot change completed tool", event: "PostToolUse", stdout: `{"hookSpecificOutput":{"updatedInput":{}}}`, fail: true},
+		{name: "malformed JSON fails visibly", event: "Stop", stdout: "{", fail: true},
+		{name: "unsupported output is diagnosed", event: "Stop", stdout: `{"unsupportedDecision":true}`, fail: true},
+		{name: "empty success", event: "Stop"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := ParseDecision(test.event, []byte(test.stdout), []byte(test.stderr), test.exit)
+			if (err != nil) != test.fail {
+				t.Fatalf("decision=%+v error=%v", got, err)
+			}
+			if test.fail {
+				if test.exit != 0 && !strings.Contains(err.Error(), "non-blocking") {
+					t.Errorf("ordinary hook failure must be identified as non-blocking: %v", err)
+				}
+				return
+			}
+			if got.Permission != test.permission || got.Reason != test.reason || got.AdditionalContext != test.context || got.Block != test.block || got.Stop != test.stop {
+				t.Fatalf("unexpected decision: %+v", got)
+			}
+			if test.event == "PreCompact" && got.SystemMessage != "" {
+				t.Error("PreCompact must discard systemMessage")
+			}
+			if string(got.UpdatedInput) != test.patch {
+				t.Errorf("patch=%s want %s", got.UpdatedInput, test.patch)
+			}
+		})
+	}
+}
+
+func TestDecisionAggregation(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		decisions   []Decision
+		permission  string
+		reason      string
+		context     string
+		block, stop bool
+		fail        bool
+	}{
+		{name: "deny has precedence", decisions: []Decision{{Permission: "allow", Reason: "allow"}, {Permission: "deny", Reason: "deny"}, {Permission: "ask", Reason: "ask"}}, permission: "deny", reason: "deny", block: true},
+		{name: "ask precedes allow", decisions: []Decision{{Permission: "allow"}, {Permission: "ask", Reason: "ask"}}, permission: "ask", reason: "ask"},
+		{name: "contexts accumulate", decisions: []Decision{{AdditionalContext: "first"}, {AdditionalContext: "second"}}, context: "first\nsecond"},
+		{name: "stop reason has precedence", decisions: []Decision{{Permission: "deny", Reason: "deny"}, {Stop: true, Reason: "stop"}}, permission: "deny", reason: "stop", block: true, stop: true},
+		{name: "same patch with reordered fields is compatible", decisions: []Decision{{UpdatedInput: json.RawMessage(`{"a":1,"b":{"x":2,"y":3}}`)}, {UpdatedInput: json.RawMessage(`{"b":{"y":3,"x":2},"a":1}`)}}},
+		{name: "different patches conflict", decisions: []Decision{{UpdatedInput: json.RawMessage(`{"a":1}`)}, {UpdatedInput: json.RawMessage(`{"a":2}`)}}, fail: true},
+		{name: "non object patch is rejected", decisions: []Decision{{UpdatedInput: json.RawMessage(`[]`)}}, fail: true},
+		{name: "unknown permission is rejected", decisions: []Decision{{Permission: "unknown"}}, fail: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := Merge(test.decisions)
+			if (err != nil) != test.fail {
+				t.Fatalf("decision=%+v error=%v", got, err)
+			}
+			if test.fail {
+				return
+			}
+			if got.Permission != test.permission || got.Reason != test.reason || got.AdditionalContext != test.context || got.Block != test.block || got.Stop != test.stop {
+				t.Errorf("unexpected aggregate: %+v", got)
+			}
+		})
+	}
+}
