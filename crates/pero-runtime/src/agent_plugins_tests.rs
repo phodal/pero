@@ -1,7 +1,9 @@
 use super::*;
 
 fn manifest() -> serde_json::Value {
-    serde_json::json!({"schemaVersion":1,"name":"paper-tools","version":"1.0.0","instructions":"Use frozen paper sources.","skills":["skills/read/SKILL.md"],"mcpServers":[{"name":"paper-docs","command":"/usr/bin/env","args":["node","{pluginRoot}/mcp.mjs"],"env":[]}]})
+    // Parsed and frozen only, never launched: use an absolute path on every OS.
+    let command = std::env::current_exe().unwrap();
+    serde_json::json!({"schemaVersion":1,"name":"paper-tools","version":"1.0.0","instructions":"Use frozen paper sources.","skills":["skills/read/SKILL.md"],"mcpServers":[{"name":"paper-docs","command":command,"args":["node","{pluginRoot}/mcp.mjs"],"env":[]}]})
 }
 
 #[test]
@@ -39,12 +41,12 @@ fn package_declaration_admission() {
         ),
         (
             "mcpServers",
-            serde_json::json!([{"name":"docs","command":"/bin/mcp","args":[],"env":[],"shell":true}]),
+            serde_json::json!([{"name":"docs","command":"{pluginRoot}/server","args":[],"env":[],"shell":true}]),
             false,
         ),
         (
             "mcpServers",
-            serde_json::json!([{"type":"unknown","name":"docs","command":"/bin/mcp","args":[],"env":[]}]),
+            serde_json::json!([{"type":"unknown","name":"docs","command":"{pluginRoot}/server","args":[],"env":[]}]),
             false,
         ),
         (
@@ -59,7 +61,7 @@ fn package_declaration_admission() {
         ),
         (
             "mcpServers",
-            serde_json::json!([{"name":"pero-app-use","command":"/bin/mcp","args":[],"env":[]}]),
+            serde_json::json!([{"name":"pero-app-use","command":"{pluginRoot}/server","args":[],"env":[]}]),
             false,
         ),
     ] {
