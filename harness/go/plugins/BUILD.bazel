@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "plugins",
+    srcs = ["diagnostic.go", "integrations.go"],
+    importpath = "github.com/phodal/pero/harness/go/plugins",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "plugins_test",
+    srcs = ["integrations_test.go"],
+    embed = [":plugins"],
+)
