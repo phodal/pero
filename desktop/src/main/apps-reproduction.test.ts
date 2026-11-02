@@ -4,7 +4,7 @@ import { registerHooks, stripTypeScriptTypes } from 'node:module';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const electron = 'data:text/javascript,export const BrowserWindow = class {}; export const ipcMain = {}; export const session = {}; export const net = { fetch() { throw new Error("Unexpected backend proxy"); } }; export const dialog = { showMessageBox(...args) { return globalThis.__reproductionDialog(...args); } };';
+const electron = 'data:text/javascript,export const BrowserWindow = class {}; export const ipcMain = {}; export const nativeTheme = { shouldUseDarkColors: false }; export const session = {}; export const net = { fetch() { throw new Error("Unexpected backend proxy"); } }; export const dialog = { showMessageBox(...args) { return globalThis.__reproductionDialog(...args); } };';
 registerHooks({ resolve(specifier, context, nextResolve) {
   return specifier === 'electron' ? { url: electron, shortCircuit: true } : nextResolve(specifier, context);
 } });

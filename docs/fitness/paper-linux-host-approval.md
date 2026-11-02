@@ -189,3 +189,36 @@ Contract source references at the unchanged base:
 - [`ObservedControl::into_element`, lines 26–50](https://github.com/phodal/pero/blob/78881615e37790b0a0b4635a197e18f974ea6867/use/computer/crates/computer-core/src/accessibility.rs#L26-L50): enabled/non-secure action projection and omitted state.
 - [`NodeFacts::control`, lines 62–78](https://github.com/phodal/pero/blob/78881615e37790b0a0b4635a197e18f974ea6867/use/computer/crates/computer-linux/src/accessibility/model.rs#L62-L78): original AT-SPI role spelling and actionable invoking action.
 - [`Accessibility::check`, lines 266–280](https://github.com/phodal/pero/blob/78881615e37790b0a0b4635a197e18f974ea6867/use/computer/crates/computer-linux/src/accessibility/bus.rs#L266-L280): execution-time exact process/state/visibility revalidation.
+
+## Owned no-computation acceptance, then theme/review corrections
+
+Run [41424263207](https://github.com/phodal/pero/actions/runs/41424263207)
+succeeded at head `05e3e630ed079fa827114aeae6fec9f57362493c`.
+Root independently inspected artifact `13131332703`, archive SHA-256
+`0694672fdc4ec4a1fddfa001e5375f71144e4fa9ba1336f8e51e6dcea25b0a65`.
+The report records abort, owner close and owner destroy as false, semantic Cancel
+as false and semantic Run once as true. Both input receipts executed using the
+semantic route against their exact owned targets. This establishes the authorized
+Linux no-computation fixture only, not scientific computation or other platforms.
+
+The subsequent review correction replaces hardcoded approval colors with the
+existing generated DESIGN.md light/dark tokens. Main selects one static bundled
+document using Electron's resolved native theme; Product already sets
+`nativeTheme.themeSource` from its menu, and Desktop now propagates only the
+runtime's acknowledged light/dark/system workbench appearance to that same source.
+No App-controlled styles, new page bridge, scripts or remote assets are added.
+Exact document identity remains pinned for the lifetime of each request.
+Behavioral tests exercise both resolved palettes, reject a changed document and
+retain the sender/frame/nonce, cancel, destroy and one-shot checks. Startup
+diagnostic tests now execute their bounded output behavior rather than matching
+literal implementation statements.
+
+These review changes are newer than the successful native run and require a fresh
+owned CI run for native UI acceptance. No local GUI, actual worker or science run
+was performed for the correction.
+
+Correction checks: 26 focused unit/helper/wiring tests passed, along with focused
+TypeScript and approval bundle checks. A fresh full local Desktop build remains
+blocked by absent connector `fflate` and `pdfjs-dist` dependencies in the existing
+scratch installation; no externalization or dependency bypass was used. CI's
+locked connector installation is still required before the normal build.

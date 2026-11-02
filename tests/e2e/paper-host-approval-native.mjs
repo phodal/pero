@@ -11,6 +11,7 @@ import { resolve, join } from 'node:path';
 import { electron } from './electron.mjs';
 import { waitFor } from '../fixtures/computer-app.mjs';
 import { approvalTarget, approvalAction, approvalTitle } from '../fixtures/paper-host-approval.mjs';
+import { saveApprovalStartup } from '../fixtures/paper-host-approval-diagnostics.mjs';
 import { closeOwnedElectron } from './owned-electron-close.mjs';
 
 assert.equal(process.platform, 'linux', 'This new approval path is Linux-only');
@@ -62,22 +63,12 @@ if (process.env.PERO_PAPER_HOST_APPROVAL_DBUS !== '1') {
     await build({
       stdin: { contents: `
         import { app, BrowserWindow } from 'electron';
+        import { observeApprovalStartup } from './tests/fixtures/paper-host-approval-diagnostics.mjs';
         import { confirmReproduction } from './desktop/src/main/reproduction-approval.ts';
         // Existing computer-electron fixture convention: expose renderer AX tree.
         app.commandLine.appendSwitch('force-renderer-accessibility');
         app.whenReady().then(() => {
-          const events = [];
-          const record = (id, kind, detail = {}) => { if (events.length < 64) events.push({ id, kind, ...detail }); };
-          app.on('browser-window-created', (_event, window) => {
-            const id = window.id, contents = window.webContents;
-            record(id, 'created');
-            for (const kind of ['show', 'closed', 'unresponsive']) window.on(kind, () => record(id, kind));
-            for (const kind of ['did-start-loading', 'dom-ready', 'did-finish-load', 'did-stop-loading'])
-              contents.on(kind, () => record(id, kind));
-            contents.on('did-fail-load', (_event, code, description, _url, mainFrame) => record(id, 'did-fail-load', { code, mainFrame, description: description.slice(0, 200) }));
-            contents.on('preload-error', (_event, _path, error) => record(id, 'preload-error', { error: error.name, message: error.message.slice(0, 300) }));
-            contents.on('render-process-gone', (_event, details) => record(id, 'render-process-gone', { reason: details.reason }));
-          });
+          const events = observeApprovalStartup(app);
           const keeper = new BrowserWindow({ show: false });
           let owner, controller, result, failure;
           globalThis.paperHostApproval = {
@@ -114,37 +105,7 @@ if (process.env.PERO_PAPER_HOST_APPROVAL_DBUS !== '1') {
       try {
         await expect.poll(() => application.evaluate(() => globalThis.paperHostApproval.state().disabled), { timeout: 10000 }).toBe(true);
       } catch (error) {
-        const state = await application.evaluate(({ BrowserWindow }) => ({
-          state: globalThis.paperHostApproval.state(), events: globalThis.paperHostApproval.events,
-          windows: BrowserWindow.getAllWindows().slice(0, 8).map(window => ({
-            id: window.id, title: window.getTitle(), visible: window.isVisible(), modal: window.isModal(),
-            parentId: window.getParentWindow()?.id, loading: window.webContents.isLoading(),
-            urlScheme: window.webContents.getURL().split(':')[0],
-          })),
-        }));
-        await writeFile(join(out, `${stage}-startup.json`), JSON.stringify(state, null, 2));
-        let timer;
-        try {
-          const capture = await Promise.race([
-            application.evaluate(async ({ BrowserWindow }) => {
-              const ownerId = globalThis.paperHostApproval.state().ownerId;
-              const matches = BrowserWindow.getAllWindows().filter(window => window.getTitle() === 'Paper reproduction' && window.getParentWindow()?.id === ownerId);
-              if (matches.length !== 1) return { skipped: 'no unique owned approval window' };
-              const pixels = await matches[0].webContents.capturePage();
-              return { windowId: matches[0].id, empty: pixels.isEmpty(), png: pixels.toPNG().toString('base64') };
-            }),
-            new Promise((_, reject) => { timer = setTimeout(() => reject(Error('Owned diagnostic capture timed out')), 2000); }),
-          ]);
-          const { png, ...metadata } = capture;
-          if (png) {
-            const bytes = Buffer.from(png, 'base64');
-            await writeFile(join(out, `${stage}-startup.png`), bytes);
-            metadata.sha256 = createHash('sha256').update(bytes).digest('hex');
-          }
-          await writeFile(join(out, `${stage}-startup-image.json`), JSON.stringify({ source: 'owned renderer diagnostic only; not native approval evidence', ...metadata }, null, 2));
-        } catch (captureError) {
-          await writeFile(join(out, `${stage}-startup-image.json`), JSON.stringify({ error: captureError.message }, null, 2));
-        } finally { clearTimeout(timer); }
+        await saveApprovalStartup(application, out, stage);
         throw error;
       }
     }

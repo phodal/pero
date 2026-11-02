@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import test from 'node:test';
 
+const nativeTheme = { shouldUseDarkColors: false };
 const ipcMain = new EventEmitter();
 const windows: FakeWindow[] = [];
 const partitions: { name: string; session: FakeSession }[] = [];
@@ -44,14 +45,15 @@ class FakeWindow extends EventEmitter {
   close() { this.emit('close'); this.destroy(); }
 }
 Object.assign(globalThis, { __approvalElectron: {
-  BrowserWindow: FakeWindow, ipcMain,
+  BrowserWindow: FakeWindow, ipcMain, nativeTheme,
   session: { fromPartition(name: string) { const session = new FakeSession(); partitions.push({ name, session }); return session; } },
 } });
-const mock = 'data:text/javascript,export const {BrowserWindow,ipcMain,session}=globalThis.__approvalElectron;';
+const mock = 'data:text/javascript,export const {BrowserWindow,ipcMain,nativeTheme,session}=globalThis.__approvalElectron;';
 registerHooks({ resolve(specifier, context, nextResolve) {
   return specifier === 'electron' ? { url: mock, shortCircuit: true } : nextResolve(specifier, context);
 } });
 const { confirmLinuxReproduction } = await import('./reproduction-approval-linux.ts');
+const themes = JSON.parse(readFileSync(new URL('../../../web/src/theme.generated.json', import.meta.url), 'utf8'));
 const channel = 'pero:reproduction-approval';
 const summary = '<img src="https://invalid.test/" onerror="alert(1)"> frozen text';
 function start() {
@@ -226,4 +228,30 @@ test('preload renders summary as text and accepts only one trusted control event
   assert.equal(sent.length, 2);
   assert.equal(elements.get('allow')!.disabled, true);
   assert.equal(elements.get('cancel')!.disabled, true);
+});
+
+// The shell supplies Electron's resolved theme, including explicit Product and
+// Desktop overrides. The approval only selects trusted bundled palettes.
+test('each resolved theme selects shared tokens without weakening the exact-document gate', async () => {
+  try {
+    for (const mode of ['light', 'dark']) {
+      nativeTheme.shouldUseDarkColors = mode === 'dark';
+      const h = start();
+      try {
+        const prefix = 'data:text/html;charset=utf-8,';
+        const html = decodeURIComponent(h.popup.webContents.mainFrame.url.slice(prefix.length));
+        assert.ok(html.includes(`color-scheme:${mode}`));
+        for (const [key, value] of Object.entries(themes[mode])) assert.ok(html.includes(`--pero-${key}:${value}`));
+        assert.equal(h.popup.options.backgroundColor, themes[mode].surface);
+        assert.ok(!html.includes(summary));
+        const other = html.replace(`color-scheme:${mode}`, `color-scheme:${mode === 'dark' ? 'light' : 'dark'}`);
+        let response: unknown;
+        partitions.at(-1)!.session.network?.({ url: prefix + encodeURIComponent(other),
+          webContentsId: h.popup.webContents.id, resourceType: 'mainFrame' }, (value: unknown) => { response = value; });
+        assert.deepEqual(response, { cancel: true });
+        h.send({ kind: 'decision', nonce: h.configuration.nonce, allow: true });
+        assert.equal(await h.result, true);
+      } finally { h.controller.abort(); }
+    }
+  } finally { nativeTheme.shouldUseDarkColors = false; }
 });

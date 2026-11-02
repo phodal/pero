@@ -1,6 +1,11 @@
 // No GUI/input: guard the separately authorized new Host UI opt-in boundary.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { EventEmitter } from 'node:events';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { observeApprovalStartup, approvalStartupState, captureOwnedApproval, saveApprovalStartup } from '../fixtures/paper-host-approval-diagnostics.mjs';
 import test from 'node:test';
 const read = path => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 const workflow = read('.github/workflows/computer-use.yml');
@@ -59,14 +64,94 @@ test('UI run is bounded, isolated and saves only its exact owned evidence', () =
 });
 
 
-test('modal startup failures retain bounded diagnostic state without relaxing readiness', () => {
-  assert.ok(fixture.includes("globalThis.paperHostApproval.state().disabled), { timeout: 10000 }).toBe(true)"));
-  assert.ok(fixture.includes("events.length < 64"));
-  assert.ok(fixture.includes("BrowserWindow.getAllWindows().slice(0, 8)"));
-  assert.ok(fixture.includes("contents.on('did-fail-load'"));
-  assert.ok(fixture.includes("contents.on('preload-error'"));
-  assert.ok(fixture.includes("`${stage}-startup.json`"));
-  assert.ok(fixture.includes("window.getParentWindow()?.id === ownerId"));
-  assert.ok(fixture.includes("Owned diagnostic capture timed out"));
-  assert.ok(fixture.includes("owned renderer diagnostic only; not native approval evidence"));
+test('startup diagnostics retain failure details with bounded events and window summaries', () => {
+  const app = new EventEmitter();
+  const events = observeApprovalStartup(app);
+  const windows = Array.from({ length: 12 }, (_, id) => diagnosticWindow(id));
+  app.emit('browser-window-created', {}, windows[0]);
+  windows[0].webContents.emit('did-fail-load', {}, -2, 'x'.repeat(1000), 'https://secret.invalid/private', true);
+  windows[0].webContents.emit('preload-error', {}, '/private/preload', new Error('y'.repeat(1000)));
+  windows[0].webContents.emit('render-process-gone', {}, { reason: 'crashed' });
+  for (let i = 0; i < 100; i++) windows[0].emit('show');
+  assert.equal(events.length, 64);
+  assert.deepEqual(events.slice(0, 4), [
+    { id: 0, kind: 'created' },
+    { id: 0, kind: 'did-fail-load', code: -2, mainFrame: true, description: 'x'.repeat(200) },
+    { id: 0, kind: 'preload-error', error: 'Error', message: 'y'.repeat(300) },
+    { id: 0, kind: 'render-process-gone', reason: 'crashed' },
+  ]);
+  globalThis.paperHostApproval = { state: () => ({ ownerId: 42, disabled: false }), events };
+  try {
+    const snapshot = approvalStartupState({ BrowserWindow: { getAllWindows: () => windows } });
+    assert.equal(snapshot.windows.length, 8);
+    assert.equal(snapshot.state.disabled, false, 'Diagnostics must not turn failure into readiness');
+    assert.deepEqual(snapshot.events, events);
+    assert.equal(snapshot.windows[0].urlScheme, 'data');
+    assert.ok(!JSON.stringify(snapshot).includes('private'));
+  } finally { delete globalThis.paperHostApproval; }
+});
+
+function diagnosticWindow(id, parentId = 42, title = 'Paper reproduction') {
+  const window = new EventEmitter();
+  Object.assign(window, { id, getTitle: () => title, isVisible: () => true, isModal: () => true,
+    getParentWindow: () => ({ id: parentId }), webContents: new EventEmitter() });
+  Object.assign(window.webContents, { isLoading: () => false, getURL: () => 'data:text/html,private',
+    capturePage: async () => ({ isEmpty: () => false, toPNG: () => Buffer.from('owned pixels') }) });
+  return window;
+}
+
+test('diagnostic image capture requires exactly one matching title and parent', async () => {
+  globalThis.paperHostApproval = { state: () => ({ ownerId: 42 }) };
+  try {
+    const owned = diagnosticWindow(1);
+    const foreign = diagnosticWindow(2, 99);
+    foreign.webContents.capturePage = () => assert.fail('Never capture another owner');
+    const otherTitle = diagnosticWindow(3, 42, 'Other title');
+    otherTitle.webContents.capturePage = () => assert.fail('Never capture another title');
+    for (const windows of [[], [foreign, otherTitle], [owned, diagnosticWindow(4)]]) {
+      assert.deepEqual(await captureOwnedApproval({ BrowserWindow: { getAllWindows: () => windows } }),
+        { skipped: 'no unique owned approval window' });
+    }
+    assert.deepEqual(await captureOwnedApproval({ BrowserWindow: { getAllWindows: () => [foreign, owned, otherTitle] } }),
+      { windowId: 1, empty: false, png: Buffer.from('owned pixels').toString('base64') });
+  } finally { delete globalThis.paperHostApproval; }
+});
+
+test('startup artifacts label renderer evidence and bound an unresponsive capture', async context => {
+  const out = await mkdtemp(join(tmpdir(), 'paper-approval-diagnostics-'));
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    for (const mode of ['image', 'timeout']) {
+      let captureStarted;
+      const started = new Promise(resolve => { captureStarted = resolve; });
+      const application = { evaluate: async callback => {
+        if (callback === approvalStartupState) return { state: { disabled: false }, events: [], windows: [] };
+        assert.equal(callback, captureOwnedApproval);
+        captureStarted();
+        return mode === 'image' ? { windowId: 1, empty: false, png: Buffer.from('owned pixels').toString('base64') } : new Promise(() => {});
+      } };
+      const saved = saveApprovalStartup(application, out, mode);
+      await started;
+      if (mode === 'timeout') {
+        let settled = false;
+        void saved.then(() => { settled = true; });
+        context.mock.timers.tick(1999);
+        await Promise.resolve();
+        assert.equal(settled, false);
+        context.mock.timers.tick(1);
+      }
+      await saved;
+      const state = JSON.parse(await readFile(join(out, `${mode}-startup.json`), 'utf8'));
+      assert.equal(state.state.disabled, false);
+      const metadata = JSON.parse(await readFile(join(out, `${mode}-startup-image.json`), 'utf8'));
+      assert.equal(metadata.source, 'owned renderer diagnostic only; not native approval evidence');
+      if (mode === 'timeout') assert.match(metadata.error, /timed out/);
+      else {
+        assert.equal(metadata.windowId, 1);
+        assert.match(metadata.sha256, /^[a-f0-9]{64}$/);
+        assert.equal(await readFile(join(out, 'image-startup.png'), 'utf8'), 'owned pixels');
+      }
+    }
+    assert.deepEqual((await readdir(out)).sort(), ['image-startup-image.json', 'image-startup.json', 'image-startup.png', 'timeout-startup-image.json', 'timeout-startup.json']);
+  } finally { await rm(out, { recursive: true, force: true }); }
 });
