@@ -297,11 +297,7 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 			return result, err
 		}
 		openStep = 0
-		if concluded {
-			reason = FinishStop
-			return result, nil
-		}
-		if len(calls) == 0 {
+		if concluded || len(calls) == 0 {
 			if err := a.hooks.TurnStopping.Emit(ctx, TurnStoppingInput{Agent: a, Turn: turn}); err != nil {
 				return result, err
 			}
@@ -317,7 +313,7 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 				continue
 			}
 			reason = completion.Finish
-			if reason == "" {
+			if concluded || reason == "" {
 				reason = FinishStop
 			}
 			return result, nil

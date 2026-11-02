@@ -151,7 +151,6 @@ func (app *HookApp) register(run *point.Run) error {
 	}
 	if _, err := tools.Before.Use(run, func(ctx context.Context, request harness.ToolRequest, next point.Next[harness.ToolRequest]) (harness.ToolRequest, error) {
 		err := app.withAgent(ctx, request.Agent, func(ctx context.Context, state *hookAgentState) error {
-			state.stopBlocks = 0
 			return app.beforeTool(ctx, &request)
 		})
 		if err != nil {
@@ -162,7 +161,12 @@ func (app *HookApp) register(run *point.Run) error {
 		return err
 	}
 	if _, err := tools.After.Use(run, func(ctx context.Context, outcome harness.ToolOutcome, next point.Next[harness.ToolOutcome]) (harness.ToolOutcome, error) {
-		err := app.withAgent(ctx, outcome.Request.Agent, func(ctx context.Context, state *hookAgentState) error { return app.afterTool(ctx, &outcome) })
+		err := app.withAgent(ctx, outcome.Request.Agent, func(ctx context.Context, state *hookAgentState) error {
+			if !outcome.Result.ConcludesTurn {
+				state.stopBlocks = 0
+			}
+			return app.afterTool(ctx, &outcome)
+		})
 		if err != nil {
 			return outcome, err
 		}

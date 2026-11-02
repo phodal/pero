@@ -12,7 +12,7 @@ import (
 
 const structuredOutputToolName = "structured_output"
 
-const structuredOutputInstruction = "When you have your final answer, you MUST report it by calling the `structured_output` tool with arguments matching its parameter schema exactly. Do not finish with a plain text answer: only the tool call counts as your result."
+const structuredOutputInstruction = "When you have your final answer, you MUST report it by calling the `structured_output` tool with arguments matching its parameter schema exactly. Do not finish with a plain text answer: only the tool call counts as your result. If completion feedback requires more work, address it and submit the revised result through the same tool."
 
 type structuredCapture struct {
 	mu               sync.Mutex
@@ -21,18 +21,21 @@ type structuredCapture struct {
 	pending          *structuredPending
 	captured         any
 	committed        harness.ToolExecutionToken
+	committedTurn    int
 	committedRelease func()
 }
 
 type structuredStage struct {
 	value   any
 	release func()
+	turn    int
 }
 
 type structuredPending struct {
 	origin  harness.ToolExecutionToken
 	parent  harness.ToolExecutionToken
 	value   any
+	turn    int
 	release func()
 }
 
@@ -47,7 +50,7 @@ func attachStructuredCapture(h *harness.Harness, run *point.Run, agent *harness.
 	tool := harness.Tool{
 		Schema: harness.ToolSchema{
 			Name:        structuredOutputToolName,
-			Description: "Report your final structured result. Call this exactly once when your answer is complete.",
+			Description: "Report your final structured result. If completion feedback requests changes, address it and submit the revised result.",
 			InputSchema: append(json.RawMessage(nil), schema...),
 		},
 		ExecuteRequest: func(_ context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
@@ -66,8 +69,9 @@ func attachStructuredCapture(h *harness.Harness, run *point.Run, agent *harness.
 					return harness.ToolResult{}, err
 				}
 			}
+			turn, _ := agent.Session().LastTurn()
 			capture.mu.Lock()
-			capture.staged[request.ExecutionToken()] = structuredStage{value: value, release: release}
+			capture.staged[request.ExecutionToken()] = structuredStage{value: value, release: release, turn: turn}
 			capture.mu.Unlock()
 			return harness.ToolResult{
 				Content:       []harness.ContentBlock{{Type: harness.BlockText, Text: "Structured output recorded."}},
@@ -76,6 +80,14 @@ func attachStructuredCapture(h *harness.Harness, run *point.Run, agent *harness.
 		},
 	}
 	if _, err := h.Tools().Register(run, tool); err != nil {
+		return nil, err
+	}
+	if _, err := h.Hooks().PreStep.Use(run, func(_ context.Context, input harness.StepInput, next point.Next[harness.StepInput]) (harness.StepInput, error) {
+		if input.Agent == agent && input.Continue && input.Step > 1 {
+			capture.reopen(input.Turn)
+		}
+		return next(input)
+	}); err != nil {
 		return nil, err
 	}
 	if _, err := h.Tools().Results.On(run, func(_ context.Context, outcome harness.ToolOutcome) error {
@@ -120,6 +132,7 @@ func (c *structuredCapture) observe(outcome harness.ToolOutcome) {
 		c.pending = nil
 		if !outcome.Result.IsError && c.captured == nil {
 			c.captured = pending.value
+			c.committedTurn = pending.turn
 			c.committed, c.committedRelease = token, pending.release
 		} else {
 			releases = append(releases, pending.release)
@@ -133,9 +146,10 @@ func (c *structuredCapture) observe(outcome harness.ToolOutcome) {
 			releases = append(releases, entry.release)
 		default:
 			if parent, nested := outcome.Request.ParentExecutionToken(); nested {
-				c.pending = &structuredPending{origin: token, parent: parent, value: entry.value, release: entry.release}
+				c.pending = &structuredPending{origin: token, parent: parent, value: entry.value, release: entry.release, turn: entry.turn}
 			} else {
 				c.captured = entry.value
+				c.committedTurn = entry.turn
 				c.committed, c.committedRelease = token, entry.release
 			}
 		}
@@ -161,6 +175,7 @@ func (c *structuredCapture) finalize(token harness.ToolExecutionToken, failed bo
 	}
 	if failed && c.committed == token {
 		c.captured = nil
+		c.committedTurn = 0
 		c.committed = harness.ToolExecutionToken{}
 		if c.committedRelease != nil {
 			releases = append(releases, c.committedRelease)
@@ -169,6 +184,24 @@ func (c *structuredCapture) finalize(token harness.ToolExecutionToken, failed bo
 	}
 	c.mu.Unlock()
 	for _, release := range releases {
+		release()
+	}
+}
+
+// A committed candidate is final unless the worker actually takes another step
+// in the same turn after its stop gate. Releasing its admission here permits a
+// revised capture without changing nested-execution commit/rollback ownership.
+func (c *structuredCapture) reopen(turn int) {
+	c.mu.Lock()
+	var release func()
+	if turn > 0 && c.committedTurn == turn && c.captured != nil {
+		c.captured = nil
+		c.committedTurn = 0
+		c.committed = harness.ToolExecutionToken{}
+		release, c.committedRelease = c.committedRelease, nil
+	}
+	c.mu.Unlock()
+	if release != nil {
 		release()
 	}
 }
