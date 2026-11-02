@@ -114,3 +114,38 @@
 .pa-reader-tools{display:flex;align-items:center;gap:8px;min-width:0;min-height:32px;padding:2px 12px;flex:none;position:relative;background:var(--pero-material-chrome)}.pa-reader-modes,.pa-reader-format-controls,.pa-reader-pager{display:flex;align-items:center;gap:4px;white-space:nowrap;flex:none}.pa-reader-modes{order:0}.pa-reader-format-controls{order:1}.pa-reader-pager{order:2;margin-inline-start:auto}.pa-reader-original{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;font-size:var(--pero-font-caption)}.pa-reader-tools>.pero-ui-toolbar{display:contents}.pa-reader-tools:empty{display:none}.pa-reader-format-controls:empty{display:none}
 
 @container(max-width:640px){.pa-reader-tools{gap:4px;padding-inline:8px}.pa-reader-tools .pero-ui-button{padding-inline:5px}.pa-reader-original span{display:none}.pa-reader-pager{gap:2px}.pa-pdf-page-input input{width:38px}}
+
+/* One stable reading toolbar; the current representation owns its pager. */
+.pa-workbench{overflow:hidden}
+.pa-reading-bar.pero-reader-header{height:36px;min-height:36px;flex-wrap:nowrap;gap:8px;padding:0 12px;overflow:hidden}
+.pa-reading-bar h1{flex:0 1 360px;max-width:30%;margin:0;line-height:1.5}
+.pa-reading-bar>.pero-ui-button,.pa-reading-bar>div:last-child{flex:none}
+.pa-reading-bar .pa-reader-tools{flex:1;min-width:0;min-height:30px;padding:0;overflow-x:auto;overflow-y:hidden;gap:8px;scrollbar-width:thin}
+.pa-reader-modes{gap:0;align-self:stretch}
+.pa-workbench .pa-reader-modes>.pero-ui-button[data-variant=ghost]{height:30px;min-height:30px;border:0;border-radius:0;padding:0 8px;background:transparent;font-size:14px;box-shadow:none}
+.pa-workbench .pa-reader-modes>.pero-ui-button[data-variant=ghost][aria-pressed=true]{color:var(--pero-text);background:var(--pero-surface);box-shadow:inset 0 -2px var(--pero-action)}
+.pa-reading-main:not(:has(.pa-pdf-reading[data-reader-view=text])) .pa-reader-read-controls{display:none}
+.pa-reader-read-controls,.pa-tex-controls{order:1;display:flex;flex:none;align-items:center;gap:4px}
+.pa-reader-pager{flex:none;margin-inline-start:auto;font-size:12px;gap:2px}
+.pa-reader-pager .pero-ui-button{height:24px;min-height:24px;padding:0 5px}
+.pa-tex-reader{position:relative;display:flex;flex-direction:column;flex:1;min-width:0;min-height:0;overflow:hidden;background:var(--pero-material-reading)}
+.pa-tex-empty{padding:24px;display:flex;align-items:flex-start;flex-direction:column;gap:12px}
+.pa-tex-reader>.pero-ui-feedback{flex:none;margin:12px}.pa-tex-reader>.pero-ui-feedback p{white-space:pre-wrap;max-height:160px;overflow:auto}
+.pa-tex-provenance{position:absolute;bottom:8px;left:12px;font-size:12px;color:var(--pero-text-muted);background:var(--pero-surface);padding:2px 6px;border-radius:3px;pointer-events:none}
+.pa-workbench .pa-tex-source-dialog.pero-ui-dialog[data-size=lg]{width:min(1040px,calc(100vw - 24px));max-height:calc(100dvh - 24px);border:0.5px solid var(--pero-border);border-radius:6px;box-shadow:none}
+.pa-tex-source-dialog .pero-ui-dialog-head{border-bottom:0.5px solid var(--pero-border)}
+.pa-tex-source-dialog .pero-ui-dialog-head h2{font-size:14px}
+.pa-tex-source-dialog .pa-source-browser{margin-top:0}.pa-tex-source-dialog .pa-source-split{margin-top:0;min-height:360px;max-height:65vh}
+.pa-original-view{display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--pero-material-reading)}
+.pa-original-view iframe{flex:1;min-height:0;width:100%;border:0;background:var(--pero-surface)}
+.pa-original-location{flex:none;padding:4px 12px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pa-original-location a{display:inline-flex;align-items:center;gap:4px}.pa-original-location svg{width:12px;height:12px}
+@container(max-width:1000px){.pa-reading-bar h1{max-width:180px;flex-basis:180px}.pa-reader-modes>.pero-ui-button{padding-inline:6px}}
+@container(max-width:760px){.pa-reading-bar h1{display:none}.pa-reading-bar.pero-reader-header{padding-inline:8px;gap:4px}.pa-reading-bar>.pero-ui-button{font-size:12px;padding-inline:4px}.pa-reader-modes>.pero-ui-button{padding-inline:5px}.pa-tex-source-dialog .pa-source-split{min-height:0;max-height:none}}
+
+.pa-tex-source-dialog .pa-source-files li{display:flex;align-items:center;min-height:24px;margin:0}.pa-tex-source-dialog .pa-source-files small{display:none}.pa-tex-source-dialog .pa-source-files .pero-ui-button{font-size:12px;line-height:20px;padding:2px 4px;min-height:24px}.pa-tex-source-dialog pre.pa-source-text{font-family:ui-monospace,SFMono-Regular,monospace;white-space:pre;overflow:auto}.pa-tex-source-dialog .pa-source-split>.pero-ui-split-pane{padding:4px 8px}
+
+.pa-records-toggle svg,.pa-tex-files-action svg{display:none}.pa-pdf-zoom-menu.pero-ui-popover{display:none}.pa-pdf-zoom-panel.pero-ui-popover-panel{display:flex;align-items:center;padding:6px;gap:4px;min-width:0;border:0.5px solid var(--pero-border);border-radius:6px;box-shadow:none}
+@container(max-width:760px){.pa-records-toggle span,.pa-tex-files-action span{display:none}.pa-workbench .pa-reader-pager .pa-pdf-zoom-inline{display:none}.pa-records-toggle svg,.pa-tex-files-action svg{display:block}.pa-workbench .pa-records-toggle,.pa-workbench .pa-tex-files-action{width:24px;min-width:24px;height:24px;min-height:24px;padding:0}.pa-pdf-zoom-menu.pero-ui-popover{display:inline-flex}.pa-pdf-zoom-menu .pero-ui-button{font-size:12px;padding:0 2px;min-width:32px}.pa-reading-bar .pa-reader-tools{gap:4px}.pa-pdf-page-input input{width:34px;padding-inline:2px}}
+
+@container(max-width:760px){.pa-workbench .pa-reader-modes>.pero-ui-button[data-variant=ghost]{padding-inline:5px}}

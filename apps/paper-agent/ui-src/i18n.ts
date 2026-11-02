@@ -1,4 +1,6 @@
 export const messages = {
+  readerView: { zh: '论文视图', en: 'Paper view' },
+  pdfZoom: { zh: '缩放', en: 'Zoom' },
   researchUrl: { zh: '链接导入', en: 'Research URL' },
   reproductionEnvironmentFailed: { zh: '环境预检失败（未启动计算）', en: 'Environment preflight failed (computation not started)' },
   reproductionSmokeOnly: { zh: '此入口仅启动 smoke；其他方案的已有结果仍可查看。', en: 'This entry only starts smoke runs; existing results from other profiles remain readable.' },
