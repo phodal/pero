@@ -92,7 +92,7 @@ def fetch(url, **options):
   await frame.getByRole('button', { name: 'Inspect link', exact: true }).click();
   let review = frame.getByRole('region', { name: 'Review resources' });
   await expect(review).toBeVisible({ timeout: 15000 });
-  await expect(review.locator('.pa-resource-title input')).toHaveCount(5);
+  await expect(review.locator('.pa-resource-title').getByRole('checkbox')).toHaveCount(5);
   await expect(review).toContainText('Article'); await expect(review).toContainText('Model'); await expect(review).toContainText('Benchmark');
   await expect(review.getByRole('checkbox', { name: /^Download weights.safetensors/ })).not.toBeChecked();
   const draftReply = await frame.locator('body').evaluate(async () => (await (await fetch('/api/research/drafts')).json()));

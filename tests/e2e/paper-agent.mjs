@@ -1,3 +1,4 @@
+import { selectPaperOption } from './paper-research-ui-controls.mjs';
 import { exerciseImageOnly, reopenImageOnly, isImageOnlyStudyRejectionConsole } from './paper-image-only-flow.mjs';
 import { paperBackendFixture } from './paper-backend-fixture.mjs';
 import { chatState, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
@@ -114,10 +115,10 @@ try {
     // Synthetic content is explicit test input, imported through the real UI.
     const sample = await frame.locator('body').evaluate(async () => (await fetch('/api/example')).json());
     await frame.getByRole('button', { name: 'Add papers', exact: true }).click();
-    await expect(frame.getByLabel('Sort', { exact: true })).toHaveValue('recency');
+    await expect(frame.getByRole('button', { name: 'Sort', exact: true })).toHaveAttribute('data-value', 'recency');
     expect(await frame.locator('.pero-ui-page-header').evaluate(element => element.getBoundingClientRect().height)).toBeLessThanOrEqual(56);
     await page.screenshot({ path: resolve(out, 'import-search-light.png') });
-    await frame.getByRole('combobox', { name: 'Literature source', exact: true }).selectOption('openalex');
+    await selectPaperOption(frame, 'Literature source', 'OpenAlex', 'openalex');
     await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).fill('attention');
     await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).press('Enter');
     await expect(frame.locator('.pa-search-results>li').first()).toBeVisible();
@@ -147,13 +148,13 @@ try {
       await page.screenshot({ path: resolve(out, 'import-inline-error.png') });
     } finally { await frame.locator('body').evaluate(() => { window.fetch = window.paperFetch; delete window.paperFetch; delete window.finishPaperAdd; }); }
 
-    await frame.getByLabel('Sort', { exact: true }).selectOption('popular');
+    await selectPaperOption(frame, 'Sort', 'Most cited', 'popular');
     const searchReply = page.waitForResponse(response => response.url().endsWith('/api/search') && response.request().method() === 'POST');
     await frame.getByRole('button', { name: 'Search papers', exact: true }).click();
     expect((await searchReply).request().postDataJSON().priority).toBe('popular');
     await expect(frame.getByText('Sort returned results by OpenAlex citations; results without citation data follow.', { exact: true })).toBeVisible();
     await page.screenshot({ path: resolve(out, 'search-results-light.png') });
-    await frame.getByRole('combobox', { name: 'Literature source', exact: true }).selectOption('huggingface');
+    await selectPaperOption(frame, 'Literature source', 'Hugging Face', 'huggingface');
     await frame.getByRole('button', { name: 'Search papers', exact: true }).click();
     const hfResult = frame.locator('.pa-search-results>li').filter({ hasText: 'Synthetic AI paper' });
     await expect(hfResult).toBeVisible();

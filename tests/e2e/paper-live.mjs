@@ -1,3 +1,4 @@
+import { selectPaperOption } from './paper-research-ui-controls.mjs';
 // Opt-in: real public sources, real PDF and authenticated Codex through the Host.
 import { saveLibraryCopies } from './paper-pdf-flow.mjs';
 import { electron } from './electron.mjs';
@@ -234,8 +235,8 @@ try {
     checks.push(process.env.PERO_PAPER_LIVE_RESTORE_ONLY ? 'restored real report opens a fully rendered PDF page and exact quotation highlight' : 'real follow-up reuses unchanged PDF evidence and retains exact source highlighting');
   } else {
   await frame.getByRole('button', { name: 'Add papers', exact: true }).first().click();
-  await frame.getByLabel('Literature source', { exact: true }).selectOption('alphaxiv');
-  await expect(frame.getByLabel('Sort', { exact: true })).toHaveValue('recency');
+  await selectPaperOption(frame, 'Literature source', 'alphaXiv', 'alphaxiv');
+  await expect(frame.getByRole('button', { name: 'Sort', exact: true })).toHaveAttribute('data-value', 'recency');
   await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).fill('Harness^2: Recursive Agent Harnessing for an Open World');
   await frame.getByRole('button', { name: 'Search papers', exact: true }).click();
   const result = frame.locator('.pa-search-results>li').filter({ has: frame.getByRole('heading', { name: 'Harness^2: Recursive Agent Harnessing for an Open World', exact: true }) });

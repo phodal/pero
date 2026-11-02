@@ -122,7 +122,7 @@ try {
   await expect(rejection).toBeVisible();
   await writeFile(htmlFixture, original);
   await frame.getByRole('button', { name: 'Retry v2', exact: true }).click();
-  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeVisible({ timeout: 60000 });
+  await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toBeVisible({ timeout: 60000 });
   const overview = await api(`/api/paper-documents?paperId=${paperId}`), identity = overview.revisions[0].id;
   const document = await api(`/api/paper-documents/${identity}`);
   await expect(rejection).toHaveCount(0);
@@ -210,9 +210,9 @@ try {
       if (window.paperRefreshGate.error) throw Error(window.paperRefreshGate.error);
       return window.paperRefreshGate.arrived;
     }), { message: 'Real document refresh response reached the App fetch gate' }).toBe(true);
-    await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeDisabled();
+    await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toBeDisabled();
     await frame.locator('body').evaluate(() => window.paperRefreshGate.release());
-    await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeEnabled();
+    await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toBeEnabled();
     expect(await frame.locator('body').evaluate(() => window.paperRefreshGate.delivered)).toBe(true);
   } finally {
     await frame.locator('body').evaluate(() => { window.paperRefreshGate.restore(); delete window.paperRefreshGate; });
@@ -225,7 +225,7 @@ try {
   await expect(bar.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('2');
   await expect(bar.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(zoom);
   await frame.getByRole('button', { name: 'Read', exact: true }).click();
-  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toHaveValue(identity);
+  await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toHaveAttribute('data-value', identity);
   await setPaperAppearance(page, 'dark');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 800));
   await expect.poll(() => frame.locator('html').evaluate(e => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
@@ -243,7 +243,7 @@ try {
   await frame.getByRole('button', { name: 'Open saved PDF', exact: true }).click();
   const readButton = frame.getByRole('button', { name: 'Read', exact: true });
   await expect(readButton).toBeVisible(); await readButton.click();
-  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toHaveValue(identity);
+  await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toHaveAttribute('data-value', identity);
   expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   await frame.getByText('Recorded evidence', { exact: true }).click();
   const reopenedReports = frame.getByRole('region', { name: 'Source evidence reports', exact: true });
@@ -274,7 +274,7 @@ try {
   await frame.getByRole('button', { name: 'Read', exact: true }).click();
   await frame.getByText('Source and parsing details', { exact: true }).click();
   await expect(frame.getByRole('button', { name: 'Prepare fresh parse · v2', exact: true })).toHaveCount(2);
-  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toHaveValue(identity);
+  await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toHaveAttribute('data-value', identity);
   expect(await sourceReports({ operation: 'read', reportId: sourceReport.id })).toEqual(sourceReport);
   // Hold only the real refreshed overview after B preparation. The old overview
   // still contains A; no original read may silently fall back to that scope.
@@ -305,7 +305,7 @@ try {
     await expect(frame.getByRole('button', { name: 'Original HTML', exact: true })).toBeEnabled();
   } finally { await frame.locator('body').evaluate(() => { window.paperScopeOverviewGate.restore(); delete window.paperScopeOverviewGate; }); }
   const selectedEvidence = `${secondBundle.id}:${secondResource.id}`;
-  await expect(frame.getByRole('combobox', { name: 'Evidence bundle', exact: true })).toHaveValue(selectedEvidence);
+  await expect(frame.getByRole('button', { name: 'Evidence bundle', exact: true })).toHaveAttribute('data-value', selectedEvidence);
   expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   await frame.getByRole('button', { name: 'Original HTML', exact: true }).click();
   await expect(frame.getByRole('complementary', { name: 'Original HTML source', exact: true })).toBeVisible();
@@ -320,7 +320,7 @@ try {
   await frame.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: secondBundle.title, exact: true }).click();
   await frame.getByRole('button', { name: 'Open saved PDF', exact: true }).click();
   await frame.getByRole('button', { name: 'Read', exact: true }).click();
-  await expect(frame.getByRole('combobox', { name: 'Evidence bundle', exact: true })).toHaveValue(selectedEvidence);
+  await expect(frame.getByRole('button', { name: 'Evidence bundle', exact: true })).toHaveAttribute('data-value', selectedEvidence);
   await frame.getByText('Recorded evidence', { exact: true }).click();
   await frame.getByRole('button', { name: 'Second scoped report', exact: true }).click();
   await frame.getByRole('button', { name: 'Open recorded original-html 13–30', exact: true }).click();
@@ -357,7 +357,7 @@ try {
   await expect(toolbarViewer).toBeVisible();
   await page.screenshot({ path: resolve(out, 'toolbar-format-error.png') });
   await toolbarBar.getByRole('button', { name: 'Retry v2', exact: true }).click();
-  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeVisible({ timeout: 60000 });
+  await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toBeVisible({ timeout: 60000 });
   await expect(toolbarViewer).not.toBeVisible();
   await toolbarBar.getByRole('button', { name: 'PDF', exact: true }).click();
   await expect(toolbarViewer).toBeVisible();
