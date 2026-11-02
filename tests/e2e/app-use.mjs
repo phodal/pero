@@ -45,17 +45,18 @@ await mkdir(join(temp,'profile'), {recursive:true});
 await writeFile(join(temp,'profile/runtime-settings.json'),JSON.stringify({chat_agent:'codex'}));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: join(temp, 'profile'), PERO_AGENTS_FILE: agents, PERO_LOCALE: 'en' };
 delete env.ELECTRON_RUN_AS_NODE;
-let app, testFailure;
+let app, electronProcess, testFailure;
 const shutdownEvents = [];
 const errors = [];const runtimeLog=[];
 const checks = [];
 try {
   app = await electron.launch({ requiresNativeWindow: true, args: [...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []), distribution], env });
-  app.process().stderr.on('data',chunk=>runtimeLog.push(String(chunk)));
+  electronProcess = app.process();
+  electronProcess.stderr.on('data',chunk=>runtimeLog.push(String(chunk)));
   const shutdownEvent = (event, detail = {}) => shutdownEvents.push({ event, at: new Date().toISOString(), ...detail });
   app.on('close', () => shutdownEvent('playwright-close'));
-  app.process().on('exit', (code, signal) => shutdownEvent('process-exit', { code, signal }));
-  app.process().on('close', (code, signal) => shutdownEvent('process-close', { code, signal }));
+  electronProcess.on('exit', (code, signal) => shutdownEvent('process-exit', { code, signal }));
+  electronProcess.on('close', (code, signal) => shutdownEvent('process-close', { code, signal }));
   // Observe normal quit without changing its listeners, decisions or deadlines.
   await app.evaluate(({ app, BrowserWindow }) => {
     const record = (event, detail = {}) => console.error('APP_USE_SHUTDOWN ' + JSON.stringify({ event,
@@ -308,8 +309,8 @@ try {
   await expect.poll(async () => (await state()).dark).toBe(false);
   await expect.poll(appStatus).toMatchObject({ visible: true, active: true, capturable: false, operable: false });
   const selectedInput = async () => ({
-    mode: await frame.getByRole('combobox', { name: 'Data view', exact: true }).inputValue(),
-    revision: await frame.getByRole('combobox', { name: 'Input revision', exact: true }).inputValue(),
+    mode: await frame.getByRole('button', { name: 'Data view', exact: true }).getAttribute('data-value'),
+    revision: await frame.getByRole('button', { name: 'Input revision', exact: true }).getAttribute('data-value'),
   });
   const beforeCovered = await selectedInput();
   expect(beforeCovered).toEqual({ mode: 'perturbation', revision: imported.inputId });
@@ -381,8 +382,8 @@ try {
     await writeFile(join(output, 'runtime.log'), runtimeLog.join(''));
     await writeFile(join(output, 'shutdown.json'), JSON.stringify({ events: shutdownEvents,
       error: cleanupFailure && { message: cleanupFailure.message, stack: cleanupFailure.stack },
-      pid: app?.process().pid, exitCode: app?.process().exitCode, signalCode: app?.process().signalCode,
-      pipes: app && Object.fromEntries(['stdout', 'stderr'].map(name => [name, { destroyed: app.process()[name]?.destroyed, ended: app.process()[name]?.readableEnded }])),
+      pid: electronProcess?.pid, exitCode: electronProcess?.exitCode, signalCode: electronProcess?.signalCode,
+      pipes: electronProcess && Object.fromEntries(['stdout', 'stderr'].map(name => [name, { destroyed: electronProcess[name]?.destroyed, ended: electronProcess[name]?.readableEnded }])),
     }, null, 2));
   } catch (error) { finalizationErrors.push(error); }
   try { await rm(temp, { recursive: true, force: true }); }

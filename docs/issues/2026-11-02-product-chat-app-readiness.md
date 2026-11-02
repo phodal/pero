@@ -106,3 +106,27 @@ normal close or disposable-profile removal, and remain visible alongside other
 failures. Existing owned-close behavioral tests and acceptance-script syntax
 checks pass; no GUI or model/scientific execution was performed for this diagnosis. A new CI run can localize the shutdown phase; it
 must not be described as a blind rerun or proof that shutdown is repaired.
+
+
+### Diagnostic run: SDK selection contract and disposed process handle
+
+Run `41467927447`, App Use job `125359837407`, reached normal Electron quit
+without the earlier close deadline: before-quit at `15:17:48.337Z`, window-closed
+and will-quit at `.346Z`, then node-exit and quit with code 0 at `.347Z`.
+Artifact `13153963472` was verified against SHA-256
+`6fbdf746fd90e38c112dd1f0d626085831e56e3f0b91dc83ffa381b1a0100823`.
+This does not establish the cause of the earlier intermittent shutdown failure.
+
+This run failed first because the SDK Select now exposes a named button with
+`data-value`, while the narrow covered-App check still queried a native combobox.
+The retained screenshot shows the correct Perturbation analysis selection. The
+fixture now reads both exact named controls through the current SDK contract,
+retaining the exact mode/input ID and before/after equality assertions.
+
+A second diagnostic error was retained alongside that functional timeout:
+Playwright disposes its Electron object on close, so calling `app.process()`
+afterward threw before the final shutdown receipt could be saved. The fixture
+now retains its owned child-process handle immediately after launch and uses it
+for both event listeners and final status. Normal close and cleanup remain strict;
+no timeout or production behavior changed. Existing owned-close behavioral tests,
+script syntax and diff checks pass; local GUI/provider execution was not used.
