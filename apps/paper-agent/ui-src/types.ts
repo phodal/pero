@@ -1,6 +1,6 @@
 export type Paper = {
   id: string; resourceKind?: 'web_article' | 'paper'; limitation?: string; source: string; sourceId: string; title: string; authors: string[];
-  url: string; pdfUrl?: string; hasCachedPdf?: boolean; contentKind: 'abstract' | 'report' | 'full-text';
+  url: string; metadataUrl?: string; pdfUrl?: string; hasCachedPdf?: boolean; contentKind: 'abstract' | 'report' | 'full-text';
   contentDigest: string; fetchedAt: string; content?: string;
 };
 export type Intent = {
@@ -43,7 +43,7 @@ export type EvidenceLocation = { start: number; end: number; heading?: string; b
 export type PdfRect = { x: number; y: number; width: number; height: number };
 export type PdfDocument = { id: string; paperId: string; fileDigest: string; sourceUrl: string; pages: { number: number; width: number; height: number; text: string }[]; createdAt: string };
 export type PdfAnnotation = { id: string; documentId: string; paperId: string; page: number; kind: 'highlight' | 'figure'; rects: PdfRect[]; quote: string; note: string; createdAt: string };
-export type PdfReading = { document: PdfDocument | null; annotations: PdfAnnotation[] };
+export type PdfReading = { document: PdfDocument | null; annotations: PdfAnnotation[]; originalUrl?: string | null };
 export type PdfFocus = { documentId: string; page: number; annotationId?: string; rects?: PdfRect[] };
 export type TextFocus = { start: number; end: number; token: number };
 export type PdfSource = { documentId: string; page: number; fileDigest: string; rects?: PdfRect[] };

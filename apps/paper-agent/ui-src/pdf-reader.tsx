@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, Feedback, Input, Toolbar } from '@pero/app-sdk/ui';
+import { Button, Feedback, Icon, Input, Toolbar } from '@pero/app-sdk/ui';
 import { createPluginRegistration } from '@embedpdf/core';
 import { EmbedPDF, useStoreState } from '@embedpdf/core/react';
 import { usePdfiumEngine } from '@embedpdf/engines/react';
@@ -20,8 +20,8 @@ import { loadReaderState, saveReaderState, type PdfReaderState } from './reader-
 
 export type ReaderChrome = { toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void; onSave(): void; back?: () => void };
 
-export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome, readLabel, pdfReloadToken = 0 }: {
-  paper: Paper; api: Api; focus?: PdfFocus | null; lockText?: boolean; t: Translator; children: React.ReactNode; chrome: ReaderChrome; readLabel?: string; pdfReloadToken?: number;
+export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome, readLabel, readRequest = 0, pdfReloadToken = 0 }: {
+  paper: Paper; api: Api; focus?: PdfFocus | null; lockText?: boolean; t: Translator; children: React.ReactNode; chrome: ReaderChrome; readLabel?: string; readRequest?: number; pdfReloadToken?: number;
   onDiscuss?(text: string, source?: PdfSource): void;
   onMatrixAdded(): Promise<void>;
 }) {
@@ -56,8 +56,15 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     return () => { alive = false; };
   }, [api, paper.id, pdfReloadToken, lockText, reading.document, focus?.documentId]);
   useEffect(() => { if (lockText) setMode('text'); else if (focus) setMode('pdf'); }, [focus, lockText]);
+  useEffect(() => { if (readRequest) setMode('text'); }, [readRequest]);
   const view = lockText ? 'text' : mode;
   const textLabel = readLabel ?? t('pdfText');
+  const originalUrl = paper.metadataUrl ?? (paper.source === 'local-pdf' ? reading.originalUrl ?? reading.document?.sourceUrl : paper.url);
+  const modes = <div className="pa-reader-modes">
+    <Button variant="ghost" aria-pressed={view === 'text'} onClick={() => { setMode('text'); setError(''); }}>{textLabel}</Button>
+    {(paper.pdfUrl || reading.document) && <Button variant="ghost" aria-pressed={view === 'pdf'} onClick={() => void open()}>PDF</Button>}
+    {originalUrl?.startsWith('https://') && <a className="pa-reader-original" href={originalUrl} target="_blank" rel="noreferrer" aria-label={t('original')}><Icon name="external-link"/><span>{t('readerOriginal')}</span></a>}
+  </div>;
   function open() {
     if (reading.document) { setMode('pdf'); return; }
     chrome.onSave();
@@ -66,7 +73,7 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   // reveal. Programmatic focus/scroll updates do not invalidate their own request.
   return <div className="pa-pdf-reading" onPointerDownCapture={chrome.onNavigate} onClickCapture={chrome.onNavigate}
     onKeyDownCapture={chrome.onNavigate} onWheelCapture={chrome.onNavigate} onChangeCapture={chrome.onNavigate}>
-    {!lockText && !busy && (paper.pdfUrl || reading.document) && <Toolbar><Button variant="ghost" aria-pressed={view === 'text'} onClick={() => { setMode('text'); setError(''); }}>{textLabel}</Button><Button variant="ghost" aria-pressed={view === 'pdf'} disabled={busy} onClick={() => void open()}>PDF</Button></Toolbar>}
+    {!lockText && (chrome.toolbar ? createPortal(modes, chrome.toolbar) : <Toolbar>{modes}</Toolbar>)}
     {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => setLookupAttempt(value => value + 1)} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
     {busy && <p className="pa-loading" role="status">{t('loading')}</p>}
     {view !== 'pdf' && chrome.back && <div className="pa-pdf-inline-toolbar"><Button variant="ghost" aria-label={t('backToLibrary')} onClick={chrome.back}>‹</Button></div>}
@@ -233,13 +240,13 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
     catch (e) { fail(e); }
     finally { setBusy(false); }
   }
-  const pager = <Toolbar>
+  const pager = <div className="pa-reader-pager">
       {chrome.back && <Button variant="ghost" aria-label={t('backToLibrary')} onClick={chrome.back}>‹</Button>}
       <Button variant="ghost" aria-label={t('pdfPrevious')} disabled={!scroll || scrollState.currentPage <= 1} onClick={() => scroll?.scrollToPreviousPage('instant')}>‹</Button>
       <label className="pa-pdf-page-input"><span className="pa-sr-only">{t('pdfPage')}</span><input aria-label={t('pdfPage')} type="number" min={1} max={document.pages.length} value={scrollState.currentPage || 1} onChange={event => { const pageNumber = Number(event.target.value); if (pageNumber >= 1 && pageNumber <= document.pages.length) scroll?.scrollToPage({ pageNumber, behavior: 'instant' }); }}/><span>/ {document.pages.length}</span></label>
       <Button variant="ghost" aria-label={t('pdfNext')} disabled={!scroll || scrollState.currentPage >= document.pages.length} onClick={() => scroll?.scrollToNextPage('instant')}>›</Button>
       <Button variant="ghost" aria-label={t('pdfZoomOut')} onClick={() => zoom?.zoomOut()}>−</Button><Button variant="ghost" aria-label={t('pdfFitPage')} onClick={() => zoom?.requestZoom(ZoomMode.FitPage)}>{Math.round((zoomState.currentZoomLevel || 1) * 100)}%</Button><Button variant="ghost" aria-label={t('pdfZoomIn')} onClick={() => zoom?.zoomIn()}>+</Button>
-    </Toolbar>;
+    </div>;
   return <section className="pa-pdf-viewer" aria-label={t('pdfReader')} tabIndex={0} onContextMenu={event => { event.preventDefault(); const box = event.currentTarget.getBoundingClientRect(); setMenu({ x: Math.max(0, Math.min(event.clientX - box.left, box.width - 200)), y: Math.max(0, Math.min(event.clientY - box.top, box.height - 190)) }); }} onKeyDown={event => { if (event.key === 'F10' && event.shiftKey) { event.preventDefault(); setMenu({ x: 16, y: 16 }); } }}>
     {chrome.toolbar ? createPortal(pager, chrome.toolbar) : <div className="pa-pdf-inline-toolbar">{pager}</div>}
     {captureState.isMarqueeCaptureActive && <div className="pa-pdf-context-action"><Button onClick={() => capture?.disableMarqueeCapture()}>{t('pdfCancelCapture')}</Button></div>}
