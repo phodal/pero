@@ -281,6 +281,7 @@ impl ChatPanel {
             "disconnected" => {
                 self.connected = false;
                 for chat in &mut self.chats {
+                    chat.user_questions.clear();
                     chat.pending_model = None;
                     chat.pending_setting = None;
                 }
@@ -359,6 +360,7 @@ impl ChatPanel {
                 "selected":self.composer_state.selected,"items":self.composer_picker_items().iter().map(|i|&i.label).collect::<Vec<_>>()},
             "contextPreviewBounds":self.attachments.iter().map(|reference|json!({"id":reference.id,"image":matches!(reference.content, pero_contracts::context::ContextContent::Image{..}),"bounds":self.context_preview_bounds.get(&reference.id).map(|bounds|bounds.snapshot())})).collect::<Vec<_>>(),
             "permissionBounds":self.chats.iter().flat_map(|chat|chat.permission_bounds.iter().enumerate().map(move |(index,bounds)|json!({"chat":chat.id,"index":index,"bounds":bounds.snapshot()}))).collect::<Vec<_>>(),
+            "userQuestionBounds":self.chats.iter().flat_map(|chat|chat.user_questions.iter().map(|form|form.bounds())).collect::<Vec<_>>(),
             "reasoningBounds":self.chats.iter().flat_map(|chat|chat.messages.iter().enumerate().filter(|(_,m)|m.role=="thought").map(move |(index,message)|json!({"chat":chat.id,"index":index,"open":chat.thinking.open(index),"bounds":message.toggle_bounds.snapshot()}))).collect::<Vec<_>>(),
             "inputBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().map(move |tool|json!({"chat":chat.id,"tool":tool.id,"bounds":tool.input_bounds.snapshot()}))).collect::<Vec<_>>(),
             "appLinkBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().flat_map(move |tool|tool.app_links.iter().map(move |link|json!({"chat":chat.id,"url":link.url,"label":link.label,"bounds":link.bounds.snapshot()})))).collect::<Vec<_>>(),

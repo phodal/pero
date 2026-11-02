@@ -467,6 +467,7 @@ impl ChatPanel {
                 if !active && chat.state != SessionState::Draft {
                     chat.state = SessionState::Closed;
                     chat.permission = None;
+                    chat.user_questions.clear();
                     chat.pending_model = None;
                     chat.pending_setting = None;
                     chat.flush(cx);
@@ -704,6 +705,23 @@ impl ChatPanel {
                 chat.flush(cx);
                 chat.state = SessionState::Idle;
                 chat.permission = None;
+                chat.user_questions.clear();
+            }
+            "user_questions" => {
+                if let Ok(batch)=serde_json::from_value::<pero_contracts::user_questions::PendingQuestions>(event.data.clone()) {
+                    if batch.request.validate().is_ok() && !chat.user_questions.iter().any(|form|form.batch.request_id==batch.request_id) {
+                        chat.user_questions.push(crate::user_questions::QuestionForm::new(batch));
+                    }
+                }
+            }
+            "user_questions_resolved" => {
+                if let Some(id)=event.data["request_id"].as_str() {chat.user_questions.retain(|form|form.batch.request_id!=id);}
+            }
+            "user_questions_error" => {
+                if let Some(form)=chat.user_questions.iter_mut().find(|form|Some(form.batch.request_id.as_str())==event.data["request_id"].as_str()) {
+                    form.submitted=false;
+                    form.error=Some(event.text.clone());
+                }
             }
             "permission" => {
                 chat.permission_bounds = event.data["options"]
@@ -726,6 +744,7 @@ impl ChatPanel {
                     SessionState::Idle
                 };
                 chat.permission = None;
+                chat.user_questions.clear();
             }
             "session_closed" => {
                 chat.thinking.streaming(None);
@@ -734,6 +753,7 @@ impl ChatPanel {
                 chat.flush(cx);
                 chat.state = SessionState::Closed;
                 chat.permission = None;
+                chat.user_questions.clear();
             }
             _ => {}
         }
@@ -850,6 +870,7 @@ impl ChatPanel {
                     })))
             }))
             .children(self.approval(&id, None, cx))
+            .children(self.user_questions(window, cx))
             .when(self.compact && chat.is_some_and(|c| c.error.is_some() && c.state != SessionState::AuthRequired), |el| {
                 el.child(div().px(px(12.)).py(px(6.)).bg(p.error_bg).text_color(p.error).child(chat.and_then(|c|c.error.clone()).unwrap_or_default()))
             })
