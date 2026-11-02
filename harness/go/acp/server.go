@@ -22,6 +22,9 @@ import (
 )
 
 type Options struct {
+	// UserQuestions enables the optional Pero input extension when the client
+	// explicitly advertises revision 1. Ordinary ACP has no question transport.
+	UserQuestions bool
 	// ModelSelection opts into the registered provider's explicit local catalog.
 	ModelSelection bool
 	// ValidateWorkingDirectory is trusted native composition, not ACP client data.
@@ -69,6 +72,8 @@ type Server struct {
 	pending        map[string]chan clientResponse
 	writer         *wireWriter
 	mcpRuntime     bool
+	questionTools  bool
+	userQuestions  bool
 }
 
 type clientResponse struct {
@@ -131,7 +136,8 @@ func NewServer(options Options) (*Server, error) {
 		h: options.Harness, persistence: options.Persistence, validateWorkingDirectory: options.ValidateWorkingDirectory,
 		provider: options.Provider, model: options.Model, compaction: options.Compaction, toolResultPruner: options.ToolResultPruner,
 		name: options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
-		sessions: make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
+		questionTools: options.UserQuestions,
+		sessions:      make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
 		pending: make(map[string]chan clientResponse), retiring: make(map[*harness.Agent]*activeSession), closedSessions: make(map[harness.SessionID]*activeSession),
 	}, nil
 }
@@ -264,12 +270,15 @@ func (s *Server) handle(ctx context.Context, message request) (any, *rpcError) {
 		if err := s.negotiateMCPRuntime(message.Params); err != nil {
 			return nil, invalid(err.Error())
 		}
+		if err := s.negotiateUserQuestions(message.Params); err != nil {
+			return nil, invalid(err.Error())
+		}
 		imagePrompts := s.h.Attachments() != nil
 		return map[string]any{
 			"protocolVersion": ProtocolVersion,
 			"agentInfo":       map[string]any{"name": s.name, "version": s.version},
 			"agentCapabilities": map[string]any{
-				"_meta":               map[string]any{"pero.mcpRuntime": 1},
+				"_meta":               s.extensionCapabilities(),
 				"loadSession":         true,
 				"mcpCapabilities":     map[string]any{"http": true},
 				"promptCapabilities":  map[string]any{"image": imagePrompts, "audio": false, "embeddedContext": false},
@@ -436,7 +445,10 @@ func (s *Server) newSession(ctx context.Context, params NewSessionParams) (harne
 	agent, err := s.h.Agents().Create(ctx, harness.AgentOptions{
 		ID: id, CWD: params.CWD, Provider: s.provider, Model: s.model, Compaction: s.compaction,
 		ToolResultPruner: s.toolResultPruner,
-		Configure: func(setup context.Context, run *point.Run, _ *harness.Agent) error {
+		Configure: func(setup context.Context, run *point.Run, owner *harness.Agent) error {
+			if err := s.registerUserQuestions(run, owner); err != nil {
+				return err
+			}
 			if _, err := s.h.Approvals().Register(run, s.requestApproval); err != nil {
 				return err
 			}
@@ -702,7 +714,10 @@ func (s *Server) resumeSession(ctx context.Context, params ResumeSessionParams) 
 	}
 	agent, err := s.h.Agents().Resume(ctx, session, harness.AgentOptions{
 		Provider: s.provider, Model: s.model, Compaction: s.compaction, ToolResultPruner: s.toolResultPruner,
-		Configure: func(setup context.Context, run *point.Run, _ *harness.Agent) error {
+		Configure: func(setup context.Context, run *point.Run, owner *harness.Agent) error {
+			if err := s.registerUserQuestions(run, owner); err != nil {
+				return err
+			}
 			if _, err := s.h.Approvals().Register(run, s.requestApproval); err != nil {
 				return err
 			}
@@ -755,16 +770,28 @@ func (s *Server) requestApproval(ctx context.Context, request harness.ApprovalRe
 	// tool call, not as a generic human-question transport. Keep userQuestions
 	// unclaimed here, matching DSH ACP, instead of encoding arbitrary answers
 	// into permission option IDs that compliant clients cannot interpret.
+	controller := request.Agent
+	for controller.Parent() != nil {
+		controller = controller.Parent()
+	}
 	params := map[string]any{
-		"sessionId": request.Agent.ID(),
+		"sessionId": controller.ID(),
 		"toolCall":  map[string]any{"toolCallId": request.CallID},
 		"options": []any{
 			map[string]any{"optionId": "allow-once", "name": "Allow once", "kind": "allow_once"},
 			map[string]any{"optionId": "reject-once", "name": "Reject", "kind": "reject_once"},
 		},
 	}
+	if controller != request.Agent {
+		params["_meta"] = map[string]any{"pero.dev/delegated-approval": map[string]any{"agentId": request.Agent.ID(), "toolName": request.ToolName}}
+	}
 	if request.Native != nil {
-		params["_meta"] = map[string]any{"pero.dev/native-approval": *request.Native}
+		meta, ok := params["_meta"].(map[string]any)
+		if !ok {
+			meta = map[string]any{}
+			params["_meta"] = meta
+		}
+		meta["pero.dev/native-approval"] = *request.Native
 	}
 	raw, err := s.requestClient(ctx, "session/request_permission", params)
 	if err != nil {
