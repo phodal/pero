@@ -70,11 +70,11 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => setLookupAttempt(value => value + 1)} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
     {busy && <p className="pa-loading" role="status">{t('loading')}</p>}
     {view !== 'pdf' && chrome.back && <div className="pa-pdf-inline-toolbar"><Button variant="ghost" aria-label={t('backToLibrary')} onClick={chrome.back}>‹</Button></div>}
-    <div className="pa-reader-views" style={{ display: 'grid', flex: 1, minHeight: 0 }}>
-      {reading.document && <div className="pa-pdf-view-slot" aria-hidden={view !== 'pdf'} inert={view !== 'pdf'} style={{ gridArea: '1 / 1', display: 'flex', minHeight: 0, visibility: view === 'pdf' ? 'visible' : 'hidden' }}>
+    <div className="pa-reader-views" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', flex: 1, minHeight: 0, minWidth: 0 }}>
+      {reading.document && <div className="pa-pdf-view-slot" aria-hidden={view !== 'pdf'} inert={view !== 'pdf'} style={{ gridArea: '1 / 1', display: 'flex', minHeight: 0, minWidth: 0, visibility: view === 'pdf' ? 'visible' : 'hidden' }}>
         <PdfViewer chrome={{ ...chrome, toolbar: view === 'pdf' ? chrome.toolbar : null }} active={view === 'pdf'} readLabel={textLabel} onText={() => setMode('text')} key={`${reading.document.id}:${reading.document.fileDigest}`} document={reading.document} annotations={reading.annotations} api={api} focus={focus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/>
       </div>}
-      <div className="pa-text-view-slot" aria-hidden={view !== 'text'} inert={view !== 'text'} style={{ gridArea: '1 / 1', display: view === 'text' ? 'flex' : 'none', minHeight: 0 }}>{children}</div>
+      <div className="pa-text-view-slot" aria-hidden={view !== 'text'} inert={view !== 'text'} style={{ gridArea: '1 / 1', display: view === 'text' ? 'flex' : 'none', minHeight: 0, minWidth: 0 }}>{children}</div>
     </div>
   </div>;
 }
