@@ -50,10 +50,15 @@ test('loopback provider returns explicit terminal denial without opaque HTTP 500
 });
 
 test('real mode stops before credential input or provider construction', () => {
-  const run = spawnSync(process.execPath, ['--experimental-transform-types', fileURLToPath(new URL('./run.mjs', import.meta.url)), '--real', 'standard', '/does-not-exist'], { encoding: 'utf8', timeout: 5000, input: '' });
-  assert.equal(run.status, 1);
-  assert.match(run.stderr, /Real campaign stopped: this runner has no human ACP permission responder/);
-  assert.doesNotMatch(run.stderr, /Missing or invalid credential input/);
+  for (const platform of ['linux', 'darwin', 'win32']) {
+    const platformBinding = `data:text/javascript,Object.defineProperty(process,'platform',{value:${JSON.stringify(platform)}})`;
+    const run = spawnSync(process.execPath, ['--experimental-transform-types', '--import', platformBinding,
+      fileURLToPath(new URL('./run.mjs', import.meta.url)), '--real', 'standard', '/does-not-exist'],
+      { encoding: 'utf8', timeout: 5000, input: '' });
+    assert.equal(run.status, 1, platform);
+    assert.match(run.stderr, /Real campaign stopped: this runner has no human ACP permission responder/, platform);
+    assert.doesNotMatch(run.stderr, /Missing or invalid credential input|Owned-descendant verification requires Linux/);
+  }
 });
 
 test('each active phase requires actual requests and consumes every planned Paper call', () => {
