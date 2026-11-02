@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
 	point "github.com/phodal/pero/harness/go/runtime"
@@ -29,6 +28,8 @@ type ClaudeOptions struct {
 	// InvocationOrigin supplies the current workflow's plugin namespace. It is
 	// trusted composition; model arguments cannot choose a resolution namespace.
 	InvocationOrigin func(*harness.Agent) string
+	// TaskLookup supplies other task kinds without transferring their ownership.
+	TaskLookup harness.TaskLookup
 }
 
 type ClaudeContribution struct {
@@ -67,6 +68,7 @@ type claudeDelegation struct {
 	routes           map[string]ModelRoute
 	maxDepth         int
 	invocationOrigin func(*harness.Agent) string
+	taskLookup       harness.TaskLookup
 	mu               sync.Mutex
 	tasks            map[harness.SessionID]*claudeTask
 }
@@ -88,7 +90,7 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	service := &claudeDelegation{h: h, maxDepth: options.MaxDepth, invocationOrigin: options.InvocationOrigin, definitions: make(map[string]AgentDefinition), readOnlyBuiltins: make(map[string]bool), routes: make(map[string]ModelRoute), tasks: make(map[harness.SessionID]*claudeTask)}
+	service := &claudeDelegation{h: h, maxDepth: options.MaxDepth, invocationOrigin: options.InvocationOrigin, taskLookup: options.TaskLookup, definitions: make(map[string]AgentDefinition), readOnlyBuiltins: make(map[string]bool), routes: make(map[string]ModelRoute), tasks: make(map[harness.SessionID]*claudeTask)}
 	for _, definition := range definitions {
 		if strings.TrimSpace(definition.Name) == "" || strings.TrimSpace(definition.Description) == "" || strings.TrimSpace(definition.Instructions) == "" {
 			return nil, errors.New("subagents: Claude agent requires name, description and instructions")
@@ -237,83 +239,39 @@ func (s *claudeDelegation) observeTask(ctx context.Context, task *claudeTask) {
 	close(task.done)
 }
 
-func (s *claudeDelegation) findTask(parent *harness.Agent, id string) (*claudeTask, error) {
+func (s *claudeDelegation) lookupTask(ctx context.Context, parent *harness.Agent, id string) (harness.TaskHandle, bool, error) {
 	s.mu.Lock()
 	task := s.tasks[harness.SessionID(id)]
 	s.mu.Unlock()
-	if parent == nil || task == nil || task.parent != parent {
-		return nil, errors.New("subagents: task is unavailable to this parent; completed tasks cannot be resumed after process restart")
+	if task != nil && parent != nil && task.parent == parent {
+		return harness.TaskHandle{ID: id, Kind: harness.TaskKindAgent, Done: task.done,
+			Snapshot: func(retrieval harness.TaskRetrieval) harness.ToolResult {
+				return claudeTaskResult(task, string(retrieval))
+			},
+			Stop: func(ctx context.Context) (harness.ToolResult, error) {
+				if err := task.activation.RequestDispose(); err != nil && !errors.Is(err, harness.ErrSubagentActivationDisposalPending) {
+					return harness.ToolResult{}, err
+				}
+				select {
+				case <-task.done:
+					result := claudeTaskResult(task, "success")
+					if task.result.Status == harness.SubagentAborted && task.err == nil {
+						result.IsError = false
+					}
+					return result, nil
+				case <-ctx.Done():
+					return harness.ToolResult{}, ctx.Err()
+				}
+			}}, true, nil
 	}
-	return task, nil
+	if s.taskLookup != nil {
+		return s.taskLookup(ctx, parent, id)
+	}
+	return harness.TaskHandle{}, false, nil
 }
 
-func (s *claudeDelegation) outputTool() harness.Tool {
-	return harness.Tool{Schema: harness.ToolSchema{Name: "TaskOutput", Description: "Read a child task's real output. block defaults to true; timeout is milliseconds, default 30000. A timeout leaves the child running. Only tasks owned by this exact parent can be read.", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"task_id":{"type":"string","minLength":1},"block":{"type":"boolean"},"timeout":{"type":"integer","minimum":0,"maximum":600000}},"required":["task_id"]}`)}, IsConcurrencySafe: func(context.Context, harness.ToolRequest) bool { return true }, ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
-		var input struct {
-			ID      string `json:"task_id"`
-			Block   *bool  `json:"block"`
-			Timeout *int   `json:"timeout"`
-		}
-		if err := json.Unmarshal(request.Arguments, &input); err != nil {
-			return harness.ToolResult{}, err
-		}
-		task, err := s.findTask(request.Agent, input.ID)
-		if err != nil {
-			return harness.ToolResult{}, err
-		}
-		select {
-		case <-task.done:
-			return claudeTaskResult(task, "success"), nil
-		default:
-		}
-		if input.Block != nil && !*input.Block {
-			return claudeTaskResult(task, "not_ready"), nil
-		}
-		timeout := 30000
-		if input.Timeout != nil {
-			timeout = *input.Timeout
-		}
-		timer := time.NewTimer(time.Duration(timeout) * time.Millisecond)
-		defer timer.Stop()
-		select {
-		case <-task.done:
-			return claudeTaskResult(task, "success"), nil
-		case <-timer.C:
-			return claudeTaskResult(task, "timeout"), nil
-		case <-ctx.Done():
-			return harness.ToolResult{}, ctx.Err()
-		}
-	}}
-}
-
-func (s *claudeDelegation) stopTool() harness.Tool {
-	return harness.Tool{Schema: harness.ToolSchema{Name: "TaskStop", Description: "Cancel a child task owned by this exact parent and join its cleanup. Completed tasks keep their original terminal result.", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"task_id":{"type":"string","minLength":1}},"required":["task_id"]}`)}, IsConcurrencySafe: func(context.Context, harness.ToolRequest) bool { return true }, ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
-		var input struct {
-			ID string `json:"task_id"`
-		}
-		if err := json.Unmarshal(request.Arguments, &input); err != nil {
-			return harness.ToolResult{}, err
-		}
-		task, err := s.findTask(request.Agent, input.ID)
-		if err != nil {
-			return harness.ToolResult{}, err
-		}
-		if err := task.activation.RequestDispose(); err != nil && !errors.Is(err, harness.ErrSubagentActivationDisposalPending) {
-			return harness.ToolResult{}, err
-		}
-		select {
-		case <-task.done:
-			result := claudeTaskResult(task, "success")
-			// Aborted is the intended outcome of a successful stop request.
-			if task.result.Status == harness.SubagentAborted && task.err == nil {
-				result.IsError = false
-			}
-			return result, nil
-		case <-ctx.Done():
-			return harness.ToolResult{}, ctx.Err()
-		}
-	}}
-}
+func (s *claudeDelegation) outputTool() harness.Tool { return harness.TaskOutputTool(s.lookupTask) }
+func (s *claudeDelegation) stopTool() harness.Tool   { return harness.TaskStopTool(s.lookupTask) }
 
 func claudeTaskResult(task *claudeTask, retrieval string) harness.ToolResult {
 	status := harness.SubagentRunning

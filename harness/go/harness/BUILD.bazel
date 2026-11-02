@@ -87,6 +87,7 @@ go_library(
         "subagents_start.go",
         "subagents_structured_admission.go",
         "subagents_wait.go",
+        "task_handles.go",
         "token_meter.go",
         "tool_call_lineage.go",
         "tool_catalog_owner.go",
