@@ -325,7 +325,7 @@ export class DesktopApps {
       const response = await net.fetch(pathToFileURL(file).href);
       const headers = new Headers(response.headers);
       const ancestors = file === resolve(assets, '_reader/reader.html') ? "'self' pero://workbench" : 'pero://workbench';
-      headers.set('Content-Security-Policy', `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors ${ancestors}`);
+      headers.set('Content-Security-Policy', `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self' ${(access.frameOrigins ?? []).join(' ')}; object-src 'none'; base-uri 'none'; frame-ancestors ${ancestors}`);
       headers.set('Cache-Control', 'no-store');
       headers.set('X-Content-Type-Options', 'nosniff');
       return new Response(response.body, { status: response.status, headers });

@@ -18,6 +18,8 @@ use wry::http::{Request, Response};
 struct Access {
     root: PathBuf,
     entry: String,
+    #[serde(default, rename = "frameOrigins")]
+    frame_origins: Vec<String>,
     backend: Option<Backend>,
 }
 #[derive(Deserialize)]
@@ -169,8 +171,7 @@ impl NativeApps {
                     let panel = catalog.iter().find(|app| app["name"] == value["name"] && app["enabled"] == true)
                         .and_then(|app| app["panels"].as_array()).and_then(|panels| panels.iter().find(|panel| panel["id"] == value["panel"]));
                     let entry = panel.and_then(|panel| panel["entry"].as_str()).ok_or_else(|| anyhow::anyhow!("Unknown App panel"))?;
-                    let _ = access;
-                    event.data = json!({"name":value["name"],"panel":value["panel"],"entry":entry});
+                    event.data = json!({"name":value["name"],"panel":value["panel"],"entry":entry,"frameOrigins":access.frame_origins});
                 } else {
                     let fields = match action {
                         "list" => json!({}),
@@ -279,6 +280,7 @@ impl NativeApps {
                 _ => response(503, json!({"ok":false,"code":"MCP_HOST_UNAVAILABLE"})),
             });
         }
+        let mut frame_sources = String::from("'self'");
         let (status, content_type, data) = if matches!(path, "/host/agent" | "/host/app-agent" | "/host/insights") {
             anyhow::ensure!(
                 method == "POST" && body.len() <= 256_000,
@@ -306,6 +308,7 @@ impl NativeApps {
             )
         } else {
             let access: Access = self.request("resolve", json!({"name":name}))?;
+            for origin in &access.frame_origins { frame_sources.push(' '); frame_sources.push_str(origin); }
             if matches!(path,"/api/workspaces"|"/api/harnesses") {
                 anyhow::ensure!(method == "GET" && uri.query().is_none(),"Method refused");
                 let value:Value=self.request("agentcatalog",json!({"name":name,"path":path}))?;
@@ -378,7 +381,7 @@ impl NativeApps {
         };
         Ok(Response::builder().status(status).header("Content-Type", content_type).header("Cache-Control", "no-store")
             .header("X-Content-Type-Options", "nosniff")
-            .header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'")
+            .header("Content-Security-Policy", format!("default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src {frame_sources}; object-src 'none'; base-uri 'none'"))
             .body(data)?)
     }
 }
