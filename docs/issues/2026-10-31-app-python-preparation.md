@@ -85,3 +85,13 @@ contains a healthy final-view screenshot but no error stack or stage. The
 fixture now retains page-error name/stack/stage and a failure JSON for the next
 run without filtering or weakening the zero-page-error assertion. A production
 fix cannot yet be justified from the minified message alone.
+
+The same run's Linux core gate exposed a stale IPC denial fixture: it still
+classified public environment `prepare` as a private reproduction action. The
+fixture supplied no Host response, so the real 660-second preparation timeout
+expired. The corrected fixture separately checks private reproduction denial
+and public environment preparation, including removal of nested reproduction
+fields. Unexpected Host writes fail immediately and test resources always close.
+The original failure reproduces in milliseconds with that test seam; the fixed
+19-test contract group passed in under one second. Production permissions and
+request deadlines are unchanged.

@@ -218,17 +218,44 @@ test('both renderer session IPC handlers cannot select the private Apps reproduc
 
 test('public Apps IPC refuses private actions and swallows unmatched private replies', async () => {
   const writes: object[] = [], events: unknown[] = [];
-  const apps = new DesktopApps(value => writes.push(value), value => events.push(value), async () => undefined);
-  for (const action of ['reproduction', 'apps_reproduction', 'prepare', 'decide']) {
-    await apps.command({ action, method: 'apps', name: 'paper-agent', request: { operation: 'prepare', ...ids } });
-  }
-  assert.equal(writes.length, 0);
-  assert.equal(events.length, 4);
-  assert.ok(events.every(value => (value as {kind: string}).kind === 'apps_error'));
-  assert.equal(apps.accept({ version: 1, kind: 'apps_result', request_id: 'renderer-forged', text: '',
-    data: { ok: true, value: prepared } }), true);
-  assert.equal(events.length, 4);
-  apps.close();
+  const apps = new DesktopApps(value => {
+    writes.push(value);
+    throw new Error('Unexpected Host write in denial test');
+  }, value => events.push(value), async () => undefined);
+  try {
+    for (const action of ['reproduction', 'apps_reproduction', 'decide', 'apps_decide']) {
+      await apps.command({ action, method: 'apps', name: 'paper-agent', request: { operation: 'prepare', ...ids } });
+    }
+    assert.equal(writes.length, 0);
+    assert.equal(events.length, 4);
+    assert.ok(events.every(value => (value as {kind: string}).kind === 'apps_error'));
+    assert.equal(apps.accept({ version: 1, kind: 'apps_result', request_id: 'renderer-forged', text: '',
+      data: { ok: true, value: prepared } }), true);
+    assert.equal(events.length, 4);
+  } finally { apps.close(); }
+});
+
+test('public App environment preparation forwards no private reproduction request', async () => {
+  const writes: Record<string, unknown>[] = [], events: unknown[] = [];
+  const apps = new DesktopApps(value => {
+    const command = value as Record<string, unknown>;
+    writes.push(command);
+    assert.deepEqual(Object.keys(command).sort(), ['action', 'id', 'method', 'name']);
+    assert.equal(command.action, 'prepare');
+    assert.equal(command.method, 'apps');
+    assert.equal(command.name, 'paper-agent');
+    apps.accept({ version: 1, kind: 'apps_result', request_id: command.id as string, text: '',
+      data: { ok: true, value: [] } });
+  }, value => events.push(value), async () => undefined);
+  try {
+    for (const action of ['prepare', 'apps_prepare']) {
+      await apps.command({ action, method: 'apps', name: 'paper-agent',
+        request: { operation: 'decide', ...ids, ticket, bindingDigest, decision: 'allow' } });
+    }
+    assert.equal(writes.length, 2);
+    assert.equal(events.length, 2);
+    assert.ok(events.every(value => (value as {kind: string}).kind === 'apps_catalog'));
+  } finally { apps.close(); }
 });
 
 
