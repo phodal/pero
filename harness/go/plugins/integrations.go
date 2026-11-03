@@ -254,7 +254,7 @@ func ParseHooks(path string, content []byte) (HooksDefinition, []Diagnostic) {
 				}
 				for _, key := range sortedIntegrationKeys(handler) {
 					switch key {
-					case "type", "command", "args", "timeout", "async", "if", "onFailure", "once", "statusMessage", "shell":
+					case "type", "command", "args", "timeout", "async", "asyncRewake", "if", "onFailure", "once", "statusMessage", "shell":
 						switch key {
 						case "onFailure":
 							var value string
@@ -275,6 +275,13 @@ func ParseHooks(path string, content []byte) (HooksDefinition, []Diagnostic) {
 							var value string
 							if !integrationDecode(handler[key], &value) || value != "bash" && value != "powershell" {
 								add(SeverityError, "INVALID_HOOK_FIELD", base+".shell", "Hook shell must be bash or powershell.")
+							}
+						case "asyncRewake":
+							var value bool
+							if !integrationDecode(handler[key], &value) {
+								add(SeverityError, "INVALID_HOOK_FIELD", base+".asyncRewake", "Hook asyncRewake must be a boolean.")
+							} else if value && summary.Type != "command" && summary.Type != "" {
+								add(SeverityError, "INVALID_HOOK_FIELD", base+".asyncRewake", "Only command hooks can set asyncRewake.")
 							}
 						}
 					case "url", "headers", "allowedEnvVars":

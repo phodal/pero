@@ -676,7 +676,7 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 				hook.Args[index] = expand.Replace(hook.Args[index])
 			}
 		}
-		if hook.Async {
+		if hook.Async || hook.AsyncRewake {
 			if err := app.startAsyncHook(agent, selected, hook, input, environment); err != nil {
 				app.h.Runtime().Logger().Warn("Claude async hook failed to start", "plugin", selected.plugin, "event", input.Event, "error", err)
 			}
@@ -801,7 +801,20 @@ func (app *HookApp) startAsyncHook(agent *harness.Agent, selected runnableHook, 
 	if parent == nil {
 		parent = context.Background()
 	}
-	ctx, cancel := context.WithCancel(parent)
+	base, cancelBase := context.WithCancel(parent)
+	ctx, cancel := base, cancelBase
+	if hook.AsyncRewake {
+		timeout := hook.Timeout
+		if timeout <= 0 {
+			timeout = 600 * time.Second
+		}
+		var cancelTimeout context.CancelFunc
+		ctx, cancelTimeout = context.WithTimeout(base, timeout)
+		cancel = func() {
+			cancelTimeout()
+			cancelBase()
+		}
+	}
 	started, err := (claudehooks.Runner{Shell: app.options.Shell, Environment: environment}).StartDetached(ctx, hook, input)
 	if err != nil {
 		cancel()
@@ -823,6 +836,21 @@ func (app *HookApp) startAsyncHook(agent *harness.Agent, selected runnableHook, 
 		err := started.Wait()
 		if app.closing() {
 			return
+		}
+		if hook.AsyncRewake {
+			if started.ExitCode(err) == 2 {
+				text := strings.TrimSpace(string(started.Stderr.Bytes()))
+				if text == "" {
+					text = strings.TrimSpace(string(started.Stdout.Bytes()))
+				}
+				if text == "" {
+					text = "asyncRewake hook exited 2."
+				}
+				_ = agent.Deliver(hookMessage("asyncRewake", text), true)
+			}
+			if !hook.Async {
+				return
+			}
 		}
 		decision, parseErr := claudehooks.ParseDecision(hook.Event, started.Stdout.Bytes(), started.Stderr.Bytes(), started.ExitCode(err))
 		if parseErr != nil || decision.AdditionalContext == "" && decision.SystemMessage == "" {

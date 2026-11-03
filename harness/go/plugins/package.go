@@ -213,6 +213,7 @@ func compileHooks(path string, raw []byte) ([]claudehooks.Hook, error) {
 				Args            *[]string         `json:"args"`
 				Timeout         *float64          `json:"timeout"`
 				Async           bool              `json:"async"`
+				AsyncRewake     bool              `json:"asyncRewake"`
 				If              string            `json:"if"`
 				Once            bool              `json:"once"`
 				OnFailure       string            `json:"onFailure"`
@@ -260,7 +261,7 @@ func compileHooks(path string, raw []byte) ([]claudehooks.Hook, error) {
 					return nil, errors.New("plugins: MCP tool hook requires a server and tool")
 				}
 				// Settings hooks ignore once. Skill and agent frontmatter honor it.
-				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, Async: handler.Async, If: handler.If, Shell: handler.Shell, OnFailure: handler.OnFailure, URL: handler.URL, Headers: handler.Headers, AllowedEnvVars: append([]string(nil), handler.AllowedEnvVars...), Prompt: handler.Prompt, Model: handler.Model, ContinueOnBlock: handler.ContinueOnBlock, Agent: handler.Type == "agent", MCPServer: handler.Server, MCPTool: handler.Tool, MCPInput: append(json.RawMessage(nil), handler.Input...)}
+				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, Async: handler.Async, AsyncRewake: handler.AsyncRewake, If: handler.If, Shell: handler.Shell, OnFailure: handler.OnFailure, URL: handler.URL, Headers: handler.Headers, AllowedEnvVars: append([]string(nil), handler.AllowedEnvVars...), Prompt: handler.Prompt, Model: handler.Model, ContinueOnBlock: handler.ContinueOnBlock, Agent: handler.Type == "agent", MCPServer: handler.Server, MCPTool: handler.Tool, MCPInput: append(json.RawMessage(nil), handler.Input...)}
 				if event == "Stop" {
 					hook.Matcher = ""
 				}

@@ -20,6 +20,12 @@ func TestHookInspection(t *testing.T) {
 		errorCodes []string
 	}{
 		{
+			name:    "async rewake is a command hook",
+			content: `{"hooks":{"PostToolUse":[{"matcher":"Write","hooks":[{"type":"command","command":"true","asyncRewake":true}]}]}}`,
+			count:   1, form: "shell",
+			codes: []string{"HOOK_RUNTIME_UNSUPPORTED"},
+		},
+		{
 			name:    "agent hook is executable configuration",
 			content: `{"hooks":{"Stop":[{"hooks":[{"type":"agent","prompt":"Check the files. $ARGUMENTS","model":"fixture"}]}]}}`,
 			count:   1, form: "agent",

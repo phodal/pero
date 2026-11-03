@@ -19,6 +19,8 @@ type Hook struct {
 	ExecForm       bool
 	Timeout        time.Duration
 	Async          bool
+	// AsyncRewake runs in the background with a timeout and wakes the agent on exit 2.
+	AsyncRewake bool
 	// If is one permission rule. It selects tool events and skips every other event.
 	If string
 	// Once removes a skill frontmatter hook after its first successful run.

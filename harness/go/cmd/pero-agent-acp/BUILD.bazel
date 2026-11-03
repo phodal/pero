@@ -75,6 +75,7 @@ go_test(
         "plugin_mcp_hook_test.go",
         "plugin_model_switch_test.go",
         "plugin_prompt_test.go",
+        "plugin_rewake_test.go",
         "plugin_runtime_test.go",
         "plugins_test.go",
         "research_cli_test.go",
