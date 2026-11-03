@@ -247,6 +247,7 @@ func registerMCPResourceTools(run *point.Run, registry *ToolRegistry, directory 
 		mcpResourceTool(directory, "read_mcp_resource", "Read an MCP resource by URI from the named server. Use a listed URI or an expanded resource template.", mcpResourceReadSchema, "resources/read"),
 		mcpResourceTool(directory, "list_mcp_prompts", "List prompts available from an MCP server.", mcpResourceListSchema, "prompts/list"),
 		mcpPromptTool(directory),
+		mcpInstructionsTool(directory),
 	}
 	_, err := registry.ReplaceGeneration(run, "mcp-resources", tools)
 	return err
@@ -255,6 +256,7 @@ func registerMCPResourceTools(run *point.Run, registry *ToolRegistry, directory 
 func registerMCPResourcePrompt(run *point.Run, registry *ToolRegistry, prompts *PromptRegistry, directory *harnessmcp.ResourceDirectory) error {
 	_, err := prompts.Register(run, PromptSection{
 		ID: fmt.Sprintf("mcp-resource-servers:%p", run.Scope), Order: 3100,
+		Catalog: true, CatalogRecoveryTool: "read_mcp_instructions", CatalogContinuation: "Call read_mcp_instructions with {} to list servers, then server/offset/limit to recover complete instructions.",
 		Guidance: func(ctx context.Context, agent *Agent, capabilities PromptCapabilities) (string, error) {
 			names := directory.Names()
 			if len(names) == 0 {
@@ -263,7 +265,7 @@ func registerMCPResourcePrompt(run *point.Run, registry *ToolRegistry, prompts *
 			var tools []string
 			for _, schema := range capabilities.Tools {
 				switch schema.Name {
-				case "list_mcp_resources", "list_mcp_resource_templates", "read_mcp_resource", "list_mcp_prompts", "get_mcp_prompt":
+				case "list_mcp_resources", "list_mcp_resource_templates", "read_mcp_resource", "list_mcp_prompts", "get_mcp_prompt", "read_mcp_instructions":
 					tools = append(tools, schema.Name)
 				}
 			}
@@ -274,10 +276,13 @@ func registerMCPResourcePrompt(run *point.Run, registry *ToolRegistry, prompts *
 			if marshalErr != nil {
 				return "", marshalErr
 			}
-			text := "## MCP resource servers\n\nUse " + strings.Join(tools, ", ") + " with one of these names as the server argument: " + string(encoded) + "."
-			if instructions := directory.Instructions(); instructions != "" {
-				text += "\n\n" + instructions
+			catalog := directory.InstructionCatalog()
+			catalog.Header = "## MCP resource servers\n\nUse " + strings.Join(tools, ", ") + " with one of these names as the server argument: " + string(encoded) + "."
+			if !capabilities.HasTool("read_mcp_instructions") {
+				catalog.Continuation = "Additional server instructions are omitted from this request."
 			}
+			budget := CatalogBudget{Remaining: DefaultCatalogBytes}
+			text := budget.Render(catalog)
 			return text, nil
 		},
 	})

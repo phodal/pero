@@ -13,6 +13,7 @@ import (
 	"unicode"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/phodal/pero/harness/go/model"
 )
 
 // ResourceDirectory is the set of configured MCP servers that share the three
@@ -56,28 +57,31 @@ func ServerInstructions(server, text string) (string, error) {
 	return section, nil
 }
 
-// Instructions returns the connected servers' attributed instructions in name order.
-func (d *ResourceDirectory) Instructions() string {
+// InstructionCatalog retains connected servers' complete attributed sections.
+// Model-facing callers render it with their request's remaining catalog budget.
+func (d *ResourceDirectory) InstructionCatalog() model.CatalogText {
+	catalog := model.CatalogText{RecoveryTool: "read_mcp_instructions", Continuation: "Call read_mcp_instructions with {} to list servers, then server/offset/limit to recover complete instructions."}
 	if d == nil {
-		return ""
+		return catalog
 	}
-	var sections []string
 	for _, name := range d.Names() {
 		endpoint := d.endpoints[name]
-		if endpoint == nil {
-			continue
-		}
 		session := endpoint.session.Load()
 		if session == nil || session.InitializeResult() == nil {
 			continue
 		}
 		section, err := ServerInstructions(name, session.InitializeResult().Instructions)
-		if err != nil || section == "" {
-			continue
+		if err == nil && section != "" {
+			catalog.Rows = append(catalog.Rows, section+"\n")
 		}
-		sections = append(sections, section)
 	}
-	return strings.Join(sections, "\n\n")
+	return catalog
+}
+
+// Instructions returns a bounded preview; ReadInstructions recovers full text.
+func (d *ResourceDirectory) Instructions() string {
+	budget := model.CatalogBudget{Remaining: model.DefaultCatalogBytes}
+	return budget.Render(d.InstructionCatalog())
 }
 
 // Names returns the configured server names in order.

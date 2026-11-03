@@ -88,7 +88,7 @@ func TestMCPResourceGuidanceMatchesAgentTools(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	all := []string{"get_mcp_prompt", "list_mcp_prompts", "list_mcp_resource_templates", "list_mcp_resources", "read_mcp_resource"}
+	all := []string{"get_mcp_prompt", "list_mcp_prompts", "list_mcp_resource_templates", "list_mcp_resources", "read_mcp_instructions", "read_mcp_resource"}
 	for _, tc := range []struct {
 		name  string
 		allow []string
