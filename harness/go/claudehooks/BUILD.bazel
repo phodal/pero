@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "claudehooks",
     srcs = [
+        "if.go",
         "process_unix.go",
         "process_unsupported.go",
         "protocol.go",
@@ -10,11 +11,13 @@ go_library(
     ],
     importpath = "github.com/phodal/pero/harness/go/claudehooks",
     visibility = ["//visibility:public"],
+    deps = ["//shell"],
 )
 
 go_test(
     name = "claudehooks_test",
     srcs = [
+        "if_test.go",
         "protocol_test.go",
         "runner_test.go",
     ],

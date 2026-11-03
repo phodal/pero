@@ -49,6 +49,7 @@ func TestCommandDecision(t *testing.T) {
 		{name: "exit two overrides allow", event: "PreToolUse", exit: 2, stdout: `{"hookSpecificOutput":{"permissionDecision":"allow"}}`, stderr: "exit gate", permission: "deny", reason: "exit gate", block: true},
 		{name: "exit two JSON reason wins", event: "Stop", exit: 2, stdout: `{"decision":"block","reason":"JSON gate"}`, stderr: "stderr gate", reason: "JSON gate", block: true},
 		{name: "exit two invalid JSON still blocks", event: "Stop", exit: 2, stdout: "{", stderr: "stderr gate", reason: "stderr gate", block: true},
+		{name: "exit two plain stdout is the reason", event: "PreToolUse", exit: 2, stdout: "read only\n", permission: "deny", reason: "read only", block: true},
 		{name: "observational event cannot block", event: "SessionStart", exit: 2, stderr: "failure", fail: true},
 		{name: "ordinary failure is not a block", event: "Stop", exit: 7, stderr: "failure", fail: true},
 		{name: "stop gate continues agent", event: "Stop", stdout: `{"decision":"block","reason":"incomplete"}`, reason: "incomplete", block: true},

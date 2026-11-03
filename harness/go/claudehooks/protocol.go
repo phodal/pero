@@ -19,6 +19,13 @@ type Hook struct {
 	ExecForm       bool
 	Timeout        time.Duration
 	Async          bool
+	// If is one permission rule. It selects tool events and skips every other event.
+	If string
+	// Once removes a skill frontmatter hook after its first successful run.
+	Once bool
+	// OnFailure is "", "continue", or "block". Empty and continue leave the
+	// triggering action in place when the hook fails. block denies it.
+	OnFailure string
 }
 
 type Input struct {
@@ -28,6 +35,8 @@ type Input struct {
 	ToolName             string          `json:"tool_name,omitempty"`
 	ToolUseID            string          `json:"tool_use_id,omitempty"`
 	ToolInput            json.RawMessage `json:"tool_input,omitempty"`
+	FilePath             string          `json:"file_path,omitempty"`
+	NotebookPath         string          `json:"notebook_path,omitempty"`
 	ToolResponse         json.RawMessage `json:"tool_response,omitempty"`
 	TranscriptPath       string          `json:"transcript_path,omitempty"`
 	AgentID              string          `json:"agent_id,omitempty"`
@@ -127,6 +136,9 @@ func ParseDecision(event string, stdout, stderr []byte, exitCode int) (Decision,
 		}
 		if decision.Reason == "" {
 			decision.Reason = strings.TrimSpace(string(stderr))
+		}
+		if decision.Reason == "" && len(stdout) > 0 && stdout[0] != '{' {
+			decision.Reason = string(stdout)
 		}
 		if decision.Reason == "" {
 			decision.Reason = "Hook blocked the action."

@@ -117,6 +117,93 @@ func (runner Runner) Run(ctx context.Context, hook Hook, input Input) (Decision,
 	return ParseDecision(hook.Event, stdout.Bytes(), stderr.Bytes(), 0)
 }
 
+// DetachedHook is a command hook that was started without waiting. The caller
+// owns its lifetime and must Wait or cancel it.
+type DetachedHook struct {
+	Command        *exec.Cmd
+	Stdout, Stderr *limitedOutput
+	cancel         context.CancelFunc
+}
+
+func (hook *DetachedHook) Wait() error {
+	err := hook.Command.Wait()
+	if hook.cancel != nil {
+		hook.cancel()
+	}
+	return err
+}
+
+func (hook *DetachedHook) ExitCode(err error) int {
+	if err == nil {
+		return 0
+	}
+	var exitError *exec.ExitError
+	if errors.As(err, &exitError) {
+		return exitError.ExitCode()
+	}
+	return 1
+}
+
+// StartDetached starts an async command hook and returns before it exits.
+// Async hooks are not subject to the foreground timeout.
+func (runner Runner) StartDetached(ctx context.Context, hook Hook, input Input) (*DetachedHook, error) {
+	if ctx == nil {
+		return nil, errors.New("claudehooks: execution context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if !hookProcessSupported() {
+		return nil, errors.New("claudehooks: process-tree ownership is unsupported on this platform")
+	}
+	if hook.Event == "" || (input.Event != "" && input.Event != hook.Event) {
+		return nil, errors.New("claudehooks: hook event and input must match")
+	}
+	input.Event = hook.Event
+	if !filepath.IsAbs(input.CWD) {
+		return nil, errors.New("claudehooks: an explicit absolute working directory is required")
+	}
+	if strings.TrimSpace(hook.Command) == "" {
+		return nil, errors.New("claudehooks: command is required")
+	}
+	program, args := hook.Command, hook.Args
+	if !hook.ExecForm {
+		if len(hook.Args) > 0 {
+			return nil, errors.New("claudehooks: hook args require executable form")
+		}
+		if !filepath.IsAbs(runner.Shell) {
+			return nil, errors.New("claudehooks: shell form requires an explicit absolute shell executable")
+		}
+		program, args = runner.Shell, []string{"-c", hook.Command}
+		if filepath.Base(program) == "bash" {
+			args = []string{"--noprofile", "--norc", "-c", hook.Command}
+		}
+	}
+	program, err := runner.executable(program, input.CWD)
+	if err != nil {
+		return nil, err
+	}
+	payload, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("claudehooks: invalid hook input: %w", err)
+	}
+	execution, cancel := context.WithCancel(ctx)
+	command := exec.CommandContext(execution, program, args...)
+	command.Dir = input.CWD
+	command.Env = append([]string{}, runner.Environment...)
+	command.Stdin = bytes.NewReader(append(payload, '\n'))
+	stdout := &limitedOutput{cancel: func(error) { cancel() }}
+	stderr := &limitedOutput{cancel: func(error) { cancel() }}
+	command.Stdout, command.Stderr = stdout, stderr
+	command.WaitDelay = 250 * time.Millisecond
+	configureHookProcess(command)
+	if err := command.Start(); err != nil {
+		cancel()
+		return nil, fmt.Errorf("claudehooks: hook process failed: %w", err)
+	}
+	return &DetachedHook{Command: command, Stdout: stdout, Stderr: stderr, cancel: cancel}, nil
+}
+
 func (runner Runner) executable(program, cwd string) (string, error) {
 	if filepath.IsAbs(program) {
 		return program, nil
