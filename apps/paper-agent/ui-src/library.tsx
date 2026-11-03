@@ -171,7 +171,7 @@ export function PaperList({ papers, selecting, selected, readingId, locked, savi
         <div className="pa-paper-main">
           {selecting && <Checkbox checked={selected.includes(paper.id)} disabled={locked || selected.length >= 5 && !selected.includes(paper.id)} aria-label={`${t('usePaper')}: ${paper.title}`} onCheckedChange={checked => onSelect(paper.id, checked === true)}/>}
           <button type="button" className="pero-list-open" onClick={() => onRead(paper)}>
-            <span className="pa-paper-file" aria-hidden="true"><Icon name="document" size={18}/></span>
+            <span className="pa-paper-file" aria-hidden="true"><Icon name="document" size={15}/></span>
             <span className="pa-paper-name">
               <span className="pero-list-title">{paper.title}</span>
               <span className="pa-meta-line">{[authors, source].filter(Boolean).map((part, index) => <span key={`${index}:${part}`}>{part}</span>)}</span>
@@ -184,7 +184,7 @@ export function PaperList({ papers, selecting, selected, readingId, locked, savi
           {t(statusLabel[status])}
         </Button>
         <span className="pa-paper-added">{addedText(paper.fetchedAt, t)}</span>
-        <span className="pa-actions">{onDownload && <><Button variant="ghost" aria-label={t('downloadPdf')} disabled={!!savingId || !(paper.pdfUrl || paper.pdfCandidateUrl || paper.hasCachedPdf)} onClick={() => onDownload(paper, 'pdf')}>PDF</Button>{paper.arxivUrl && <Button variant="ghost" aria-label={t('downloadTex')} disabled={!!savingId} onClick={() => onDownload(paper, 'tex')}>TeX</Button>}</>}{onDiscover && <Button variant="ghost" onClick={() => onDiscover(paper)}>{t('discover')}</Button>}</span>
+        <span className="pa-actions">{onDownload && <><Button variant="ghost" className="pa-row-action" aria-label={t('downloadPdf')} title={t('downloadPdf')} disabled={!!savingId || !(paper.pdfUrl || paper.pdfCandidateUrl || paper.hasCachedPdf)} onClick={() => onDownload(paper, 'pdf')}><Icon name="file-text" size={14}/></Button>{paper.arxivUrl && <Button variant="ghost" className="pa-row-action" aria-label={t('downloadTex')} title={t('downloadTex')} disabled={!!savingId} onClick={() => onDownload(paper, 'tex')}><Icon name="file-code" size={14}/></Button>}</>}{onDiscover && <Button variant="ghost" className="pa-row-action" aria-label={t('discover')} title={t('discover')} onClick={() => onDiscover(paper)}><Icon name="drafting-compass" size={14}/></Button>}</span>
       </li>;
     })}</ul>
     {!rows.length && <p className="pa-filter-empty">{t('noPapersFilter')}</p>}

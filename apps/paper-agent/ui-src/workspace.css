@@ -260,8 +260,9 @@
 
 .pa-library-table {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content min-content max-content;
-  column-gap: 20px;
+  /* Title keeps leftover space; actions may shrink and wrap instead of crushing it. */
+  grid-template-columns: minmax(0, 1fr) max-content min-content minmax(0, max-content);
+  column-gap: 16px;
   min-inline-size: 0;
 }
 
@@ -270,7 +271,7 @@
 .pa-library-list > li.pa-paper-row {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: minmax(0, 1fr) max-content min-content max-content;
+  grid-template-columns: minmax(0, 1fr) max-content min-content minmax(0, max-content);
   grid-template-columns: subgrid;
   min-inline-size: 0;
 }
@@ -332,8 +333,8 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  inline-size: 28px;
-  block-size: 34px;
+  inline-size: 24px;
+  block-size: 28px;
   border: 0.5px solid var(--pero-border);
   border-radius: 4px;
   background: var(--pero-surface-muted);
@@ -383,12 +384,41 @@
 
 .pa-library-list .pa-actions {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  min-inline-size: max-content;
-  white-space: nowrap;
+  align-content: center;
+  gap: 2px;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.pa-library-list .pa-actions .pa-row-action.pero-ui-button {
+  flex: none;
+  inline-size: 28px;
+  block-size: 28px;
+  min-block-size: 28px;
+  padding: 0;
+  color: var(--pero-text-muted);
+}
+
+.pa-library-list .pa-actions .pa-row-action.pero-ui-button:hover:not(:disabled) {
+  color: var(--pero-text);
+  background: var(--pero-fill-hover);
+}
+
+@container (max-width: 720px) {
+  .pa-library-table {
+    column-gap: 10px;
+  }
+  .pa-library-list .pa-actions {
+    /* Two icons wide so the third wraps instead of eating title space. */
+    max-inline-size: 3.75rem;
+  }
+  .pa-library-head > span:nth-child(3),
+  .pa-library-list .pa-paper-added {
+    display: none;
+  }
 }
 
 .pa-library-list .pa-status.pero-ui-button {
