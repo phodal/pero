@@ -16,6 +16,9 @@ def source_read(store, value):
 
 
 def read_source(store, value):
+    if value.get('operation') == 'figures':
+        from .source_figures import FigureQuery, paper_figures
+        return paper_figures(store, FigureQuery.parse(value))
     if set(value) - {'bundleId', 'resourceId', 'operation', 'memberId', 'startLine', 'endLine', 'start', 'end', 'pdfResourceId'} or value.get('operation') not in ('list', 'read', 'compare', 'image'):
         raise Invalid('Choose list, read, image or compare for an approved source archive')
     resource, job = store.source_downloads.job(value.get('bundleId'), value.get('resourceId'))
@@ -30,8 +33,14 @@ def read_source(store, value):
         return compare_source(store, value, resource, job, archive)
     member = next((m for m in archive.members if m.id == value.get('memberId')), None)
     if value['operation'] == 'image':
-        if not member or not member.preview:
-            raise Invalid('Choose an available safe raster preview')
+        if not member:
+            raise Invalid('Choose an available source image member')
+        if not member.preview:
+            from .source_figure_images import figure_image
+            preview, image = figure_image(store, member)
+            return dict(type='source_image', mimeType='image/png', data=base64.b64encode(image).decode('ascii'),
+                provenance=dict(archiveDigest=archive.sha256, memberId=member.id, originalSha256=member.sha256,
+                    previewSha256=preview.previewSha256, width=preview.width, height=preview.height))
         image = checked_preview(store, member)
         return dict(type='source_image', mimeType='image/png', data=base64.b64encode(image).decode('ascii'),
             provenance=dict(archiveDigest=archive.sha256, memberId=member.id, originalSha256=member.sha256,

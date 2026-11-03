@@ -294,7 +294,13 @@ def verify_observation(store, observation):
         if observation.previewSha256:
             from .source_archive import SourceMember
             from .source_reading import checked_preview
-            if digest(checked_preview(store, SourceMember.from_record(member))) != observation.previewSha256:
+            source_member = SourceMember.from_record(member)
+            if not source_member.preview:
+                from .source_figure_images import figure_image
+                _, image = figure_image(store, source_member, render=False)
+            else:
+                image = checked_preview(store, source_member)
+            if digest(image) != observation.previewSha256:
                 return False
     if observation.legacy_pdf_scope_unknown:
         return False  # Legacy negative result did not freeze which PDF it consulted.
