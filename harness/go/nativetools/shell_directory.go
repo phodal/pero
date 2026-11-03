@@ -12,7 +12,10 @@ func commandWithDirectoryMarker(shellPath, command, outputFile string) (string, 
 		return command, ""
 	}
 	marker := outputFile + ".pwd"
-	return command + "\n__pero_status=$?\npwd -P > " + quoteShell(marker) + "\nexit $__pero_status", marker
+	// Open the sidecar before the command can rename/replace the workspace.
+	// Directory observation is best effort and must never alter command output
+	// or its status, including when the command closes our descriptor.
+	return "{\n" + command + "\n__pero_status=$?\n{ pwd -P >&9; } 2>/dev/null\nexit $__pero_status\n} 9> " + quoteShell(marker), marker
 }
 
 func quoteShell(value string) string {
@@ -21,6 +24,10 @@ func quoteShell(value string) string {
 
 func (s *shellTasks) observeShellDirectory(task *shellTask, old string) {
 	if s == nil || task == nil || task.pwdMarker == "" || task.parent == nil {
+		return
+	}
+	// A replaced pathname no longer identifies the original sidecar or cwd.
+	if err := task.executor.CheckCWD(task.parent.Session().WorkingDirectory()); err != nil {
 		return
 	}
 	data, err := os.ReadFile(task.pwdMarker)
