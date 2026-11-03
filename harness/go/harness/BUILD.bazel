@@ -74,6 +74,7 @@ go_library(
         "subagents_activation_messages.go",
         "subagents_activation_preparation.go",
         "subagents_activity.go",
+        "subagents_background_activity.go",
         "subagents_capacity.go",
         "subagents_catalog.go",
         "subagents_catalog_projection.go",

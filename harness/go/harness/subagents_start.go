@@ -393,6 +393,9 @@ func (r *SubagentRegistry) StartContinuable(ctx context.Context, providerName st
 		ID: prepared.ChildID, Parent: request.Parent.ID(), Provider: provider.Name(), Status: SubagentRunning,
 		Label: request.Label, Depth: depth + 1, StartedAt: time.Now().UTC(), Continuable: true,
 	}, parent: request.Parent, child: prepared.Child, submit: prepared.Submit, dispose: prepared.Dispose, disposal: disposal, epoch: 1, suppressParentSettlement: request.SuppressParentSettlement, activation: request.activation, captureStructured: prepared.CaptureStructured, structuredAdmission: prepared.StructuredAdmission, requiresStructured: len(request.OutputSchema) != 0}
+	if record.activation != nil {
+		record.activation.retainActivities = prepared.RetainBackgroundActivities
+	}
 	r.mu.Lock()
 	liveChild, childExists := r.agents.Get(prepared.ChildID)
 	if r.disposed || !r.preparationAdmitsLocked(ctx, request.Parent) || !childExists || liveChild != prepared.Child || prepared.Child.Parent() != request.Parent {

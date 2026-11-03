@@ -312,6 +312,9 @@ type SubagentContinuationProviderRun struct {
 	// StructuredAdmission is mandatory for managed OutputSchema providers.
 	// Construct a fresh exact-child gate and use it for staging and initial input.
 	StructuredAdmission *SubagentStructuredAdmission
+	// RetainBackgroundActivities lets this managed activation remain resident
+	// after a turn while an explicitly retained tool activity is unfinished.
+	RetainBackgroundActivities bool
 }
 
 // SubagentContinuationReceipt identifies both the durable child and the

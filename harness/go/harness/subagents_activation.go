@@ -121,6 +121,7 @@ type subagentActivationState struct {
 	observer         *point.Instance
 	outputStart      int
 	failure          error
+	activityFailure  error
 	failureAt        uint64
 	delivery         string
 	result           chan SubagentResult
@@ -140,6 +141,8 @@ type subagentActivationState struct {
 	inputs              int
 	structuredAdmission *SubagentStructuredAdmission
 	preparing           int
+	activities          int
+	retainActivities    bool
 	owned               map[*subagentRecord]struct{}
 	changed             chan struct{}
 	preparationContext  context.Context
@@ -478,7 +481,7 @@ func (r *SubagentRegistry) observeActivationInput(ctx context.Context, record *s
 func activationResult(record *subagentRecord, fallback TurnOutcome) SubagentResult {
 	state := record.activation
 	state.mu.Lock()
-	start, failure := state.outputStart, state.failure
+	start, failure := state.outputStart, errors.Join(state.failure, state.activityFailure)
 	state.mu.Unlock()
 	events := record.child.Session().Events()
 	if start > len(events) {
@@ -580,7 +583,7 @@ func (r *SubagentRegistry) settleActivationTurn(record *subagentRecord, epoch ui
 			r.mu.RLock()
 			owned := r.records[record.snapshot.ID] == record
 			current := record.epoch == epoch && r.activationAcceptsInput(record)
-			waiting := record.activation.preparing != 0 || len(record.activation.owned) != 0 || r.activationInputPendingLocked(record)
+			waiting := record.activation.hasOwnedWorkLocked() || r.activationInputPendingLocked(record)
 			changed := record.activation.changed
 			r.mu.RUnlock()
 			if !owned {
@@ -631,7 +634,7 @@ func (r *SubagentRegistry) settleActivationTurn(record *subagentRecord, epoch ui
 			pendingInput := child.pendingPrompts.Load() != 0 || len(child.injected) != 0 || child.durableInbox.HasNextTurn() || child.durableInbox.HasNextStep()
 			r.mu.Lock()
 			current = r.records[record.snapshot.ID] == record && record.epoch == epoch && r.activationAcceptsInput(record)
-			waiting = record.activation.preparing != 0 || len(record.activation.owned) != 0 || r.activationInputPendingLocked(record)
+			waiting = record.activation.hasOwnedWorkLocked() || r.activationInputPendingLocked(record)
 			changed = record.activation.changed
 			if current && !waiting && !pendingInput {
 				record.activation.closing.Store(true)
@@ -819,7 +822,7 @@ func (r *SubagentRegistry) beginActivationCleanup(record *subagentRecord) bool {
 			err := cleanup(context.Background())
 			for {
 				r.mu.RLock()
-				waiting := state.preparing != 0 || len(state.owned) != 0
+				waiting := state.hasOwnedWorkLocked()
 				changed := state.changed
 				r.mu.RUnlock()
 				if !waiting {

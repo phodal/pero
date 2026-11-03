@@ -265,6 +265,7 @@ func (r *SubagentRegistry) continuableRecordMode(ctx context.Context, parent *Ag
 				delivery = "parent"
 			}
 			record.activation = newSubagentActivation(delivery)
+			record.activation.retainActivities = prepared.RetainBackgroundActivities
 			record.suppressParentSettlement = true
 		}
 		r.mu.Lock()
