@@ -387,22 +387,15 @@ impl Workbench {
     }
 
     pub(crate) fn set_chat_dock(&mut self, open: bool, cx: &mut Context<Self>) {
+        // Reopening from a closed dock is an explicit ask (titlebar toggle, Ask AI,
+        // compose handoff). Keep the floating panel expanded so App controls that
+        // hide themselves for question mode are not left with a collapsed stub.
         if open
             && !self.preferences.layout.chat_open
             && self.floating_chat
             && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }))
         {
-            let panel = self.chat.read(cx);
-            self.floating_chat_expanded = panel.error.is_some()
-                || panel
-                    .active_chat
-                    .and_then(|index| panel.chats.get(index))
-                    .is_some_and(|chat| {
-                        chat.busy()
-                            || chat.permission.is_some()
-                            || chat.error.is_some()
-                            || chat.state == pero_chat_ui::session_state::SessionState::AuthRequired
-                    });
+            self.floating_chat_expanded = true;
         }
         self.preferences.layout.chat_open = open;
         self.save_preferences(self.preferences.clone(), cx);
