@@ -3,10 +3,9 @@ import type { Comparison, Experiment, Trial } from './types';
 import { formatNumber, stateDelta, checkLabel, trialLabel } from './presentation';
 
 export function Timeline({ trial }: { trial: Trial | undefined }) {
-  if (!trial) return <p className="empty">Propose a protocol to start recording a trial.</p>;
+  if (!trial) return <p className="empty">Save a candidate to start a trial.</p>;
   return <section><h2>Execution {trial.status}</h2>
     {trial.error && <p className="error" role="alert">{trial.error}</p>}
-    <p className="muted">Saved evidence only. Opening a run never executes its protocol.</p>
     {!trial.events.length && <p>No steps have executed.</p>}
     <ol className="timeline">{trial.events.map((event, i) => <li key={i}>
       <div><strong>{event.operation.op.replaceAll('_', ' ')} {event.operation.resource}</strong> {event.operation.volume_ul != null && `${event.operation.volume_ul} µL`} <span className="muted">— {event.status}</span></div>
@@ -20,14 +19,13 @@ export function Timeline({ trial }: { trial: Trial | undefined }) {
 export function Results({ experiment, trial, comparison }: { experiment: Experiment; trial: Trial | undefined; comparison: Comparison | null }) {
   const criteria = experiment.criteria, predicted = trial?.final_state?.wells.find(w => w.id === criteria.target_well);
   return <section><h2>Independent verification: {trial?.verification?.verdict ?? 'INCONCLUSIVE'}</h2>
-    <p className="muted">Verification is independent of execution and UI review.</p>
     <div className="table-scroll"><table><thead><tr><th>Frozen criterion</th><th>Target</th><th>Model prediction</th></tr></thead><tbody>
       <tr><th>{criteria.target_well} red fraction</th><td>{criteria.target_fraction} ± {criteria.tolerance}</td><td>{formatNumber(predicted?.red_fraction)}</td></tr>
       <tr><th>{criteria.target_well} volume (µL)</th><td>{criteria.target_volume_ul} ± {criteria.volume_tolerance_ul}</td><td>{formatNumber(predicted?.volume_ul)}</td></tr>
     </tbody></table></div>
     {trial?.verification && <div className="table-scroll"><table className="checks-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody>{trial.verification.checks.map((check, i) => <tr key={i}><th>{checkLabel(check.name)}</th><td>{check.verdict}</td><td>{check.message ?? formatNumber(check.actual)}</td></tr>)}</tbody></table></div>}
     <h2>Observations</h2>
-    {!trial?.observations.length ? <p>No observations attached. Import a measurement or attach a clearly labelled synthetic fixture.</p> : trial.observations.map((observation, i) => <div className="observation" key={observation.id ?? i}>
+    {!trial?.observations.length ? <p>No observations attached.</p> : trial.observations.map((observation, i) => <div className="observation" key={observation.id ?? i}>
       <strong>{observation.origin} observation</strong>{observation.measurements.map(measurement => <p key={measurement.well}>{measurement.well}: {formatNumber(measurement.value)} {measurement.unit}</p>)}<p>Source: {observation.source}</p>
       <details><summary>Provenance and original file digest</summary><pre>{JSON.stringify(observation, null, 2)}</pre></details>
     </div>)}

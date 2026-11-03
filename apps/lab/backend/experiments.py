@@ -11,7 +11,7 @@ import sys
 import threading
 import uuid
 
-from domain import parse_criteria, parse_experiment, parse_protocol, parse_state, validate_protocol, transition_trial
+from domain import initial_state, parse_criteria, parse_experiment, parse_protocol, parse_state, validate_protocol, transition_trial
 from observations import import_measurements
 
 LIMITATIONS = ['Simulation only: no physical execution authorization.',
@@ -64,7 +64,8 @@ class ExperimentStore:
         with self.lock: return deepcopy(self.get(identity))
 
     def listing(self):
-        with self.lock: return {'experiments':deepcopy(list(self.records.values())), 'engine':capability()}
+        with self.lock: return {'experiments':deepcopy(list(self.records.values())), 'engine':capability(),
+                               'initial_state':initial_state().to_dict()}
 
     def create(self, data):
         with self.lock:
@@ -87,6 +88,7 @@ class ExperimentStore:
             context = ProposalContext(record['max_trials'], record['max_steps'], record['initial_state']['revision'],
                                       tuple(TrialReference(t['id'], t['verification'] is not None) for t in record['trials']))
             reason = validate_proposal(context, protocol, parent, reason)
+            validate_protocol(parse_state(record['initial_state']), protocol, record['max_steps'])
             trial = {'id':uuid.uuid4().hex,'parent_trial_id':parent,'reason':reason,'protocol':protocol.to_dict(),
                      'protocol_hash':digest(protocol.to_dict()),'state_hash':digest(record['initial_state']),
                      'status':'proposed','events':[],'initial_state':deepcopy(record['initial_state']),

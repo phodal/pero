@@ -35,5 +35,5 @@ export const checkLabel = (name: string): string => ({
 export function trialLabel(trials: { id: string; parent_trial_id: string | null }[], id: string): string {
   const index = trials.findIndex(trial => trial.id === id);
   if (index < 0) return 'Unknown trial';
-  return `Trial ${index + 1} · ${trials[index].parent_trial_id ? 'Revision' : 'Baseline'}`;
+  return `Trial ${index + 1} (${trials[index].parent_trial_id ? 'Revision' : 'Baseline'})`;
 }

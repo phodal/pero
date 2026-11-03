@@ -54,7 +54,7 @@ async function open() {
   if (await setup.isVisible()) await setup.click();
 }
 async function run(benchmark) {
-  await frame.locator('.method-list button').filter({ hasText: benchmark.name }).click();
+  await frame.getByRole('button', { name: benchmark.name, exact: true }).click();
   const request = page.waitForResponse(response => new URL(response.url()).pathname === '/api/runs' && response.request().method() === 'POST');
   await frame.getByRole('button', { name: 'Run local reference', exact: true }).click();
   const response = await request;
@@ -72,6 +72,10 @@ async function run(benchmark) {
   await expect(frame.getByRole('button', { name: 'Verify saved evidence', exact: true })).toBeEnabled({ timeout: 15000 });
   await expect(frame.getByRole('img', { name: /Integrand samples|Numerical solution/ })).toBeVisible();
   return finished;
+}
+async function openHistory() {
+  const history = frame.locator('.run-history');
+  if (await history.getAttribute('open') === null) await history.locator('summary').click();
 }
 try {
   await open();
@@ -106,6 +110,7 @@ try {
   expect(JSON.parse(verified.stdout).status).toBe('pass');
   checks.push('Actual Desktop ZIP download and independent offline verification without ReFrame invocation');
 
+  await openHistory();
   await frame.getByRole('checkbox', { name: `Select for comparison: ${first.id}`, exact: true }).check();
   await frame.getByRole('checkbox', { name: `Select for comparison: ${second.id}`, exact: true }).check();
   await frame.getByRole('button', { name: /^Compare selected runs/ }).click();
@@ -118,7 +123,7 @@ try {
   checks.push('Same-spec result comparison and explicit incompatible-method rejection');
 
   const unavailable = initial.benchmarks.find(item => !item.available);
-  await frame.locator('.method-list button').filter({ hasText: unavailable.name }).click();
+  await frame.getByRole('button', { name: unavailable.name, exact: true }).click();
   await expect(frame.getByRole('button', { name: 'Run benchmark', exact: true })).toBeDisabled();
   await expect(frame.locator('.unavailable-note')).toBeVisible();
   const rejected = await post('/api/runs', { benchmarkId: unavailable.id });
@@ -126,8 +131,8 @@ try {
   expect((await get('/api/state')).runs).toHaveLength(3);
   checks.push('Unavailable OpenFOAM/Slurm remains visible and cannot create a fake execution');
 
-  await frame.locator('.method-list button').filter({ hasText: methods[0].name }).click();
-  const separator = frame.getByRole('separator');
+  await frame.getByRole('button', { name: methods[0].name, exact: true }).click();
+  const separator = frame.getByRole('separator', { name: 'Benchmarks', exact: true });
   await separator.focus();
   await separator.press('ArrowRight');
   const preferences = { ...(await state()).preferences, appearance: 'dark' };
@@ -135,11 +140,12 @@ try {
   await expect.poll(async () => (await state()).dark).toBe(true);
   await expect.poll(() => frame.locator('html').evaluate(element => element.style.colorScheme)).toBe('dark');
   await page.screenshot({ path: resolve(out, 'library-dark.png') });
-  await frame.getByRole('tab', { name: 'Runs & checks', exact: true }).click();
+  await frame.getByRole('tab', { name: 'Results', exact: true }).click();
+  await openHistory();
   await frame.getByRole('button', { name: `Inspect: ${other.id}`, exact: true }).click();
   await expect(frame.getByRole('img', { name: /Numerical solution/ })).toBeVisible();
   await page.screenshot({ path: resolve(out, 'results-dark.png') });
-  await frame.locator('.method-list button').filter({ hasText: methods[0].name }).click();
+  await frame.getByRole('button', { name: methods[0].name, exact: true }).click();
   await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click());
   await expect(frame.getByRole('heading', { name: 'HPC 基准', exact: true })).toBeVisible();
   await app.evaluate(({ BrowserWindow }) => {
@@ -156,7 +162,8 @@ try {
     BrowserWindow.getAllWindows()[0].setSize(1488, 1000);
     Menu.getApplicationMenu().getMenuItemById('locale-en').click();
   });
-  await frame.getByRole('tab', { name: 'Runs & checks', exact: true }).click();
+  await frame.getByRole('tab', { name: 'Results', exact: true }).click();
+  await openHistory();
   await frame.getByRole('button', { name: `Inspect: ${other.id}`, exact: true }).click();
   const samples = resolve(profile, `app-data/hpc/runs/${other.id}/bundle/raw/samples-128.csv`);
   await writeFile(samples, 'invalid observed sample\n');
