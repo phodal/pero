@@ -15,15 +15,17 @@ With authorized local file access, the bundled offline locator can recover those
 IDs and the actual files without searching the whole home directory:
 
 ```sh
-python /path/to/paper-agent/tools/locate-source.py --arxiv 2610.27435v1
+/path/to/paper-python /path/to/paper-agent/tools/locate-source.py --arxiv 2610.27435v1
 ```
 
 Resolve `/path/to/paper-agent` from the selected skill's installation; the
-[locator](../../../tools/locate-source.py) ships beside the App backend. Prefer a
+[locator](../../../tools/locate-source.py) ships beside the App backend. Use the
+App's already configured Python 3.10+ environment for `/path/to/paper-python`;
+the system `python3` may be older. Prefer a
 known active profile over default discovery:
 
 ```sh
-python /path/to/paper-agent/tools/locate-source.py --arxiv 2610.27435v1 \
+/path/to/paper-python /path/to/paper-agent/tools/locate-source.py --arxiv 2610.27435v1 \
   --cache /path/to/profile/app-data/paper-agent
 ```
 

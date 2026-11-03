@@ -57,6 +57,9 @@ finish with source findings without preparing an experiment protocol.
   copies that cannot become approved evidence. Use `TMPDIR=/private/tmp` for the
   existing PC-Gym canonical-directory tests on macOS.
 - All four modified skills pass skill-creator `quick_validate.py`.
+- The system Python 3.9 is rejected with an explicit configured-environment
+  message; the configured supported interpreter completes the lookup. Skill
+  examples now select the App's Python instead of assuming system `python3`.
 - Four payload tests pass, including execution of the staged offline locator
   against its staged backend outside the checkout. It is included with its shared
   reference by the existing builtin allowlist.

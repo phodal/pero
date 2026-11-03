@@ -6,6 +6,9 @@ import os
 from pathlib import Path
 import sys
 
+if sys.version_info < (3, 10):
+    print(json.dumps(dict(error='Use the configured Paper Python environment (Python 3.10+).')))
+    raise SystemExit(2)
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 from paper_agent.library_files import paper_directory
