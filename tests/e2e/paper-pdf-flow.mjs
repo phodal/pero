@@ -1,4 +1,3 @@
-import { configurePdfRegistryTrace, armPdfRegistryTraceAfterSelection } from './paper-registry-trace.mjs';
 import { installPdfPersistenceTrace, snapshotPdfPersistenceTrace } from './paper-persistence-trace.mjs';
 import { chatState, askPaperChat, fillPaperChat, closePaperChat, showPaperReport, exitPaperQuestionMode } from './paper-chat-controls.mjs';
 import { exercisePdfSearch } from './paper-search-flow.mjs';
@@ -317,7 +316,6 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await frame.getByRole('button', { name: 'Close research records', exact: true }).click();
   // Leave an actual selection for the existing full Desktop restart journey.
   const traceKey = `pero.paper.pdf-view:${document.id}:${document.fileDigest}`;
-  if (!fixture.realPdf) await frame.locator('body').evaluate(configurePdfRegistryTrace, { documentId: document.id, fileDigest: document.fileDigest, paperId: paper.id });
   if (!fixture.realPdf) await frame.locator('body').evaluate(installPdfPersistenceTrace, { key: traceKey, phase: 'final-selection' });
   await nav.getByRole('button', { name: 'Fit page', exact: true }).click();
   await nav.getByRole('spinbutton', { name: 'Page', exact: true }).fill('1');
@@ -331,7 +329,6 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   expect((await storedView()).selection).toBeNull();
   if (!fixture.realPdf) await frame.locator('body').evaluate(snapshotPdfPersistenceTrace, { key: traceKey, event: 'pointer-down-reset' });
   await page.mouse.move(reopenBox.x + s.x2 * reopenBox.width, reopenBox.y + s.y * reopenBox.height, { steps: 20 }); await page.mouse.up();
-  if (!fixture.realPdf) await frame.locator('body').evaluate(armPdfRegistryTraceAfterSelection);
   if (!fixture.realPdf) await frame.locator('body').evaluate(snapshotPdfPersistenceTrace, { key: traceKey, event: 'after-mouseup' });
   await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
   await expect.poll(async () => (await storedView()).selection).not.toBeNull();
@@ -339,7 +336,6 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
 }
 
 export async function reopenPdf({ frame, saved, page }) {
-  if (!process.env.PERO_PAPER_PDF_FILE) await frame.locator('body').evaluate(configurePdfRegistryTrace, { documentId: saved.readerState.documentId, fileDigest: saved.fileDigest, paperId: saved.paper.id });
   await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(saved.paper.title, { exact: true }) }).click();
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
   try {
