@@ -64,10 +64,10 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   useEffect(() => { if (readRequest) setMode('text'); }, [readRequest]);
   const view = lockText ? 'text' : mode;
   const textLabel = readLabel ?? 'Read';
-  const originalUrl = sourceUrl ?? paper.fullTextUrl ?? paper.metadataUrl ?? (paper.source === 'local-pdf' ? reading.originalUrl ?? reading.document?.sourceUrl : paper.url);
+  const originalUrl = sourceUrl ?? paper.arxivUrl ?? paper.fullTextUrl ?? paper.metadataUrl ?? (paper.source === 'local-pdf' ? reading.originalUrl ?? reading.document?.sourceUrl : paper.url);
   const modes = <div className="pa-reader-modes" role="group" aria-label={t('readerView')}>
     <Button variant="ghost" aria-pressed={view === 'text'} onClick={() => { setMode('text'); setError(''); }}>{textLabel}</Button>
-    <Button variant="ghost" aria-pressed={view === 'pdf'} disabled={!paper.pdfUrl && !reading.document} onClick={() => void open()}>PDF</Button>
+    <Button variant="ghost" aria-pressed={view === 'pdf'} disabled={!paper.pdfUrl && !paper.pdfCandidateUrl && !reading.document} onClick={() => void open()}>PDF</Button>
     <Button variant="ghost" aria-pressed={view === 'tex'} onClick={() => { setVisitedTex(true); setMode('tex'); }}>TeX</Button>
     <Button variant="ghost" aria-pressed={view === 'original'} title={originalUrl} disabled={!originalUrl?.startsWith('https://')} onClick={() => setMode('original')}>{t('readerOriginal')}</Button>
   </div>;

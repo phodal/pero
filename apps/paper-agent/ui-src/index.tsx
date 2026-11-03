@@ -176,7 +176,7 @@ export default function PaperAgent() {
   async function added(paper: Paper, focus: boolean | (() => boolean)) {
     await refresh();
     if (mounted.current && active.current && (typeof focus === 'function' ? focus() : focus)) {
-      if (paper.pdfUrl || paper.source === 'local-pdf') setSavingPaper(paper);
+      if (paper.pdfUrl || paper.pdfCandidateUrl || paper.source === 'local-pdf') setSavingPaper(paper);
       await read(paper);
     }
   }

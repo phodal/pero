@@ -21,6 +21,7 @@ from .research import ResearchPlan, RetrievalBatch, QueryProposal, EvidenceSelec
 from .search_index import SearchIndex
 from .context_file import ContextFile, ContextSelection, ContextRead
 from .passage_reading import PassageReading
+from .research_resources import ArxivPaper
 from .studies import ResearchStudy, ResearchStep, StudyCommand, StudyContinuation
 
 
@@ -254,7 +255,7 @@ class ResearchStore:
                     continue
                 if stat.S_ISREG(info.st_mode) and info.st_size > 0:
                     cached.add(paper_id)
-        papers = [dict(self.paper(identity).to_dict(False), hasCachedPdf=identity in cached)
+        papers = [dict(ArxivPaper.reading_view(self.paper(identity), False), hasCachedPdf=identity in cached)
                   for identity in self._list("papers")]
         intents = []
         for identity in self._list("intents"):

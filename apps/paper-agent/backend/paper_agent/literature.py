@@ -12,7 +12,7 @@ from html.parser import HTMLParser
 import json
 import re
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlencode, urlsplit
+from urllib.parse import quote, urlencode, urlsplit, unquote
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 import xml.etree.ElementTree as ET
 
@@ -105,8 +105,8 @@ class PaperIdentity:
                     raise Invalid("Invalid paper URL")
             except ValueError as error:
                 raise Invalid("Invalid paper URL") from error
-            if url.hostname in ("arxiv.org", "www.arxiv.org", "alphaxiv.org", "www.alphaxiv.org"):
-                paper_id = re.sub(r"^/(?:abs|pdf|overview)/", "", url.path)
+            if url.hostname in ("arxiv.org", "www.arxiv.org", "export.arxiv.org", "alphaxiv.org", "www.alphaxiv.org"):
+                paper_id = re.sub(r"^/(?:abs|pdf|html|overview)/", "", unquote(url.path))
                 paper_id = re.sub(r"\.pdf$", "", paper_id)
             elif url.hostname in ('huggingface.co', 'www.huggingface.co'):
                 if not url.path.startswith('/papers/'):
@@ -114,13 +114,16 @@ class PaperIdentity:
                 paper_id = url.path.removeprefix('/papers/').rstrip('/')
                 if source is None:
                     source = 'huggingface'
-            elif url.hostname in ("doi.org", "www.biorxiv.org", "biorxiv.org"):
-                paper_id = re.sub(r"^/(?:content/)?", "", url.path)
+            elif url.hostname in ("doi.org", "dx.doi.org", "www.doi.org", "www.biorxiv.org", "biorxiv.org"):
+                paper_id = re.sub(r"^/(?:content/)?", "", unquote(url.path))
             elif url.hostname in ("openalex.org", "pubmed.ncbi.nlm.nih.gov"):
                 paper_id = url.path.strip("/")
             else:
                 raise Invalid("Unsupported paper URL")
         paper_id = re.sub(r"^(?:arxiv:|doi:|pmid:)\s*", "", paper_id, flags=re.I)
+        arxiv_doi = re.fullmatch(r'10\.48550/arxiv\.(.+)', paper_id, re.I)
+        if arxiv_doi:
+            paper_id, source = arxiv_doi[1], 'alphaxiv'
         if source == 'huggingface':
             source = 'alphaxiv'
         if source is None:

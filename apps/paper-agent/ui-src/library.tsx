@@ -184,7 +184,7 @@ export function PaperList({ papers, selecting, selected, readingId, locked, savi
           {t(statusLabel[status])}
         </Button>
         <span className="pa-paper-added">{addedText(paper.fetchedAt, t)}</span>
-        <span className="pa-actions">{onDownload && <Button variant="ghost" busy={savingId === paper.id} disabled={!!savingId || !(paper.pdfUrl || paper.hasCachedPdf)} onClick={() => onDownload(paper)}>{savingId === paper.id ? t('saveCopies') : t('downloadPaper')}</Button>}{onDiscover && <Button variant="ghost" onClick={() => onDiscover(paper)}>{t('discover')}</Button>}</span>
+        <span className="pa-actions">{onDownload && <Button variant="ghost" busy={savingId === paper.id} disabled={!!savingId || !(paper.pdfUrl || paper.pdfCandidateUrl || paper.hasCachedPdf)} onClick={() => onDownload(paper)}>{savingId === paper.id ? t('saveCopies') : t('downloadPaper')}</Button>}{onDiscover && <Button variant="ghost" onClick={() => onDiscover(paper)}>{t('discover')}</Button>}</span>
       </li>;
     })}</ul>
     {!rows.length && <p className="pa-filter-empty">{t('noPapersFilter')}</p>}

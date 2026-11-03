@@ -1,6 +1,6 @@
 export type Paper = {
   id: string; resourceKind?: 'web_article' | 'paper'; limitation?: string; source: string; sourceId: string; title: string; authors: string[];
-  url: string; metadataUrl?: string; fullTextUrl?: string; pdfUrl?: string; hasCachedPdf?: boolean; contentKind: 'abstract' | 'report' | 'full-text';
+  url: string; metadataUrl?: string; fullTextUrl?: string; pdfUrl?: string; pdfCandidateUrl?: string; arxivUrl?: string; hasCachedPdf?: boolean; contentKind: 'abstract' | 'report' | 'full-text';
   contentDigest: string; fetchedAt: string; content?: string;
 };
 export type Intent = {

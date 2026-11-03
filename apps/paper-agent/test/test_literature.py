@@ -53,11 +53,18 @@ class LiteratureTest(unittest.TestCase):
                 PaperIdentity.parse({"id": paper_id})
         for paper_id, source, identity in (("https://arxiv.org/pdf/1706.03762v2.pdf", "alphaxiv", "1706.03762v2"),
                                            ("https://huggingface.co/papers/2601.12345", "alphaxiv", "2601.12345"),
+                                           ("https://doi.org/10.48550/arxiv.2610.02858", "alphaxiv", "2610.02858"),
+                                           ("doi:10.48550/arXiv.hep-th/9901001", "alphaxiv", "hep-th/9901001"),
+                                           ("https://dx.doi.org/10.48550/arXiv.2610.02858", "alphaxiv", "2610.02858"),
+                                           ("https://arxiv.org/html/2610.02858v1", "alphaxiv", "2610.02858v1"),
+                                           ("https://export.arxiv.org/abs/2610.02858v1", "alphaxiv", "2610.02858v1"),
                                            ("pmid:123", "pubmed", "123"), ("https://openalex.org/W123", "openalex", "W123"),
                                            ("https://www.biorxiv.org/content/10.1101/2026.01.01.1v2.full", "biorxiv", "10.1101/2026.01.01.1")):
             with self.subTest(paper_id=paper_id):
                 parsed = PaperIdentity.parse({"id": paper_id})
                 self.assertEqual((parsed.source, parsed.id), (source, identity))
+        selected_doi = PaperIdentity.parse({'id': '10.48550/arXiv.2610.02858', 'source': 'openalex'})
+        self.assertEqual((selected_doi.source, selected_doi.id), ('alphaxiv', '2610.02858'))
         selected = PaperIdentity.parse({'id': 'https://huggingface.co/papers/2601.12345', 'source': 'huggingface'})
         self.assertEqual((selected.source, selected.id), ('alphaxiv', '2601.12345'))
 

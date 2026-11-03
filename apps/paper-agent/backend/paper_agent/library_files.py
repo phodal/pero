@@ -174,9 +174,8 @@ class LibraryFiles:
             metadata = pinned_pdf(paper.pdf_url)
             conflict = pinned and metadata and (pinned.workIdentity, pinned.revision) != (metadata.workIdentity, metadata.revision)
             return document, None if conflict or not pinned else PublicURL.parse(document.source_url).value
-        if not paper.pdf_url:
-            raise Invalid('This paper has no PDF to save')
-        resource = ResearchResource.linked(paper.pdf_url, paper.pdf_url)
+        candidate = paper.pdf_url or ArxivPaper.from_snapshot(paper).pdf_url
+        resource = ResearchResource.linked(candidate, candidate)
         if resource.kind != 'pdf_candidate':
             raise Invalid('This paper has no supported PDF candidate')
         return None, resource.originalUrl
@@ -309,7 +308,7 @@ class LibraryFiles:
                 raise Invalid('Bundle does not belong to this saved paper source', 409)
         if pdf_id:
             resource = self.store.imports.approved_pdf(bundle_id, pdf_id)
-            if not selected_pdf(paper.pdf_url, resource):
+            if not selected_pdf(paper.pdf_url or ArxivPaper.from_snapshot(paper).pdf_url, resource):
                 raise Invalid('Selected PDF differs from the Library paper source/version', 409)
             job = self.store.pdf_downloads.request(dict(operation='status', bundleId=bundle_id, resourceId=pdf_id))
             receipt = job.get('receipt')

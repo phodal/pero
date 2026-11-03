@@ -16,6 +16,7 @@ from .pdf_files import PdfFiles
 from .paper_documents import PaperDocuments
 from .scientific_document import DocumentError
 from .library_files import LibraryFiles, locate_passage
+from .research_resources import ArxivPaper
 from .paper_reading import reading_command
 from .retrieval import SearchQuery
 from .local_pdf import LocalPdf, MAX_PDF_BYTES
@@ -185,7 +186,7 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                                 raise Invalid("Only reports can be exported", 404)
                             return self.reply(200, store.export(identity, parse_qs(parsed.query).get("format", ["markdown"])[0]))
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
-                        return self.reply(200, record.to_dict())
+                        return self.reply(200, ArxivPaper.reading_view(record) if kind == 'papers' else record.to_dict())
                 if self.command == "POST":
                     tex_paper = re.fullmatch(r'/api/papers/([a-f0-9]{64})/tex', path)
                     if tex_paper:

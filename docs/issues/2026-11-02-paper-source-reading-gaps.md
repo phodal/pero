@@ -179,3 +179,44 @@ Evidence: `test-results/paper-source-fixes/`, `paper-structured-reading/fixture/
 `paper-source-study/fixture/`, `paper-agent/` and `research-import/`.
 These are authored offline sources/providers with real App/Host/Python/reader
 components, not new public-source, real-model or installed Native acceptance.
+
+## DOI and API representation audit (2026-11-03)
+
+`https://doi.org/10.48550/arxiv.2610.02858` was classified as a generic DOI,
+routed to OpenAlex, and could not recover arXiv's PDF/TeX reading actions from an
+already saved snapshot. The shared paper identifier now recognizes arXiv DOI
+names, DOI resolver aliases, official HTML and export URLs. Saved snapshots also
+reconcile their original, PDF and supplied full-text references through that
+identifier, rejecting conflicting works/versions. Reading projections expose a
+PDF candidate and canonical arXiv page without changing the saved snapshot's
+identity, text or download grants. Acquisition still freezes the official version
+and uses the existing PDF/source receipt owners.
+
+Live metadata verification resolved the user's DOI to the correct title and
+arXiv work; official Atom metadata supplied v1 and the fixed PDF/source offers.
+No live file acquisition was performed in that metadata check. The managed
+Python suite passed 261 tests (one named platform skip) with TMPDIR=/private/tmp;
+default macOS temporary paths reproduce the PC-Gym canonical-path failure on a
+clean 6fe943f1 source export. Typecheck and the production Paper build passed.
+
+Current remaining source/API gaps, verified against owning adapters:
+
+- bioRxiv `read` retains versioned HTML but supplies no `pdfUrl`; the library's PDF
+  download action therefore stays unavailable for that record. The upstream
+  [bioRxiv/medRxiv API](https://api.biorxiv.org/) also supplies JATS XML metadata;
+  XML is not TeX. medRxiv URLs still have no literature adapter.
+- PubMed retains `fullTextUrl` when PMCID is present, but has no PMC file resolver.
+  [PMC OA services](https://pmc.ncbi.nlm.nih.gov/tools/oa-service/) and
+  [Europe PMC](https://europepmc.org/RestfulWebService) provide OA full-text/file
+  discovery with source-specific availability; this is not universal PDF access.
+- OpenAlex already retains supplied location PDF/landing URLs, but does not read
+  `has_content` / `content_urls` for its own cached PDF/TEI XML. That is a distinct
+  [content API](https://help.openalex.org/access/fulltext/) requiring an API key,
+  not another name for `locations[].pdf_url`.
+- Research URL paper resolution consumes literature title/text but does not offer
+  non-arXiv `pdfUrl`/`fullTextUrl` as additional selectable resources.
+- Additional providers are proposals only: [Semantic Scholar](https://api.semanticscholar.org/api-docs/snippets)
+  (`externalIds`, `openAccessPdf`), [Unpaywall](https://unpaywall.org/data-format)
+  (`best_oa_location.url_for_pdf`), [OpenReview](https://docs.openreview.net/reference/api-v2/openapi-definition)
+  (PDF attachments), and [DataCite](https://support.datacite.org/docs/rest-api)
+  (DOI metadata; notably arXiv DOIs). None implies a general TeX download service.
