@@ -22,7 +22,7 @@
   "differences": [
     "Nine Claude operation names extend the four-operation DSH provider reference through actual symbol and call-hierarchy RPCs.",
     "Reads use the existing descriptor-rooted workspace with its source byte limit; selected processes are trusted and not an OS sandbox.",
-    "Non-stdio transport and dynamic capability registration are explicitly unsupported. Automatic native saved-file checks collect bounded diagnostic snapshots; continuous asynchronous document monitoring remains unsupported.",
+    "Non-stdio transport and dynamic capability registration are explicitly unsupported. Automatic native saved-file checks collect a bounded diagnostic snapshot and keep that document open for a later publication of the same version. Arbitrary file watching remains unsupported.",
     "Server processes are lazy, bounded by configured startup/request/shutdown deadlines and restart policy, and owned through existing Harness runtime teardown."
   ]
 }

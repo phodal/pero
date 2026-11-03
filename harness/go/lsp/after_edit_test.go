@@ -173,3 +173,70 @@ func TestModelReceivesAutomaticDiagnostics(t *testing.T) {
 		t.Fatalf("incomplete real file/model/approval flow: %q %v approvals=%d calls=%d", data, err, approvals, calls)
 	}
 }
+
+func TestLaterDiagnosticPublicationReachesNextPrompt(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	h, err := harness.Boot(t.Context(), harness.Options{AdapterProviders: []string{"fixture"}, Adapter: harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		calls++
+		messages, _ := json.Marshal(request.Messages)
+		text := string(messages)
+		if calls == 1 {
+			return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, ToolCallID: "write-diagnostic", Name: "Write", Arguments: json.RawMessage(`{"file_path":"fixture.go","content":"package fixture\n// BROKEN\n"}`)}}}}, nil
+		}
+		if calls == 2 {
+			if !strings.Contains(text, "saved file type error") || strings.Contains(text, "follow-up diagnostic") {
+				t.Errorf("saved snapshot was not stable: %s", text)
+			}
+			return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "Saved snapshot recorded."}}}}, nil
+		}
+		if !strings.Contains(text, "follow-up diagnostic") || !strings.Contains(text, "saved file type error") {
+			t.Errorf("later publication missing from the next prompt: %s", text)
+		}
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "Follow-up recorded."}}}}, nil
+	})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
+	native, err := nativetools.Mount(t.Context(), h, nativetools.Options{Workspace: root, ClaudeTools: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer native.Close()
+	server := fixtureServer(t, root, "after-edit-followup")
+	server.Config.Diagnostics = true
+	app, err := Mount(t.Context(), h, Options{Workspace: root, Servers: []Selection{{Server: server}}, Environment: []string{"PATH=" + os.Getenv("PATH"), "HOME=" + root}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{CWD: root, Provider: "fixture", Model: "scripted", Configure: func(_ context.Context, run *point.Run, _ *harness.Agent) error {
+		_, err := h.Approvals().Register(run, func(context.Context, harness.ApprovalRequest) (harness.ApprovalOutcome, error) {
+			return harness.ApprovalAllowedOnce, nil
+		})
+		return err
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.SetPermissionMode(agent.Session(), harness.PermissionWorkspaceWrite); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agent.Prompt(t.Context(), harness.Message{Role: harness.RoleUser, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "Write the file."}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "protocol.jsonl.release-followup"), []byte("go"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	waitFixtureFile(t, filepath.Join(root, "protocol.jsonl.followup"))
+	if _, err := agent.Prompt(t.Context(), harness.Message{Role: harness.RoleUser, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "Check the later diagnostic."}}}); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 3 {
+		t.Fatalf("calls=%d", calls)
+	}
+}

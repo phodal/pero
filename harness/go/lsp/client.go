@@ -22,6 +22,7 @@ import (
 type Selection struct {
 	Server     Server
 	PluginRoot string
+	PluginData string
 }
 type Options struct {
 	Workspace   string
@@ -48,6 +49,7 @@ type App struct {
 	selections    []Selection
 	environment   []string
 	instances     map[string]*instance
+	delivered     map[string]int
 	owner         context.Context
 	cancel        context.CancelFunc
 	closed        bool
@@ -90,6 +92,9 @@ func prepare(selection Selection, cwd string, ambient []string) (*exec.Cmd, erro
 		}
 	}
 	lookup["CLAUDE_PROJECT_DIR"], lookup["CLAUDE_PLUGIN_ROOT"] = cwd, selection.PluginRoot
+	if selection.PluginData != "" {
+		lookup["CLAUDE_PLUGIN_DATA"] = selection.PluginData
+	}
 	expand := func(value string) (string, error) {
 		var invalid bool
 		result := regexp.MustCompile(`\$\{([^}]+)\}`).ReplaceAllStringFunc(value, func(token string) string {
@@ -110,6 +115,13 @@ func prepare(selection Selection, cwd string, ambient []string) (*exec.Cmd, erro
 		if value, ok := lookup[name]; ok {
 			env[name] = value
 		}
+	}
+	env["CLAUDE_PROJECT_DIR"] = cwd
+	if selection.PluginRoot != "" {
+		env["CLAUDE_PLUGIN_ROOT"] = selection.PluginRoot
+	}
+	if selection.PluginData != "" {
+		env["CLAUDE_PLUGIN_DATA"] = selection.PluginData
 	}
 	for _, entry := range selection.Server.Config.Env {
 		value, err := expand(entry.Value)
@@ -270,8 +282,26 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 	requestCtx, requestCancel := context.WithTimeout(ctx, session.selected.Server.Config.RequestTimeout)
 	defer requestCancel()
 	session.version++
+	retainDocument := query.Operation == collectDiagnostics
+	if previous := session.conn.diagnosticURI(); previous != "" {
+		cleanup, done := context.WithTimeout(context.Background(), session.selected.Server.Config.ShutdownTimeout)
+		session.conn.closeOpenDocument(cleanup)
+		done()
+	}
 	session.conn.openDiagnostics(uri, session.version)
-	defer session.conn.takeDiagnostics()
+	closed := false
+	closeDocument := func() {
+		if closed {
+			return
+		}
+		closed = true
+		cleanup, done := context.WithTimeout(context.Background(), session.selected.Server.Config.ShutdownTimeout)
+		defer done()
+		session.conn.closeOpenDocument(cleanup)
+	}
+	if !retainDocument {
+		defer closeDocument()
+	}
 	if err := session.conn.notify(requestCtx, "textDocument/didOpen", struct {
 		Document struct {
 			URI        string `json:"uri"`
@@ -285,12 +315,10 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 		Version    int    `json:"version"`
 		Text       string `json:"text"`
 	}{uri, language, session.version, source.Text}}); err != nil {
+		closeDocument()
 		return Result{}, err
 	}
 	defer func() {
-		cleanup, done := context.WithTimeout(context.Background(), session.selected.Server.Config.ShutdownTimeout)
-		defer done()
-		_ = session.conn.notify(cleanup, "textDocument/didClose", documentParams{Document: textDocument{URI: uri}})
 		if !session.conn.live() {
 			session.conn.close(session.selected.Server.Config.ShutdownTimeout)
 		}
@@ -305,11 +333,16 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 			params.Text = &source.Text
 		}
 		if err := session.conn.notify(ctx, "textDocument/didSave", params); err != nil {
+			closeDocument()
 			return Result{}, err
 		}
 	}
 	result, err := session.query(ctx, query.Operation, uri, position, symbol)
-	result.Diagnostics = session.conn.takeDiagnostics()
+	result.Diagnostics = session.conn.peekDiagnostics()
+	if retainDocument && err == nil {
+		return result, nil
+	}
+	closeDocument()
 	return result, err
 }
 func longestExtension(selection Selection, file string) int {

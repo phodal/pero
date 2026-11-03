@@ -75,8 +75,10 @@ for a server to finish all asynchronous validation.
 
 Real stdio tool tests cover Unicode diagnostics, clear notifications, foreign
 URIs, stale versions and repeated openings. This is the receiving path needed
-for automatic diagnostics described below. Later asynchronous publications
-after a saved-snapshot check are not injected.
+for automatic diagnostics described below. A saved-file document stays open
+after its snapshot. A later publication for that same document and version is
+delivered on the next model step. Reopening the file or shutting down the
+server closes it first.
 Protocol reference: [publishDiagnostics](https://raw.githubusercontent.com/microsoft/language-server-protocol/gh-pages/_specifications/lsp/3.17/language/publishDiagnostics.md).
 
 ## Automatic checks after saved files
@@ -101,7 +103,7 @@ Denied/failed effects and unmapped or disabled files do not start this check.
 
 Tests execute real native Write and Edit, observe error and empty publications,
 and prove that the next model requests receive both contexts with exactly two
-approvals and two effects. Crash, silent-server and disabled cases are covered.
-This saved-snapshot path does not retain documents for later asynchronous
-updates or observe arbitrary Bash/external-editor file changes. Those remain
-part of full continuous diagnostic parity.
+approvals and two effects. A separate prompt observes a publication that
+arrives after the saved snapshot. Crash, silent-server and disabled cases are
+covered. The host still does not watch arbitrary Bash or external-editor file
+changes.

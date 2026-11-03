@@ -113,6 +113,9 @@ func (app *App) shutdown() error {
 			defer wait.Done()
 			<-server.gate
 			if server.conn != nil {
+				cleanup, cancel := context.WithTimeout(context.Background(), server.selected.Server.Config.ShutdownTimeout)
+				server.conn.closeOpenDocument(cleanup)
+				cancel()
 				server.conn.close(server.selected.Server.Config.ShutdownTimeout)
 			}
 		}()

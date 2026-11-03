@@ -16,20 +16,22 @@ type Diagnostic struct {
 
 // DiagnosticReport distinguishes a published empty set from no publication.
 type DiagnosticReport struct {
-	URI       string
-	Version   int
-	Items     []Diagnostic
-	Truncated bool
+	URI        string
+	Version    int
+	Generation int
+	Items      []Diagnostic
+	Truncated  bool
 }
 
 // One document is open at a time on an instance's serialized connection. Only
 // that document may contribute evidence to its query. Reopening uses a new
 // version so delayed versioned notifications cannot attach to a later query.
 type documentDiagnostics struct {
-	uri     string
-	version int
-	report  *DiagnosticReport
-	ready   chan struct{}
+	uri        string
+	version    int
+	generation int
+	report     *DiagnosticReport
+	ready      chan struct{}
 }
 
 func (document *documentDiagnostics) publish(raw json.RawMessage) {
@@ -46,7 +48,7 @@ func (document *documentDiagnostics) publish(raw json.RawMessage) {
 	if json.Unmarshal(raw, &wire) != nil || wire.URI != document.uri || wire.Items == nil || (wire.Version != nil && *wire.Version != document.version) {
 		return
 	}
-	report := &DiagnosticReport{URI: document.uri, Version: document.version, Items: []Diagnostic{}}
+	report := &DiagnosticReport{URI: document.uri, Version: document.version, Generation: document.generation + 1, Items: []Diagnostic{}}
 	characters := 0
 	for _, item := range wire.Items {
 		if item.Range == nil || !validRange(*item.Range) || item.Severity < 0 || item.Severity > 4 || item.Message == "" {
@@ -62,6 +64,7 @@ func (document *documentDiagnostics) publish(raw json.RawMessage) {
 	if document.report == nil && document.ready != nil {
 		close(document.ready)
 	}
+	document.generation = report.Generation
 	document.report = report // A publication replaces the previous set, even empty.
 }
 
@@ -69,6 +72,37 @@ func (c *connection) openDiagnostics(uri string, version int) {
 	c.mu.Lock()
 	c.diagnostics = &documentDiagnostics{uri: uri, version: version, ready: make(chan struct{})}
 	c.mu.Unlock()
+}
+
+func (c *connection) diagnosticURI() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.diagnostics == nil {
+		return ""
+	}
+	return c.diagnostics.uri
+}
+
+func (c *connection) peekDiagnostics() *DiagnosticReport {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.diagnostics == nil {
+		return nil
+	}
+	return c.diagnostics.report
+}
+
+// closeOpenDocument ends a retained saved-file document. Later publications for
+// that URI are ignored once it returns.
+func (c *connection) closeOpenDocument(ctx context.Context) {
+	c.mu.Lock()
+	document := c.diagnostics
+	c.diagnostics = nil
+	c.mu.Unlock()
+	if document == nil {
+		return
+	}
+	_ = c.notify(ctx, "textDocument/didClose", documentParams{Document: textDocument{URI: document.uri}})
 }
 
 func (c *connection) takeDiagnostics() *DiagnosticReport {

@@ -2,6 +2,8 @@
 import json
 import os
 import sys
+import threading
+import time
 
 mode = os.environ.get("LSP_FIXTURE_MODE", "normal")
 log_path = os.environ["LSP_FIXTURE_LOG"]
@@ -12,10 +14,14 @@ pending = None
 span = {"start": {"line": 1, "character": 5}, "end": {"line": 1, "character": 10}}
 
 
+send_lock = threading.Lock()
+
+
 def send(value):
     body = json.dumps(value, ensure_ascii=False).encode("utf-8")
-    sys.stdout.buffer.write(("Content-Length: %d\r\n\r\n" % len(body)).encode() + body)
-    sys.stdout.buffer.flush()
+    with send_lock:
+        sys.stdout.buffer.write(("Content-Length: %d\r\n\r\n" % len(body)).encode() + body)
+        sys.stdout.buffer.flush()
 
 
 def answer(message, result=None, error=None):
@@ -79,6 +85,20 @@ while True:
             send({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",
                   "params": {"uri": uri, "version": version,
                              "diagnostics": [{"range": span, "severity": 1, "message": "saved file type error"}] if "BROKEN" in text else []}})
+            if mode == "after-edit-followup":
+                saved_uri, saved_version = uri, version
+
+                def follow():
+                    ready = log_path + ".release-followup"
+                    deadline = time.time() + 5
+                    while not os.path.exists(ready) and time.time() < deadline:
+                        time.sleep(0.01)
+                    send({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",
+                          "params": {"uri": saved_uri, "version": saved_version,
+                                     "diagnostics": [{"range": span, "severity": 1, "message": "follow-up diagnostic"}]}})
+                    open(log_path + ".followup", "w").close()
+
+                threading.Thread(target=follow, daemon=True).start()
     elif method in ("textDocument/definition", "textDocument/implementation"):
         answer(message, [{"targetUri": uri, "targetRange": span, "targetSelectionRange": span}])
     elif method == "textDocument/references":
