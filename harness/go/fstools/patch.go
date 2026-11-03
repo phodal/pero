@@ -35,6 +35,23 @@ type PatchReceipt struct {
 	Complete bool               `json:"complete"`
 }
 
+// PatchPaths exposes only the parsed file scope for instruction discovery.
+// ApplyPatch remains the owner of path authority, preflight and mutations.
+func PatchPaths(text string) ([]string, error) {
+	files, err := parsePatch(text)
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	for _, file := range files {
+		paths = append(paths, file.path)
+		if file.move != "" {
+			paths = append(paths, file.move)
+		}
+	}
+	return paths, nil
+}
+
 // parsePatch accepts the explicit Begin/End Patch format, not a shell command
 // or fuzzy diff. Each file appears once; moves must target a new path.
 func parsePatch(text string) ([]filePatch, error) {
