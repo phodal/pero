@@ -269,7 +269,8 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   // Direct-PDF inspection is metadata-only and succeeds without a byte probe.
   // Confirm is the first authorization; only its real owner can report failure.
   await unavailableSave.getByRole('button', { name: 'Confirm', exact: true }).click();
-  await expect(unavailableSave.getByText('PDF download failed', { exact: true })).toBeVisible({ timeout: 15000 });
+  const retryPdfPanel = unavailableSave.getByRole('region', { name: 'PDF', exact: true });
+  await expect(retryPdfPanel.locator('.pa-bundle-resource-row > .pa-bundle-status[role="status"]')).toHaveText('Download failed', { timeout: 15000 });
   const retry = unavailableSave.getByRole('button', { name: 'Retry PDF download', exact: true });
   await expect(retry).toBeEnabled();
   await expect(unavailableSave.getByRole('button', { name: 'Export copies', exact: true })).toBeDisabled();
@@ -281,10 +282,12 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   expect(failed.status).toBe('failed'); expect(failed.receipt).toBeNull();
   expect(await attempts()).toEqual([{ url: unavailable.pdfUrl }]);
   await retry.click();
-  await expect(unavailableSave.getByText('PDF downloaded; text extraction available', { exact: true })).toBeVisible({ timeout: 15000 });
+  await expect(retryPdfPanel.locator('.pa-bundle-resource-row > .pa-bundle-status[role="status"]')).toHaveText('Downloaded', { timeout: 15000 });
   await expect(unavailableSave.getByRole('button', { name: 'Export copies', exact: true })).toBeEnabled();
   const recovered = await retryStatus();
   expect(recovered.status).toBe('completed'); expect(recovered.localAvailable).toBe(true);
+  expect(recovered.receipt.textPages).toBeGreaterThan(0);
+  await expect(retryPdfPanel.getByText(`Text on ${recovered.receipt.textPages} pages`, { exact: true })).toBeVisible();
   expect(recovered.receipt.requestUrl).toBe(unavailable.pdfUrl);
   expect(await attempts()).toEqual([{ url: unavailable.pdfUrl }, { url: unavailable.pdfUrl }]);
   // Deliberately do not export/associate the recovered local PDF with this

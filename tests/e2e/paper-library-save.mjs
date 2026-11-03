@@ -3,18 +3,21 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
 import { createServer } from 'node:http';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join, basename } from 'node:path';
 
 const root = resolve(import.meta.dirname, '../..'), app = resolve(root, 'apps/paper-agent');
 const output = await mkdtemp(join(tmpdir(), 'pero-library-save-ui-'));
+const evidence = resolve(root, 'test-results/paper-library-save');
+await mkdir(evidence, { recursive: true });
 const source = `import React,{useState,useRef} from 'react';import {createRoot} from 'react-dom/client';
 import {LibrarySave} from '${app}/ui-src/library-save';import {PdfReader} from '${app}/ui-src/pdf-reader';
 import {messages} from '${app}/ui-src/i18n';
+import {AppApiProvider} from '@pero/app-sdk';
 const api={get:async(path)=>{const r=await fetch(path);if(!r.ok)throw new Error('Fixture lookup failed');return r.json()},post:async(path,body)=>{const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('Fixture error');return r.json()}};
 const paper=id=>({id,title:'Paper '+id,source:'fixture',sourceId:id,pdfUrl:'https://example.org/'+id+'.pdf',contentKind:'abstract',content:'Abstract',authors:[],url:'https://example.org/'+id,contentDigest:id,fetchedAt:''});
-function App(){const [id,setId]=useState(null),preserveView=useRef(null);window.openPaper=setId;return <><PdfReader paper={paper('metadata')} api={api} t={key=>messages[key].en} onMatrixAdded={async()=>{}} chrome={{toolbar:null,preserveView,onNavigate(){},onSave(){setId('metadata')}}}>Abstract</PdfReader>{id&&<LibrarySave key={id} api={api} paper={paper(id)} t={key=>messages[key].en} onClose={()=>setId(null)} onError={error=>{throw error}} onRead={()=>{throw new Error('Unexpected identity switch')}} onSaved={async()=>{window.savedPaper=id}}/>}</>};createRoot(document.getElementById('root')).render(<App/>);`;
+function App(){const [id,setId]=useState(null),preserveView=useRef(null);window.openPaper=setId;return <><PdfReader paper={paper('metadata')} api={api} t={key=>messages[key].en} onMatrixAdded={async()=>{}} chrome={{toolbar:null,preserveView,onNavigate(){},onSave(){setId('metadata')}}}>Abstract</PdfReader>{id&&<LibrarySave key={id} api={api} paper={paper(id)} t={key=>messages[key].en} onClose={()=>setId(null)} onError={error=>{throw error}} onRead={()=>{throw new Error('Unexpected identity switch')}} onSaved={async()=>{window.savedPaper=id}}/>}</>};createRoot(document.getElementById('root')).render(<AppApiProvider appName="paper-agent" locale="en" allowedApiPaths={['/api']} allowedEvents={[]} subscribeFn={()=>()=>{}} navigateFn={()=>{throw Error('Unexpected navigation')}} notifyFn={()=>{throw Error('Unexpected notification')}}><App/></AppApiProvider>);`;
 await build({ stdin: { contents: source, loader: 'tsx', resolveDir: root }, outfile: join(output, 'fixture.js'), bundle: true,
   format: 'esm', platform: 'browser', jsx: 'automatic', loader: { '.wasm': 'file' },
   alias: { react: resolve(app, 'node_modules/react'), 'react-dom': resolve(app, 'node_modules/react-dom'), '@pero/app-sdk/ui': resolve(root, 'packages/app-sdk/src/ui.tsx'), '@pero/app-sdk': resolve(root, 'packages/app-sdk/src/index.tsx') }, nodePaths: [resolve(app, 'node_modules')] });
@@ -56,9 +59,9 @@ const server = createServer(async (req,res) => {
   res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-let browser;
+let browser,page;const errors=[];
 try {
-  browser=await chromium.launch({headless:true,...(process.env.PERO_CHROMIUM_PATH ? {executablePath:process.env.PERO_CHROMIUM_PATH} : {})});const page=await browser.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  browser=await chromium.launch({headless:true,...(process.env.PERO_CHROMIUM_PATH ? {executablePath:process.env.PERO_CHROMIUM_PATH} : {})});page=await browser.newPage();page.on('pageerror',error=>errors.push(error.message));
   const origin=`http://127.0.0.1:${server.address().port}`;
   await page.route('**/*',route=>{if(new URL(route.request().url()).origin===origin)return route.continue();unexpectedRequests.push(route.request().url());return route.abort('blockedbyclient')});
   await page.goto(origin);await expect(page.getByText('Abstract',{exact:true})).toBeVisible();
@@ -84,11 +87,16 @@ try {
   await expect.poll(()=>operations.some(value=>value.path==='/api/research/inspect'&&value.draftId==='draft-delayed'&&value.cancel===true)).toBe(true);
   await page.evaluate(()=>window.openPaper('retry'));await dialog.getByRole('checkbox',{name:'TeX',exact:true}).check();
   await dialog.getByRole('button',{name:'Confirm',exact:true}).click();
-  await expect(dialog.getByText('Source access denied',{exact:true})).toBeVisible();
+  const sourcePanel=dialog.getByRole('region',{name:'TeX source',exact:true});
+  await expect(sourcePanel.locator('.pa-bundle-resource-row > .pa-bundle-status[role="status"]')).toHaveText('Source access denied');
+  assert.equal(sourceStarts,1,'denial must not automatically retry');
+  await sourcePanel.locator('summary').filter({hasText:/^Error details$/}).click();
+  await expect(sourcePanel.locator('details[open]')).toContainText('Fixture source denied');
   await dialog.getByRole('button',{name:'Export PDF only',exact:true}).click();
   await expect.poll(()=>operations.filter(value=>value.path==='/api/papers/retry/files'&&value.operation==='export').length).toBe(1);
   await dialog.getByRole('button',{name:'Retry source download',exact:true}).click();
-  await expect(dialog.getByText('Downloading source…',{exact:true})).toBeVisible();
+  await expect(sourcePanel.locator('.pa-bundle-resource-row > .pa-bundle-status[role="status"]')).toHaveText('Downloading…');
+  assert.equal(sourceStarts,2,'only explicit retry starts another acquisition');
   await expect(dialog.getByRole('button',{name:'Export PDF only',exact:true})).toBeDisabled();
   finishSource=true;await expect(dialog.getByRole('button',{name:'Export copies',exact:true})).toBeEnabled();
   await dialog.getByRole('button',{name:'Export copies',exact:true}).click();
@@ -97,8 +105,10 @@ try {
   await expect(dialog.getByText(/Historical cancelled/)).toHaveCount(0);
   await dialog.getByRole('button',{name:'Close',exact:true}).click();await page.evaluate(()=>window.openPaper('scanned'));
   await dialog.getByRole('button',{name:'Confirm',exact:true}).click();
-  await expect(dialog.getByText('PDF saved; no selectable text. OCR unavailable.',{exact:true})).toBeVisible();
-  await expect(dialog.getByText('PDF downloaded; text extraction available',{exact:true})).toHaveCount(0);
+  const pdfPanel=dialog.getByRole('region',{name:'PDF',exact:true});
+  await expect(pdfPanel.locator('.pa-bundle-resource-row > .pa-bundle-status[role="status"]')).toHaveText('Downloaded');
+  await expect(pdfPanel.getByText('No selectable text. OCR unavailable.',{exact:true})).toBeVisible();
+  await expect(pdfPanel.getByText('Text on 0 pages',{exact:true})).toBeVisible();
   await expect(dialog.getByRole('button',{name:'Open saved PDF',exact:true})).toBeEnabled();
   await expect(dialog.getByRole('button',{name:'Export copies',exact:true})).toBeEnabled();
   await dialog.getByRole('button',{name:'Export copies',exact:true}).click();
@@ -106,4 +116,8 @@ try {
   await expect(dialog.getByText(/Historical cancelled/)).toHaveCount(0);
   assert(!operations.some(value=>['old-pdf','old-source'].includes(value.resourceId)), 'current confirmation must not poll, start or cancel historical grants');
   assert.deepEqual(errors,[]);assert.deepEqual(unexpectedRequests,[]);console.log('Library save component: cancel/no implicit PDF fetch, stale review, original request identity, inspection cancel passed.');
+} catch(error) {
+  await page?.screenshot({path:resolve(evidence,'failure.png')}).catch(()=>{});
+  await writeFile(resolve(evidence,'failure.json'),JSON.stringify({error:String(error),errors,operations,unexpectedRequests,sourceStatus,sourceStarts,scope:'Synthetic component fixture; not Desktop or scientific acceptance.'},null,2));
+  throw error;
 } finally {await browser?.close();await new Promise(resolve=>server.close(resolve));await rm(output,{recursive:true,force:true});}

@@ -117,14 +117,15 @@ def fetch(url, **options):
   await expect(review).toBeVisible();
   checks.push('Ready inspection survives an actual Desktop/backend restart and resumes through the saved review UI');
   await frame.getByRole('button', { name: 'Save references only', exact: true }).click();
-  await expect(frame.getByText('Saved references', { exact: true })).toBeVisible();
+  await expect(frame.locator('.pa-research-bundle').getByRole('heading', { name: 'Synthetic forecasting release', exact: true, level: 1 })).toBeVisible();
   const saved = await library(frame); expect(saved.bundles).toHaveLength(1); expect(saved.papers).toHaveLength(2);
   const bundle = saved.bundles[0]; expect(bundle.downloadIds).toEqual([]); expect(bundle.resources).toHaveLength(5);
+  await expect(frame.locator('.pa-research-bundle .pa-bundle-resources>li')).toHaveCount(5);
   const article = saved.papers.find(paper => paper.resourceKind === 'web_article');
   expect(article.title).toBe('Synthetic forecasting release'); expect(article.contentKind).toBe('report');
   expect(article.limitation).toContain('Bounded external source excerpt');
   for (const resource of bundle.resources.filter(resource => ['paper', 'web_article'].includes(resource.kind))) expect(saved.papers.some(paper => paper.id === resource.paperId)).toBe(true);
-  await frame.locator('.pa-resource-list>li').filter({ has: frame.getByRole('heading', { name: 'Synthetic forecasting release', exact: true }) }).getByRole('button', { name: 'Read saved source', exact: true }).click();
+  await frame.locator('.pa-research-bundle .pa-bundle-resources>li').filter({ has: frame.getByRole('heading', { name: 'Article', exact: true }) }).getByRole('button', { name: 'Read article', exact: true }).click();
   // The mounted library also has an "Article excerpt" badge. Assert the
   // visible reader and its immutable snapshot, not that unrelated hidden row.
   const reader = frame.getByRole('article', { name: article.title, exact: true });
@@ -136,13 +137,13 @@ def fetch(url, **options):
   await frame.getByRole('textbox', { name: 'Research URL', exact: true }).fill(seed);
   await frame.getByRole('button', { name: 'Inspect link', exact: true }).click();
   await expect(review).toBeVisible(); await frame.getByRole('button', { name: 'Save references only', exact: true }).click();
-  await expect(frame.getByText('Saved references', { exact: true })).toBeVisible();
+  await expect(frame.locator('.pa-research-bundle').getByRole('heading', { name: 'Synthetic forecasting release', exact: true, level: 1 })).toBeVisible();
   expect((await library(frame)).bundles).toEqual(saved.bundles); expect((await library(frame)).papers).toEqual(saved.papers);
   checks.push('Real Host-authenticated inspection, typed parser/API results, 64-character IDs, reference-only commit, immutable article/paper snapshots and repeat-import reuse');
   expect(assetRequests).toEqual([]);
   await app.close(); app = await launch(); await ready(); frame = await openPaper();
-  await frame.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: 'Synthetic forecasting release', exact: true }).click();
-  await expect(frame.getByText('Saved references', { exact: true })).toBeVisible();
+  await frame.getByRole('navigation', { name: 'Papers', exact: true }).getByRole('button', { name: 'Synthetic forecasting release', exact: true }).click();
+  await expect(frame.locator('.pa-research-bundle').getByRole('heading', { name: 'Synthetic forecasting release', exact: true, level: 1 })).toBeVisible();
   expect((await library(frame)).bundles).toEqual(saved.bundles); expect((await library(frame)).papers).toEqual(saved.papers);
   await page.screenshot({ path: resolve(out, 'host-reopened-bundle.png') });
   // First prove the existing Host composer handoff is unsent; Linux then separately
@@ -281,7 +282,7 @@ def fetch(url, **options):
     await page.screenshot({ path: resolve(out, 'host-clone-actual-tool-receipt.png') });
     const callsBeforeRestart = provider.requests();
     await app.close(); app = await launch(); await ready(); frame = await openPaper();
-    await frame.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: 'Synthetic forecasting release', exact: true }).click();
+    await frame.getByRole('navigation', { name: 'Papers', exact: true }).getByRole('button', { name: 'Synthetic forecasting release', exact: true }).click();
     expect((await library(frame)).bundles).toEqual(saved.bundles);
     // Clone with Agent prepares a new request after restart; it is not a history
     // selector. Reopen the original persisted conversation through Sessions UI.
