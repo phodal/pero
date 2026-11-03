@@ -252,7 +252,7 @@ func (r *ToolRegistry) preparedFinalContentAdmitted(agent *Agent, selected Tool)
 		return false
 	}
 	current := r.finalContentSelectionLocked(agent, selected.Schema.Name, previous.excludedScope, previous.excludedGeneration, previous.base)
-	return slices.Equal(previous.entries, current.entries) && slices.Equal(previous.catalogs, current.catalogs) && toolRestrictionsAdmit(visibleToolRestrictions(r.restrictions, agent.Scope()), selected.Schema.Name, selected.nativeFinalOrigin)
+	return slices.Equal(previous.entries, current.entries) && slices.Equal(previous.catalogs, current.catalogs) && toolRestrictionsAdmit(visibleToolRestrictions(r.restrictions, agent), selected.Schema.Name, selected.nativeFinalOrigin)
 }
 
 // Registration IDs are monotonically unique. Only this name and this visible

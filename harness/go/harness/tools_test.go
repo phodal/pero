@@ -13,6 +13,46 @@ import (
 	point "github.com/phodal/pero/harness/go/runtime"
 )
 
+func TestDynamicRestrictionCoversCatalogAndDispatch(t *testing.T) {
+	h := retirementHarness(t)
+	agent, err := h.Agents().Create(t.Context(), AgentOptions{ID: "policy-caller", Configure: func(ctx context.Context, run *point.Run, a *Agent) error {
+		_, err := h.Tools().RestrictWhen(run, func(caller *Agent, name string) bool {
+			return caller.Session().WorkingDirectory() != "blocked" || name != "scoped_write"
+		})
+		if err != nil {
+			return err
+		}
+		_, err = h.Tools().Register(run, Tool{Schema: ToolSchema{Name: "scoped_write", InputSchema: json.RawMessage(`{"type":"object"}`)}, Execute: func(context.Context, json.RawMessage) (ToolResult, error) { return ToolResult{}, nil }})
+		return err
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The policy covers a tool contributed at the same scope, and is evaluated
+	// against current facts instead of freezing the launch-time catalog.
+	for _, cwd := range []string{"allowed", "blocked", "allowed"} {
+		if _, err := agent.Session().Append("working-directory/change", struct {
+			CWD string `json:"cwd"`
+		}{cwd}); err != nil {
+			t.Fatal(err)
+		}
+		schemas, err := h.Tools().SchemasForAgent(t.Context(), agent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (len(schemas) == 1) != (cwd == "allowed") {
+			t.Fatalf("catalog policy: %+v", schemas)
+		}
+		out, err := h.Tools().Execute(t.Context(), ToolRequest{Agent: agent, Name: "scoped_write", CallID: ToolCallID(cwd), Arguments: json.RawMessage(`{}`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.Result.IsError != (cwd == "blocked") {
+			t.Fatal("dispatch disagreed with catalog")
+		}
+	}
+}
+
 func TestToolRegistryAgentCatalogIsAuthoritativeAndModelVisible(t *testing.T) {
 	ctx := testContext(t)
 	requests := make(chan GenerateRequest, 1)

@@ -397,6 +397,8 @@ type toolRestrictionEntry struct {
 	scope *point.Scope
 	allow map[string]struct{}
 	deny  map[string]struct{}
+	admit func(*Agent, string) bool
+	agent *Agent
 }
 
 // ToolGuard is a post-waterfall execution check. Nil abstains; an error denies
@@ -510,9 +512,26 @@ func (r *ToolRegistry) Restrict(ctx context.Context, run *point.Run, agent *Agen
 		return nil, err
 	}
 
+	return r.registerRestriction(run, toolRestrictionEntry{scope: run.Scope, allow: allow, deny: deny})
+}
+
+// RestrictWhen installs a trusted, synchronous policy in the existing catalog
+// and dispatch restriction owner. It applies to all definitions in this scope,
+// including newly registered tools. The predicate must not call this registry.
+func (r *ToolRegistry) RestrictWhen(run *point.Run, admit func(*Agent, string) bool) (point.Dispose, error) {
+	if run == nil || !run.Active() {
+		return nil, point.ErrInactiveRun
+	}
+	if admit == nil {
+		return nil, errors.New("harness: dynamic restriction requires a predicate")
+	}
+	return r.registerRestriction(run, toolRestrictionEntry{scope: run.Scope, admit: admit})
+}
+
+func (r *ToolRegistry) registerRestriction(run *point.Run, entry toolRestrictionEntry) (point.Dispose, error) {
 	r.mu.Lock()
 	r.nextID++
-	entry := toolRestrictionEntry{id: r.nextID, scope: run.Scope, allow: allow, deny: deny}
+	entry.id = r.nextID
 	r.restrictions = append(r.restrictions, entry)
 	r.mu.Unlock()
 	var once sync.Once
@@ -585,10 +604,11 @@ func newToolRegistryWithSpills(runtime *point.Runtime, approval *ApprovalBroker,
 	return registry
 }
 
-func visibleToolRestrictions(entries []toolRestrictionEntry, scope *point.Scope) []toolRestrictionEntry {
+func visibleToolRestrictions(entries []toolRestrictionEntry, agent *Agent) []toolRestrictionEntry {
 	result := make([]toolRestrictionEntry, 0, len(entries))
 	for _, entry := range entries {
-		if entry.scope.Contains(scope) {
+		if entry.scope.Contains(agent.Scope()) {
+			entry.agent = agent
 			result = append(result, entry)
 		}
 	}
@@ -597,6 +617,9 @@ func visibleToolRestrictions(entries []toolRestrictionEntry, scope *point.Scope)
 
 func toolRestrictionsAdmit(restrictions []toolRestrictionEntry, name string, origin *point.Scope) bool {
 	for _, restriction := range restrictions {
+		if restriction.admit != nil && !restriction.admit(restriction.agent, name) {
+			return false
+		}
 		// A restriction masks only definitions inherited from an ancestor of
 		// its own scope. Definitions contributed at or below that scope are the
 		// child's own response/control surface and remain exempt.
