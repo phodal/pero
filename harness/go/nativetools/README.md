@@ -2,8 +2,8 @@
 
 `--workspace /absolute/root` enables `read_file`, `write_file`, `edit_file`,
 `list_directory`, and literal content `search_files`. Session cwd must resolve to
-that exact workspace. ACP new/load/resume reject a mismatch before session or
-MCP activation; tools still recheck at execution in case the root changes.
+that workspace or its active retained root-worktree lease. ACP new/load/resume
+validate the original workspace before session or MCP activation; tools still recheck at execution in case the root changes.
 Reads/list/search rely on this explicit root grant.
 Every write/edit call requires a fresh approval; refusal or unavailable client
 fails closed. `--approval never` denies these operations even inside workspace.
@@ -187,7 +187,14 @@ background-agent residency after parent exit or restart recovery.
 `ToolSearch` (`tool_search` in the generic profile) searches current caller-visible
 names/descriptions, returns current input schemas and declaration hashes, and
 paginates within a 32 KiB item budget. It changes no permissions or activation
-state. It indexes the existing registry rather than adding deferred loading; use
+state in the default profile. With `--defer-tool-loading`, only discovery is
+initially declared. Complete search results are durably activated for the next
+request; oversized omitted schemas are not activated. Every declaration and
+dispatch still checks current caller authorization and schema/registration
+identity. Unloading and replacement invalidate the affected entry; current
+restrictions hide denied tools. Forks do not inherit discovery; disk resume revalidates retained entries.
+The existing registry remains the owner. Another authoritative presenter or
+tool-history presentation is explicitly incompatible with this selection. Use
 only tools declared for the current model request.
 
 `NotebookRead` (`notebook_read` generically) reads saved nbformat 4 cell source,
@@ -195,3 +202,48 @@ IDs, execution counts, outputs and attachments. `offset`/`next_offset` are 1-bas
 cell numbers, with a default 20 cells and 48 KiB cell budget. Oversized cells carry
 an explicit omission marker and source preview. No code is executed and embedded
 images/HTML are not rendered. Files stay under the same workspace read authority.
+
+## Interactive terminals and retained root worktrees
+
+`--enable-shell` also exposes TerminalOpen/Read/Write/Resize/Stop (generic
+`terminal_open/read/write/resize/stop`) on macOS/Linux without a configured
+sandbox. These own a real PTY, bounded lifetime/output, stdin, canonical EOF,
+resize and process-group cleanup. Opening and writing require approval; all
+handle operations require the exact agent's handle. Read cursors report discarded
+output and actual exit/timeout/cancellation. Interrupted turns stop their PTYs;
+a later turn can open another. Restart never recreates a historical process.
+Startup intent is flushed before process creation; uncertain writes/effects must
+be inspected before retrying. macOS has runtime coverage; Linux is cross-compiled
+here and still needs native runner verification. Windows/sandbox PTYs are absent.
+
+EnterWorktree/ExitWorktree are root-only, approved transitions in unsandboxed
+native composition. Entry requires the configured workspace to be a Git root,
+starts a detached worktree at committed HEAD or an explicit ref, and records its
+return point with the execution cwd. Original dirty edits are not copied.
+File tools, new shell/terminal commands and hierarchical instructions follow the
+lease. Existing processes retain their own cwd. Exit and shutdown retain all
+files and Git registration under `.pero/worktrees`; they never reset or delete
+that checkout. Cold resume validates the retained Git registration before
+rebinding it, and never replays creation. Reconcile or remove retained worktrees
+explicitly after preserving their changes.
+
+## Saved document images
+
+NotebookImage (`notebook_image`) decodes a selected saved raster output or
+attachment with cell/output provenance; it executes no notebook code or HTML.
+PDFRead (`pdf_read`) is registered only after a real Poppler capability probe.
+`--pdf-renderer /absolute/pdftoppm` selects the renderer and adjacent pdfinfo;
+empty auto-detects, `-` disables, and an invalid explicit selection fails startup.
+PDF sources use the workspace descriptor and renderer stdin, with a 32 MiB
+source limit and 30-second subprocess limit. A call renders at most three pages;
+results carry page numbers and source SHA-256. Images use the existing 2048px /
+4 MiB normalization and provider vision/text fallback. No OCR is provided.
+
+Skill/Agent descriptions and MCP initialization guidance share a 64 KiB request
+budget after final tool/model selection. Omitted entries have explicit markers;
+Skill/skill offset/limit lists catalogs, summary reads complete metadata without
+activating a workflow, AgentList pages agent metadata, and read_mcp_instructions
+recovers visible server text. Byte reads use UTF-8 boundaries and next_offset.
+Local spill text and process output share a retained session quota, 256 MiB by
+default (`LocalSpillStoreOptions.SessionMaxBytes`), including files found after
+restart. Exhaustion preserves existing artifacts and returns a quota error.

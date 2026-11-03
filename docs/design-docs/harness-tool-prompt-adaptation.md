@@ -399,18 +399,28 @@ Codex 重建 initial context 后再插入压缩历史。
 指令变更后，先拒绝该次文件变更，下一步交付刷新后的指令再允许重试。Shell
 不提供可靠的文件目标清单，因此不包含在这个文件工具拦截范围内。
 
-ToolSearch / tool_search 返回当前调用者注册目录内的 schema 与哈希；受限 child
-不会获得被拒工具，卸载后也不能继续发现旧工具。它不激活隐藏工具，当前实现仍
-完整声明工具，因此不能称为 deferred loading 或宣称减少了 wire tokens。
-NotebookRead / notebook_read 保留单元格 index/ID、源码、execution_count 与保存的
-outputs/attachments，提供单元格分页和明确截断；不执行代码，不渲染嵌入图像。
-Explore/Plan 的实际只读池同步纳入新能力。
+ToolSearch / tool_search 默认仍搜索当前调用者目录；显式启用
+`--defer-tool-loading` 后，首轮只声明发现入口。完整命中会持久化激活当前
+schema/注册版本，下一请求才声明；同批猜测工具调用被拒绝。卸载、重载、权限
+变化、压缩、恢复和子会话均有真实 wire/日志回归。独占 authoritative/PTC
+与 tool-history 模式暂不组合，启动/请求时明确报不兼容。
 
-验收：Go 全量 race/vet、全部 34 个 Harness Bazel 目标通过；Bash 磁盘恢复回归
-连续 10 次 race 通过。真实 CLI/ACP 使用 loopback provider 与本地进程/文件效果，
-没有付费模型请求。无第三方完整 prompt、实现或测试源码引入本批修改。
+新增真实 PTY Open/Read/Write/Resize/Stop、保留型根 Worktree 切换、经 Poppler
+探测的 PDF 页面和 Notebook 保存图像读取。每项沿现有 shell、workspace、
+instructions、media owner 实现，保留来源与真实效果回执。PTY 的中断后复用与
+Git filter 取消问题在合并复核中修复；原工作区未提交修改与退出后的 worktree
+文件均保留。Skill/Agent/MCP 共用 64 KiB 请求目录预算，并由现有 owner 提供
+全文分页；本地 text/process spill 共用默认 256 MiB 会话保留配额，恢复时计入
+已有文件。具体边界和验证以[执行记录](../exec-plans/active/harness-tool-contracts.md)为准。
 
-仍待实现的是交互 PTY/stdin、根会话 Worktree 切换、PDF 渲染和目录/输出共享总配额；
-现有子代理临时 worktree 的强制清理不能用于根会话工作区。目录搜索和各读取工具的
-局部预算已实现，不代表所有 Skill/Agent/MCP 描述已有共享预算。具体 owner 与下一步
-契约见执行记录。静态与确定性回归不能证明 prompt 最优，仍需相同模型/任务的效果评测。
+真实模型 A/B 已按同一模型/工具、全新合成 fixture 运行三轮，共 12 个样本。
+两组均 6/6 完成、零工具错误；启用 native guidance 后请求数为 28（基线 26），
+工具调用 29（基线 26），没有可靠的效率收益。原始指标见
+[harness-guidance-evaluation.json](harness-guidance-evaluation.json)。
+这个小样本不能证明 prompt 最优，也不覆盖全部插件、deferred 模式或其他模型。
+没有第三方完整 prompt、实现或测试源码引入本批修改。
+
+仍有限制：PTY 在 macOS 实测，Linux 仅交叉编译；Windows 不暴露 PTY。
+已配置 sandbox 不暴露 PTY 和根 worktree；根 worktree 在其他平台尚未实测。PDF 依赖已安装 renderer，不提供 OCR；Notebook 不执行代码。
+跨进程同时写同一 spill 目录未增加文件锁。后续应扩大代表任务/模型评测，
+不能把工具数量或静态一致性等同于模型质量。
