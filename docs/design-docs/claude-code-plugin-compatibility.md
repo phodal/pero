@@ -664,7 +664,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 | 后台 Bash | `run_in_background`、真实 task_id、TaskOutput 等待/轮询、TaskStop、超时及进程回收 | 启动前持久化 intent；同一调用者拥有任务；JSONL 冷恢复保留终态，未知运行标记 interrupted，不重放副作用 |
 | Bash 超时与转后台 | 前台等待与进程期限分离，超时后同一已启动进程延续；sleep/disable/bare 例外；显式 unattended/interactive host mode | promotion 单独 Append/Flush；失败取消并 join；真实同 PID、一次副作用、环境上限、交互无后台期限与失主恢复验证 |
 | 命令输出文件 | 共用文件捕获；原生 Bash 成功默认 30000 字符 inline，超出返回最多 64 MiB artifact 与 2000 字符预览，失败最多 10000 字符头尾 | 工作日志使用独立 working_log_file；取消保留实际日志；Unicode、冷恢复、一次执行/审批和原工作区身份检查均有真实进程测试；动态模板仍采用独立呈现 |
-| 子代理 | 自定义 Agent、模型 alias、工具交集、父审批、实际后台 ID/等待/停止 | loopback 子代理真实读写和取消；冷恢复后台任务尚未完成 |
+| 子代理 | 自定义 Agent、模型 alias、工具交集、父审批、实际后台 ID/等待/停止 | loopback 子代理真实读写、取消与已结束会话续跑；运行中后台任务冷恢复尚未完成 |
 | 内置子代理 | general-purpose、Explore、Plan | Explore/Plan 采用较窄的只读交集，暂不提供官方只读 Bash 与任意 MCP |
 | 隔离技能 | context:fork、内置/自定义 agent、参数/资源前缀、子模型与子 turn 授权 | 真实 CLI 证明父历史隔离、子读模板/写文件、父仍需审批；ACP 同步等待，恢复不重跑 |
 | 结构化问答 | AskUserQuestion、问题/选项校验、Other、多选、取消及恢复后的新 broker；Host/Runtime/Desktop 共用有类型请求与回答 | ACP 扩展需双方协商；未协商不注册工具；实际 Electron 验证单多选、Other、未填阻止、取消、FIFO、turn 取消、Enter、明暗主题与窄窗 |
@@ -695,7 +695,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 
 ### 16.2 继续实现的出口
 
-完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的执行续跑；动态模板的精确呈现；后台子代理的驻留、cold-resume、turn/run 区分及命令完成通知/自动唤醒；LSP 连续异步 diagnostics 与动态能力注册；研究技能的真实模型/真实语料质量；外部依赖和实际服务连接。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。Trial 的最终产物复核、关闭失败和进程退出处理已完成独立回归，真实优化效果仍需另行验收。
+完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的执行续跑；动态模板的精确呈现；后台子代理的活动驻留、运行中任务的 cold-resume、turn/run 区分及命令完成通知/自动唤醒；LSP 连续异步 diagnostics 与动态能力注册；研究技能的真实模型/真实语料质量；外部依赖和实际服务连接。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。Trial 的最终产物复核、关闭失败和进程退出处理已完成独立回归，真实优化效果仍需另行验收。
 
 任务归属也需区分目标契约：当前任务查询限定创建者，子代理退出时取消并等待其命令，这与 pinned DSH 的 owner 隔离及 disposal 语义相符。Claude 官方要求前台子代理结束时停止命令，但允许后台子代理在当前 turn 结束后继续持有后台命令，并接收完成通知；run 真正退出时才停止。现有 one-shot 子代理在结果返回后回收，尚未实现后一种驻留。不能把它写成所有子代理命令都应无限存活，或已经支持根会话接管所有子任务。当前 Claude 文档还注明 TaskOutput 自 v2.1.277 移除、改为 Read 输出文件；本批插件所用旧 TaskOutput 接口作为显式兼容接口保留。
 
@@ -839,3 +839,14 @@ Workflow 的 run_in_background:true 已接入同一个 Node/Claude 子代理执�
 磁盘验收同时修复了 headless 启动时 intent 写入 turn:0、导致新 Agent 无法恢复的问题：没有活动轮时省略该可选字段，保留 Session 对正数 turn 的原验证。[问题记录](../issues/2026-11-03-workflow-zero-turn-journal.md)。这些结果证明通知对账和不重放，不证明能恢复 JavaScript 执行栈或驻留后台 Agent；完整目标继续保留这些剩余项。
 
 本步骤通过 Go 全量 race/vet；最终 Workflow race 连续两次通过，Bazel harness、workflow、ACP、完整 CLI 四个测试目标通过。未调用付费模型。
+
+
+### 16.13 已结束子代理的对话续跑
+
+按当前官方说明，通用/自定义代理可保留完整历史续跑，Explore/Plan 仍一次性；当前主要入口是 SendMessage。所选 Claude profile 已新增独立 managed provider，通过原 registry/AgentManager 实现同 ID Session 的续跑，并保留旧插件 Agent.resume 参数。新 SendMessage 接受 to=agent ID、message 文本及可选 summary；名字、团队协议和跨会话消息尚未实现。旧 resume 必须带 description/prompt，仍使用原定义/模型，不接受同时指定 subagent_type/model 来替换它们。[官方说明](https://code.claude.com/docs/en/sub-agents#resume-subagents)、[实现契约](../../harness/go/subagents/README.md#selected-claude-agents-and-continuation)
+
+初始执行冻结实际 route、persona 和声明的工具过滤器，恢复时保留原历史，并重做当前父会话、模型有效性、预算、层级、容量和审批检查；当前所选定义的工具与原声明过滤器相交，继承工具仍由当前精确父 scope 决定。已结束 child 可从内存恢复，显式 Persistence 可在全新 runtime 读取 JSONL 恢复。运行中的 SendMessage 则入原 activation 队列，结果只观察一次并向父会话通知。Explore/Plan 以及带任意 ConfigureChild 回调的内部调用走独立一次性 provider，防止 Web 提取、Skill fork、Workflow helper 恢复后丢失临时约束。managed structured_output 使用原 admission gate。[续跑与边界测试](../../harness/go/subagents/resume_test.go)
+
+真实 HTTP loopback 测试验证同一 ID 三轮、完整先前工具结果/回复、父模式改只读后拒写、SendMessage 排队与完成通知。JSONL 测试先真实 Write 与一次审批，关闭原 runtime 后由全新实例加载同一 child；新定义只允许 Read，恢复模型仍看到旧历史与真实原文件，没有第二次 Write/审批，并拒绝无 live-cache 时的其他父会话续跑。[磁盘测试](../../harness/go/subagents/resume_disk_test.go)。此处模型是本地 HTTP fixture；证明已结束会话续跑，不宣称恢复运行中的进程、后台 Bash 或 JavaScript 执行栈。常驻活动 lease 和运行中任务冷恢复继续保留。
+
+本批通过 Go 全量 race/vet；后续工具过滤与 fresh-parent 拒绝补测通过对应包 race，subagents race 连续两次通过。Bazel harness、subagents、workflow、pluginruntime 和完整 CLI 五个目标通过。无付费模型请求。

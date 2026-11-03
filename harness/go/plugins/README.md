@@ -97,7 +97,10 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   Structured answer submissions also pass the stop gate and can be revised.
 - MCP stdio, streamable HTTP and legacy SSE connections belong to root-agent lifetimes.
   Each package gets a server namespace; children inherit the parent connection.
-- Agent, TaskOutput and TaskStop run and cancel actual harness children.
+- Agent, SendMessage, TaskOutput and TaskStop run, continue and cancel actual harness children.
+  Custom/general-purpose agents retain their ID and history across completed
+  turns and, with explicit persistence, JSONL reload. Explore/Plan and temporary
+  ConfigureChild compositions remain one-shot. See the [agent profiles](../subagents/README.md).
   TaskCreate, TaskUpdate, TaskList and TaskGet persist state in the session log.
 - AskUserQuestion is available when an ACP client negotiates the
   [structured question extension](../acp/USER_QUESTIONS.md). It supports free
@@ -139,7 +142,7 @@ runtime loading instead of silently changing their meaning.
 
 This profile is still incomplete. Conditional Bash grants and exit-1
 interpretation for compound syntax, resumable Workflow continuations, resident
-background agents, cold agent resumption and several additional hook/configuration features remain
+background agents, running-task cold recovery and several additional hook/configuration features remain
 open. Hooks do not yet use the sandbox backend; selecting both command hooks
 and a sandbox currently returns an error. Explore/Plan use a narrower read-only
 tool set. Full external-service and per-plugin business workflows still require
