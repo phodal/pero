@@ -40,8 +40,9 @@ type ClaudeOptions struct {
 }
 
 type ClaudeContribution struct {
-	instance, provider *point.Instance
-	service            *claudeDelegation
+	instance  *point.Instance
+	providers []*point.Instance
+	service   *claudeDelegation
 }
 
 func (c *ClaudeContribution) Dispose(ctx context.Context) error {
@@ -52,8 +53,8 @@ func (c *ClaudeContribution) Dispose(ctx context.Context) error {
 	if c.instance != nil {
 		err = c.instance.Dispose(ctx)
 	}
-	if c.provider != nil {
-		err = errors.Join(err, c.provider.Dispose(ctx))
+	for _, provider := range c.providers {
+		err = errors.Join(err, provider.Dispose(ctx))
 	}
 	return err
 }
@@ -61,7 +62,7 @@ func (c *ClaudeContribution) Dispose(ctx context.Context) error {
 type claudeTask struct {
 	parent         *harness.Agent
 	activation     harness.SubagentActivation
-	notifyParent   bool
+	notifyParent   atomic.Bool
 	suppressNotice atomic.Bool
 	done           chan struct{}
 	result         harness.SubagentResult
@@ -129,13 +130,19 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 		}
 		service.routes[route.Alias] = route
 	}
-	provider, err := MountInProcess(ctx, h, InProcessOptions{EntryID: "subagents/claude/provider", Name: "claude", Persistence: options.Persistence, Compaction: options.Compaction, InheritApproval: true, ModelRoutes: options.ModelRoutes})
+	provider, err := mountInProcess(ctx, h, InProcessOptions{EntryID: "subagents/claude/provider", Name: "claude", Persistence: options.Persistence, Compaction: options.Compaction, InheritApproval: true, ModelRoutes: options.ModelRoutes}, false, service.definitions)
 	if err != nil {
+		return nil, err
+	}
+	oneShot, err := MountInProcess(ctx, h, InProcessOptions{EntryID: "subagents/claude/oneshot", Name: "claude-oneshot", Persistence: options.Persistence, Compaction: options.Compaction, InheritApproval: true, ModelRoutes: options.ModelRoutes})
+	if err != nil {
+		_ = provider.Dispose(context.Background())
 		return nil, err
 	}
 	facade, err := h.Subagents().NewFacade(config)
 	if err != nil {
 		_ = provider.Dispose(context.Background())
+		_ = oneShot.Dispose(context.Background())
 		return nil, err
 	}
 	service.facade = facade
@@ -161,7 +168,7 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 		}); err != nil {
 			return nil, err
 		}
-		tools := []harness.Tool{service.agentTool(), service.outputTool(), service.stopTool()}
+		tools := []harness.Tool{service.agentTool(), service.sendMessageTool(), service.outputTool(), service.stopTool()}
 		if options.LegacyTaskAlias {
 			alias := service.agentTool()
 			alias.Schema.Name = "Task"
@@ -189,9 +196,10 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 		_ = facade.RequestDispose()
 		_ = facade.Wait(context.Background())
 		_ = provider.Dispose(context.Background())
+		_ = oneShot.Dispose(context.Background())
 		return nil, err
 	}
-	return &ClaudeContribution{instance: instance, provider: provider, service: service}, nil
+	return &ClaudeContribution{instance: instance, providers: []*point.Instance{provider, oneShot}, service: service}, nil
 }
 
 func (s *claudeDelegation) agentTool() harness.Tool {
@@ -208,7 +216,7 @@ func (s *claudeDelegation) agentTool() harness.Tool {
 		}
 		fmt.Fprintf(&available, "\n- %s: %s", name, string(description))
 	}
-	return harness.Tool{Schema: harness.ToolSchema{Name: "Agent", Description: "Run an independent agent with selected instructions, tools and an explicitly mapped model. subagent_type defaults to general-purpose. Bare names resolve within the current plugin first, then by a unique scoped suffix; use the full name if ambiguous. Exact names, including builtins, take precedence. Explore/Plan use only mounted read-only file/search/web/LSP tools; this profile does not give them Bash, Skill or arbitrary MCP tools. Background runs return a real task_id for TaskOutput/TaskStop. Resuming an old task is unavailable. Available subagent_type values:" + available.String(), InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"subagent_type":{"type":"string","minLength":1},"description":{"type":"string","minLength":1},"prompt":{"type":"string","minLength":1},"model":{"type":"string"},"run_in_background":{"type":"boolean"},"resume":{"type":"string"}},"required":["description","prompt"]}`)}, IsConcurrencySafe: func(context.Context, harness.ToolRequest) bool { return true }, ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
+	return harness.Tool{Schema: harness.ToolSchema{Name: "Agent", Description: "Run an independent agent with selected instructions, tools and an explicitly mapped model. subagent_type defaults to general-purpose. Bare names resolve within the current plugin first, then by a unique scoped suffix; use the full name if ambiguous. Exact names, including builtins, take precedence. Explore/Plan use only mounted read-only file/search/web/LSP tools; this profile does not give them Bash, Skill or arbitrary MCP tools. Background runs return a real task_id for TaskOutput/TaskStop. Resume custom/general-purpose agents with their ID and a new prompt; Explore/Plan remain one-shot. Available subagent_type values:" + available.String(), InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"subagent_type":{"type":"string","minLength":1},"description":{"type":"string","minLength":1},"prompt":{"type":"string","minLength":1},"model":{"type":"string"},"run_in_background":{"type":"boolean"},"resume":{"type":"string"}},"required":["description","prompt"]}`)}, IsConcurrencySafe: func(context.Context, harness.ToolRequest) bool { return true }, ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
 		var input struct {
 			Type        string `json:"subagent_type"`
 			Description string `json:"description"`
@@ -220,10 +228,16 @@ func (s *claudeDelegation) agentTool() harness.Tool {
 		if err := json.Unmarshal(request.Arguments, &input); err != nil {
 			return harness.ToolResult{}, err
 		}
+		var task *claudeTask
+		var err error
 		if input.Resume != "" {
-			return harness.ToolResult{}, errors.New("subagents: Claude task resume is unsupported; start a new Agent with the previous result")
+			if input.Type != "" || input.Model != "" {
+				return harness.ToolResult{}, errors.New("subagents: resume retains its original definition and model route; omit subagent_type/model")
+			}
+			task, err = s.resume(ctx, request.Agent, harness.SessionID(input.Resume), input.Prompt, input.Background)
+		} else {
+			task, err = s.start(ctx, request.Agent, ClaudeInvocation{Definition: input.Type, Prompt: input.Prompt, Description: input.Description, Model: input.Model, Background: input.Background})
 		}
-		task, err := s.start(ctx, request.Agent, ClaudeInvocation{Definition: input.Type, Prompt: input.Prompt, Description: input.Description, Model: input.Model, Background: input.Background})
 		if err != nil {
 			return harness.ToolResult{}, err
 		}
@@ -254,7 +268,7 @@ func (s *claudeDelegation) observeTask(ctx context.Context, task *claudeTask) {
 		result = harness.SubagentResult{ChildID: task.activation.ChildID, Status: harness.SubagentFailed, Reason: harness.FinishError, Diagnostic: "subagent closed without a terminal result"}
 	}
 	task.result, task.err = result, task.activation.Wait(context.Background())
-	if task.notifyParent && !task.suppressNotice.Load() && ctx.Err() == nil && s.run.Active() && !task.parent.CurrentTurnInterrupted() {
+	if task.notifyParent.Load() && !task.suppressNotice.Load() && ctx.Err() == nil && s.run.Active() && !task.parent.CurrentTurnInterrupted() {
 		if parent, live := s.h.Agents().Get(task.parent.ID()); live && parent == task.parent {
 			diagnostic := result.Diagnostic
 			if task.err != nil {

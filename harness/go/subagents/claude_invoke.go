@@ -108,11 +108,16 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 	if input.ConfigureChild != nil {
 		ctx = context.WithValue(ctx, claudeChildConfigurationKey{}, input.ConfigureChild)
 	}
-	activation, err := s.facade.StartActivation(ctx, "claude", child, "caller")
+	provider := "claude"
+	if s.readOnlyBuiltins[definition.Name] || input.ConfigureChild != nil {
+		provider = "claude-oneshot"
+	}
+	activation, err := s.facade.StartActivation(ctx, provider, child, "caller")
 	if err != nil {
 		return nil, err
 	}
-	task := &claudeTask{parent: parent, activation: activation, notifyParent: input.Background && s.backgroundNotices, done: make(chan struct{})}
+	task := &claudeTask{parent: parent, activation: activation, done: make(chan struct{})}
+	task.notifyParent.Store(input.Background && s.backgroundNotices)
 	s.mu.Lock()
 	s.tasks[activation.ChildID] = task
 	s.mu.Unlock()
