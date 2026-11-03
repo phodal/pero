@@ -40,6 +40,7 @@ type Component struct {
 	Visibility        InvocationVisibility `json:"visibility"`
 	ArgumentHint      string               `json:"argumentHint,omitempty"`
 	Paths             []string             `json:"paths,omitempty"`
+	Shell             string               `json:"shell,omitempty"`
 	AllowedTools      []string             `json:"allowedTools,omitempty"`
 	Tools             []string             `json:"tools,omitempty"`
 	DisallowedTools   []string             `json:"disallowedTools,omitempty"`
@@ -61,6 +62,7 @@ type componentHeader struct {
 	Description            componentText  `yaml:"description"`
 	ArgumentHint           componentText  `yaml:"argument-hint"`
 	Paths                  componentTools `yaml:"paths"`
+	Shell                  componentText  `yaml:"shell"`
 	AllowedTools           componentTools `yaml:"allowed-tools"`
 	Tools                  componentTools `yaml:"tools"`
 	DisallowedTools        componentTools `yaml:"disallowedTools"`
@@ -233,6 +235,10 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 		add(SeverityError, "INVALID_COMPONENT_FIELD", "argument-hint", "Argument hint must be at most 256 bytes.")
 	}
 	if kind != ComponentAgent {
+		component.Shell = strings.TrimSpace(string(header.Shell))
+		if component.Shell != "" && component.Shell != "bash" && component.Shell != "powershell" {
+			add(SeverityError, "INVALID_COMPONENT_FIELD", "shell", "Skill shell must be bash or powershell.")
+		}
 		component.Paths = append([]string(nil), header.Paths...)
 		if len(component.Paths) > 32 {
 			add(SeverityError, "INVALID_COMPONENT_FIELD", "paths", "A skill can declare at most 32 paths.")
@@ -408,7 +414,7 @@ func knownComponentField(kind ComponentKind, key string) bool {
 	switch key {
 	case "name", "description", "model", "effort", "version", "license", "compatibility", "metadata", "homepage", "platforms":
 		return true
-	case "hooks", "argument-hint", "paths", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent":
+	case "hooks", "argument-hint", "paths", "shell", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent":
 		return kind != ComponentAgent
 	case "background":
 		return true

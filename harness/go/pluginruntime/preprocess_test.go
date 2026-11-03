@@ -69,6 +69,22 @@ func expansionFixture(t *testing.T) (*harness.Harness, *harness.Agent, skills.De
 	return h, agent, definition, options, &answerers
 }
 
+func TestSkillShellUsesTheRequestedExecutable(t *testing.T) {
+	bin := t.TempDir()
+	script := filepath.Join(bin, "pwsh")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\necho pwsh-marker\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	h, agent, definition, options, _ := expansionFixture(t)
+	definition.Shell = "powershell"
+	definition.Content = "!`printf from-bash`"
+	got, err := ExpandSkill(t.Context(), h, agent, definition, "", options)
+	if err != nil || !strings.Contains(got.Content, "pwsh-marker") || strings.Contains(got.Content, "from-bash") {
+		t.Fatalf("content=%q err=%v", got.Content, err)
+	}
+}
+
 func TestOriginalSkillCommandsExpandOnce(t *testing.T) {
 	for _, test := range []struct {
 		name, content, arguments, expected string

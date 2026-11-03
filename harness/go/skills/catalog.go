@@ -43,6 +43,7 @@ type Definition struct {
 	Agent        string             `json:"agent,omitempty"`
 	Background   *bool              `json:"background,omitempty"`
 	Claude       bool               `json:"-"`
+	Shell        string             `json:"shell,omitempty"`
 	Hooks        []claudehooks.Hook `json:"-"`
 	// Rendered marks trusted invocation output, never model-supplied content.
 	Rendered bool `json:"-"`

@@ -73,6 +73,17 @@ func TestComponentDefinitions(t *testing.T) {
 	}
 }
 
+func TestSkillShellField(t *testing.T) {
+	component, diagnostics := ParseComponent("sample", ComponentSkill, "skills/notes/SKILL.md", []byte("---\nname: notes\ndescription: Notes.\nshell: powershell\n---\nRun."))
+	if len(diagnostics) != 0 || component.Shell != "powershell" {
+		t.Fatalf("component=%+v diagnostics=%v", component, diagnostics)
+	}
+	_, diagnostics = ParseComponent("sample", ComponentSkill, "skills/notes/SKILL.md", []byte("---\nname: notes\ndescription: Notes.\nshell: zsh\n---\nRun."))
+	if len(diagnostics) != 1 || diagnostics[0].Code != "INVALID_COMPONENT_FIELD" {
+		t.Fatalf("diagnostics=%v", diagnostics)
+	}
+}
+
 func TestSkillPathsField(t *testing.T) {
 	component, diagnostics := ParseComponent("sample", ComponentSkill, "skills/notes/SKILL.md", []byte("---\nname: notes\ndescription: Notes.\npaths:\n  - notes/*.txt\n  - src/**/*.go\n---\nRead."))
 	if len(diagnostics) != 0 || len(component.Paths) != 2 || component.Paths[0] != "notes/*.txt" {

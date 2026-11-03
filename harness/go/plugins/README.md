@@ -85,7 +85,7 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   bounded preview. Capture uses the shared 5 GB working-output ceiling;
   failed/cancelled expansion removes its temporary file. Its projection remains
   separate from native Bash output presentation.
-- Skill `argument-hint` is shown with the skill name so callers know the arguments. `paths` names the files that suggest that skill after a matching read or edit. Skill model overrides and `effort` last for their invocation turn. `context: fork` runs
+- Skill `argument-hint` is shown with the skill name so callers know the arguments. `paths` names the files that suggest that skill after a matching read or edit. `shell` selects bash or powershell for that skill's `!` commands. Skill model overrides and `effort` last for their invocation turn. `context: fork` runs
   through the existing isolated Agent executor and returns its actual result.
   `background: false` waits for that result. `background: true` returns as soon
   as the child is running and delivers the result to the parent when it

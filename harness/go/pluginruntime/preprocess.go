@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
@@ -94,7 +96,11 @@ func ExpandSkill(ctx context.Context, h *harness.Harness, agent *harness.Agent, 
 	if err != nil {
 		return skills.Definition{}, fmt.Errorf("plugin-runtime: skill command output budget: %w", err)
 	}
-	localOptions := shell.LocalOptions{Shell: options.Shell, CWD: project, Sandbox: options.Sandbox, Timeout: 120 * time.Second, MaxTimeout: 120 * time.Second, MaxOutputBytes: skillCommandInlineBytes, BaseEnv: environment, TrustedBaseEnvironment: true}
+	shellPath, err := skillShell(options.Shell, definition.Shell)
+	if err != nil {
+		return skills.Definition{}, err
+	}
+	localOptions := shell.LocalOptions{Shell: shellPath, CWD: project, Sandbox: options.Sandbox, Timeout: 120 * time.Second, MaxTimeout: 120 * time.Second, MaxOutputBytes: skillCommandInlineBytes, BaseEnv: environment, TrustedBaseEnvironment: true}
 	var outputs []*skillCommandOutput
 	complete := false
 	defer func() {
@@ -198,6 +204,28 @@ func prepareSkillSource(definition skills.Definition, commands []dynamicCommand,
 	fragment.Content = definition.Content[previous:]
 	after, usedAfter, err := skills.RenderInvocationFragment(fragment, arguments, sessionID, project)
 	return plans, after.Content, consumed || usedAfter, err
+}
+
+func skillShell(host, requested string) (string, error) {
+	switch requested {
+	case "", "bash":
+		return host, nil
+	case "powershell":
+		for _, name := range []string{"pwsh", "powershell"} {
+			found, err := exec.LookPath(name)
+			if err != nil {
+				continue
+			}
+			absolute, err := filepath.Abs(found)
+			if err != nil {
+				return "", err
+			}
+			return absolute, nil
+		}
+		return "", errors.New("plugin-runtime: skill shell powershell was not found")
+	default:
+		return "", fmt.Errorf("plugin-runtime: skill shell %q must be bash or powershell", requested)
+	}
 }
 
 // dynamicCommands selects spans before any parameter or output substitution.
