@@ -134,6 +134,25 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   const [verificationAnnotation, setVerificationAnnotation] = useState('');
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
   useEffect(() => scrollCapability?.onLayoutReady(event => { if (event.documentId === documentId) layoutReady.current = true; }), [scrollCapability, documentId]);
+  // Subscribe before restoration: cached geometry can emit synchronously.
+  // Also read the current scope, since a selection may predate this observer.
+  useEffect(() => {
+    if (!selection) return;
+    const scope = selection.forDocument(documentId);
+    let alive = true, revision = 0;
+    const update = (value: unknown) => {
+      const current = ++revision;
+      setHasSelection(!!value); selectedText.current = '';
+      if (!value) return;
+      void scope.getSelectedText().toPromise().then(parts => {
+        if (alive && current === revision) selectedText.current = parts.join('\n');
+      }).catch(() => { if (alive && current === revision) selectedText.current = ''; });
+    };
+    const stop = scope.onSelectionChange(update);
+    update(scope.getState().selection);
+    return () => { alive = false; stop(); };
+  }, [selection, documentId]);
+
   const activeNow = useRef(active), focusNow = useRef(focus), restored = useRef(false), stateReady = useRef(false);
   activeNow.current = active; focusNow.current = focus;
   const persistView = useRef<() => void>(() => {});
@@ -180,11 +199,6 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   }, [scroll, zoom, selection, scrollCapability, documentId, document.id, document.fileDigest]);
   useEffect(() => { persistView.current(); }, [active]);
 
-  useEffect(() => selection?.forDocument(documentId).onSelectionChange(value => {
-    setHasSelection(!!value);
-    if (!value) { selectedText.current = ''; return; }
-    void selection.forDocument(documentId).getSelectedText().toPromise().then(parts => { selectedText.current = parts.join('\n'); }).catch(() => { selectedText.current = ''; });
-  }), [selection, documentId]);
   useEffect(() => {
     const copy = (event: ClipboardEvent) => {
       if (!activeNow.current) return;
