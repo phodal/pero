@@ -72,11 +72,8 @@ described below. Scripts run as trusted selected
 package code. The Node VM restricts available globals but **is not an OS
 sandbox**; deployment isolation remains the host's responsibility.
 
-The original three review scripts in `testdata/review` run through the real
-Workflow tool and loopback model adapter. The approved path exercises nine
-agent calls, ten HTTP requests, peak concurrency three, structured results,
-an approved file write and nested quality/assessment workflows. The denied
-path proves the spec gate prevents downstream work. Lifecycle tests cover
+Repository-authored test scripts exercise the real Workflow tool, child agents,
+structured results, nested workflows and shared budgets. Lifecycle tests cover
 unawaited-member settlement, durable cancellation, runtime disposal and an
 asynchronous CPU loop. These tests establish orchestration behavior, not the
 quality of a real model's review or every plugin workflow.
@@ -92,11 +89,9 @@ original TypeScript runtime was not copied. Relevant fixed sources are
 and [metadata](https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/workflow/workflow-ptc/src/meta.ts).
 The applicable reference license is preserved in [LICENSE.dsh](LICENSE.dsh).
 
-The three original JavaScript files were copied verbatim as integration
-fixtures from a selected package snapshot. Its applicable MIT license and
-copyright notice are preserved in [testdata/review/LICENSE](testdata/review/LICENSE).
-Snapshot commit, exact file hashes and the distinction between behavior
-adaptation and copied fixtures are recorded in [SOURCE.json](SOURCE.json).
+The pinned behavior references are recorded in [SOURCE.json](SOURCE.json).
+Workflow tests use repository-authored scripts; external review-workflow
+source copies and their dedicated integration test have been removed.
 
 ## Background task ownership
 

@@ -22,7 +22,7 @@
 
 ### 1.2 已克隆项目
 
-源码统一位于 `/Users/phodal/workspaces/agents-plugins`。依赖项目的远程地址、提交、提交日期、浅克隆状态与失败原因保存在 [projects.lock.json](/Users/phodal/workspaces/agents-plugins/projects.lock.json)；目标插件集合仅记录匿名来源标识。
+源码统一放在用户自行选择的 `agents-plugins` 目录。依赖项目的远程地址、提交、提交日期、浅克隆状态与失败原因保存在该目录的 `projects.lock.json`；目标插件集合仅记录匿名来源标识。
 
 | 目录 | 项目 | 分析用途 |
 | --- | --- | --- |
@@ -677,7 +677,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 | MCP | stdio/streamable HTTP/旧版 SSE、环境替换、namespace、root-agent 连接生命周期 | SSE 实际发现、调用、取消与退役回收；拒绝向外部 origin 转发配置凭据；OAuth/每工具迁移仍待补 |
 | LSP | `--lsp-config`、所选插件 `.lsp.json`/manifest 声明默认装配；9 类 query、UTF-16 坐标、能力协商、取消与进程生命周期 | 实际 `/usr/bin/clangd` hover、operator/bundled 两种真实 CLI 路径通过；不安装服务器，不应用编辑；Write/Edit 后有界诊断已接通；连续异步诊断与动态注册仍缺 |
 | WebSearch/WebFetch | 显式 DeepSeek Search/Fetch provider；域名过滤、引用、offset 分片及无工具子代理提取 | CLI loopback 验证审批、共享预算、取消和拒绝写文件；真实 API 两次请求通过；缓存与跨域 redirect handoff 尚未实现，搜索后端不同 |
-| 同步 Workflow | 原始 scriptPath、export const meta、args、嵌套 workflow、agent/parallel/pipeline/phase/log；RPC 复用 ClaudeContribution.Invoke | 原始 3 个审查脚本实际运行；9 次 agent()、10 次 loopback HTTP、峰值并发 3；同步检查点见 16.4；后台任务接入见 16.10 |
+| 同步 Workflow | 原始 scriptPath、export const meta、args、嵌套 workflow、agent/parallel/pipeline/phase/log；RPC 复用 ClaudeContribution.Invoke | 仓库自有 fixture 验证调用、嵌套编排、预算与生命周期；同步检查点见 16.4；后台任务接入见 16.10 |
 | Trial runner | 显式选择 Harness ACP 或原 Claude runner；工作区/session/续跑/问答策略/权限模式/真实 usage/进程回收 | 18 项本地测试通过；所有 session 与最终产物复核，取消/关闭失败/非零退出不伪成功；不估算 USD，不重试已提交 prompt |
 | 显式研究依赖 | 选定固定来源后生成内容寻址 package view；原 research → research-deep → research-report 留在 root，保留人工 gate | 原链 CLI loopback 已通过：6 次问答、2 个后台研究代理、10 Search、2 Fetch、2 次无工具提取、16 次审批、原 validator 和 raw 字节归档；不宣称真实研究质量 |
 
@@ -735,7 +735,7 @@ LoadPackages 复核不执行 hook、脚本、MCP 或模型请求。“可编译�
 
 同步 Workflow 只执行所选插件资源清单中的 `workflows/*.js`/`.mjs`，要求绝对 scriptPath 和未变化的文件 digest。CLI 仅在选中这些脚本时解析 Node，默认从 PATH 查找 `node`，可用 `--workflow-node` 指定；当前进程回收支持 macOS/Linux。脚本保留 `export const meta` 和原始 args，支持嵌套 workflow 及 agent、parallel、pipeline、phase、log。agent() 经 RPC 复用 `ClaudeContribution.Invoke`，模型路由、结构化输出、工具限制、审批、取消和会话记录均进入现有 Harness；脚本不取得 provider 凭据。Node VM 不构成 OS sandbox，所选脚本仍属于可信安装代码。
 
-[原始审查脚本测试](../../harness/go/workflow/review_test.go) 实际执行未改写的 `coder-review.js`、`review-cr-phase.js`、`review-aggregate-assessment-phase.js`：批准路径执行 **9 次 agent()、10 次 loopback HTTP 请求、峰值并发 3**，包含真实子代理 Write、schema 回执、四个质量维度、两个 skeptic 与最终聚合；结果为 fixture 设定的 `needs_rework`。拒绝写入路径触发一次审批、spec hard gate 返回 `spec_failed`，只执行 1 个代理和 2 次 HTTP，不创建被拒绝文件，也不继续质量审查。该证据覆盖编排和工具副作用，不评估真实模型审查质量。
+当前 [Workflow 测试](../../harness/go/workflow/workflow_test.go) 使用仓库自有的最小脚本，验证真实工具调用、子代理、结构化输出、嵌套编排与预算。此前用于审查流程验证的第三方脚本副本及其专用集成测试已移除；历史执行记录不代表当前仓库仍包含该回归用例。真实模型的外部插件验收另见 16.16 与 16.22。
 
 Workflow 并发默认 3、总 agent() 调用预算默认 64，嵌套脚本共享同一预算；它们统计脚本 helper 调用，不宣称覆盖模型自行委派的整棵代理树，后者继续受现有 agent 策略与全局 provider 请求预算约束。与 pinned DSH 相同，脚本 return 后保留返回值并取消未等待的成员，等待实际回收后工具才返回；`stopReason=completed` 表示程序返回，不表示每个成员都成功。真实未 await fixture 验证 `approved:true` 保留，同时持久记录未完成成员为 cancelled/aborted，agent-end 早于 workflow/end，且仅剩根代理。取消、runtime disposal 和异步 CPU 循环 fixture 也确认 Node 与子代理均被回收。[生命周期测试](../../harness/go/workflow/lifecycle_test.go)、[DSH host 固定源码](https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/workflow/workflow-ptc/src/host.ts#L286)
 

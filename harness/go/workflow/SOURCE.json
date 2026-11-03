@@ -12,30 +12,6 @@
       "relationship": "Behavior adapted through a new Go/Node RPC host; original TypeScript runtime not copied.",
       "license": "MIT",
       "licenseFile": "LICENSE.dsh"
-    },
-    {
-      "label": "Selected review-workflow snapshot",
-      "snapshotCommit": "53bf4fc4ac0f993107850e3cbb2b4f4c66da8e6f",
-      "files": [
-        {
-          "path": "coder/workflows/coder-review.js",
-          "sha256": "ec19a97377b7a0172e185a55892bac623360379b7969794230e6aefdde3a45a8",
-          "fixture": "testdata/review/workflows/coder-review.js"
-        },
-        {
-          "path": "coder/workflows/phases/review-cr-phase.js",
-          "sha256": "e224751b5f89624ea913054ee55d9982090813c4cd818dd264b62f63afb2f138",
-          "fixture": "testdata/review/workflows/phases/review-cr-phase.js"
-        },
-        {
-          "path": "coder/workflows/phases/review-aggregate-assessment-phase.js",
-          "sha256": "5de9541b65ab01f9bf0719d0ce8fd99a0dc3ed7da3eb2b6d4c2cf4a554e7fdc4",
-          "fixture": "testdata/review/workflows/phases/review-aggregate-assessment-phase.js"
-        }
-      ],
-      "relationship": "Original selected JavaScript files copied verbatim only as integration fixtures. Their package license is preserved.",
-      "license": "MIT",
-      "licenseFile": "testdata/review/LICENSE"
     }
   ],
   "scope": "Only explicit selected-package workflow scripts; no implicit script roots, model credentials, separate agent loop, or OS-sandbox claim."
