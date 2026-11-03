@@ -534,6 +534,17 @@
   min-inline-size: 0;
 }
 
+@container pa-workbench (max-width: 1100px) {
+  .pa-reading-bar .pa-reader-crumb {
+    flex-basis: auto;
+    max-inline-size: none;
+  }
+  .pa-reading-bar .pa-reader-crumb h1,
+  .pa-reading-bar .pa-reader-crumb > .pero-ui-glyph {
+    display: none;
+  }
+}
+
 .pa-reading-bar .pa-reader-crumb h1 {
   flex: 1 1 auto;
   max-inline-size: none;

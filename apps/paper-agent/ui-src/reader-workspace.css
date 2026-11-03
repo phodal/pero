@@ -31,7 +31,6 @@
   box-sizing: border-box;
   height: 28px;
   min-height: 28px;
-  padding: 0 10px;
   border: 0;
   border-radius: 6px;
   box-shadow: none;
@@ -40,10 +39,14 @@
   line-height: 1;
 }
 .pa-workbench .pa-reading-bar > .pa-records-toggle.pero-ui-button {
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
   background: transparent;
   color: var(--pero-text);
 }
 .pa-workbench .pa-reading-bar .pa-ask.pero-ui-button {
+  padding: 0 10px;
   background: var(--pero-action);
   color: var(--pero-on-action);
 }

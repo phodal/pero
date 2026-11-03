@@ -175,6 +175,7 @@ export const shellIcons = {
   data: ChartColumn,
   slides: Presentation,
   replay: History,
+  history: History,
   modernize: ArrowRightLeft,
   cloud: Cloud,
   remote: Server,
