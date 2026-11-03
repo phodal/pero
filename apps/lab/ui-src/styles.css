@@ -12,7 +12,8 @@ p { margin: 8px 0; }
 .lab .pero-ui-tabs-list:not([data-unstyled]) { border-bottom: .5px solid var(--pero-border); padding-bottom: 4px; }
 .toolbar { gap: 8px; }
 .lab-header > div:first-child { display: flex; align-items: baseline; gap: 12px; }
-.safety { color: var(--pero-text-muted); border-bottom: .5px solid var(--pero-border); padding-bottom: 12px; }
+.simulation-details { max-width: 360px; font-size: 12px; color: var(--pero-text-muted); }
+.simulation-details > summary { padding: 1px 6px; border-radius: 4px; background: var(--pero-surface-muted); }
 .context-row { justify-content: space-between; margin: 12px 0; padding-bottom: 12px; border-bottom: .5px solid var(--pero-border); }
 .context-row label { max-width: min(100%, 620px); flex: 1; }
 label { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
@@ -24,14 +25,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .error { color: var(--pero-error); overflow-wrap: anywhere; }
 .notice { color: var(--pero-info); }
 .new-experiment > h2 { font-size: 18px; }
-.new-experiment > p { margin-top: 4px; }
 .objective-input { resize: vertical; min-height: 60px; }
 .goal-facts { border-top: .5px solid var(--pero-border); padding-top: 12px; margin-top: 12px; }
 .goal-actions { margin-top: 24px; }
-.goal-actions p { margin-bottom: 0; }
 .fields > label { flex: 1; min-width: 140px; }
 .experiment-heading { padding: 0 0 12px; }
 .experiment-heading > h2 { font-size: 18px; overflow-wrap: anywhere; }
+.experiment-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
 .experiment-heading .toolbar { justify-content: space-between; }
 .experiment-heading .toolbar label { flex-direction: row; align-items: center; gap: 8px; }
 .lab .pero-ui-tabs-content { padding: 12px 0; }
@@ -59,7 +59,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .facts dt { color: var(--pero-text-muted); }
 .facts dd { margin: 0; }
 .protocol-editor { min-height: 350px; width: 100%; resize: vertical; font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; }
-.protocol-draft { margin: 12px 0; }
+.protocol-draft { margin: 0 0 12px; }
 .view-switch { display: flex; gap: 4px; }
 .lab .view-switch .pero-ui-button[aria-pressed=true] { background: var(--pero-accent-soft); color: var(--pero-accent-text); border-color: var(--pero-input-border); }
 .editable-steps { padding-left: 24px; margin: 12px 0; }
@@ -76,6 +76,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .saved-candidate { margin-bottom: 12px; padding-bottom: 12px; border-bottom: .5px solid var(--pero-border); }
 .saved-candidate .toolbar { margin-top: 8px; }
 .candidate-title { font-weight: 500; }
+.candidate-rationale { margin: 0 0 12px; }
+.candidate-rationale input { width: 100%; }
 .candidate-status { font-size: 12px; padding: 1px 6px; background: var(--pero-surface-muted); border-radius: 4px; }
 .steps { padding-left: 24px; }
 .steps li { padding: 4px 0; }

@@ -67,6 +67,9 @@ try {
   await page.screenshot({ path: resolve(output, 'empty-light.png') });
   await frame.getByRole('button', { name: 'Freeze experiment', exact: true }).click();
   await expect(frame.getByRole('heading', { name: 'Candidate draft', exact: true })).toBeVisible();
+  await frame.getByRole('button', { name: 'Add step', exact: true }).click();
+  await expect(frame.getByRole('textbox', { name: 'Step 9 resource', exact: true })).toHaveValue('T3');
+  await frame.getByRole('button', { name: 'Remove step', exact: true }).click();
   await frame.getByRole('button', { name: 'Edit step 2', exact: true }).click();
   await frame.getByRole('spinbutton', { name: 'Step 2 volume in microliters', exact: true }).fill('40');
   await expect(frame.getByText('Aspirate 40 µL from A1', { exact: true })).toBeVisible();

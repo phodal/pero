@@ -20,14 +20,13 @@ export function Deck({ state, preview = false, compact = false, title = '96-well
           })}</React.Fragment>)}
       </div></div>
       <div className="deck-legend"><span><strong>A1</strong> Red dye</span><span><strong>A2</strong> Diluent</span><span><strong>B1</strong> Target mixture</span></div>
-      <p className="muted">{preview ? 'Initial layout preview. Freezing the experiment records its starting state.' : 'Virtual dye intensity shows the predicted fraction. Volumes in µL.'}</p>
     </>;
   const resources = <>
       <h2>Well {selected}</h2>
       <dl className="facts"><dt>Volume</dt><dd>{formatNumber(well?.volume_ul)} µL</dd><dt>Capacity</dt><dd>{formatNumber(well?.capacity_ul)} µL</dd><dt>Predicted red fraction</dt><dd>{formatNumber(well?.red_fraction)}</dd></dl>
       <details className="deck-resources"><summary>Pipette and tips ({state.available_tips.length} available)</summary>
         <dl className="facts"><dt>Attached tip</dt><dd>{state.pipette.tip_id ?? 'None'}</dd><dt>Pipette volume</dt><dd>{formatNumber(state.pipette.volume_ul)} / {state.pipette.capacity_ul} µL</dd><dt>Consumed tips</dt><dd>{state.consumed_tips.length}</dd></dl>
-        <p className="muted">Returned tips are retired, never reused.</p>
+        <p className="muted">Returned tips are retired.</p>
       </details>
     </>;
   if (compact) return <section className="deck-compact">{plate}<div className="well-inspector">{resources}</div></section>;

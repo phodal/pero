@@ -1,6 +1,21 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { describeStep, editProtocolStep, readStepEditor } from '../ui-src/protocol-draft.ts';
+import { describeStep, editProtocolStep, readStepEditor, suggestDraftTip } from '../ui-src/protocol-draft.ts';
+
+test('new draft steps suggest an available tip that has not already been picked up', () => {
+  const steps = [
+    { op: 'pickup_tip', resource: 'T1' }, { op: 'return_tip', resource: 'T1' },
+    { op: 'pickup_tip', resource: 'T2' }, { op: 'return_tip', resource: 'T2' },
+  ];
+  for (const [draft, available, expected] of [
+    [[], ['T2', 'T3'], 'T2'],
+    [steps, ['T1', 'T2', 'T3'], 'T3'],
+    [steps, ['T1', 'T2'], undefined],
+    [[], [], undefined],
+  ] as const) {
+    assert.equal(suggestDraftTip({ steps: [...draft] }, available), expected);
+  }
+});
 
 test('step editing preserves protocol metadata, unknown fields and untouched operations', () => {
   const source = {

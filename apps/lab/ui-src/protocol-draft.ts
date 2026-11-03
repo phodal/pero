@@ -7,6 +7,12 @@ export const operationLabels: Record<string, string> = {
   pickup_tip: 'Pick up tip', return_tip: 'Return tip', aspirate: 'Aspirate', dispense: 'Dispense',
 };
 
+/** Suggest a resource for the next draft step; protocol validation stays in Lab. */
+export function suggestDraftTip(document: ProtocolDraft, availableTips: readonly string[]): string | undefined {
+  const pickedUp = new Set(document.steps.filter(step => step.op === 'pickup_tip').map(step => step.resource));
+  return availableTips.find(tip => !pickedUp.has(tip));
+}
+
 export function readStepEditor(source: string): StepEditorState {
   let document: unknown;
   try { document = JSON.parse(source); } catch { return { kind: 'json', message: 'Protocol must be valid JSON. Edit the JSON before using the step editor.' }; }

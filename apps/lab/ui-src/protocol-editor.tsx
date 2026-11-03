@@ -1,36 +1,35 @@
 import React, { useId, useState } from 'react';
 import { Button } from '@pero/app-sdk/ui';
 import type { LabState } from './types';
-import { describeStep, editProtocolStep, operationLabels, readStepEditor } from './protocol-draft';
+import { describeStep, editProtocolStep, operationLabels, readStepEditor, suggestDraftTip } from './protocol-draft';
 
-export function ProtocolEditor({ value, onChange, disabled, state, maxSteps }: {
-  value: string; onChange(value: string): void; disabled: boolean; state: LabState; maxSteps: number;
+export function ProtocolEditor({ value, onChange, disabled, state, maxSteps, heading }: {
+  value: string; onChange(value: string): void; disabled: boolean; state: LabState; maxSteps: number; heading: string;
 }) {
   const [view, setView] = useState<'steps' | 'json'>('steps');
   const [editing, setEditing] = useState<number | null>(null);
   const [removed, setRemoved] = useState<{ before: string; after: string; step: number } | null>(null);
   const resourceList = useId();
+  const tipStatus = useId();
   const parsed = readStepEditor(value);
   const document = parsed.kind === 'steps' ? parsed.document : null;
+  const nextTip = document ? suggestDraftTip(document, state.available_tips) : undefined;
   const extraFields = document && (Object.keys(document).some(key => !['version', 'initial_revision', 'steps'].includes(key))
     || document.steps.some(step => Object.keys(step).some(key => !['op', 'resource', 'volume_ul'].includes(key))));
   return <section className="protocol-draft" aria-label="Protocol editor">
     <div className="section-toolbar">
+      <div><h2>{heading}</h2>{document && <span className="muted">{document.steps.length} / {maxSteps} steps</span>}</div>
       <div className="view-switch" role="group" aria-label="Protocol format">
         <Button aria-pressed={view === 'steps'} onClick={() => setView('steps')}>Steps</Button>
         <Button aria-pressed={view === 'json'} onClick={() => setView('json')}>JSON</Button>
       </div>
-      {document && <span className="muted">{document.steps.length} / {maxSteps} steps</span>}
     </div>
-    {view === 'json' ? <>
-      <label>Protocol JSON<textarea className="protocol-editor" spellCheck={false} value={value} onChange={event => onChange(event.target.value)} disabled={disabled} /></label>
-      <p className="muted">JSON edits are the current draft. Saving sends the full document to Lab for validation.</p>
-    </> : !document ? <div className="editor-message">
+    {view === 'json' ? <label>Protocol JSON<textarea className="protocol-editor" spellCheck={false} value={value} onChange={event => onChange(event.target.value)} disabled={disabled} /></label> : !document ? <div className="editor-message">
       <p className="error" role="status">{parsed.kind === 'json' && parsed.message}</p>
       <Button onClick={() => setView('json')}>Edit JSON</Button>
     </div> : <>
-      {extraFields && <p className="notice">Additional fields are preserved. View them in JSON; Lab checks them when you save.</p>}
-      {!document.steps.length && <p className="empty">Add an operation to start this protocol.</p>}
+      {extraFields && <p className="notice">Extra fields retained in JSON.</p>}
+      {!document.steps.length && <p className="empty">Add the first step.</p>}
       <ol className="editable-steps">{document.steps.map((step, index) => <li key={index}>
         <div className="step-summary"><strong>{describeStep(step)}</strong><Button variant="ghost" aria-expanded={editing === index} aria-label={`${editing === index ? 'Close' : 'Edit'} step ${index + 1}`} onClick={() => setEditing(editing === index ? null : index)}>{editing === index ? 'Done' : 'Edit'}</Button></div>
         {editing === index && <div className="step-fields">
@@ -59,9 +58,10 @@ export function ProtocolEditor({ value, onChange, disabled, state, maxSteps }: {
         </div>}
       </li>)}</ol>
       {removed?.after === value && <div className="toolbar editor-message" role="status">Step {removed.step} removed.<Button disabled={disabled} onClick={() => { onChange(removed.before); setRemoved(null); }}>Undo</Button></div>}
-      <Button disabled={disabled} onClick={() => {
-        onChange(JSON.stringify({ ...document, steps: [...document.steps, { op: 'pickup_tip', resource: state.available_tips[0] ?? 'T1' }] }, null, 2)); setEditing(document.steps.length);
-      }}>Add step</Button>
+      <div className="toolbar"><Button disabled={disabled || !nextTip} aria-describedby={!nextTip ? tipStatus : undefined} onClick={() => {
+        if (!nextTip) return;
+        onChange(JSON.stringify({ ...document, steps: [...document.steps, { op: 'pickup_tip', resource: nextTip }] }, null, 2)); setEditing(document.steps.length);
+      }}>Add step</Button>{!nextTip && <span id={tipStatus} className="muted" role="status">No unused tips in this draft.</span>}</div>
       <datalist id={resourceList}>{[...state.wells.map(well => well.id), ...state.available_tips].map(resource => <option key={resource} value={resource} />)}</datalist>
     </>}
   </section>;
