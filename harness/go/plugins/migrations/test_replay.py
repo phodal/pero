@@ -9,6 +9,23 @@ import replay
 
 
 class MigrationTests(unittest.TestCase):
+    def test_explicit_worktree_repositories_do_not_pass_array_map_arguments(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("Node is needed for the original path expression")
+        source = b'''const {resolve}=require('node:path');
+        const args={repos:JSON.parse(process.argv[1])};
+        console.log(JSON.stringify(args.repos.map(resolve)));'''
+        with tempfile.TemporaryDirectory() as directory:
+            paths = [str(Path(directory) / "first repo"), str(Path(directory) / "second repo")]
+            failed = subprocess.run([node, "-e", source.decode(), json.dumps(paths)], text=True,
+                                    capture_output=True, timeout=5)
+            self.assertNotEqual(failed.returncode, 0)
+            updated = replay.transform(source, [{"kind": "worktree-explicit-repository-paths"}], Path(directory))
+            result = subprocess.run([node, "-e", updated.decode(), json.dumps(paths)], text=True,
+                                    capture_output=True, check=True, timeout=5)
+            self.assertEqual(json.loads(result.stdout), paths)
+
     def test_quoted_echo_separator_retains_existing_bare_command_policy(self):
         node = shutil.which("node")
         if not node:

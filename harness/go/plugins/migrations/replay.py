@@ -131,6 +131,11 @@ def transform(data, actions, root):
             if text.count(old) != 1:
                 raise MigrationError("quoted echo separator precondition failed")
             data = text.replace(old, new).encode()
+        elif kind == "worktree-explicit-repository-paths":
+            old = "args.repos.map(resolve)"
+            if text.count(old) != 1:
+                raise MigrationError("worktree repository path precondition failed")
+            data = text.replace(old, "args.repos.map(path => resolve(path))").encode()
         else:
             raise MigrationError("unknown migration action")
     return data

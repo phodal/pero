@@ -65,3 +65,30 @@ python3 replay.py --plan selected-coder-hook-v1.json --root P03=/absolute/coder
 The eight-command regression runs the actual JavaScript expressions. The
 selected package's original twelve resilience tests also passed after applying
 the migration. See the [incident and real-model verification](../../../../docs/issues/2026-11-03-coder-quoted-separator.md).
+
+## Selected worktree repair
+
+`selected-coder-worktree-v1.json` repairs one exact P03 worktree script snapshot.
+The original `args.repos.map(resolve)` passes Array.map's index and array into
+node:path.resolve, which accepts string paths. Status, conversion and cleanup
+with explicit repositories fail before reaching Git. The migration uses a
+single-argument callback and preserves the other script behavior.
+
+```sh
+python3 replay.py --plan selected-coder-worktree-v1.json --check --root P03=/absolute/coder
+python3 replay.py --plan selected-coder-worktree-v1.json --root P03=/absolute/coder
+```
+
+The regression reproduces the Node failure and checks the repaired expression.
+An opt-in actual CLI/ACP test uses the selected script to create, write, commit,
+resume and clean up two repositories, including paths with spaces:
+
+```sh
+PERO_CODER_SOURCE=/absolute/coder go -C ../.. test -race ./cmd/pero-agent-acp \
+  -run TestCoderCLIMultiRepositoryWorktreeOptIn -count=3 -timeout=90s
+```
+
+Its model endpoint is a loopback fixture. Nine actual model requests and five
+tool approvals per run verify process wiring and real Git/file effects, without
+claiming full model-driven development acceptance. See the
+[resolved incident](../../../../docs/issues/2026-11-03-coder-worktree-repos.md).
