@@ -903,6 +903,10 @@ Workflow 的 run_in_background:true 已接入同一个 Node/Claude 子代理执�
 
 真实 CLI/loopback 回归验证同一动态 skill 在 full-access 下于首次模型请求之前失败，显式 auto-review 下完成动态上下文展开及两次原生 Write，没有额外审批问题；没有修改运行时审批规则。Trial 十六项测试与迁移五项测试通过。恢复验收显式提高单次输出上限到 16384、选择 auto-review，继续原 session 和 batch-labels。确认由 first-option 测试客户端回答，记录为机器策略，不是真人验收；最终仍以原编排状态、实际测试、审查结果和合并快照为准。
 
+该恢复尝试实际发出 151 次 HTTP 请求，150 个 completion 已持久化。第一轮对抗审查给出 11 条 open finding；返修时新增文档 AC，原需求确认因此失效。第二轮审查尚在输出期间，主会话 ACP 静默达到配置的 180 秒 idle 上限，Trial 取消并回收进程，退出码 0、无清理错误，但没有正常 prompt 回执，明确记 incomplete。原只读状态脚本此时要求 `clarify:requirement`，原因是 requirement inputs changed after confirmation；不能仅看持久 current_step 仍为 plan:adversarial-review 就跳过重新确认。[分开的匿名不完整回执](../../harness/tools/trial/coder-entry-acceptance.json)
+
+后续显式继续同一 session 时，将 idle 观察上限提高到 600 秒、总时限 1800 秒，仍保留 192 次请求限制和零自动重试，按原状态脚本重新进入需要的确认。提高观察时限不是放宽业务 gate。前两次结果保持 incomplete；其中第二次 usage 单独扣除导入的历史，取消中的一次请求没有已提交 completion，不推算其 token 或美元费用。
+
 ### 16.19 动态命令要求实际可见的 Bash
 
 权限核对进一步复现：没有启用 shell 的实际 CLI 在显式 auto-review 下仍能执行动态 skill 命令。原因是预处理器直接构造 shell executor，只询问权限而未查询工具可见性。现复用 ToolRegistry.SchemasForAgent 的实际 scope/catalog 视图，缺少 Bash 就在审批和命令副作用前中止；allowed-tools 和 auto-review 都不能制造缺失的工具，静态 skill 不受影响。没有另建工具可见性或审批规则。[官方契约](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)、[问题与回归](../issues/2026-11-03-skill-command-shell-visibility.md)

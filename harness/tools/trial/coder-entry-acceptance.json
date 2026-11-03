@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-11-03",
+  "plugin": {
+    "name": "coder",
+    "version": "0.58.0"
+  },
+  "scope": "Full original coder entry in one isolated Node ES module Git fixture. Neither completed attempt reached implementation or done.",
+  "binary_sha256": "d0798d63c96594bb1bc7fe5f7db9656154a12df80bb5a9791600201dc9a959f9",
+  "plugin_file_sha256": {
+    ".claude-plugin/plugin.json": "670028fdf6f2e79beef3a9589b6f2ac05d16d9de19caf5bb042d6df8812ad0f0",
+    "skills/coder/SKILL.md": "fa934e372e900156ad40c1eb0598a7680c9a066ceced80caf6fb364d3c75a7ae",
+    "scripts/orchestration-runner.mjs": "116213d54953e3bcbe20f5bde55a66ebda37231d06a9431f22b0c2a4256aceb6",
+    "scripts/orchestration-status.mjs": "a1b8ed0c207211feff9edb912d13093e198fb09d5acc685cc3a5dfa827ea7254",
+    "scripts/gate-check.mjs": "d16c11b769e7fd87023f335ea434214a17c774ae2501c14bb1c6afa6c4dd6f42",
+    "scripts/multi-repo-worktree.mjs": "818d23bdb4cdff9fd91118ba9b9010caa97b15d01d0661714f30db5bd8a3916d"
+  },
+  "model": "deepseek-flash",
+  "thinking_disabled": true,
+  "automatic_retries": 0,
+  "question_policy": "first-option fixture client, not human approval",
+  "shell_policy": "allow-unsandboxed",
+  "attempts": [
+    {
+      "mode": "new original /coder:coder idea batch-labels",
+      "request_limit": 192,
+      "output_token_limit": 4096,
+      "permission_mode": "full-access",
+      "session_timeout_seconds": 1200,
+      "idle_timeout_seconds": 180,
+      "http_attempts": 167,
+      "status": "incomplete_max_tokens",
+      "stop_reason": "max_tokens",
+      "persisted_current_step": "plan:design",
+      "tool_summary": {
+        "Read": 27,
+        "Bash": 77,
+        "TaskCreate": 17,
+        "TaskUpdate": 10,
+        "Write": 15,
+        "Skill": 1,
+        "AskUserQuestion": 3,
+        "Edit": 2,
+        "Agent": 5
+      },
+      "question_count": 3,
+      "usage": {
+        "input_tokens": 181584,
+        "output_tokens": 93274,
+        "total_tokens": 11389866,
+        "cache_read_tokens": 11115008,
+        "cache_write_tokens": 0,
+        "reasoning_tokens": 0,
+        "reported_completions": 167,
+        "unreported_completions": 0
+      },
+      "agent_exit_code": 0,
+      "cleanup_failures": []
+    },
+    {
+      "mode": "explicit same-session continuation from retained files and JSONL",
+      "request_limit": 192,
+      "output_token_limit": 16384,
+      "permission_mode": "auto-review",
+      "session_timeout_seconds": 1200,
+      "idle_timeout_seconds": 180,
+      "http_attempts": 151,
+      "status": "incomplete_idle_timeout",
+      "diagnostic": "session or idle timeout expired",
+      "normal_prompt_response": false,
+      "persisted_current_step": "plan:adversarial-review",
+      "authoritative_resume_step_after_cleanup": "clarify:requirement",
+      "authoritative_reason": "requirement inputs changed after confirmation",
+      "plan_review": {
+        "completed_attempt_1": "fail",
+        "open_findings_after_attempt_1": 11,
+        "attempt_2": "interrupted before a complete final report"
+      },
+      "tool_summary": {
+        "Bash": 44,
+        "Write": 6,
+        "TaskUpdate": 2,
+        "Read": 3,
+        "Agent": 2,
+        "AskUserQuestion": 1
+      },
+      "question_count": 1,
+      "usage_delta_excluding_imported_history": {
+        "input_tokens": 332495,
+        "output_tokens": 92221,
+        "total_tokens": 16607116,
+        "cache_read_tokens": 16182400,
+        "cache_write_tokens": 0,
+        "reasoning_tokens": 0,
+        "reported_completions": 150,
+        "unreported_completions": 0
+      },
+      "http_attempts_without_committed_completion": 1,
+      "agent_exit_code": 0,
+      "cleanup_failures": []
+    }
+  ],
+  "limits": [
+    "No full development, implementation, final merge review or done acceptance.",
+    "Requirement and plan gates remain active; stale confirmation is not bypassed.",
+    "Imported session history is excluded from the second attempt usage delta.",
+    "Provider usage is not inferred for the cancelled in-flight request; cost is unknown.",
+    "The retained plugin view was unchanged during both runtime processes; it predates the separate worktree migration.",
+    "The running binary was not replaced by the later scoped-Bash runtime fix."
+  ]
+}
