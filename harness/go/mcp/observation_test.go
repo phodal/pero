@@ -131,6 +131,41 @@ func TestConnectionObservationsReconnectAndCleanup(t *testing.T) {
 	}
 }
 
+func TestOversizedServerInstructionsRejectTheConnection(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	runtime := point.New()
+	defer runtime.Dispose(context.Background())
+	clientTransport, serverTransport := sdk.NewInMemoryTransports()
+	server := sdk.NewServer(&sdk.Implementation{Name: "fixture", Version: "1"}, &sdk.ServerOptions{Instructions: strings.Repeat("x", maxServerInstructionBytes)})
+	session, err := server.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	errs := make(chan error, 1)
+	definition := point.Define(point.Descriptor{ID: "instructions"}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
+		err := MountConnection(ctx, run, ConnectionOptions{ServerName: "docs", FailOnStartupError: true, TransportFactory: func() (sdk.Transport, error) {
+			return clientTransport, nil
+		}}, func(*point.Run, string, []Tool) (point.Dispose, error) {
+			return func(context.Context) error { return nil }, nil
+		})
+		errs <- err
+		return nil, err
+	})
+	if _, err := runtime.Mount(nil, "instructions", definition, nil); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-errs:
+		if err == nil || !strings.Contains(err.Error(), "instructions") {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+}
+
 func TestWorkspaceRootURISkipsRelativeDirectories(t *testing.T) {
 	roots := workspaceRoots([]string{"/tmp/workspace", "relative", ""})
 	if len(roots) != 1 || roots[0].URI != "file:///tmp/workspace" || roots[0].Name != "workspace" {

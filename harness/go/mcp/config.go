@@ -138,6 +138,8 @@ func (e safeError) Error() string {
 		return "MCP request canceled"
 	case errors.Is(e.cause, context.DeadlineExceeded):
 		return "MCP request timed out"
+	case errors.Is(e.cause, ErrInstructionLimit):
+		return ErrInstructionLimit.Error()
 	default:
 		return "MCP operation failed (details withheld)"
 	}

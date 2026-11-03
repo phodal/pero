@@ -264,7 +264,11 @@ func registerMCPResourcePrompt(run *point.Run, prompts *PromptRegistry, director
 			if marshalErr != nil {
 				return "", marshalErr
 			}
-			return "## MCP resource servers\n\nUse list_mcp_resources, list_mcp_resource_templates, read_mcp_resource, list_mcp_prompts, or get_mcp_prompt with one of these names as the server argument: " + string(encoded) + ".", nil
+			text := "## MCP resource servers\n\nUse list_mcp_resources, list_mcp_resource_templates, read_mcp_resource, list_mcp_prompts, or get_mcp_prompt with one of these names as the server argument: " + string(encoded) + "."
+			if instructions := directory.Instructions(); instructions != "" {
+				text += "\n\n" + instructions
+			}
+			return text, nil
 		},
 	})
 	return err

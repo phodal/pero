@@ -271,6 +271,11 @@ func (s *mcpConnectionSupervisor) syncGeneration(ctx context.Context, generation
 	if s.current != generation || s.activeGeneration.Load() != generation.id {
 		return nil
 	}
+	if result := generation.session.InitializeResult(); result != nil {
+		if _, err := ServerInstructions(s.serverName, result.Instructions); err != nil {
+			return err
+		}
+	}
 	tools, err := s.listTools(ctx, generation.session)
 	if err != nil {
 		return fmt.Errorf("list tools: %w", err)

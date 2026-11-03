@@ -43,6 +43,40 @@ func TestPromptDirectoryListsAndReadsAPrompt(t *testing.T) {
 	}
 }
 
+func TestServerInstructionsStayAttributedAndBounded(t *testing.T) {
+	section, err := ServerInstructions("docs", "Use the review prompt.\n")
+	if err != nil || section != "### MCP server: docs\n\nUse the review prompt." {
+		t.Fatalf("section = %q %v", section, err)
+	}
+	if section, err := ServerInstructions("docs", " \n\t"); err != nil || section != "" {
+		t.Fatalf("blank = %q %v", section, err)
+	}
+	if _, err := ServerInstructions("docs", strings.Repeat("x", maxServerInstructionBytes)); err == nil || !strings.Contains(err.Error(), "exceed") {
+		t.Fatal(err)
+	}
+}
+
+func TestConnectedServerInstructionsAreListed(t *testing.T) {
+	server := sdk.NewServer(&sdk.Implementation{Name: "fixture", Version: "1"}, &sdk.ServerOptions{Instructions: "Use the review prompt."})
+	clientTransport, serverTransport := sdk.NewInMemoryTransports()
+	session, err := server.Connect(t.Context(), serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	client := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "1"}, nil)
+	connected, err := client.Connect(t.Context(), clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connected.Close()
+	directory := NewResourceDirectory(map[string]time.Duration{"docs": time.Second, "other": time.Second})
+	directory.SetSession("docs", connected)
+	if got := directory.Instructions(); got != "### MCP server: docs\n\nUse the review prompt." {
+		t.Fatalf("instructions = %q", got)
+	}
+}
+
 func TestRenderResourceResultRedactsBlobAndKeepsOrder(t *testing.T) {
 	raw := []byte(`{"contents":[{"uri":"docs://text","mimeType":"text/plain","text":"Read this guide."},{"uri":"docs://binary","mimeType":"application/octet-stream","blob":"AQIDBA=="}]}`)
 	text, err := RenderResourceResult("docs", raw)

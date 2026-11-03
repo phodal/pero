@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -31,6 +34,50 @@ func NewResourceDirectory(servers map[string]time.Duration) *ResourceDirectory {
 		endpoints[name] = &resourceEndpoint{timeout: timeout}
 	}
 	return &ResourceDirectory{endpoints: endpoints}
+}
+
+const maxServerInstructionBytes = 32768
+
+// ErrInstructionLimit means the server's initialize text is too large to publish.
+var ErrInstructionLimit = errors.New("MCP server instructions exceed 32768 bytes")
+
+// ServerInstructions attributes one server's initialize text. Blank text adds
+// nothing. The returned section includes the heading and must stay within the
+// instruction budget.
+func ServerInstructions(server, text string) (string, error) {
+	text = strings.TrimRightFunc(text, unicode.IsSpace)
+	if text == "" {
+		return "", nil
+	}
+	section := "### MCP server: " + server + "\n\n" + text
+	if len(section) > maxServerInstructionBytes {
+		return "", fmt.Errorf("mcp-client(%s): %w", server, ErrInstructionLimit)
+	}
+	return section, nil
+}
+
+// Instructions returns the connected servers' attributed instructions in name order.
+func (d *ResourceDirectory) Instructions() string {
+	if d == nil {
+		return ""
+	}
+	var sections []string
+	for _, name := range d.Names() {
+		endpoint := d.endpoints[name]
+		if endpoint == nil {
+			continue
+		}
+		session := endpoint.session.Load()
+		if session == nil || session.InitializeResult() == nil {
+			continue
+		}
+		section, err := ServerInstructions(name, session.InitializeResult().Instructions)
+		if err != nil || section == "" {
+			continue
+		}
+		sections = append(sections, section)
+	}
+	return strings.Join(sections, "\n\n")
 }
 
 // Names returns the configured server names in order.
