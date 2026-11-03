@@ -67,6 +67,14 @@ try {
   await page.screenshot({ path: resolve(output, 'empty-light.png') });
   await frame.getByRole('button', { name: 'Freeze experiment', exact: true }).click();
   await expect(frame.getByRole('heading', { name: 'Candidate draft', exact: true })).toBeVisible();
+  await frame.getByRole('button', { name: 'Edit step 2', exact: true }).click();
+  await frame.getByRole('spinbutton', { name: 'Step 2 volume in microliters', exact: true }).fill('40');
+  await expect(frame.getByText('Aspirate 40 µL from A1', { exact: true })).toBeVisible();
+  await frame.getByRole('spinbutton', { name: 'Step 2 volume in microliters', exact: true }).fill('50');
+  await frame.getByRole('button', { name: 'Remove step', exact: true }).click();
+  await frame.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(frame.getByText('Aspirate 50 µL from A1', { exact: true })).toBeVisible();
+  await frame.getByRole('button', { name: 'JSON', exact: true }).click();
   const initialEditor = frame.getByRole('textbox', { name: 'Protocol JSON', exact: true });
   const initialDraft = await initialEditor.inputValue();
   await initialEditor.fill('{ invalid JSON');
@@ -89,6 +97,7 @@ try {
   await runCandidate();
   await expect(frame.getByRole('heading', { name: 'Independent verification: FAIL', exact: true })).toBeVisible();
   await frame.getByRole('button', { name: 'Revise from feedback', exact: true }).click();
+  await frame.getByRole('button', { name: 'JSON', exact: true }).click();
   const editor = frame.getByRole('textbox', { name: 'Protocol JSON', exact: true });
   const protocol = JSON.parse(await editor.inputValue());
   for (const index of [1, 2]) protocol.steps[index].volume_ul = 40;

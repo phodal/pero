@@ -3,32 +3,47 @@ import { Split, SplitPane } from '@pero/app-sdk/ui';
 import type { LabState } from './types';
 import { formatNumber } from './presentation';
 
-export function Deck({ state }: { state: LabState }) {
+// A preview of the fixed Color Mixing layout, never an executed or saved state.
+const startingLayout: LabState = {
+  wells: [...'ABCDEFGH'].flatMap(row => Array.from({ length: 12 }, (_, index) => {
+    const id = `${row}${index + 1}`;
+    return { id, volume_ul: id === 'A1' || id === 'A2' ? 200 : 0, red_fraction: id === 'A1' ? 1 : 0, capacity_ul: 300 };
+  })),
+  available_tips: Array.from({ length: 96 }, (_, index) => `T${index + 1}`), consumed_tips: [],
+  pipette: { tip_id: null, volume_ul: 0, red_fraction: 0, capacity_ul: 300 }, revision: 0,
+};
+
+export function Deck({ state: savedState, compact = false, title = '96-well plate' }: { state?: LabState; compact?: boolean; title?: string }) {
+  const state = savedState ?? startingLayout;
   const [selected, setSelected] = useState('B1');
   const well = state.wells.find(item => item.id === selected);
-  return <Split className="deck-layout" storageKey="lab.deck.panes" collapseBelow={760}>
-    <SplitPane id="plate" min={320}>
-      <h2>96-well plate</h2>
-      <p className="muted">Virtual dye intensity; volumes in µL. State revision {state.revision}.</p>
-      <div className="plate-scroll"><div className="plate" aria-label="96-well plate">
+  const plate = <>
+      <div className="section-toolbar"><h2>{title}</h2><span className="muted">{savedState ? `Revision ${state.revision}` : 'Preview'}</span></div>
+      <div className="plate-scroll"><div className="plate" role="group" aria-label="96-well plate">
         <span />{Array.from({ length: 12 }, (_, n) => <span className="plate-axis" key={n}>{n + 1}</span>)}
         {'ABCDEFGH'.split('').map(row => <React.Fragment key={row}><span className="plate-axis">{row}</span>
           {Array.from({ length: 12 }, (_, col) => {
             const id = `${row}${col + 1}`, item = state.wells.find(w => w.id === id);
-            return <button key={id} className={`well ${selected === id ? 'selected' : ''}`} aria-label={`${id}, ${item?.volume_ul ?? 0} microliters`} aria-pressed={selected === id} onClick={() => setSelected(id)}>
-              <span className="well-liquid" style={{ opacity: item?.volume_ul ? Math.max(.1, item.red_fraction) : 0 }} />
-              <span>{formatNumber(item?.volume_ul ?? 0)}</span>
+            return <button key={id} className={`well ${selected === id ? 'selected' : ''} ${id === 'B1' ? 'target-well' : ''}`} aria-label={`${id}, ${item?.volume_ul ?? 0} microliters`} aria-pressed={selected === id} onClick={() => setSelected(id)}>
+              <span className="well-liquid" style={{ opacity: item?.volume_ul ? item.red_fraction : 0 }} />
+              {!!item?.volume_ul && <span className="well-volume">{formatNumber(item.volume_ul)}</span>}
             </button>;
           })}</React.Fragment>)}
       </div></div>
-      <p className="muted">A1: red dye. A2: diluent. B1: target mixture.</p>
-    </SplitPane>
-    <SplitPane id="resources" min={200} size={250}>
+      <div className="deck-legend"><span><strong>A1</strong> Red dye</span><span><strong>A2</strong> Diluent</span><span><strong>B1</strong> Target mixture</span></div>
+      <p className="muted">{savedState ? 'Virtual dye intensity shows the predicted fraction. Volumes in µL.' : 'Initial layout preview. Freezing the experiment records its starting state.'}</p>
+    </>;
+  const resources = <>
       <h2>Well {selected}</h2>
       <dl className="facts"><dt>Volume</dt><dd>{formatNumber(well?.volume_ul)} µL</dd><dt>Capacity</dt><dd>{formatNumber(well?.capacity_ul)} µL</dd><dt>Predicted red fraction</dt><dd>{formatNumber(well?.red_fraction)}</dd></dl>
-      <h2>Pipette and tips</h2>
-      <dl className="facts"><dt>Attached tip</dt><dd>{state.pipette.tip_id ?? 'None'}</dd><dt>Pipette volume</dt><dd>{formatNumber(state.pipette.volume_ul)} / {state.pipette.capacity_ul} µL</dd><dt>Available tips</dt><dd>{state.available_tips.length}</dd><dt>Consumed tips</dt><dd>{state.consumed_tips.length}</dd></dl>
-      <p className="muted">Returned tips are retired, never reused.</p>
-    </SplitPane>
+      <details className="deck-resources"><summary>Pipette and tips ({state.available_tips.length} available)</summary>
+        <dl className="facts"><dt>Attached tip</dt><dd>{state.pipette.tip_id ?? 'None'}</dd><dt>Pipette volume</dt><dd>{formatNumber(state.pipette.volume_ul)} / {state.pipette.capacity_ul} µL</dd><dt>Consumed tips</dt><dd>{state.consumed_tips.length}</dd></dl>
+        <p className="muted">Returned tips are retired, never reused.</p>
+      </details>
+    </>;
+  if (compact) return <section className="deck-compact">{plate}<div className="well-inspector">{resources}</div></section>;
+  return <Split className="deck-layout" storageKey="lab.deck.panes" collapseBelow={760}>
+    <SplitPane id="plate" min={320}>{plate}</SplitPane>
+    <SplitPane id="resources" min={200} size={250}>{resources}</SplitPane>
   </Split>;
 }

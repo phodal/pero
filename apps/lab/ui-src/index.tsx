@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { appObjectProps, downloadFile, useAppApi, useAppChat, useAppDataChanged, useAppObject } from '@pero/app-sdk';
 import { Button, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import type { Comparison, Engine, Experiment, Protocol } from './types';
-import { bytesToBase64, exampleProtocol } from './presentation';
+import { bytesToBase64, exampleProtocol, trialLabel } from './presentation';
 import { Deck } from './deck';
+import { ProtocolEditor } from './protocol-editor';
+import { describeStep } from './protocol-draft';
 import { labReferenceState } from './reference';
 import { Results, Timeline } from './evidence';
 import './styles.css';
@@ -141,27 +143,46 @@ export default function Lab() {
       <div className="context-row"><label>Saved experiments <select aria-label="Saved experiments" value={experiment?.id ?? ''} disabled={busy} onChange={event => { if (event.target.value) void open(event.target.value); }}><option value="">New experiment</option>{history.map(item => <option value={item.id} key={item.id}>{item.objective} ({item.trials.length} trials)</option>)}</select></label>
         <span className={engine?.available ? 'muted' : 'error'}>{engine?.name ?? 'Backend'} {engine?.version ?? ''}: {engine?.available ? 'Ready' : 'Unavailable'}</span></div>
       {engine?.error && <p className="error">{engine.error} Re-enable Lab after repairing its Host-managed Python environment.</p>}
-      {!experiment ? <section className="new-experiment"><h2>New Color Mixing experiment</h2><p>Freeze the objective and evaluation rules before proposing a protocol. Each trial starts from the same frozen 96-well state.</p>
-        <label>Objective<input value={objective} maxLength={500} onChange={event => setObjective(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void freeze(); }} /></label>
-        <div className="fields"><label>Target red fraction<input type="number" min="0" max="1" step="0.01" value={target} onChange={event => setTarget(event.target.value)} /></label><label>Tolerance<input type="number" min="0" max="1" step="0.01" value={tolerance} onChange={event => setTolerance(event.target.value)} /></label><label>Maximum trials<input type="number" min="1" max="8" value={budget} onChange={event => setBudget(event.target.value)} /></label></div>
-        <p className="muted">Target well B1; final volume 100 ± 1 µL. A1: 200 µL virtual red dye. A2: 200 µL diluent. 96 fresh tips; 64 steps per trial.</p>
-        <Button variant="primary" busy={busy} onClick={() => void freeze()}>Freeze experiment</Button>
-      </section> : <>
+      {!experiment ? <Split className="setup-layout" storageKey="lab.setup.panes" collapseBelow={920}>
+        <SplitPane id="goal" min={300} size={420} resizeLabel="Resize experiment goal">
+          <section className="new-experiment"><h2>Experiment goal</h2><p className="muted">Freeze the target and evaluation rules before building a protocol.</p>
+            <label>Objective<textarea className="objective-input" rows={2} value={objective} maxLength={500} disabled={busy} onChange={event => setObjective(event.target.value)} /></label>
+            <div className="fields">
+              <label>Target red fraction<input type="number" min="0" max="1" step="0.01" value={target} disabled={busy} onChange={event => setTarget(event.target.value)} /></label>
+              <label>Tolerance<input type="number" min="0" max="1" step="0.01" value={tolerance} disabled={busy} onChange={event => setTolerance(event.target.value)} /></label>
+            </div>
+            <label>Maximum trials<input type="number" min="1" max="8" value={budget} disabled={busy} onChange={event => setBudget(event.target.value)} /></label>
+            <dl className="facts goal-facts"><dt>Target well</dt><dd>B1</dd><dt>Final volume</dt><dd>100 ± 1 µL</dd><dt>Step limit</dt><dd>64 per trial</dd></dl>
+            <div className="goal-actions"><Button variant="primary" busy={busy} onClick={() => void freeze()}>Freeze experiment</Button><p className="muted">Every trial starts from the same frozen deck.</p></div>
+          </section>
+        </SplitPane>
+        <SplitPane id="initial-deck" min={460}><Deck compact title="Initial deck" /></SplitPane>
+      </Split> : <>
         <section className="experiment-heading"><h2>{experiment.objective}</h2><p className="muted">Frozen target: {experiment.criteria.target_well}, red fraction {experiment.criteria.target_fraction} ± {experiment.criteria.tolerance}; {experiment.criteria.target_volume_ul} µL. Trials {experiment.trials.length}/{experiment.max_trials}.</p>
           <div className="toolbar"><label>Trial <select aria-label="Trial" value={trialId} onChange={event => setTrialId(event.target.value)} disabled={busy}><option value="">Select trial</option>{experiment.trials.map((item, index) => <option value={item.id} key={item.id}>{index + 1}: {item.status}{item.parent_trial_id ? ' (revision)' : ''}</option>)}</select></label>
           <Button disabled={busy} onClick={() => void perform(async () => { const report = await api.get<unknown>(`/api/experiments/${experiment.id}/export`); downloadFile(`lab-${experiment.id}.json`, JSON.stringify(report, null, 2), 'application/json'); setNotice('Evidence report exported.'); })}>Export JSON</Button></div>
         </section>
         <Tabs value={tab} onValueChange={setTab}><TabsList aria-label="Experiment views">{['deck', 'protocol', 'runs', 'results'].map(value => <TabsTrigger key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</TabsTrigger>)}</TabsList>
           <TabsContent value="deck"><Deck state={trial?.final_state ?? experiment.initial_state} /></TabsContent>
-          <TabsContent value="protocol"><Split storageKey="lab.protocol.panes" collapseBelow={760}>
-            <SplitPane id="draft" min={300}><h2>{parentId ? 'Revision draft' : 'Candidate draft'}</h2><p className="muted">Typed JSON only. Saving creates an immutable candidate, never arbitrary Python.</p>
-              <label>Protocol JSON<textarea className="protocol-editor" spellCheck={false} value={draft} onChange={event => setDraft(event.target.value)} disabled={busy || running} /></label>
-              {parentId && <p>Parent trial: {parentId}</p>}
+          <TabsContent value="protocol"><Split className="protocol-layout" storageKey="lab.protocol.panes" collapseBelow={980}>
+            <SplitPane id="draft" min={360}><h2>{parentId ? 'Revision draft' : 'Candidate draft'}</h2><p className="muted">Edit the ordered steps, then save an immutable candidate for validation.</p>
+              <ProtocolEditor value={draft} onChange={setDraft} disabled={busy || running} state={experiment.initial_state} maxSteps={experiment.max_steps} />
+              {parentId && <p className="muted">Revises {trialLabel(experiment.trials, parentId)}</p>}
               <label>{parentId ? 'Revision rationale' : 'Candidate rationale'}<input value={reason} onChange={event => setReason(event.target.value)} disabled={busy || running} /></label>
               <div className="toolbar"><Button variant="primary" disabled={busy || running || experiment.trials.length >= experiment.max_trials || (!!parentId && !reason.trim())} onClick={() => void propose()}>Save candidate</Button><Button disabled={busy || running} onClick={() => { setDraft(JSON.stringify(exampleProtocol(50, experiment.initial_state.revision), null, 2)); }}>Load example protocol</Button></div>
+              {experiment.trials.length >= experiment.max_trials && <p className="notice">All {experiment.max_trials} trials have been used. Start a new experiment to try another protocol.</p>}
             </SplitPane>
-            <SplitPane id="candidate" min={240} size={360}><h2>Saved candidate</h2>{!trial ? <p>Save a candidate to validate its ordered steps.</p> : <><p>Status: {trial.status}</p>{trial.parent_trial_id && <p>Revises {trial.parent_trial_id}</p>}<p>{trial.reason}</p><ol className="steps">{trial.protocol.steps.map((step, i) => <li key={i}>{step.op.replaceAll('_', ' ')} {step.resource} {step.volume_ul != null ? `${step.volume_ul} µL` : ''}</li>)}</ol>{trial.error && <p className="error">{trial.error}</p>}
-              <div className="toolbar"><Button disabled={busy || running || trial.status !== 'proposed'} onClick={() => void act('validate')}>Validate</Button><Button variant="primary" disabled={busy || running || trial.status !== 'validated' || !engine?.available} onClick={() => void act('simulate')}>Run simulation</Button><Button disabled={busy || running || !trial.verification} onClick={revise}>Revise candidate</Button></div></>}
+            <SplitPane id="candidate" min={460} size={520} resizeLabel="Resize saved candidate and deck">
+              <section className="saved-candidate"><div className="section-toolbar"><h2>Saved candidate</h2>{trial && <span className="candidate-status">{trial.status}</span>}</div>
+                {!trial ? <p className="muted">Save the draft to validate it and run a simulation.</p> : <>
+                  <p className="candidate-title">{trialLabel(experiment.trials, trial.id)}</p><p className="muted">{trial.reason}</p>
+                  <details><summary>{trial.protocol.steps.length} saved steps</summary><ol className="steps">{trial.protocol.steps.map((step, i) => <li key={i}>{describeStep(step)}</li>)}</ol></details>
+                  {trial.error && <p className="error" role="alert">{trial.error}</p>}
+                  <div className="toolbar"><Button disabled={busy || running || trial.status !== 'proposed'} onClick={() => void act('validate')}>Validate</Button><Button variant="primary" disabled={busy || running || trial.status !== 'validated' || !engine?.available} onClick={() => void act('simulate')}>Run simulation</Button><Button disabled={busy || running || !trial.verification} onClick={revise}>Revise candidate</Button></div>
+                  <p className="muted">Actions use this saved candidate. Draft edits apply only after saving.</p>
+                </>}
+              </section>
+              <Deck compact state={experiment.initial_state} title="Frozen initial deck" />
             </SplitPane>
           </Split></TabsContent>
           <TabsContent value="runs">{running && <div className="toolbar"><p role="status">Simulation running; recording each step.</p><Button onClick={() => { if (experiment) void api.post<Experiment>(`/api/experiments/${experiment.id}/cancel`, { trialId }).then(update).catch(fail); }}>Cancel simulation</Button></div>}<Timeline trial={trial} /></TabsContent>
