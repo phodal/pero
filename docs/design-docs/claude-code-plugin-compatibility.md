@@ -918,3 +918,13 @@ Workflow 的 run_in_background:true 已接入同一个 Node/Claude 子代理执�
 后续真实尝试达到请求上限后，观察脚本在汇总 usage 时失败。原 JSONL 按物理行逐条都能解析，并未损坏；问题是 Python 文本 splitlines 把合法 JSON 字符串里的 U+0085/NEL 也当作记录分隔符。usage reader、pipeline journal 投影与审查验证器现按字节换行读取，保留字符串内的 Unicode 分隔字符，仍拒绝物理记录内的非法换行或残缺 JSON。[问题与复现](../issues/2026-11-03-trial-unicode-jsonl.md)
 
 实际 CLI 回归写入并返回 NEL/U+2028/U+2029，检查文件、聚合 journal、两次 provider usage 和进程回收；另验证非法物理记录继续报错。Trial 十八项测试通过。修复后仅重读既有日志就恢复 509 个已提交 completion 的 usage，没有重放模型、命令或文件操作；原完整流程仍记不完整。观察失败和业务流程结果分别记录，不用统计修复倒推原运行已经成功。
+
+### 16.21 子代理失败回执的父会话内容边界
+
+第三次真实尝试使用 600 秒 idle 上限，实际发出 192 次 HTTP 请求；第二轮方案审查确认 10 条 fixed/6 条 open，第三轮确认 15 条 fixed/4 条 open，返修后第四轮因共享请求预算耗尽而未完成。原子诊断为 BUDGET_EXHAUSTED，但 Agent 失败回执还拼入了子代理最后的 Bash tool-call，父会话下一请求因此在 provider 内容转换时失败。这是已复现的运行时缺陷，与未通过的方案 gate 分别处理。[问题与修复](../issues/2026-11-03-failed-subagent-tool-content.md)
+
+SubagentResult 现在统一拥有 ParentContent 投影：向父会话传递支持的文本和图片并复制媒体数据；assistant-only tool-call、嵌套工具结果和 reasoning 保留在子 transcript。所选 Claude、通用同步工具和旧通知入口均使用这一边界。真实 loopback HTTP 回归验证 1 次父请求、19 次子请求在共享 20 次上限处停止，原预算错误不被转换错误覆盖，没有第 21 次请求；一次实际 Write 保留，后续 Read 不重放它，可见文本仍进入失败回执。测试显式 auto-review，无真人审批。
+
+针对回归连续三次 race 通过，最终 Go 全量 race/vet 与 Bazel harness、subagents、完整 CLI 三个目标通过。修复不修改历史真实日志；此前已持久化的错误 tool-result 不能当作正常恢复历史偷偷重写。后续需显式选择新运行时及恢复上下文，按原编排脚本的权威 resume_step 继续。
+
+三次完整入口尝试合计 **510 次真实 HTTP 请求、509 个已提交 usage 回执**，仍未进入实现或 done。第三次的临时观察脚本在 close 返回后、序列化清理回执前遇到上述 Unicode 读取错误，因此该次 exit code/cleanup_failures 明确为未知，后来的无残留进程观察不能补写成原清理成功。原只读状态脚本当前要求 `classify:requirement`，原因是 classification stale；持久 current_step 仍为 plan:adversarial-review。匿名回执保留这一差异和统计来源，不标完整开发验收成功。

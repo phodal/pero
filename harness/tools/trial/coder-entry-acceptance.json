@@ -5,7 +5,7 @@
     "name": "coder",
     "version": "0.58.0"
   },
-  "scope": "Full original coder entry in one isolated Node ES module Git fixture. Neither completed attempt reached implementation or done.",
+  "scope": "Full original coder entry in one isolated Node ES module Git fixture. All recorded attempts are incomplete; none reached implementation or done.",
   "binary_sha256": "d0798d63c96594bb1bc7fe5f7db9656154a12df80bb5a9791600201dc9a959f9",
   "plugin_file_sha256": {
     ".claude-plugin/plugin.json": "670028fdf6f2e79beef3a9589b6f2ac05d16d9de19caf5bb042d6df8812ad0f0",
@@ -98,6 +98,55 @@
       "http_attempts_without_committed_completion": 1,
       "agent_exit_code": 0,
       "cleanup_failures": []
+    },
+    {
+      "mode": "explicit same-session continuation after idle-limit diagnosis",
+      "request_limit": 192,
+      "output_token_limit": 16384,
+      "permission_mode": "auto-review",
+      "session_timeout_seconds": 1800,
+      "idle_timeout_seconds": 600,
+      "http_attempts": 192,
+      "status": "incomplete_budget_exhausted_with_parent_projection_error",
+      "source_child_diagnostic": "BUDGET_EXHAUSTED: provider request budget exhausted",
+      "source_parent_turn_reason": "error",
+      "source_parent_diagnostic": "unsupported message or tool-result media/content",
+      "persisted_current_step": "plan:adversarial-review",
+      "authoritative_resume_step_after_cleanup": "classify:requirement",
+      "authoritative_reason": "requirement classification is stale",
+      "completed_plan_reviews": {
+        "2": {
+          "status": "fail",
+          "findings_by_status": {
+            "fixed": 10,
+            "open": 6
+          }
+        }
+      },
+      "plan_review_attempt_4": "interrupted by shared HTTP request budget; no complete pass report",
+      "tool_summary": {
+        "Bash": 40,
+        "AskUserQuestion": 2,
+        "TaskUpdate": 7,
+        "Write": 5,
+        "Agent": 3
+      },
+      "usage_delta_excluding_imported_history": {
+        "input_tokens": 175894,
+        "output_tokens": 97778,
+        "total_tokens": 20191624,
+        "cache_read_tokens": 19917952,
+        "cache_write_tokens": 0,
+        "reasoning_tokens": 0,
+        "reported_completions": 192,
+        "unreported_completions": 0
+      },
+      "observation_receipt_recovered_from_existing_logs": true,
+      "original_observation_error": "Unicode text splitlines misframed a literal U+0085 inside valid JSONL",
+      "client_close_returned": true,
+      "agent_exit_code": null,
+      "cleanup_failures": null,
+      "cleanup_receipt_limitation": "The temporary observation script failed before serializing its returned cleanup receipt. No matching ACP agent process remained in a later local process inventory; this does not reconstruct the original cleanup result."
     }
   ],
   "limits": [
@@ -105,7 +154,13 @@
     "Requirement and plan gates remain active; stale confirmation is not bypassed.",
     "Imported session history is excluded from the second attempt usage delta.",
     "Provider usage is not inferred for the cancelled in-flight request; cost is unknown.",
-    "The retained plugin view was unchanged during both runtime processes; it predates the separate worktree migration.",
-    "The running binary was not replaced by the later scoped-Bash runtime fix."
-  ]
+    "The retained plugin view was unchanged during all three runtime processes; it predates the separate worktree migration.",
+    "These three attempts used the recorded binary, before the scoped-Bash and parent-result projection fixes."
+  ],
+  "totals": {
+    "http_attempts": 510,
+    "committed_usage_reports": 509,
+    "http_attempts_without_committed_completion": 1,
+    "cost_usd": null
+  }
 }
