@@ -396,7 +396,7 @@ func (p *capacityLocalProvider) PrepareActivation(ctx context.Context, request S
 	}
 	prepared.InitialMessageID = request.InitialPromptMessage().ID
 	prepared.Begin = func(ctx context.Context) (<-chan TurnOutcome, error) {
-		return prepared.Child.FollowupResultContext(ctx, request.InitialPromptMessage())
+		return prepared.Child.AdmitDSHMessage(ctx, request.InitialPromptMessage(), InboxNextTurn)
 	}
 	return prepared, nil
 }

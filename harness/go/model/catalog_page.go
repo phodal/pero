@@ -15,8 +15,30 @@ type CatalogPage[T any] struct {
 	NextOffset *int `json:"next_offset,omitempty"`
 }
 
-func PaginateCatalog[T any](rows []T, offset, limit int) (CatalogPage[T], error) {
+// CatalogPageBudget changes only the response byte ceiling. Its zero value
+// retains the existing page size and offset/limit protocol.
+type CatalogPageBudget struct{ MaxBytes int }
+
+func catalogPageBytes(budgets []CatalogPageBudget) (int, error) {
+	if len(budgets) > 1 {
+		return 0, errors.New("catalog: at most one page budget is allowed")
+	}
+	maxBytes := DefaultCatalogPageBytes
+	if len(budgets) == 1 && budgets[0].MaxBytes != 0 {
+		maxBytes = budgets[0].MaxBytes
+	}
+	if maxBytes < 512 || maxBytes > DefaultCatalogBytes {
+		return 0, errors.New("catalog: page budget must be between 512 and 65536 bytes")
+	}
+	return maxBytes, nil
+}
+
+func PaginateCatalog[T any](rows []T, offset, limit int, budgets ...CatalogPageBudget) (CatalogPage[T], error) {
 	page := CatalogPage[T]{Items: []T{}, Offset: offset, Total: len(rows)}
+	maxBytes, err := catalogPageBytes(budgets)
+	if err != nil {
+		return page, err
+	}
 	if offset < 0 || offset > len(rows) || limit < 0 || limit > 128 {
 		return page, errors.New("catalog: offset must be within the catalog and limit must be between 1 and 128")
 	}
@@ -29,7 +51,7 @@ func PaginateCatalog[T any](rows []T, offset, limit int) (CatalogPage[T], error)
 		if err != nil {
 			return page, err
 		}
-		if used+len(encoded)+1 > DefaultCatalogPageBytes {
+		if used+len(encoded)+1 > maxBytes {
 			if len(page.Items) == 0 {
 				return page, errors.New("catalog: row exceeds page budget; use a compact summary and a body read operation")
 			}
@@ -53,8 +75,12 @@ type CatalogTextRange struct {
 	NextOffset *int   `json:"next_offset,omitempty"`
 }
 
-func PaginateCatalogText(text string, offset, limit int) (CatalogTextRange, error) {
+func PaginateCatalogText(text string, offset, limit int, budgets ...CatalogPageBudget) (CatalogTextRange, error) {
 	page := CatalogTextRange{Offset: offset, TotalBytes: len(text)}
+	maxBytes, err := catalogPageBytes(budgets)
+	if err != nil {
+		return page, err
+	}
 	if offset < 0 || offset > len(text) || (offset < len(text) && !utf8.RuneStart(text[offset])) || limit < 0 || limit > 8192 {
 		return page, errors.New("catalog: offset must be a UTF-8 byte boundary and limit must be between 1 and 8192 bytes")
 	}
@@ -80,7 +106,7 @@ func PaginateCatalogText(text string, offset, limit int) (CatalogTextRange, erro
 		if err != nil {
 			return page, err
 		}
-		if len(encoded) <= DefaultCatalogPageBytes-256 {
+		if len(encoded) <= maxBytes-256 {
 			return page, nil
 		}
 		end = offset + (end-offset)*3/4

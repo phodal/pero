@@ -76,6 +76,16 @@ func (p *managedClaudeProvider) PrepareManagedResume(ctx context.Context, parent
 	if !found || !selected {
 		return unavailable()
 	}
+	memory, err := resumedAgentMemory(parent, definition, session)
+	if err != nil {
+		return harness.SubagentContinuationProviderRun{}, harness.SubagentSnapshot{}, err
+	}
+	keepMemory := false
+	defer func() {
+		if !keepMemory && memory.release != nil {
+			memory.release()
+		}
+	}()
 	request := harness.SubagentRequest{Parent: parent, ChildID: id, Depth: header.DelegationDepth, CWD: session.WorkingDirectory(), Provider: descriptor.AgentProvider, Model: descriptor.AgentModel, ReasoningEffort: descriptor.AgentReasoningEffort, Persona: descriptor.Persona, ToolFilter: descriptor.ToolFilter}
 	var capture *structuredCapture
 	options, err := p.childAgentOptions(request, &capture)
@@ -88,6 +98,9 @@ func (p *managedClaudeProvider) PrepareManagedResume(ctx context.Context, parent
 	base := options.Configure
 	options.Configure = func(ctx context.Context, run *point.Run, child *harness.Agent) error {
 		if err := base(ctx, run, child); err != nil {
+			return err
+		}
+		if err := mountAgentMemory(ctx, p.h, run, child, memory, false); err != nil {
 			return err
 		}
 		if definition.Tools != nil {
@@ -108,5 +121,6 @@ func (p *managedClaudeProvider) PrepareManagedResume(ctx context.Context, parent
 		_ = p.removeChild(context.Background(), child)
 		return harness.SubagentContinuationProviderRun{}, harness.SubagentSnapshot{}, err
 	}
+	keepMemory = true
 	return p.continuationRun(ctx, child), harness.SubagentSnapshot{ID: id, Parent: parent.ID(), Provider: p.name, Label: descriptor.Label, Depth: header.DelegationDepth, Continuable: true, SuppressParentSettlement: descriptor.SuppressParentSettlement}, nil
 }

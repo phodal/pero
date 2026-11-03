@@ -13,6 +13,8 @@ type CatalogText struct {
 	Rows         []string
 	Continuation string
 	RecoveryTool string
+	// MaxBytes is an optional per-catalog ceiling within the shared budget.
+	MaxBytes int
 }
 
 const DefaultCatalogBytes = 64 << 10
@@ -24,6 +26,10 @@ func (b *CatalogBudget) Render(c CatalogText) string {
 	if b.Remaining <= 0 {
 		return ""
 	}
+	limit := b.Remaining
+	if c.MaxBytes > 0 {
+		limit = min(limit, c.MaxBytes)
+	}
 	marker := func(count int) string {
 		return fmt.Sprintf("\n[Catalog budget: %d rows omitted. %s]", count, c.Continuation)
 	}
@@ -34,7 +40,7 @@ func (b *CatalogBudget) Render(c CatalogText) string {
 		if kept+1 < len(c.Rows) {
 			reserve = len(marker(len(c.Rows) - kept - 1))
 		}
-		if len(text)+1+len(row)+reserve > b.Remaining {
+		if len(text)+1+len(row)+reserve > limit {
 			break
 		}
 		text += "\n" + row
@@ -43,15 +49,15 @@ func (b *CatalogBudget) Render(c CatalogText) string {
 	if kept < len(c.Rows) {
 		text += marker(len(c.Rows) - kept)
 	}
-	if len(text) > b.Remaining {
+	if len(text) > limit {
 		// Tiny remaining shares still explain the omission without emitting a
 		// partial JSON row or splitting a Unicode code point.
 		text = marker(len(c.Rows))
-		if len(text) > b.Remaining {
+		if len(text) > limit {
 			text = "[Catalog omitted: shared budget exhausted.]"
 		}
-		if len(text) > b.Remaining {
-			text = text[:b.Remaining]
+		if len(text) > limit {
+			text = text[:limit]
 			for !utf8.ValidString(text) {
 				text = text[:len(text)-1]
 			}

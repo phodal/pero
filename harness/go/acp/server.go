@@ -45,6 +45,10 @@ type Options struct {
 	// unchanged. The stored message stays the original text.
 	HoldAssistantText   func(*harness.Agent) bool
 	RenderAssistantText func(context.Context, *harness.Agent, string) string
+	// PreparePrompt is trusted host composition, never ACP request data. It runs
+	// with a fresh message ID before human prompt admission. The returned cleanup
+	// runs after settlement, including rejection and cancellation.
+	PreparePrompt func(context.Context, *harness.Agent, *harness.Message) (func(), error)
 }
 
 type Server struct {
@@ -81,6 +85,7 @@ type Server struct {
 	userQuestions       bool
 	holdAssistantText   func(*harness.Agent) bool
 	renderAssistantText func(context.Context, *harness.Agent, string) string
+	preparePrompt       func(context.Context, *harness.Agent, *harness.Message) (func(), error)
 }
 
 type clientResponse struct {
@@ -143,7 +148,7 @@ func NewServer(options Options) (*Server, error) {
 		h: options.Harness, persistence: options.Persistence, validateWorkingDirectory: options.ValidateWorkingDirectory,
 		provider: options.Provider, model: options.Model, compaction: options.Compaction, toolResultPruner: options.ToolResultPruner,
 		name: options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
-		questionTools: options.UserQuestions, holdAssistantText: options.HoldAssistantText, renderAssistantText: options.RenderAssistantText,
+		questionTools: options.UserQuestions, holdAssistantText: options.HoldAssistantText, renderAssistantText: options.RenderAssistantText, preparePrompt: options.PreparePrompt,
 		sessions: make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
 		pending: make(map[string]chan clientResponse), retiring: make(map[*harness.Agent]*activeSession), closedSessions: make(map[harness.SessionID]*activeSession),
 	}, nil
@@ -538,63 +543,6 @@ func (s *Server) activateWithPolicy(ctx context.Context, agent *harness.Agent, a
 	}
 	committed = true
 	return nil
-}
-
-func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error) {
-	record, err := s.currentRecord(harness.SessionID(params.SessionID))
-	if err != nil {
-		return "", err
-	}
-	record.mu.Lock()
-	if record.closing {
-		record.mu.Unlock()
-		return "", invalidError("session is closing: " + params.SessionID)
-	}
-	if record.inflight || record.modelChanging {
-		record.mu.Unlock()
-		return "", invalidError("session already has an active prompt: " + params.SessionID)
-	}
-	// The prompt owns cancellation from admission through settlement, including
-	// the interval before the Agent has installed its active-turn canceler.
-	promptCtx, cancel := context.WithCancel(ctx)
-	record.inflight = true
-	record.promptCancel = cancel
-	record.cancelRequested = false
-	record.mu.Unlock()
-	defer cancel()
-	content, promptErr := promptBlocks(promptCtx, s.h.Attachments(), params.Prompt)
-	var result harness.TurnResult
-	if promptErr == nil {
-		result, promptErr = record.agent.Prompt(promptCtx, harness.Message{Role: harness.RoleUser, Content: content})
-		// Prompt can return as soon as its context is canceled. Retain the ACP
-		// slot until the worker has stopped, so the next turn cannot overlap it.
-		if promptCtx.Err() != nil {
-			promptErr = errors.Join(promptErr, record.agent.WhenIdle(context.WithoutCancel(ctx)))
-		}
-	}
-	record.mu.Lock()
-	cancelled := record.cancelRequested
-	record.inflight = false
-	record.promptCancel = nil
-	record.mu.Unlock()
-	if cancelled {
-		return "cancelled", nil
-	}
-	if promptErr != nil {
-		return "", promptErr
-	}
-	return promptStopReason(result.Reason), nil
-}
-
-func promptStopReason(reason harness.FinishKind) string {
-	switch reason {
-	case harness.FinishMaxTokens:
-		return "max_tokens"
-	case harness.FinishRefusal:
-		return "refusal"
-	default:
-		return "end_turn"
-	}
 }
 
 func (s *Server) closeSession(ctx context.Context, id harness.SessionID) error {

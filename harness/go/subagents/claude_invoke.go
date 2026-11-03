@@ -108,15 +108,19 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 	if err != nil {
 		return nil, err
 	}
-	memoryNote, releaseMemory, err := prepareAgentMemory(parent, definition)
+	memory, err := prepareAgentMemory(parent, definition, s.memoryPresentation)
 	if err != nil {
 		return nil, err
 	}
-	if memoryNote != "" {
+	if memory.instructions != "" {
 		if instructions != "" {
 			instructions += "\n\n"
 		}
-		instructions += memoryNote
+		instructions += memory.instructions
+	}
+	releaseMemory := memory.release
+	if memory.binding != nil {
+		ctx = context.WithValue(ctx, agentMemoryContextKey{}, memory)
 	}
 	keepMemory := false
 	defer func() {

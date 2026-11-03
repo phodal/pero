@@ -70,8 +70,15 @@ type StepInput struct {
 }
 
 type TurnStoppingInput struct {
-	Agent *Agent
-	Turn  int
+	Agent     *Agent
+	Turn      int
+	Step      int
+	Finish    FinishKind
+	Concluded bool
+	// CanContinue reports loop eligibility; it never grants new tool authority.
+	// Feedback listeners must not inject work when cancellation, finish reason
+	// or the remaining step budget prevents another request in this turn.
+	CanContinue bool
 }
 
 type CompactionHookInput struct {

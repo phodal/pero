@@ -147,6 +147,7 @@ go_library(
 go_test(
     name = "harness_test",
     srcs = [
+        "agent_delivery_source_test.go",
         "agent_turn_state_test.go",
         "approval_preapproved_test.go",
         "approval_test.go",

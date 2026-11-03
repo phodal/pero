@@ -30,55 +30,77 @@ func TestCatalogBudgetKeepsWholeRowsAndExplainsOmission(t *testing.T) {
 }
 
 func TestCatalogPagesRecoverRowsAndEscapedUTF8Text(t *testing.T) {
-	rows := make([]string, 90)
-	for index := range rows {
-		rows[index] = strings.Repeat("metadata界", 250)
+	for _, budget := range []CatalogPageBudget{{}, {MaxBytes: 8192}} {
+		maxBytes := budget.MaxBytes
+		if maxBytes == 0 {
+			maxBytes = DefaultCatalogPageBytes
+		}
+
+		rows := make([]string, 90)
+		for index := range rows {
+			rows[index] = strings.Repeat("metadata界", 250)
+		}
+		var all []string
+		for offset := 0; ; {
+			page, err := PaginateCatalog(rows, offset, 40, budget)
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, _ := json.Marshal(page)
+			if len(encoded) > maxBytes {
+				t.Fatal(len(encoded))
+			}
+			all = append(all, page.Items...)
+			if page.NextOffset == nil {
+				break
+			}
+			if *page.NextOffset <= offset {
+				t.Fatal("page made no progress")
+			}
+			offset = *page.NextOffset
+		}
+		if len(all) != len(rows) {
+			t.Fatal(len(all))
+		}
+		text := strings.Repeat("\x00\"\\界🙂\n", 4000)
+		var recovered strings.Builder
+		for offset := 0; ; {
+			page, err := PaginateCatalogText(text, offset, 8192, budget)
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, _ := json.Marshal(page)
+			if len(encoded) > maxBytes || !utf8.ValidString(page.Text) {
+				t.Fatal(len(encoded))
+			}
+			recovered.WriteString(page.Text)
+			if page.NextOffset == nil {
+				break
+			}
+			offset = *page.NextOffset
+		}
+		if recovered.String() != text {
+			t.Fatal("text pages lost content")
+		}
+		for _, input := range []struct{ Offset, Limit int }{{-1, 1}, {len(text) + 1, 1}, {5, 1}, {0, -1}, {0, 8193}} {
+			if _, err := PaginateCatalogText(text, input.Offset, input.Limit); err == nil {
+				t.Fatalf("accepted invalid range: %+v", input)
+			}
+		}
+
 	}
-	var all []string
-	for offset := 0; ; {
-		page, err := PaginateCatalog(rows, offset, 40)
-		if err != nil {
-			t.Fatal(err)
+}
+
+func TestCatalogCeilingUsesTheSharedRemainingBudget(t *testing.T) {
+	for _, remaining := range []int{128, 8192, DefaultCatalogBytes} {
+		budget := CatalogBudget{Remaining: remaining}
+		first := budget.Render(CatalogText{Header: "Catalog", Rows: []string{strings.Repeat("x", 16384)}, Continuation: "Call List.", MaxBytes: 8192})
+		if len(first) > min(remaining, 8192) {
+			t.Fatalf("catalog exceeded its ceiling: %d", len(first))
 		}
-		encoded, _ := json.Marshal(page)
-		if len(encoded) > DefaultCatalogPageBytes {
-			t.Fatal(len(encoded))
-		}
-		all = append(all, page.Items...)
-		if page.NextOffset == nil {
-			break
-		}
-		if *page.NextOffset <= offset {
-			t.Fatal("page made no progress")
-		}
-		offset = *page.NextOffset
-	}
-	if len(all) != len(rows) {
-		t.Fatal(len(all))
-	}
-	text := strings.Repeat("\x00\"\\界🙂\n", 4000)
-	var recovered strings.Builder
-	for offset := 0; ; {
-		page, err := PaginateCatalogText(text, offset, 8192)
-		if err != nil {
-			t.Fatal(err)
-		}
-		encoded, _ := json.Marshal(page)
-		if len(encoded) > DefaultCatalogPageBytes || !utf8.ValidString(page.Text) {
-			t.Fatal(len(encoded))
-		}
-		recovered.WriteString(page.Text)
-		if page.NextOffset == nil {
-			break
-		}
-		offset = *page.NextOffset
-	}
-	if recovered.String() != text {
-		t.Fatal("text pages lost content")
-	}
-	for _, input := range []struct{ Offset, Limit int }{{-1, 1}, {len(text) + 1, 1}, {5, 1}, {0, -1}, {0, 8193}} {
-		if _, err := PaginateCatalogText(text, input.Offset, input.Limit); err == nil {
-			t.Fatalf("accepted invalid range: %+v", input)
+		second := budget.Render(CatalogText{Header: "Another catalog", Rows: []string{strings.Repeat("y", 32768)}, Continuation: "Call List."})
+		if len(first)+len(second) > remaining || budget.Remaining != remaining-len(first)-len(second) {
+			t.Fatal("per-catalog ceiling bypassed the shared budget")
 		}
 	}
 }

@@ -1,5 +1,8 @@
 # Quality gates
 
+Opt-in native Go engineering contracts, acceptance evidence, skills budgets and
+memory attribution: [Engineering profile](engineering-profile.md).
+
 AI4S environment values, matching and read-only Control Lab / PC-Gym observations;
 managed execution admission remains planned: [Environments P1](ai4s-environments.md).
 

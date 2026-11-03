@@ -1,0 +1,54 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "engineeringprofile",
+    srcs = [
+        "app.go",
+        "checks.go",
+        "contract.go",
+        "journal.go",
+        "prompt.go",
+    ],
+    importpath = "github.com/phodal/pero/harness/go/engineeringprofile",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//fstools",
+        "//harness",
+        "//nativetools",
+        "//runtime",
+        "//session",
+        "//shell",
+        "//tasks",
+    ],
+)
+
+go_test(
+    name = "engineeringprofile_test",
+    srcs = [
+        "app_test.go",
+        "contract_test.go",
+        "deferred_check_test.go",
+        "native_check_test.go",
+        "recovery_test.go",
+    ],
+    embed = [":engineeringprofile"],
+    deps = [
+        "//harness",
+        "//runtime",
+        "//tasks",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//nativetools",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//nativetools",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//nativetools",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//nativetools",
+        ],
+        "//conditions:default": [],
+    }),
+)

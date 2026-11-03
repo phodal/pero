@@ -68,6 +68,7 @@ go_test(
         "promotion_test.go",
         "research_clone_test.go",
         "sandbox_test.go",
+        "shell_directory_test.go",
         "terminal_test.go",
         "timing_test.go",
         "tools_test.go",
