@@ -472,6 +472,10 @@ func (a *Agent) generateStepWithRuntime(ctx context.Context, turn, step int, pre
 		if err != nil {
 			return Completion{}, fmt.Errorf("harness: prepare model call for %s/%s: %w", request.Provider, request.Model, err)
 		}
+		request.Tools, err = a.tools.boundDeferredRequest(ctx, a, request.Tools, prepared)
+		if err != nil {
+			return Completion{}, err
+		}
 		request.Tools = BoundToolCatalogs(request.Tools)
 		if presentation.Guidance != nil {
 			guidance, err := presentation.Guidance(ctx, PromptCapabilities{Tools: request.Tools, Model: prepared.ModelInfo})

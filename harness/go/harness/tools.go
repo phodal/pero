@@ -107,6 +107,7 @@ type ToolCatalogProvider struct {
 	// Exclusive rejects overlapping authoritative presenters at registration.
 	// Use it when a view cannot compose another presenter's declarations.
 	Exclusive bool
+	deferred  *DeferredTools
 	// Bind receives a capability view that excludes this provider and every
 	// authoritative presentation provider. It is invoked synchronously during
 	// registration before the provider can serve requests.
@@ -417,6 +418,7 @@ type ToolRegistry struct {
 	entries        map[string][]toolEntry
 	catalogs       []toolCatalogEntry
 	catalogPending map[toolCatalogIdentityKey]*toolCatalogIdentity
+	deferredEpoch  string
 	restrictions   []toolRestrictionEntry
 	approval       *ApprovalBroker
 	spills         *SpillRegistry

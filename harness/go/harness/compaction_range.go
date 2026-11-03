@@ -389,6 +389,11 @@ func (b *BasicCompactor) summarize(ctx context.Context, agent *Agent, measuremen
 	if err != nil {
 		return nil, nil, nil, "", "", err
 	}
+	if agent.tools.deferredForAgent(agent) {
+		// Summarization does not execute tool calls. Historical headers may
+		// contain withdrawn registrations, so do not redeclare those schemas.
+		request.Tools = nil
+	}
 	var completion Completion
 	for {
 		if err := ctx.Err(); err != nil {
