@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Feedback, FilePicker, Input } from '@pero/app-sdk/ui';
 import { FormSelect } from './form-select';
+import { SubmitButton } from './submit-button';
 import { formatBytes, type CatalogState, type Dataset } from './model';
 
 export type ImportDetails = { kind: 'dataset' | 'model'; source: string; license: string; projectRef: string };
@@ -30,7 +31,7 @@ export function ImportDialog({ state, target, busy, error, onClose, onImport, on
       <label>License<Input name="license" defaultValue="Unknown" maxLength={300} disabled={busy} /></label>
       {!target ? <label>Project reference<Input name="projectRef" maxLength={200} disabled={busy} /></label> : null}
       {fileError || error ? <Feedback kind="error">{fileError || error}</Feedback> : null}
-      <Button variant="primary" type="submit" disabled={busy || !file || Boolean(fileError)}>{busy ? 'Saving…' : 'Import'}</Button>
+      <SubmitButton variant="primary" disabled={busy || !file || Boolean(fileError)}>{busy ? 'Saving…' : 'Import'}</SubmitButton>
     </form>
     {!target && state.sources.length ? <details className="data-sources"><summary>Public sources</summary>
       {state.sources.map(source => <section key={source.id}><h3>{source.name}</h3>

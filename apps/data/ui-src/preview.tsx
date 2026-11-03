@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button, EmptyState, Feedback, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import { FormSelect } from './form-select';
+import { SubmitButton } from './submit-button';
 import { availabilityLabel, formatBytes, formatInt, type Asset, type Dataset, type Inspection, type SavedView, type ViewSpec } from './model';
 
 type Props = {
@@ -44,7 +45,7 @@ export function Preview(props: Props) {
           <label>Name<Input name="name" defaultValue={dataset.name} maxLength={200} required disabled={busy} /></label>
           <label>Project reference<Input name="projectRef" defaultValue={dataset.projectRef} maxLength={200} disabled={busy} /></label>
           <p className="data-note">A reference only, not a project permission boundary.</p>
-          <Button type="submit" disabled={busy}>Save details</Button>
+          <SubmitButton disabled={busy}>Save details</SubmitButton>
         </form>
       </details>
     </header>
@@ -65,7 +66,7 @@ export function Preview(props: Props) {
             <FormSelect name="field" label="Filter field" defaultValue={view.filterField} disabled={busy}
               options={[{ value: '', label: 'No filter' }, ...inspected.report.fields.map(field => ({ value: field.name, label: field.name }))]} />
             <Input name="contains" aria-label="Contains" placeholder="Contains" defaultValue={view.contains} maxLength={300} disabled={busy} />
-            <Button type="submit" disabled={busy || loading}>Apply</Button>
+            <SubmitButton disabled={busy || loading}>Apply</SubmitButton>
             {view.filterField ? <Button disabled={busy} onClick={() => props.onView({ ...view, filterField: '', contains: '' })}>Clear filter</Button> : null}
           </form>
           <p className="data-note">{formatInt(inspected.matched)} matching / {formatInt(inspected.report.rowCount)} records / {inspected.columns.length} / {inspected.report.fields.length} fields</p>
@@ -86,7 +87,7 @@ export function Preview(props: Props) {
           </div>
           <form className="data-filter" onSubmit={event => { event.preventDefault(); props.onSave(String(new FormData(event.currentTarget).get('viewName'))); }}>
             <Input aria-label="View name" name="viewName" placeholder="View name" required maxLength={120} disabled={busy} />
-            <Button type="submit" disabled={busy || loading || dataset.archived}>Save view</Button>
+            <SubmitButton disabled={busy || loading || dataset.archived}>Save view</SubmitButton>
           </form>
         </> : null}
       </TabsContent>

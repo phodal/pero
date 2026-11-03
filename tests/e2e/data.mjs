@@ -29,6 +29,13 @@ const catalog = () => frame.locator('body').evaluate(async () => {
   if (!response.ok) throw new Error(`Data state: HTTP ${response.status}`);
   return response.json();
 });
+// SDK Select is an accessible button/listbox, not a native <select>.
+async function choose(scope, label, option) {
+  const trigger = scope.getByRole('button', { name: label, exact: true });
+  await trigger.click();
+  await frame.getByRole('listbox', { name: label, exact: true }).getByRole('option', { name: option, exact: true }).click();
+  await expect(trigger).toHaveAttribute('data-value', option);
+}
 async function openData() {
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await expect.poll(async () => (await desktop()).apps?.some(item => item.name === 'data')).toBe(true);
@@ -84,7 +91,7 @@ try {
   await expect(preview().locator('dt').filter({ hasText: /^Duplicate rows$/ }).locator('xpath=following-sibling::dd[1]')).toHaveText('1');
   await expect(preview().locator('dt').filter({ hasText: /^Empty strings$/ }).locator('xpath=following-sibling::dd[1]')).toHaveText('1');
   await preview().getByRole('tab', { name: 'Preview', exact: true }).click();
-  await preview().getByLabel('Filter field', { exact: true }).selectOption('id');
+  await choose(preview(), 'Filter field', 'id');
   await preview().getByLabel('Contains', { exact: true }).fill('001');
   await preview().getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(2);
@@ -110,13 +117,13 @@ try {
   await expect(preview().locator('.data-rows tbody tr').first().locator('th')).toHaveText('51');
   await preview().getByRole('tab', { name: 'History', exact: true }).click();
   await preview().getByRole('button', { name: 'baseline', exact: true }).click();
-  await expect(preview().getByLabel('Version', { exact: true })).toHaveValue(v1.id);
+  await expect(preview().getByRole('button', { name: 'Version', exact: true })).toHaveAttribute('data-value', v1.id);
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(2);
-  await frame.getByLabel('Project filter', { exact: true }).selectOption('control-lab');
+  await choose(frame, 'Project filter', 'control-lab');
   await frame.getByRole('searchbox', { name: 'Search data' }).fill('does-not-exist');
   await expect(frame.getByText('No matches', { exact: true })).toBeVisible();
   await frame.getByRole('searchbox', { name: 'Search data' }).fill('');
-  await expect(preview().getByLabel('Version', { exact: true })).toHaveValue(v1.id);
+  await expect(preview().getByRole('button', { name: 'Version', exact: true })).toHaveAttribute('data-value', v1.id);
   await preview().getByRole('tab', { name: 'History', exact: true }).click();
   await preview().getByRole('button', { name: 'Archive dataset', exact: true }).click();
   await preview().getByRole('button', { name: 'Confirm archive', exact: true }).click();
