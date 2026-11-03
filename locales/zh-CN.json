@@ -147,6 +147,8 @@
   "error.host_wait": "本机服务尚未就绪，请重新打开工作台。",
   "status.host_ready": "本机连接已就绪",
   "error.invalid_request": "无效的连接请求",
+  "error.invalid_session": "会话请求无效。关闭后重试。",
+  "error.dismiss": "关闭",
   "notice.desktop": "收到桌面菜单发来的连接消息",
   "error.browser": "请在桌面版中验证本机连接。",
   "error.connection": "本机连接失败，请重新打开工作台。",

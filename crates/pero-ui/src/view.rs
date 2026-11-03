@@ -11,7 +11,7 @@ use crate::{
     workspace::{ConversationTab, WorkbenchPage, WorkspaceItem},
 };
 use gpui_kit::{
-    component::WindowExt,
+    component::{Sizable, WindowExt, button::*},
     prelude::*,
     *,
 };
@@ -672,22 +672,37 @@ impl Render for Workbench {
                             div()
                                 .id("workbench-error")
                                 .role(Role::Alert)
+                                .flex()
+                                .items_center()
+                                .gap(px(8.))
                                 .px(px(20.))
                                 .py(px(10.))
                                 .bg(p.error_bg)
                                 .text_color(p.error)
                                 .child(
-                                    self.error
-                                        .as_deref()
-                                        .map(|error| {
-                                            if error.starts_with("error.") {
-                                                self.t(error)
-                                            } else {
-                                                error
-                                            }
-                                        })
-                                        .unwrap_or_default()
-                                        .to_string(),
+                                    div().flex_1().min_w_0().child(
+                                        self.error
+                                            .as_deref()
+                                            .map(|error| {
+                                                if error.starts_with("error.") {
+                                                    self.t(error)
+                                                } else {
+                                                    error
+                                                }
+                                            })
+                                            .unwrap_or_default()
+                                            .to_string(),
+                                    ),
+                                )
+                                .child(
+                                    Button::new("workbench-error-dismiss")
+                                        .ghost()
+                                        .small()
+                                        .label(self.t("error.dismiss"))
+                                        .on_click(cx.listener(|this, _, _, cx| {
+                                            this.error = None;
+                                            cx.notify();
+                                        })),
                                 ),
                         )
                     })

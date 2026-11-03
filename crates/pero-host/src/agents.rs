@@ -275,7 +275,9 @@ impl Manager {
         let command = match serde_json::from_value::<HostCommand>(value) {
             Ok(c) => c,
             Err(_) => {
-                self.send("error", "Invalid session request", serde_json::Value::Null);
+                let _ = self
+                    .tx
+                    .send(HostEvent::message("error", None, "error.invalid_session"));
                 return;
             }
         };
@@ -429,7 +431,9 @@ impl Manager {
             HostCommand::Delete { thread_id } => {
                 self.app_plugins.remove(&thread_id);
                 if thread_id.is_empty() || thread_id.len() > 128 {
-                    self.send("error", "Invalid session request", serde_json::Value::Null);
+                    let _ = self
+                        .tx
+                        .send(HostEvent::message("error", None, "error.invalid_session"));
                     return;
                 }
                 if let Some(session) = self.sessions.remove(&thread_id) {
