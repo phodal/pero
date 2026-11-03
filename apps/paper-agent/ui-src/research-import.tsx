@@ -41,13 +41,13 @@ const resourceIcons: Record<ResearchResource['kind'], string> = {
   code: 'code', model: 'box', dataset: 'database', benchmark: 'chart-line', service: 'plug',
 };
 
-export function ResourceDetails({ resource, related = [], onRead }: { resource: ResearchResource; related?: readonly ResearchResource[]; onRead?(id: string): void }) {
+export function ResourceDetails({ resource, related = [], onRead, detailsOnly = false }: { resource: ResearchResource; related?: readonly ResearchResource[]; onRead?(id: string): void; detailsOnly?: boolean }) {
   const { t } = useAppI18n(labels);
   const sources = [resource, ...related];
   const warnings = [...new Set(sources.flatMap(source => source.unresolved))];
   return <div className="pa-resource-info">
-    <div className="pa-resource-meta"><span>{t(resource.kind)}</span>{resource.revision && <span>{resource.revision}</span>}<a href={resource.url} target="_blank" rel="noreferrer" aria-label={`${t('original')}: ${new URL(resource.url).hostname}`}><span>{new URL(resource.url).hostname}</span><Icon name="external-link"/></a></div>
-    {warnings.length > 0 && <ul className="pa-resource-warnings">{warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
+    {!detailsOnly && <div className="pa-resource-meta"><span>{t(resource.kind)}</span>{resource.revision && <span>{resource.revision}</span>}<a href={resource.url} target="_blank" rel="noreferrer" aria-label={`${t('original')}: ${new URL(resource.url).hostname}`}><span>{new URL(resource.url).hostname}</span><Icon name="external-link"/></a></div>}
+    {!detailsOnly && warnings.length > 0 && <ul className="pa-resource-warnings">{warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
     <div className="pa-resource-actions"><details><summary>{t('details')}</summary>
       {sources.map(source => <div key={source.id} className="pa-resource-provenance-source">{sources.length > 1 && <p><strong>{t(source.kind)}</strong> {source.title}</p>}
       <dl className="pa-resource-provenance"><dt>{t('identity')}</dt><dd>{source.identity}</dd><dt>URL</dt><dd><a href={source.originalUrl} target="_blank" rel="noreferrer">{source.originalUrl}</a></dd><dt>{t('revision')}</dt><dd>{source.revision || t('unresolved')}</dd>{source.observedAt && <><dt>{t('inspected')}</dt><dd>{source.observedAt}</dd></>}<dt>{t('licenseLabel')}</dt><dd>{source.license || t('license')} / {source.size == null ? t('sizeUnknown') : assetSize(source.size)}</dd><dt>{relations[source.relation]}</dt><dd>{confidence[source.confidence]}</dd></dl>
@@ -55,7 +55,7 @@ export function ResourceDetails({ resource, related = [], onRead }: { resource: 
       {source.evidence.length > 0 && <ul>{source.evidence.map((evidence, index) => <li key={index}><a href={evidence.url} target="_blank" rel="noreferrer">{evidence.label || evidence.url}</a>{evidence.position != null && ` (link ${evidence.position})`}{evidence.href && <div>{evidence.href}</div>}</li>)}</ul>}
       {source.excerpt && <p className="pa-resource-excerpt">{source.excerpt}</p>}
       </div>)}
-    </details>{resource.paperId && onRead && <Button variant="ghost" onClick={() => onRead(resource.paperId!)}>{t('read')}</Button>}</div>
+    </details>{!detailsOnly && resource.paperId && onRead && <Button variant="ghost" onClick={() => onRead(resource.paperId!)}>{t('read')}</Button>}</div>
   </div>;
 }
 

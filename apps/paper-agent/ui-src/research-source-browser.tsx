@@ -27,6 +27,15 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
     lines: { zh: '第 {start}–{end} 行，共 {total} 行', en: 'Lines {start}–{end} of {total}' },
     structures: { zh: '源码结构', en: 'Source structures' },
     encoding: { zh: '无法确认文本编码，可查看原始文件信息。', en: 'Text encoding could not be verified.' },
+    limits: { zh: '解析范围与限制', en: 'Parsing scope and limits' },
+    advanced: { zh: 'PDF 对照与证据', en: 'PDF comparison and evidence' },
+    compare: { zh: '对照已保存的 PDF', en: 'Compare with saved PDF' },
+    compareScope: { zh: '源码行号不对应 PDF 页码。只有已记录的文本匹配可用于定位。', en: 'Source lines do not map to PDF pages. Locations require recorded text matches.' },
+    choosePdf: { zh: '选择已保存的 PDF', en: 'Select a saved PDF' },
+    compareAction: { zh: '对照源码与 PDF', en: 'Compare source and PDF' },
+    noPdf: { zh: '尚未保存用于对照的 PDF。请先下载相同版本的 PDF。', en: 'No PDF saved for comparison. Download a fixed-version PDF first.' },
+    resize: { zh: '调整文件列表宽度', en: 'Resize source file list' },
+    source: { zh: '只读源码', en: 'Read-only source file' },
     unavailable: { zh: '此文件没有可用预览。', en: 'No preview is available for this file.' },
   });
   const [listing, setListing] = useState<SourceList | null>(null), [member, setMember] = useState<SourceMember | null>(null);
@@ -97,12 +106,11 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
     {busy && <p role="status">{copy('loading')}</p>}
     {error && <Feedback kind="error">{error}<Button disabled={busy} onClick={() => { if (member) void readMember(member); else setAttempt(n => n + 1); }}>{copy('retry')}</Button></Feedback>}
     {observationWarning && <Feedback>{observationWarning}</Feedback>}
-    {!inspectionOnly && listing?.limitations.map((limitation, i) => <Feedback key={i}>{limitation}</Feedback>)}
     {listing && <Split className="pa-source-split" storageKey="paper-source-files" collapseBelow={660}>
-      <SplitPane id={`source-files-${resourceId}`} size={240} min={160} resizeLabel="Resize source file list" as="aside">
+      <SplitPane id={`source-files-${resourceId}`} size={240} min={160} resizeLabel={copy('resize')} as="aside">
         <h4>{copy('files')}</h4>{!listing.members.length && <p>{copy('empty')}</p>}<ul className="pa-source-files">{listing.members.map(item => <li key={item.id}><Button variant="ghost" aria-pressed={member?.id === item.id} disabled={busy} onClick={() => void readMember(item)}>{item.path}</Button><small>{item.kind} / {item.size.toLocaleString()} B{item.lineCount ? ` / ${item.lineCount} lines` : ''}</small></li>)}</ul>
       </SplitPane>
-      <SplitPane id={`source-content-${resourceId}`} min={240} as="section" aria-label="Read-only source file">
+      <SplitPane id={`source-content-${resourceId}`} min={240} as="section" aria-label={copy('source')}>
         {!member ? <p>{copy('choose')}</p> : <><h4>{member.path}</h4>
           {member.warning && <Feedback>{member.warning}</Feedback>}<details><summary>{copy('identity')}</summary><dl className="pa-resource-provenance"><dt>Archive SHA-256</dt><dd>{receipt.archiveDigest}</dd><dt>Original member SHA-256</dt><dd>{member.sha256}</dd><dt>Original size</dt><dd>{member.size.toLocaleString()} B</dd>{member.previewSha256 && <><dt>Preview SHA-256</dt><dd>{member.previewSha256}</dd></>}<dt>Member</dt><dd>{member.id}</dd></dl></details>
           {member.kind === 'image' && <p>Original image: {originalDimensions}. Preview: {previewDimensions}.</p>}
@@ -113,15 +121,17 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
         </>}
       </SplitPane>
     </Split>}
-    {!inspectionOnly && <><section className="pa-source-compare" aria-label="Source and PDF comparison"><h4>Compare with saved PDF</h4>
-      <p>Source archive and PDF are separate byte versions. Matches require saved evidence; figure or table numbers alone are not a match.</p>
-      {pdfs.length ? <div className="pa-actions"><label>PDF for comparison <select value={pdfId} disabled={busy} onChange={event => { setPdfId(event.target.value); setComparison(null); }}><option value="">Select a saved PDF</option>{pdfs.map(pdf => <option key={pdf.id} value={pdf.id}>{pdf.title} — {pdf.originalUrl}</option>)}</select></label><Button disabled={busy || !pdfId || !available} onClick={() => void compare()}>Compare source and PDF</Button></div> : <p>No PDF approved in this bundle. Review and download a fixed-version PDF separately for comparison.</p>}
+    {!inspectionOnly && <details className="pa-source-analysis"><summary>{copy('advanced')}</summary><section className="pa-source-compare" aria-label={copy('compare')}><h4>{copy('compare')}</h4>
+      <p>{copy('compareScope')}</p>
+      {pdfs.length ? <div className="pa-actions"><label>{copy('choosePdf')} <select value={pdfId} disabled={busy} onChange={event => { setPdfId(event.target.value); setComparison(null); }}><option value="">{copy('choosePdf')}</option>{pdfs.map(pdf => <option key={pdf.id} value={pdf.id}>{pdf.title} — {pdf.originalUrl}</option>)}</select></label><Button disabled={busy || !pdfId || !available} onClick={() => void compare()}>{copy('compareAction')}</Button></div> : <p>{copy('noPdf')}</p>}
       {comparison && <><p role="status">{comparison.status === 'matched' ? 'Evidence-backed caption matches' : 'Comparison unresolved'}: {comparison.reason}</p><ul>{comparison.matches.map((match, i) => <li key={i}><p>{match.source.memberPath}, lines {match.source.startLine}–{match.source.endLine}</p><blockquote>{match.pdf.quote}</blockquote><Button disabled={busy} onClick={() => void reveal(match)}>Open matched PDF page {match.pdf.page}</Button><details><summary>Match versions</summary><dl className="pa-resource-provenance"><dt>Archive SHA-256</dt><dd>{match.source.archiveDigest}</dd><dt>Member SHA-256</dt><dd>{match.source.memberDigest}</dd><dt>PDF SHA-256</dt><dd>{match.pdf.fileDigest}</dd><dt>PDF document</dt><dd>{match.pdf.documentId}</dd></dl></details></li>)}</ul></>}
     </section>
     <SourceReports key={bundle.id} api={api} bundleId={bundle.id} refresh={reportRefresh} navigating={busy}
       canOpenSource={(observation, location) => !!originalMember(observation, location)}
       openSource={(observation, location) => { const item = originalMember(observation, location); if (item) void readMember(item, location.start ?? 0, location.end ?? undefined); }}
       canOpenPdf={observation => !!observation.anchor.pdfResourceId && pdfs.some(pdf => pdf.id === observation.anchor.pdfResourceId)}
-      openPdf={(observation, match) => { if (observation.anchor.pdfResourceId && pdfs.some(pdf => pdf.id === observation.anchor.pdfResourceId)) void reveal(match, observation.anchor.pdfResourceId); }}/></>}
+      openPdf={(observation, match) => { if (observation.anchor.pdfResourceId && pdfs.some(pdf => pdf.id === observation.anchor.pdfResourceId)) void reveal(match, observation.anchor.pdfResourceId); }}/>
+      {!!listing?.limitations.length && <details><summary>{copy('limits')}</summary><ul>{listing.limitations.map((limitation, i) => <li key={i}>{limitation}</li>)}</ul></details>}
+    </details>}
   </div>;
 }
