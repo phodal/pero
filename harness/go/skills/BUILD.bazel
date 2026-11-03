@@ -14,6 +14,7 @@ go_library(
         "reattach.go",
         "restrictions.go",
         "selected.go",
+        "summary.go",
         "tool.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/skills",
@@ -34,8 +35,8 @@ go_test(
     srcs = [
         "arguments_test.go",
         "catalog_test.go",
-        "expansion_guard_test.go",
         "compaction_test.go",
+        "expansion_guard_test.go",
         "fork_test.go",
         "invocation_claude_test.go",
         "invocation_test.go",
@@ -44,6 +45,7 @@ go_test(
         "permissions_test.go",
         "reattach_test.go",
         "selected_test.go",
+        "summary_test.go",
     ],
     embed = [":skills"],
     deps = [

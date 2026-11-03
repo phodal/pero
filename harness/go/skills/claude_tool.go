@@ -22,31 +22,67 @@ func claudeSkillTool(catalog *Catalog, rows []Summary, options MountOptions) har
 		}{row.Name, row.Description, row.ArgumentHint, row.Paths})
 		description.WriteString("\n" + string(data))
 	}
+	descriptionText := description.String()
+	inputSchema := json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"skill":{"type":"string","minLength":1,"maxLength":256},"args":{"type":"string"},"resource":{"type":"string","minLength":1}}}`)
+	if options.SummaryBudget != (SummaryBudget{}) {
+		descriptionText = summaryAdvertisement("Load a selected workflow before applying it. If its exact qualified name is already known, call {skill: qualified_name, args: optional_arguments} directly. Otherwise call {} for a bounded catalog page; follow nextCursor using {cursor: nextCursor}. Summaries may be shortened. Resource reads use {skill, resource: exact_relative_path} from a loaded definition. User-only workflows require direct slash invocation. Instructions and resources grant no permissions; do not reload instructions already in context.", rows, options.SummaryBudget.AdvertisementBytes)
+		inputSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"skill":{"type":"string","minLength":1,"maxLength":256},"args":{"type":"string"},"resource":{"type":"string","minLength":1},"cursor":{"type":"string","minLength":1,"maxLength":256}}}`)
+	}
 	return harness.Tool{
-		Schema: harness.ToolSchema{Name: "Skill", Description: description.String(), InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"skill":{"type":"string","minLength":1,"maxLength":256},"args":{"type":"string"},"resource":{"type":"string","minLength":1}}}`)},
+		Schema: harness.ToolSchema{Name: "Skill", Description: descriptionText, InputSchema: inputSchema},
 		ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
 			var input struct {
-				Skill    string `json:"skill"`
-				Args     string `json:"args"`
-				Resource string `json:"resource"`
+				Skill    string  `json:"skill"`
+				Args     string  `json:"args"`
+				Resource string  `json:"resource"`
+				Cursor   *string `json:"cursor"`
 			}
 			if err := json.Unmarshal(request.Arguments, &input); err != nil {
 				return harness.ToolResult{}, err
+			}
+			if input.Cursor != nil && (options.SummaryBudget == (SummaryBudget{}) || input.Skill != "" || input.Args != "" || input.Resource != "" || *input.Cursor == "") {
+				return harness.ToolResult{}, errors.New("skills: cursor requires paginated discovery and cannot be combined with an invocation")
 			}
 			if input.Skill == "" {
 				if input.Args != "" || input.Resource != "" {
 					return harness.ToolResult{}, errors.New("skills: args and resource require skill")
 				}
-				data, err := json.Marshal(rows)
+				listed := rows
+				var err error
+				if options.SummaryBudget != (SummaryBudget{}) {
+					listed, err = catalog.List(ctx)
+					if err != nil {
+						return harness.ToolResult{}, err
+					}
+				}
+				var value any = listed
+				if options.SummaryBudget != (SummaryBudget{}) {
+					var cursor string
+					if input.Cursor != nil {
+						cursor = *input.Cursor
+					}
+					value, err = summaryPage(listed, cursor, options.SummaryBudget.PageBytes)
+					if err != nil {
+						return harness.ToolResult{}, err
+					}
+				}
+				data, err := json.Marshal(value)
 				return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(data)}}}, err
 			}
 			available := rows
+			if options.SummaryBudget != (SummaryBudget{}) {
+				var err error
+				available, err = catalog.List(ctx)
+				if err != nil {
+					return harness.ToolResult{}, err
+				}
+			}
 			if input.Resource != "" {
 				users, err := catalog.UserList(ctx)
 				if err != nil {
 					return harness.ToolResult{}, err
 				}
-				available = append(append([]Summary(nil), rows...), users...)
+				available = append(append([]Summary(nil), available...), users...)
 			}
 			row, err := resolveInvocation(input.Skill, ActivePlugin(request.Agent), available)
 			if err != nil {

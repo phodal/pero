@@ -71,6 +71,35 @@ reuses the existing descriptor-rooted `fstools` reader, currently supported on
 Linux and macOS; it does not add another sandbox, agent, registry or scheduler.
 See `SOURCE.json` for the precise adapted-versus-new boundary.
 
+## Bounded catalog presentation
+
+Native composition can opt into `MountOptions{SummaryBudget: SummaryBudget{
+AdvertisementBytes: 8192, PageBytes: 8192}}`. Setting either budget enables
+bounded advertisements and paginated discovery for both native `skill` and
+plugin `Skill`; an omitted budget uses 8192 bytes. Each budget must be between
+1024 and 65536 bytes. The all-zero value preserves the original descriptions,
+input schema and array list responses.
+
+In budgeted mode, `{}` returns `{"skills":[...],"nextCursor":"..."}`; omit
+`nextCursor` when the catalog is exhausted. Continue with
+`{"cursor":"<nextCursor>"}`. Cursor calls cannot include read/invocation
+fields. Cursors are bound to the complete current model-visible catalog
+snapshot, including content digests and descriptions; a changed view requires
+starting discovery again. The catalog remains the sole authorization and
+digest-check owner.
+
+Display descriptions, hints and path patterns may be shortened or omitted to
+fit the byte budget, with valid UTF-8 retained. Names and read digests are never
+shortened. Every model-visible name remains discoverable, including the
+selected-plugin path's maximum 512 selections (the legacy roots path retains
+its separate 64-skill limit). Loaded instruction bodies and selected resources
+retain their existing read limits; this option budgets discovery, not content.
+
+Native callers still copy an exact name and digest from discovery before
+reading. Claude-profile callers that already know the exact authorized
+qualified name may invoke it directly; another list call is unnecessary.
+User-only workflows remain absent from model discovery and invocation.
+
 ## Behavioral comparison
 
 Unlike official DSH, summaries are tool-schema descriptions rather than durable
