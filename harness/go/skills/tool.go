@@ -80,9 +80,10 @@ func MountCatalog(ctx context.Context, h *harness.Harness, catalog *Catalog, opt
 		// Advertise relevance, not body text, paths or a digest that could bypass
 		// discovery. Disabled skills are already excluded by the catalog owner.
 		data, _ := json.Marshal(struct {
-			Name        string `json:"name"`
-			Description string `json:"description"`
-		}{row.Name, row.Description})
+			Name         string `json:"name"`
+			Description  string `json:"description"`
+			ArgumentHint string `json:"argumentHint,omitempty"`
+		}{row.Name, row.Description, row.ArgumentHint})
 		description.WriteByte('\n')
 		description.Write(data)
 	}

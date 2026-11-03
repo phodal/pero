@@ -226,7 +226,10 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 	}
 	component.Content = strings.TrimSpace(body)
 	component.Description = strings.TrimSpace(string(header.Description))
-	component.ArgumentHint = string(header.ArgumentHint)
+	component.ArgumentHint = strings.TrimSpace(string(header.ArgumentHint))
+	if len(component.ArgumentHint) > 256 {
+		add(SeverityError, "INVALID_COMPONENT_FIELD", "argument-hint", "Argument hint must be at most 256 bytes.")
+	}
 	component.AllowedTools = []string(header.AllowedTools)
 	component.Tools = []string(header.Tools)
 	component.DisallowedTools = []string(header.DisallowedTools)

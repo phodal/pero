@@ -24,9 +24,10 @@ const MaxSkills = 64
 const MaxFileBytes = 64 << 10
 
 type Summary struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Digest      string `json:"digest"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	Digest       string `json:"digest"`
+	ArgumentHint string `json:"argumentHint,omitempty"`
 }
 type Definition struct {
 	Summary
@@ -372,9 +373,10 @@ func parse(text string) (Definition, bool, error) {
 		return Definition{}, false, errors.New("invalid frontmatter delimiter")
 	}
 	var header struct {
-		Name        string `yaml:"name"`
-		Description string `yaml:"description"`
-		Disabled    bool   `yaml:"disable-model-invocation"`
+		Name         string `yaml:"name"`
+		Description  string `yaml:"description"`
+		ArgumentHint string `yaml:"argument-hint"`
+		Disabled     bool   `yaml:"disable-model-invocation"`
 	}
 	if err := yaml.Unmarshal([]byte(text[4:closing]), &header); err != nil {
 		return Definition{}, false, err
@@ -386,7 +388,7 @@ func parse(text string) (Definition, bool, error) {
 	if end < len(text) {
 		body = strings.TrimSpace(text[end+1:])
 	}
-	return Definition{Summary: Summary{Name: header.Name, Description: header.Description}, Content: body}, header.Disabled, nil
+	return Definition{Summary: Summary{Name: header.Name, Description: header.Description, ArgumentHint: strings.TrimSpace(header.ArgumentHint)}, Content: body}, header.Disabled, nil
 }
 func validName(name string) bool {
 	if name == "" || len(name) > 64 || strings.Contains(name, "--") {

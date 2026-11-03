@@ -73,6 +73,13 @@ func TestComponentDefinitions(t *testing.T) {
 	}
 }
 
+func TestArgumentHintIsKept(t *testing.T) {
+	component, diagnostics := ParseComponent("sample", ComponentCommand, "commands/deploy.md", []byte("---\nargument-hint: <target>\n---\nDeploy."))
+	if len(diagnostics) != 0 || component.ArgumentHint != "<target>" {
+		t.Fatalf("component=%+v diagnostics=%v", component, diagnostics)
+	}
+}
+
 func TestAgentAutoCompactWindowField(t *testing.T) {
 	component, diagnostics := ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\nautoCompactWindow: 1000\n---\nReview."))
 	if len(diagnostics) != 0 || component.AutoCompactWindow != 1000 {

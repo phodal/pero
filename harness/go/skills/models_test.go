@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -99,6 +100,53 @@ func TestSkillModelToolInvocationTurnLifecycle(t *testing.T) {
 	}
 	if calls.Load() != 6 || agent.ModelSelection().Model != "primary" {
 		t.Fatalf("model leaked across turns: calls=%d selection=%+v", calls.Load(), agent.ModelSelection())
+	}
+}
+
+func TestSkillArgumentHintIsAdvertised(t *testing.T) {
+	requireCatalogPlatform(t)
+	root := canonicalTempDir(t)
+	selection := selectedFixture(t, root, "sample:deploy")
+	selection.Definition.ArgumentHint = "<target>"
+	catalog, err := OpenSelected(t.Context(), nil, []FileSelection{selection})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer catalog.Close()
+	h, err := harness.Boot(t.Context(), harness.Options{Adapter: harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {
+		return harness.Completion{}, nil
+	}), AdapterProviders: []string{"fixture"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
+	if err := MountCatalog(t.Context(), h, catalog, MountOptions{Claude: true}); err != nil {
+		t.Fatal(err)
+	}
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "hint", CWD: root, Provider: "fixture", Model: "primary"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	schemas, err := h.Tools().SchemasForAgent(t.Context(), agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var description string
+	for _, schema := range schemas {
+		if schema.Name == "Skill" {
+			description = schema.Description
+		}
+	}
+	if !strings.Contains(description, `"argumentHint":"\u003ctarget\u003e"`) && !strings.Contains(description, `"argumentHint":"<target>"`) {
+		t.Fatalf("description = %s", description)
+	}
+	out, err := h.Tools().Execute(t.Context(), harness.ToolRequest{Agent: agent, Name: "Skill", CallID: "list", Arguments: json.RawMessage(`{}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var listed []Summary
+	if err := json.Unmarshal([]byte(out.Result.Content[0].Text), &listed); err != nil || len(listed) != 1 || listed[0].ArgumentHint != "<target>" {
+		t.Fatalf("list = %s %v", out.Result.Content[0].Text, err)
 	}
 }
 
