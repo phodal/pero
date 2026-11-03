@@ -179,14 +179,30 @@ func ParseHooks(path string, content []byte) (HooksDefinition, []Diagnostic) {
 				}
 				for _, key := range sortedIntegrationKeys(handler) {
 					switch key {
-					case "type", "command", "args", "timeout", "async", "if", "onFailure":
-						if key == "onFailure" {
+					case "type", "command", "args", "timeout", "async", "if", "onFailure", "once", "statusMessage", "shell":
+						switch key {
+						case "onFailure":
 							var value string
 							if !integrationDecode(handler[key], &value) || value != "continue" && value != "block" {
 								add(SeverityError, "INVALID_HOOK_FIELD", base+".onFailure", "Hook onFailure must be continue or block.")
 							}
+						case "once":
+							var value bool
+							if !integrationDecode(handler[key], &value) {
+								add(SeverityError, "INVALID_HOOK_FIELD", base+".once", "Hook once must be a boolean. Settings hooks ignore it.")
+							}
+						case "statusMessage":
+							var value string
+							if !integrationDecode(handler[key], &value) {
+								add(SeverityError, "INVALID_HOOK_FIELD", base+".statusMessage", "Hook statusMessage must be a string.")
+							}
+						case "shell":
+							var value string
+							if !integrationDecode(handler[key], &value) || value != "bash" && value != "powershell" {
+								add(SeverityError, "INVALID_HOOK_FIELD", base+".shell", "Hook shell must be bash or powershell.")
+							}
 						}
-					case "once", "statusMessage", "shell", "url", "headers", "allowedEnvVars", "model", "prompt", "toolName", "input":
+					case "url", "headers", "allowedEnvVars", "model", "prompt", "toolName", "input":
 						add(SeverityWarning, "UNSUPPORTED_HOOK_FIELD", base+"."+key, "This handler field is recognized but its execution semantics are not implemented.")
 					default:
 						add(SeverityWarning, "UNKNOWN_HOOK_FIELD", base+"."+key, "Unrecognized hook handler field is not applied.")

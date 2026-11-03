@@ -107,6 +107,7 @@ func TestLoadPackageRejectsUnsupportedExecution(t *testing.T) {
 		{"unknown hook", "hooks/hooks.json", `{"hooks":{"FutureEvent":[{"hooks":[{"type":"command","command":"private-canary-value"}]}]}}`, "UNSUPPORTED_HOOK_EVENT"},
 		{"prompt hook", "hooks/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"prompt","prompt":"private-canary-value"}]}]}}`, "UNSUPPORTED_HOOK_"},
 		{"invalid hook failure policy", "hooks/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"true","onFailure":"sometimes"}]}]}}`, "INVALID_HOOK_FIELD"},
+		{"unsupported hook shell", "hooks/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"true","shell":"zsh"}]}]}}`, "INVALID_HOOK_FIELD"},
 		{"MCP auth provider", ".mcp.json", `{"remote":{"url":"https://example.invalid/mcp","headersHelper":"private-canary-value"}}`, "UNSUPPORTED_MCP_FIELD"},
 		{"unknown MCP field", ".mcp.json", `{"local":{"command":"node","futureField":"private-canary-value"}}`, "UNKNOWN_MCP_FIELD"},
 		{"fractional MCP timeout", ".mcp.json", `{"local":{"command":"node","timeout":1200.5}}`, "integer millisecond"},
@@ -124,6 +125,22 @@ func TestLoadPackageRejectsUnsupportedExecution(t *testing.T) {
 				t.Fatalf("expected non-secret %s rejection, got error %v", tc.code, err)
 			}
 		})
+	}
+}
+
+func TestSettingsHookOnceDoesNotLimitExecution(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "sample")
+	writePluginFiles(t, root, map[string]string{
+		".claude-plugin/plugin.json": `{"name":"sample"}`,
+		"hooks/hooks.json":           `{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"true","once":true,"statusMessage":"Checking","shell":"bash"}]}]}}`,
+	})
+	packages, err := LoadPackages(t.Context(), []string{root})
+	if err != nil || len(packages) != 1 || len(packages[0].Hooks) != 1 {
+		t.Fatalf("packages=%v error=%v", packages, err)
+	}
+	hook := packages[0].Hooks[0]
+	if hook.Once || hook.Shell != "bash" || hook.Command != "true" {
+		t.Fatalf("settings hook = %+v", hook)
 	}
 }
 

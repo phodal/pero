@@ -208,13 +208,15 @@ func compileHooks(path string, raw []byte) ([]claudehooks.Hook, error) {
 		Hooks map[string][]struct {
 			Matcher string `json:"matcher"`
 			Hooks   []struct {
-				Command   string    `json:"command"`
-				Args      *[]string `json:"args"`
-				Timeout   *float64  `json:"timeout"`
-				Async     bool      `json:"async"`
-				If        string    `json:"if"`
-				Once      bool      `json:"once"`
-				OnFailure string    `json:"onFailure"`
+				Command       string    `json:"command"`
+				Args          *[]string `json:"args"`
+				Timeout       *float64  `json:"timeout"`
+				Async         bool      `json:"async"`
+				If            string    `json:"if"`
+				Once          bool      `json:"once"`
+				OnFailure     string    `json:"onFailure"`
+				Shell         string    `json:"shell"`
+				StatusMessage string    `json:"statusMessage"`
 			} `json:"hooks"`
 		} `json:"hooks"`
 	}
@@ -235,7 +237,11 @@ func compileHooks(path string, raw []byte) ([]claudehooks.Hook, error) {
 				if handler.OnFailure != "" && handler.OnFailure != "continue" && handler.OnFailure != "block" {
 					return nil, errors.New("plugins: hook onFailure must be continue or block")
 				}
-				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, Async: handler.Async, If: handler.If, Once: handler.Once, OnFailure: handler.OnFailure}
+				if handler.Shell != "" && handler.Shell != "bash" && handler.Shell != "powershell" {
+					return nil, errors.New("plugins: hook shell must be bash or powershell")
+				}
+				// Settings hooks ignore once. Skill and agent frontmatter honor it.
+				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, Async: handler.Async, If: handler.If, Shell: handler.Shell, OnFailure: handler.OnFailure}
 				if event == "Stop" {
 					hook.Matcher = ""
 				}

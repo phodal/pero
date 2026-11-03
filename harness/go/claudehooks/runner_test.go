@@ -16,6 +16,17 @@ import (
 	"time"
 )
 
+func TestHookShellSelectsBashFromExplicitPath(t *testing.T) {
+	runner := Runner{Shell: "/bin/sh", Environment: []string{"PATH=/bin:/usr/bin"}}
+	program, args, err := runner.command(Hook{Command: "true", Shell: "bash"})
+	if err != nil || (program != "/bin/bash" && program != "/usr/bin/bash") || len(args) != 4 || args[0] != "--noprofile" || args[2] != "-c" || args[3] != "true" {
+		t.Fatalf("program=%s args=%v error=%v", program, args, err)
+	}
+	if _, _, err := runner.command(Hook{Command: "true", Shell: "zsh"}); err == nil {
+		t.Fatal("accepted a shell other than bash or powershell")
+	}
+}
+
 func TestCommandExecution(t *testing.T) {
 	t.Setenv("HOOK_AMBIENT_SECRET", "must-not-inherit")
 	root := t.TempDir()

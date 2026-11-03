@@ -26,6 +26,9 @@ type Hook struct {
 	// OnFailure is "", "continue", or "block". Empty and continue leave the
 	// triggering action in place when the hook fails. block denies it.
 	OnFailure string
+	// Shell is "" (the runner shell), "bash", or "powershell". It applies only
+	// to shell-form commands. Settings hooks ignore Once; skill frontmatter does not.
+	Shell string
 }
 
 type Input struct {

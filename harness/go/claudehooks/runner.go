@@ -70,20 +70,11 @@ func (runner Runner) Run(ctx context.Context, hook Hook, input Input) (Decision,
 	defer cancelDeadline()
 	execution, cancelExecution := context.WithCancelCause(deadline)
 	defer cancelExecution(nil)
-	program, args := hook.Command, hook.Args
-	if !hook.ExecForm {
-		if len(hook.Args) > 0 {
-			return Decision{}, errors.New("claudehooks: hook args require executable form")
-		}
-		if !filepath.IsAbs(runner.Shell) {
-			return Decision{}, errors.New("claudehooks: shell form requires an explicit absolute shell executable")
-		}
-		program, args = runner.Shell, []string{"-c", hook.Command}
-		if filepath.Base(program) == "bash" {
-			args = []string{"--noprofile", "--norc", "-c", hook.Command}
-		}
+	program, args, err := runner.command(hook)
+	if err != nil {
+		return Decision{}, err
 	}
-	program, err := runner.executable(program, input.CWD)
+	program, err = runner.executable(program, input.CWD)
 	if err != nil {
 		return Decision{}, err
 	}
@@ -166,20 +157,11 @@ func (runner Runner) StartDetached(ctx context.Context, hook Hook, input Input) 
 	if strings.TrimSpace(hook.Command) == "" {
 		return nil, errors.New("claudehooks: command is required")
 	}
-	program, args := hook.Command, hook.Args
-	if !hook.ExecForm {
-		if len(hook.Args) > 0 {
-			return nil, errors.New("claudehooks: hook args require executable form")
-		}
-		if !filepath.IsAbs(runner.Shell) {
-			return nil, errors.New("claudehooks: shell form requires an explicit absolute shell executable")
-		}
-		program, args = runner.Shell, []string{"-c", hook.Command}
-		if filepath.Base(program) == "bash" {
-			args = []string{"--noprofile", "--norc", "-c", hook.Command}
-		}
+	program, args, err := runner.command(hook)
+	if err != nil {
+		return nil, err
 	}
-	program, err := runner.executable(program, input.CWD)
+	program, err = runner.executable(program, input.CWD)
 	if err != nil {
 		return nil, err
 	}
@@ -202,6 +184,47 @@ func (runner Runner) StartDetached(ctx context.Context, hook Hook, input Input) 
 		return nil, fmt.Errorf("claudehooks: hook process failed: %w", err)
 	}
 	return &DetachedHook{Command: command, Stdout: stdout, Stderr: stderr, cancel: cancel}, nil
+}
+
+func (runner Runner) command(hook Hook) (string, []string, error) {
+	if hook.ExecForm {
+		return hook.Command, hook.Args, nil
+	}
+	if len(hook.Args) > 0 {
+		return "", nil, errors.New("claudehooks: hook args require executable form")
+	}
+	shell := runner.Shell
+	switch hook.Shell {
+	case "":
+	case "bash":
+		resolved, err := runner.executable("bash", "/")
+		if err != nil {
+			return "", nil, err
+		}
+		shell = resolved
+	case "powershell":
+		resolved, err := runner.executable("pwsh", "/")
+		if err != nil {
+			resolved, err = runner.executable("powershell", "/")
+		}
+		if err != nil {
+			return "", nil, errors.New("claudehooks: powershell was requested but is not on PATH")
+		}
+		shell = resolved
+	default:
+		return "", nil, errors.New("claudehooks: hook shell must be bash or powershell")
+	}
+	if !filepath.IsAbs(shell) {
+		return "", nil, errors.New("claudehooks: shell form requires an explicit absolute shell executable")
+	}
+	args := []string{"-c", hook.Command}
+	switch filepath.Base(shell) {
+	case "bash":
+		args = []string{"--noprofile", "--norc", "-c", hook.Command}
+	case "pwsh", "powershell", "pwsh.exe", "powershell.exe":
+		args = []string{"-NoProfile", "-Command", hook.Command}
+	}
+	return shell, args, nil
 }
 
 func (runner Runner) executable(program, cwd string) (string, error) {

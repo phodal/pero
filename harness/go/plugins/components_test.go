@@ -107,8 +107,8 @@ func TestForkComponentFields(t *testing.T) {
 }
 
 func TestComponentHooksParseCommandFrontmatter(t *testing.T) {
-	component, diagnostics := ParseComponent("sample", ComponentSkill, "skills/secure/SKILL.md", []byte("---\nname: secure\ndescription: Check commands.\nhooks:\n  PreToolUse:\n    - matcher: Bash\n      hooks:\n        - type: command\n          command: ./scripts/check.sh\n          once: true\n---\nCheck.\n"))
-	if len(diagnostics) != 0 || len(component.Hooks) != 1 || component.Hooks[0].Event != "PreToolUse" || component.Hooks[0].Matcher != "Bash" || component.Hooks[0].Command != "./scripts/check.sh" || !component.Hooks[0].Once {
+	component, diagnostics := ParseComponent("sample", ComponentSkill, "skills/secure/SKILL.md", []byte("---\nname: secure\ndescription: Check commands.\nhooks:\n  PreToolUse:\n    - matcher: Bash\n      hooks:\n        - type: command\n          command: ./scripts/check.sh\n          once: true\n          shell: bash\n          statusMessage: Checking\n---\nCheck.\n"))
+	if len(diagnostics) != 0 || len(component.Hooks) != 1 || component.Hooks[0].Event != "PreToolUse" || component.Hooks[0].Matcher != "Bash" || component.Hooks[0].Command != "./scripts/check.sh" || !component.Hooks[0].Once || component.Hooks[0].Shell != "bash" {
 		t.Fatalf("hooks=%+v diagnostics=%v", component.Hooks, diagnostics)
 	}
 	agent, diagnostics := ParseComponent("sample", ComponentAgent, "agents/reviewer.md", []byte("---\nname: reviewer\ndescription: Review.\nhooks:\n  Stop:\n    - hooks:\n        - type: command\n          command: ./scripts/stop.sh\n---\nReview.\n"))

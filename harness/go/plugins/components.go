@@ -338,14 +338,16 @@ func parseComponentHooks(path string, node *yaml.Node) ([]claudehooks.Hook, []Di
 	var groups map[string][]struct {
 		Matcher string `yaml:"matcher"`
 		Hooks   []struct {
-			Type      string   `yaml:"type"`
-			Command   string   `yaml:"command"`
-			Args      []string `yaml:"args"`
-			Timeout   *float64 `yaml:"timeout"`
-			Async     bool     `yaml:"async"`
-			If        string   `yaml:"if"`
-			Once      bool     `yaml:"once"`
-			OnFailure string   `yaml:"onFailure"`
+			Type          string   `yaml:"type"`
+			Command       string   `yaml:"command"`
+			Args          []string `yaml:"args"`
+			Timeout       *float64 `yaml:"timeout"`
+			Async         bool     `yaml:"async"`
+			If            string   `yaml:"if"`
+			Once          bool     `yaml:"once"`
+			OnFailure     string   `yaml:"onFailure"`
+			Shell         string   `yaml:"shell"`
+			StatusMessage string   `yaml:"statusMessage"`
 		} `yaml:"hooks"`
 	}
 	if node == nil || node.Decode(&groups) != nil {
@@ -373,7 +375,11 @@ func parseComponentHooks(path string, node *yaml.Node) ([]claudehooks.Hook, []Di
 					diagnostics = append(diagnostics, Diagnostic{Severity: SeverityError, Code: "INVALID_COMPONENT_FIELD", Path: path, Field: "hooks.onFailure", Message: "Hook onFailure must be continue or block."})
 					continue
 				}
-				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, If: handler.If, Once: handler.Once, OnFailure: handler.OnFailure}
+				if handler.Shell != "" && handler.Shell != "bash" && handler.Shell != "powershell" {
+					diagnostics = append(diagnostics, Diagnostic{Severity: SeverityError, Code: "INVALID_COMPONENT_FIELD", Path: path, Field: "hooks.shell", Message: "Hook shell must be bash or powershell."})
+					continue
+				}
+				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, If: handler.If, Once: handler.Once, OnFailure: handler.OnFailure, Shell: handler.Shell}
 				if len(handler.Args) > 0 {
 					hook.ExecForm = true
 					hook.Args = append([]string{}, handler.Args...)

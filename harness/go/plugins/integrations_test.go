@@ -98,6 +98,19 @@ func TestHookInspection(t *testing.T) {
 			name: "null is not a hook object", content: " \n null ",
 			codes: []string{"INVALID_HOOKS"}, errorCodes: []string{"INVALID_HOOKS"},
 		},
+		{
+			name:    "settings once and display fields stay inspectable",
+			content: `{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"true","once":true,"statusMessage":"Checking","shell":"bash"}]}]}}`,
+			count:   1, form: "shell",
+			codes: []string{"HOOK_RUNTIME_UNSUPPORTED"},
+		},
+		{
+			name:    "shell must be bash or powershell",
+			content: `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"true","shell":"zsh"}]}]}}`,
+			count:   1, form: "shell",
+			codes:      []string{"INVALID_HOOK_FIELD", "HOOK_RUNTIME_UNSUPPORTED"},
+			errorCodes: []string{"INVALID_HOOK_FIELD"},
+		},
 		{name: "empty hooks", content: `{"hooks":{}}`},
 	}
 	for _, tc := range tests {
