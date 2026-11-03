@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -15,8 +14,10 @@ import (
 // original registry call still owns approval, cancellation and the tool receipt.
 type claudeArguments struct {
 	FilePath        string `json:"file_path"`
+	NotebookPath    string `json:"notebook_path"`
 	Path            string `json:"path"`
 	Content         string `json:"content"`
+	NewSource       string `json:"new_source"`
 	OldString       string `json:"old_string"`
 	NewString       string `json:"new_string"`
 	ReplaceAll      bool   `json:"replace_all"`
@@ -38,6 +39,9 @@ type claudeArguments struct {
 	Context         int    `json:"context"`
 	HeadLimit       int    `json:"head_limit"`
 	RunInBackground bool   `json:"run_in_background"`
+	CellID          string `json:"cell_id"`
+	CellType        string `json:"cell_type"`
+	EditMode        string `json:"edit_mode"`
 }
 
 func decodeNativeArguments(raw json.RawMessage, workspace string, claude, allowResource bool, workspaceAliases ...string) (arguments, error) {
@@ -54,6 +58,13 @@ func decodeNativeArguments(raw json.RawMessage, workspace string, claude, allowR
 	resourcePath := ""
 	if value.FilePath != "" {
 		selectedPath = value.FilePath
+	}
+	if value.NotebookPath != "" {
+		selectedPath = value.NotebookPath
+	}
+	content := value.Content
+	if value.NewSource != "" || value.NotebookPath != "" {
+		content = value.NewSource
 	}
 	if selectedPath != "" {
 		if strings.ContainsRune(selectedPath, 0) {
@@ -92,7 +103,7 @@ func decodeNativeArguments(raw json.RawMessage, workspace string, claude, allowR
 		around = value.Context
 	}
 	return arguments{
-		Path: selectedPath, Content: value.Content, OldText: value.OldString,
+		Path: selectedPath, Content: content, OldText: value.OldString,
 		NewText: value.NewString, ReplaceAll: value.ReplaceAll, Offset: value.Offset,
 		Limit: value.Limit, Command: value.Command, TimeoutMS: value.Timeout,
 		Pattern: value.Pattern, Glob: value.Glob, FileType: value.FileType,
@@ -100,6 +111,7 @@ func decodeNativeArguments(raw json.RawMessage, workspace string, claude, allowR
 		LineNumbers: value.LineNumbers, Before: value.Before, After: value.After,
 		Around: around, HeadLimit: value.HeadLimit, SearchOffset: value.Offset, ResourcePath: resourcePath,
 		RunInBackground: value.RunInBackground, Description: value.Description,
+		CellID: value.CellID, CellType: value.CellType, EditMode: value.EditMode,
 	}, nil
 }
 
@@ -110,35 +122,14 @@ func claudeToolDefinition(definition toolDefinition, files *fstools.Workspace, r
 	switch definition.name {
 	case "read_file":
 		definition.name = "Read"
-		definition.description = "Read bounded UTF-8 text with line numbers. file_path may be absolute inside the configured workspace or workspace-relative; offset is 1-based. Binary, PDF and image reads are unavailable."
+		definition.description = "Read bounded UTF-8 text with line numbers, or return PNG/JPEG/GIF/WebP images as visual content. file_path may be absolute inside the configured workspace or workspace-relative; offset is 1-based for text. PDF page reads are unavailable."
 		if resourceReader != nil {
-			definition.description += " Explicitly selected read-only plugin resource files can also be read."
+			definition.description += " Explicitly selected read-only plugin resource files can also be read as text."
 		}
 		definition.properties = filePath + `,"offset":{"type":"integer","minimum":1},"limit":{"type":"integer","minimum":1,"maximum":2000}`
 		definition.required = `"file_path"`
 		definition.run = func(ctx context.Context, input arguments) (any, error) {
-			var text fstools.ScopedText
-			var err error
-			if input.ResourcePath != "" && resourceReader != nil {
-				text, err = resourceReader(ctx, input.ResourcePath)
-			} else {
-				text, err = files.Read(ctx, input.Path)
-			}
-			if err != nil {
-				return nil, err
-			}
-			window, err := fstools.FormatRead(text, input.Offset, input.Limit)
-			if err != nil {
-				return nil, err
-			}
-			if window.Content != "" {
-				lines := strings.Split(window.Content, "\n")
-				for i, line := range lines {
-					lines[i] = fmt.Sprintf("%6d→%s", window.Offset+i, line)
-				}
-				window.Content = strings.Join(lines, "\n")
-			}
-			return window, nil
+			return readClaudeFile(ctx, workspaceFrom(ctx, files), resourceReader, input)
 		}
 	case "write_file":
 		definition.name = "Write"
@@ -146,20 +137,28 @@ func claudeToolDefinition(definition toolDefinition, files *fstools.Workspace, r
 		definition.properties = filePath + `,"content":{"type":"string","maxLength":1048576}`
 		definition.required = `"file_path","content"`
 		definition.run = func(ctx context.Context, input arguments) (any, error) {
-			return files.WriteCreatingParents(ctx, input.Path, input.Content)
+			return workspaceFrom(ctx, files).WriteCreatingParents(ctx, input.Path, input.Content)
 		}
 	case "edit_file":
 		definition.name = "Edit"
 		definition.description = "Replace exact old_string with new_string in an existing workspace text file; the old string must match once unless replace_all is true. Requires approval."
 		definition.properties = filePath + `,"old_string":{"type":"string","minLength":1,"maxLength":1048576},"new_string":{"type":"string","maxLength":1048576},"replace_all":{"type":"boolean"}`
 		definition.required = `"file_path","old_string","new_string"`
+	case "notebook_edit":
+		definition.name = "NotebookEdit"
+		definition.description = "Modify one cell in a UTF-8 Jupyter notebook (.ipynb). replace overwrites source, insert adds a cell after cell_id (or at the start), delete removes the cell. Requires approval."
+		definition.properties = `"notebook_path":{"type":"string","minLength":1},"cell_id":{"type":"string"},"new_source":{"type":"string","maxLength":1048576},"cell_type":{"type":"string","enum":["code","markdown"]},"edit_mode":{"type":"string","enum":["replace","insert","delete"]}`
+		definition.required = `"notebook_path","new_source"`
+		definition.run = func(ctx context.Context, input arguments) (any, error) {
+			return editNotebook(ctx, workspaceFrom(ctx, files), input)
+		}
 	case "list_directory":
 		definition.name = "Glob"
 		definition.description = "Find workspace files by relative glob pattern, including **, ?, character classes and brace alternatives. path selects a workspace directory. Results are sorted by path; symlinks and .git directories are skipped. Traversal and results are bounded and truncation is explicit."
 		definition.properties = `"pattern":{"type":"string","minLength":1,"maxLength":4096},"path":{"type":"string"}`
 		definition.required = `"pattern"`
 		definition.run = func(ctx context.Context, input arguments) (any, error) {
-			return claudeGlob(ctx, files, input)
+			return claudeGlob(ctx, workspaceFrom(ctx, files), input)
 		}
 	case "search_files":
 		definition.name = "Grep"
@@ -167,7 +166,7 @@ func claudeToolDefinition(definition toolDefinition, files *fstools.Workspace, r
 		definition.properties = `"pattern":{"type":"string","minLength":1,"maxLength":4096},"path":{"type":"string"},"glob":{"type":"string","maxLength":4096},"type":{"type":"string"},"output_mode":{"type":"string","enum":["content","files_with_matches","count"]},"-i":{"type":"boolean"},"-n":{"type":"boolean"},"multiline":{"type":"boolean"},"-A":{"type":"integer","minimum":0,"maximum":20},"-B":{"type":"integer","minimum":0,"maximum":20},"-C":{"type":"integer","minimum":0,"maximum":20},"context":{"type":"integer","minimum":0,"maximum":20},"head_limit":{"type":"integer","minimum":0},"offset":{"type":"integer","minimum":0}`
 		definition.required = `"pattern"`
 		definition.run = func(ctx context.Context, input arguments) (any, error) {
-			return claudeGrep(ctx, files, input)
+			return claudeGrep(ctx, workspaceFrom(ctx, files), input)
 		}
 	case "shell":
 		definition.name = "Bash"

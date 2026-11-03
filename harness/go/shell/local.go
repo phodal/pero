@@ -44,6 +44,9 @@ type LocalOptions struct {
 	// OutputSink is an optional trusted foreground capture for both streams.
 	// The caller owns its size limit and lifetime; a write failure stops execution.
 	OutputSink io.Writer
+	// AllowWorkdir permits an absolute directory outside the launch workspace.
+	// Callers use it for a worktree they created and still own.
+	AllowWorkdir func(string) bool
 }
 
 type LocalExecutor struct {
@@ -56,6 +59,7 @@ type LocalExecutor struct {
 	baseEnv                    []string
 	outputSink                 io.Writer
 	processStarted             func()
+	allowWorkdir               func(string) bool
 }
 
 func NewLocalExecutor(options LocalOptions) (*LocalExecutor, error) {
@@ -111,7 +115,7 @@ func NewLocalExecutor(options LocalOptions) (*LocalExecutor, error) {
 			return nil, err
 		}
 	}
-	return &LocalExecutor{sandbox: confined, windowsACL: windowsACL, shell: shell, cwd: cwd, workspaceIdentity: info, timeout: options.Timeout, maxTimeout: options.MaxTimeout, maxOutputBytes: options.MaxOutputBytes, grace: options.Grace, baseEnv: env, outputSink: options.OutputSink, processStarted: options.ProcessStarted}, nil
+	return &LocalExecutor{sandbox: confined, windowsACL: windowsACL, shell: shell, cwd: cwd, workspaceIdentity: info, timeout: options.Timeout, maxTimeout: options.MaxTimeout, maxOutputBytes: options.MaxOutputBytes, grace: options.Grace, baseEnv: env, outputSink: options.OutputSink, processStarted: options.ProcessStarted, allowWorkdir: options.AllowWorkdir}, nil
 }
 
 func explicitEnvironment(entries []string) ([]string, error) {
@@ -200,7 +204,8 @@ func (e *LocalExecutor) Resolve(request ExecRequest) (ExecSpec, error) {
 		return ExecSpec{}, fmt.Errorf("shell: workdir: %w", err)
 	}
 	rel, err := filepath.Rel(e.cwd, workdir)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	outside := err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	if outside && (e.allowWorkdir == nil || !e.allowWorkdir(workdir)) {
 		return ExecSpec{}, errors.New("shell: launch directory is outside configured workspace")
 	}
 	info, err := os.Stat(workdir)
@@ -428,6 +433,9 @@ func (e *LocalExecutor) CheckCWD(cwd string) error {
 	}
 	rel, err := filepath.Rel(e.cwd, resolved)
 	if err != nil || rel != "." {
+		if e.allowWorkdir != nil && e.allowWorkdir(resolved) {
+			return nil
+		}
 		return errors.New("shell: session cwd differs from configured workspace")
 	}
 	return nil

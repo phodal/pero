@@ -59,6 +59,12 @@ func (a *App) CheckCWD(cwd string) error {
 		return errors.New("native workspace is unavailable")
 	}
 	if a.files != nil {
+		if err := a.files.CheckCWD(cwd); err == nil {
+			return nil
+		}
+		if value, ok := boundWorkspaces.Load(cwd); ok {
+			return value.(*fstools.Workspace).CheckCWD(cwd)
+		}
 		return a.files.CheckCWD(cwd)
 	}
 	if a.shell != nil {
@@ -89,6 +95,9 @@ type arguments struct {
 	ResourcePath                                   string
 	RunInBackground                                bool
 	Description                                    string
+	CellID                                         string
+	CellType                                       string
+	EditMode                                       string
 }
 
 type toolDefinition struct {
@@ -127,18 +136,32 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 	var shellAdmission func(context.Context, harness.ToolRequest) (*harness.NativeApprovalDescriptor, error)
 	definitions := []toolDefinition{
 		{"read_file", "Read bounded UTF-8 text from an existing workspace-relative file. offset is a 1-based line number.", `"path":{"type":"string"},"offset":{"type":"integer","minimum":1},"limit":{"type":"integer","minimum":1,"maximum":2000}`, `"path"`, false, func(c context.Context, a arguments) (any, error) {
-			v, e := files.Read(c, a.Path)
+			v, e := workspaceFrom(c, files).Read(c, a.Path)
 			if e != nil {
 				return nil, e
 			}
 			return fstools.FormatRead(v, a.Offset, a.Limit)
 		}},
-		{"write_file", "Create or replace a bounded UTF-8 file under the configured workspace. Parent directory must already exist. Requires approval.", `"path":{"type":"string"},"content":{"type":"string","maxLength":1048576}`, `"path","content"`, true, func(c context.Context, a arguments) (any, error) { return files.Write(c, a.Path, a.Content) }},
-		{"edit_file", "Replace exact text in an existing workspace file; old_text must match once unless replace_all. Requires approval.", `"path":{"type":"string"},"old_text":{"type":"string","minLength":1,"maxLength":1048576},"new_text":{"type":"string","maxLength":1048576},"replace_all":{"type":"boolean"}`, `"path","old_text","new_text"`, true, func(c context.Context, a arguments) (any, error) {
-			return files.Edit(c, a.Path, a.OldText, a.NewText, a.ReplaceAll)
+		{"write_file", "Create or replace a bounded UTF-8 file under the configured workspace. Parent directory must already exist. Requires approval.", `"path":{"type":"string"},"content":{"type":"string","maxLength":1048576}`, `"path","content"`, true, func(c context.Context, a arguments) (any, error) {
+			return workspaceFrom(c, files).Write(c, a.Path, a.Content)
 		}},
-		{"list_directory", "List up to 256 direct workspace directory entries; does not follow symlinks.", `"path":{"type":"string"}`, ``, false, func(c context.Context, a arguments) (any, error) { return files.List(c, a.Path) }},
-		{"search_files", "Find literal query text in bounded workspace files. At most 512 entries, 8 MiB text and 64 matches; symlinks skipped.", `"path":{"type":"string"},"query":{"type":"string","minLength":1,"maxLength":4096}`, `"query"`, false, func(c context.Context, a arguments) (any, error) { return files.Search(c, a.Path, a.Query) }},
+		{"edit_file", "Replace exact text in an existing workspace file; old_text must match once unless replace_all. Requires approval.", `"path":{"type":"string"},"old_text":{"type":"string","minLength":1,"maxLength":1048576},"new_text":{"type":"string","maxLength":1048576},"replace_all":{"type":"boolean"}`, `"path","old_text","new_text"`, true, func(c context.Context, a arguments) (any, error) {
+			return workspaceFrom(c, files).Edit(c, a.Path, a.OldText, a.NewText, a.ReplaceAll)
+		}},
+		{"list_directory", "List up to 256 direct workspace directory entries; does not follow symlinks.", `"path":{"type":"string"}`, ``, false, func(c context.Context, a arguments) (any, error) { return workspaceFrom(c, files).List(c, a.Path) }},
+		{"search_files", "Find literal query text in bounded workspace files. At most 512 entries, 8 MiB text and 64 matches; symlinks skipped.", `"path":{"type":"string"},"query":{"type":"string","minLength":1,"maxLength":4096}`, `"query"`, false, func(c context.Context, a arguments) (any, error) {
+			return workspaceFrom(c, files).Search(c, a.Path, a.Query)
+		}},
+	}
+	if opts.ClaudeTools && files.SupportsReplacement() {
+		definitions = append(definitions, toolDefinition{
+			"notebook_edit",
+			"Modify one Jupyter notebook cell by cell_id. edit_mode is replace, insert or delete. Requires approval.",
+			`"notebook_path":{"type":"string","minLength":1},"cell_id":{"type":"string"},"new_source":{"type":"string","maxLength":1048576},"cell_type":{"type":"string","enum":["code","markdown"]},"edit_mode":{"type":"string","enum":["replace","insert","delete"]}`,
+			`"notebook_path","new_source"`,
+			true,
+			func(c context.Context, a arguments) (any, error) { return editNotebook(c, workspaceFrom(c, files), a) },
+		})
 	}
 	if opts.EnableShell || opts.EnableResearchClone {
 		if opts.Shell == "" {
@@ -147,7 +170,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 			}
 			opts.Shell = "/bin/bash"
 		}
-		shellOptions := shell.LocalOptions{Sandbox: opts.Sandbox, Shell: opts.Shell, CWD: workspace, Timeout: 30 * time.Second, MaxTimeout: 120 * time.Second, MaxOutputBytes: 16 << 10, Grace: 200 * time.Millisecond, BaseEnv: []string{"PATH=/usr/bin:/bin", "LANG=C.UTF-8"}}
+		shellOptions := shell.LocalOptions{Sandbox: opts.Sandbox, Shell: opts.Shell, CWD: workspace, Timeout: 30 * time.Second, MaxTimeout: 120 * time.Second, MaxOutputBytes: 16 << 10, Grace: 200 * time.Millisecond, BaseEnv: []string{"PATH=/usr/bin:/bin", "LANG=C.UTF-8"}, AllowWorkdir: isolatedWorkdir}
 		if opts.ClaudeTools && opts.PluginEnvironment != nil {
 			shellOptions.BaseEnv = opts.PluginEnvironment
 			shellOptions.TrustedBaseEnvironment = true
@@ -227,10 +250,11 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 				}
 			}
 			definitions = append(definitions, toolDefinition{"shell", description, `"command":{"type":"string","minLength":1,"maxLength":16384},"timeout_ms":{"type":"integer","minimum":1,"maximum":120000}`, `"command"`, true, func(c context.Context, a arguments) (any, error) {
-				if e := app.CheckCWD(workspace); e != nil {
+				root := workspaceFrom(c, files)
+				if e := root.CheckCWD(root.Path()); e != nil {
 					return nil, e
 				}
-				spec, e := executor.Resolve(shell.ExecRequest{Command: a.Command, Workdir: workspace, Timeout: time.Duration(a.TimeoutMS) * time.Millisecond})
+				spec, e := executor.Resolve(shell.ExecRequest{Command: a.Command, Workdir: root.Path(), Timeout: time.Duration(a.TimeoutMS) * time.Millisecond})
 				if e != nil {
 					return nil, e
 				}
@@ -244,11 +268,11 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 	}
 	// Registered contributions are owned by the Harness and drain before App.Close.
 	for _, d := range definitions {
-		if opts.Sandbox != nil && opts.Sandbox.Mode == sandbox.ReadOnly && (d.name == "write_file" || d.name == "edit_file") {
+		if opts.Sandbox != nil && opts.Sandbox.Mode == sandbox.ReadOnly && (d.name == "write_file" || d.name == "edit_file" || d.name == "notebook_edit") {
 			continue
 		}
 		if !files.SupportsReplacement() {
-			if d.name == "edit_file" {
+			if d.name == "edit_file" || d.name == "notebook_edit" {
 				continue
 			}
 			if d.name == "write_file" {
@@ -273,10 +297,16 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 			if request.Agent == nil {
 				return harness.ToolResult{}, errors.New("native tools require an agent")
 			}
+			selected := app.filesFor(request.Agent.Session().WorkingDirectory())
 			if e := app.CheckCWD(request.Agent.Session().WorkingDirectory()); e != nil {
 				return harness.ToolResult{}, e
 			}
-			a, e := decodeNativeArguments(request.Arguments, workspace, opts.ClaudeTools, d.name == "Read" && opts.ReadOnlyResource != nil, opts.Workspace)
+			c = withWorkspace(c, selected)
+			alias := opts.Workspace
+			if selected != app.files {
+				alias = selected.Path()
+			}
+			a, e := decodeNativeArguments(request.Arguments, selected.Path(), opts.ClaudeTools, d.name == "Read" && opts.ReadOnlyResource != nil, alias)
 			if e != nil {
 				return harness.ToolResult{}, e
 			}
@@ -319,6 +349,11 @@ func boundedTail(text string, limit int) string {
 }
 
 func renderResult(value any, operationErr error) (harness.ToolResult, error) {
+	if media, ok := value.(mediaReadResult); ok && operationErr == nil {
+		return harness.ToolResult{Content: []harness.ContentBlock{{
+			Type: harness.BlockImage, MIMEType: media.MIMEType, Data: append([]byte(nil), media.Data...),
+		}}}, nil
+	}
 	// JSON escaping may multiply captured shell bytes by six. Keep status and
 	// receipts even when textual output must be reduced further.
 	switch v := value.(type) {
