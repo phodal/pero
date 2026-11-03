@@ -55,3 +55,16 @@ returning. A five-second cleanup deadline forces termination if necessary and
 reports `cleanupUncertain: true`; inspect the runner diagnostics before retrying.
 The ordinary Unix process-group grace is unchanged. Native Windows tests skip
 unless `PERO_REQUIRE_WINDOWS_ACL=1` is set for an approved disposable runner.
+
+
+## Explicit PTY execution
+
+`SupportsTerminal` and `StartTerminal` add a separate live PTY path on Linux and
+macOS for an unsandboxed executor. It reuses workspace resolution, explicit
+shell/environment, finite timeout and process-group termination. Terminal owns
+bounded cursor output, stdin/EOF, resize and stop; it does not restore processes
+from receipts. Canonical EOF is terminal input, not a pipe-close guarantee in raw
+mode. Native composition owns exact-agent handles, approval and durable startup
+intent. macOS real-process/race tests passed; Linux and Windows cross-compilation
+do not establish native runtime support. Windows and configured sandbox PTYs are
+unavailable.
