@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+
+	harnessmcp "github.com/phodal/pero/harness/go/mcp"
 )
 
 func (r *ToolRegistry) Execute(ctx context.Context, request ToolRequest) (ToolOutcome, error) {
@@ -361,6 +363,7 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 	}
 	func() {
 		bodyCtx, retireBody := withToolBodyAdmission(executeCtx, filtered)
+		bodyCtx = harnessmcp.WithToolCaller(bodyCtx, filtered.Agent)
 		defer retireBody()
 		if tool.ExecuteRequest != nil {
 			result, executeErr = tool.ExecuteRequest(bodyCtx, filtered)

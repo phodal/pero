@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "config.go",
         "connection.go",
+        "elicit.go",
         "observation.go",
         "output.go",
         "resources.go",

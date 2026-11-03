@@ -62,7 +62,7 @@ func TestMCPToolHookDeniesAWriteAndSkipsLaunchSessionStart(t *testing.T) {
 		{Event: "SessionStart", MCPServer: "plugin:sample:memory", MCPTool: "startup"},
 		{Event: "PreToolUse", Matcher: "Write", MCPServer: "memory", MCPTool: "guard", MCPInput: json.RawMessage(`{"path":"${tool_input.file_path}"}`)},
 	}}
-	if _, err := MountMCP(ctx, h, []plugins.Package{pkg}, nil); err != nil {
+	if _, err := MountMCP(ctx, h, []plugins.Package{pkg}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	app, err := MountHooks(ctx, h, []plugins.Package{pkg}, HookOptions{Shell: "/bin/sh", StateDirectory: root})

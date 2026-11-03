@@ -21,7 +21,7 @@ import (
 // MountMCP installs synchronous root-session activation composition. Cleanup is
 // reserved against the exact Agent before mounting its scoped connection owner.
 // Delegated Agents inherit the root scope's tools and do not reconnect servers.
-func MountMCP(ctx context.Context, h *harness.Harness, packages []plugins.Package, environment []string) (*point.Instance, error) {
+func MountMCP(ctx context.Context, h *harness.Harness, packages []plugins.Package, environment []string, hooks *HookApp) (*point.Instance, error) {
 	var snapshot []plugins.Package
 	for _, pkg := range packages {
 		if len(pkg.MCP) == 0 {
@@ -74,6 +74,11 @@ func MountMCP(ctx context.Context, h *harness.Harness, packages []plugins.Packag
 				stopAdmission := context.AfterFunc(ctx, cancelStartup)
 				defer stopAdmission()
 				defer cancelStartup()
+				if hooks != nil {
+					for index := range servers {
+						servers[index].Elicit = bindElicitation(hooks, servers[index].ElicitationName, servers[index].Name)
+					}
+				}
 				if err := harness.MountMCPServers(startup, ownerRun, h.Tools(), h.Prompts(), servers); err != nil {
 					return nil, harnessmcp.SafeError(err)
 				}
@@ -193,7 +198,7 @@ func MCPServers(packages []plugins.Package, cwd string, environment []string) ([
 					}
 				}
 			}
-			config := harness.MCPServerConfig{Name: name, CWD: cwd, Env: make(map[string]string), Headers: make(map[string]string)}
+			config := harness.MCPServerConfig{Name: name, ElicitationName: declaration.Name, CWD: cwd, Env: make(map[string]string), Headers: make(map[string]string)}
 			if path, present := base["PATH"]; present {
 				config.Env["PATH"] = path
 			}

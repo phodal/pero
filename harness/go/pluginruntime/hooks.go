@@ -35,6 +35,9 @@ type HookOptions struct {
 	Retain bool
 	// RunAgent executes an agent hook through the mounted subagent runtime.
 	RunAgent func(context.Context, *harness.Agent, string, string) (string, error)
+	// AnswerElicitation is the user dialog. It runs only when no Elicitation
+	// hook already answered. Nil declines the request.
+	AnswerElicitation func(context.Context, claudehooks.Input) (claudehooks.Decision, error)
 }
 
 type HookApp struct {
@@ -85,7 +88,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 		for _, hook := range pkg.Hooks {
 			count++
 			switch hook.Event {
-			case "SessionStart", "UserPromptSubmit", "UserPromptExpansion", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "StopFailure", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove", "FileChanged", "Notification", "Setup", "PreModelSwitch", "PostModelSwitch", "MessageDisplay":
+			case "SessionStart", "UserPromptSubmit", "UserPromptExpansion", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "StopFailure", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove", "FileChanged", "Notification", "Setup", "PreModelSwitch", "PostModelSwitch", "MessageDisplay", "Elicitation", "ElicitationResult":
 			default:
 				return nil, fmt.Errorf("plugin-runtime: hook event %q is not implemented", hook.Event)
 			}
@@ -640,6 +643,8 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 			matcherValue, filter = input.ToModel, true
 		case "SubagentStart", "SubagentStop":
 			matcherValue, filter = input.AgentType, true
+		case "Elicitation", "ElicitationResult":
+			matcherValue, filter = input.MCPServerName, true
 		case "PreCompact", "PostCompact", "Setup":
 			matcherValue, filter = input.Trigger, true
 		}
@@ -734,6 +739,9 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 			app.h.Runtime().Logger().Warn("Claude command hook message", "plugin", selected.plugin, "event", input.Event, "message", decision.SystemMessage)
 		}
 		decisions = append(decisions, decision)
+	}
+	if input.Event == "Elicitation" || input.Event == "ElicitationResult" {
+		return foldElicitation(decisions), nil
 	}
 	return claudehooks.Merge(decisions)
 }

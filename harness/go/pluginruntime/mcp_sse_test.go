@@ -62,7 +62,7 @@ func TestSelectedSSEMCPUsesItsOwnWireAndLifecycle(t *testing.T) {
 	}
 	defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
 	pkg := plugins.Package{Root: t.TempDir(), Definition: plugins.Plugin{Name: "sample"}, MCP: []plugins.MCPServerDefinition{{Name: "legacy", Transport: "sse", URL: "${ENDPOINT}", Headers: map[string]string{"Authorization": "Bearer ${TOKEN}"}}}}
-	if _, err := MountMCP(ctx, h, []plugins.Package{pkg}, []string{"ENDPOINT=" + endpoint.URL, "TOKEN=fixture"}); err != nil {
+	if _, err := MountMCP(ctx, h, []plugins.Package{pkg}, []string{"ENDPOINT=" + endpoint.URL, "TOKEN=fixture"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	parent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "sse-parent", CWD: t.TempDir()})

@@ -142,3 +142,22 @@ func TestDecisionAggregation(t *testing.T) {
 		})
 	}
 }
+
+func TestElicitationDecisions(t *testing.T) {
+	for _, test := range []struct {
+		name, stdout, action, content string
+		exit                          int
+	}{
+		{name: "accept", stdout: `{"hookSpecificOutput":{"hookEventName":"Elicitation","action":"accept","content":{"project_key":"DOCS"}}}`, action: "accept", content: `{"project_key":"DOCS"}`},
+		{name: "exit 2 declines and ignores the answer", stdout: `{"hookSpecificOutput":{"hookEventName":"Elicitation","action":"accept","content":{"project_key":"DOCS"}}}`, exit: 2, action: "decline"},
+		{name: "block overrides accept", stdout: `{"decision":"block","reason":"no","hookSpecificOutput":{"hookEventName":"Elicitation","action":"accept","content":{"project_key":"DOCS"}}}`, action: "decline"},
+		{name: "silence leaves the dialog", stdout: ``},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := ParseDecision("Elicitation", []byte(test.stdout), nil, test.exit)
+			if err != nil || got.Action != test.action || string(got.Content) != test.content || got.Reason != "" || got.SystemMessage != "" || got.Stop {
+				t.Fatalf("decision=%+v content=%s err=%v", got, got.Content, err)
+			}
+		})
+	}
+}

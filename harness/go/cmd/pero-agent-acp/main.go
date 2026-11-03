@@ -282,7 +282,7 @@ func run() (resultErr error) {
 		if err != nil {
 			return err
 		}
-		if _, err := pluginruntime.MountMCP(ctx, h, packages, pluginEnvironment); err != nil {
+		if _, err := pluginruntime.MountMCP(ctx, h, packages, pluginEnvironment, pluginHooks); err != nil {
 			return err
 		}
 		if _, err := tasks.Mount(ctx, h); err != nil {

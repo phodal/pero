@@ -93,6 +93,13 @@ type Input struct {
 	DisplayIndex         int             `json:"index,omitempty"`
 	Final                bool            `json:"final,omitempty"`
 	Delta                string          `json:"delta,omitempty"`
+	MCPServerName        string          `json:"mcp_server_name,omitempty"`
+	Mode                 string          `json:"mode,omitempty"`
+	URL                  string          `json:"url,omitempty"`
+	ElicitationID        string          `json:"elicitation_id,omitempty"`
+	RequestedSchema      json.RawMessage `json:"requested_schema,omitempty"`
+	Action               string          `json:"action,omitempty"`
+	Content              json.RawMessage `json:"content,omitempty"`
 }
 
 type Decision struct {
@@ -110,6 +117,10 @@ type Decision struct {
 	EndTurn bool
 	// DisplayContent replaces assistant text on screen. Nil keeps the original.
 	DisplayContent *string
+	// Action is an elicitation answer: accept, decline, or cancel. Empty means
+	// the hook left the request unanswered.
+	Action  string
+	Content json.RawMessage
 }
 
 var ErrNonBlocking = errors.New("claudehooks: non-blocking hook error")
@@ -142,6 +153,8 @@ type specificOutput struct {
 	UpdatedToolOutput json.RawMessage            `json:"updatedToolOutput"`
 	WatchPaths        []string                   `json:"watchPaths"`
 	DisplayContent    *string                    `json:"displayContent,omitempty"`
+	Action            string                     `json:"action,omitempty"`
+	Content           json.RawMessage            `json:"content,omitempty"`
 }
 
 // permissionRequestDecision is the PermissionRequest allow or deny object.
@@ -213,6 +226,9 @@ func ParseDecision(event string, stdout, stderr []byte, exitCode int) (Decision,
 		}
 		decision.Block = true
 		decision.Stop = false
+		if event == "Elicitation" || event == "ElicitationResult" {
+			return Decision{Action: "decline", Block: true}, nil
+		}
 		if event == "PreToolUse" {
 			decision.Permission = "deny"
 		}
@@ -249,6 +265,9 @@ func worktreePathLine(stdout []byte) string {
 }
 
 func (wire output) decision(event string) (Decision, error) {
+	if event == "Elicitation" || event == "ElicitationResult" {
+		return wire.elicitationDecision(event)
+	}
 	result := Decision{Reason: wire.Reason, SystemMessage: wire.SystemMessage, AdditionalContext: wire.AdditionalContext}
 	if wire.Decision != "" && wire.Decision != "block" && wire.Decision != "approve" {
 		return Decision{}, errors.New("claudehooks: unsupported top-level hook decision")
@@ -425,7 +444,7 @@ func permissionRank(value string) int {
 
 func blockingEvent(event string) bool {
 	switch event {
-	case "PreToolUse", "UserPromptSubmit", "UserPromptExpansion", "PostToolUse", "PostToolUseFailure", "PostToolBatch", "Stop", "SubagentStop", "TaskCreated", "TaskCompleted", "TeammateIdle", "ConfigChange", "PreCompact", "PreModelSwitch", "WorktreeCreate":
+	case "PreToolUse", "UserPromptSubmit", "UserPromptExpansion", "PostToolUse", "PostToolUseFailure", "PostToolBatch", "Stop", "SubagentStop", "TaskCreated", "TaskCompleted", "TeammateIdle", "ConfigChange", "PreCompact", "PreModelSwitch", "WorktreeCreate", "Elicitation", "ElicitationResult":
 		return true
 	}
 	return false

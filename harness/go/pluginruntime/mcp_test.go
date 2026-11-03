@@ -87,7 +87,7 @@ func TestBrokenPluginMCPDoesNotBlockAgent(t *testing.T) {
 	}
 	defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
 	pkg := plugins.Package{Root: root, Definition: plugins.Plugin{Name: "sample"}, MCP: []plugins.MCPServerDefinition{{Name: "broken", Transport: "stdio", Command: script}}}
-	if _, err := MountMCP(ctx, h, []plugins.Package{pkg}, nil); err != nil {
+	if _, err := MountMCP(ctx, h, []plugins.Package{pkg}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "continues", CWD: cwd}); err != nil {
@@ -132,7 +132,7 @@ func TestMountedMCPToolsInheritanceCancellationAndDisposal(t *testing.T) {
 	}
 	defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
 	pkg := plugins.Package{Root: t.TempDir(), Definition: plugins.Plugin{Name: "sample"}, MCP: []plugins.MCPServerDefinition{{Name: "memory", Transport: "http", URL: "${ENDPOINT}", Headers: map[string]string{"Authorization": "Bearer ${TOKEN}", "X-Project": "${CLAUDE_PROJECT_DIR}"}}}}
-	_, err = MountMCP(ctx, h, []plugins.Package{pkg}, []string{"ENDPOINT=" + endpoint.URL, "TOKEN=private-canary"})
+	_, err = MountMCP(ctx, h, []plugins.Package{pkg}, []string{"ENDPOINT=" + endpoint.URL, "TOKEN=private-canary"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestMCPActivationCancellationCleansOwnedConnections(t *testing.T) {
 	}
 	defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
 	pkg := plugins.Package{Root: t.TempDir(), Definition: plugins.Plugin{Name: "sample"}, MCP: []plugins.MCPServerDefinition{{Name: "memory", Transport: "http", URL: endpoint.URL}}}
-	if _, err := MountMCP(ctx, h, []plugins.Package{pkg}, nil); err != nil {
+	if _, err := MountMCP(ctx, h, []plugins.Package{pkg}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	activationCtx, cancelActivation := context.WithCancel(ctx)
@@ -299,7 +299,7 @@ func TestMountedMCPStdioExecutesExpandedArgumentsAndClosesProcess(t *testing.T) 
 	}
 	defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
 	pkg := plugins.Package{Root: root, Definition: plugins.Plugin{Name: "sample"}, MCP: []plugins.MCPServerDefinition{{Name: "memory", Transport: "stdio", Command: executable, Args: []string{"-test.run=^TestPluginMCPStdioFixture$", "${CLAUDE_PLUGIN_ROOT}/server.py", "$(literal)"}, Env: map[string]string{"PLUGIN_MCP_FIXTURE": "1", "PLUGIN_MCP_CLOSED": receipt, "TOKEN": "${TOKEN}"}}}}
-	if _, err := MountMCP(ctx, h, []plugins.Package{pkg}, []string{"TOKEN=private-canary"}); err != nil {
+	if _, err := MountMCP(ctx, h, []plugins.Package{pkg}, []string{"TOKEN=private-canary"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	agent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "stdio", CWD: cwd})

@@ -51,6 +51,10 @@ type MCPServerConfig struct {
 	testListTools           func(context.Context, *mcp.ClientSession) ([]*mcp.Tool, error)
 	resolvedReconnect       resolvedMCPReconnectPolicy
 	resolvedToolCallTimeout time.Duration
+	// ElicitationName is the configured server name Elicitation hooks match.
+	ElicitationName string
+	// Elicit answers an elicitation for this server. Nil leaves the capability off.
+	Elicit func(context.Context, harnessmcp.ElicitationRequest, any) (harnessmcp.ElicitationReply, error)
 }
 
 // MountMCPServers validates and connects a complete server set before the
@@ -109,7 +113,7 @@ func mountMCPServer(ctx context.Context, run *point.Run, registry *ToolRegistry,
 	return harnessmcp.MountConnection(ctx, run, harnessmcp.ConnectionOptions{
 		ServerName: config.Name, Reconnect: policy, ToolCallTimeout: config.resolvedToolCallTimeout,
 		FailOnStartupError: config.FailOnStartupError, TransportFactory: transportFactory, ListTools: config.testListTools,
-		Resources: directory, Observe: config.Observe,
+		Resources: directory, Observe: config.Observe, Elicit: config.Elicit,
 	}, func(owner *point.Run, generation string, definitions []harnessmcp.Tool) (point.Dispose, error) {
 		tools := make([]Tool, len(definitions))
 		for i, definition := range definitions {

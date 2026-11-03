@@ -26,6 +26,8 @@ type ConnectionOptions struct {
 	ListTools          func(context.Context, *mcp.ClientSession) ([]*mcp.Tool, error)
 	Resources          *ResourceDirectory
 	Observe            func(ConnectionObservation)
+	// Elicit answers an MCP elicitation. Nil leaves the capability unadvertised.
+	Elicit func(context.Context, ElicitationRequest, any) (ElicitationReply, error)
 }
 
 type mcpGeneration struct {
@@ -91,6 +93,8 @@ type mcpConnectionSupervisor struct {
 	listTools        func(context.Context, *mcp.ClientSession) ([]*mcp.Tool, error)
 	resources        *ResourceDirectory
 	observe          func(ConnectionObservation)
+	elicit           func(context.Context, ElicitationRequest, any) (ElicitationReply, error)
+	calls            callStack
 
 	nextGeneration   uint64
 	activeGeneration atomic.Uint64
@@ -113,7 +117,7 @@ func MountConnection(ctx context.Context, run *point.Run, options ConnectionOpti
 	supervisor := &mcpConnectionSupervisor{
 		ownerRun: run, replaceTools: replaceTools, serverName: options.ServerName,
 		policy: options.Reconnect, toolCallTimeout: options.ToolCallTimeout,
-		transportFactory: options.TransportFactory, listTools: listTools, resources: options.Resources, observe: options.Observe,
+		transportFactory: options.TransportFactory, listTools: listTools, resources: options.Resources, observe: options.Observe, elicit: options.Elicit,
 		changes: make(chan uint64, 8), down: make(chan mcpDownEvent, 8), stop: make(chan struct{}),
 	}
 	retrySafe, initialErr := supervisor.connect(ctx)
@@ -150,7 +154,7 @@ func (s *mcpConnectionSupervisor) connect(ctx context.Context) (retrySafe bool, 
 	stopStartup := context.AfterFunc(ctx, cancelConnection)
 	defer stopStartup()
 	generation := &mcpGeneration{id: s.nextGeneration, waitDone: make(chan struct{}), transport: transport, cancel: cancelConnection}
-	client := mcp.NewClient(&mcp.Implementation{Name: "point-harness", Version: "0.1.0"}, &mcp.ClientOptions{
+	clientOptions := &mcp.ClientOptions{
 		ToolListChangedHandler: func(context.Context, *mcp.ToolListChangedRequest) {
 			if s.activeGeneration.Load() != generation.id {
 				return
@@ -160,7 +164,20 @@ func (s *mcpConnectionSupervisor) connect(ctx context.Context) (retrySafe bool, 
 			default:
 			}
 		},
-	})
+	}
+	if s.elicit != nil {
+		clientOptions.ElicitationHandler = func(ctx context.Context, request *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			if request == nil || request.Params == nil {
+				return &mcp.ElicitResult{Action: "decline"}, nil
+			}
+			caller := ToolCaller(ctx)
+			if caller == nil {
+				caller = s.calls.current()
+			}
+			return elicit(ctx, s.elicit, request.Params, caller)
+		}
+	}
+	client := mcp.NewClient(&mcp.Implementation{Name: "point-harness", Version: "0.1.0"}, clientOptions)
 	session, err := client.Connect(connectionCtx, trackedTransport, nil)
 	if err != nil {
 		cancelConnection()
@@ -208,7 +225,7 @@ func (s *mcpConnectionSupervisor) syncGeneration(ctx context.Context, generation
 	if err != nil {
 		return fmt.Errorf("list tools: %w", err)
 	}
-	definitions, err := buildMCPTools(generation.session, s.serverName, tools, s.toolCallTimeout)
+	definitions, err := buildMCPTools(generation.session, s.serverName, tools, s.toolCallTimeout, s.calls.push)
 	if err != nil {
 		return err
 	}
