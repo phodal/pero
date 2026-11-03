@@ -5,22 +5,22 @@
     {
       "path": "go/harness/agentinstructions/app.go",
       "blob": "eab52aba2c28150c1060ffa1c984c8945856ae01",
-      "role": "inspected source; host adapter narrows to explicit root AGENTS.md and durable session context"
+      "role": "inspected source; host adapter uses explicit workspace authority and durable session context"
     },
     {
       "path": "go/harness/agentinstructions/app_test.go",
       "blob": "8d79be7af521dcfcd95c038846c612e99d4881c4",
-      "role": "inspected source; host adapter narrows to explicit root AGENTS.md and durable session context"
+      "role": "inspected source; host adapter uses explicit workspace authority and durable session context"
     },
     {
       "path": "go/harness/agentinstructions/config.go",
       "blob": "cb2bf3552011516a1f427e318b3a63925306f072",
-      "role": "inspected source; host adapter narrows to explicit root AGENTS.md and durable session context"
+      "role": "inspected source; host adapter uses explicit workspace authority and durable session context"
     },
     {
       "path": "go/harness/agentinstructions/files.go",
       "blob": "22e1a0e2d742a8a23c383899cfc50aa1e98948f5",
-      "role": "inspected source; host adapter narrows to explicit root AGENTS.md and durable session context"
+      "role": "inspected source; host adapter uses explicit workspace authority and durable session context"
     },
     {
       "path": "go/harness/agentinstructions/render.go",
@@ -30,19 +30,19 @@
   ],
   "license": "No blanket license assigned. Preserve upstream notices; remaining owner licensing decision is not inferred.",
   "changes": [
-    "No upstream home/global/ancestor/alternate/nested instruction discovery, config overrides or tool touch hooks.",
-    "Only explicit Workspace/AGENTS.md, read using existing fstools descriptor authority. Missing file is optional; unsafe/unreadable files fail closed.",
+    "Default discovery remains explicit Workspace/AGENTS.md; opt-in Hierarchical adds workspace-contained root/path-scoped CLAUDE.md and AGENTS.md, never home or ancestors above Workspace.",
+    "Reuse fstools descriptor authority and bounded renderer. Mutation guard requires the target hierarchy to match a delivered baseline; tool-call events and complete baseline digests reconstruct state after JSONL restore.",
     "Point bounded UTF-8 rendering retained. Context is untrusted user-role guidance, never permission.",
     "Reconstruct prior baseline from durable session messages on each preparation; no premature cache mutation.",
     "Host adapter and regression tests are new extraction glue; no planmode or user-question subsystem imported."
   ],
   "destination_sha256": {
     "BUILD.bazel": "205c1c63b03695442206be3a657b75f5473f96fd9612705f10c2e3d0fdde1c44",
-    "README.md": "060d0459e2065a1d3d7063cc0c8bc35136ca8b5aa01424a3a8e6f74c4bef9b78",
-    "app.go": "27f2d1894d997a2703e7bd6150785eb3e82d09c463f5542e384403cae9206629",
-    "app_test.go": "45bf7e6d73d28029ab3db4a6c1f0d1bd840cba4a5a452baa30572987f881c9fc",
-    "config.go": "04ad795d0cec9cddd52911821a6140e2a74c1d0697c35d3e202031b51b588f45",
-    "files.go": "f8157404e2a7fc76a43f2099952544942238148603980909ff02d6fbd89647f0",
-    "render.go": "9981cf0b1d47a88f582473407d1606b3113cd0d342c040a223fb8ac56f03b19f"
+    "README.md": "fbc1d21ba91a1a1246b1863ce1075eb4792eafc827cc244cffaa8de056f2472d",
+    "app.go": "d42dfceb21b296771c7ba91333476d5f0141c0126dc9a090645d01410bf79317",
+    "app_test.go": "35c0f76daaabc9c9b93acb8dcd40f1f98a6ce68c81ce02aa34649faf149359f8",
+    "config.go": "c3c380b2745d4580ae26fac76fa58e53109f7bfb27d68f2ca7fc41b6f7af3633",
+    "files.go": "fc13c459ac98a24b6c79423a77d98eff9282c3d75cadc1cc73c0ba871f29b2aa",
+    "render.go": "b5deb794b256dcdf19930a1fa7ba0c3f88ee4e6da4ee732bbe52e50404fa5c04"
   }
 }

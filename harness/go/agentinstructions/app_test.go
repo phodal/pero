@@ -2,6 +2,7 @@ package agentinstructions
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -113,6 +114,79 @@ func TestBoundsAndUntrustedFraming(t *testing.T) {
 	persist(t, agent, prepare(t, app, agent))
 	if len(prepare(t, app, agent).Messages) != 0 {
 		t.Fatal("truncation digest instability")
+	}
+}
+
+func TestHierarchicalInstructionsRefreshBeforeMutation(t *testing.T) {
+	requireInstructionPlatform(t)
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "src", "deep"), 0700)
+	write(t, filepath.Join(root, "CLAUDE.md"), "root guidance")
+	write(t, filepath.Join(root, "AGENTS.md"), "root override")
+	write(t, filepath.Join(root, "src", "AGENTS.md"), "scoped guidance")
+	write(t, filepath.Join(root, "src", "deep", "CLAUDE.md"), "deep guidance")
+	h, err := harness.Boot(t.Context(), harness.Options{Adapter: noCallAdapter{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, err := Mount(t.Context(), h, Options{Workspace: root, Hierarchical: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { h.Dispose(context.Background()); h.Drain(context.Background()); app.Close() })
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{CWD: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	initial := prepare(t, app, agent)
+	text := initial.Messages[0].Content[0].Text
+	if !strings.Contains(text, "root guidance") || !strings.Contains(text, "root override") || strings.Contains(text, "deep guidance") {
+		t.Fatal(text)
+	}
+	persist(t, agent, initial)
+	bodies := 0
+	_, err = h.RegisterTool(t.Context(), "instruction-write", harness.Tool{
+		Schema: harness.ToolSchema{Name: "Write", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		Execute: func(context.Context, json.RawMessage) (harness.ToolResult, error) {
+			bodies++
+			return harness.ToolResult{}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := json.RawMessage(`{"file_path":"src/deep/file.go"}`)
+	request := harness.ToolRequest{Agent: agent, Name: "Write", Arguments: args}
+	// Direct dispatch must also check the target; it has no tool/call event yet.
+	result, err := h.Tools().Execute(t.Context(), request)
+	if !result.Result.IsError || bodies != 0 {
+		t.Fatalf("unloaded instructions allowed mutation: %+v %v", result, err)
+	}
+	next := prepare(t, app, agent)
+	text = next.Messages[0].Content[0].Text
+	if !strings.Contains(text, "deep guidance") || !strings.Contains(text, "Applies only to work under: src/deep") || strings.Index(text, "root guidance") > strings.Index(text, "deep guidance") {
+		t.Fatal(text)
+	}
+	persist(t, agent, next)
+	result, err = h.Tools().Execute(t.Context(), request)
+	if err != nil || result.Result.IsError || bodies != 1 {
+		t.Fatalf("refreshed mutation: %+v %v", result, err)
+	}
+	for _, action := range []string{"change", "remove"} {
+		name := filepath.Join(root, "src", "deep", "CLAUDE.md")
+		if action == "change" {
+			write(t, name, "changed deep guidance")
+		} else if err := os.Remove(name); err != nil {
+			t.Fatal(err)
+		}
+		result, err = h.Tools().Execute(t.Context(), request)
+		if !result.Result.IsError || bodies != 1 {
+			t.Fatalf("stale instructions: %+v %v", result, err)
+		}
+		persist(t, agent, prepare(t, app, agent))
+	}
+	if len(prepare(t, app, agent).Messages) != 0 {
+		t.Fatal("duplicate hierarchical baseline")
 	}
 }
 func TestRejectsSymlinksBinaryOversizeWrongCWDAndReplacedRoot(t *testing.T) {
