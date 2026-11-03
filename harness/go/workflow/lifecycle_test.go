@@ -192,6 +192,7 @@ func TestWorkflowFailuresStayExplicit(t *testing.T) {
 		{"schema rejected", `return agent('work',{schema:{type:'string'}});`, "schema"},
 		{"unknown option", `return parallel([()=>agent('work',{color:'blue'})]);`, "unsupported field"},
 		{"remote isolation", `return agent('work',{isolation:'remote'});`, "isolation"},
+		{"unknown agent", `return agent('work',{agentType:'Missing'});`, "subagent_type"},
 		{"undeclared provider", `return agent('work',{provider:'unconfigured'});`, "provider"},
 		{"nested unselected", `return workflow({scriptPath:'/unselected/workflows/other.js'},{});`, "outside"},
 		{"non JSON output", `return {value:undefined};`, "lossless JSON"},
@@ -254,5 +255,25 @@ func TestWorkflowAgentWorktreeStaysOutsideTheParentCheckout(t *testing.T) {
 	list, err := exec.Command("git", "-C", workspace, "worktree", "list", "--porcelain").Output()
 	if err != nil || strings.Count(string(list), "worktree ") != 1 {
 		t.Fatalf("worktree left behind: %v %s", err, list)
+	}
+}
+
+func TestWorkflowAgentTypeUsesTheReadOnlyExplorer(t *testing.T) {
+	root, workspace, packages := selectedPackage(t, map[string]string{"workflows/main.js": `export const meta={name:'explore',description:'Read the workspace'}; return agent('look',{agentType:'Explore'});`})
+	var sawRead, sawWrite bool
+	f := newWorkflowFixture(t, root, workspace, packages, harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		for _, tool := range request.Tools {
+			if tool.Name == "Read" {
+				sawRead = true
+			}
+			if tool.Name == "Write" {
+				sawWrite = true
+			}
+		}
+		return workflowAnswer("found"), nil
+	}), true, 0)
+	result, err := f.app.Execute(f.ctx, f.parent, Call{ScriptPath: filepath.Join(root, "workflows", "main.js"), Args: json.RawMessage(`{}`)})
+	if err != nil || result.StopReason != "completed" || string(result.Value) != `"found"` || !sawRead || sawWrite {
+		t.Fatalf("result=%+v error=%v read=%v write=%v", result, err, sawRead, sawWrite)
 	}
 }

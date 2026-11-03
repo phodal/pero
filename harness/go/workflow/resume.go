@@ -36,7 +36,8 @@ func callFingerprint(request wireRequest) (string, error) {
 		Phase      string          `json:"phase"`
 		Schema     json.RawMessage `json:"schema,omitempty"`
 		Isolation  string          `json:"isolation,omitempty"`
-	}{request.ScriptPath, request.Prompt, request.Label, request.Phase, request.Schema, request.Isolation})
+		AgentType  string          `json:"agentType,omitempty"`
+	}{request.ScriptPath, request.Prompt, request.Label, request.Phase, request.Schema, request.Isolation, request.AgentType})
 	if err != nil {
 		return "", err
 	}
