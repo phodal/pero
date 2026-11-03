@@ -20,6 +20,48 @@ normal validation. No MCP credentials or endpoint configuration are added to the
 receipt, and this change introduces no automatic permission grant or reconnect
 configuration policy.
 
+## Native engineering profile (opt-in)
+
+`--engineering-profile observe` mounts the native engineering guidance and
+request measurements. `feedback` additionally permits bounded feedback for an
+explicit active WorkContract; the default is `off`. A profile does not enable
+shell, subagents or broader approval authority. When enabled, the existing
+skill owner uses bounded summaries and discovery, and selected Claude agents
+present persistent memory as sourced context.
+
+`--engineering-contract /absolute/contract.json` supplies trusted launch-time
+JSON for each new session's first human prompt, for example:
+
+```json
+{
+  "id": "repair-target",
+  "revision": 1,
+  "kind": "change",
+  "goal": "Repair the target package and run its tests",
+  "checks": [
+    {
+      "id": "target-test",
+      "tool": "shell",
+      "command": "go test ./target",
+      "required": true,
+      "files": ["go.mod", "target/target.go"]
+    }
+  ]
+}
+```
+
+The file is strictly decoded and bounded to 64 KiB; an omitted revision becomes
+1. The profile keeps command execution behind the existing tool approval. A
+session with a prior human turn or existing contract is not rebound from this
+launch file on later prompts or resume. ACP prompt text and model-written task
+metadata cannot supply a trusted contract. Print mode uses the same preparation.
+
+Embedded ACP hosts can use `Options.PreparePrompt` to stage their own native
+contracts. The callback receives the actual Agent and a fresh message ID before
+human admission; its cleanup runs after settlement, rejection or cancellation.
+It is a Go composition option, not an ACP wire field. Contract activation still
+depends on the harness's actual human `InboxClaimed` event.
+
 ## Incremental output
 
 Live ACP output projects the existing Point-derived `assistant/chunk` events,
