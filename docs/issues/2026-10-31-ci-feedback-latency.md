@@ -84,3 +84,29 @@ pending query snapshot. Deterministic regressions cover both event/query orders.
 The Workbench smoke still requires connected, session-ready, streaming, cancel
 and permission behavior; its existing owned-Electron cleanup now bounds early
 failure teardown instead of consuming the entire six-minute scenario deadline.
+
+## 2026-11-03 Data runtime artifact boundary
+
+Full run [41563066420](https://github.com/phodal/pero/actions/runs/41563066420)
+failed Data and Data Product startup with an invalid backend readiness line.
+The App build generates shared Python parsers in `backend/_core`, but the runtime
+archive transferred only App `dist` outputs. The fresh acceptance checkout
+therefore installed a backend without those parsers; its source-tree fallback
+cannot exist inside the installed profile. An isolated installed-backend
+reproduction exits before readiness with `ModuleNotFoundError: No module named
+'dataset'` from Data's `inspection.py`.
+
+The runtime archive now requires and checksums each generated parser for Data
+and Data Agent. A pack/unpack regression recreates the fresh-checkout and
+installed-profile boundary, starts both actual Python servers on loopback,
+and verifies authenticated import/inspection retains `9007199254740993`
+exactly. It fails with the original archive list and passes with the repair;
+missing generated inputs also fail packing. Native/UI outputs in this focused
+fixture are placeholders, not Desktop acceptance.
+
+The same acceptance chain had obsolete Paper import assertions for the removed
+“Saved references” heading, old saved-resource list class and “Research bundles”
+region. Assertions now require the saved bundle's actual title, four rendered
+saved resources and the “Paper resources” reopening region. Clone, persistence,
+confirmation and transfer checks remain. Browser execution was not retried
+locally; full authorized CI must still establish Desktop and Paper UI acceptance.

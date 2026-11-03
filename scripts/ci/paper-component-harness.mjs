@@ -30,7 +30,7 @@ export function paperComponents(api) {
     },
   };
   const sdk = { useAppApi: () => api, useAppChat: () => ({}), useAppInfo: () => ({ active: true }),
-    useAppI18n: () => ({ t: key => key }), useAppObject() {}, useAppDataChanged() {}, appObjectProps: () => ({}) };
+    useAppI18n: () => ({ t: key => key }), useAppContext: () => ({ active: true, locale: 'en', dark: false }), useAppObject() {}, useAppDataChanged() {}, appObjectProps: () => ({}) };
   const cache = new Map();
   function load(name) {
     if (cache.has(name)) return cache.get(name);
@@ -42,7 +42,7 @@ export function paperComponents(api) {
       if (specifier === 'react-dom') return { createPortal: children => children };
       if (specifier === '@pero/app-sdk') return sdk;
       if (['./documents', './pdf-reader', './structured-reading'].includes(specifier)) return load(`${specifier.slice(2)}.tsx`);
-      if (specifier === './reader-state') return load('reader-state.ts');
+      if (['./reader-state', './shelf', './research-types'].includes(specifier)) return load(`${specifier.slice(2)}.ts`);
       // Child views are opaque elements; no child domain behavior is faked.
       return new Proxy({}, { get: (_, key) => key === '__esModule' ? false : String(key) });
     };

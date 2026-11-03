@@ -56,11 +56,25 @@ const env = { ...process.env, PERO_APPS_ROOT: resolve(temp, 'installed'), PERO_B
 
 const failures = [];
 const seen = new Set();
+const hosts = [];
 
 function startHost() {
   const child = spawn(process.env.PERO_HOST_PATH || resolve(root, 'target/debug/pero-host'), ['--stdio'], { cwd: temp, env, stdio: ['pipe', 'pipe', 'inherit'] });
+  // Register at launch so early failures and already-exited Hosts still have an owner.
+  const closed = new Promise(done => child.once('close', (code, signal) => {
+    if (code !== 0) failures.push(`Host closed with code ${code}, signal ${signal}`);
+    done();
+  }));
   const events = [];
   let waiters = [];
+  let inputError;
+  child.on('error', error => failures.push(`Host process: ${error}`));
+  child.stdin.on('error', error => {
+    inputError = error;
+    failures.push(`Host stdin: ${error}`);
+    for (const waiter of waiters) waiter.reject(error);
+    waiters = [];
+  });
   createInterface({ input: child.stdout }).on('line', (line) => {
     let event;
     try { event = JSON.parse(line); } catch { failures.push(`non-JSON event: ${line}`); return; }
@@ -69,7 +83,7 @@ function startHost() {
     // Replayed journal entries are validated by ReplayData; count their kinds too.
     for (const replayed of event.kind === 'replay' ? event.data?.events ?? [] : []) seen.add(`replay:${replayed.kind}`);
     events.push(event);
-    waiters = waiters.filter((waiter) => !waiter(event));
+    waiters = waiters.filter(waiter => !waiter.accept(event));
   });
   const send = (input, { invalid = false } = {}) => {
     if (!invalid && !validInput(input)) {
@@ -80,16 +94,23 @@ function startHost() {
     child.stdin.write((typeof input === 'string' ? input : JSON.stringify(input)) + '\n');
   };
   const next = (kind, match = () => true, timeout = 5000) => new Promise((resolveEvent, reject) => {
+    if (inputError) return reject(inputError);
     const found = events.find((event) => event.kind === kind && match(event) && !event.taken);
     if (found) { found.taken = true; return resolveEvent(found); }
     const timer = setTimeout(() => reject(new Error(`timed out waiting for ${kind}`)), timeout);
-    waiters.push((event) => {
-      if (event.kind !== kind || !match(event)) return false;
-      event.taken = true; clearTimeout(timer); resolveEvent(event); return true;
+    waiters.push({
+      accept(event) {
+        if (event.kind !== kind || !match(event)) return false;
+        event.taken = true; clearTimeout(timer); resolveEvent(event); return true;
+      },
+      reject(error) { clearTimeout(timer); reject(error); },
     });
   });
-  const stop = () => new Promise((done) => { child.once('exit', done); child.stdin.end(); });
-  return { send, next, stop };
+  let stopping;
+  const stop = () => stopping ??= (async () => { child.stdin.end(); await closed; })();
+  const host = { send, next, stop };
+  hosts.push(host);
+  return host;
 }
 
 try {
@@ -277,7 +298,14 @@ try {
 } catch (error) {
   failures.push(String(error));
 } finally {
-  rmSync(temp, { recursive: true, force: true });
+  try {
+    // close, unlike exit, also waits for inherited stdout to drain. Never remove
+    // a Windows working directory while one of this test's Hosts still owns it.
+    await Promise.all(hosts.map(host => host.stop()));
+    rmSync(temp, { recursive: true, force: true });
+  } catch (error) {
+    failures.push(`Host cleanup: ${error}`);
+  }
 }
 
 const declared = [...eventVariants.keys()];

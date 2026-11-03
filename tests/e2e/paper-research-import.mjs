@@ -106,13 +106,14 @@ try {
   await expect(review().getByRole('checkbox', { name: 'Forecast evaluation', exact: true })).not.toBeChecked();
   fixture.failCommit = false;
   await page.getByRole('button', { name: 'Save references only', exact: true }).dblclick();
-  await expect(page.getByText('Saved references', { exact: true })).toBeVisible();
+  await expect(page.locator('.pa-research-bundle').getByRole('heading', { name: 'Synthetic forecasting article', level: 1, exact: true })).toBeVisible();
   expect(fixture.bundles.size).toBe(1); expect([...fixture.bundles.values()][0].resources).toHaveLength(4);
+  await expect(page.locator('.pa-research-bundle .pa-bundle-resources>li')).toHaveCount(4);
   const referenceCommits = fixture.requests.filter(item => item.path.endsWith('/commit'));
   expect(referenceCommits).toHaveLength(2); expect(referenceCommits.at(-1).body.downloadIds).toEqual([]); expect(referenceCommits.at(-1).body.confirmedDownloads).toBe(false);
   expect(fixture.requests.filter(item => item.path === '/host/research-assets')).toHaveLength(0);
   await capture('saved-bundle');
-  const codeRow = page.locator('.pa-research-bundle .pa-resource-list>li').filter({ hasText: 'Forecast implementation' });
+  const codeRow = page.locator('.pa-research-bundle .pa-bundle-resources>li').filter({ hasText: 'Forecast implementation' });
   await expect(codeRow.getByRole('button', { name: 'Clone with Agent', exact: true })).toBeVisible();
   const mutationsBeforeClone = fixture.requests.filter(item => item.path.endsWith('/commit') || item.path.startsWith('/host/')).length;
   await page.evaluate(() => { window.researchChatFixture.failNext = true; });
@@ -132,8 +133,8 @@ try {
   await capture('clone-unsent-request');
   checks.push('Saved code opens only a frozen SDK composer request; failed Host acknowledgement is retryable, success does not claim cloning or mutate references/assets');
   await page.reload();
-  await page.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: 'Synthetic forecasting article' }).click();
-  await expect(page.getByText('Saved references', { exact: true })).toBeVisible();
+  await page.getByRole('navigation', { name: 'Papers', exact: true }).getByRole('button', { name: 'Synthetic forecasting article', exact: true }).click();
+  await expect(page.locator('.pa-research-bundle').getByRole('heading', { name: 'Synthetic forecasting article', level: 1, exact: true })).toBeVisible();
   checks.push('Save error preserves selections; reference-only commit makes zero Host download calls; bundle survives App reload and reopens');
   await page.getByRole('button', { name: 'Back to library', exact: true }).click(); await openImport();
   await inspect('https://example.org/article'); await expect(review()).toBeVisible();
@@ -143,7 +144,7 @@ try {
   fixture.failDownload = true;
   await page.getByRole('button', { name: 'Save and download' }).click();
   await expect(page.getByRole('region', { name: 'Downloads', exact: true }).getByRole('alert')).toContainText('Synthetic transfer failed');
-  expect(fixture.bundles.size).toBe(1); await expect(page.getByText('Saved references', { exact: true })).toBeVisible();
+  expect(fixture.bundles.size).toBe(1); await expect(page.locator('.pa-research-bundle').getByRole('heading', { name: 'Synthetic forecasting article', level: 1, exact: true })).toBeVisible();
   await capture('download-error'); fixture.failDownload = false; fixture.holdDownloads = true;
   await page.getByRole('button', { name: 'Retry download', exact: true }).click();
   await expect(page.getByRole('progressbar')).toBeVisible();
@@ -212,7 +213,7 @@ try {
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, '*'));
   await capture('review-grouped-versions');
   await page.getByRole('button', { name: 'Save HTML permission', exact: true }).click();
-  await expect(page.getByText('Saved references', { exact: true })).toBeVisible();
+  await expect(page.locator('.pa-research-bundle').getByRole('heading', { name: 'Synthetic forecasting article', level: 1, exact: true })).toBeVisible();
   const groupedCommit = fixture.requests.filter(request => request.path === '/api/research/commit').at(-1).body;
   expect(groupedCommit.resourceIds).toEqual(['paper-v1', 'pdf_candidate-v1', 'source_archive-v1']);
   expect(groupedCommit.htmlIds).toEqual(['paper-v1']); expect(groupedCommit.pdfIds).toEqual([]); expect(groupedCommit.sourceIds).toEqual([]);

@@ -11,7 +11,13 @@ export function runtimePaths(directory) {
   // graph imports bindgen modules; web/dist alone cannot satisfy those imports.
   return ['desktop/dist', 'web/dist',
     ...['wasm', 'chat-wasm', 'reader-wasm', 'content-wasm'].map(name => `web/src/${name}`),
-    ...product.apps.map(name => `apps/${name}/dist`),
+    ...product.apps.flatMap(name => [
+      `apps/${name}/dist`,
+      // These generated Python inputs are outside dist but installed with the
+      // backend. Require each file so an incomplete build cannot be archived.
+      ...(name === 'data' ? ['dataset.py'] : name === 'data-agent' ? ['dataset.py', 'view.py', 'chart_document.py'] : [])
+        .map(module => `apps/${name}/backend/_core/${module}`),
+    ]),
     ...['pero-host', 'pero-worker', 'pero-agent-acp', 'pero-computer', 'pero-connector-worker', 'computer-source.json'].map(name => `target/debug/${name}`),
     'packages/connectors/helpers'];
 }
