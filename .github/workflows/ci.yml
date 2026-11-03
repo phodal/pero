@@ -444,6 +444,8 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      # The reader race contract executes the real, locked EmbedPDF plugin.
+      - run: npm ci --prefix apps/paper-agent --ignore-scripts
       - run: node scripts/codegen/contracts.mjs --check
       - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs tests/build/product-chat-startup.test.mjs
 
