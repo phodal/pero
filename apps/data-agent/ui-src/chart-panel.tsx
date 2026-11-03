@@ -85,12 +85,14 @@ export function ChartPanel({data,busy,aggregationControls,onActivate}:{data:Resu
     }},
     source:{description:'Open the chart dataset source when the chart was generated from a Data Agent view.',parameters:{type:'object',properties:{record:{type:'integer',minimum:0}},additionalProperties:false},run:async params=>{if(!result?.document.source.dataset)throw new Error('This chart has no linked dataset');await showSource(params.record as number|undefined);return {dataset:result.document.source.dataset};}},
   }});
-  const field=(label:string,value:string,change:(value:string)=>void)=><label className="data-chart-field"><span>{label}</span><Select label={label} value={value} options={options} disabled={busy||pending} onChange={change}/></label>;
+  const field=(label:string,value:string,change:(value:string)=>void)=><label className="data-chart-field"><span>{label}</span><Select panelClassName="data-select-panel" label={label} value={value} options={options} disabled={busy||pending} onChange={change}/></label>;
   const columns=result?Array.from(new Set(result.document.rows.flatMap(row=>Object.keys(row)))):[];
+  const savedNames=new Map<string,number>();
+  for(const item of saved){const key=JSON.stringify([item.title,item.type]);savedNames.set(key,(savedNames.get(key)||0)+1);}
   return <div className="data-chart-panel">
     {data&&<div className="data-chart-controls">
-      <label className="data-chart-field"><span>{zh?'图型':'Chart type'}</span><Select label={zh?'图型':'Chart type'} value={kind} options={kinds.map(value=>({value,label:value}))} disabled={busy||pending} onChange={value=>{setKind(value as Kind);if(value==='candlestick'||value==='sankey')setMode('records');}}/></label>
-      <label className="data-chart-field"><span>{zh?'数据':'Data'}</span><Select label={zh?'图表数据':'Chart data'} value={mode} options={[...(kind==='candlestick'||kind==='sankey'?[]:[{value:'aggregate',label:zh?'当前聚合':'Current aggregation'}]),{value:'records',label:zh?'记录字段':'Record fields'}]} disabled={busy||pending} onChange={value=>setMode(value as 'aggregate'|'records')}/></label>
+      <label className="data-chart-field"><span>{zh?'图型':'Chart type'}</span><Select panelClassName="data-select-panel" label={zh?'图型':'Chart type'} value={kind} options={kinds.map(value=>({value,label:value}))} disabled={busy||pending} onChange={value=>{setKind(value as Kind);if(value==='candlestick'||value==='sankey')setMode('records');}}/></label>
+      <label className="data-chart-field"><span>{zh?'数据':'Data'}</span><Select panelClassName="data-select-panel" label={zh?'图表数据':'Chart data'} value={mode} options={[...(kind==='candlestick'||kind==='sankey'?[]:[{value:'aggregate',label:zh?'当前聚合':'Current aggregation'}]),{value:'records',label:zh?'记录字段':'Record fields'}]} disabled={busy||pending} onChange={value=>setMode(value as 'aggregate'|'records')}/></label>
       {mode==='aggregate'?aggregationControls:<>
         {field(kind==='sankey'?(zh?'来源':'Source'):zh?'横轴 / 分类':'X / category',x,setX)}
         {kind==='line'&&field(zh?'系列（可选）':'Series (optional)',series,setSeries)}
@@ -124,7 +126,10 @@ export function ChartPanel({data,busy,aggregationControls,onActivate}:{data:Resu
       <div className="data-saved-heading"><h2><Button variant="ghost" aria-expanded={savedOpen} aria-controls="data-saved-charts" onClick={()=>setSavedOpen(value=>!value)}>{zh?'已保存的图表':'Saved charts'}</Button></h2><FilePicker label={zh?'打开图表 JSON':'Open chart JSON'} emptyLabel={zh?'图表 JSON，最大 2 MiB':'Chart JSON, up to 2 MiB'} accept=".json,application/json" disabled={busy||pending} busy={pending} onFile={file=>void importChart(file)}/></div>
       {savedOpen&&<div id="data-saved-charts">
         {savedError&&<div className="data-chart-error" role="alert"><span>{savedError}</span><Button onClick={()=>void listSaved()}>{zh?'重试':'Retry'}</Button></div>}
-        {savedLoading&&!saved.length?<p className="data-muted" role="status">{zh?'正在读取图表…':'Loading charts…'}</p>:saved.length?<ul className="data-saved-list">{saved.map(item=><li key={item.artifactId}><button aria-disabled={busy||pending} onClick={()=>{if(!busy&&!pending)void openSaved(item.artifactId);}}><span><strong>{item.title}</strong>{item.source!==item.title&&<small>{item.source}</small>}</span><span>{item.type}</span></button></li>)}</ul>:!savedError&&<p className="data-muted">{zh?'暂无已保存的图表。':'No saved charts.'}</p>}
+        {savedLoading&&!saved.length?<p className="data-muted" role="status">{zh?'正在读取图表…':'Loading charts…'}</p>:saved.length?<ul className="data-saved-list">{saved.map(item=>{
+          const duplicate=(savedNames.get(JSON.stringify([item.title,item.type]))||0)>1;
+          return <li key={item.artifactId}><button aria-disabled={busy||pending} aria-label={duplicate?`${item.title} (${item.type}), ${item.artifactId}`:undefined} title={duplicate?item.artifactId:undefined} onClick={()=>{if(!busy&&!pending)void openSaved(item.artifactId);}}><span><strong>{item.title}</strong>{item.source!==item.title&&<small>{item.source}</small>}{duplicate&&<code className="data-saved-id">{item.artifactId.length>8?`${item.artifactId.slice(0,8)}…`:item.artifactId}</code>}</span><span>{item.type}</span></button></li>;
+        })}</ul>:!savedError&&<p className="data-muted">{zh?'暂无已保存的图表。':'No saved charts.'}</p>}
       </div>}
     </section>
   </div>;

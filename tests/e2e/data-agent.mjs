@@ -46,7 +46,7 @@ try{
   await expect(frame.locator('.data-datasets')).toContainText('background.json');
   await expect(frame.locator('main')).toHaveAttribute('aria-busy','false');
   await expect(frame.locator('.data-home')).toBeVisible();
-  await frame.getByRole('button',{name:/^observations\.json/}).click();
+  await frame.locator('.data-datasets').getByRole('button',{name:'observations.json',exact:true}).click();
   await expect(frame.locator('.data-grid tbody tr')).toHaveCount(6);
   checks.push('Background catalog refresh respects All data; an explicit dataset choice returns to the table');
   // The real SDK slot asks the Host to present its existing scoped conversation.
