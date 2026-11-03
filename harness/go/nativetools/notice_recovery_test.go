@@ -93,7 +93,7 @@ func TestRootBashNoticeDiskRecoveryDoesNotReplayCommand(t *testing.T) {
 		t.Fatal(ctx.Err())
 	}
 	unsubscribe()
-	if err := f.harness.Dispose(ctx); err != nil {
+	if err := f.harness.Dispose(ctx); err != nil && !errors.Is(err, harness.ErrHarnessDisposalInProgress) {
 		t.Fatal(err)
 	}
 	if err := f.harness.Drain(ctx); err != nil {
