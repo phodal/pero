@@ -2,6 +2,13 @@
 
 Repository-owned Pero App: no Point checkout, SDK, backend or runtime dependency.
 
+The default view shares `packages/molecule-viewer` with the website in `pages/`.
+It opens ethanol, with water and benzene alongside it. These are idealized
+illustrations, not experiments, optimized structures or AI predictions. Rotation,
+keyboard controls, reset, theme and language are shared; there is no automatic
+animation. File imports remain available in the compact toolbar, with provenance
+and local-copy actions under the expandable source status. The unverified state stays visible.
+
 ```
 npm ci --prefix apps/scientific-viewer --ignore-scripts
 node scripts/build/scientific-viewer.mjs
@@ -32,7 +39,7 @@ deletes the original disk file. No background import or model execution occurs.
   set, experimental observations or scientific benchmarks.
 
 Browser engines are pinned in package-lock.json: Mol* MIT, PDF.js Apache-2.0,
-fflate MIT. RDKit BSD-3-Clause is pinned in the App Python environment, not npm.
+fflate MIT, Three.js MIT. RDKit BSD-3-Clause is pinned in the App Python environment, not npm.
 Build retains notices and public-engines.json. Molecule records go only to this
 App’s local authenticated backend, never a remote provider. No model weights or
 user scripts are loaded or executed.
