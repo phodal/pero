@@ -265,18 +265,38 @@ button.pa-hit-title:hover { text-decoration: underline; text-underline-offset: 3
 .pa-discover-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 28px 0; }
 .pa-discover-empty p { font-size: var(--pero-font-body); }
 
-.pa-explore .pa-discovery-results > li.pa-hit { display: flex; align-items: flex-start; gap: 20px; padding: 20px 0; border-bottom: var(--pero-hairline); line-height: 1.5; }
+.pa-explore .pa-discovery-results > li.pa-hit { display: flex; align-items: flex-start; gap: 16px; padding: 14px 0; border-bottom: var(--pero-hairline); line-height: 1.5; }
 .pa-explore .pa-hit-body { flex: 1; min-width: 0; }
-.pa-explore .pa-hit-actions.pero-ui-toolbar { flex: none; flex-direction: column; align-items: stretch; gap: 8px; margin-top: 22px; }
-.pa-explore .pa-discovery-title { color: var(--pero-text); font-size: var(--pero-font-heading); font-weight: 600; line-height: 1.4; }
+.pa-explore .pa-hit-actions.pero-ui-toolbar { flex: none; flex-direction: column; align-items: stretch; gap: 6px; margin-top: 2px; min-width: 7.5rem; }
+.pa-explore .pa-hit-actions .pero-ui-button {
+  min-height: 28px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: var(--pero-font-caption);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.pa-explore .pa-hit-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 4px;
+  font-size: var(--pero-font-caption);
+  font-weight: 500;
+  text-decoration: none;
+}
+.pa-explore .pa-hit-actions a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.pa-explore .pa-discovery-title { color: var(--pero-text); font-size: var(--pero-font-body); font-weight: 600; line-height: 1.4; }
 .pa-explore .pa-discovery-preview {
   color: var(--pero-text-muted);
-  font-size: var(--pero-font-body);
+  font-size: var(--pero-font-caption);
   line-height: 1.5;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
-.pa-explore .pa-document-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: var(--pero-font-caption); }
+.pa-explore .pa-document-meta { display: flex; flex-wrap: wrap; gap: 8px 12px; margin-top: 4px; font-size: var(--pero-font-caption); }
+.pa-explore .pa-hit-body > .pa-muted { margin-top: 2px; }
 .pa-explore .pa-discovery-results a { color: var(--pero-accent-text); }
 .pa-explore .pa-result-details { font-size: var(--pero-font-caption); }
 .pa-explore .pa-result-details summary { color: var(--pero-accent-text); cursor: pointer; }
