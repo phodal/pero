@@ -713,7 +713,7 @@ LoadPackages 复核不执行 hook、脚本、MCP 或模型请求。“可编译�
 | --- | --- | --- |
 | ask-buddy | 迁移后可编译 | 实测代码只读与记忆可写；配置外部服务认证 |
 | biz-interview | 迁移后可编译；Web 工具已装配 | 显式选择 Web provider、配置 opus 路由并验收实际访谈闭环；客户端问答 UI 已接通 |
-| coder | 可编译；原始审查 Workflow 已验证 | 同步审查的 spec gate、质量 fan-out 与聚合已跑通；仍需实际工程的 worktree、完整 review gate、后台代理驻留与恢复验收 |
+| coder | 可编译；原始审查 Workflow 已经真实模型验收 | 原准备/溯源/风险选择 → spec/D9/D8/D4 → 原报告解析与测试通过；临时 Git 工程，56 次请求；完整开发/worktree/人工决策/merge 编排仍待验收，见 16.16 |
 | issue-fixer | 可编译；LSP runtime 已提供 | 选择可用的项目语言服务器、显式模型路由与 GitHub MCP；验证分支、测试、审查及 PR 实际回执 |
 | knowledge-analyst | 可编译；显式研究依赖原链已通过 CLI loopback | 原三阶段与人工 gate、validator、report 回读/原样 raw 归档、来源台账和最终报告已验证；真实模型/网页研究质量与实际任务仍需验收 |
 | meeting-summary | 可编译 | Python、飞书 CLI、登录与目标配置；真实下载、轮询取消、文档创建及通知验收 |
@@ -874,3 +874,15 @@ Workflow 的 run_in_background:true 已接入同一个 Node/Claude 子代理执�
 实际 CLI/ACP/HTTP fixture 验证先完成根 session/prompt，再释放真实 Bash，随后在没有第二次 prompt 或 TaskOutput 的情况下生成并持久化后续 turn；既有 TaskOutput 路径也接收一次完成通知，审批仍只有一次。模型为 loopback fixture，无付费请求。本步骤不实现普通文本 `-p` 退出等待或运行中 PID 冷恢复。[CLI 验证](../../harness/go/cmd/pero-agent-acp/plugin_execution_test.go)
 
 本批通过 Go 全量 race/vet 和六个相关 Bazel 目标。通知/恢复用例连续五次、实际 CLI 三路径连续三次通过；最后的通知状态清理调整另通过 native/完整 CLI race、全量 vet 及两个 Bazel 目标。
+
+### 16.16 优先验证真实插件：coder 审查闭环
+
+按用户优先级，连续 LSP 诊断暂列后续，不再优先扩展。本轮选择 coder 原始审查子流程做真实模型验证。独立临时 Git 工程先保留旧函数及其测试，再提交稳定批量标签规范化功能，覆盖去空格、顺序去重、空输入、Unicode/大小写和调用方输入不变，实际六条 Python 测试通过。原插件的 task-provenance、scope-check、cr-prepare 和 review-selector 脚本实际运行；范围检查通过，风险选择器选出 D9/D8/D4。没有为了降低难度缩减选择器的输入。[可重跑验证入口](../../harness/tools/trial/verify_coder.py)、[使用说明](../../harness/tools/trial/README.md#original-coder-review-acceptance)
+
+第一次尝试设置 32 次请求上限，在两个报告已生成、Workflow 尚未完成时耗尽预算，记录为 incomplete。真实日志还发现四次带引号 echo 输出被插件自带的 PreToolUse hook 误拒。该判断来自插件源码，不是 Harness Bash；已提供独立、带前后 SHA-256 的 P03 修复迁移，只移除 echo 判断中的可选引号匹配，保留原有裸分隔线规则和其他限制。八条 JavaScript 用例和原插件十二条 resilience 测试通过。没有在 Harness 中绕过 hook，也不将预算耗尽完全归因于这一问题。[迁移与规则](../../harness/go/plugins/migrations/README.md#selected-review-hook-repair)、[问题记录](../issues/2026-11-03-coder-quoted-separator.md)
+
+第二次是新的隔离工程，显式设置 80 次请求上限、零自动重试，opus/sonnet 均路由到实际 deepseek-flash，明确关闭 thinking。这不代表使用了相应 Claude 模型。原始 Workflow 完成 **56 次真实 HTTP 请求、4 个审查代理、1 次 Workflow 调用**，实际结果为 completed/approved。spec、D9、D8、D4 四个报告均通过原 cr-parse.mjs，必需标题存在；独立验证从真实 tool/result 日志确认脚本及 args 与选择器输入完全相同，保存的 runtime-result.json 与实际 Workflow 结果一致。六条测试复验通过，tracked source、Git 提交和所选插件内容未被改写。[匿名验收回执](../../harness/tools/trial/coder-review-acceptance.json)
+
+实际调用合计 Read 23、Bash 39、Write 4、Edit 1、Grep 2、structured_output 4；44 次批准由显式测试客户端自动选择 allow-once，并非真人审阅，Bash 没有额外 OS sandbox。工具错误为零，根 session/prompt 正常 end_turn，进程退出码为 0 且无清理错误。56 个 completion 都带 provider usage；回执保留实际字段，不估算美元费用。第一次不完整记录与第二次成功记录分别保留，不合并为一次成功运行。
+
+这证明原始审查子流程在真实模型与实际 Git/文件/测试操作下可运行；不扩大为完整 coder 开发、worktree、人工返修决策及 merge 编排已经通过，也不证明所有质量维度、所有缺陷识别或全部 15 个插件都已验收。可重跑入口默认只准备 fixture，--execute 才显式调用模型；接受条件检查真实 journal、原解析器、代码快照和测试，不能仅凭文件存在判成功。本批配置迁移测试四项、原插件测试十二项及 Trial 既有十五项回归通过。
