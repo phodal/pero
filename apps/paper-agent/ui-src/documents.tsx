@@ -10,8 +10,16 @@ import './reader-workspace.css';
 
 function SourceLines({ content, focus, label }: { content: string; focus: TextFocus; label: string }) {
   const mark = useRef<HTMLElement>(null);
-  const from = Math.max(0, Math.min(focus.start, content.length));
-  const to = Math.max(from, Math.min(focus.end, content.length));
+  // Search offsets count Python code points; String.slice counts UTF-16 units.
+  // Convert at the rendering boundary to preserve stored source coordinates.
+  const start = Math.max(0, focus.start), end = Math.max(start, focus.end);
+  let from = 0, to = 0, position = 0;
+  for (const character of content) {
+    if (position >= end) break;
+    to += character.length;
+    if (position < start) from = to;
+    position++;
+  }
   const line = content.slice(0, from).split('\n').length;
   useEffect(() => { mark.current?.scrollIntoView({ block: 'center' }); }, [content, from, to, focus.token]);
   return <>
