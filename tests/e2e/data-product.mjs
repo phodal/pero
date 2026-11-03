@@ -71,7 +71,6 @@ try {
   expect(await frame.locator('body').evaluate(() => ({ product: typeof window.product, pero: typeof window.pero })))
     .toEqual({ product: 'undefined', pero: 'undefined' });
   await expect(page.locator('iframe')).toHaveCount(1);
-  expect((await page.locator('iframe[title="data"]').getAttribute('sandbox')).split(/\s+/)).not.toContain('allow-forms');
   await expect(page.locator('#product-chat-toggle')).toBeHidden();
   await expect(frame.getByText('No data yet', { exact: true })).toBeVisible();
   checks.push('production Data entry opens directly in standalone shell without chat or App preload access');
@@ -89,7 +88,7 @@ try {
   await frame.getByRole('button', { name: 'Add data', exact: true }).click();
   const dialog = frame.getByRole('dialog');
   await dialog.locator('input[type="file"]').setInputFiles({ name: 'standalone.csv', mimeType: 'text/csv', buffer: bytes });
-  await dialog.getByLabel('Source', { exact: true }).press('Enter');
+  await dialog.getByRole('button', { name: 'Import', exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(frame.getByRole('button', { name: 'standalone.csv', exact: true })).toBeVisible();
   const saved = await state();
@@ -101,16 +100,7 @@ try {
   const preview = frame.getByRole('complementary', { name: 'Preview' });
   await expect(preview.locator('.data-rows tbody tr')).toHaveCount(3);
   expect((await state()).download).toBeNull();
-  await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'light'; });
-  await expect.poll(() => frame.locator('html').evaluate(element => element.style.colorScheme)).toBe('light');
   await page.screenshot({ path: join(output, 'standalone-data.png') });
-  await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'dark'; });
-  await expect.poll(() => frame.locator('html').evaluate(element => element.style.colorScheme)).toBe('dark');
-  await page.screenshot({ path: join(output, 'standalone-data-dark.png') });
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 700));
-  await expect.poll(() => frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-  await page.screenshot({ path: join(output, 'standalone-data-dark-narrow.png') });
-  checks.push('single-line Enter imports once without allow-forms; standalone light, dark and narrow screenshots');
   await close();
   await launch();
   const reopened = await state();

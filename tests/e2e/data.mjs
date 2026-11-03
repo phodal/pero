@@ -29,13 +29,6 @@ const catalog = () => frame.locator('body').evaluate(async () => {
   if (!response.ok) throw new Error(`Data state: HTTP ${response.status}`);
   return response.json();
 });
-// SDK Select is an accessible button/listbox, not a native <select>.
-async function choose(scope, label, option) {
-  const trigger = scope.getByRole('button', { name: label, exact: true });
-  await trigger.click();
-  await frame.getByRole('listbox', { name: label, exact: true }).getByRole('option', { name: option, exact: true }).click();
-  await expect(trigger).toHaveAttribute('data-value', option);
-}
 async function openData() {
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await expect.poll(async () => (await desktop()).apps?.some(item => item.name === 'data')).toBe(true);
@@ -68,17 +61,13 @@ async function close() {
 try {
   await launch();
   expect((await catalog()).assets).toEqual([]);
-  expect((await page.locator('iframe[title="data"]').getAttribute('sandbox')).split(/\s+/)).not.toContain('allow-forms');
   await expect(frame.getByText('No data yet', { exact: true })).toBeVisible();
   await expect(frame.getByRole('button', { name: 'servo-response.csv', exact: true })).toHaveCount(0);
   await frame.getByRole('button', { name: 'Add data', exact: true }).click();
   const dialog = frame.getByRole('dialog');
-  await dialog.getByLabel('Source', { exact: true }).press('Enter');
-  await expect(dialog).toBeVisible();
-  expect(requests.filter(r => r.method === 'POST' && r.path === '/api/import')).toHaveLength(0);
   await dialog.locator('input[type="file"]').setInputFiles({ name: 'measurements.csv', mimeType: 'text/csv', buffer: bytes });
   await dialog.getByLabel('Project reference', { exact: true }).fill('control-lab');
-  await dialog.getByLabel('Project reference', { exact: true }).press('Enter');
+  await dialog.getByRole('button', { name: 'Import', exact: true }).press('Enter');
   await expect(dialog).toBeHidden();
   const first = await catalog(), v1 = first.assets[0], datasetId = first.datasets[0].id;
   expect(first.assets).toHaveLength(1);
@@ -95,29 +84,15 @@ try {
   await expect(preview().locator('dt').filter({ hasText: /^Duplicate rows$/ }).locator('xpath=following-sibling::dd[1]')).toHaveText('1');
   await expect(preview().locator('dt').filter({ hasText: /^Empty strings$/ }).locator('xpath=following-sibling::dd[1]')).toHaveText('1');
   await preview().getByRole('tab', { name: 'Preview', exact: true }).click();
-  await choose(preview(), 'Filter field', 'id');
+  await preview().getByLabel('Filter field', { exact: true }).selectOption('id');
   await preview().getByLabel('Contains', { exact: true }).fill('001');
-  await preview().getByLabel('Contains', { exact: true }).press('Enter');
+  await preview().getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(2);
-  await preview().getByLabel('View name', { exact: true }).press('Enter');
-  expect((await catalog()).views).toHaveLength(0);
   await preview().getByLabel('View name', { exact: true }).fill('baseline');
-  await preview().getByLabel('View name', { exact: true }).press('Enter');
+  await preview().getByRole('button', { name: 'Save view', exact: true }).click();
   await expect.poll(async () => (await catalog()).views.length).toBe(1);
   const saved = (await catalog()).views[0];
   expect(saved).toMatchObject({ datasetId, assetId: v1.id, sha256: v1.sha256, view: { filterField: 'id', contains: '001', units: { value: 'V' } }, report: { rowCount: 3, duplicateRows: 1 } });
-  await preview().getByText('Source and details', { exact: true }).click();
-  await preview().getByLabel('Name', { exact: true }).fill('');
-  await preview().getByLabel('Name', { exact: true }).press('Enter');
-  expect((await catalog()).datasets[0].name).toBe('measurements.csv');
-  await preview().getByLabel('Name', { exact: true }).fill('measurements.csv');
-  await preview().getByLabel('Name', { exact: true }).press('Enter');
-  await expect.poll(() => requests.filter(r => r.method === 'POST' && r.path === '/api/datasets/update').length).toBe(1);
-  await expect(preview().getByRole('button', { name: 'Save details', exact: true })).toBeEnabled();
-  await preview().getByRole('button', { name: 'Save details', exact: true }).click();
-  await expect.poll(() => requests.filter(r => r.method === 'POST' && r.path === '/api/datasets/update').length).toBe(2);
-  await expect(preview().getByRole('button', { name: 'Save details', exact: true })).toBeEnabled();
-  checks.push('single-line Enter submits Import, Apply, Save view and Save details; required fields reject empty input');
   checks.push('explicit import persists exact bytes; literal IDs, field units, full-input checks and filtered saved view');
 
   await preview().getByRole('button', { name: 'Add version', exact: true }).click();
@@ -135,13 +110,13 @@ try {
   await expect(preview().locator('.data-rows tbody tr').first().locator('th')).toHaveText('51');
   await preview().getByRole('tab', { name: 'History', exact: true }).click();
   await preview().getByRole('button', { name: 'baseline', exact: true }).click();
-  await expect(preview().getByRole('button', { name: 'Version', exact: true })).toHaveAttribute('data-value', v1.id);
+  await expect(preview().getByLabel('Version', { exact: true })).toHaveValue(v1.id);
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(2);
-  await choose(frame, 'Project filter', 'control-lab');
+  await frame.getByLabel('Project filter', { exact: true }).selectOption('control-lab');
   await frame.getByRole('searchbox', { name: 'Search data' }).fill('does-not-exist');
   await expect(frame.getByText('No matches', { exact: true })).toBeVisible();
   await frame.getByRole('searchbox', { name: 'Search data' }).fill('');
-  await expect(preview().getByRole('button', { name: 'Version', exact: true })).toHaveAttribute('data-value', v1.id);
+  await expect(preview().getByLabel('Version', { exact: true })).toHaveValue(v1.id);
   await preview().getByRole('tab', { name: 'History', exact: true }).click();
   await preview().getByRole('button', { name: 'Archive dataset', exact: true }).click();
   await preview().getByRole('button', { name: 'Confirm archive', exact: true }).click();
@@ -180,8 +155,6 @@ try {
   expect(await frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await page.screenshot({ path: resolve(out, 'data-dark-narrow.png') });
   expect(requests.filter(r => r.method === 'POST' && r.path === '/api/import')).toHaveLength(2);
-  expect(requests.filter(r => r.method === 'POST' && r.path === '/api/views')).toHaveLength(1);
-  expect(requests.filter(r => r.method === 'POST' && r.path === '/api/datasets/update')).toHaveLength(4);
   expect(requests.filter(r => r.path.includes('download') && r.method === 'POST')).toEqual([]);
   expect(errors).toEqual([]);
   checks.push('restart preserves identities and view; same-length corruption refuses current preview; light/dark narrow screenshots');

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Feedback, FilePicker, Input } from '@pero/app-sdk/ui';
 import { FormSelect } from './form-select';
-import { DataForm, SubmitButton } from './submit-button';
 import { formatBytes, type CatalogState, type Dataset } from './model';
 
 export type ImportDetails = { kind: 'dataset' | 'model'; source: string; license: string; projectRef: string };
@@ -16,7 +15,7 @@ export function ImportDialog({ state, target, busy, error, onClose, onImport, on
   return <dialog ref={dialog} className="data-add" aria-labelledby="data-add-title" onClose={onClose} onCancel={event => { if (busy) event.preventDefault(); }}>
     <header><h2 id="data-add-title">{target ? 'Add version' : 'Add data'}</h2><Button onClick={onClose} disabled={busy}>Close</Button></header>
     {target ? <p>New version of {target.name}. Existing versions stay unchanged.</p> : null}
-    <DataForm onSubmit={event => {
+    <form onSubmit={event => {
       event.preventDefault(); if (!file || fileError) return;
       const values = new FormData(event.currentTarget);
       onImport(file, { kind: target?.kind ?? (values.get('kind') === 'model' ? 'model' : 'dataset'),
@@ -31,8 +30,8 @@ export function ImportDialog({ state, target, busy, error, onClose, onImport, on
       <label>License<Input name="license" defaultValue="Unknown" maxLength={300} disabled={busy} /></label>
       {!target ? <label>Project reference<Input name="projectRef" maxLength={200} disabled={busy} /></label> : null}
       {fileError || error ? <Feedback kind="error">{fileError || error}</Feedback> : null}
-      <SubmitButton variant="primary" disabled={busy || !file || Boolean(fileError)}>{busy ? 'Saving…' : 'Import'}</SubmitButton>
-    </DataForm>
+      <Button variant="primary" type="submit" disabled={busy || !file || Boolean(fileError)}>{busy ? 'Saving…' : 'Import'}</Button>
+    </form>
     {!target && state.sources.length ? <details className="data-sources"><summary>Public sources</summary>
       {state.sources.map(source => <section key={source.id}><h3>{source.name}</h3>
         <p>{formatBytes(source.size)} / {source.license}</p><p>{source.sourceUrl}</p><code>{source.revision}</code>

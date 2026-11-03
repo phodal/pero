@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, EmptyState, Feedback, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import { FormSelect } from './form-select';
-import { DataForm, SubmitButton } from './submit-button';
 import { availabilityLabel, formatBytes, formatInt, type Asset, type Dataset, type Inspection, type SavedView, type ViewSpec } from './model';
 
 type Props = {
@@ -40,15 +39,15 @@ export function Preview(props: Props) {
           <dt>Added</dt><dd>{asset.createdAt}</dd>
           {asset.bundleId ? <><dt>Paper bundle</dt><dd>{asset.bundleId}</dd></> : null}
         </dl>
-        <DataForm className="data-form" key={`${dataset.id}:${dataset.name}:${dataset.projectRef}`} onSubmit={event => {
+        <form className="data-form" key={`${dataset.id}:${dataset.name}:${dataset.projectRef}`} onSubmit={event => {
           event.preventDefault(); const values = new FormData(event.currentTarget);
           props.onEdit({ ...metadata, name: String(values.get('name')), projectRef: String(values.get('projectRef')) });
         }}>
           <label>Name<Input name="name" defaultValue={dataset.name} maxLength={200} required disabled={busy} /></label>
           <label>Project reference<Input name="projectRef" defaultValue={dataset.projectRef} maxLength={200} disabled={busy} /></label>
           <p className="data-note">A reference only, not a project permission boundary.</p>
-          <SubmitButton disabled={busy}>Save details</SubmitButton>
-        </DataForm>
+          <Button type="submit" disabled={busy}>Save details</Button>
+        </form>
       </details>
     </header>
     <Tabs value={tab} onValueChange={setTab}>
@@ -60,7 +59,7 @@ export function Preview(props: Props) {
         {loading ? <p role="status">Reading this version…</p> : null}
         {!loading && result && result.assetId === asset.id && result.status !== 'ok' ? <Feedback kind="error">{result.message}</Feedback> : null}
         {inspected ? <>
-          <DataForm className="data-filter" key={`${asset.id}:${view.filterField}:${view.contains}`} onSubmit={event => {
+          <form className="data-filter" key={`${asset.id}:${view.filterField}:${view.contains}`} onSubmit={event => {
             event.preventDefault(); const values = new FormData(event.currentTarget);
             const filterField = String(values.get('field'));
             props.onView({ ...view, filterField, contains: filterField ? String(values.get('contains')) : '' });
@@ -68,9 +67,9 @@ export function Preview(props: Props) {
             <FormSelect name="field" label="Filter field" defaultValue={view.filterField} disabled={busy}
               options={[{ value: '', label: 'No filter' }, ...inspected.report.fields.map(field => ({ value: field.name, label: field.name }))]} />
             <Input name="contains" aria-label="Contains" placeholder="Contains" defaultValue={view.contains} maxLength={300} disabled={busy} />
-            <SubmitButton disabled={busy || loading}>Apply</SubmitButton>
+            <Button type="submit" disabled={busy || loading}>Apply</Button>
             {view.filterField ? <Button disabled={busy} onClick={() => props.onView({ ...view, filterField: '', contains: '' })}>Clear filter</Button> : null}
-          </DataForm>
+          </form>
           <p className="data-note">{formatInt(inspected.matched)} matching / {formatInt(inspected.report.rowCount)} records / {inspected.columns.length} / {inspected.report.fields.length} fields</p>
           <div className="data-rows-scroll" tabIndex={0} aria-label="Data records">
             <table className="data-rows">
@@ -87,10 +86,10 @@ export function Preview(props: Props) {
             <span>{inspected.rows.length ? `${inspected.offset + 1}–${inspected.offset + inspected.rows.length}` : '0'}</span>
             <Button onClick={() => props.onPage(inspected.nextOffset!)} disabled={busy || loading || inspected.nextOffset === null}>Next</Button>
           </div>
-          <DataForm className="data-filter" onSubmit={event => { event.preventDefault(); props.onSave(String(new FormData(event.currentTarget).get('viewName'))); }}>
+          <form className="data-filter" onSubmit={event => { event.preventDefault(); props.onSave(String(new FormData(event.currentTarget).get('viewName'))); }}>
             <Input aria-label="View name" name="viewName" placeholder="View name" required maxLength={120} disabled={busy} />
-            <SubmitButton disabled={busy || loading || dataset.archived}>Save view</SubmitButton>
-          </DataForm>
+            <Button type="submit" disabled={busy || loading || dataset.archived}>Save view</Button>
+          </form>
         </> : null}
       </TabsContent>
       <TabsContent value="fields">
