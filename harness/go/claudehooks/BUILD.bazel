@@ -7,6 +7,7 @@ go_library(
         "if.go",
         "process_unix.go",
         "process_unsupported.go",
+        "prompt.go",
         "protocol.go",
         "runner.go",
     ],
@@ -19,6 +20,7 @@ go_test(
     name = "claudehooks_test",
     srcs = [
         "if_test.go",
+        "prompt_test.go",
         "protocol_test.go",
         "runner_test.go",
     ],

@@ -17,11 +17,15 @@ import (
 func hookTimeout(hook Hook) (time.Duration, error) {
 	timeout := hook.Timeout
 	if timeout == 0 {
-		timeout = 600 * time.Second
-		if hook.Event == "UserPromptSubmit" || hook.Event == "PreModelSwitch" || hook.Event == "PostModelSwitch" {
+		if strings.TrimSpace(hook.Prompt) != "" {
 			timeout = 30 * time.Second
-		} else if hook.Event == "SessionEnd" {
-			timeout = 1500 * time.Millisecond
+		} else {
+			timeout = 600 * time.Second
+			if hook.Event == "UserPromptSubmit" || hook.Event == "PreModelSwitch" || hook.Event == "PostModelSwitch" {
+				timeout = 30 * time.Second
+			} else if hook.Event == "SessionEnd" {
+				timeout = 1500 * time.Millisecond
+			}
 		}
 	}
 	if timeout < 0 {

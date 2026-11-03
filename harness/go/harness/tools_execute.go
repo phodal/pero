@@ -200,9 +200,13 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 		)}, nil
 	}
 	if filtered.DenyReason != "" {
-		return r.settle(ctx, ToolOutcome{Request: filtered, Result: ToolResult{
+		outcome, err := r.settle(ctx, ToolOutcome{Request: filtered, Result: ToolResult{
 			IsError: true, Content: []ContentBlock{{Type: BlockText, Text: filtered.DenyReason}},
 		}}, nested, "", nil)
+		if err == nil && filtered.EndTurn {
+			outcome.Result.ConcludesTurn = true
+		}
+		return outcome, err
 	}
 	if prepared && !r.preparedFinalContentAdmitted(filtered.Agent, preparedTool) {
 		return ToolOutcome{}, errors.New("harness: prepared tool selection or restrictions changed before dispatch")

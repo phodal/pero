@@ -208,19 +208,22 @@ func compileHooks(path string, raw []byte) ([]claudehooks.Hook, error) {
 		Hooks map[string][]struct {
 			Matcher string `json:"matcher"`
 			Hooks   []struct {
-				Type           string            `json:"type"`
-				Command        string            `json:"command"`
-				Args           *[]string         `json:"args"`
-				Timeout        *float64          `json:"timeout"`
-				Async          bool              `json:"async"`
-				If             string            `json:"if"`
-				Once           bool              `json:"once"`
-				OnFailure      string            `json:"onFailure"`
-				Shell          string            `json:"shell"`
-				StatusMessage  string            `json:"statusMessage"`
-				URL            string            `json:"url"`
-				Headers        map[string]string `json:"headers"`
-				AllowedEnvVars []string          `json:"allowedEnvVars"`
+				Type            string            `json:"type"`
+				Command         string            `json:"command"`
+				Args            *[]string         `json:"args"`
+				Timeout         *float64          `json:"timeout"`
+				Async           bool              `json:"async"`
+				If              string            `json:"if"`
+				Once            bool              `json:"once"`
+				OnFailure       string            `json:"onFailure"`
+				Shell           string            `json:"shell"`
+				StatusMessage   string            `json:"statusMessage"`
+				URL             string            `json:"url"`
+				Headers         map[string]string `json:"headers"`
+				AllowedEnvVars  []string          `json:"allowedEnvVars"`
+				Prompt          string            `json:"prompt"`
+				Model           string            `json:"model"`
+				ContinueOnBlock bool              `json:"continueOnBlock"`
 			} `json:"hooks"`
 		} `json:"hooks"`
 	}
@@ -247,8 +250,11 @@ func compileHooks(path string, raw []byte) ([]claudehooks.Hook, error) {
 				if handler.Type == "http" && !validHookURL(handler.URL) {
 					return nil, errors.New("plugins: HTTP hook requires an http or https URL")
 				}
+				if handler.Type == "prompt" && strings.TrimSpace(handler.Prompt) == "" {
+					return nil, errors.New("plugins: prompt hook requires a nonempty prompt")
+				}
 				// Settings hooks ignore once. Skill and agent frontmatter honor it.
-				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, Async: handler.Async, If: handler.If, Shell: handler.Shell, OnFailure: handler.OnFailure, URL: handler.URL, Headers: handler.Headers, AllowedEnvVars: append([]string(nil), handler.AllowedEnvVars...)}
+				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, Async: handler.Async, If: handler.If, Shell: handler.Shell, OnFailure: handler.OnFailure, URL: handler.URL, Headers: handler.Headers, AllowedEnvVars: append([]string(nil), handler.AllowedEnvVars...), Prompt: handler.Prompt, Model: handler.Model, ContinueOnBlock: handler.ContinueOnBlock}
 				if event == "Stop" {
 					hook.Matcher = ""
 				}

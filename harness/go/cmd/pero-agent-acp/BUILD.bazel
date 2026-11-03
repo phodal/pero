@@ -71,6 +71,7 @@ go_test(
         "plugin_http_test.go",
         "plugin_init_test.go",
         "plugin_model_switch_test.go",
+        "plugin_prompt_test.go",
         "plugin_runtime_test.go",
         "plugins_test.go",
         "research_cli_test.go",

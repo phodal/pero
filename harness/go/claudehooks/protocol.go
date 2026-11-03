@@ -33,6 +33,10 @@ type Hook struct {
 	URL            string
 	Headers        map[string]string
 	AllowedEnvVars []string
+	// Prompt selects a prompt hook. The model answers with ok/reason JSON.
+	Prompt          string
+	Model           string
+	ContinueOnBlock bool
 }
 
 type Input struct {
@@ -88,6 +92,9 @@ type Decision struct {
 	WatchPaths        []string
 	WorktreePath      string
 	Block, Stop       bool
+	// EndTurn stops the current turn after a prompt hook blocks. It is not a
+	// command-hook field.
+	EndTurn bool
 }
 
 var ErrNonBlocking = errors.New("claudehooks: non-blocking hook error")
@@ -329,6 +336,7 @@ func Merge(decisions []Decision) (Decision, error) {
 		}
 		merged.Block = merged.Block || decision.Block
 		merged.Stop = merged.Stop || decision.Stop
+		merged.EndTurn = merged.EndTurn || decision.EndTurn
 		merged.AdditionalContext = joinContext(merged.AdditionalContext, decision.AdditionalContext)
 		merged.SystemMessage = joinContext(merged.SystemMessage, decision.SystemMessage)
 		if merged.WorktreePath == "" {

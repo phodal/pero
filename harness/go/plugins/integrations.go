@@ -155,8 +155,29 @@ func ParseHooks(path string, content []byte) (HooksDefinition, []Diagnostic) {
 					if summary.Async {
 						add(SeverityError, "INVALID_HOOK_FIELD", base+".async", "HTTP hooks cannot be asynchronous.")
 					}
+				} else if summary.Type == "prompt" {
+					summary.CommandForm = "prompt"
+					var prompt string
+					if !integrationDecode(handler["prompt"], &prompt) || strings.TrimSpace(prompt) == "" {
+						add(SeverityError, "HOOK_PROMPT_REQUIRED", base+".prompt", "A prompt hook requires a nonempty prompt.")
+					}
+					if raw, present := handler["model"]; present {
+						var model string
+						if !integrationDecode(raw, &model) || strings.TrimSpace(model) == "" {
+							add(SeverityError, "INVALID_HOOK_FIELD", base+".model", "Prompt hook model must be a nonempty string.")
+						}
+					}
+					if raw, present := handler["continueOnBlock"]; present {
+						var value bool
+						if !integrationDecode(raw, &value) {
+							add(SeverityError, "INVALID_HOOK_FIELD", base+".continueOnBlock", "Prompt hook continueOnBlock must be a boolean.")
+						}
+					}
+					if summary.Async {
+						add(SeverityError, "INVALID_HOOK_FIELD", base+".async", "Prompt hooks cannot be asynchronous.")
+					}
 				} else if summary.Type != "command" {
-					add(SeverityWarning, "UNSUPPORTED_HOOK_HANDLER", base+".type", "Only command and HTTP handler configuration is executed.")
+					add(SeverityWarning, "UNSUPPORTED_HOOK_HANDLER", base+".type", "Only command, HTTP, and prompt handler configuration is executed.")
 				}
 				if raw, present := handler["timeout"]; present {
 					var timeout float64
@@ -168,6 +189,9 @@ func ParseHooks(path string, content []byte) (HooksDefinition, []Diagnostic) {
 				}
 				if raw, present := handler["async"]; present && !integrationDecode(raw, &summary.Async) {
 					add(SeverityError, "INVALID_HOOK_ASYNC", base+".async", "Hook async must be a boolean.")
+				}
+				if summary.Async && (summary.Type == "http" || summary.Type == "prompt") {
+					add(SeverityError, "INVALID_HOOK_FIELD", base+".async", "HTTP and prompt hooks cannot be asynchronous.")
 				}
 				if summary.Type == "command" {
 					var command string
@@ -227,7 +251,11 @@ func ParseHooks(path string, content []byte) (HooksDefinition, []Diagnostic) {
 						if summary.Type != "http" {
 							add(SeverityWarning, "UNSUPPORTED_HOOK_FIELD", base+"."+key, "This handler field is recognized but its execution semantics are not implemented.")
 						}
-					case "model", "prompt", "toolName", "input":
+					case "prompt", "model", "continueOnBlock":
+						if summary.Type != "prompt" {
+							add(SeverityWarning, "UNSUPPORTED_HOOK_FIELD", base+"."+key, "This handler field is recognized but its execution semantics are not implemented.")
+						}
+					case "toolName", "input":
 						add(SeverityWarning, "UNSUPPORTED_HOOK_FIELD", base+"."+key, "This handler field is recognized but its execution semantics are not implemented.")
 					default:
 						add(SeverityWarning, "UNKNOWN_HOOK_FIELD", base+"."+key, "Unrecognized hook handler field is not applied.")

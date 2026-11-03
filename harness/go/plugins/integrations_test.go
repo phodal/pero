@@ -20,6 +20,12 @@ func TestHookInspection(t *testing.T) {
 		errorCodes []string
 	}{
 		{
+			name:    "prompt hook is executable configuration",
+			content: `{"hooks":{"Stop":[{"hooks":[{"type":"prompt","prompt":"Check $ARGUMENTS","model":"fixture","continueOnBlock":true}]}]}}`,
+			count:   1, form: "prompt",
+			codes: []string{"HOOK_RUNTIME_UNSUPPORTED"},
+		},
+		{
 			name:    "http hook is executable configuration",
 			content: `{"hooks":{"PreToolUse":[{"matcher":"Write","hooks":[{"type":"http","url":"http://127.0.0.1/hooks","headers":{"Authorization":"Bearer hidden-token"},"allowedEnvVars":["TOKEN"]}]}]}}`,
 			count:   1, form: "http",
@@ -81,7 +87,7 @@ func TestHookInspection(t *testing.T) {
 		},
 		{
 			name:    "unsupported handler is not represented as executable",
-			content: `{"hooks":{"Stop":[{"hooks":[{"type":"prompt","prompt":"sensitive-handler-content"}]}]}}`,
+			content: `{"hooks":{"Stop":[{"hooks":[{"type":"agent","prompt":"sensitive-handler-content"}]}]}}`,
 			count:   1, codes: []string{"UNSUPPORTED_HOOK_HANDLER", "UNSUPPORTED_HOOK_FIELD", "HOOK_RUNTIME_UNSUPPORTED"},
 		},
 		{

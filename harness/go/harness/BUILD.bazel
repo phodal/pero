@@ -9,6 +9,7 @@ go_library(
         "agent_dsh_inbox.go",
         "agent_loop_settings.go",
         "agent_manager.go",
+        "agent_complete.go",
         "agent_model_selection.go",
         "agent_operations.go",
         "agent_preset.go",

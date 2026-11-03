@@ -323,7 +323,10 @@ type ToolRequest struct {
 	Arguments           json.RawMessage
 	// DenyReason and RequestApproval are runtime-only pre-execute decisions.
 	// Pipelines may set them but model-provided input cannot forge them.
-	DenyReason      string
+	DenyReason string
+	// EndTurn records that a denied call should finish the turn. Failed tool
+	// results otherwise stay available for the model to correct.
+	EndTurn         bool
 	RequestApproval bool
 	ApprovalReason  string
 	// Preapproved is set by trusted runtime policy for this exact invocation,

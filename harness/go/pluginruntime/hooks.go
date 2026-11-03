@@ -90,7 +90,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 			if _, err := claudehooks.Match(hook.Matcher, ""); err != nil {
 				return nil, err
 			}
-			if hook.URL == "" && !hook.ExecForm && !filepath.IsAbs(options.Shell) {
+			if hook.URL == "" && hook.Prompt == "" && !hook.ExecForm && !filepath.IsAbs(options.Shell) {
 				return nil, errors.New("plugin-runtime: command hooks require an explicit absolute shell")
 			}
 		}
@@ -444,6 +444,14 @@ func (app *HookApp) beforeTool(ctx context.Context, request *harness.ToolRequest
 	if err != nil {
 		return err
 	}
+	if decision.EndTurn {
+		request.DenyReason = decision.Reason
+		if request.DenyReason == "" {
+			request.DenyReason = "Prompt hook blocked this tool call."
+		}
+		request.EndTurn = true
+		return nil
+	}
 	if decision.Stop {
 		return fmt.Errorf("%w: %s", ErrHookStopped, decision.Reason)
 	}
@@ -488,6 +496,14 @@ func (app *HookApp) afterTool(ctx context.Context, outcome *harness.ToolOutcome)
 	decision, err := app.event(ctx, outcome.Request.Agent, claudehooks.Input{Event: event, ToolName: outcome.Request.Name, ToolUseID: string(outcome.Request.CallID), ToolInput: outcome.Request.Arguments, ToolResponse: response})
 	if err != nil {
 		return err
+	}
+	if decision.EndTurn && event == "PostToolUse" && !outcome.Result.IsError {
+		outcome.Result.ConcludesTurn = true
+		if decision.Reason != "" {
+			message := hookMessage(event, decision.Reason)
+			outcome.Result.AdditionalContexts = append(outcome.Result.AdditionalContexts, harness.DeferredContext{Role: message.Role, Content: message.Content, Source: message.Source})
+		}
+		return nil
 	}
 	if decision.Stop {
 		return fmt.Errorf("%w: %s", ErrHookStopped, decision.Reason)
@@ -654,7 +670,12 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 		}
 		runner := claudehooks.Runner{Shell: app.options.Shell, Environment: environment}
 		var decision claudehooks.Decision
-		if hook.URL != "" {
+		if hook.Prompt != "" {
+			if !claudehooks.PromptHookAllowed(input.Event) {
+				continue
+			}
+			decision, err = app.runPromptHook(ctx, agent, hook, input)
+		} else if hook.URL != "" {
 			decision, err = runner.Post(ctx, hook, input)
 		} else {
 			decision, err = runner.Run(ctx, hook, input)
