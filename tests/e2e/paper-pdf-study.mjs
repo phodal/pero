@@ -117,7 +117,7 @@ try {
   expect(reading.document.id).toBe(acquired.receipt.documentId); expect(reading.document.fileDigest).toBe(acquired.receipt.fileDigest);
   checks.push('Only explicitly selected PDF acquired via Host/Paper, immutable receipt and real PDFium reader; download is not study');
   if (!live) await page.screenshot({ path: resolve(out, 'saved-pdf-light.png') });
-  await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask', exact: true }).click();
+  await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask AI', exact: true }).click();
   await fillPaperChat(page, 'Read the saved PDF original page and cite its evidence. This is a scripted transport verification, not a scientific finding.');
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await api('/api/library')).reports.length, { timeout: 45000 }).toBe(1);

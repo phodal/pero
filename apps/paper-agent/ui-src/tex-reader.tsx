@@ -14,8 +14,8 @@ type TexSource = { bundleId: string; resourceId: string; revision: string; avail
 type TexOverview = { sources: TexSource[]; engineAvailable: boolean };
 type TexCompilation = { id: string; status: 'running' | 'complete' | 'failed'; error: string; preview: TexPreview | null };
 
-export function TexReader({ api, paper, active, openToken, chrome, t, onReview }: {
-  api: Api; paper: Paper; active: boolean; openToken: number; chrome: ReaderChrome; t: Translator; onReview(): void;
+export function TexReader({ api, paper, active, openToken, reloadToken = 0, chrome, t }: {
+  api: Api; paper: Paper; active: boolean; openToken: number; reloadToken?: number; chrome: ReaderChrome; t: Translator;
 }) {
   const { t: copy } = useAppI18n({
     files: { zh: '查看源码', en: 'View source files' }, close: { zh: '关闭源码', en: 'Close source files' },
@@ -36,7 +36,7 @@ export function TexReader({ api, paper, active, openToken, chrome, t, onReview }
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [compilation, setCompilation] = useState<TexCompilation | null>(null);
   const [filesOpen, setFilesOpen] = useState(false), [bundle, setBundle] = useState<ResearchBundle | null>(null), [receipt, setReceipt] = useState<SourceReceipt | null>(null);
-  const mounted = useRef(true), loadedToken = useRef<number | null>(null);
+  const mounted = useRef(true), loadedToken = useRef<number | null>(null), loadedReload = useRef(reloadToken);
   const endpoint = `/api/papers/${paper.id}/tex`;
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   async function compile(selected = source, main = entry) {
@@ -77,9 +77,9 @@ export function TexReader({ api, paper, active, openToken, chrome, t, onReview }
     finally { if (mounted.current) setBusy(false); }
   }
   useEffect(() => {
-    if (!active || loadedToken.current === openToken) return;
-    loadedToken.current = openToken; void load();
-  }, [active, openToken]);
+    if (!active || (loadedToken.current === openToken && loadedReload.current === reloadToken)) return;
+    loadedToken.current = openToken; loadedReload.current = reloadToken; void load();
+  }, [active, openToken, reloadToken]);
   async function files() {
     if (!source) return;
     setFilesOpen(true); setError('');
@@ -97,7 +97,7 @@ export function TexReader({ api, paper, active, openToken, chrome, t, onReview }
     {active && !preview && (chrome.toolbar ? createPortal(controls, chrome.toolbar) : controls)}
     {working && <p className="pa-loading" role="status">{overview ? copy('compiling') : copy('loading')}</p>}
     {error && <Feedback kind="error"><div><p>{error}</p><Button disabled={busy} onClick={() => source && entry ? void compile() : void load()}>{copy('retry')}</Button></div></Feedback>}
-    {!busy && overview && !overview.sources.length && <div className="pa-tex-empty"><p>{copy('empty')}</p><Button onClick={onReview}>{copy('review')}</Button></div>}
+    {!busy && overview && !overview.sources.length && <div className="pa-tex-empty"><p>{copy('empty')}</p><Button onClick={() => chrome.onSave()}>{copy('review')}</Button></div>}
     {!busy && source && !source.available && <div className="pa-tex-empty"><p>{copy('empty')}</p><Button onClick={() => void files()}>{copy('review')}</Button></div>}
     {!working && !error && source?.available && !preview && <div className="pa-tex-empty">
       {!overview?.engineAvailable ? <p>{copy('engine')} <code>brew install tectonic</code></p> : !source.entries?.length ? <p>{copy('noMain')}</p> : <>

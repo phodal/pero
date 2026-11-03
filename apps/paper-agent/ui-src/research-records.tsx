@@ -5,6 +5,7 @@ import { Experiments, ReportView, type Citation } from './documents';
 import { ReadingMatrix } from './reading-matrix';
 import { ManualRecords } from './manual-records';
 import type { Api, Intent, Library, Paper, PdfAnnotation, Report, ResearchStudy, StudySummary } from './types';
+import './reader-workspace.css';
 import type { Translator } from './i18n';
 
 function StudyRecord({ study, complete, t }: { study: ResearchStudy; complete: boolean; t: Translator }) {
@@ -43,7 +44,7 @@ function SavedTurn({ entry, reports, api, onCite, onResume, disabled, opening, t
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setLoading(false); }
   }
-  return <details ref={details} className="pa-turn-history" data-turn-id={entry.id} onToggle={event => { if (event.currentTarget.open) void load(); }}><summary>{entry.question}</summary>
+  return <details ref={details} className="pa-turn-history pa-record-note" data-turn-id={entry.id} onToggle={event => { if (event.currentTarget.open) void load(); }}><summary>{entry.question}</summary>
     {loading && <p role="status">{t('loading')}</p>}
     {error && <Feedback kind="error">{error}<Button onClick={() => void load()}>{t('retry')}</Button></Feedback>}
     {loaded?.intent.contextFile?.anchor && <Button onClick={() => onCite({ paperId: loaded.intent.contextFile!.paperId, anchor: loaded.intent.contextFile!.anchor }, loaded.intent)}>{loaded.intent.contextFile.anchor.rects?.length ? 'Show discussed region' : 'Show discussed page'}</Button>}
@@ -64,7 +65,7 @@ function SavedStudy({ entry, api, onContinue, opening, t }: { entry: StudySummar
     api.get<ResearchStudy>(`/api/studies/${entry.id}`).then(value => { if (active) setStudy(value); }, error => { if (active) setError(String(error)); });
     return () => { active = false; };
   }, [api, entry.id, entry.budget.used, open, retry]);
-  return <details ref={details} className="pa-turn-history" data-saved-study-id={entry.id} onToggle={event => setOpen(event.currentTarget.open)}>
+  return <details ref={details} className="pa-turn-history pa-record-note" data-saved-study-id={entry.id} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>{entry.question}</summary>
     {error ? <Feedback kind="error">{error}<Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></Feedback> : study ? <StudyRecord study={study} complete={false} t={t}/> : <p role="status">{t('loading')}</p>}
     <Button onClick={onContinue}>{t('continueStudy')}</Button>
@@ -85,6 +86,6 @@ export function ResearchRecords({ api, library, paper, onFollowUp, onContinue, o
     {!history.length && !unfinished.length && !library.matrixCount && <EmptyState heading={t('noResearchRecords')}/>}
     {unfinished.map(study => <SavedStudy key={study.id} entry={study} api={api} opening={opening?.studyId === study.id ? opening.token : undefined} onContinue={() => onContinue(study)} t={t}/>)}
     {history.map(intent => <SavedTurn key={`${intent.id}:${library.reports.filter(report => report.intentId === intent.id).length}`} entry={intent} opening={opening?.intentId === intent.id ? opening.token : undefined} reports={library.reports.filter(report => report.intentId === intent.id)} api={api} onCite={onCite} onResume={onFollowUp} disabled={false} t={t}/>)}
-    {!!library.matrixCount && <details className="pa-output-matrix" open={matrixOpen} onToggle={event => onMatrixOpen(event.currentTarget.open)}><summary>{t('matrix')}</summary><ReadingMatrix api={api} active={matrixOpen} count={library.matrixCount} papers={library.papers} onOpen={onAnnotation} t={t}/></details>}
+    {!!library.matrixCount && <details className="pa-output-matrix pa-record-note" open={matrixOpen} onToggle={event => onMatrixOpen(event.currentTarget.open)}><summary>{t('matrix')}</summary><ReadingMatrix api={api} active={matrixOpen} count={library.matrixCount} papers={library.papers} onOpen={onAnnotation} t={t}/></details>}
   </div>;
 }

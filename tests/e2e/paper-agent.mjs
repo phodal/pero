@@ -301,7 +301,7 @@ try {
     await expect(exportTurn.locator('.pa-print-appendix')).toBeVisible();
     await page.emulateMedia({media:'screen'});
     checks.push('persisted report exports retain source versions and unverified acceptance');
-    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask', exact: true }).click();
+    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask AI', exact: true }).click();
     await fillPaperChat(page, 'paper-fixture-wait: cancellation acceptance');
     await page.keyboard.press('Enter');
     await expect.poll(async () => { const s = await chatState(page); return s.chats[s.activeChat].state; }).toBe('running');

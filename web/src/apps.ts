@@ -297,7 +297,10 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
     },
     overlay(value: {x:number;y:number;width:number;height:number}|null) {
       if (JSON.stringify(chatOverlay) === JSON.stringify(value)) return;
+      const closed = !!chatOverlay && !value;
       chatOverlay=value; update();
+      if (!closed) return;
+      for (const frame of frames.values()) frame.element.contentWindow?.postMessage({type:'pero:app:event', event:'chat:closed'}, '*');
     },
     suspendChatOverlay(value: boolean) { chatOverlaySuspended=value; update(); },
     surface(value: AppSurface|AppSurfaceBatch) {

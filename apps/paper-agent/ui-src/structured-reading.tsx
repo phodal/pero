@@ -31,6 +31,24 @@ function MathValue({ token }: { token: Inline }) {
   const value = useMemo(() => token.mathml ? mathElement(new DOMParser().parseFromString(token.mathml, 'application/xml').documentElement, 0) : null, [token.mathml]);
   return value ? <>{value}</> : <span>{token.latex || token.text || 'Formula unavailable'}{!token.mathml && <small> (original formula only)</small>}</span>;
 }
+function headingLabel(block: Block) {
+  return block.content.map(item => item.text).join('').replace(/\s+/g, ' ').trim();
+}
+function readingHeadings(blocks: Block[]) {
+  const headings = blocks.flatMap(block => {
+    if (block.kind !== 'heading') return [];
+    const title = headingLabel(block);
+    const letters = title.match(/\p{L}/gu) ?? [];
+    if (letters.length < 2 || /source-conversion/i.test(title) || title.includes('Reveal original')) return [];
+    return [{ id: block.id, title }];
+  });
+  return headings.length >= 2 ? headings : [];
+}
+function TextContents({ blocks, current, onOpen }: { blocks: Block[]; current: string; onOpen(id: string): void }) {
+  const headings = readingHeadings(blocks);
+  if (!headings.length) return null;
+  return <nav className="pa-text-contents" aria-label="Contents">{headings.map(heading => <button type="button" key={heading.id} className="pa-text-contents-item" aria-current={current === heading.id ? 'location' : undefined} onClick={() => onOpen(heading.id)}>{heading.title}</button>)}</nav>;
+}
 function Contents({ tokens, onTarget }: { tokens: Inline[]; onTarget(target: string): void }) {
   return <>{tokens.map((token, index) => {
     const content = token.kind === 'math' ? <MathValue token={token}/> : token.text;
@@ -167,7 +185,7 @@ export function StructuredReading({ api, paperId, openToken, onReady, onPrepared
     {error && <Feedback kind="error">{error.message}<Button onClick={() => setError(null)}>Dismiss</Button>{error.source && <Button disabled={busy} onClick={() => void prepare(error.source!, true)}>Retry {error.source.revision}</Button>}</Feedback>}
     {!document && !overview.reviewUrl && overview.sources.length === 0 && <p className="pa-document-meta">Read needs an explicitly approved, fixed-version official HTML source. Existing text and PDF remain available.</p>}
     {!document && overview.sources.some(s => !s.authorized) && <p className="pa-document-meta">HTML acquisition is not authorized. Review sources before downloading; PDF permission does not include HTML.</p>}
-    {!document ? <div className="pa-text-document">{children}</div> : <div className="pa-reading-column">
+    {!document ? <div className="pa-text-document"><TextContents blocks={[]} current={target} onOpen={reveal}/>{children}</div> : <div className="pa-reading-column">
       {(scopes.length > 1 || !!evidenceScope && !selectedScope) && <Select label="Evidence bundle" disabled={busy} value={selectedScope ? `${selectedScope.bundleId}:${selectedScope.resourceId}` : ''} onChange={value => {
         const scope = scopes.find(scope => `${scope.bundleId}:${scope.resourceId}` === value); chooseScope(document.id, scope ?? null);
       }} options={[{ value: '', label: 'Choose evidence bundle' }, ...scopes.map(scope => ({ value: `${scope.bundleId}:${scope.resourceId}`, label: `${scope.bundleId.slice(0, 12)} · ${scope.resourceId.slice(0, 8)}` }))]}/>}

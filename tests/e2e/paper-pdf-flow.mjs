@@ -98,7 +98,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
     catch (error) { if (error.code === 'ENOENT') return []; throw error; }
   };
   await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
-  await frame.getByRole('button', { name: 'Ask', exact: true }).click();
+  await frame.getByRole('button', { name: 'Ask AI', exact: true }).click();
   const save = frame.getByRole('dialog', { name: 'Save copies', exact: true });
   await expect(save).toBeVisible();
   await expect(save.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
@@ -107,7 +107,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await page.screenshot({ path: resolve(out, 'pdf-research-source-review.png') });
   await save.getByRole('button', { name: 'Close', exact: true }).click();
   expect(await acquisitions()).toEqual([]);
-  await frame.getByRole('button', { name: 'Ask', exact: true }).click();
+  await frame.getByRole('button', { name: 'Ask AI', exact: true }).click();
   await expect(save.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
   await save.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect(save.getByRole('button', { name: 'Export copies', exact: true })).toBeEnabled();
@@ -118,7 +118,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await closePaperChat(page, frame);
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true }), nav = frame.locator('.pa-reading-main');
   await expect(viewer).toBeVisible({ timeout: 30000 });
-  await expect(frame.getByRole('complementary', { name: 'Ask', exact: true })).toHaveCount(0);
+  await expect(frame.getByRole('complementary', { name: 'Ask AI', exact: true })).toHaveCount(0);
   await expect(frame.locator('.pa-library-screen')).not.toBeVisible();
   await expect(frame.getByRole('tab')).toHaveCount(0);
   const first = viewer.locator('[data-page-number="1"]');
@@ -144,7 +144,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
   await first.locator('img,canvas').first().evaluate(element => element.dataset.readingIdentity = 'retained');
   const zoom = await nav.getByRole('button', { name: 'Fit page', exact: true }).innerText();
-  await nav.getByRole('button', { name: 'Ask', exact: true }).click();
+  await nav.getByRole('button', { name: 'Ask AI', exact: true }).click();
   await expect.poll(async () => (await chatState(page)).appChatOpen).toBe(true);
   await expect(first.locator('img,canvas').first()).toHaveAttribute('data-reading-identity', 'retained');
   await expect(frame.locator('.pa-workspace')).toHaveAttribute('data-question', 'true');
@@ -227,7 +227,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await setPaperAppearance(page, 'dark');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 800));
   await expect.poll(async () => frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-  await nav.getByRole('button', { name: 'Ask', exact: true }).click();
+  await nav.getByRole('button', { name: 'Ask AI', exact: true }).click();
   await expect.poll(async () => (await chatState(page)).appChatOpen).toBe(true);
   await expect(frame.locator('.pa-reading-main')).not.toHaveAttribute('inert', '');
   await page.screenshot({ path: resolve(out, 'pdf-dark-narrow.png') });
@@ -296,7 +296,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await backToLibrary(frame);
   await exercisePdfSearch({ frame, page, out, realPdf: fixture.realPdf });
   await viewer.locator('img,canvas').first().evaluate(element => element.dataset.citationIdentity = 'retained');
-  await nav.getByRole('button', { name: 'Ask', exact: true }).click();
+  await nav.getByRole('button', { name: 'Ask AI', exact: true }).click();
   await fillPaperChat(page, fixture.realPdf ? 'attention mechanism' : 'Second page');
   await page.keyboard.press('Enter');
   await expect.poll(async () => frame.locator('body').evaluate(async () => (await (await fetch('/api/library')).json()).reports.some(report => report.title === 'PDF answer fixture')), { timeout: 30000 }).toBe(true);
@@ -330,7 +330,7 @@ export async function reopenPdf({ frame, saved, page }) {
   await expect(frame.locator('.pa-reader-tools').getByRole('button', { name: 'Fit page', exact: true })).toHaveText(`${Math.round(saved.readerState.zoom * 100)}%`);
   const restored = await frame.locator('body').evaluate((_element, key) => JSON.parse(localStorage.getItem(key)), `pero.paper.pdf-view:${saved.readerState.documentId}:${saved.fileDigest}`);
   expect(restored.selection).toEqual(saved.readerState.selection);
-  await askPaperChat(frame, page, frame.getByRole('button', { name: 'Ask', exact: true }));
+  await askPaperChat(frame, page, frame.getByRole('button', { name: 'Ask AI', exact: true }));
   await closePaperChat(page, frame);
   await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Research record', exact: true }).click();
   await frame.locator('.pa-output-matrix>summary').click();

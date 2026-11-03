@@ -6,6 +6,7 @@ import { ScientificContent } from './scientific-content';
 import { StructuredReading } from './structured-reading';
 import { EvidenceMatrix } from './evidence-matrix';
 import type { Translator } from './i18n';
+import './reader-workspace.css';
 
 function SourceLines({ content, focus, label }: { content: string; focus: TextFocus; label: string }) {
   const mark = useRef<HTMLElement>(null);
@@ -34,7 +35,7 @@ export function Reader({ paper, busy, openToken, pdfReloadToken, api, pdfFocus, 
     setExcerpt(value);
   }
   return <article className="pa-document pa-reading-document" data-paper-id={paper.id} aria-label={paper.title}>
-    <PdfReader key={paper.id} onReview={onReview} sourceUrl={sourceUrl} openToken={openToken} readRequest={readRequest} pdfReloadToken={pdfReloadToken} chrome={chrome} paper={paper} api={api} focus={textFocus ? null : pdfFocus} lockText={!!textFocus} readLabel={structured && !textFocus ? 'Read' : undefined} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}>
+    <PdfReader key={paper.id} sourceUrl={sourceUrl} openToken={openToken} readRequest={readRequest} pdfReloadToken={pdfReloadToken} chrome={chrome} paper={paper} api={api} focus={textFocus ? null : pdfFocus} lockText={!!textFocus} readLabel={structured && !textFocus ? 'Read' : undefined} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}>
       <div className="pa-text-reading pero-reader-body"><div className="pero-reader-content">
         <StructuredReading onDiscuss={onDiscuss} onSourceUrl={setSourceUrl} toolbar={chrome.toolbar} openToken={openToken} showText={!!textFocus} api={api} paperId={paper.id} onReady={setStructured} onPrepared={() => setReadRequest(value => value + 1)} onReview={onReview}>
         {paper.contentKind !== 'full-text' && !textFocus && <p className="pa-document-meta">{paper.resourceKind === 'web_article' ? 'Article excerpt' : t(paper.contentKind === 'abstract' ? 'abstract' : 'sourceReport')}</p>}
