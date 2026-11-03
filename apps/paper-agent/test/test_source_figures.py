@@ -56,11 +56,13 @@ class SourceFiguresTest(unittest.TestCase):
                     contentKind='abstract', content='Self-authored figure fixture.'), NOW)
                 store.save_paper(result)
                 return result
-            query = dict(operation='figures', paperId=paper('v1').id, query='ablation')
+            paper_v1 = paper('v1')
+            query = dict(operation='figures', paperId=paper_v1.id, query='ablation')
             figures = source_read(store, query)
             figure, = figures['figures']
             self.assertTrue(figure['resolved'])
             self.assertEqual(figure['members'][0]['path'], 'figures/ablation.pdf')
+            self.assertEqual(figures['links'], [dict(label='Local fixture', location=f'paper/{paper_v1.id}')])
             self.assertEqual(source_read(store, dict(query, paperId=paper('v2').id))['sources'], [])
             self.assertEqual(source_report(store, dict(operation='observations', bundleId=selection['bundleId']), NOW)['observations'], [])
             image_request = dict(operation='image', **selection, memberId=figure['members'][0]['id'])
